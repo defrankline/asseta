@@ -19,15 +19,27 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.asseta.supervisor.FieldGraph
+import com.asseta.supervisor.ui.finance.CashFormViewModel
+import com.asseta.supervisor.ui.finance.FinanceActions
 
 @Composable
-fun JobsScreen(field: FieldGraph, tenantId: String, onOpen: (String) -> Unit) {
+fun JobsScreen(field: FieldGraph, tenantId: String, onOpen: (String) -> Unit, onFinance: (Route) -> Unit) {
     val jobs by remember(tenantId) { field.repository.observeJobs(tenantId) }.collectAsStateWithLifecycle(emptyList())
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        item {
+            Text("Money & fuel", style = MaterialTheme.typography.titleLarge)
+            FinanceActions(
+                onExpense = { onFinance(Route.RecordExpense) },
+                onCollection = { onFinance(Route.CashForm(CashFormViewModel.COLLECTION)) },
+                onHandover = { onFinance(Route.CashForm(CashFormViewModel.HANDOVER)) },
+                onFuel = { onFinance(Route.CashForm(CashFormViewModel.FUEL)) },
+                onMyCash = { onFinance(Route.MyCash) },
+            )
+        }
         item { Text("Assigned jobs", style = MaterialTheme.typography.titleLarge) }
         if (jobs.isEmpty()) {
             item {

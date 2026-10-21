@@ -12,6 +12,8 @@ import com.asseta.core.network.SyncApi
 import com.asseta.core.sync.evidence.EvidenceFiles
 import com.asseta.core.sync.evidence.Sha256
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
@@ -24,8 +26,9 @@ import okhttp3.RequestBody.Companion.toRequestBody
  * resumes with only the missing indexes. CHECKSUM_MISMATCH (server discarded the chunks) or an expired/unknown session
  * restarts from a new session. Known content completes immediately (server dedupe).
  *
- * On completion the server attachment id is written into the waiting operations' payloads in the same transaction,
- * which is what makes those operations dispatchable (a capture is never sent before its photo has an attachment id).
+ * On completion the server attachment id (or, for an expense receipt, the completed upload id) is written into the
+ * waiting operations' payloads in the same transaction, which is what makes those operations dispatchable (a capture
+ * is never sent before its photo has an attachment id; an expense never before its receipt upload completed).
  */
 class BlobUploader(
     private val api: SyncApi,
@@ -112,13 +115,15 @@ class BlobUploader(
             database.evidenceDao().markAttachmentComplete(attachment.id, serverId)
             val ops = database.clientOperationDao()
             ops.forAttachment(attachment.id).forEach { op ->
-                val field = when (op.opType) {
-                    OpTypes.METER_CAPTURE -> "photo_attachment_id"
-                    OpTypes.JOB_ACKNOWLEDGEMENT -> "signature_attachment_id"
+                val patch: Pair<String, JsonElement> = when (op.opType) {
+                    OpTypes.METER_CAPTURE -> "photo_attachment_id" to JsonPrimitive(serverId)
+                    OpTypes.JOB_ACKNOWLEDGEMENT -> "signature_attachment_id" to JsonPrimitive(serverId)
+                    // The sync EXPENSE op references receipts by blob upload id (resolved server-side to attachments).
+                    OpTypes.EXPENSE -> "receipt_upload_ids" to JsonArray(listOf(JsonPrimitive(dto.id)))
                     else -> return@forEach
                 }
                 val payload = json.parseToJsonElement(op.payloadJson).jsonObject
-                ops.patchUnsentPayload(op.id, json.encodeToString(JsonObject(payload + (field to JsonPrimitive(serverId)))))
+                ops.patchUnsentPayload(op.id, json.encodeToString(JsonObject(payload + patch)))
             }
         }
         return Attempt.Done

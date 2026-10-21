@@ -17,6 +17,12 @@ object AssetaMigrations {
      * dependency table, cached server data, policy snapshots, sync state and local evidence tables. Room generates the
      * DDL from the committed schemas; this spec carries v1 single dependencies over into the new dependency table.
      */
+    /*
+     * v2 -> v3 (Gate 5 field finance): new tables `expense_category` and `cash_custody_balance` plus the nullable
+     * `job.currency` column (Room AutoMigration, purely additive). Finance operations reuse the existing outbox and
+     * attachment tables; the EXPENSE_CAPTURE policy snapshot reuses `policy_snapshot`. No existing row is changed.
+     */
+
     class V1ToV2 : AutoMigrationSpec {
         override fun onPostMigrate(db: SupportSQLiteDatabase) {
             db.execSQL(

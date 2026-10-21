@@ -9,7 +9,8 @@ tenant selection). Gate 4 adds the Supervisor field app: device registration, bo
 snapshots, hour-meter capture (CameraX + bundled on-device ML Kit OCR, or manual), mandatory fresh GPS attempt,
 resumable encrypted evidence upload, the outbox sync engine (WorkManager), work log, customer acknowledgement,
 job START/COMPLETE, sync status screen, clock-tamper alert and device-revocation wipe. The Owner app is unchanged.
-Gate 5 operations (expenses, collections, fuel, cash) are not part of this gate.
+Gate 5 adds offline field finance to the Supervisor app: record expense (receipt photo + GPS under the synced
+`EXPENSE_CAPTURE` snapshot), cash collection, cash handover, fuel event and a "My cash" view (see below).
 
 ## Modules
 
@@ -19,7 +20,7 @@ Gate 5 operations (expenses, collections, fuel, cash) are not part of this gate.
 | `:core:domain` | Pure-Kotlin field rules shared by all screens and the engine (JVM-tested): `MeterReadingParser` (port of the shared OCR spec v1), `GlyphSegmenter`/`GlyphRenderer`/`SevenSegmentDecoder`/`GeometricOcr` (glyph geometry, re-rendering, segment decoder and agreement scoring of the OCR pipeline), `OcrAssessor`/`OcrConsensus`/`PixelRedCellDetector` (text-only fallback + drum handling), `PolicySelector` (machine > tenant snapshot, expiry, offline grant), `CaptureValidator`/`ReadingValidator`/`OcrFlow` (mode, photo, recapture, decimals), `JobStateRules`, `GpsOutcome`, `OutboxTransitions` (state machine), `JobOperationPlanner` (dependency chain), `Backoff`, `ClockCheck`. |
 | `:core:sync` | Data + engine (Android library): `SyncEngine` (register -> bootstrap/changes -> blob upload -> push -> changes), `OutboxPusher`, `BlobUploader`, `ServerDataWriter`, `FieldRepository` (read side), use cases `CaptureMeterReading` and `JobWorkflow`, `FieldOutbox` (single place that enqueues ops with dependencies), `EncryptedEvidenceStore`, `DeviceWipe`, `SyncWorker`/`SyncScheduler` (WorkManager). |
 | `:core:security` | Android Keystore AES-256-GCM key per purpose (`KeystoreSecretCipher`), wrapped-secret file store in `noBackupFilesDir`, SQLCipher passphrase provider (32 random bytes, generated once, never regenerated silently), encrypted token store, evidence data key (`WrappedRandomKey`), device id (`DeviceIdStore`), `wipeLocalSecrets()` (deletes wrapped files and their Keystore keys). |
-| `:core:database` | Room + SQLCipher (`SupportOpenHelperFactory`), schema v2. Outbox `client_operation` (+ `client_operation_dependency` for multi-parent deps, attachment gate, server result/error code) with SQL-guarded transitions; `attachment` (resumable upload state), `job`, `machine`, `reference_record`, `policy_snapshot`, `sync_state`, `meter_capture`, `work_log_entry`. `DatabaseHolder` (close + delete for the wipe). Exported schemas in `core/database/schemas/`; v1->v2 is a Room AutoMigration with a post-migrate step copying legacy `depends_on`; **no destructive fallback**. |
+| `:core:database` | Room + SQLCipher (`SupportOpenHelperFactory`), schema v3 (v2->v3 AutoMigration: `expense_category`, `cash_custody_balance`, nullable `job.currency`; tested in `MigrationTest`). Outbox `client_operation` (+ `client_operation_dependency` for multi-parent deps, attachment gate, server result/error code) with SQL-guarded transitions; `attachment` (resumable upload state), `job`, `machine`, `reference_record`, `policy_snapshot`, `sync_state`, `meter_capture`, `work_log_entry`. `DatabaseHolder` (close + delete for the wipe). Exported schemas in `core/database/schemas/`; v1->v2 is a Room AutoMigration with a post-migrate step copying legacy `depends_on`; **no destructive fallback**. |
 | `:core:network` | OkHttp/Retrofit client. Interceptors: `Authorization: Bearer`, `X-Tenant-ID`, `X-Correlation-ID` (UUID per request), `Idempotency-Key` on POST/PUT/PATCH/DELETE (an explicit key, e.g. the outbox operation id, is preserved), error envelope → `ApiException`. Base URL from `BuildConfig`. Debug-only cleartext to `10.0.2.2`/`localhost`. |
 | `:core:auth` | AppAuth Authorization Code + PKCE against Keycloak realm `asseta`, public client `asseta-mobile`; the redirect scheme is supplied per app (see Configuration), never defined in core; token refresh; logout (local clear + Keycloak end-session). `SelectedTenantStore`. Keycloak and the API are authoritative; the app never authorizes locally, it only hides UI. |
 | `:core:ui` | Material3 brand theme (Slate `#0F2A3D`, Amber `#F5A300`), launcher adaptive icon (vector conversion of `branding/asseta-mark.svg`), login screen, `/me` + tenant picker, `SessionViewModel` (+ forced sign-out via `SessionNotice`), `AssetaSessionApp(container, home)` (optional per-app home after tenant selection), `AssetaAppContainer` (manual DI, resettable `databaseHolder`). |
@@ -72,6 +73,9 @@ device-only); the engine tests drive the real `SyncEngine` over HTTP against `Fa
 dispatcher emulating the backend sync semantics). The OCR parser test reads `contracts/fixtures/ocr/parse_cases.json`
 in place (Gradle passes the path); the instrumented OCR test mounts `contracts/fixtures/ocr` read-only as test
 assets. Nothing is copied.
+
+`SyncLiveTest` (skipped unless `ASSETA_LIVE_E2E`) has two cases: the opening capture, and an offline expense with
+receipt + cash collection + handover reaching ACKED, verified via `/tenant/expenses` and `/tenant/cash/custody/me`.
 
 Instrumented tests: `EncryptedDatabaseTest` (SQLCipher at rest), `DeviceWipeTest` (real Keystore: evidence
 encrypted at rest; wipe removes DB, keys, tokens, files; device id kept), `MeterOcrFixtureTest` (ML Kit over all 24
@@ -152,6 +156,28 @@ over three runs:
 Of the `fallback_ok` images, `lcd_7seg__blur` is read wrongly (`41213.3`) at 0.50 and `lcd_7seg__noise` gets no
 geometric read, so the text-only read (`212.5`, wrong) is capped at 0.35; both lead to a recapture. The other five are
 read correctly at >= 0.92. The fixtures are synthetic; real samples are still required (EXT-05).
+
+## Field finance (Gate 5)
+
+- **Data**: bootstrap/changes `expense_categories` (bootstrap = full active set; deltas upsert by `sync_revision`, so
+  `is_active=false` hides a category), `cash_custody` (server-computed, replaced on every pull) and the tenant
+  `EXPENSE_CAPTURE` snapshot (stored in `policy_snapshot`). Deactivated customers (delta `is_active=false`) drop out
+  of pickers. Every picker over synced data is a searchable bottom sheet (`SearchablePickerField`, `SearchMatch`).
+- **Rules** (`core:domain` `finance/`, enforced in `FinanceCapture` and shown live in the form): amounts parsed as
+  `BigDecimal` from text (never floats; no grouping separators); receipt required above `receipt_required_above` or
+  in a non-base currency; when `gps_required`, a FIX within `gps_max_accuracy_m`; every expense makes a GPS attempt;
+  above `auto_approve_limit` (or foreign currency) the form explains it will need approval. Blocked like capture
+  rules when the snapshot is missing/expired or the offline grant has passed. The tenant currency is inferred from the
+  synced custody (else the jobs' currency); when unknown the expense is treated as foreign (stricter).
+- **Outbox**: ops `EXPENSE`, `CASH_COLLECTION`, `CASH_HANDOVER`, `FUEL_EVENT` via `FieldOutbox.enqueueOperation`; the
+  entity id is the form's `client_id` (generated once per visit; exactly-once checked inside the transaction). An
+  expense with a receipt waits for its `EXPENSE_RECEIPT` upload (attachment gate); on completion the upload id is
+  written into `receipt_upload_ids`. Server `ATTACHMENT_PENDING` is a normal DEFERRED (resent), `RECEIPT_NOT_FOUND`
+  a rejection; all outcomes go through `OutboxTransitions`. The collection contract has no job field, so a chosen job
+  is recorded in the note (`Job J-…`).
+- **My cash**: synced custody (outstanding, handovers awaiting verification, expenses awaiting approval) next to this
+  device's unsynced collections/handovers/cash expenses, labelled "not verified"; refused records are listed, never
+  counted.
 
 ## Rules for later gates
 

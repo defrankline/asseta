@@ -13,12 +13,14 @@ import com.asseta.core.model.ClientOperationStatus
 import com.asseta.core.network.NetworkFactory
 import com.asseta.core.sync.data.FieldOutbox
 import com.asseta.core.sync.data.FieldRepository
+import com.asseta.core.sync.data.FinanceRepository
 import com.asseta.core.sync.engine.LocalDataWiper
 import com.asseta.core.sync.engine.SyncEngine
 import com.asseta.core.sync.evidence.EncryptedEvidenceStore
 import com.asseta.core.sync.usecase.CaptureMeterReading
 import com.asseta.core.sync.usecase.CaptureRequest
 import com.asseta.core.sync.usecase.CaptureResult
+import com.asseta.core.sync.usecase.FinanceCapture
 import com.asseta.core.sync.usecase.JobWorkflow
 import kotlinx.coroutines.runBlocking
 import mockwebserver3.MockWebServer
@@ -51,6 +53,8 @@ abstract class SyncTestBase {
     protected lateinit var repository: FieldRepository
     protected lateinit var capture: CaptureMeterReading
     protected lateinit var workflow: JobWorkflow
+    protected lateinit var financeRepository: FinanceRepository
+    protected lateinit var finance: FinanceCapture
     protected val photo = ByteArray(10) { (it * 7 + 1).toByte() } // 3 chunks of 4 bytes
     private val key = ByteArray(32) { it.toByte() }
 
@@ -65,6 +69,8 @@ abstract class SyncTestBase {
         val outbox = FieldOutbox({ db }, json, clock)
         capture = CaptureMeterReading({ db }, repository, outbox, files, { DEVICE }, json)
         workflow = JobWorkflow({ db }, repository, outbox, files, { DEVICE }, clock, json)
+        financeRepository = FinanceRepository({ db }, repository, json, clock)
+        finance = FinanceCapture({ db }, repository, financeRepository, outbox, files, { DEVICE }, json)
     }
 
     @After

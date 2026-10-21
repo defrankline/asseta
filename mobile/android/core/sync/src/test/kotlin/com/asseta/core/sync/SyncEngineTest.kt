@@ -43,7 +43,7 @@ class SyncEngineTest : SyncTestBase() {
         assertEquals(10L, state.cursor)
         assertNotNull(state.offlineGrantUntil)
         assertEquals("APPROVED", db.fieldDataDao().job(fake.jobId)!!.status)
-        assertEquals(1, db.fieldDataDao().snapshots(tenant).size)
+        assertEquals(setOf("METER_CAPTURE", "EXPENSE_CAPTURE"), db.fieldDataDao().snapshots(tenant).map { it.policyType }.toSet())
 
         fake.cursor = 25
         fake.changesJobs = listOf(fake.job("IN_PROGRESS", 3))

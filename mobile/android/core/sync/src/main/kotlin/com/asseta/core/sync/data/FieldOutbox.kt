@@ -19,6 +19,13 @@ object FieldOps {
     fun transitionEntityType(action: String) = "job_transition.$action"
     const val ACTIVITY = "job_activity"
     const val ACKNOWLEDGEMENT = "job_acknowledgement"
+    const val EXPENSE = "expense"
+    const val CASH_COLLECTION = "cash_collection"
+    const val CASH_HANDOVER = "cash_handover"
+    const val FUEL_EVENT = "fuel_event"
+
+    /** Field-finance op types (not part of a job workflow chain). */
+    val FINANCE_OP_TYPES = listOf(OpTypes.EXPENSE, OpTypes.CASH_COLLECTION, OpTypes.CASH_HANDOVER, OpTypes.FUEL_EVENT)
 
     fun kindOf(op: ClientOperationEntity): JobOpKind? = when (op.entityType) {
         captureEntityType(ReadingKind.OPENING) -> JobOpKind.OPENING_CAPTURE
@@ -40,8 +47,9 @@ object FieldOps {
 
 /**
  * The single place that turns a field action into an outbox operation with its dependency chain
- * (opening capture -> START -> activities/closing -> acknowledgement -> COMPLETE). Must be called inside the caller's
- * transaction so the domain record and its operation are written atomically.
+ * (opening capture -> START -> activities/closing -> acknowledgement -> COMPLETE), or a field-finance operation with
+ * its explicit dependencies and evidence gate (an expense waits for its receipt upload). Must be called inside the
+ * caller's transaction so the domain record and its operation are written atomically.
  */
 class FieldOutbox(private val db: () -> AssetaDatabase, private val json: Json, private val clock: SyncClock) {
 
@@ -60,10 +68,28 @@ class FieldOutbox(private val db: () -> AssetaDatabase, private val json: Json, 
         attachmentLocalId: String? = null,
     ): String {
         val deps = JobOperationPlanner.dependenciesFor(kind, localJobOps(tenantId, jobId))
+        return enqueueOperation(tenantId, FieldOps.opTypeOf(kind), entityType, entityId, payload, attachmentLocalId, deps, jobId)
+    }
+
+    /**
+     * Enqueues one operation. [attachmentLocalId] gates dispatch until that evidence upload completed (its server ids
+     * are then written into the never-sent payload); [dependsOn] are parent operations that must be ACKED first.
+     */
+    suspend fun enqueueOperation(
+        tenantId: String,
+        opType: String,
+        entityType: String,
+        entityId: String,
+        payload: JsonObject,
+        attachmentLocalId: String? = null,
+        dependsOn: List<String> = emptyList(),
+        jobId: String? = null,
+    ): String {
+        require(dependsOn.size <= JobOperationPlanner.MAX_DEPENDENCIES) { "Too many dependencies" }
         val op = ClientOperationEntity(
             id = UUID.randomUUID().toString(),
             tenantId = tenantId,
-            opType = FieldOps.opTypeOf(kind),
+            opType = opType,
             entityType = entityType,
             entityId = entityId,
             payloadJson = json.encodeToString(payload),
@@ -76,7 +102,7 @@ class FieldOutbox(private val db: () -> AssetaDatabase, private val json: Json, 
             jobId = jobId,
             attachmentLocalId = attachmentLocalId,
         )
-        check(db().clientOperationDao().enqueueWithDependencies(op, deps) != -1L) { "Operation id collision" }
+        check(db().clientOperationDao().enqueueWithDependencies(op, dependsOn) != -1L) { "Operation id collision" }
         return op.id
     }
 }

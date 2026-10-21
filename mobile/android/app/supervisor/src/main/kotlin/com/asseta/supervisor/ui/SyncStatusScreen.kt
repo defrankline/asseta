@@ -73,7 +73,7 @@ fun SyncStatusScreen(vm: SyncStatusViewModel) {
         item {
             Text("Sync status", style = MaterialTheme.typography.headlineSmall)
             val last = ui.state?.lastSyncAt?.let { "Last sync ${LocalTime.format(it)}" } ?: "Not synced yet"
-            Text("$last · ${ui.pendingUploads} photo/signature upload(s) waiting" + (ui.state?.lastError?.let { " · last error $it" } ?: ""))
+            Text("$last · ${ui.pendingUploads} photo/signature/receipt upload(s) waiting" + (ui.state?.lastError?.let { " · last error $it" } ?: ""))
             Button(onClick = vm::syncNow, enabled = !ui.running, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
                 Text(if (ui.running) "Syncing…" else "Sync now")
             }

@@ -19,6 +19,8 @@ data class JobEntity(
     @ColumnInfo(name = "planned_start") val plannedStart: String,
     @ColumnInfo(name = "planned_end") val plannedEnd: String?,
     @ColumnInfo(name = "standby_treatment") val standbyTreatment: String?,
+    /** Contract currency (v3, nullable): the device's hint for the tenant currency of field-finance forms. */
+    @ColumnInfo(name = "currency") val currency: String? = null,
 )
 
 @Entity(tableName = "machine", indices = [Index(value = ["tenant_id"])])

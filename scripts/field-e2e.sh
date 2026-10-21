@@ -42,7 +42,8 @@ set +e
 IOS_STATUS=$?
 set -e
 grep -E "^(✔|✘|◇ Test|.*error)" "$IOS_LOG" || true
-if [[ $IOS_STATUS -ne 0 ]] || ! grep -q "✔ Test openingCaptureWithPhotoSyncsExactlyOnceAgainstTheLiveBackend() passed" "$IOS_LOG"; then
+if [[ $IOS_STATUS -ne 0 ]] || ! grep -q "✔ Test openingCaptureWithPhotoSyncsExactlyOnceAgainstTheLiveBackend() passed" "$IOS_LOG" \
+  || ! grep -q "✔ Test offlineExpenseCollectionAndHandoverReachAckedAgainstTheLiveBackend() passed" "$IOS_LOG"; then
   echo "iOS live sync FAILED (or was skipped)"; grep -E "Expectation failed|recorded an issue" "$IOS_LOG" || true; exit 1
 fi
 echo "iOS live sync PASSED"
@@ -58,7 +59,7 @@ set +e
 set -e
 SUMMARY="$(grep -o 'tests="[0-9]*" skipped="[0-9]*" failures="[0-9]*" errors="[0-9]*"' "$RESULT" 2>/dev/null | head -n 1 || true)"
 echo "Android result: ${SUMMARY:-missing}"
-if [[ "$SUMMARY" != 'tests="1" skipped="0" failures="0" errors="0"' ]]; then
+if [[ "$SUMMARY" != 'tests="2" skipped="0" failures="0" errors="0"' ]]; then  # opening capture + field finance
   echo "Android live sync FAILED (or was skipped)"; grep -A3 "<failure" "$RESULT" 2>/dev/null | head -n 8 || true; exit 1
 fi
 echo "Android live sync PASSED"

@@ -17,10 +17,15 @@ import androidx.room.TypeConverters
         SyncStateEntity::class,
         MeterCaptureEntity::class,
         WorkLogEntryEntity::class,
+        ExpenseCategoryEntity::class,
+        CashCustodyBalanceEntity::class,
     ],
     version = AssetaDatabase.VERSION,
     exportSchema = true,
-    autoMigrations = [AutoMigration(from = 1, to = 2, spec = AssetaMigrations.V1ToV2::class)],
+    autoMigrations = [
+        AutoMigration(from = 1, to = 2, spec = AssetaMigrations.V1ToV2::class),
+        AutoMigration(from = 2, to = 3),
+    ],
 )
 @TypeConverters(Converters::class)
 abstract class AssetaDatabase : RoomDatabase() {
@@ -28,9 +33,10 @@ abstract class AssetaDatabase : RoomDatabase() {
     abstract fun fieldDataDao(): FieldDataDao
     abstract fun syncStateDao(): SyncStateDao
     abstract fun evidenceDao(): EvidenceDao
+    abstract fun financeDataDao(): FinanceDataDao
 
     companion object {
-        const val VERSION = 2
+        const val VERSION = 3
         const val FILE_NAME = "asseta.db"
     }
 }

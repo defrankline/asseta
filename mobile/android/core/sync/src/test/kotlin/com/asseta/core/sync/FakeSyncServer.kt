@@ -24,7 +24,9 @@ import java.util.UUID
 /**
  * In-memory emulation of the backend sync semantics (backend/src/asseta/modules/sync): idempotent op store
  * (DUPLICATE replays the stored outcome), DEFERRED for unmet dependencies, QUARANTINED while read-only,
- * resumable SHA-256-verified blob sessions and DEVICE_REVOKED. Knobs let tests inject failures.
+ * resumable SHA-256-verified blob sessions and DEVICE_REVOKED. Field finance (Gate 5): expense categories, cash
+ * custody and the EXPENSE_CAPTURE snapshot in bootstrap/changes; EXPENSE receipts by blob upload id (DEFERRED
+ * `ATTACHMENT_PENDING` while the upload is open, REJECTED `RECEIPT_NOT_FOUND` when unknown). Knobs inject failures.
  */
 class FakeSyncServer(private val now: () -> Instant) : Dispatcher() {
     data class StoredOp(val payload: JsonObject, var status: String, var result: JsonObject)
@@ -36,6 +38,10 @@ class FakeSyncServer(private val now: () -> Instant) : Dispatcher() {
     val jobId = "11111111-1111-4111-8111-111111111111"
     val machineId = "22222222-2222-4222-8222-222222222222"
     val tenantVersionId = "33333333-3333-4333-8333-333333333333"
+    val contractId = "55555555-5555-4555-8555-555555555555"
+    val customerId = "66666666-6666-4666-8666-666666666666"
+    val categoryId = "77777777-7777-4777-8777-777777777777"
+    val staffId = "88888888-8888-4888-8888-888888888888"
 
     @Volatile var revoked = false
     @Volatile var readOnly = false
@@ -51,6 +57,19 @@ class FakeSyncServer(private val now: () -> Instant) : Dispatcher() {
     /** Optional per-op override: returns (status, result) or null for the default behaviour. */
     var handler: (op: JsonObject) -> Pair<String, JsonObject>? = { null }
     var changesJobs: List<JsonObject> = emptyList()
+    var changesCategories: List<JsonObject> = emptyList()
+    var changesCustomers: List<JsonObject> = emptyList()
+    @Volatile var custodyOutstanding = "500000.0000"
+    @Volatile var custodyCurrency = "TZS"
+    @Volatile var sendCustody = true
+    @Volatile var sendExpensePolicy = true
+    var expensePolicy: JsonObject = buildJsonObject {
+        put("receipt_required_above", "100.00"); put("gps_required", true); put("gps_max_accuracy_m", 50.0)
+        put("auto_approve_limit", "500.00")
+    }
+    var deferReceiptOnce = false
+    /** Business records by client id (the server returns the existing record for a known client id). */
+    val financeByClient = linkedMapOf<String, JsonObject>()
 
     val stored = linkedMapOf<String, StoredOp>()
     val applied = mutableListOf<String>()
@@ -107,10 +126,31 @@ class FakeSyncServer(private val now: () -> Instant) : Dispatcher() {
         put("id", jobId); put("job_number", "J-0001"); put("contract_id", "55555555-5555-4555-8555-555555555555")
         put("machine_id", machineId); put("job_site_id", JsonNull); put("supervisor_id", JsonNull); put("status", status)
         put("version", version); put("planned_start", "2026-10-21T06:00:00Z"); put("hourly_rate", "120.00")
-        put("standby_treatment", "EXCLUDED")
+        put("standby_treatment", "EXCLUDED"); put("currency", "TZS")
     }
 
-    private fun data(jobs: List<JsonObject>) = buildJsonObject {
+    fun category(name: String, active: Boolean, revision: Long, id: String = categoryId) = buildJsonObject {
+        put("id", id); put("code", name.uppercase().take(8)); put("name", name); put("is_active", active)
+        put("sync_revision", revision); put("version", 1)
+    }
+
+    fun customer(active: Boolean, name: String = "Road Builders Ltd") = buildJsonObject {
+        put("id", customerId); put("code", "C-01"); put("name", name); put("contact_name", "Ann"); put("contact_phone", JsonNull)
+        put("contact_email", JsonNull); put("tax_id", JsonNull); put("payment_terms_days", 30); put("is_active", active)
+    }
+
+    private fun contract() = buildJsonObject {
+        put("id", contractId); put("contract_number", "CT-01"); put("customer_id", customerId); put("status", "ACTIVE")
+    }
+
+    private fun custody() = buildJsonArray {
+        if (sendCustody) add(buildJsonObject {
+            put("staff_member_id", staffId); put("currency", custodyCurrency); put("outstanding", custodyOutstanding)
+            put("claimed_unverified_handovers", "0.0000"); put("pending_spending", "0.0000"); put("as_of", now().toString())
+        })
+    }
+
+    private fun data(jobs: List<JsonObject>, categories: List<JsonObject>, customers: List<JsonObject>) = buildJsonObject {
         put("jobs", JsonArray(jobs))
         putJsonArray("machines") {
             add(buildJsonObject {
@@ -118,13 +158,15 @@ class FakeSyncServer(private val now: () -> Instant) : Dispatcher() {
                 put("meter_decimal_places", 1); put("status", "ACTIVE"); put("version", 1)
             })
         }
-        putJsonArray("sites") {}; putJsonArray("customers") {}; putJsonArray("contracts") {}; putJsonArray("staff") {}
+        putJsonArray("sites") {}; put("customers", JsonArray(customers)); putJsonArray("staff") {}
+        put("contracts", JsonArray(if (customers.isEmpty()) emptyList() else listOf(contract())))
+        put("expense_categories", JsonArray(categories)); put("cash_custody", custody())
     }
 
     private fun snapshots() = buildJsonArray {
         add(buildJsonObject {
             put("policy_type", "METER_CAPTURE"); put("scope_key", "tenant")
-            putJsonArray("version_ids") { add(kotlinx.serialization.json.JsonPrimitive(tenantVersionId)) }
+            putJsonArray("version_ids") { add(JsonPrimitive(tenantVersionId)) }
             put("version_stamp", "v1")
             putJsonObject("values") {
                 put("opening_mode", openingMode); put("closing_mode", closingMode); put("manual_photo_required", false)
@@ -133,16 +175,23 @@ class FakeSyncServer(private val now: () -> Instant) : Dispatcher() {
             }
             put("valid_until", now().plusSeconds(snapshotValidHours * 3600).toString())
         })
+        if (sendExpensePolicy) add(buildJsonObject {
+            put("policy_type", "EXPENSE_CAPTURE"); put("scope_key", "tenant")
+            putJsonArray("version_ids") { add(JsonPrimitive(tenantVersionId)) }
+            put("version_stamp", "e1"); put("values", expensePolicy)
+            put("valid_until", now().plusSeconds(snapshotValidHours * 3600).toString())
+        })
     }
 
     private fun bootstrap() = buildJsonObject {
         put("protocol_version", 1); put("server_time", now().toString()); put("cursor", cursor)
-        put("device_session", deviceSession()); put("data", data(listOf(job("APPROVED", 1)))); put("policy_snapshots", snapshots())
+        put("device_session", deviceSession()); put("data", data(listOf(job("APPROVED", 1)), listOf(category("Fuel & oil", true, 5)), listOf(customer(true))))
+        put("policy_snapshots", snapshots())
     }
 
     private fun changes() = buildJsonObject {
         put("protocol_version", 1); put("server_time", now().toString()); put("cursor", cursor); put("has_more", false)
-        put("data", data(changesJobs)); put("policy_snapshots", snapshots())
+        put("data", data(changesJobs, changesCategories, changesCustomers)); put("policy_snapshots", snapshots())
     }
 
     private fun push(body: JsonObject): MockResponse {
@@ -171,6 +220,7 @@ class FakeSyncServer(private val now: () -> Instant) : Dispatcher() {
         }
         val unmet = op["depends_on"]?.jsonArray.orEmpty().map { it.jsonPrimitive.content }.filter { stored[it]?.status != "ACKED" }
         if (unmet.isNotEmpty() || deferOnce.remove(id)) return result(id, "DEFERRED", error = err("DEPENDENCY_PENDING"))
+        if (receiptsPending(op)) return result(id, "DEFERRED", error = err("ATTACHMENT_PENDING")) // not stored
         if (readOnly) {
             val r = buildJsonObject { put("error", err("SUBSCRIPTION_READ_ONLY")) }
             stored[id] = StoredOp(payload, "QUARANTINED", r)
@@ -182,8 +232,40 @@ class FakeSyncServer(private val now: () -> Instant) : Dispatcher() {
         return result(id, status, r, r["error"] as? JsonObject)
     }
 
+    private fun receiptsPending(op: JsonObject): Boolean {
+        if (op.str("op_type") != "EXPENSE") return false
+        if (deferReceiptOnce) { deferReceiptOnce = false; return true }
+        return uploadIds(op["payload"]!!.jsonObject).any { blobs[it] != null && blobs[it]!!.attachmentId == null }
+    }
+
+    private fun uploadIds(payload: JsonObject) = payload["receipt_upload_ids"]?.jsonArray.orEmpty().map { it.jsonPrimitive.content }
+
+    /** Mirrors ExpenseService.submit / CashCustodyService: client-id dedupe, receipt resolution and rules. */
+    private fun finance(op: JsonObject): Pair<String, JsonObject> {
+        val payload = op["payload"]!!.jsonObject
+        val clientId = payload.str("client_id")
+        financeByClient[clientId]?.let { return "ACKED" to buildJsonObject { put("entity", it) } }
+        val receipts = uploadIds(payload).map { blobs[it]?.attachmentId ?: return "REJECTED" to buildJsonObject { put("error", err("RECEIPT_NOT_FOUND")) } }
+        val entity = buildJsonObject {
+            put("id", UUID.randomUUID().toString()); put("client_id", clientId)
+            payload["amount"]?.let { put("amount", it) }; payload["currency"]?.let { put("currency", it) }
+            if (op.str("op_type") == "EXPENSE") {
+                val amount = payload.str("amount").toBigDecimal()
+                if (amount > expensePolicy.str("receipt_required_above").toBigDecimal() && receipts.isEmpty()) {
+                    return "REJECTED" to buildJsonObject { put("error", err("RECEIPT_REQUIRED")) }
+                }
+                val auto = amount <= expensePolicy.str("auto_approve_limit").toBigDecimal()
+                put("status", if (auto) "APPROVED" else "PENDING_APPROVAL")
+                put("receipt_attachment_ids", JsonArray(receipts.map { JsonPrimitive(it) }))
+            }
+        }
+        financeByClient[clientId] = entity
+        return "ACKED" to buildJsonObject { put("entity", entity) }
+    }
+
     private fun default(op: JsonObject): Pair<String, JsonObject> {
         val payload = op["payload"]!!.jsonObject
+        if (op.str("op_type") in setOf("EXPENSE", "CASH_COLLECTION", "CASH_HANDOVER", "FUEL_EVENT")) return finance(op)
         if (op.str("op_type") == "METER_CAPTURE" && payload.str("capture_mode") == "AUTOMATIC" &&
             payload["photo_attachment_id"] == null
         ) {
@@ -233,9 +315,9 @@ class FakeSyncServer(private val now: () -> Instant) : Dispatcher() {
 
     private fun blobDto(s: BlobSession) = buildJsonObject {
         put("id", s.id); put("chunk_size", s.chunkSize); put("total_chunks", (s.size + s.chunkSize - 1) / s.chunkSize)
-        putJsonArray("received_chunks") { s.chunks.keys.forEach { add(kotlinx.serialization.json.JsonPrimitive(it)) } }
+        putJsonArray("received_chunks") { s.chunks.keys.forEach { add(JsonPrimitive(it)) } }
         put("status", if (s.attachmentId != null) "COMPLETE" else "OPEN")
-        put("attachment_id", s.attachmentId?.let { kotlinx.serialization.json.JsonPrimitive(it) } ?: JsonNull)
+        put("attachment_id", s.attachmentId?.let { JsonPrimitive(it) } ?: JsonNull)
         put("expires_at", now().plusSeconds(3600).toString())
     }
 

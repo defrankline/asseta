@@ -46,6 +46,9 @@ data class SyncData(
     val customers: List<CustomerDto> = emptyList(),
     val contracts: List<ContractDto> = emptyList(),
     val staff: List<StaffDto> = emptyList(),
+    @SerialName("expense_categories") val expenseCategories: List<ExpenseCategoryDto> = emptyList(),
+    /** Null when the server did not send the field (older server): the stored custody is then left untouched. */
+    @SerialName("cash_custody") val cashCustody: List<CashCustodyBalanceDto>? = null,
 )
 
 @Serializable
@@ -123,11 +126,16 @@ object OpTypes {
     const val JOB_ACTIVITY = "JOB_ACTIVITY"
     const val JOB_ACKNOWLEDGEMENT = "JOB_ACKNOWLEDGEMENT"
     const val JOB_TRANSITION = "JOB_TRANSITION"
+    const val EXPENSE = "EXPENSE"
+    const val CASH_COLLECTION = "CASH_COLLECTION"
+    const val CASH_HANDOVER = "CASH_HANDOVER"
+    const val FUEL_EVENT = "FUEL_EVENT"
 }
 
 object BlobPurpose {
     const val METER_PHOTO = "METER_PHOTO"
     const val SIGNATURE = "SIGNATURE"
+    const val EXPENSE_RECEIPT = "EXPENSE_RECEIPT"
 }
 
 object SyncErrorCodes {
@@ -138,4 +146,6 @@ object SyncErrorCodes {
     const val UPLOAD_INCOMPLETE = "UPLOAD_INCOMPLETE"
     const val BATCH_TOO_LARGE = "BATCH_TOO_LARGE"
     const val DEVICE_NOT_REGISTERED = "DEVICE_NOT_REGISTERED"
+    const val ATTACHMENT_PENDING = "ATTACHMENT_PENDING"
+    const val RECEIPT_NOT_FOUND = "RECEIPT_NOT_FOUND"
 }

@@ -1,5 +1,6 @@
 package com.asseta.core.model.sync
 
+import com.asseta.core.model.DecimalAmount
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
@@ -23,6 +24,8 @@ data class JobDto(
     @SerialName("started_at") val startedAt: String? = null,
     @SerialName("completed_at") val completedAt: String? = null,
     @SerialName("standby_treatment") val standbyTreatment: String? = null,
+    /** Contract currency of the job (rates); a hint for the tenant currency on the device. */
+    val currency: String? = null,
 )
 
 @Serializable
@@ -73,4 +76,30 @@ data class StaffDto(
     @SerialName("full_name") val fullName: String,
     val kind: String,
     @SerialName("is_active") val isActive: Boolean = true,
+)
+
+/** Expense category (bootstrap: active only; deltas carry deactivations as `is_active=false`). */
+@Serializable
+data class ExpenseCategoryDto(
+    val id: String,
+    val code: String,
+    val name: String,
+    @SerialName("is_active") val isActive: Boolean = true,
+    @SerialName("sync_revision") val syncRevision: Long = 0,
+    val version: Long = 1,
+)
+
+/**
+ * The signed-in supervisor's server-computed cash custody per currency (always current, not a delta):
+ * `outstanding` = floats + collections - approved spending - verified handovers; claimed handovers and expenses awaiting
+ * approval are reported separately and are not deducted until the office verifies/approves them.
+ */
+@Serializable
+data class CashCustodyBalanceDto(
+    @SerialName("staff_member_id") val staffMemberId: String,
+    val currency: String,
+    val outstanding: DecimalAmount,
+    @SerialName("claimed_unverified_handovers") val claimedUnverifiedHandovers: DecimalAmount,
+    @SerialName("pending_spending") val pendingSpending: DecimalAmount,
+    @SerialName("as_of") val asOf: String,
 )

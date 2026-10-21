@@ -66,6 +66,12 @@ abstract class FieldDataDao {
     @Query("SELECT * FROM reference_record WHERE kind = :kind AND id = :id")
     abstract suspend fun reference(kind: String, id: String): ReferenceRecordEntity?
 
+    @Query("SELECT * FROM reference_record WHERE tenant_id = :tenantId AND kind = :kind ORDER BY title COLLATE NOCASE")
+    abstract fun observeReferences(tenantId: String, kind: String): Flow<List<ReferenceRecordEntity>>
+
+    @Query("SELECT DISTINCT currency FROM job WHERE tenant_id = :tenantId AND currency IS NOT NULL")
+    abstract suspend fun jobCurrencies(tenantId: String): List<String>
+
     @Query("SELECT * FROM policy_snapshot WHERE tenant_id = :tenantId")
     abstract suspend fun snapshots(tenantId: String): List<PolicySnapshotEntity>
 }

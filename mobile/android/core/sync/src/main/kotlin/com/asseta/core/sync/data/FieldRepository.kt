@@ -86,8 +86,12 @@ class FieldRepository(private val db: () -> AssetaDatabase, private val json: Js
         fieldState(job, db().clientOperationDao().forJob(tenantId, job.id))
 
     /** Machine snapshot, else tenant snapshot; blocked when expired or past the offline grant. */
-    suspend fun capturePolicy(tenantId: String, machineId: String): CapturePolicyDecision {
-        val snapshots = db().fieldDataDao().snapshots(tenantId).map {
+    suspend fun capturePolicy(tenantId: String, machineId: String): CapturePolicyDecision =
+        PolicySelector.select(policySnapshots(tenantId), machineId, Instant.ofEpochMilli(clock.nowMs()), offlineGrant(tenantId))
+
+    /** Every stored policy snapshot of the tenant (meter capture, expense capture, ...). */
+    suspend fun policySnapshots(tenantId: String): List<PolicySnapshot> =
+        db().fieldDataDao().snapshots(tenantId).map {
             PolicySnapshot(
                 policyType = it.policyType,
                 scopeKey = it.scopeKey,
@@ -97,9 +101,9 @@ class FieldRepository(private val db: () -> AssetaDatabase, private val json: Js
                 validUntil = Instant.ofEpochMilli(it.validUntil),
             )
         }
-        val grant = db().syncStateDao().get(tenantId)?.offlineGrantUntil?.let(Instant::ofEpochMilli)
-        return PolicySelector.select(snapshots, machineId, Instant.ofEpochMilli(clock.nowMs()), grant)
-    }
+
+    suspend fun offlineGrant(tenantId: String): Instant? =
+        db().syncStateDao().get(tenantId)?.offlineGrantUntil?.let(Instant::ofEpochMilli)
 
     /** Local clock-tamper check against the last trusted server time (300 s threshold). */
     fun clockStatus(state: SyncStateEntity?): ClockStatus {

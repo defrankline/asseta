@@ -26,6 +26,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.asseta.core.domain.policy.ReadingKind
 import com.asseta.core.domain.sync.ClockStatus
 import com.asseta.supervisor.FieldGraph
+import com.asseta.supervisor.ui.finance.CashFormScreen
+import com.asseta.supervisor.ui.finance.CashFormViewModel
+import com.asseta.supervisor.ui.finance.ExpenseScreen
+import com.asseta.supervisor.ui.finance.ExpenseViewModel
+import com.asseta.supervisor.ui.finance.MyCashScreen
 import kotlinx.coroutines.delay
 import kotlin.math.abs
 
@@ -36,6 +41,9 @@ sealed interface Route {
     data class Capture(val jobId: String, val kind: ReadingKind) : Route
     data class Acknowledge(val jobId: String) : Route
     data object SyncStatus : Route
+    data object MyCash : Route
+    data object RecordExpense : Route
+    data class CashForm(val kind: String) : Route
 }
 
 @Composable
@@ -59,7 +67,7 @@ fun SupervisorHome(field: FieldGraph, tenantId: String, onSwitchTenant: () -> Un
             SyncChip(field, tenantId) { if (route != Route.SyncStatus) push(Route.SyncStatus) }
         }
         when (route) {
-            Route.Jobs -> JobsScreen(field, tenantId, onOpen = { push(Route.JobDetail(it)) })
+            Route.Jobs -> JobsScreen(field, tenantId, onOpen = { push(Route.JobDetail(it)) }, onFinance = ::push)
             is Route.JobDetail -> {
                 val vm: JobDetailViewModel = viewModel(key = "job-$tenantId-${route.jobId}") { JobDetailViewModel(field, tenantId, route.jobId) }
                 JobDetailScreen(vm, onCapture = { push(Route.Capture(route.jobId, it)) }, onAcknowledge = { push(Route.Acknowledge(route.jobId)) })
@@ -71,6 +79,24 @@ fun SupervisorHome(field: FieldGraph, tenantId: String, onSwitchTenant: () -> Un
                 CaptureScreen(vm, onDone = ::pop)
             }
             is Route.Acknowledge -> AcknowledgementScreen(field, tenantId, route.jobId, onDone = ::pop)
+            Route.MyCash -> MyCashScreen(
+                field, tenantId,
+                onExpense = { push(Route.RecordExpense) },
+                onCollection = { push(Route.CashForm(CashFormViewModel.COLLECTION)) },
+                onHandover = { push(Route.CashForm(CashFormViewModel.HANDOVER)) },
+                onFuel = { push(Route.CashForm(CashFormViewModel.FUEL)) },
+            )
+            Route.RecordExpense -> {
+                // A new key per visit: each form gets its own client id (exactly-once) and fresh GPS attempt.
+                val visit = remember(route, stack.size) { System.nanoTime() }
+                val vm: ExpenseViewModel = viewModel(key = "expense-$visit") { ExpenseViewModel(field, tenantId) }
+                ExpenseScreen(vm, onDone = ::pop)
+            }
+            is Route.CashForm -> {
+                val visit = remember(route, stack.size) { System.nanoTime() }
+                val vm: CashFormViewModel = viewModel(key = "cash-${route.kind}-$visit") { CashFormViewModel(field, tenantId, route.kind) }
+                CashFormScreen(vm, onDone = ::pop)
+            }
             Route.SyncStatus -> {
                 val vm: SyncStatusViewModel = viewModel(key = "sync-$tenantId") { SyncStatusViewModel(field, tenantId) }
                 SyncStatusScreen(vm)

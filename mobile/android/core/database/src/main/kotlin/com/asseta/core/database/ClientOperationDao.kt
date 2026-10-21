@@ -120,6 +120,14 @@ abstract class ClientOperationDao {
     @Query("UPDATE client_operation SET payload_json = :payloadJson WHERE id = :id AND attempt_count = 0 AND status = 'PENDING'")
     abstract suspend fun patchUnsentPayload(id: String, payloadJson: String): Int
 
+    /** The operation that recorded a device-generated business id (exactly-once enqueue per form visit). */
+    @Query("SELECT * FROM client_operation WHERE tenant_id = :tenantId AND entity_type = :entityType AND entity_id = :entityId LIMIT 1")
+    abstract suspend fun findByEntity(tenantId: String, entityType: String, entityId: String): ClientOperationEntity?
+
+    /** All operations of the given types (any status), newest first: the field-finance records of this device. */
+    @Query("SELECT * FROM client_operation WHERE tenant_id = :tenantId AND op_type IN (:opTypes) ORDER BY created_at_device DESC")
+    abstract fun observeByOpTypes(tenantId: String, opTypes: List<String>): Flow<List<ClientOperationEntity>>
+
     @Query("SELECT * FROM client_operation WHERE attachment_local_id = :attachmentId")
     abstract suspend fun forAttachment(attachmentId: String): List<ClientOperationEntity>
 

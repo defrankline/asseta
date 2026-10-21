@@ -26,6 +26,18 @@ import com.asseta.core.sync.evidence.EncryptedEvidenceStore
 import com.asseta.core.sync.usecase.CaptureMeterReading
 import com.asseta.core.sync.usecase.CaptureRequest
 import com.asseta.core.sync.usecase.CaptureResult
+import com.asseta.core.domain.finance.ApprovalOutlook
+import com.asseta.core.domain.finance.ExpenseDraft
+import com.asseta.core.domain.finance.ExpensePolicyDecision
+import com.asseta.core.domain.finance.ExpenseRules
+import com.asseta.core.domain.finance.PaidFrom
+import com.asseta.core.sync.data.FinanceRepository
+import com.asseta.core.sync.usecase.CashCollectionRequest
+import com.asseta.core.sync.usecase.CashHandoverRequest
+import com.asseta.core.sync.usecase.ExpenseRequest
+import com.asseta.core.sync.usecase.FinanceCapture
+import com.asseta.core.sync.usecase.FinanceResult
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
@@ -50,8 +62,8 @@ import java.time.Instant
 import java.util.UUID
 
 /**
- * Gate 4 live E2E: the real sync engine, Retrofit/OkHttp stack, outbox, capture use case and encrypted evidence files
- * against the running backend + Keycloak (only the database is the in-memory Room variant the engine tests use).
+ * Gate 4/5 live E2E: the real sync engine, Retrofit/OkHttp stack, outbox, capture and finance use cases and encrypted
+ * evidence files against the running backend + Keycloak (only the database is the in-memory Room variant the engine tests use).
  * Skipped unless `ASSETA_LIVE_E2E` names a fixture written by backend/scripts/field_e2e_setup.py (see
  * scripts/field-e2e.sh), so it never runs in normal builds or CI.
  */
@@ -166,6 +178,110 @@ class SyncLiveTest {
         assertEquals(serverAttachment, text("photo_attachment_id"))
         assertEquals("FIX", text("gps_status"))
     }
+
+    /**
+     * Gate 5: an expense with a receipt (paid from custody), a cash collection and a handover recorded offline, synced
+     * to ACKED in one run (receipt uploaded first), then verified server-side through the API (expense with the
+     * uploaded receipt, custody deltas) and against the custody the device pulled afterwards.
+     */
+    @Test
+    fun offlineExpenseCollectionAndHandoverReachAckedAgainstTheLiveBackend() = runBlocking {
+        val tenant = field("tenant_id")
+        val token = field("access_token")
+        val device = UUID.randomUUID().toString()
+        val key = ByteArray(32).also { SecureRandom().nextBytes(it) }
+        val files = EncryptedEvidenceStore(tmp.newFolder("evidence-finance"), { key })
+        val client = NetworkFactory.okHttpClient({ token }, { tenant }, device = { device })
+        val api = NetworkFactory.syncApi(field("api_base"), client, allowCleartext = true)
+        val engine = SyncEngine(api, { db }, files, { device }, "live-e2e (android)", LocalDataWiper { }, clock, json)
+        val repository = FieldRepository({ db }, json, clock)
+        val financeRepo = FinanceRepository({ db }, repository, json, clock)
+        val outbox = FieldOutbox({ db }, json, clock)
+        val finance = FinanceCapture({ db }, repository, financeRepo, outbox, files, { device }, json)
+        fun get(path: String): String {
+            val request = Request.Builder().url("${field("api_base").trimEnd('/')}/api/v1/tenant/$path")
+                .header(AssetaHeaders.TENANT_ID, tenant).get().build()
+            return client.newCall(request).execute().use { r -> r.body.string().also { assertEquals(it, 200, r.code) } }
+        }
+        fun custody(): JsonObject? = json.parseToJsonElement(get("cash/custody/me")).jsonArray.map { it.jsonObject }
+            .firstOrNull { it["currency"]!!.jsonPrimitive.content == financeCurrency }
+        fun JsonObject?.money(name: String) = this?.get(name)?.jsonPrimitive?.content?.let(::BigDecimal) ?: BigDecimal.ZERO
+
+        // 1. Bootstrap delivers the category, the job's customer, the custody balance and the EXPENSE_CAPTURE rules.
+        success(engine.sync(tenant))
+        val categoryId = field("expense_category_id")
+        assertTrue("category missing", financeRepo.observeCategories(tenant).first().any { it.id == categoryId })
+        assertTrue("customer missing", financeRepo.observeCustomers(tenant).first().any { it.id == field("customer_id") })
+        financeCurrency = financeRepo.baseCurrency(tenant) ?: error("custody currency missing from bootstrap")
+        val decision = financeRepo.expensePolicy(tenant)
+        assertTrue("expense rules not synced: $decision", decision is ExpensePolicyDecision.Allowed)
+        val before = custody()
+
+        // 2. Offline: expense with receipt (cash custody), cash collection for the job's customer, handover.
+        val now = clock.nowMs()
+        val gps = GpsOutcome.Fix(-6.8, 39.28, 8.0, Instant.ofEpochMilli(now - 1_000), "fused")
+        val expenseClient = UUID.randomUUID().toString()
+        val expenseRequest = ExpenseRequest(
+            tenant, expenseClient, categoryId, "Hydraulic hose (live E2E)", "Field Spares", "1500.50", financeCurrency,
+            PaidFrom.CASH_CUSTODY, field("machine_id"), null, jpeg(120_000), gps, now,
+        )
+        val outlook = ExpenseRules.assess(
+            ExpenseDraft(categoryId, expenseRequest.description, expenseRequest.supplier, expenseRequest.amountText, financeCurrency,
+                PaidFrom.CASH_CUSTODY, field("machine_id"), null, null, true, gps),
+            (decision as ExpensePolicyDecision.Allowed).policy, financeCurrency,
+        ).approval
+        val expense = finance.expense(expenseRequest) as FinanceResult.Saved
+        val collection = finance.cashCollection(
+            CashCollectionRequest(tenant, UUID.randomUUID().toString(), field("customer_id"), field("job_id"), "250000", financeCurrency,
+                "LIVE-${expenseClient.take(8)}", "", now),
+        ) as FinanceResult.Saved
+        val handover = finance.cashHandover(
+            CashHandoverRequest(tenant, UUID.randomUUID().toString(), "100000", financeCurrency, "", "Live E2E handover", now),
+        ) as FinanceResult.Saved
+        val pendingLine = financeRepo.observeCashView(tenant).first().lines.single { it.currency == financeCurrency }
+        assertEquals(0, pendingLine.pendingCollections.compareTo(BigDecimal("250000")))
+        assertEquals(0, pendingLine.pendingCashExpenses.compareTo(BigDecimal("1500.50")))
+
+        // 3. One sync: receipt upload completes first, then all three operations are ACKED.
+        val report = success(engine.sync(tenant))
+        assertEquals(1, report.uploaded)
+        listOf(expense, collection, handover).forEach {
+            val op = db.clientOperationDao().findById(it.operationId)!!
+            assertEquals("${op.opType} ${op.errorCode} ${op.lastError}", ACKED, op.status)
+        }
+        val expenseOp = db.clientOperationDao().findById(expense.operationId)!!
+        val serverAttachment = db.evidenceDao().attachment(expenseOp.attachmentLocalId!!)!!.serverAttachmentId!!
+        val expensePayload = json.parseToJsonElement(expenseOp.payloadJson).jsonObject
+        assertEquals(1, expensePayload["receipt_upload_ids"]!!.jsonArray.size)
+        val replay = api.push(
+            tenant,
+            PushIn(IsoTime.format(clock.nowMs()), listOf(OperationIn(expenseOp.id, expenseOp.opType, IsoTime.format(expenseOp.createdAtDevice), emptyList(), expensePayload))),
+        )
+        assertEquals(listOf(expenseOp.id to "DUPLICATE"), replay.results.map { it.id to it.status })
+
+        // 4. Server side: exactly one expense for the client id, with the uploaded receipt and the policy outcome.
+        val expenses = json.parseToJsonElement(get("expenses?custodian_staff_id=${field("staff_member_id")}&page_size=100"))
+            .jsonObject["items"]!!.jsonArray.map { it.jsonObject }.filter { it["client_id"]?.jsonPrimitive?.content == expenseClient }
+        assertEquals(1, expenses.size)
+        val row = expenses.single()
+        assertEquals(0, BigDecimal("1500.50").compareTo(row["amount"]!!.jsonPrimitive.content.toBigDecimal()))
+        assertEquals("CASH_CUSTODY", row["paid_from"]!!.jsonPrimitive.content)
+        assertEquals(listOf(serverAttachment), row["receipt_attachment_ids"]!!.jsonArray.map { it.jsonPrimitive.content })
+        val approved = outlook == ApprovalOutlook.AutoApproved
+        assertEquals(if (approved) "APPROVED" else "PENDING_APPROVAL", row["status"]!!.jsonPrimitive.content)
+
+        // 5. Custody moved by exactly these records: +collection, claimed handover, expense (approved or pending).
+        val after = custody()
+        val spent = if (approved) BigDecimal("1500.50") else BigDecimal.ZERO
+        assertEquals(0, (after.money("outstanding") - before.money("outstanding")).compareTo(BigDecimal("250000") - spent))
+        assertEquals(0, (after.money("claimed_unverified_handovers") - before.money("claimed_unverified_handovers")).compareTo(BigDecimal("100000")))
+        assertEquals(0, (after.money("pending_spending") - before.money("pending_spending")).compareTo(BigDecimal("1500.50") - spent))
+        val local = financeRepo.observeCashView(tenant).first().lines.single { it.currency == financeCurrency }
+        assertEquals(0, local.synced!!.outstanding.compareTo(after.money("outstanding"))) // pulled right after the push
+        assertTrue(!local.hasPending)
+    }
+
+    private var financeCurrency = ""
 
     private fun success(report: SyncReport): SyncReport.Success {
         assertTrue("expected Success but was $report", report is SyncReport.Success)

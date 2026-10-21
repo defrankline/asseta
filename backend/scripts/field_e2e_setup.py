@@ -322,13 +322,30 @@ def build_fixture(stack: Stack, kc: Keycloak) -> dict[str, Any]:
         {"staff_member_id": staff, "role": "SUPERVISOR", "effective_from": now.isoformat()},
         "assign supervisor",
     )
+    finance = finance_fixture(o, tag, staff)  # Gate 5 field finance (additive; extra keys only)
     return {
         "api_base": stack.api_base,
         "tenant_id": tenant_id,
         "job_id": job,
         "machine_id": machine,
         "supervisor_email": sup_email,
+        "customer_id": customer,
+        **finance,
     }
+
+
+def finance_fixture(o: Owner, tag: str, staff: str) -> dict[str, Any]:
+    """An active expense category and a cash float for the supervisor (so collections, handovers and custody
+    expenses have a balance to move). The tenant keeps the default EXPENSE_CAPTURE policy (receipt and GPS fix
+    required, every expense needs approval). Each run uses a fresh tenant, so this is idempotent per fixture."""
+    category = o.post("/tenant/expense-categories", {"code": f"FE2E{tag}"[:32], "name": "Field E2E parts"}, "expense cat")
+    float_amount = "500000"
+    o.post(
+        "/tenant/cash/floats",
+        {"staff_member_id": staff, "amount": float_amount, "reference": f"FLOAT-{tag}", "note": "Field E2E float"},
+        "issue cash float",
+    )
+    return {"expense_category_id": category["id"], "staff_member_id": staff, "cash_float": float_amount}
 
 
 def supervisor_token(kc: Keycloak, email: str) -> dict[str, Any]:

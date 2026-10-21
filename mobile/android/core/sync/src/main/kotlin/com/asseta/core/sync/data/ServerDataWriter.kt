@@ -1,6 +1,8 @@
 package com.asseta.core.sync.data
 
 import com.asseta.core.database.AssetaDatabase
+import com.asseta.core.database.CashCustodyBalanceEntity
+import com.asseta.core.database.ExpenseCategoryEntity
 import com.asseta.core.database.JobEntity
 import com.asseta.core.database.MachineEntity
 import com.asseta.core.database.PolicySnapshotEntity
@@ -54,6 +56,9 @@ class ServerDataWriter(private val db: () -> AssetaDatabase, private val json: J
             val field = database.fieldDataDao()
             val keep = dto.data.jobs.map { it.id }
             if (keep.isEmpty()) field.deleteAllJobs(tenantId) else field.deleteJobsNotIn(tenantId, keep)
+            val categories = dto.data.expenseCategories.map { it.id }
+            val finance = database.financeDataDao()
+            if (categories.isEmpty()) finance.deleteAllCategories(tenantId) else finance.deleteCategoriesNotIn(tenantId, categories)
             applyData(database, tenantId, dto.data)
             applySnapshots(database, tenantId, dto.policySnapshots)
             val states = database.syncStateDao()
@@ -92,7 +97,7 @@ class ServerDataWriter(private val db: () -> AssetaDatabase, private val json: J
         field.upsertJobs(
             data.jobs.map {
                 JobEntity(it.id, tenantId, it.jobNumber, it.machineId, it.contractId, it.jobSiteId, it.status, it.version,
-                    it.plannedStart, it.plannedEnd, it.standbyTreatment)
+                    it.plannedStart, it.plannedEnd, it.standbyTreatment, it.currency)
             },
         )
         field.upsertMachines(
@@ -103,6 +108,33 @@ class ServerDataWriter(private val db: () -> AssetaDatabase, private val json: J
             data.contracts.map { ref(KIND_CONTRACT, it.id, tenantId, it.contractNumber, json.encodeToString(it)) } +
             data.staff.map { ref(KIND_STAFF, it.id, tenantId, it.fullName, json.encodeToString(it)) }
         if (refs.isNotEmpty()) field.upsertReferences(refs)
+        applyFinance(database, tenantId, data)
+    }
+
+    /** Expense categories upsert by sync revision (deactivations arrive as is_active=false); custody is replaced. */
+    private suspend fun applyFinance(database: AssetaDatabase, tenantId: String, data: SyncData) {
+        val finance = database.financeDataDao()
+        if (data.expenseCategories.isNotEmpty()) {
+            finance.upsertCategories(
+                data.expenseCategories.map {
+                    ExpenseCategoryEntity(it.id, tenantId, it.code, it.name, it.isActive, it.syncRevision, it.version)
+                },
+            )
+        }
+        val custody = data.cashCustody ?: return // field absent: keep what we have
+        val now = System.currentTimeMillis()
+        finance.replaceCustody(
+            tenantId,
+            custody.map {
+                CashCustodyBalanceEntity(
+                    tenantId = tenantId, currency = it.currency, staffMemberId = it.staffMemberId,
+                    outstanding = it.outstanding.toPlainString(),
+                    claimedUnverifiedHandovers = it.claimedUnverifiedHandovers.toPlainString(),
+                    pendingSpending = it.pendingSpending.toPlainString(),
+                    asOf = IsoTime.parse(it.asOf).toEpochMilli(), receivedAt = now,
+                )
+            },
+        )
     }
 
     private suspend fun applySnapshots(database: AssetaDatabase, tenantId: String, snapshots: List<PolicySnapshotDto>) {
