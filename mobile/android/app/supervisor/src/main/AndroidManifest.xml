@@ -1,8 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Gate 0: network only. Camera/location are added with the features that need them. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Gate 4 field capture, requested just-in-time with a rationale. Foreground location only: no
+         ACCESS_BACKGROUND_LOCATION (the independent tracker provides machine continuity). -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
 
     <application
         android:name=".SupervisorApplication"
@@ -16,6 +22,7 @@
         android:theme="@style/Theme.Asseta">
         <activity
             android:name=".MainActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
             android:exported="true"
             android:launchMode="singleTask">
             <intent-filter>

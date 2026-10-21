@@ -55,8 +55,9 @@ room-testing = { module = "androidx.room:room-testing", version.ref = "room" }
 androidx-sqlite = { module = "androidx.sqlite:sqlite", version.ref = "androidxSqlite" }
 sqlcipher-android = { module = "net.zetetic:sqlcipher-android", version.ref = "sqlcipher" }
 
-# Pinned now so later gates (sync, field capture) adopt agreed versions; not yet wired into modules.
+# Field capture (Gate 4): sync worker, camera, on-device OCR (bundled model), fused location.
 work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "workManager" }
+work-testing = { module = "androidx.work:work-testing", version.ref = "workManager" }
 camerax-core = { module = "androidx.camera:camera-core", version.ref = "camerax" }
 camerax-camera2 = { module = "androidx.camera:camera-camera2", version.ref = "camerax" }
 camerax-lifecycle = { module = "androidx.camera:camera-lifecycle", version.ref = "camerax" }

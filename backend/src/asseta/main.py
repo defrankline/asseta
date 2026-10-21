@@ -24,6 +24,7 @@ from asseta.modules.identity.idp import IdentityProviderAdmin
 from asseta.modules.identity.keycloak_admin import KeycloakAdminClient
 from asseta.modules.identity.tokens import JwksSigningKeyProvider, OidcTokenVerifier, TokenVerifier
 from asseta.modules.jobs import router as jobs_router
+from asseta.modules.managed_service import router as managed_service_router
 from asseta.modules.meter import router as meter_router
 from asseta.modules.platform_billing import router as platform_router
 from asseta.modules.platform_billing import tenant_router as tenant_billing_router
@@ -115,6 +116,7 @@ def create_app(
         jobs_router.router,
         meter_router.router,
         sync_router.router,
+        managed_service_router.router,
     ):
         app.include_router(router)
     return app

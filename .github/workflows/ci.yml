@@ -74,7 +74,7 @@ jobs:
           SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
           yes | "$SDKM" --licenses > /dev/null || true
           "$SDKM" --install "platforms;android-37.0" "build-tools;37.0.0" "platform-tools" > /dev/null
-      - run: ./gradlew assembleDebug testDebugUnitTest lint assembleAndroidTest --console=plain
+      - run: ./gradlew assembleDebug test testDebugUnitTest lint assembleAndroidTest --console=plain
 
   ios:
     runs-on: macos-26

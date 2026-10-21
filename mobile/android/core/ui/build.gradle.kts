@@ -11,7 +11,8 @@ android {
 dependencies {
     api(project(":core:auth"))
     api(project(":core:database"))
-    implementation(project(":core:security"))
+    api(project(":core:security"))
+    implementation(libs.androidx.core.ktx)
 
     api(platform(libs.compose.bom))
     api(libs.compose.ui)

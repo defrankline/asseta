@@ -37,6 +37,8 @@ Every idea not already expressly covered by `prompt.md` goes here. Recording an 
 | BL-025 | Photo fraud deepfake/forensic analysis beyond basic duplicate/quality checks | Stronger evidence validation | Diverse adversarial test dataset | Medium |
 | BL-026 | Advanced geospatial machine-learning route clustering and behavioral baselines | Better route anomalies | Representative historical telemetry | Medium |
 | BL-027 | Email-based tenant-owner invitation (Keycloak execute-actions email + SMTP) instead of one-time temporary password | Smoother onboarding, no password handling by platform staff | SMTP provider, email templates, deliverability | Medium |
+| BL-028 | Managed-service assignments scoped to a site/operating area (not only the whole client), as the reference product does for branches | Finer least-privilege for mandate staff | Needs unit-scoped tenant RBAC, which R1 roles do not have (tenant-wide); ADR-004 | Medium |
+| BL-029 | Email/SMS notification to client administrators when a mandate is granted/ended (R1: console banner + Managed service page + outbox event) | Client is told even if nobody signs in | BL-027 SMTP; outbox consumer | Medium |
 
 ## New idea intake template
 

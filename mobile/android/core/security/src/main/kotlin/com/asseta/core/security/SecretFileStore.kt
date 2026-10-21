@@ -24,4 +24,10 @@ class SecretFileStore(private val directory: File, private val cipher: SecretCip
     fun delete(name: String) {
         File(directory, name).delete()
     }
+
+    /** Deletes the wrapped file and destroys the Keystore key that wraps it (device wipe). */
+    fun destroy(name: String) {
+        delete(name)
+        cipher.destroyKey()
+    }
 }

@@ -263,8 +263,10 @@ class SubscriptionService:
                 policy_version=str(policy.version),
             )
             tenant.access_state = decision.access
-            tenant.access_state_reason = decision.reason[:200]
             tenant.access_state_changed_at = utcnow()
+        # The reason explains the current state even when the access level is unchanged (TRIAL -> ACTIVE stays FULL).
+        if tenant.access_state_reason != decision.reason[:200]:
+            tenant.access_state_reason = decision.reason[:200]
         return EntitlementDto(
             tenant_id=tenant.id,
             subscription_status=sub.status,

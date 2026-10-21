@@ -33,6 +33,9 @@ class RequestContext:
     roles: frozenset[str]
     permissions: frozenset[str]
     read_only: bool = False
+    # Set while platform staff act for a client under a managed-service mandate (DEC-018).
+    mandate_id: uuid.UUID | None = None
+    mandate_reference: str | None = None
 
     def audit_actor(self, source: str = "api") -> AuditActor:
         return AuditActor(user_id=self.user_id, roles=sorted(self.roles), source=source)

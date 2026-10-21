@@ -22,6 +22,7 @@ public final class EncryptedDatabase: @unchecked Sendable {
     // @unchecked: the sqlite3 handle is only touched while holding `lock` (serialized access).
     private let lock = NSRecursiveLock()
     private var handle: OpaquePointer?
+    private var transactionDepth = 0
     public let url: URL
 
     public init(url: URL, key: Data) throws {
@@ -95,10 +96,28 @@ public final class EncryptedDatabase: @unchecked Sendable {
         lock.withLock { handle.map { Int(sqlite3_changes($0)) } ?? 0 }
     }
 
-    /// Runs `body` in an IMMEDIATE transaction; rolls back on any thrown error.
+    /// Runs `body` in an IMMEDIATE transaction; rolls back on any thrown error. Nested calls on the
+    /// same connection become savepoints, so composed repository calls stay atomic.
     public func transaction<T>(_ body: () throws -> T) throws -> T {
         try lock.withLock {
+            if transactionDepth > 0 {
+                let name = "sp\(transactionDepth)"
+                try execute("SAVEPOINT \(name)")
+                transactionDepth += 1
+                defer { transactionDepth -= 1 }
+                do {
+                    let value = try body()
+                    try execute("RELEASE \(name)")
+                    return value
+                } catch {
+                    try? execute("ROLLBACK TO \(name)")
+                    try? execute("RELEASE \(name)")
+                    throw error
+                }
+            }
             try execute("BEGIN IMMEDIATE")
+            transactionDepth += 1
+            defer { transactionDepth -= 1 }
             do {
                 let value = try body()
                 try execute("COMMIT")

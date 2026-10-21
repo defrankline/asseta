@@ -47,3 +47,16 @@ export const JobDetailPage = lazy(() =>
 export const ExceptionsPage = lazy(() =>
   import('../pages/tenant/exceptions/ExceptionsPage').then((m) => ({ default: m.ExceptionsPage })),
 );
+export const AccessPage = lazy(() =>
+  import('../pages/tenant/access/AccessPage').then((m) => ({ default: m.AccessPage })),
+);
+export const ClientManagedServicePage = lazy(() =>
+  import('../pages/tenant/managedService/ClientManagedServicePage').then((m) => ({
+    default: m.ClientManagedServicePage,
+  })),
+);
+export const ManagedServicePage = lazy(() =>
+  import('../pages/platform/managedService/ManagedServicePage').then((m) => ({
+    default: m.ManagedServicePage,
+  })),
+);

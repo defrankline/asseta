@@ -28,7 +28,7 @@ npm run build
 
 if [[ "${1:-}" == "--all" ]]; then
   echo "== android"
-  (cd "$ROOT/mobile/android" && ./gradlew assembleDebug testDebugUnitTest lint --console=plain)
+  (cd "$ROOT/mobile/android" && ./gradlew assembleDebug test testDebugUnitTest lint --console=plain)
   echo "== ios"
   (cd "$ROOT/mobile/ios" && xcodegen generate && (cd AssetaKit && swift test) && \
    for s in AssetaSupervisor AssetaOwner; do

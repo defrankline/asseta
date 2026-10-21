@@ -78,18 +78,24 @@ class ClientOperationDaoTest {
     }
 
     @Test
-    fun failureRetryAndQuarantineAreVisible() = runTest {
+    fun rejectedIsTerminalAndQuarantinedIsResent() = runTest {
         val o = op(1).also { dao.enqueue(it) }
         dao.markSent(o.id)
-        dao.markFailed(o.id, "timeout")
+        dao.markFailed(o.id, "VALIDATION_FAILED")
         assertEquals(FAILED, dao.findById(o.id)!!.status)
-        assertEquals(listOf(o.id), dao.dispatchable(tenant, 10).map { it.id })
-        dao.markSent(o.id)
-        assertEquals(2, dao.findById(o.id)!!.attemptCount)
-        dao.quarantine(o.id, "CONFLICT")
+        assertEquals(emptyList<String>(), dao.dispatchable(tenant, 10).map { it.id }) // REJECTED is not resent
+
+        val q = op(2).also { dao.enqueue(it) }
+        dao.markSent(q.id)
+        dao.markQuarantined(q.id, "SUBSCRIPTION_READ_ONLY", "read-only", "{}")
+        assertEquals(listOf(q.id), dao.dispatchable(tenant, 10).map { it.id }) // held, resent later
+        dao.markSent(q.id)
+        assertEquals(2, dao.findById(q.id)!!.attemptCount)
+        dao.returnToPending(q.id, null, "network")
+        dao.quarantine(q.id, "CONFLICT")
         val problems = dao.observeProblems(tenant).first()
-        assertEquals(QUARANTINED, problems.single().status)
-        assertEquals("CONFLICT", problems.single().lastError)
+        assertEquals(listOf(FAILED, QUARANTINED), problems.map { it.status })
+        assertEquals("CONFLICT", problems.last().lastError)
     }
 
     @Test

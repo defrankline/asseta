@@ -21,6 +21,9 @@ let package = Package(
         .library(name: "AssetaNetwork", targets: ["AssetaNetwork"]),
         .library(name: "AssetaAuth", targets: ["AssetaAuth"]),
         .library(name: "AssetaAppShell", targets: ["AssetaAppShell"]),
+        .library(name: "AssetaCapture", targets: ["AssetaCapture"]),
+        .library(name: "AssetaSync", targets: ["AssetaSync"]),
+        .library(name: "AssetaField", targets: ["AssetaField"]),
     ],
     dependencies: [
         // Official Zetetic SQLCipher binary distribution. Pinned exactly; bump deliberately.
@@ -50,6 +53,23 @@ let package = Package(
             dependencies: ["AssetaModel", "AssetaNetwork", "AssetaAuth", "AssetaSecurity"],
             swiftSettings: strict
         ),
+        // Gate 4: on-device meter capture (OCR parser + Vision pipeline, GPS, evidence files, validation).
+        .target(name: "AssetaCapture", dependencies: ["AssetaModel"], swiftSettings: strict),
+        // Gate 4: offline sync engine (device identity, pull, outbox push, resumable blobs, clock, wipe).
+        .target(
+            name: "AssetaSync",
+            dependencies: ["AssetaModel", "AssetaNetwork", "AssetaSecurity", "AssetaStore", "AssetaCapture"],
+            swiftSettings: strict
+        ),
+        // Gate 4: Supervisor field UI (SwiftUI, iOS only; compiles empty on macOS).
+        .target(
+            name: "AssetaField",
+            dependencies: [
+                "AssetaAppShell", "AssetaCapture", "AssetaSync", "AssetaStore", "AssetaSecurity", "AssetaNetwork",
+                "AssetaModel",
+            ],
+            swiftSettings: strict
+        ),
         // Test doubles shared by test targets only (not exported as a product).
         .target(name: "AssetaTestSupport", dependencies: ["AssetaNetwork"], swiftSettings: strict),
         .testTarget(name: "AssetaModelTests", dependencies: ["AssetaModel"]),
@@ -60,6 +80,14 @@ let package = Package(
         ),
         .testTarget(name: "AssetaNetworkTests", dependencies: ["AssetaNetwork", "AssetaModel", "AssetaTestSupport"]),
         .testTarget(name: "AssetaAuthTests", dependencies: ["AssetaAuth", "AssetaNetwork", "AssetaSecurity", "AssetaTestSupport"]),
+        .testTarget(name: "AssetaCaptureTests", dependencies: ["AssetaCapture", "AssetaModel"]),
+        .testTarget(
+            name: "AssetaSyncTests",
+            dependencies: [
+                "AssetaSync", "AssetaCapture", "AssetaStore", "AssetaSecurity", "AssetaNetwork", "AssetaModel",
+                "AssetaTestSupport",
+            ]
+        ),
         .testTarget(
             name: "AssetaAppShellTests",
             dependencies: [

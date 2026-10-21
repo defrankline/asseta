@@ -1,4 +1,4 @@
-# Asseta iOS (Gate 0 foundation)
+# Asseta iOS (Gate 0 foundation + Gate 4 Supervisor field app)
 
 Native SwiftUI apps **Asseta Supervisor** (`com.asseta.supervisor`) and **Asseta Owner**
 (`com.asseta.owner`), iOS 17+, sharing one Swift package, `AssetaKit`. Business rules live in
@@ -13,7 +13,8 @@ mobile/ios/
   project.yml                 XcodeGen spec (the .xcodeproj is generated, not committed)
   Apps/Supervisor|Owner/      @main entry points (a few lines each)
   Apps/Shared/Assets.xcassets AppIcon (from branding/asseta-mark.svg) + AccentColor (Amber)
-  Apps/SupervisorTests/       Tests hosted in the app (real Keychain, LocalStore with Keychain key)
+  Apps/SupervisorTests/       Tests hosted in the app (real Keychain, LocalStore with Keychain key,
+                              revocation wipe, Vision OCR fixtures on the iOS runtime)
   Scripts/generate-app-icon.sh
   AssetaKit/                  Swift package (Swift 6 language mode, strict concurrency)
 ```
@@ -26,19 +27,76 @@ mobile/ios/
 | `AssetaNetwork` | `APIClient`: `Authorization: Bearer`, `X-Tenant-ID`, a fresh `X-Correlation-ID` per request, and `Idempotency-Key` on mutations (a mutation can't be built without one). Decodes the error envelope into `APIError`. Retries once after a 401 by refreshing the token |
 | `AssetaAuth` | OIDC Authorization Code + PKCE (S256) against realm `asseta`, public client `asseta-mobile`. Each app has its own redirect scheme, set in its app target (see Configuration). The callback must match that app's scheme and path. Checks the discovered issuer, `state` and the ID-token `iss/aud/azp/exp/nonce`. Shares one token refresh between concurrent callers and logs out on `invalid_grant`. Being offline does not end the session. Logout calls the Keycloak end-session endpoint with the refresh token and always wipes local tokens |
 | `AssetaAppShell` | Brand, `AppConfiguration` (from Info.plist), `SessionModel` (state machine), and the login, `/me` and tenant-picker views shared by both apps. The browser step uses SwiftUI `WebAuthenticationSession` with an **ephemeral** session |
-| `AssetaTestSupport` | Test doubles (`MockTransport`, fixtures). Not a product |
+| `AssetaCapture` | Gate 4 capture: shared-spec OCR text parser (`MeterReadingParser`), Vision OCR pipeline (`MeterOCR`, `GlyphSegmenter`, `GlyphRenderer`, `SevenSegmentDecoder`), capture rules and the recapture state machine (`CaptureRules`), one-shot GPS (`LocationCapturer`, pure `GpsAttempt`), protected evidence files with SHA-256 (`EvidenceStore`) |
+| `AssetaSync` | Gate 4 offline sync: Keychain device id, `/sync` client with `X-Device-Id`, `SyncEngine` (register → bootstrap → upload → push → pull), push outcome state machine, resumable `BlobUploader`, policy snapshot selection and capture gate, clock tamper monitor, backoff, `FieldRecorder` (outbox ops + dependency chain), `FieldDirectory` (read side), `DeviceWipe` |
+| `AssetaField` | Gate 4 Supervisor SwiftUI screens (iOS only): jobs, job detail, meter capture with AVFoundation camera, work log, acknowledgement with PencilKit signature, sync status; `NWPathMonitor` and `BGAppRefreshTask` triggers |
+| `AssetaTestSupport` | Test doubles (`MockTransport`, `MockURLProtocol`, fixtures). Not a product |
 
-### Outbox (`client_operation`)
+### Local schema (versioned migrations in `AssetaStore/Migrations.swift`)
 
-Columns: `id` (UUID PK, also the idempotency key), `tenant_id`, `op_type`, `entity_type`,
-`entity_id`, `payload_json` (must be valid JSON), `depends_on` (FK to the same table, same
-tenant), `created_at_device` (UTC ms), `status`, `attempt_count`, `last_error`, `server_revision`.
+| Version | Name | Content |
+|---|---|---|
+| 1 | `create_client_operation_outbox` | Gate 0 outbox |
+| 2 | `outbox_sync_protocol` | Rebuilds `client_operation` (SQLite cannot alter CHECKs): adds `CONFLICT`, `error_code`, `server_result_json`, `next_attempt_at`; ACKED now requires the stored server result (push results carry the entity, not a revision; `server_revision` keeps the entity `version` when present). Adds `client_operation_dependency` (several parents, sent as `depends_on[]`), `local_attachment` (upload queue with session id, chunk size, received chunk indexes) and `operation_attachment` |
+| 3 | `sync_state_entities_policies` | `sync_kv` (cursor, registration, offline grant, backoff, clock reference), `sync_entity` (server-owned JSON by tenant/type/id with `revision` + `version`), `policy_snapshot` |
 
-The repository only allows these status changes:
-`PENDING→SENT→ACKED`, `SENT→FAILED→PENDING`, `PENDING/SENT/FAILED→QUARANTINED`.
-`ACKED` requires a `server_revision`, and a CHECK constraint enforces that too. `readyToSend`
-returns PENDING operations whose dependency is ACKED, oldest first. SENT does not count as
-synced. The sync engine (retry/backoff, batching, conflicts, attachments) belongs to Gate 4.
+`EncryptedDatabase.transaction` nests as savepoints, so composed repository calls stay atomic.
+
+### Outbox state machine (`client_operation`)
+
+Statuses: `PENDING`, `SENT`, `ACKED`, `FAILED` (server REJECTED), `CONFLICT`, `QUARANTINED`. Legal changes:
+`PENDING→SENT`, `QUARANTINED→SENT` (re-send), `SENT→ACKED|FAILED|CONFLICT|QUARANTINED|PENDING`,
+`FAILED→PENDING` (user retry only), `PENDING|FAILED→QUARANTINED`. Nothing else, enforced in the repository.
+
+| Push result | Local effect |
+|---|---|
+| `ACKED` | `ACKED`, server result stored |
+| `DUPLICATE` | Replays the stored outcome: no error → `ACKED`; `SUBSCRIPTION_READ_ONLY` → stays `QUARANTINED`; conflict code or `server_state` → `CONFLICT`; other code → `FAILED` |
+| `DEFERRED` | Back to `PENDING`, retried after 10 s |
+| `CONFLICT` | `CONFLICT` with `server_state`; never auto-overwritten or auto-retried; evidence kept |
+| `REJECTED` | `FAILED`, error code shown; evidence kept; user may retry |
+| `QUARANTINED` | `QUARANTINED` ("held: subscription read-only"), re-sent every 15 min until applied |
+| no result / network error / 5xx / 429 | Whole batch back to `PENDING`; engine backoff `min(15 min, 2 s·2^(n-1))·U[0.5,1)` persisted in `sync_kv` |
+
+`readyToSend` returns PENDING (and due QUARANTINED) operations whose dependencies are all ACKED and
+whose evidence files are all uploaded, oldest first. On launch every `SENT` row returns to
+`PENDING` (same ids → server answers `DUPLICATE`), so termination mid-push is safe.
+
+## Gate 4: Supervisor field app
+
+Protocol: [`docs/offline-sync.md`](../../docs/offline-sync.md); DTOs: `contracts/openapi.json`.
+
+- **Device identity.** A random UUID in the Keychain (`asseta.device.id.v1`, this-device-only), sent as `X-Device-Id` on every `/sync` call. First sync per tenant: `POST /sync/devices {device_id, platform:"IOS", app_version}` → `GET /sync/bootstrap` → `GET /sync/changes?cursor=` (cursor persisted, `has_more` paged).
+- **Server-owned data** is stored as the server's JSON. Bootstrap replaces the tenant's cache; deltas upsert by id where the incoming `revision` (the response cursor) and, when present, the entity `version` are not older — the DTOs carry no `sync_revision` field, so this is the equivalent ordering. Local progress (e.g. a START waiting in the outbox) is overlaid for display (`JobProgress`), never written into server data.
+- **Policy snapshots** (`METER_CAPTURE`): the `machine:<id>` snapshot if present, else `tenant`. New captures are blocked with "Connect to refresh rules…" when there is no snapshot, it is past `valid_until`, or past `offline_grant_until`. Expiry uses `max(wall clock, server time + monotonic elapsed)`, so winding the clock back does not revive expired rules. The offline grant is extended from server time after each successful contact, mirroring the server's `touch`. Every capture sends the snapshot's `policy_version_ids`.
+- **Capture flow.** OPENING on an APPROVED job, CLOSING on an IN_PROGRESS one. The mode comes from the snapshot and cannot be changed in the UI. AUTOMATIC: in-app AVFoundation photo → on-device Vision OCR → value + confidence for confirmation. An edited value is sent as the reading while `ocr_value`/`ocr_raw_text` are kept, so the server records a manual correction. Below `min_ocr_confidence` the app asks for a recapture up to `max_recapture_attempts` times, then allows manual entry and keeps the photo and OCR output. MANUAL: numeric entry limited to the meter's decimal places; photo required when `manual_photo_required`. Capture id = one UUID per capture; capture time = device time of the photo, or of the save for a manual reading without a photo.
+- **GPS.** Every capture starts a fresh CoreLocation attempt (`kCLLocationAccuracyBest`, updates for up to 20 s, best fresh fix wins, stops at ≤ 10 m). Only fixes newer than the attempt count. The real result is recorded: `FIX` (lat, lon, accuracy, timestamp, provider `corelocation`) or `NO_FIX`/`TIMEOUT`/`PERMISSION_DENIED`/`DISABLED` with no coordinates, and it is shown before saving. The when-in-use permission is requested when the first capture screen opens. There is no background location.
+- **Evidence.** Original JPEG bytes (`fileDataRepresentation`, never re-encoded) and signature PNGs are stored in Application Support/AssetaEvidence (excluded from backup, `NSFileProtectionComplete`) with SHA-256 (CryptoKit). The file is re-hashed before upload. Upload flow: `POST /sync/blobs` → `PUT` of the chunk indexes that are not in `received_chunks` (state persisted after each chunk) → `POST complete`. `COMPLETE` writes the `attachment_id` into the waiting operation payloads in the same transaction. Already-known content completes immediately. `CHECKSUM_MISMATCH`, an expired session or an unknown session restarts the upload. `UPLOAD_INCOMPLETE` re-sends the chunks.
+- **Dependencies.** opening capture → START → (work log entries, closing capture) → acknowledgement → COMPLETE. COMPLETE depends on the closing capture, the acknowledgement and every work log entry. A capture or acknowledgement is never sent before its file has an `attachment_id`.
+- **Revocation.** `DEVICE_REVOKED` (or details `WIPE_LOCAL_DATA`) from any sync call wipes the SQLCipher database files and their Keychain key, the OAuth tokens and all evidence files, then returns to the login screen with an explanation. The device id is kept on purpose: a wiped phone stays the same revoked device and cannot re-register as a new one.
+- **Clock tamper alert.** Each server response stores `server_time` + `CLOCK_MONOTONIC_RAW` (keeps counting in sleep, unaffected by clock changes) + `kern.bootsessionuuid`. A reboot (boot id change or monotonic reset) invalidates the reference. If the wall clock deviates by more than 300 s from `server_time + elapsed`, a banner is shown. The server's `clock_skew_alert` is shown too. Captures always carry the true device time.
+- **When sync runs.** On launch, when the app returns to the foreground, when `NWPathMonitor` reports connectivity again, after each recorded action, when the backoff window ends while the app is open, on pull-to-refresh and "Sync now". Background sync uses `BGAppRefreshTask` (`com.asseta.supervisor.sync`) only as iOS allows; continuous background sync is not promised. Protected evidence files cannot be read while the phone is locked, so their upload waits for the next unlocked sync.
+- **Sync status screen**: counts, last sync, next retry, offline grant, and lists of rejected (error code, retry), conflict (server state), held (read-only subscription) and waiting items (including "waiting for earlier item/upload").
+
+### On-device OCR
+
+Vision's `VNRecognizeTextRequest` (`.accurate`, no language correction) runs fully on device; the app makes no network OCR call.
+Vision reports ~1.0 confidence even for wrong reads of segmented displays, so it is not used as
+the score. The pipeline:
+
+1. Median filter, Otsu polarity, adaptive local threshold, connected components, column merge for 7-segment pieces, row chaining, deskew when the row is tilted more than 1.5°.
+2. Decimal point from geometry (a small mark on the baseline between glyphs). The **mechanical drum tenths wheel** is found by colour: the right-most glyph sitting on a saturated red cell, with the neighbouring cell not red. It is passed to the shared parser as a separate tenths token, so `20264.1` is not merged into `202641`.
+3. The row is re-rendered as clean glyphs in three layouts. Each layout is read by Vision and must give exactly one character per glyph. A deterministic 7-segment decoder gives an independent second opinion.
+4. The text is parsed with the shared spec (`MeterReadingParser`, a port of `ocr_parse.py`). The confidence is a heuristic agreement score, documented in `MeterOCR.swift`; it is not calibrated.
+
+Results on `contracts/fixtures/ocr` (24 synthetic images; real samples are still required, EXT-05):
+
+| Runtime | must_read correct with confidence ≥ 0.85 | confident wrong reads (≥ 0.85, wrong value) |
+|---|---|---|
+| macOS `swift test` | 17/17 (1.00) | 0 |
+| iOS 26 Simulator (app-hosted test) | 17/17 (1.00) | 0 |
+
+Of the `fallback_ok` images, `lcd_7seg__blur` is read wrongly but at 0.60, so the app asks for a recapture. `lcd_7seg__glare` and `lcd_7seg__noise` are read correctly but at 0.60 because the full-frame read conflicts with them. The other four are read correctly at ≥ 0.92.
 
 ## Pinned toolchain and dependencies
 
@@ -62,12 +120,18 @@ xcodegen generate
 xcodebuild -project Asseta.xcodeproj -scheme AssetaSupervisor -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
 xcodebuild -project Asseta.xcodeproj -scheme AssetaOwner      -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
 
-# Keychain and file tests hosted in the app (needs the app's default local signing)
+# Keychain, wipe and on-iOS Vision OCR tests hosted in the app (needs the app's default local signing)
 xcodebuild -project Asseta.xcodeproj -scheme AssetaSupervisor -destination 'platform=iOS Simulator,name=iPhone 17 Pro' test
 
 # Regenerate the app icon after changing branding/asseta-mark.svg
 Scripts/generate-app-icon.sh
 ```
+
+`swift test` reads the shared fixtures in place (`contracts/fixtures/ocr/parse_cases.json`, `manifest.json`,
+`images/`) via `#filePath`, so they cannot drift from what Android and the backend use. It prints
+the per-image OCR report. The sync engine tests run the real `URLSessionTransport` against an
+in-process fake server (`MockURLProtocol` + `FakeSyncServer`, which mirrors the backend
+push/blob semantics).
 
 An unsigned `swift test` binary can't use the data-protection keychain
 (`errSecMissingEntitlement`), so the real-Keychain test **skips** there. It runs for real in
@@ -103,12 +167,25 @@ end-session endpoint, so no browser opens. The post-logout URI is configured and
 browser-based RP-initiated logout, which can be added if needed. The browser session is
 ephemeral, so no SSO cookie stays on the device.
 
-Info.plist has no privacy usage descriptions yet. Camera, location and photos strings will be
-added with the features that use them in Gates 3, 4 and 7.
+Supervisor Info.plist (from `project.yml`): `NSCameraUsageDescription` and
+`NSLocationWhenInUseUsageDescription` (both requested just in time), `UIBackgroundModes: fetch` and
+`BGTaskSchedulerPermittedIdentifiers: com.asseta.supervisor.sync`. There is no background location
+and no photo library access. The Owner app's Info.plist is unchanged.
 
 ## Security notes
 
 - The database key and tokens stay on this device. They are never backed up and are readable after the first unlock, which lets background sync work later. The database directory is excluded from backups and has `completeUntilFirstUserAuthentication` protection.
 - An encryption test shows the database file has no SQLite header and no plaintext, and that it can't be read without the key or with a wrong key.
 - The browser session is ephemeral, so no Keycloak SSO cookie stays on the device after sign-out.
+- Evidence files use `NSFileProtectionComplete`. The database uses `completeUntilFirstUserAuthentication`, so background sync can read it.
+- A revocation wipe removes the database and its key, the tokens and the evidence. The device id stays.
 - The app stores no permission decisions. `access_state` and the menus only change what the UI shows, and an unknown `access_state` is treated as blocked.
+
+## Known limitations (Gate 4)
+
+- The OCR results come from 24 synthetic images. Real dashboard photos are required before acceptance (EXT-05). The confidence values are heuristic, not calibrated probabilities.
+- OCR runs Vision several times per photo: about 0.4 s per image on an Apple-silicon Mac and about 2.5 s in the Simulator. It runs off the main thread with a progress indicator.
+- Background sync only runs while the app process is alive with a tenant open (the tenant selection is not persisted). If iOS launches the app cold in the background, there is no session to sync. Foreground and reconnect sync are the reliable paths.
+- Signing out keeps unsynced items encrypted on the phone, and they sync after the next sign-in. The UI warns about this before sign-out.
+- The Simulator has no camera. The capture screen says so, and AUTOMATIC capture has to be tested on a device.
+- Gate 5 operations (expenses, collections, fuel, cash) are out of scope.

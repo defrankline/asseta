@@ -1,6 +1,7 @@
 """Identity API DTOs."""
 
 import uuid
+from datetime import date
 
 from pydantic import BaseModel
 
@@ -14,6 +15,15 @@ class MenuDto(BaseModel):
     order: int
 
 
+class MandateBadgeDto(BaseModel):
+    """Present when access to this tenant comes from a managed-service mandate (DEC-018)."""
+
+    mandate_id: uuid.UUID
+    reference: str
+    scope: str
+    ends_on: date | None
+
+
 class TenantAccessDto(BaseModel):
     tenant_id: uuid.UUID
     name: str
@@ -21,6 +31,7 @@ class TenantAccessDto(BaseModel):
     access_state: TenantAccessState
     permissions: list[str]
     menus: list[MenuDto]
+    mandate: MandateBadgeDto | None = None
 
 
 class MeDto(BaseModel):

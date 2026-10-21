@@ -1,0 +1,239 @@
+package com.asseta.core.sync
+
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
+import kotlinx.serialization.json.putJsonObject
+import mockwebserver3.Dispatcher
+import mockwebserver3.MockResponse
+import mockwebserver3.RecordedRequest
+import java.security.MessageDigest
+import java.time.Instant
+import java.util.UUID
+
+/**
+ * In-memory emulation of the backend sync semantics (backend/src/asseta/modules/sync): idempotent op store
+ * (DUPLICATE replays the stored outcome), DEFERRED for unmet dependencies, QUARANTINED while read-only,
+ * resumable SHA-256-verified blob sessions and DEVICE_REVOKED. Knobs let tests inject failures.
+ */
+class FakeSyncServer(private val now: () -> Instant) : Dispatcher() {
+    data class StoredOp(val payload: JsonObject, var status: String, var result: JsonObject)
+    class BlobSession(val id: String, val sha: String, val size: Int, val chunkSize: Int) {
+        val chunks = sortedMapOf<Int, ByteArray>()
+        var attachmentId: String? = null
+    }
+
+    val jobId = "11111111-1111-4111-8111-111111111111"
+    val machineId = "22222222-2222-4222-8222-222222222222"
+    val tenantVersionId = "33333333-3333-4333-8333-333333333333"
+
+    @Volatile var revoked = false
+    @Volatile var readOnly = false
+    @Volatile var snapshotValidHours = 24L
+    @Volatile var openingMode = "AUTOMATIC"
+    @Volatile var closingMode = "MANUAL"
+    var chunkSize = 4
+    var cursor = 10L
+    var failChunkOnce: Int? = null
+    var checksumMismatchOnce = false
+    var failNextPushAfterApply = false
+    val deferOnce = mutableSetOf<String>()
+    /** Optional per-op override: returns (status, result) or null for the default behaviour. */
+    var handler: (op: JsonObject) -> Pair<String, JsonObject>? = { null }
+    var changesJobs: List<JsonObject> = emptyList()
+
+    val stored = linkedMapOf<String, StoredOp>()
+    val applied = mutableListOf<String>()
+    val pushedBatches = mutableListOf<List<String>>()
+    val chunkPuts = mutableListOf<Pair<String, Int>>()
+    val blobs = mutableMapOf<String, BlobSession>()
+    private val attachments = mutableMapOf<String, String>() // sha -> attachment id
+    val requests = mutableListOf<String>()
+    val deviceHeaders = mutableListOf<String?>()
+
+    override fun dispatch(request: RecordedRequest): MockResponse = synchronized(this) {
+        val path = request.url.encodedPath
+        requests += "${request.method} $path${request.url.query?.let { "?$it" } ?: ""}"
+        if (path.startsWith("/api/v1/sync/")) deviceHeaders += request.headers["X-Device-Id"]
+        if (revoked) return error(403, "DEVICE_REVOKED", "This device was revoked", issue = "WIPE_LOCAL_DATA")
+        val body = request.body?.toByteArray() ?: ByteArray(0)
+        when {
+            request.method == "POST" && path == "/api/v1/sync/devices" -> ok(deviceSession(), 201)
+            path == "/api/v1/sync/bootstrap" -> ok(bootstrap())
+            path == "/api/v1/sync/changes" -> ok(changes())
+            path == "/api/v1/sync/push" -> push(Json.parseToJsonElement(body.decodeToString()).jsonObject)
+            request.method == "POST" && path == "/api/v1/sync/blobs" -> startBlob(Json.parseToJsonElement(body.decodeToString()).jsonObject)
+            request.method == "PUT" && path.contains("/chunks/") -> putChunk(path, body)
+            request.method == "POST" && path.endsWith("/complete") -> complete(path)
+            else -> error(404, "NOT_FOUND", "no route $path")
+        }
+    }
+
+    private fun ok(json: JsonElement, code: Int = 200) = MockResponse(code = code, body = json.toString())
+
+    fun error(code: Int, errorCode: String, message: String, issue: String? = null) = MockResponse(
+        code = code,
+        body = buildJsonObject {
+            putJsonObject("error") {
+                put("code", errorCode); put("message", message); put("correlation_id", "cid-1")
+                putJsonArray("details") { if (issue != null) add(buildJsonObject { put("field", JsonNull); put("issue", issue) }) }
+            }
+        }.toString(),
+    )
+
+    private fun deviceSession() = buildJsonObject {
+        put("id", "44444444-4444-4444-8444-444444444444"); put("device_id", "dev"); put("platform", "ANDROID")
+        put("app_version", "0.1.0"); put("status", "ACTIVE"); put("registered_at", now().toString())
+        put("last_sync_at", JsonNull); put("offline_grant_until", now().plusSeconds(72 * 3600).toString())
+        put("last_clock_offset_s", JsonNull); put("revoked_at", JsonNull); put("revoke_reason", JsonNull)
+    }
+
+    fun job(status: String, version: Long) = buildJsonObject {
+        put("id", jobId); put("job_number", "J-0001"); put("contract_id", "55555555-5555-4555-8555-555555555555")
+        put("machine_id", machineId); put("job_site_id", JsonNull); put("supervisor_id", JsonNull); put("status", status)
+        put("version", version); put("planned_start", "2026-10-21T06:00:00Z"); put("hourly_rate", "120.00")
+        put("standby_treatment", "EXCLUDED")
+    }
+
+    private fun data(jobs: List<JsonObject>) = buildJsonObject {
+        put("jobs", JsonArray(jobs))
+        putJsonArray("machines") {
+            add(buildJsonObject {
+                put("id", machineId); put("asset_code", "EX-01"); put("name", "Excavator 01")
+                put("meter_decimal_places", 1); put("status", "ACTIVE"); put("version", 1)
+            })
+        }
+        putJsonArray("sites") {}; putJsonArray("customers") {}; putJsonArray("contracts") {}; putJsonArray("staff") {}
+    }
+
+    private fun snapshots() = buildJsonArray {
+        add(buildJsonObject {
+            put("policy_type", "METER_CAPTURE"); put("scope_key", "tenant")
+            putJsonArray("version_ids") { add(kotlinx.serialization.json.JsonPrimitive(tenantVersionId)) }
+            put("version_stamp", "v1")
+            putJsonObject("values") {
+                put("opening_mode", openingMode); put("closing_mode", closingMode); put("manual_photo_required", false)
+                put("min_ocr_confidence", 0.85); put("max_recapture_attempts", 2); put("manual_correction_requires_review", true)
+                put("gps_enforcement", "SOFT"); put("gps_max_accuracy_m", 50.0); put("gps_max_age_seconds", 120)
+            }
+            put("valid_until", now().plusSeconds(snapshotValidHours * 3600).toString())
+        })
+    }
+
+    private fun bootstrap() = buildJsonObject {
+        put("protocol_version", 1); put("server_time", now().toString()); put("cursor", cursor)
+        put("device_session", deviceSession()); put("data", data(listOf(job("APPROVED", 1)))); put("policy_snapshots", snapshots())
+    }
+
+    private fun changes() = buildJsonObject {
+        put("protocol_version", 1); put("server_time", now().toString()); put("cursor", cursor); put("has_more", false)
+        put("data", data(changesJobs)); put("policy_snapshots", snapshots())
+    }
+
+    private fun push(body: JsonObject): MockResponse {
+        val ops = body["operations"]!!.jsonArray.map { it.jsonObject }
+        require(body["device_now"] != null)
+        pushedBatches += ops.map { it.str("id") }
+        val results = ops.map { one(it) }
+        if (failNextPushAfterApply) { // committed server-side, response lost (gateway error)
+            failNextPushAfterApply = false
+            return error(503, "UNAVAILABLE", "lost response")
+        }
+        return ok(buildJsonObject {
+            put("protocol_version", 1); put("server_time", now().toString()); put("clock_offset_s", 0.0)
+            put("clock_skew_alert", false); put("results", JsonArray(results))
+        })
+    }
+
+    private fun one(op: JsonObject): JsonObject {
+        val id = op.str("id")
+        val payload = op["payload"]!!.jsonObject
+        stored[id]?.let { existing ->
+            if (existing.payload != payload) return result(id, "REJECTED", error = err("OPERATION_ID_REUSED"))
+            if (existing.status != "QUARANTINED" || readOnly) {
+                return result(id, "DUPLICATE", existing.result, existing.result["error"] as? JsonObject)
+            }
+        }
+        val unmet = op["depends_on"]?.jsonArray.orEmpty().map { it.jsonPrimitive.content }.filter { stored[it]?.status != "ACKED" }
+        if (unmet.isNotEmpty() || deferOnce.remove(id)) return result(id, "DEFERRED", error = err("DEPENDENCY_PENDING"))
+        if (readOnly) {
+            val r = buildJsonObject { put("error", err("SUBSCRIPTION_READ_ONLY")) }
+            stored[id] = StoredOp(payload, "QUARANTINED", r)
+            return result(id, "QUARANTINED", r, err("SUBSCRIPTION_READ_ONLY"))
+        }
+        val (status, r) = handler(op) ?: default(op)
+        stored[id] = StoredOp(payload, status, r)
+        if (status == "ACKED") applied += id
+        return result(id, status, r, r["error"] as? JsonObject)
+    }
+
+    private fun default(op: JsonObject): Pair<String, JsonObject> {
+        val payload = op["payload"]!!.jsonObject
+        if (op.str("op_type") == "METER_CAPTURE" && payload.str("capture_mode") == "AUTOMATIC" &&
+            payload["photo_attachment_id"] == null
+        ) {
+            return "REJECTED" to buildJsonObject { put("error", err("PHOTO_MISSING")) }
+        }
+        return "ACKED" to buildJsonObject { putJsonObject("entity") { put("id", op.str("id")); put("version", 7) } }
+    }
+
+    private fun result(id: String, status: String, result: JsonObject = JsonObject(emptyMap()), error: JsonObject? = null) =
+        buildJsonObject { put("id", id); put("status", status); put("result", result); put("error", error ?: JsonNull) }
+
+    fun err(code: String) = buildJsonObject { put("code", code); put("message", code.lowercase()) }
+
+    private fun startBlob(body: JsonObject): MockResponse {
+        val sha = body.str("sha256")
+        val size = body["size_bytes"]!!.jsonPrimitive.content.toInt()
+        val session = BlobSession(UUID.randomUUID().toString(), sha, size, chunkSize)
+        attachments[sha]?.let { session.attachmentId = it }
+        blobs[session.id] = session
+        return ok(blobDto(session), 201)
+    }
+
+    private fun putChunk(path: String, bytes: ByteArray): MockResponse {
+        val parts = path.split("/")
+        val session = blobs[parts[parts.size - 3]] ?: return error(404, "NOT_FOUND", "no session")
+        val index = parts.last().toInt()
+        chunkPuts += session.id to index
+        if (failChunkOnce == index) { failChunkOnce = null; return error(503, "UNAVAILABLE", "store down") }
+        session.chunks.putIfAbsent(index, bytes)
+        return ok(blobDto(session))
+    }
+
+    private fun complete(path: String): MockResponse {
+        val session = blobs[path.split("/").let { it[it.size - 2] }] ?: return error(404, "NOT_FOUND", "no session")
+        if (session.attachmentId != null) return ok(blobDto(session))
+        val total = (session.size + session.chunkSize - 1) / session.chunkSize
+        if (session.chunks.keys.toList() != (0 until total).toList()) return error(409, "UPLOAD_INCOMPLETE", "incomplete")
+        val data = session.chunks.values.fold(ByteArray(0)) { acc, b -> acc + b }
+        if (checksumMismatchOnce || sha(data) != session.sha) {
+            checksumMismatchOnce = false
+            session.chunks.clear()
+            return error(400, "CHECKSUM_MISMATCH", "Checksum mismatch; upload restarted")
+        }
+        session.attachmentId = UUID.randomUUID().toString().also { attachments[session.sha] = it }
+        return ok(blobDto(session))
+    }
+
+    private fun blobDto(s: BlobSession) = buildJsonObject {
+        put("id", s.id); put("chunk_size", s.chunkSize); put("total_chunks", (s.size + s.chunkSize - 1) / s.chunkSize)
+        putJsonArray("received_chunks") { s.chunks.keys.forEach { add(kotlinx.serialization.json.JsonPrimitive(it)) } }
+        put("status", if (s.attachmentId != null) "COMPLETE" else "OPEN")
+        put("attachment_id", s.attachmentId?.let { kotlinx.serialization.json.JsonPrimitive(it) } ?: JsonNull)
+        put("expires_at", now().plusSeconds(3600).toString())
+    }
+
+    private fun JsonObject.str(key: String) = this[key]!!.jsonPrimitive.content
+
+    private fun sha(b: ByteArray) = MessageDigest.getInstance("SHA-256").digest(b).joinToString("") { "%02x".format(it) }
+}

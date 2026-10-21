@@ -8,6 +8,7 @@ uses the tenant owner's real token, and verifies the outbox relay published the 
 import sys
 import time
 import uuid
+from collections.abc import Callable
 from pathlib import Path
 
 import httpx
@@ -96,6 +97,52 @@ def telemetry_smoke(ph: dict[str, str], oh: dict[str, str], tenant_id: str, mach
     )
 
 
+def mandate_smoke(
+    ph: dict[str, str], oh: dict[str, str], tenant_id: str, platform_email: str, login: Callable[[str], str]
+) -> None:
+    """Managed service against real Keycloak: no access without a mandate; assignment materializes the client's
+    Keycloak group; ending the mandate refuses the still-valid token on the next request (DEC-018)."""
+    acting = {"Authorization": f"Bearer {login(platform_email)}", "X-Tenant-ID": tenant_id}
+    assert httpx.get(f"{API}/tenant/machines", headers=acting).json()["error"]["code"] == "MANDATE_REQUIRED"
+    grant = httpx.post(
+        f"{API}/platform/mandates",
+        headers={**ph, "Idempotency-Key": str(uuid.uuid4())},
+        json={
+            "tenant_id": tenant_id,
+            "scope": "FULL",
+            "starts_on": time.strftime("%Y-%m-%d"),
+            "consent_reference": "SMOKE-MSA-1",
+        },
+    )
+    assert grant.status_code == 201, grant.text
+    mandate = grant.json()
+    me_id = httpx.get(f"{API}/me", headers=ph).json()["user_id"]
+    staff = httpx.get(f"{API}/platform/mandates/staff", headers=ph).json()
+    assert me_id in {s["user_id"] for s in staff}, staff  # listed from the real Keycloak platform groups
+    r = httpx.post(
+        f"{API}/platform/mandates/{mandate['id']}/assignments",
+        headers=ph,
+        json={"user_id": me_id, "role_key": "manager"},
+        timeout=30,
+    )
+    assert r.status_code == 200, r.text
+    acting = {"Authorization": f"Bearer {login(platform_email)}", "X-Tenant-ID": tenant_id}  # refreshed groups
+    assert httpx.get(f"{API}/tenant/machines", headers=acting).status_code == 200
+    view = httpx.get(f"{API}/tenant/managed-service", headers=oh).json()
+    assert view["mandate"]["reference"] == mandate["reference"], view
+    end = httpx.post(
+        f"{API}/platform/mandates/{mandate['id']}/end",
+        headers=ph,
+        json={"version": mandate["version"], "reason": "Smoke test complete"},
+        timeout=30,
+    )
+    assert end.status_code == 200, end.text
+    assert httpx.get(f"{API}/tenant/machines", headers=acting).json()["error"]["code"] == "MANDATE_ENDED"
+    fresh = {"Authorization": f"Bearer {login(platform_email)}", "X-Tenant-ID": tenant_id}
+    assert httpx.get(f"{API}/tenant/machines", headers=fresh).json()["error"]["code"] == "MANDATE_ENDED"
+    print(f"MANDATE OK {mandate['reference']}")
+
+
 def main() -> None:
     h, base = admin_headers(), f"{KC}/admin/realms/asseta"
     secret = uuid.uuid4().hex
@@ -113,6 +160,22 @@ def main() -> None:
             "protocolMappers": [{k: v for k, v in m.items() if k != "id"} for m in web["protocolMappers"]],
         },
     ).raise_for_status()
+
+    passwords: dict[str, str] = {}
+
+    def login(email: str) -> str:
+        tok = httpx.post(
+            f"{KC}/realms/asseta/protocol/openid-connect/token",
+            data={
+                "grant_type": "password",
+                "client_id": client_id,
+                "client_secret": secret,
+                "username": email,
+                "password": passwords[email],
+            },
+        )
+        tok.raise_for_status()
+        return str(tok.json()["access_token"])
 
     def user(email: str, group: str | None) -> str:
         if group:
@@ -141,21 +204,12 @@ def main() -> None:
         if group:
             gid = httpx.get(f"{base}/group-by-path/{group.strip('/')}", headers=h).json()["id"]
             httpx.put(f"{base}/users/{uid}/groups/{gid}", headers=h).raise_for_status()
-        tok = httpx.post(
-            f"{KC}/realms/asseta/protocol/openid-connect/token",
-            data={
-                "grant_type": "password",
-                "client_id": client_id,
-                "client_secret": secret,
-                "username": email,
-                "password": pw,
-            },
-        )
-        tok.raise_for_status()
-        return str(tok.json()["access_token"])
+        passwords[email] = pw
+        return login(email)
 
     try:
-        ptoken = user(f"smoke-platform-{uuid.uuid4().hex[:6]}@asseta.local", "/platform/platform-owner")
+        platform_email = f"smoke-platform-{uuid.uuid4().hex[:6]}@asseta.local"
+        ptoken = user(platform_email, "/platform/platform-owner")
         ph = {"Authorization": f"Bearer {ptoken}"}
         me = httpx.get(f"{API}/me", headers=ph).json()
         assert "platform.tenant.create" in me["platform_permissions"], me
@@ -191,6 +245,7 @@ def main() -> None:
         assert m.status_code == 201, m.text
         assert httpx.get(f"{API}/platform/tenants", headers={"Authorization": f"Bearer {otoken}"}).status_code == 403
         telemetry_smoke(ph, oh, tenant_id, m.json()["id"])
+        mandate_smoke(ph, oh, tenant_id, platform_email, login)
         dsn = (
             f"postgresql://asseta_owner:{env['ASSETA_OWNER_DB_PASSWORD']}@localhost:"
             f"{env.get('ASSETA_PG_PORT', '5433')}/asseta"

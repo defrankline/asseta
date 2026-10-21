@@ -77,6 +77,12 @@ export function StepperFormDialog<V extends FormikValues>({
   };
 
   const handleSubmit = async (values: V, helpers: FormikHelpers<V>) => {
+    // Only the Review step may submit. A form submit from an earlier step (Enter in a field, or the browser
+    // re-dispatching the click that just switched to Review) must never create the record prematurely.
+    if (!isReview) {
+      helpers.setSubmitting(false);
+      return;
+    }
     helpers.setStatus(undefined);
     try {
       await onSubmit(values, helpers);
@@ -132,11 +138,18 @@ export function StepperFormDialog<V extends FormikValues>({
                 Back
               </Button>
               {isReview ? (
-                <Button type="submit" variant="contained" loading={formik.isSubmitting}>
+                <Button
+                  key="submit"
+                  type="submit"
+                  variant="contained"
+                  loading={formik.isSubmitting}
+                >
                   {submitLabel}
                 </Button>
               ) : (
                 <Button
+                  key="next"
+                  type="button"
                   variant="contained"
                   onClick={() => {
                     void next(formik);

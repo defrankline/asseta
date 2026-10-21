@@ -79,8 +79,18 @@ targets:
     sources:
       - path: Apps/Supervisor
         excludes: ["Info.plist"]
+    dependencies:
+      - package: AssetaKit
+        product: AssetaField
     info:
       path: Apps/Supervisor/Info.plist
+      properties:
+        # Requested just in time (first meter photo / first capture). No background location.
+        NSCameraUsageDescription: "Asseta Field uses the camera to photograph hour meters as reading evidence."
+        NSLocationWhenInUseUsageDescription: "Asseta Field records your location with every meter reading so the reading can be verified."
+        # Opportunistic background refresh only (BGAppRefreshTask); iOS decides when, if at all.
+        UIBackgroundModes: [fetch]
+        BGTaskSchedulerPermittedIdentifiers: [com.asseta.supervisor.sync]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.asseta.supervisor
@@ -110,6 +120,10 @@ targets:
       - target: AssetaSupervisor
       - package: AssetaKit
         product: AssetaStore
+      - package: AssetaKit
+        product: AssetaSync
+      - package: AssetaKit
+        product: AssetaCapture
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.asseta.supervisor.tests

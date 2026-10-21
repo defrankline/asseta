@@ -13,7 +13,7 @@ struct OutboxTests {
 
     private func newOp(dependsOn: UUID? = nil, tenant: UUID? = nil, at seconds: TimeInterval = 0) -> NewClientOperation {
         NewClientOperation(tenantID: tenant ?? self.tenant, opType: "CREATE", entityType: "job", entityID: UUID(),
-                           payloadJSON: #"{"amount":"10.00"}"#, dependsOn: dependsOn,
+                           payloadJSON: #"{"amount":"10.00"}"#, dependsOn: dependsOn.map { [$0] } ?? [],
                            createdAtDevice: Date(timeIntervalSince1970: 1_700_000_000 + seconds))
     }
 
@@ -21,7 +21,7 @@ struct OutboxTests {
         #expect(try Migrator.asseta.currentVersion(store.database) == AssetaSchema.migrations.count)
         #expect(try Migrator.asseta.migrate(store.database) == AssetaSchema.migrations.count)
         let applied = try store.database.query("SELECT version, name FROM schema_migration") { $0.string(1) }
-        #expect(applied == ["create_client_operation_outbox"])
+        #expect(applied == ["create_client_operation_outbox", "outbox_sync_protocol", "sync_state_entities_policies"])
     }
 
     @Test func refusesDatabaseNewerThanApp() throws {
@@ -104,7 +104,7 @@ struct OutboxTests {
         }
     }
 
-    @Test func ackRequiresServerRevisionAtSchemaLevel() throws {
+    @Test func ackRequiresStoredServerResultAtSchemaLevel() throws {
         let op = try store.outbox.enqueue(newOp())
         #expect(throws: DatabaseError.self) {
             try store.database.execute("UPDATE client_operation SET status = 'ACKED' WHERE id = ?",

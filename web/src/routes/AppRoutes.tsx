@@ -16,7 +16,9 @@ import { TenantDetailPage } from '../pages/platform/tenantDetail/TenantDetailPag
 import { TenantsPage } from '../pages/platform/tenants/TenantsPage';
 import { SystemStatusPage } from '../pages/SystemStatusPage';
 import {
+  AccessPage,
   AlertsPage,
+  ClientManagedServicePage,
   CustomersPage,
   ExceptionsPage,
   FleetMapPage,
@@ -25,6 +27,7 @@ import {
   JobsPage,
   MachineDetailPage,
   MachinesPage,
+  ManagedServicePage,
   PoliciesPage,
   StaffPage,
   TenantSubscriptionPage,
@@ -68,6 +71,10 @@ export function AppRoutes() {
         <Route
           path={ROUTES.platformPayments}
           element={guard(PERMISSIONS.platformPaymentRead, <PaymentsPage />)}
+        />
+        <Route
+          path={ROUTES.platformManagedService}
+          element={guard(PERMISSIONS.platformMandateRead, <ManagedServicePage />)}
         />
         <Route
           path={ROUTES.systemStatus}
@@ -121,6 +128,14 @@ export function AppRoutes() {
         <Route
           path={ROUTES.tenantExceptions}
           element={guard(PERMISSIONS.tenantMeterRead, <ExceptionsPage />)}
+        />
+        <Route
+          path={ROUTES.tenantAccess}
+          element={guard(PERMISSIONS.tenantAccessRead, <AccessPage />)}
+        />
+        <Route
+          path={ROUTES.tenantManagedService}
+          element={guard(PERMISSIONS.tenantManagedServiceRead, <ClientManagedServicePage />)}
         />
         <Route path={ROUTES.forbidden} element={<ForbiddenPage />} />
         <Route path="*" element={<NotFoundPage />} />

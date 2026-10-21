@@ -1,4 +1,5 @@
 import axios, {
+  isAxiosError,
   type AxiosInstance,
   type AxiosRequestConfig,
   type InternalAxiosRequestConfig,
@@ -23,6 +24,12 @@ export const HEADER = {
   correlation: 'X-Correlation-ID',
   idempotency: 'Idempotency-Key',
 } as const;
+
+/** Error codes meaning the caller's managed-service access to the tenant is gone. */
+export const MANDATE_LOST_CODES: ReadonlySet<string> = new Set([
+  'MANDATE_REQUIRED',
+  'MANDATE_ENDED',
+]);
 
 const MUTATING_METHODS = new Set(['post', 'put', 'patch', 'delete']);
 
@@ -63,6 +70,12 @@ async function decorateRequest(
   return config;
 }
 
+function tenantHeader(error: unknown): string | null {
+  if (!isAxiosError(error)) return null;
+  const value: unknown = error.config?.headers.get(HEADER.tenant);
+  return typeof value === 'string' ? value : null;
+}
+
 /** Build an Axios instance with Asseta headers and error normalisation. Exported for tests. */
 export function createHttpClient(baseURL: string, ctx: RequestContext): AxiosInstance {
   const instance = axios.create({
@@ -74,6 +87,9 @@ export function createHttpClient(baseURL: string, ctx: RequestContext): AxiosIns
   instance.interceptors.response.use(undefined, (error: unknown) => {
     const apiError = toApiError(error);
     if (apiError.status === 401) ctx.onUnauthorized();
+    if (MANDATE_LOST_CODES.has(apiError.code)) {
+      ctx.onMandateLost(tenantHeader(error), apiError.code);
+    }
     return Promise.reject(apiError);
   });
   return instance;

@@ -12,6 +12,11 @@
   (`ASSETA_KEYCLOAK_PUBLIC_URL`), audience `asseta-api`, exp/iat/sub required, 30 s leeway.
 * Deny by default: routes without a matching permission in the token's role groups return 403. A token subject
   without group grants gets nothing. Platform scope never reads tenant business tables (RLS).
+* Platform staff never enter a tenant through Keycloak groups alone: tenant access for anyone holding a
+  `/platform/*` group (or who ever held a mandate assignment there) requires an in-force **managed-service
+  mandate**. The check runs on every request, so a revoked, ended or expired mandate is refused before the token
+  expires, and every audit event under a mandate carries its `mandate_id`. See
+  [ADR-004](adr/ADR-004-managed-service-mandates.md).
 
 ## Data protection
 * DB roles: `asseta_owner` (DDL/migrations, not superuser), `asseta_app` (DML only, FORCE RLS) —

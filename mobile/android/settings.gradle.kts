@@ -23,10 +23,12 @@ dependencyResolutionManagement {
 rootProject.name = "asseta-android"
 
 include(":core:model")
+include(":core:domain")
 include(":core:security")
 include(":core:database")
 include(":core:network")
 include(":core:auth")
+include(":core:sync")
 include(":core:ui")
 include(":app:supervisor")
 include(":app:owner")

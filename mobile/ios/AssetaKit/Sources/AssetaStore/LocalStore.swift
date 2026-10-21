@@ -6,6 +6,15 @@ import Foundation
 public struct LocalStore: Sendable {
     public let database: EncryptedDatabase
     public let outbox: any ClientOperationRepository
+    public let attachments: AttachmentRepository
+    public let syncState: SyncStateStore
+
+    public init(database: EncryptedDatabase) {
+        self.database = database
+        self.outbox = SQLiteClientOperationRepository(database: database)
+        self.attachments = AttachmentRepository(database: database)
+        self.syncState = SyncStateStore(database: database)
+    }
 
     public static func open(at url: URL, keyProvider: DatabaseKeyProvider) throws -> LocalStore {
         try FileManager.default.createDirectory(
@@ -14,7 +23,22 @@ public struct LocalStore: Sendable {
         )
         let database = try EncryptedDatabase(url: url, key: try keyProvider.loadOrCreateKey())
         try Migrator.asseta.migrate(database)
-        return LocalStore(database: database, outbox: SQLiteClientOperationRepository(database: database))
+        return LocalStore(database: database)
+    }
+
+    /// Irreversibly destroys the local database: closes `database` (if given), deletes the file and
+    /// its WAL/SHM/journal companions, then deletes the Keychain key so no copy can ever be opened.
+    /// Every step is attempted even if an earlier one fails; the first error is rethrown.
+    public static func destroy(at url: URL, keyProvider: DatabaseKeyProvider, closing database: EncryptedDatabase? = nil) throws {
+        database?.close()
+        var firstError: (any Error)?
+        for suffix in ["", "-wal", "-shm", "-journal"] {
+            let file = URL(fileURLWithPath: url.path + suffix)
+            guard FileManager.default.fileExists(atPath: file.path) else { continue }
+            do { try FileManager.default.removeItem(at: file) } catch { firstError = firstError ?? error }
+        }
+        do { try keyProvider.destroyKey() } catch { firstError = firstError ?? error }
+        if let firstError { throw firstError }
     }
 
     /// Default location: Application Support (not backed-up caches), excluded from backups.

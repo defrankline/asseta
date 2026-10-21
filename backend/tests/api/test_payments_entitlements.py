@@ -196,3 +196,12 @@ def test_activation_requires_verified_company(api: Api) -> None:
         {"to_status": "ACTIVE", "effective_date": "2026-11-01", "reason": "try"},
     )
     assert r.status_code == 422 and r.json()["error"]["code"] == "TENANT_NOT_VERIFIED"
+
+
+def test_access_reason_follows_status_even_when_access_level_unchanged(api: Api) -> None:
+    t = api.onboard("Reason Co", price="1")
+    tid = t["tenant"]["id"]
+    assert api.platform.get(f"/api/v1/platform/tenants/{tid}").json()["access_state_reason"] == "Onboarding"
+    api.activate(t)  # TRIAL/onboarding -> ACTIVE keeps FULL access; the explanation must still change
+    tenant = api.platform.get(f"/api/v1/platform/tenants/{tid}").json()
+    assert tenant["access_state"] == "FULL" and tenant["access_state_reason"] != "Onboarding"

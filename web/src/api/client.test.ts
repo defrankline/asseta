@@ -20,6 +20,8 @@ function setup(
     getAccessToken: vi.fn(() => Promise.resolve('tok-123')),
     getActiveTenantId: () => (opts.tenantId === undefined ? TENANT : opts.tenantId),
     onUnauthorized: vi.fn(),
+    refreshAccessToken: vi.fn(() => Promise.resolve()),
+    onMandateLost: vi.fn(),
   };
   const instance = createHttpClient('/api/v1', ctx);
   const adapter: AxiosAdapter = (config) => {
@@ -138,7 +140,23 @@ describe('http client error parsing', () => {
     });
     await expect(api.get('/x')).rejects.toMatchObject({ status: 403, code: 'forbidden' });
     expect(ctx.onUnauthorized).not.toHaveBeenCalled();
+    expect(ctx.onMandateLost).not.toHaveBeenCalled();
   });
+
+  it.each(['MANDATE_ENDED', 'MANDATE_REQUIRED'])(
+    'reports %s with the refused tenant so the session can leave it',
+    async (code) => {
+      const { api, instance, ctx } = setup();
+      instance.defaults.adapter = failWith(403, {
+        error: { code, message: 'Mandate not in force', correlation_id: 'c', details: [] },
+      });
+      await expect(api.get('/tenant/machines', { tenantScoped: true })).rejects.toMatchObject({
+        code,
+      });
+      expect(ctx.onMandateLost).toHaveBeenCalledWith(TENANT, code);
+      expect(ctx.onUnauthorized).not.toHaveBeenCalled();
+    },
+  );
 
   it('maps network failures to network_error', async () => {
     const { api, instance } = setup();

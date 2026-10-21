@@ -1,6 +1,7 @@
 import AssetaAuth
 import AssetaModel
 import AssetaNetwork
+import AssetaSecurity
 import Foundation
 import Observation
 
@@ -28,10 +29,16 @@ public final class SessionModel {
 
     private let auth: AuthSession
     private let api: APIClient
+    /// Build configuration and Keychain store, for feature modules that need them (e.g. field sync).
+    public let configuration: AppConfiguration?
+    public let secrets: (any SecretStore)?
 
-    public init(auth: AuthSession, api: APIClient) {
+    public init(auth: AuthSession, api: APIClient, configuration: AppConfiguration? = nil,
+                secrets: (any SecretStore)? = nil) {
         self.auth = auth
         self.api = api
+        self.configuration = configuration
+        self.secrets = secrets
     }
 
     /// Client scoped to the selected tenant (sends `X-Tenant-ID`), for feature screens.
@@ -99,6 +106,13 @@ public final class SessionModel {
         selectedTenant = nil
         phase = .signedOut
         await auth.signOut()
+    }
+
+    /// Ends the session because the server demands it (e.g. this device was revoked) and shows
+    /// `explanation` on the login screen. Local tokens are wiped by sign-out.
+    public func endSession(explanation: String) async {
+        await signOut()
+        errorMessage = explanation
     }
 
     public func dismissError() {

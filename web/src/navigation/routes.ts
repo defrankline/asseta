@@ -8,6 +8,7 @@ export const ROUTES = {
   platformTenantDetail: '/platform/tenants/:tenantId',
   platformInvoices: '/platform/invoices',
   platformPayments: '/platform/payments',
+  platformManagedService: '/platform/managed-service',
   /** Matches the backend `platform.system` menu path. */
   systemStatus: '/platform/system',
   forbidden: '/403',
@@ -25,6 +26,8 @@ export const ROUTES = {
   tenantJobs: '/tenant/jobs',
   tenantJobDetail: '/tenant/jobs/:jobId',
   tenantExceptions: '/tenant/exceptions',
+  tenantAccess: '/tenant/access',
+  tenantManagedService: '/tenant/managed-service',
 } as const;
 
 export function machineDetailPath(machineId: string): string {
@@ -78,6 +81,7 @@ export const IMPLEMENTED_PATHS: ReadonlySet<string> = new Set([
   ROUTES.platformTenants,
   ROUTES.platformInvoices,
   ROUTES.platformPayments,
+  ROUTES.platformManagedService,
   ROUTES.systemStatus,
   ROUTES.tenantFleet,
   ROUTES.tenantMachines,
@@ -90,4 +94,6 @@ export const IMPLEMENTED_PATHS: ReadonlySet<string> = new Set([
   ROUTES.tenantCustomers,
   ROUTES.tenantJobs,
   ROUTES.tenantExceptions,
+  ROUTES.tenantAccess,
+  ROUTES.tenantManagedService,
 ]);

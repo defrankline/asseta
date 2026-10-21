@@ -26,6 +26,21 @@ class TenantInterceptor(private val tenant: TenantIdProvider) : Interceptor {
     }
 }
 
+/** Adds `X-Device-Id` to all `/api/v1/sync/` calls (device sessions, revocation and policy snapshots are per device). */
+class DeviceIdInterceptor(private val device: DeviceIdProvider) : Interceptor {
+    override fun intercept(chain: Interceptor.Chain): Response {
+        val original = chain.request()
+        if (!original.url.encodedPath.startsWith(SYNC_PREFIX) || original.header(AssetaHeaders.DEVICE_ID) != null) {
+            return chain.proceed(original)
+        }
+        return chain.proceed(original.newBuilder().header(AssetaHeaders.DEVICE_ID, device.deviceId()).build())
+    }
+
+    private companion object {
+        const val SYNC_PREFIX = "/api/v1/sync/"
+    }
+}
+
 /** A fresh UUID `X-Correlation-ID` per request (kept if the caller supplied one, e.g. to correlate a retry chain). */
 class CorrelationIdInterceptor(private val newId: () -> String = { UUID.randomUUID().toString() }) : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {

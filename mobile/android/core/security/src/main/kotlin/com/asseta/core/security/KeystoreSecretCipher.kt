@@ -37,6 +37,12 @@ class KeystoreSecretCipher(private val keyAlias: String) : SecretCipher {
         return cipher.doFinal(sealed)
     }
 
+    @Synchronized
+    override fun destroyKey() {
+        val ks = keyStore()
+        if (ks.containsAlias(keyAlias)) ks.deleteEntry(keyAlias)
+    }
+
     private fun keyStore(): KeyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
 
     private fun existingKey(): SecretKey? = (keyStore().getEntry(keyAlias, null) as? KeyStore.SecretKeyEntry)?.secretKey

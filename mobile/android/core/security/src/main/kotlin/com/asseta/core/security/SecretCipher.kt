@@ -4,4 +4,7 @@ package com.asseta.core.security
 interface SecretCipher {
     fun encrypt(plaintext: ByteArray): ByteArray
     fun decrypt(ciphertext: ByteArray): ByteArray
+
+    /** Irreversibly destroys the wrapping key (device wipe). Default: nothing to destroy. */
+    fun destroyKey() {}
 }

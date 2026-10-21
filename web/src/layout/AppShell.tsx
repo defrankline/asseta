@@ -2,6 +2,8 @@ import { Box, Toolbar } from '@mui/material';
 import { useState } from 'react';
 import { Outlet } from 'react-router';
 import { AppHeader } from './AppHeader';
+import { MandateBanner } from './MandateBanner';
+import { ManagedServiceNotice } from './ManagedServiceNotice';
 import { SideNav } from './SideNav';
 import { TenantAccessBanner } from './TenantAccessBanner';
 
@@ -22,7 +24,9 @@ export function AppShell() {
       />
       <Box component="main" className="min-w-0 flex-1 p-4 md:p-6">
         <Toolbar />
+        <MandateBanner />
         <TenantAccessBanner />
+        <ManagedServiceNotice />
         <Outlet />
       </Box>
     </Box>

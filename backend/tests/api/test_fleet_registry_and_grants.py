@@ -36,6 +36,8 @@ FORBIDDEN = [
         "policy_version",
         "machine_photo",
         "tenant_membership",
+        "managed_service_mandate",
+        "mandate_assignment",
     )
 ]
 

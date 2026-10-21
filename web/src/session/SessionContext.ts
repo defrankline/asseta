@@ -16,7 +16,11 @@ export interface SessionContextValue {
   canUsePlatform: boolean;
   /** True when the active tenant is READ_ONLY; hide/disable mutating actions. */
   isReadOnly: boolean;
-  setMode: (mode: ConsoleMode) => void;
+  /**
+   * Switch console. Entering a mandated client first forces a token refresh so the mandate's
+   * Keycloak group is in the access token; resolves once the mode has changed (or was refused).
+   */
+  setMode: (mode: ConsoleMode) => Promise<void>;
   hasPermission: (required: PermissionRequirement, match?: 'all' | 'any') => boolean;
   reload: () => void;
 }

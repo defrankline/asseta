@@ -21,12 +21,23 @@ export function isModeAllowed(me: MeResponse | null, mode: ConsoleMode): boolean
   return false;
 }
 
-/** Pick the starting mode: stored preference if still allowed, else first tenant, else platform. */
+/** True when access to the tenant comes from a managed-service mandate (platform staff). */
+export function isMandated(tenant: TenantAccess | null | undefined): boolean {
+  return tenant?.mandate !== undefined && tenant.mandate !== null;
+}
+
+/**
+ * Pick the starting mode: stored preference if still allowed, else the first tenant the user is a
+ * member of, else platform, else a mandated client. A mandated client is never entered
+ * automatically unless the user chose it before (stored preference, validated against /me).
+ */
 export function resolveInitialMode(me: MeResponse, stored: ConsoleMode | null): ConsoleMode {
   if (stored !== null && isModeAllowed(me, stored)) return stored;
+  const member = me.tenants.find((t) => !isMandated(t));
+  if (member !== undefined) return { kind: 'tenant', tenantId: member.tenant_id };
+  if (canUsePlatformConsole(me)) return { kind: 'platform' };
   const first = me.tenants[0];
   if (first !== undefined) return { kind: 'tenant', tenantId: first.tenant_id };
-  if (canUsePlatformConsole(me)) return { kind: 'platform' };
   return NO_MODE;
 }
 

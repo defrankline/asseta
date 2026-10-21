@@ -2,6 +2,7 @@ import { array, mixed, number, object, string, type Schema } from 'yup';
 import { apiClient } from '../client';
 import type { MenuDto, MeResponse, TenantAccess, TenantAccessState } from '../types';
 import { parseResponse } from '../validation';
+import { optionalMandateBadge } from './mandateSchemas';
 
 const menuSchema: Schema<MenuDto> = object({
   key: string().required(),
@@ -17,6 +18,8 @@ const tenantSchema: Schema<TenantAccess> = object({
   access_state: mixed<TenantAccessState>().oneOf(['FULL', 'READ_ONLY', 'BLOCKED']).required(),
   permissions: array(string().required()).required(),
   menus: array(menuSchema).required(),
+  /** Set when platform staff reach this tenant through a managed-service mandate. */
+  mandate: optionalMandateBadge(),
 });
 
 const meSchema: Schema<MeResponse> = object({

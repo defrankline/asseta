@@ -220,3 +220,25 @@ export type ReviewIn = Schemas['ReviewIn'];
 export type ReviewOutcome = ReviewIn['outcome'];
 export type ResetDto = Schemas['ResetDto'];
 export type ResetIn = Schemas['ResetIn'];
+
+// ---- Managed service (DEC-018): consented, audited platform access to a client tenant ----
+
+export type MandateScope = Schemas['MandateScope'];
+/** IN_FORCE | SCHEDULED | EXPIRED | REVOKED | ENDED (typed as string by the contract). */
+export type MandateStatus = 'IN_FORCE' | 'SCHEDULED' | 'EXPIRED' | 'REVOKED' | 'ENDED';
+export type MandateBadgeDto = Schemas['MandateBadgeDto'];
+export type MandateDto = Schemas['MandateDto'];
+export type MandateDetailDto = Schemas['MandateDetailDto'];
+export type MandateAssignmentDto = Schemas['MandateAssignmentDto'];
+export type MandateGrantIn = Schemas['MandateGrantIn'];
+export type MandateAssignmentIn = Schemas['MandateAssignmentIn'];
+export type MandateCloseIn = Schemas['MandateCloseIn'];
+export type MandateActionDto = Schemas['MandateActionDto'];
+export type ClientMandateDto = Schemas['ClientMandateDto'];
+export type PlatformStaffDto = Schemas['PlatformStaffDto'];
+export type AssignableRoleDto = Schemas['AssignableRoleDto'];
+
+// ---- Tenant users & roles ----
+
+export type MemberDto = Schemas['MemberDto'];
+export type MemberRoleDto = Schemas['MemberRoleDto'];

@@ -16,15 +16,42 @@ public struct APIRequest<Response: Decodable & Sendable>: Sendable {
     public let body: Data?
     public let idempotencyKey: UUID?
     public let tenantScoped: Bool
+    /// Extra request headers (e.g. `X-Device-Id` on sync calls). Cannot override the auth,
+    /// tenant, correlation or idempotency headers the client sets itself.
+    public let headers: [String: String]
+    public let contentType: String
 
     private init(method: HTTPMethod, path: String, queryItems: [URLQueryItem], body: Data?,
-                 idempotencyKey: UUID?, tenantScoped: Bool) {
+                 idempotencyKey: UUID?, tenantScoped: Bool, headers: [String: String] = [:],
+                 contentType: String = "application/json") {
         self.method = method
         self.path = path
         self.queryItems = queryItems
         self.body = body
         self.idempotencyKey = idempotencyKey
         self.tenantScoped = tenantScoped
+        self.headers = headers
+        self.contentType = contentType
+    }
+
+    /// Returns a copy with additional headers.
+    public func adding(headers extra: [String: String]) -> Self {
+        Self(method: method, path: path, queryItems: queryItems, body: body, idempotencyKey: idempotencyKey,
+             tenantScoped: tenantScoped, headers: headers.merging(extra) { _, new in new }, contentType: contentType)
+    }
+
+    /// A mutation whose body is sent as raw bytes (e.g. a blob chunk), not JSON-encoded.
+    public static func rawMutation(
+        _ method: HTTPMethod,
+        _ path: String,
+        data: Data,
+        contentType: String = "application/octet-stream",
+        idempotencyKey: UUID,
+        tenantScoped: Bool = true
+    ) -> Self {
+        precondition(method.isMutation, "Use .get for reads")
+        return Self(method: method, path: path, queryItems: [], body: data, idempotencyKey: idempotencyKey,
+                    tenantScoped: tenantScoped, contentType: contentType)
     }
 
     public static func get(_ path: String, query: [URLQueryItem] = [], tenantScoped: Bool = true) -> Self {
@@ -100,6 +127,9 @@ public struct APIClient: Sendable {
 
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = request.method.rawValue
+        for (name, value) in request.headers.sorted(by: { $0.key < $1.key }) {
+            urlRequest.setValue(value, forHTTPHeaderField: name)
+        }
         urlRequest.setValue("application/json", forHTTPHeaderField: "Accept")
         urlRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         urlRequest.setValue(correlationID.uuidString.lowercased(), forHTTPHeaderField: "X-Correlation-ID")
@@ -111,7 +141,7 @@ public struct APIClient: Sendable {
         }
         if let body = request.body {
             urlRequest.httpBody = body
-            urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            urlRequest.setValue(request.contentType, forHTTPHeaderField: "Content-Type")
         }
         return urlRequest
     }

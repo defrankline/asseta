@@ -6,10 +6,17 @@ interface StaticTableProps<T> {
   rows: readonly T[];
   getRowId: (row: T) => string;
   ariaLabel: string;
+  onRowClick?: (row: T) => void;
 }
 
 /** Small client-side table for short, unpaged lists (rate versions, invoice lines, ...). */
-export function StaticTable<T>({ columns, rows, getRowId, ariaLabel }: StaticTableProps<T>) {
+export function StaticTable<T>({
+  columns,
+  rows,
+  getRowId,
+  ariaLabel,
+  onRowClick,
+}: StaticTableProps<T>) {
   return (
     <TableContainer>
       <Table size="small" aria-label={ariaLabel}>
@@ -24,7 +31,18 @@ export function StaticTable<T>({ columns, rows, getRowId, ariaLabel }: StaticTab
         </TableHead>
         <TableBody>
           {rows.map((row) => (
-            <TableRow key={getRowId(row)}>
+            <TableRow
+              key={getRowId(row)}
+              hover={onRowClick !== undefined}
+              className={onRowClick !== undefined ? 'cursor-pointer' : undefined}
+              onClick={
+                onRowClick !== undefined
+                  ? () => {
+                      onRowClick(row);
+                    }
+                  : undefined
+              }
+            >
               {columns.map((c) => (
                 <TableCell key={c.id} align={c.align ?? 'left'}>
                   {c.render(row)}

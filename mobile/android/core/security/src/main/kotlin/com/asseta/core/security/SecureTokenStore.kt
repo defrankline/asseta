@@ -8,6 +8,9 @@ class SecureTokenStore(private val store: SecretFileStore) {
 
     fun clear() = store.delete(FILE_NAME)
 
+    /** Device wipe: deletes the session and destroys its Keystore key. */
+    fun destroy() = store.destroy(FILE_NAME)
+
     private companion object {
         const val FILE_NAME = "auth_session.bin"
     }

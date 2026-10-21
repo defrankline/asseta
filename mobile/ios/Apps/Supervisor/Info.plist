@@ -10,6 +10,10 @@
 	<string>$(ASSETA_OIDC_SCHEME):/logout</string>
 	<key>AssetaOIDCRedirectURI</key>
 	<string>$(ASSETA_OIDC_SCHEME):/oauth2redirect</string>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>com.asseta.supervisor.sync</string>
+	</array>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
@@ -35,6 +39,14 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>Asseta Field uses the camera to photograph hour meters as reading evidence.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Asseta Field records your location with every meter reading so the reading can be verified.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+	</array>
 	<key>UILaunchScreen</key>
 	<dict>
 		<key>UIColorName</key>

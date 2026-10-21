@@ -21,6 +21,7 @@ from asseta.modules.identity.idp import IdentityProviderAdmin
 from asseta.modules.identity.models import AppUser, Role, RolePermission, TenantMembership
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.identity.tokens import tenant_group_path
+from asseta.modules.managed_service.models import ManagedServiceMandate, MandateAssignment
 
 ACCESS_READ = requires("tenant.access.read", S.TENANT, "View tenant users, roles and permissions")
 ACCESS_MANAGE = requires("tenant.access.manage", S.TENANT, "Invite users and grant/revoke tenant roles")
@@ -40,6 +41,7 @@ class RoleDto(BaseModel):
 class MemberRoleDto(BaseModel):
     role_key: str
     since: datetime
+    mandate_reference: str | None = Field(default=None, description="Held by platform staff under this mandate")
 
 
 class MemberDto(BaseModel):
@@ -99,12 +101,23 @@ def members(session: DbSession, ctx: Annotated[RequestContext, Depends(ACCESS_RE
         .where(TenantMembership.tenant_id == ctx.tenant_id, TenantMembership.effective_to.is_(None))
         .order_by(AppUser.email)
     ).all()
+    mandated = _mandated(session, ctx.tenant_id)
     out: dict[uuid.UUID, MemberDto] = {}
     for user, key, since in rows:
         out.setdefault(
             user.id, MemberDto(user_id=user.id, email=user.email, display_name=user.display_name, roles=[])
-        ).roles.append(MemberRoleDto(role_key=key, since=since))
+        ).roles.append(MemberRoleDto(role_key=key, since=since, mandate_reference=mandated.get((user.id, key))))
     return list(out.values())
+
+
+def _mandated(session: Session, tenant_id: uuid.UUID | None) -> dict[tuple[uuid.UUID, str], str]:
+    """(user, role) pairs held under an active mandate assignment -> mandate reference."""
+    rows = session.execute(
+        select(MandateAssignment.user_id, MandateAssignment.role_key, ManagedServiceMandate.reference)
+        .join(ManagedServiceMandate, ManagedServiceMandate.id == MandateAssignment.mandate_id)
+        .where(MandateAssignment.tenant_id == tenant_id, MandateAssignment.is_active.is_(True))
+    ).all()
+    return {(u, k): ref for u, k, ref in rows}
 
 
 @router.post("/members", response_model=InviteResultDto, status_code=201, operation_id="inviteTenantMember")
@@ -154,15 +167,21 @@ def revoke(
     ).scalar_one_or_none()
     if membership is None:
         raise NotFound("Active role membership not found")
+    mandated = _mandated(session, ctx.tenant_id)
+    if (user_id, role_key) in mandated:
+        raise BusinessRuleViolation(
+            "This role is held under a managed-service mandate; revoke the mandate instead", code="MANDATE_MANAGED"
+        )
     if role_key == OWNER_ROLE:
         owners = session.execute(
-            select(TenantMembership.id).where(
+            select(TenantMembership.user_id).where(
                 TenantMembership.tenant_id == ctx.tenant_id,
                 TenantMembership.role_id == role.id,
                 TenantMembership.effective_to.is_(None),
             )
-        ).all()
-        if len(owners) <= 1:
+        ).scalars()
+        # Mandate staff never count: the client must always keep an owner of its own.
+        if len([u for u in owners if (u, OWNER_ROLE) not in mandated]) <= 1:
             raise BusinessRuleViolation("Cannot remove the last tenant owner", code="LAST_OWNER")
     user = session.get(AppUser, user_id)
     assert user is not None

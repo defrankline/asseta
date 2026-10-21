@@ -140,3 +140,9 @@ export function lastMap(): Map {
   if (map === undefined) throw new Error('No map has been created.');
   return map;
 }
+
+/** Worker configuration is a no-op in jsdom (no WebGL/workers). */
+export function setWorkerUrl(url: string): void {
+  workerUrls.push(url);
+}
+export const workerUrls: string[] = [];

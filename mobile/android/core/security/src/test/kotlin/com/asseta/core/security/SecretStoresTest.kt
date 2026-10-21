@@ -66,4 +66,29 @@ class SecretStoresTest {
         tokens.clear()
         assertNull(tokens.read())
     }
+
+    @Test
+    fun `wipe destroys passphrase and evidence key but a new one can be created`() {
+        val store = SecretFileStore(tmp.root, SoftwareCipher())
+        val provider = DatabasePassphraseProvider(store)
+        val before = provider.getOrCreatePassphrase()
+        val evidence = WrappedRandomKey(store, "evidence_key.bin")
+        val key = evidence.getOrCreate()
+        assertArrayEquals(key, evidence.getOrCreate())
+        provider.destroy()
+        evidence.destroy()
+        assertNull(store.read("db_passphrase.bin"))
+        assertNull(store.read("evidence_key.bin"))
+        assertFalse(provider.getOrCreatePassphrase().contentEquals(before))
+        assertFalse(evidence.getOrCreate().contentEquals(key))
+    }
+
+    @Test
+    fun `device id is generated once and stable`() {
+        val store = SecretFileStore(tmp.root, SoftwareCipher())
+        var n = 0
+        val ids = DeviceIdStore(store) { "device-${++n}" }
+        assertEquals("device-1", ids.getOrCreate())
+        assertEquals("device-1", DeviceIdStore(store) { "other" }.getOrCreate())
+    }
 }

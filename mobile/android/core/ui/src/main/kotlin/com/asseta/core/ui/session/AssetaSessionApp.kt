@@ -26,12 +26,18 @@ import com.asseta.core.ui.AssetaAppContainer
 import com.asseta.core.ui.R
 import com.asseta.core.ui.theme.AssetaColors
 
-/** Shared session shell: login -> `/me` -> tenant selection. Both apps render this. */
+/** What an app shows once a tenant is selected; [onSwitchTenant] returns to the tenant list. */
+typealias TenantHome = @Composable (ready: SessionState.Ready, onSwitchTenant: () -> Unit, modifier: Modifier) -> Unit
+
+/**
+ * Shared session shell: login -> `/me` -> tenant selection -> optional app [home] (the Supervisor field app).
+ * Without a [home] the tenant picker stays the landing screen (Owner app until Gate 7).
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AssetaSessionApp(container: AssetaAppContainer) {
+fun AssetaSessionApp(container: AssetaAppContainer, home: TenantHome? = null) {
     val vm: SessionViewModel = viewModel {
-        SessionViewModel(container.authManager, container.api, container.tenantStore)
+        SessionViewModel(container.authManager, container.api, container.tenantStore, container.sessionNotice)
     }
     val state by vm.state.collectAsStateWithLifecycle()
     val loginLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
@@ -59,7 +65,11 @@ fun AssetaSessionApp(container: AssetaAppContainer) {
         ) { padding ->
             val modifier = Modifier.padding(padding)
             when (s) {
-                is SessionState.Ready -> TenantPickerScreen(s, vm::selectTenant, modifier)
+                is SessionState.Ready -> if (home != null && s.selectedTenant != null) {
+                    home(s, vm::showTenantPicker, modifier)
+                } else {
+                    TenantPickerScreen(s, vm::selectTenant, modifier)
+                }
                 is SessionState.ProfileError -> CenteredColumn(modifier) {
                     ErrorText(s.error)
                     Button(onClick = vm::loadProfile) { Text(stringResource(R.string.retry)) }

@@ -6,7 +6,7 @@ import { AppBar, Box, IconButton, Toolbar, Tooltip, Typography } from '@mui/mate
 import { useAuth } from '../auth/useAuth';
 import { useSession } from '../session/useSession';
 import { useColorMode } from '../theme/ColorModeContext';
-import { ConsoleSwitcher } from './ConsoleSwitcher';
+import { TenantSwitcher } from './TenantSwitcher';
 import { Logo } from './Logo';
 
 interface AppHeaderProps {
@@ -32,7 +32,7 @@ export function AppHeader({ onToggleNav }: AppHeaderProps) {
         </IconButton>
         <Logo height={30} />
         <Box className="flex-1" />
-        <ConsoleSwitcher />
+        <TenantSwitcher />
         {me !== null && (
           <Typography variant="body2" className="hidden sm:block">
             {me.display_name}

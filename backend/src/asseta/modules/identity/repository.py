@@ -79,30 +79,31 @@ class IdentityRepository:
     def menus(self) -> list[Menu]:
         return list(self._s.execute(select(Menu).order_by(Menu.scope, Menu.sort_order)).scalars())
 
+    def upsert_member(self, member: GroupMember, now: datetime) -> uuid.UUID:
+        """Mirror a Keycloak group member as an app user (they may not have signed in yet)."""
+        return self._s.execute(
+            insert(AppUser)
+            .values(
+                id=uuid.uuid4(),
+                keycloak_subject=member.subject,
+                email=member.email,
+                display_name=member.display_name or member.email,
+                is_active=True,
+                created_at=now,
+                updated_at=now,
+            )
+            .on_conflict_do_update(
+                index_elements=[AppUser.keycloak_subject], set_={"email": member.email, "updated_at": now}
+            )
+            .returning(AppUser.id)
+        ).scalar_one()
+
     # --- catalog / Keycloak mirror sync -------------------------------------------------------------
     def reconcile_memberships(
         self, tenant_id: uuid.UUID, role_id: uuid.UUID, members: list[GroupMember], now: datetime
     ) -> tuple[int, int]:
         """Mirror Keycloak group membership as effective-dated rows: open new, close removed (never delete)."""
-        user_ids: set[uuid.UUID] = set()
-        for m in members:
-            uid = self._s.execute(
-                insert(AppUser)
-                .values(
-                    id=uuid.uuid4(),
-                    keycloak_subject=m.subject,
-                    email=m.email,
-                    display_name=m.display_name or m.email,
-                    is_active=True,
-                    created_at=now,
-                    updated_at=now,
-                )
-                .on_conflict_do_update(
-                    index_elements=[AppUser.keycloak_subject], set_={"email": m.email, "updated_at": now}
-                )
-                .returning(AppUser.id)
-            ).scalar_one()
-            user_ids.add(uid)
+        user_ids = {self.upsert_member(m, now) for m in members}
         current = {
             r.user_id: r
             for r in self._s.execute(

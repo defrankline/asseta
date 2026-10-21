@@ -19,6 +19,7 @@ object NetworkFactory {
         tokens: AccessTokenProvider,
         tenant: TenantIdProvider,
         builder: OkHttpClient.Builder = OkHttpClient.Builder(),
+        device: DeviceIdProvider? = null,
     ): OkHttpClient = builder
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
@@ -26,11 +27,18 @@ object NetworkFactory {
         .addInterceptor(CorrelationIdInterceptor())
         .addInterceptor(IdempotencyKeyInterceptor())
         .addInterceptor(TenantInterceptor(tenant))
+        .apply { if (device != null) addInterceptor(DeviceIdInterceptor(device)) }
         .addInterceptor(AuthInterceptor(tokens))
         .addInterceptor(ErrorEnvelopeInterceptor(json))
         .build()
 
-    fun api(baseUrl: String, client: OkHttpClient, allowCleartext: Boolean): AssetaApi {
+    fun api(baseUrl: String, client: OkHttpClient, allowCleartext: Boolean): AssetaApi =
+        retrofit(baseUrl, client, allowCleartext).create(AssetaApi::class.java)
+
+    fun syncApi(baseUrl: String, client: OkHttpClient, allowCleartext: Boolean): SyncApi =
+        retrofit(baseUrl, client, allowCleartext).create(SyncApi::class.java)
+
+    private fun retrofit(baseUrl: String, client: OkHttpClient, allowCleartext: Boolean): Retrofit {
         require(baseUrl.isNotBlank()) { "API base URL is not configured (gradle property asseta.<buildType>.apiBaseUrl)" }
         val url = baseUrl.toHttpUrl()
         require(allowCleartext || url.isHttps) { "Release builds require an https API base URL" }
@@ -39,9 +47,10 @@ object NetworkFactory {
             .client(client)
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
-            .create(AssetaApi::class.java)
     }
 
     /** Uses the build-type endpoint from BuildConfig. */
     fun defaultApi(client: OkHttpClient): AssetaApi = api(BuildConfig.API_BASE_URL, client, BuildConfig.ALLOW_CLEARTEXT)
+
+    fun defaultSyncApi(client: OkHttpClient): SyncApi = syncApi(BuildConfig.API_BASE_URL, client, BuildConfig.ALLOW_CLEARTEXT)
 }

@@ -29,6 +29,8 @@ class AuditEvent(UuidPk, Base):
     after: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     reason: Mapped[str | None] = mapped_column(Text)
     correlation_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    # Managed-service mandate the actor was working under (DEC-018); stamped from the request session.
+    mandate_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), index=True)
 
 
 class AuditActor:
@@ -73,5 +75,6 @@ class AuditService:
                 after=after,
                 reason=reason,
                 correlation_id=get_correlation_id(),
+                mandate_id=self._session.info.get("mandate_id"),
             )
         )

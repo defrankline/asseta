@@ -7,11 +7,13 @@ import SwiftUI
 /// Root of both apps: routes between login, profile loading, tenant picker and home.
 public struct RootView: View {
     private let flavor: AppFlavor
+    private let home: HomeBuilder?
     @Bindable private var model: SessionModel
 
-    public init(flavor: AppFlavor, model: SessionModel) {
+    public init(flavor: AppFlavor, model: SessionModel, home: HomeBuilder? = nil) {
         self.flavor = flavor
         self.model = model
+        self.home = home
     }
 
     public var body: some View {
@@ -26,7 +28,12 @@ public struct RootView: View {
                 ProfileUnavailableView(model: model)
             case let .ready(me):
                 if let tenant = model.selectedTenant {
-                    HomeView(flavor: flavor, me: me, tenant: tenant, model: model)
+                    if let home {
+                        home(HomeContext(session: model, me: me, tenant: tenant))
+                            .id(tenant.tenantID)
+                    } else {
+                        HomeView(flavor: flavor, me: me, tenant: tenant, model: model)
+                    }
                 } else {
                     TenantPickerView(me: me, model: model)
                 }

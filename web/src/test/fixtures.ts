@@ -46,7 +46,7 @@ export function makeSession(
     permissions,
     canUsePlatform: (me?.platform_permissions.length ?? 0) > 0,
     isReadOnly: activeTenant?.access_state === 'READ_ONLY',
-    setMode: () => undefined,
+    setMode: () => Promise.resolve(),
     hasPermission: (required, match) => isGranted(permissions, required, match),
     reload: () => undefined,
   };

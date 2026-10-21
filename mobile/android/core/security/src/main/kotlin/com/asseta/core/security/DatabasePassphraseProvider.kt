@@ -19,6 +19,10 @@ class DatabasePassphraseProvider(
         return passphrase.copyOf()
     }
 
+    /** Device wipe: the encrypted database becomes permanently unreadable. */
+    @Synchronized
+    fun destroy() = store.destroy(FILE_NAME)
+
     private companion object {
         const val FILE_NAME = "db_passphrase.bin"
         const val PASSPHRASE_BYTES = 32

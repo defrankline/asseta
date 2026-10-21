@@ -17,6 +17,7 @@ class SessionViewModel(
     private val auth: AuthManager,
     private val api: AssetaApi,
     private val tenants: SelectedTenantStore,
+    private val notice: SessionNotice? = null,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<SessionState>(SessionState.SignedOut())
@@ -24,6 +25,18 @@ class SessionViewModel(
 
     init {
         if (auth.signedIn.value) loadProfile()
+        // A forced sign-out (device revoked + wiped, possibly by background sync) ends the session with its reason.
+        notice?.let { n ->
+            viewModelScope.launch {
+                n.pending.collect { message ->
+                    if (message != null) {
+                        tenants.clear()
+                        auth.logout()
+                        _state.value = SessionState.SignedOut(UiError(n.consume() ?: message))
+                    }
+                }
+            }
+        }
     }
 
     /** Resolves Keycloak discovery and hands back the browser intent to launch. */
@@ -63,6 +76,12 @@ class SessionViewModel(
                     }
                 }
         }
+    }
+
+    /** Returns to the tenant list (the selection is kept until another tenant is chosen). */
+    fun showTenantPicker() {
+        val ready = _state.value as? SessionState.Ready ?: return
+        _state.value = ready.copy(selectedTenantId = null)
     }
 
     fun selectTenant(tenantId: String) {

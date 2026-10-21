@@ -6,7 +6,10 @@ plugins {
 
 android {
     namespace = "com.asseta.core.database"
-    sourceSets { named("androidTest") { assets.directories.add("$projectDir/schemas") } }
+    sourceSets {
+        named("androidTest") { assets.directories.add("$projectDir/schemas") }
+        named("test") { assets.directories.add("$projectDir/schemas") }
+    }
 }
 
 room {
@@ -16,7 +19,7 @@ room {
 
 dependencies {
     api(project(":core:model"))
-    implementation(libs.room.runtime)
+    api(libs.room.runtime)
     implementation(libs.room.ktx)
     implementation(libs.androidx.sqlite)
     implementation(libs.sqlcipher.android)
@@ -26,6 +29,7 @@ dependencies {
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.test.core)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.room.testing)
 
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.ext.junit)

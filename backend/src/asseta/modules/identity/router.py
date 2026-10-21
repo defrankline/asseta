@@ -1,8 +1,10 @@
+from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
+from asseta.core.clock import get_today
 from asseta.core.db import get_session
 from asseta.core.errors import ERROR_RESPONSES
 from asseta.modules.identity.dependencies import get_claims
@@ -15,7 +17,9 @@ router = APIRouter(prefix="/api/v1", tags=["identity"], responses=ERROR_RESPONSE
 
 @router.get("/me", response_model=MeDto, operation_id="getMe")
 def get_me(
-    claims: Annotated[TokenClaims, Depends(get_claims)], session: Annotated[Session, Depends(get_session)]
+    claims: Annotated[TokenClaims, Depends(get_claims)],
+    session: Annotated[Session, Depends(get_session)],
+    today: Annotated[date, Depends(get_today)],
 ) -> MeDto:
     """Authenticated user's effective platform and tenant access (from Keycloak groups + synced mirror)."""
-    return IdentityService(session).me(claims)
+    return IdentityService(session).me(claims, today)

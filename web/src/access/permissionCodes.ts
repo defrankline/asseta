@@ -22,6 +22,9 @@ export const PERMISSIONS = {
   platformPaymentManage: 'platform.payment.manage',
   /** Credit adjustments and pending-charge overrides. */
   platformCreditManage: 'platform.credit.manage',
+  /** Managed-service mandates (DEC-018): view; grant, staff and end. */
+  platformMandateRead: 'platform.mandate.read',
+  platformMandateManage: 'platform.mandate.manage',
 
   // ---- Tenant console (only granted in tenant mode, for the active tenant) ----
   /** Fleet map, positions, history and alerts (read). */
@@ -65,4 +68,10 @@ export const PERMISSIONS = {
   tenantMeterReview: 'tenant.meter.review',
   /** Decide meter resets and reading corrections. */
   tenantMeterApprove: 'tenant.meter.approve',
+  /** Users & roles (Keycloak group membership): view; invite and grant/revoke roles. */
+  tenantAccessRead: 'tenant.access.read',
+  tenantAccessManage: 'tenant.access.manage',
+  /** The managed-service mandate held over this tenant: view; revoke. */
+  tenantManagedServiceRead: 'tenant.managed_service.read',
+  tenantManagedServiceRevoke: 'tenant.managed_service.revoke',
 } as const;

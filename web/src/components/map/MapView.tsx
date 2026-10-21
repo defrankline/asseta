@@ -1,4 +1,5 @@
 import 'maplibre-gl/dist/maplibre-gl.css';
+import './maplibreWorker';
 import { Map as MapLibreMap, NavigationControl } from 'maplibre-gl';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { appConfig } from '../../config/env';

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { makeMe, TENANT_A, TENANT_B } from '../test/fixtures';
+import { makePlatformStaffMe, mandatedTenant } from '../test/mandateFixtures';
 import { effectivePermissions, isGranted, resolveInitialMode } from './permissions';
 
 describe('isGranted (deny by default)', () => {
@@ -53,5 +54,20 @@ describe('resolveInitialMode', () => {
       kind: 'platform',
     });
     expect(resolveInitialMode(makeMe({ tenants: [] }), null)).toEqual({ kind: 'none' });
+  });
+  it('never enters a mandated client implicitly, but honours an explicit stored choice', () => {
+    const staff = makePlatformStaffMe();
+    expect(resolveInitialMode(staff, null)).toEqual({ kind: 'platform' });
+    expect(resolveInitialMode(staff, { kind: 'tenant', tenantId: TENANT_B })).toEqual({
+      kind: 'tenant',
+      tenantId: TENANT_B,
+    });
+    // A client whose mandate ended is no longer in /me, so the stored choice is dropped.
+    expect(
+      resolveInitialMode(makePlatformStaffMe([]), { kind: 'tenant', tenantId: TENANT_B }),
+    ).toEqual({ kind: 'platform' });
+    // Membership in a tenant of one's own still wins over the platform console.
+    const member = makePlatformStaffMe([mandatedTenant(), ...makeMe().tenants]);
+    expect(resolveInitialMode(member, null)).toEqual({ kind: 'tenant', tenantId: TENANT_A });
   });
 });

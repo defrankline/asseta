@@ -1,7 +1,8 @@
 """FastAPI dependencies enforcing authentication, tenant boundary, entitlement and permissions.
 
-Order: verify Keycloak token -> parse group grants -> resolve scope (platform vs X-Tenant-ID) -> check
-tenant access state -> resolve permissions from the Keycloak-synced mirror -> bind DB RLS scope.
+Order: verify Keycloak token -> parse group grants -> resolve scope (platform vs X-Tenant-ID) -> mandate gate for
+platform staff -> check tenant access state -> resolve permissions from the Keycloak-synced mirror -> bind DB RLS
+scope.
 """
 
 import uuid
@@ -11,12 +12,14 @@ from typing import Annotated
 from fastapi import Depends, Header, Request
 from sqlalchemy.orm import Session
 
+from asseta.core.clock import get_today
 from asseta.core.db import DbScope, apply_scope, get_session
 from asseta.core.errors import NotAuthenticated, PermissionDenied
 from asseta.modules.identity.catalog import CATALOG, PermissionScope
 from asseta.modules.identity.principal import RequestContext, TokenClaims
 from asseta.modules.identity.repository import IdentityRepository
 from asseta.modules.identity.tokens import TokenVerifier, parse_group_grants
+from asseta.modules.managed_service.gate import MandateGrant, active_grant, has_assignment_history
 from asseta.modules.tenancy.models import TenantAccessState
 
 READ_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
@@ -43,6 +46,26 @@ def _resolve_tenant_header(raw: str | None) -> uuid.UUID:
         return uuid.UUID(raw)
     except ValueError as exc:
         raise PermissionDenied("Invalid X-Tenant-ID", code="TENANT_REQUIRED") from exc
+
+
+def is_platform_staff(claims: TokenClaims) -> bool:
+    return any(g.startswith("/platform/") for g in claims.groups)
+
+
+def mandate_gate(
+    session: Session, request: Request, claims: TokenClaims, user_id: uuid.UUID, tenant_id: uuid.UUID
+) -> MandateGrant | None:
+    """None for an ordinary tenant member. For platform staff (or anyone who ever held a mandate assignment here)
+    the in-force mandate grant, else refuse: Keycloak groups alone never carry platform staff into a tenant."""
+    apply_scope(session, DbScope.TENANT, tenant_id, user_id)  # mandate rows are readable in the client's scope
+    if not is_platform_staff(claims) and not has_assignment_history(session, tenant_id, user_id):
+        return None
+    grant = active_grant(session, tenant_id, user_id, get_today(request))
+    if grant is None:
+        if has_assignment_history(session, tenant_id, user_id):
+            raise PermissionDenied("The managed-service mandate for this tenant is not in force", code="MANDATE_ENDED")
+        raise PermissionDenied("Platform staff need a managed-service mandate", code="MANDATE_REQUIRED")
+    return grant
 
 
 def requires(
@@ -72,7 +95,11 @@ def requires(
             ctx = RequestContext(user.id, claims.subject, DbScope.PLATFORM, None, grants.platform_roles, permissions)
         else:
             tenant_id = _resolve_tenant_header(x_tenant_id)
-            roles = grants.tenant_roles.get(tenant_id)
+            group_paths = frozenset(g for g in claims.groups if g.startswith(f"/tenants/{tenant_id}/"))
+            mandate = mandate_gate(session, request, claims, user.id, tenant_id)
+            if mandate is not None:
+                group_paths &= mandate.group_paths  # Keycloak membership AND an in-force assignment
+            roles = frozenset(p.rsplit("/", 1)[-1] for p in group_paths)
             if not roles:
                 raise PermissionDenied("No membership in requested tenant", code="TENANT_ACCESS_DENIED")
             access = repo.tenant_access_state(tenant_id)
@@ -81,12 +108,22 @@ def requires(
             read_only = access is TenantAccessState.READ_ONLY
             if read_only and request.method not in READ_METHODS and not quarantine_when_read_only:
                 raise PermissionDenied("Subscription allows read-only access", code="SUBSCRIPTION_READ_ONLY")
-            group_paths = frozenset(g for g in claims.groups if g.startswith(f"/tenants/{tenant_id}/"))
             permissions = repo.permissions_for_groups(group_paths)
-            ctx = RequestContext(user.id, claims.subject, DbScope.TENANT, tenant_id, roles, permissions, read_only)
+            ctx = RequestContext(
+                user.id,
+                claims.subject,
+                DbScope.TENANT,
+                tenant_id,
+                roles,
+                permissions,
+                read_only,
+                mandate.mandate_id if mandate else None,
+                mandate.reference if mandate else None,
+            )
         if code not in ctx.permissions:
             raise PermissionDenied(f"Missing permission {code}")
         apply_scope(session, ctx.scope, ctx.tenant_id, ctx.user_id)
+        session.info["mandate_id"] = ctx.mandate_id  # stamped on every audit event of this request
         return ctx
 
     dependency.__name__ = f"requires_{code.replace('.', '_')}"

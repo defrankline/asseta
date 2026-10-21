@@ -12,15 +12,32 @@ interface AuthProviderProps {
   children: ReactNode;
   /** Injectable for tests; defaults to a keycloak-js instance built from env. */
   client?: AuthClient;
+  /** Silent SSO timeout (tests use a short value). */
+  silentSsoTimeoutMs?: number;
 }
 
 const initialised = new WeakMap<AuthClient, Promise<boolean>>();
 
+/**
+ * keycloak-js waits indefinitely if the silent check-sso iframe never reports back (e.g. framing blocked by a
+ * proxy header, third-party storage restrictions). After this long we treat the user as signed out so the app
+ * offers interactive login instead of hanging on "Signing in…".
+ */
+export const SILENT_SSO_TIMEOUT_MS = 10_000;
+
+/** keycloak-js `updateToken(-1)` refreshes unconditionally. */
+const FORCE_REFRESH = -1;
+
 /** keycloak-js may only be initialised once per instance (StrictMode runs effects twice). */
-function initOnce(client: AuthClient): Promise<boolean> {
+function initOnce(client: AuthClient, timeoutMs: number): Promise<boolean> {
   const existing = initialised.get(client);
   if (existing) return existing;
-  const p = client.init(keycloakInitOptions(window.location.origin));
+  const timeout = new Promise<boolean>((resolve) => {
+    window.setTimeout(() => {
+      resolve(false);
+    }, timeoutMs);
+  });
+  const p = Promise.race([client.init(keycloakInitOptions(window.location.origin)), timeout]);
   initialised.set(client, p);
   return p;
 }
@@ -33,7 +50,11 @@ function attachRefreshHandlers(kc: AuthClient, onFailure: () => void): void {
   kc.onAuthRefreshError = onFailure;
 }
 
-export function AuthProvider({ children, client }: AuthProviderProps) {
+export function AuthProvider({
+  children,
+  client,
+  silentSsoTimeoutMs = SILENT_SSO_TIMEOUT_MS,
+}: AuthProviderProps) {
   const [kc] = useState<AuthClient>(() => client ?? createKeycloakClient());
   const [status, setStatus] = useState<AuthStatus>('initializing');
   const [error, setError] = useState<string | null>(null);
@@ -60,10 +81,20 @@ export function AuthProvider({ children, client }: AuthProviderProps) {
     }
   }, [kc, login]);
 
+  const refreshToken = useCallback(async (): Promise<void> => {
+    if (kc.authenticated !== true) return;
+    try {
+      await kc.updateToken(FORCE_REFRESH);
+    } catch (err) {
+      login();
+      throw err instanceof Error ? err : new Error('Could not refresh your session.');
+    }
+  }, [kc, login]);
+
   useEffect(() => {
     let active = true;
     attachRefreshHandlers(kc, login);
-    initOnce(kc)
+    initOnce(kc, silentSsoTimeoutMs)
       .then((authenticated) => {
         if (active) setStatus(authenticated ? 'authenticated' : 'unauthenticated');
       })
@@ -75,11 +106,16 @@ export function AuthProvider({ children, client }: AuthProviderProps) {
     return () => {
       active = false;
     };
-  }, [kc, login]);
+  }, [kc, login, silentSsoTimeoutMs]);
 
   useEffect(
-    () => registerRequestContext({ getAccessToken, onUnauthorized: login }),
-    [getAccessToken, login],
+    () =>
+      registerRequestContext({
+        getAccessToken,
+        onUnauthorized: login,
+        refreshAccessToken: refreshToken,
+      }),
+    [getAccessToken, login, refreshToken],
   );
 
   const value = useMemo<AuthContextValue>(
@@ -94,8 +130,9 @@ export function AuthProvider({ children, client }: AuthProviderProps) {
       login,
       logout,
       getAccessToken,
+      refreshToken,
     }),
-    [status, error, kc, login, logout, getAccessToken],
+    [status, error, kc, login, logout, getAccessToken, refreshToken],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
