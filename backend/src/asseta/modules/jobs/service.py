@@ -14,7 +14,6 @@ from asseta.core.audit import AuditService
 from asseta.core.db import utcnow
 from asseta.core.errors import BusinessRuleViolation, Conflict, NotFound
 from asseta.core.outbox import OutboxWriter
-from asseta.modules.fleet.models import Machine, StaffMember
 from asseta.modules.geospatial.models import JobSite
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.jobs.charges import JobCharges, job_charges
@@ -35,6 +34,7 @@ from asseta.modules.jobs.dto import (
     RateCardDto,
     RateCardIn,
 )
+from asseta.modules.jobs.lifecycle import check_active_customer, check_job_refs
 from asseta.modules.jobs.models import (
     ActivityType,
     ContractStatus,
@@ -106,7 +106,16 @@ class JobService:
     def create_customer(self, body: CustomerIn) -> CustomerDto:
         c = Customer(id=uuid.uuid4(), tenant_id=self._tid, **body.model_dump())
         self._insert(c, "DUPLICATE_CUSTOMER", "Customer code already exists")
-        return CustomerDto.model_validate(c)
+        dto = CustomerDto.model_validate(c)
+        self._audit.record(
+            actor=self._ctx.audit_actor(),
+            action="jobs.customer.created",
+            entity_type="customer",
+            entity_id=c.id,
+            tenant_id=self._tid,
+            after=dto.model_dump(mode="json"),
+        )
+        return dto
 
     def create_rate_card(self, body: RateCardIn) -> RateCardDto:
         effective = body.effective_from or utcnow()
@@ -147,10 +156,13 @@ class JobService:
 
     # --- contracts & jobs ---------------------------------------------------------------------------
     def create_contract(self, body: ContractIn) -> ContractDto:
-        if self._s.get(Customer, body.customer_id) is None:
-            raise NotFound("Customer not found")
-        if body.job_site_id and self._s.get(JobSite, body.job_site_id) is None:
-            raise NotFound("Job site not found")
+        check_active_customer(self._s, body.customer_id)
+        if body.job_site_id:
+            site = self._s.get(JobSite, body.job_site_id)
+            if site is None:
+                raise NotFound("Job site not found")
+            if not site.is_active:
+                raise BusinessRuleViolation("Job site is deactivated", code="SITE_INACTIVE")
         c = RentalContract(
             id=uuid.uuid4(),
             tenant_id=self._tid,
@@ -159,7 +171,16 @@ class JobService:
             **body.model_dump(),
         )
         self._insert(c, "DUPLICATE_CONTRACT", "Contract number already exists")
-        return ContractDto.model_validate(c)
+        dto = ContractDto.model_validate(c)
+        self._audit.record(
+            actor=self._ctx.audit_actor(),
+            action="jobs.contract.created",
+            entity_type="rental_contract",
+            entity_id=c.id,
+            tenant_id=self._tid,
+            after=dto.model_dump(mode="json"),
+        )
+        return dto
 
     def job(self, job_id: uuid.UUID, lock: bool = False) -> Job:
         stmt = select(Job).where(Job.id == job_id)
@@ -172,11 +193,8 @@ class JobService:
         contract = self._s.get(RentalContract, body.contract_id)
         if contract is None or contract.status is not ContractStatus.ACTIVE:
             raise BusinessRuleViolation("Contract not found or not active", code="CONTRACT_NOT_ACTIVE")
-        machine = self._s.get(Machine, body.machine_id)
-        if machine is None:
-            raise NotFound("Machine not found")
-        if body.supervisor_id and self._s.get(StaffMember, body.supervisor_id) is None:
-            raise NotFound("Supervisor not found")
+        check_active_customer(self._s, contract.customer_id)
+        machine = check_job_refs(self._s, body)
         card = self._rate_card(machine.category_id, body.planned_start)
         if body.hourly_rate is not None:
             rate, source = body.hourly_rate, "NEGOTIATED"

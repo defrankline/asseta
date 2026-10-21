@@ -12,7 +12,7 @@ from asseta.core.paging import Page, PageParams, page_params, paginate
 from asseta.core.search import ilike_any
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.platform_billing import permissions as P
-from asseta.modules.tenancy.dto import OnboardResultDto, TenantDto, TenantOnboardIn, VerificationIn
+from asseta.modules.tenancy.dto import OnboardResultDto, TenantDto, TenantOnboardIn, TenantUpdateIn, VerificationIn
 from asseta.modules.tenancy.models import Tenant
 from asseta.modules.tenancy.service import TenantOnboardingService
 
@@ -64,6 +64,18 @@ def get_tenant(
     if tenant is None:
         raise NotFound("Tenant not found")
     return TenantDto.model_validate(tenant)
+
+
+@router.put("/{tenant_id}", response_model=TenantDto, operation_id="updateTenant")
+def update_tenant(
+    tenant_id: uuid.UUID,
+    body: TenantUpdateIn,
+    request: Request,
+    session: DbSession,
+    ctx: Annotated[RequestContext, Depends(P.TENANT_UPDATE)],
+) -> TenantDto:
+    """Edit company details (optimistic `version`). Currency/timezone are not editable after onboarding."""
+    return TenantOnboardingService(session, ctx.audit_actor(), request.app.state.idp_admin).update(tenant_id, body)
 
 
 @router.post("/{tenant_id}/verification", response_model=TenantDto, operation_id="verifyTenant")

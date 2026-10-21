@@ -51,6 +51,10 @@ class JobSiteIn(BaseModel):
     center: GeoPoint
 
 
+class JobSiteUpdateIn(JobSiteIn):
+    version: int = Field(ge=1, description="Optimistic concurrency token from the last read")
+
+
 class JobSiteDto(BaseModel):
     id: uuid.UUID
     code: str
@@ -58,6 +62,9 @@ class JobSiteDto(BaseModel):
     address: str | None
     center: GeoPoint
     is_active: bool
+    version: int = 1
+    deactivated_at: datetime | None = None
+    deactivation_reason: str | None = None
 
 
 class GeofenceIn(BaseModel):
@@ -68,6 +75,9 @@ class GeofenceIn(BaseModel):
     corridor: GeoLineString | None = None
     corridor_width_m: float | None = Field(default=None, gt=0, le=5000)
     machine_ids: list[uuid.UUID] = Field(default_factory=list, description="Empty = applies to all machines")
+    version: int | None = Field(
+        default=None, ge=1, description="On update: optimistic concurrency token (STALE_VERSION when outdated)"
+    )
 
     @model_validator(mode="after")
     def _shape(self) -> "GeofenceIn":
@@ -91,6 +101,8 @@ class GeofenceDto(BaseModel):
     machine_ids: list[uuid.UUID]
     is_active: bool
     version: int
+    deactivated_at: datetime | None = None
+    deactivation_reason: str | None = None
 
 
 class GeofenceEventDto(Dto):

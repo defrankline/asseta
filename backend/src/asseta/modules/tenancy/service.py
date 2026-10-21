@@ -8,7 +8,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from asseta.core.audit import AuditActor, AuditService
-from asseta.core.errors import Conflict, NotFound
+from asseta.core.errors import BusinessRuleViolation, Conflict, NotFound
+from asseta.core.lifecycle import check_version
 from asseta.core.outbox import OutboxWriter
 from asseta.modules.identity.authz_sync import AuthzSyncService
 from asseta.modules.identity.idp import IdentityProviderAdmin
@@ -21,7 +22,7 @@ from asseta.modules.platform_billing.models_commercial import (
 )
 from asseta.modules.platform_billing.repository import BillingRepository
 from asseta.modules.platform_billing.subscription_service import default_billing_start
-from asseta.modules.tenancy.dto import OnboardResultDto, TenantDto, TenantOnboardIn, VerificationIn
+from asseta.modules.tenancy.dto import OnboardResultDto, TenantDto, TenantOnboardIn, TenantUpdateIn, VerificationIn
 from asseta.modules.tenancy.models import (
     Tenant,
     TenantAccessState,
@@ -150,6 +151,51 @@ class TenantOnboardingService:
             owner_email=str(body.owner.email),
             owner_temporary_password=owner.temporary_password,
         )
+
+    def update(self, tenant_id: uuid.UUID, body: TenantUpdateIn) -> TenantDto:
+        tenant = self._s.get(Tenant, tenant_id, with_for_update=True)
+        if tenant is None:
+            raise NotFound("Tenant not found")
+        check_version(tenant.version, body.version, "Tenant")
+        if tenant.status is TenantStatus.CLOSED:
+            raise BusinessRuleViolation("Closed tenants are read-only", code="TENANT_CLOSED")
+        if (
+            tenant.verification_status is VerificationStatus.VERIFIED
+            and body.registration_number != tenant.registration_number
+        ):
+            raise BusinessRuleViolation(
+                "The registration number of a verified company is fixed; reject the verification first",
+                code="TENANT_VERIFIED_FIELD",
+            )
+        before = TenantDto.model_validate(tenant).model_dump(mode="json")
+        data = body.model_dump(exclude={"version"})
+        data["contact_email"] = str(body.contact_email)
+        for key, value in data.items():
+            setattr(tenant, key, value)
+        tenant.version += 1
+        try:
+            with self._s.begin_nested():
+                self._s.flush()
+        except IntegrityError as exc:
+            raise Conflict("A tenant with this registration number exists", code="TENANT_EXISTS") from exc
+        dto = TenantDto.model_validate(tenant)
+        self._audit.record(
+            actor=self._actor,
+            action="platform.tenant.updated",
+            entity_type="tenant",
+            entity_id=tenant_id,
+            tenant_id=tenant_id,
+            before=before,
+            after=dto.model_dump(mode="json"),
+        )
+        OutboxWriter(self._s).emit(
+            topic="asseta.platform.tenant",
+            event_type="TenantUpdated",
+            key=str(tenant_id),
+            payload={"tenant_id": str(tenant_id), "version": tenant.version},
+            tenant_id=tenant_id,
+        )
+        return dto
 
     def verify(self, tenant_id: uuid.UUID, body: VerificationIn) -> TenantDto:
         tenant = self._s.get(Tenant, tenant_id, with_for_update=True)

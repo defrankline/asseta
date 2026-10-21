@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from asseta.core.db import get_session
 from asseta.core.errors import ERROR_RESPONSES, PermissionDenied
 from asseta.core.idempotency import IdempotencyGuard, request_hash
+from asseta.core.lifecycle import IncludeInactive, LifecycleChangeIn
 from asseta.core.paging import Page, PageParams, page_params, paginate
 from asseta.core.search import ilike_any
 from asseta.modules.identity.catalog import CATALOG, MenuDef
@@ -23,17 +24,21 @@ from asseta.modules.jobs.dto import (
     ActivityIn,
     ContractDto,
     ContractIn,
+    ContractUpdateIn,
     CustomerDto,
     CustomerIn,
+    CustomerUpdateIn,
     JobDto,
     JobIn,
     JobSummaryDto,
     JobTransitionIn,
+    JobUpdateIn,
     RateCardDto,
     RateCardIn,
 )
+from asseta.modules.jobs.lifecycle import RecordLifecycleService, customer_query
 from asseta.modules.jobs.models import (
-    Customer,
+    ContractStatus,
     CustomerAcknowledgement,
     Job,
     JobActivity,
@@ -57,6 +62,8 @@ for menu in (
 
 router = APIRouter(prefix="/api/v1/tenant", tags=["jobs"], responses=ERROR_RESPONSES)
 DbSession = Annotated[Session, Depends(get_session)]
+CustomerRead = Annotated[RequestContext, Depends(CUSTOMER_READ)]
+CustomerWrite = Annotated[RequestContext, Depends(CUSTOMER_WRITE)]
 
 
 @router.post("/customers", response_model=CustomerDto, status_code=201, operation_id="createCustomer")
@@ -69,16 +76,41 @@ def create_customer(
 @router.get("/customers", response_model=Page[CustomerDto], operation_id="listCustomers")
 def customers(
     session: DbSession,
-    _: Annotated[RequestContext, Depends(CUSTOMER_READ)],
+    _: CustomerRead,
     paging: Annotated[PageParams, Depends(page_params)],
+    include_inactive: IncludeInactive = False,
 ) -> Page[CustomerDto]:
-    stmt = select(Customer).order_by(Customer.name)
-    if (match := ilike_any(paging.q, Customer.name, Customer.code)) is not None:
-        stmt = stmt.where(match)
-    rows, total = paginate(session, stmt, paging)
+    rows, total = paginate(session, customer_query(paging.q, include_inactive), paging)
     return Page(
         items=[CustomerDto.model_validate(c) for c in rows], total=total, page=paging.page, page_size=paging.page_size
     )
+
+
+@router.get("/customers/{customer_id}", response_model=CustomerDto, operation_id="getCustomer")
+def get_customer(customer_id: uuid.UUID, session: DbSession, ctx: CustomerRead) -> CustomerDto:
+    return RecordLifecycleService(session, ctx).customer(customer_id)
+
+
+@router.put("/customers/{customer_id}", response_model=CustomerDto, operation_id="updateCustomer")
+def update_customer(
+    customer_id: uuid.UUID, body: CustomerUpdateIn, session: DbSession, ctx: CustomerWrite
+) -> CustomerDto:
+    return RecordLifecycleService(session, ctx).update_customer(customer_id, body)
+
+
+@router.post("/customers/{customer_id}/deactivate", response_model=CustomerDto, operation_id="deactivateCustomer")
+def deactivate_customer(
+    customer_id: uuid.UUID, body: LifecycleChangeIn, session: DbSession, ctx: CustomerWrite
+) -> CustomerDto:
+    """Refused while the customer has open jobs (DRAFT..IN_PROGRESS); history and balances are kept."""
+    return RecordLifecycleService(session, ctx).set_customer_active(customer_id, False, body.reason, body.version)
+
+
+@router.post("/customers/{customer_id}/reactivate", response_model=CustomerDto, operation_id="reactivateCustomer")
+def reactivate_customer(
+    customer_id: uuid.UUID, body: LifecycleChangeIn, session: DbSession, ctx: CustomerWrite
+) -> CustomerDto:
+    return RecordLifecycleService(session, ctx).set_customer_active(customer_id, True, body.reason, body.version)
 
 
 @router.post("/rate-cards", response_model=RateCardDto, status_code=201, operation_id="createRateCard")
@@ -98,19 +130,55 @@ def create_contract(
 @router.get("/contracts", response_model=Page[ContractDto], operation_id="listContracts")
 def contracts(
     session: DbSession,
-    _: Annotated[RequestContext, Depends(CUSTOMER_READ)],
+    _: CustomerRead,
     paging: Annotated[PageParams, Depends(page_params)],
     customer_id: uuid.UUID | None = None,
+    status: ContractStatus | None = None,
+    include_inactive: IncludeInactive = False,
 ) -> Page[ContractDto]:
+    """CLOSED contracts are hidden unless `include_inactive` or `status=CLOSED` is given."""
     stmt = select(RentalContract).order_by(RentalContract.starts_on.desc())
     if customer_id:
         stmt = stmt.where(RentalContract.customer_id == customer_id)
+    if status:
+        stmt = stmt.where(RentalContract.status == status)
+    elif not include_inactive:
+        stmt = stmt.where(RentalContract.status != ContractStatus.CLOSED)
     if (match := ilike_any(paging.q, RentalContract.contract_number, RentalContract.reference)) is not None:
         stmt = stmt.where(match)
     rows, total = paginate(session, stmt, paging)
     return Page(
         items=[ContractDto.model_validate(c) for c in rows], total=total, page=paging.page, page_size=paging.page_size
     )
+
+
+@router.get("/contracts/{contract_id}", response_model=ContractDto, operation_id="getContract")
+def get_contract(contract_id: uuid.UUID, session: DbSession, ctx: CustomerRead) -> ContractDto:
+    return RecordLifecycleService(session, ctx).contract(contract_id)
+
+
+@router.put("/contracts/{contract_id}", response_model=ContractDto, operation_id="updateContract")
+def update_contract(
+    contract_id: uuid.UUID, body: ContractUpdateIn, session: DbSession, ctx: CustomerWrite
+) -> ContractDto:
+    """Editable while DRAFT/ACTIVE; CLOSED contracts must be reopened first (CONTRACT_CLOSED)."""
+    return RecordLifecycleService(session, ctx).update_contract(contract_id, body)
+
+
+@router.post("/contracts/{contract_id}/close", response_model=ContractDto, operation_id="closeContract")
+def close_contract(
+    contract_id: uuid.UUID, body: LifecycleChangeIn, session: DbSession, ctx: CustomerWrite
+) -> ContractDto:
+    """Status CLOSED; refused while the contract has open jobs (DRAFT..IN_PROGRESS)."""
+    return RecordLifecycleService(session, ctx).set_contract_open(contract_id, False, body.reason, body.version)
+
+
+@router.post("/contracts/{contract_id}/reopen", response_model=ContractDto, operation_id="reopenContract")
+def reopen_contract(
+    contract_id: uuid.UUID, body: LifecycleChangeIn, session: DbSession, ctx: CustomerWrite
+) -> ContractDto:
+    """Back to ACTIVE; the customer must be active."""
+    return RecordLifecycleService(session, ctx).set_contract_open(contract_id, True, body.reason, body.version)
 
 
 @router.post("/jobs", response_model=JobDto, status_code=201, operation_id="createJob")
@@ -154,6 +222,15 @@ def job_summary(
     job_id: uuid.UUID, session: DbSession, ctx: Annotated[RequestContext, Depends(JOB_READ)]
 ) -> JobSummaryDto:
     return JobService(session, ctx).summary(job_id)
+
+
+@router.put("/jobs/{job_id}", response_model=JobDto, operation_id="updateJob")
+def update_job(
+    job_id: uuid.UUID, body: JobUpdateIn, session: DbSession, ctx: Annotated[RequestContext, Depends(JOB_WRITE)]
+) -> JobDto:
+    """Edit a DRAFT/PENDING_APPROVAL job (optimistic `version`); approved and later jobs are locked (JOB_LOCKED).
+    Cancel through the CANCEL transition."""
+    return RecordLifecycleService(session, ctx).update_job(job_id, body)
 
 
 @router.post("/jobs/{job_id}/transitions", response_model=JobDto, operation_id="transitionJob")

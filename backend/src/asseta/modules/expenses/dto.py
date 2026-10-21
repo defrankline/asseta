@@ -30,6 +30,13 @@ class ExpenseCategoryDto(Dto):
     name: str
     is_active: bool
     sync_revision: int
+    version: int = 1
+    deactivated_at: datetime | None = None
+    deactivation_reason: str | None = None
+
+
+class ExpenseCategoryUpdateIn(ExpenseCategoryIn):
+    version: int = Field(ge=1, description="Optimistic concurrency token from the last read")
 
 
 class ExpenseIn(BaseModel):

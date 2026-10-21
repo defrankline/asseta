@@ -6,6 +6,7 @@ from asseta.modules.identity.dependencies import requires
 
 TENANT_READ = requires("platform.tenant.read", S.PLATFORM, "View tenants")
 TENANT_CREATE = requires("platform.tenant.create", S.PLATFORM, "Onboard tenants")
+TENANT_UPDATE = requires("platform.tenant.update", S.PLATFORM, "Edit tenant company details")
 TENANT_VERIFY = requires("platform.tenant.verify", S.PLATFORM, "Verify tenant company records")
 SUB_READ = requires("platform.subscription.read", S.PLATFORM, "View subscriptions, enrollments, rates")
 SUB_MANAGE = requires("platform.subscription.manage", S.PLATFORM, "Change subscription lifecycle/entitlements")

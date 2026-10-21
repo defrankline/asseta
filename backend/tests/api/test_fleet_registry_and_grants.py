@@ -61,6 +61,16 @@ FORBIDDEN = (
             "expense_attachment",
             "fuel_event",
             "approval_request",
+            # Lifecycle-managed master data: deactivated/closed, never deleted
+            "customer",
+            "staff_member",
+            "job_site",
+            "machine_category",
+            "operating_area",
+            "rental_contract",
+            "job",
+            "geofence",
+            "tracker_model",
         )
     ]
     + [(t, "TRUNCATE") for t in ("tenant_hire_invoice", "customer_payment", "expense")]

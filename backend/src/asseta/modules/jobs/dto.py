@@ -12,6 +12,7 @@ Code = Annotated[str, StringConstraints(min_length=1, max_length=32, strip_white
 Name = Annotated[str, StringConstraints(min_length=1, max_length=200, strip_whitespace=True)]
 Hours = Annotated[Decimal, Field(ge=0, max_digits=12, decimal_places=2)]
 Amount = Annotated[Decimal, Field(ge=0, max_digits=18, decimal_places=4)]
+Version = Annotated[int, Field(ge=1, description="Optimistic concurrency token from the last read")]
 
 
 class Dto(BaseModel):
@@ -38,6 +39,13 @@ class CustomerDto(Dto):
     contact_email: str | None
     payment_terms_days: int
     is_active: bool
+    version: int = 1
+    deactivated_at: datetime | None = None
+    deactivation_reason: str | None = None
+
+
+class CustomerUpdateIn(CustomerIn):
+    version: Version
 
 
 class RateCardIn(BaseModel):
@@ -78,11 +86,25 @@ class ContractDto(Dto):
     starts_on: datetime
     ends_on: datetime | None
     reference: str | None
+    notes: str | None = None
+    version: int = 1
+    closed_at: datetime | None = None
+    close_reason: str | None = None
 
 
-class JobIn(BaseModel):
-    contract_id: uuid.UUID
-    job_number: Code
+class ContractUpdateIn(BaseModel):
+    """Editable while the contract is not CLOSED (the customer is fixed: start a new contract instead)."""
+
+    contract_number: Code
+    job_site_id: uuid.UUID | None = None
+    starts_on: datetime
+    ends_on: datetime | None = None
+    reference: str | None = Field(default=None, max_length=200)
+    notes: str | None = Field(default=None, max_length=2000)
+    version: Version
+
+
+class JobTermsIn(BaseModel):
     machine_id: uuid.UUID
     job_site_id: uuid.UUID | None = None
     supervisor_id: uuid.UUID | None = None
@@ -97,10 +119,21 @@ class JobIn(BaseModel):
     tax_rate_percent: Annotated[Decimal, Field(ge=0, le=100)] = Decimal(0)
 
     @model_validator(mode="after")
-    def _standby(self) -> "JobIn":
+    def _standby(self) -> "JobTermsIn":
         if (self.standby_treatment is StandbyTreatment.STANDBY_RATE) != (self.standby_rate is not None):
             raise ValueError("standby_rate is required exactly when standby_treatment is STANDBY_RATE")
         return self
+
+
+class JobIn(JobTermsIn):
+    contract_id: uuid.UUID
+    job_number: Code
+
+
+class JobUpdateIn(JobTermsIn):
+    """Edit a DRAFT or PENDING_APPROVAL job (contract and job number are fixed); approved jobs are locked."""
+
+    version: Version
 
 
 class JobDto(Dto):

@@ -61,6 +61,22 @@ class TenantDto(BaseModel):
     access_state: TenantAccessState
     access_state_reason: str | None
     created_at: datetime
+    version: int = 1
+
+
+class TenantUpdateIn(BaseModel):
+    """Company details only. Billing currency and timezone are fixed after onboarding (invoices, billing calendars
+    and policy dates depend on them); lifecycle (suspend/cancel) goes through subscription transitions."""
+
+    legal_name: Name
+    display_name: Annotated[str, StringConstraints(min_length=2, max_length=120, strip_whitespace=True)]
+    registration_number: str | None = Field(
+        default=None, max_length=64, description="Fixed once the company is VERIFIED (reject verification first)"
+    )
+    contact_name: Name
+    contact_email: EmailStr
+    contact_phone: str | None = Field(default=None, max_length=40)
+    version: int = Field(ge=1, description="Optimistic concurrency token from the last read")
 
 
 class OnboardResultDto(BaseModel):

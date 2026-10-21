@@ -41,6 +41,10 @@ class Actor:
         r: Response = self.api.client.post(path, json=body, headers=h)
         return r
 
+    def put(self, path: str, body: Any) -> Response:
+        r: Response = self.api.client.put(path, json=body, headers=self.headers(False, None))
+        return r
+
     def patch(self, path: str, body: Any) -> Response:
         r: Response = self.api.client.patch(path, json=body, headers=self.headers(True, None))
         return r

@@ -151,11 +151,15 @@ class SyncService:
         contract_ids = {j.contract_id for j in [*jobs, *scope_jobs]}
 
         def changed(model: Any, ids: set[uuid.UUID]) -> list[Any]:
+            """Bootstrap ships only active reference data; deltas also carry deactivations (is_active=false) so
+            devices drop them from pickers."""
             if not ids:
                 return []
             stmt = select(model).where(model.id.in_(ids))
             if min_revision is not None:
                 stmt = stmt.where(model.sync_revision > min_revision)
+            elif hasattr(model, "is_active"):
+                stmt = stmt.where(model.is_active.is_(True))
             return list(self._s.execute(stmt).scalars())
 
         contracts = changed(RentalContract, contract_ids)

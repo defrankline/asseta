@@ -8,7 +8,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from asseta.core.audit import AuditActor, AuditService
+from asseta.core.db import utcnow
 from asseta.core.errors import BusinessRuleViolation, Conflict, NotFound
+from asseta.core.lifecycle import check_version, flush_versioned
 from asseta.core.search import ilike_any
 from asseta.modules.fleet.models import Machine, MachineStatus
 from asseta.modules.platform_billing.models_ledger import SubscriptionAssetEnrollment
@@ -21,6 +23,8 @@ from asseta.modules.tracker.dto import (
     TrackerIn,
     TrackerModelDto,
     TrackerModelIn,
+    TrackerModelUpdateIn,
+    TrackerUpdateIn,
 )
 from asseta.modules.tracker.models import (
     Capability,
@@ -57,6 +61,70 @@ def create_tracker_model(session: Session, body: TrackerModelIn, actor: AuditAct
         entity_id=row.id,
         tenant_id=None,
         after=dto.model_dump(mode="json"),
+    )
+    return dto
+
+
+def tracker_model(session: Session, model_id: uuid.UUID, lock: bool = False) -> TrackerModel:
+    stmt = select(TrackerModel).where(TrackerModel.id == model_id)
+    row = session.execute(stmt.with_for_update() if lock else stmt).scalar_one_or_none()
+    if row is None:
+        raise NotFound("Tracker model not found")
+    return row
+
+
+def tracker_model_query(q: str | None, include_inactive: bool) -> Select[TrackerModel]:
+    stmt = select(TrackerModel).order_by(TrackerModel.manufacturer, TrackerModel.model)
+    if (match := ilike_any(q, TrackerModel.manufacturer, TrackerModel.model, TrackerModel.protocol)) is not None:
+        stmt = stmt.where(match)
+    return stmt if include_inactive else stmt.where(TrackerModel.approved.is_(True))
+
+
+def update_tracker_model(
+    session: Session, model_id: uuid.UUID, body: TrackerModelUpdateIn, actor: AuditActor
+) -> TrackerModelDto:
+    row = tracker_model(session, model_id, lock=True)
+    check_version(row.version, body.version, "Tracker model")
+    before = TrackerModelDto.model_validate(row).model_dump(mode="json")
+    row.manufacturer, row.model, row.protocol, row.notes = body.manufacturer, body.model, body.protocol, body.notes
+    row.declared_capabilities = [c.value for c in body.declared_capabilities]
+    flush_versioned(session, "Tracker model", "DUPLICATE_TRACKER_MODEL", "Tracker model already exists")
+    dto = TrackerModelDto.model_validate(row)
+    AuditService(session).record(
+        actor=actor,
+        action="platform.tracker_model.updated",
+        entity_type="tracker_model",
+        entity_id=row.id,
+        tenant_id=None,
+        before=before,
+        after=dto.model_dump(mode="json"),
+    )
+    return dto
+
+
+def set_tracker_model_approved(
+    session: Session, model_id: uuid.UUID, approved: bool, reason: str, version: int | None, actor: AuditActor
+) -> TrackerModelDto:
+    """Withdrawn models are no longer offered for new trackers; already registered trackers keep working."""
+    row = tracker_model(session, model_id, lock=True)
+    check_version(row.version, version, "Tracker model")
+    if row.approved == approved:
+        state = "active" if approved else "inactive"
+        raise Conflict(f"Tracker model is already {state}", code="ALREADY_ACTIVE" if approved else "ALREADY_INACTIVE")
+    row.approved = approved
+    row.deactivated_at, row.deactivated_by, row.deactivation_reason = (
+        (None, None, None) if approved else (utcnow(), actor.user_id, reason)
+    )
+    flush_versioned(session, "Tracker model")
+    dto = TrackerModelDto.model_validate(row)
+    AuditService(session).record(
+        actor=actor,
+        action=f"platform.tracker_model.{'reactivated' if approved else 'deactivated'}",
+        entity_type="tracker_model",
+        entity_id=row.id,
+        tenant_id=None,
+        after={"approved": approved},
+        reason=reason,
     )
     return dto
 
@@ -135,13 +203,40 @@ class TrackerService:
         )
         return dto
 
-    def list_query(self, q: str | None, state: ProvisioningState | None) -> Select[Tracker]:
+    def list_query(
+        self, q: str | None, state: ProvisioningState | None, include_inactive: bool = False
+    ) -> Select[Tracker]:
+        """RETIRED trackers are hidden unless asked for (`include_inactive` or `state=RETIRED`)."""
         stmt = select(Tracker).order_by(Tracker.label)
-        if (match := ilike_any(q, Tracker.label, Tracker.external_id)) is not None:
+        if (match := ilike_any(q, Tracker.label, Tracker.external_id, Tracker.sim_msisdn)) is not None:
             stmt = stmt.where(match)
         if state:
             stmt = stmt.where(Tracker.provisioning_state == state)
+        elif not include_inactive:
+            stmt = stmt.where(Tracker.provisioning_state != ProvisioningState.RETIRED)
         return stmt
+
+    def update(self, tracker_id: uuid.UUID, body: TrackerUpdateIn) -> TrackerDto:
+        tracker = self.tracker(tracker_id, lock=True)
+        check_version(tracker.version, body.version, "Tracker")
+        if tracker.provisioning_state is ProvisioningState.RETIRED:
+            raise BusinessRuleViolation("Retired trackers are read-only", code="TRACKER_RETIRED")
+        before = TrackerDto.model_validate(tracker).model_dump(mode="json", exclude={"capabilities"})
+        for key, value in body.model_dump(exclude={"version"}).items():
+            setattr(tracker, key, value)
+        tracker.version += 1
+        self._s.flush()
+        dto = self.to_dto(tracker)
+        self._audit.record(
+            actor=self._actor,
+            action="tracker.updated",
+            entity_type="tracker",
+            entity_id=tracker.id,
+            tenant_id=self._tenant_id,
+            before=before,
+            after=dto.model_dump(mode="json", exclude={"capabilities", "current_assignment"}),
+        )
+        return dto
 
     def change_state(self, tracker_id: uuid.UUID, state: ProvisioningState, reason: str, at: datetime) -> TrackerDto:
         tracker = self.tracker(tracker_id, lock=True)

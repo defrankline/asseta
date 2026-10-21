@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from asseta.core.audit import AuditService
 from asseta.core.errors import BusinessRuleViolation, Conflict, NotFound
+from asseta.core.lifecycle import check_version, flush_versioned, mark_active, mark_inactive
 from asseta.core.money import quantize
 from asseta.core.outbox import OutboxWriter
 from asseta.modules.expenses.dto import (
@@ -18,6 +19,7 @@ from asseta.modules.expenses.dto import (
     ApprovalRequestDto,
     ExpenseCategoryDto,
     ExpenseCategoryIn,
+    ExpenseCategoryUpdateIn,
     ExpenseDto,
     ExpenseIn,
     FuelEventDto,
@@ -78,6 +80,56 @@ class ExpenseService:
             entity_id=row.id,
             tenant_id=self._tid,
             after={"code": row.code, "name": row.name},
+        )
+        return ExpenseCategoryDto.model_validate(row)
+
+    def category(self, category_id: uuid.UUID, lock: bool = False) -> ExpenseCategory:
+        stmt = select(ExpenseCategory).where(ExpenseCategory.id == category_id)
+        row = self._s.execute(stmt.with_for_update() if lock else stmt).scalar_one_or_none()
+        if row is None:  # other tenants' categories are invisible under RLS
+            raise NotFound("Expense category not found")
+        return row
+
+    def update_category(self, category_id: uuid.UUID, body: ExpenseCategoryUpdateIn) -> ExpenseCategoryDto:
+        row = self.category(category_id, lock=True)
+        check_version(row.version, body.version, "Expense category")
+        before = {"code": row.code, "name": row.name}
+        row.code, row.name = body.code, body.name
+        flush_versioned(
+            self._s, "Expense category", "DUPLICATE_EXPENSE_CATEGORY", "Expense category code already exists"
+        )
+        self._s.refresh(row)  # trigger-bumped sync_revision so devices pick up the rename
+        self._audit.record(
+            actor=self._ctx.audit_actor(),
+            action="expense.category.updated",
+            entity_type="expense_category",
+            entity_id=row.id,
+            tenant_id=self._tid,
+            before=before,
+            after={"code": row.code, "name": row.name},
+        )
+        return ExpenseCategoryDto.model_validate(row)
+
+    def set_category_active(
+        self, category_id: uuid.UUID, active: bool, reason: str, version: int | None
+    ) -> ExpenseCategoryDto:
+        """Deactivated categories are refused for new expenses and drop off devices; recorded expenses keep them."""
+        row = self.category(category_id, lock=True)
+        check_version(row.version, version, "Expense category")
+        if active:
+            mark_active(row, "Expense category")
+        else:
+            mark_inactive(row, self._ctx.user_id, reason, "Expense category")
+        flush_versioned(self._s, "Expense category")
+        self._s.refresh(row)
+        self._audit.record(
+            actor=self._ctx.audit_actor(),
+            action=f"expense.category.{'reactivated' if active else 'deactivated'}",
+            entity_type="expense_category",
+            entity_id=row.id,
+            tenant_id=self._tid,
+            after={"is_active": active},
+            reason=reason,
         )
         return ExpenseCategoryDto.model_validate(row)
 

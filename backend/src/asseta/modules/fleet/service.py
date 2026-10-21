@@ -104,7 +104,7 @@ class MachineService:
         self._record("fleet.machine.created", "machine", machine.id, None, dto.model_dump(mode="json"))
         return dto
 
-    def update(self, machine_id: uuid.UUID, body: MachineUpdateIn) -> MachineDto:
+    def update(self, machine_id: uuid.UUID, body: MachineUpdateIn, now: datetime | None = None) -> MachineDto:
         machine = self.machine(machine_id)
         if machine.version != body.version:
             raise Conflict("Machine was modified by someone else; reload and retry", code="STALE_VERSION")
@@ -115,7 +115,7 @@ class MachineService:
         self._check_refs(body.category_id, body.operating_area_id, machine)
         before = MachineDto.model_validate(machine).model_dump(mode="json")
         if body.status is MachineStatus.DISPOSED:  # retiring via edit: same integrity rules as /deactivate
-            lifecycle = FleetLifecycleService(self._s, self._ctx)
+            lifecycle = FleetLifecycleService(self._s, self._ctx, now or utcnow())
             lifecycle.guard_machine_retirement(machine)
             lifecycle.end_machine_assignments(machine, "Machine disposed")
             machine.deactivated_at, machine.deactivated_by = utcnow(), self._ctx.user_id

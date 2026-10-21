@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Header, UploadFile
+from fastapi import APIRouter, Depends, File, Header, Query, UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -13,13 +13,16 @@ from asseta.core.config import get_settings
 from asseta.core.db import get_session
 from asseta.core.errors import ERROR_RESPONSES, NotFound
 from asseta.core.idempotency import IdempotencyGuard, request_hash
+from asseta.core.lifecycle import IncludeInactive, LifecycleChangeIn
 from asseta.core.paging import Page, PageParams, page_params, paginate
+from asseta.core.search import ilike_any
 from asseta.core.storage import ObjectStore
 from asseta.modules.expenses.dto import (
     ApprovalDecisionIn,
     ApprovalRequestDto,
     ExpenseCategoryDto,
     ExpenseCategoryIn,
+    ExpenseCategoryUpdateIn,
     ExpenseDto,
     ExpenseIn,
     FuelEventDto,
@@ -73,9 +76,69 @@ def create_category(
 
 
 @router.get("/expense-categories", response_model=list[ExpenseCategoryDto], operation_id="listExpenseCategories")
-def categories(session: DbSession, _: Annotated[RequestContext, Depends(EXPENSE_READ)]) -> list[ExpenseCategoryDto]:
-    rows = session.execute(select(ExpenseCategory).order_by(ExpenseCategory.code)).scalars()
-    return [ExpenseCategoryDto.model_validate(c) for c in rows]
+def categories(
+    session: DbSession,
+    _: Annotated[RequestContext, Depends(EXPENSE_READ)],
+    q: Annotated[str | None, Query(max_length=100)] = None,
+    include_inactive: IncludeInactive = False,
+) -> list[ExpenseCategoryDto]:
+    stmt = select(ExpenseCategory).order_by(ExpenseCategory.code)
+    if (match := ilike_any(q, ExpenseCategory.code, ExpenseCategory.name)) is not None:
+        stmt = stmt.where(match)
+    if not include_inactive:
+        stmt = stmt.where(ExpenseCategory.is_active.is_(True))
+    return [ExpenseCategoryDto.model_validate(c) for c in session.execute(stmt).scalars()]
+
+
+@router.get("/expense-categories/{category_id}", response_model=ExpenseCategoryDto, operation_id="getExpenseCategory")
+def get_category(
+    category_id: uuid.UUID, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(EXPENSE_READ)]
+) -> ExpenseCategoryDto:
+    return ExpenseCategoryDto.model_validate(ExpenseService(session, ctx, now).category(category_id))
+
+
+@router.put(
+    "/expense-categories/{category_id}", response_model=ExpenseCategoryDto, operation_id="updateExpenseCategory"
+)
+def update_category(
+    category_id: uuid.UUID,
+    body: ExpenseCategoryUpdateIn,
+    session: DbSession,
+    now: Now,
+    ctx: Annotated[RequestContext, Depends(CATEGORY_MANAGE)],
+) -> ExpenseCategoryDto:
+    return ExpenseService(session, ctx, now).update_category(category_id, body)
+
+
+@router.post(
+    "/expense-categories/{category_id}/deactivate",
+    response_model=ExpenseCategoryDto,
+    operation_id="deactivateExpenseCategory",
+)
+def deactivate_category(
+    category_id: uuid.UUID,
+    body: LifecycleChangeIn,
+    session: DbSession,
+    now: Now,
+    ctx: Annotated[RequestContext, Depends(CATEGORY_MANAGE)],
+) -> ExpenseCategoryDto:
+    """Refused for new expenses afterwards; recorded expenses keep their category."""
+    return ExpenseService(session, ctx, now).set_category_active(category_id, False, body.reason, body.version)
+
+
+@router.post(
+    "/expense-categories/{category_id}/reactivate",
+    response_model=ExpenseCategoryDto,
+    operation_id="reactivateExpenseCategory",
+)
+def reactivate_category(
+    category_id: uuid.UUID,
+    body: LifecycleChangeIn,
+    session: DbSession,
+    now: Now,
+    ctx: Annotated[RequestContext, Depends(CATEGORY_MANAGE)],
+) -> ExpenseCategoryDto:
+    return ExpenseService(session, ctx, now).set_category_active(category_id, True, body.reason, body.version)
 
 
 @router.post("/expenses", response_model=ExpenseDto, status_code=201, operation_id="submitExpense")

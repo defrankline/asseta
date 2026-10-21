@@ -19,7 +19,8 @@ from sqlalchemy.orm import Session
 from asseta.core.audit import AuditService
 from asseta.core.clock import get_now
 from asseta.core.db import DbScope, apply_scope, get_session
-from asseta.core.errors import ERROR_RESPONSES, Conflict, NotAuthenticated
+from asseta.core.errors import ERROR_RESPONSES, Conflict, NotAuthenticated, NotFound
+from asseta.core.lifecycle import IncludeInactive, LifecycleChangeIn
 from asseta.core.paging import Page, PageParams, page_params, paginate
 from asseta.modules.identity.catalog import PermissionScope as S
 from asseta.modules.identity.dependencies import requires
@@ -30,6 +31,7 @@ from asseta.modules.telemetry.traccar import TraccarAdapter
 from asseta.modules.tracker.models import TelemetryAdapterKind
 
 GATEWAY_MANAGE = requires("platform.gateway.manage", S.PLATFORM, "Manage telemetry gateways and keys")
+GATEWAY_READ = requires("platform.gateway.read", S.PLATFORM, "View telemetry gateways (never their keys)")
 TRACKER_READ = requires("tenant.tracker.read", S.TENANT, "View trackers, capabilities and assignments")
 
 router = APIRouter(prefix="/api/v1", tags=["telemetry"], responses=ERROR_RESPONSES)
@@ -57,6 +59,17 @@ class GatewayCreatedDto(BaseModel):
     name: str
     adapter: TelemetryAdapterKind
     gateway_key: str = Field(description="Shown once. Configure as X-Asseta-Gateway-Key on the gateway.")
+
+
+class GatewayDto(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    name: str
+    adapter: TelemetryAdapterKind
+    active: bool
+    last_seen_at: datetime | None
+    created_at: datetime
 
 
 class IngestionEventDto(BaseModel):
@@ -134,6 +147,83 @@ def create_gateway(
         after={"name": gw.name, "adapter": gw.adapter.value},
     )
     return GatewayCreatedDto(id=gw.id, name=gw.name, adapter=gw.adapter, gateway_key=key)
+
+
+@router.get("/platform/telemetry-gateways", response_model=list[GatewayDto], operation_id="listTelemetryGateways")
+def list_gateways(
+    session: DbSession, _: Annotated[RequestContext, Depends(GATEWAY_READ)], include_inactive: IncludeInactive = False
+) -> list[GatewayDto]:
+    stmt = select(TelemetryGateway).order_by(TelemetryGateway.name)
+    if not include_inactive:
+        stmt = stmt.where(TelemetryGateway.active.is_(True))
+    return [GatewayDto.model_validate(g) for g in session.execute(stmt).scalars()]
+
+
+def _gateway(session: Session, gateway_id: uuid.UUID, lock: bool = False) -> TelemetryGateway:
+    stmt = select(TelemetryGateway).where(TelemetryGateway.id == gateway_id)
+    gw = session.execute(stmt.with_for_update() if lock else stmt).scalar_one_or_none()
+    if gw is None:
+        raise NotFound("Gateway not found")
+    return gw
+
+
+@router.get("/platform/telemetry-gateways/{gateway_id}", response_model=GatewayDto, operation_id="getTelemetryGateway")
+def get_gateway(
+    gateway_id: uuid.UUID, session: DbSession, _: Annotated[RequestContext, Depends(GATEWAY_READ)]
+) -> GatewayDto:
+    return GatewayDto.model_validate(_gateway(session, gateway_id))
+
+
+def _set_gateway_active(
+    session: Session, ctx: RequestContext, gateway_id: uuid.UUID, active: bool, reason: str
+) -> GatewayDto:
+    gw = _gateway(session, gateway_id, lock=True)
+    if gw.active == active:
+        raise Conflict(
+            f"Gateway is already {'active' if active else 'inactive'}",
+            code="ALREADY_ACTIVE" if active else "ALREADY_INACTIVE",
+        )
+    gw.active = active
+    session.flush()
+    AuditService(session).record(
+        actor=ctx.audit_actor(),
+        action=f"platform.gateway.{'reactivated' if active else 'deactivated'}",
+        entity_type="telemetry_gateway",
+        entity_id=gw.id,
+        tenant_id=None,
+        after={"active": active},
+        reason=reason,
+    )
+    return GatewayDto.model_validate(gw)
+
+
+@router.post(
+    "/platform/telemetry-gateways/{gateway_id}/deactivate",
+    response_model=GatewayDto,
+    operation_id="deactivateTelemetryGateway",
+)
+def deactivate_gateway(
+    gateway_id: uuid.UUID,
+    body: LifecycleChangeIn,
+    session: DbSession,
+    ctx: Annotated[RequestContext, Depends(GATEWAY_MANAGE)],
+) -> GatewayDto:
+    """Revoke the gateway key immediately (e.g. leaked key); its ingestion history is kept."""
+    return _set_gateway_active(session, ctx, gateway_id, False, body.reason)
+
+
+@router.post(
+    "/platform/telemetry-gateways/{gateway_id}/reactivate",
+    response_model=GatewayDto,
+    operation_id="reactivateTelemetryGateway",
+)
+def reactivate_gateway(
+    gateway_id: uuid.UUID,
+    body: LifecycleChangeIn,
+    session: DbSession,
+    ctx: Annotated[RequestContext, Depends(GATEWAY_MANAGE)],
+) -> GatewayDto:
+    return _set_gateway_active(session, ctx, gateway_id, True, body.reason)
 
 
 @router.get(

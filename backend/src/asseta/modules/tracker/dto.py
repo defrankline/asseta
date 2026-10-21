@@ -32,6 +32,21 @@ class TrackerModelDto(Dto):
     declared_capabilities: list[Capability]
     approved: bool
     notes: str | None
+    version: int = 1
+    deactivated_at: datetime | None = None
+    deactivation_reason: str | None = None
+
+
+class TrackerModelUpdateIn(BaseModel):
+    """The adapter is fixed once created (registered trackers depend on it). Capability changes apply to trackers
+    registered afterwards; existing trackers keep their declared/verified capability rows."""
+
+    manufacturer: Text100
+    model: Text100
+    protocol: Annotated[str, StringConstraints(min_length=1, max_length=50)]
+    declared_capabilities: list[Capability] = Field(min_length=1)
+    notes: str | None = Field(default=None, max_length=2000)
+    version: int = Field(ge=1, description="Optimistic concurrency token from the last read")
 
 
 class TrackerIn(BaseModel):
@@ -42,6 +57,17 @@ class TrackerIn(BaseModel):
     sim_msisdn: str | None = Field(default=None, max_length=32)
     carrier: str | None = Field(default=None, max_length=60)
     credentials_ref: str | None = Field(default=None, max_length=200)
+
+
+class TrackerUpdateIn(BaseModel):
+    """Editable registry details; the device identity (adapter/external_id) and model are fixed."""
+
+    label: Text100
+    sim_iccid: str | None = Field(default=None, max_length=32)
+    sim_msisdn: str | None = Field(default=None, max_length=32)
+    carrier: str | None = Field(default=None, max_length=60)
+    credentials_ref: str | None = Field(default=None, max_length=200)
+    version: int = Field(ge=1, description="Optimistic concurrency token from the last read")
 
 
 class CapabilityDto(Dto):
@@ -73,6 +99,7 @@ class TrackerDto(Dto):
     provisioning_state: ProvisioningState
     first_report_at: datetime | None
     last_report_at: datetime | None
+    version: int = 1
     capabilities: list[CapabilityDto] = []
     current_assignment: TrackerAssignmentDto | None = None
 

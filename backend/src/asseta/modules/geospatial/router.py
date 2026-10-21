@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from asseta.core.clock import get_now
 from asseta.core.db import get_session, utcnow
 from asseta.core.errors import ERROR_RESPONSES, BusinessRuleViolation, Conflict, NotFound
+from asseta.core.lifecycle import IncludeInactive, LifecycleChangeIn
 from asseta.core.paging import Page, PageParams, page_params, paginate
 from asseta.modules.geospatial.dto import (
     AlertActionIn,
@@ -20,6 +21,7 @@ from asseta.modules.geospatial.dto import (
     GeofenceIn,
     JobSiteDto,
     JobSiteIn,
+    JobSiteUpdateIn,
 )
 from asseta.modules.geospatial.fleet_map import FleetMapService, MachineMapDto
 from asseta.modules.geospatial.history import HistoryDto, HistoryService, NearbyMachineDto
@@ -45,6 +47,8 @@ for menu in (
 router = APIRouter(prefix="/api/v1/tenant", tags=["geospatial"], responses=ERROR_RESPONSES)
 DbSession = Annotated[Session, Depends(get_session)]
 Now = Annotated[datetime, Depends(get_now)]
+GeoRead = Annotated[RequestContext, Depends(GEOFENCE_READ)]
+GeoWrite = Annotated[RequestContext, Depends(GEOFENCE_WRITE)]
 MAX_HISTORY_DAYS = 31
 
 
@@ -95,10 +99,11 @@ def nearby(
 @router.get("/job-sites", response_model=list[JobSiteDto], operation_id="listJobSites")
 def sites(
     session: DbSession,
-    ctx: Annotated[RequestContext, Depends(GEOFENCE_READ)],
+    ctx: GeoRead,
     q: Annotated[str | None, Query(max_length=100)] = None,
+    include_inactive: IncludeInactive = False,
 ) -> list[JobSiteDto]:
-    return SiteService(session, _tid(ctx), ctx.audit_actor()).sites(q)
+    return SiteService(session, _tid(ctx), ctx.audit_actor()).sites(q, include_inactive)
 
 
 @router.post("/job-sites", response_model=JobSiteDto, status_code=201, operation_id="createJobSite")
@@ -108,9 +113,63 @@ def create_site(
     return SiteService(session, _tid(ctx), ctx.audit_actor()).create_site(body)
 
 
+@router.get("/job-sites/{site_id}", response_model=JobSiteDto, operation_id="getJobSite")
+def get_site(site_id: uuid.UUID, session: DbSession, ctx: GeoRead) -> JobSiteDto:
+    svc = SiteService(session, _tid(ctx), ctx.audit_actor())
+    return svc.site_dto(svc.site(site_id))
+
+
+@router.put("/job-sites/{site_id}", response_model=JobSiteDto, operation_id="updateJobSite")
+def update_site(site_id: uuid.UUID, body: JobSiteUpdateIn, session: DbSession, ctx: GeoWrite) -> JobSiteDto:
+    return SiteService(session, _tid(ctx), ctx.audit_actor()).update_site(site_id, body)
+
+
+@router.post("/job-sites/{site_id}/deactivate", response_model=JobSiteDto, operation_id="deactivateJobSite")
+def deactivate_site(site_id: uuid.UUID, body: LifecycleChangeIn, session: DbSession, ctx: GeoWrite) -> JobSiteDto:
+    """Refused while an open job (DRAFT..IN_PROGRESS) is at the site (SITE_IN_USE)."""
+    return SiteService(session, _tid(ctx), ctx.audit_actor()).set_site_active(site_id, False, body.reason, body.version)
+
+
+@router.post("/job-sites/{site_id}/reactivate", response_model=JobSiteDto, operation_id="reactivateJobSite")
+def reactivate_site(site_id: uuid.UUID, body: LifecycleChangeIn, session: DbSession, ctx: GeoWrite) -> JobSiteDto:
+    return SiteService(session, _tid(ctx), ctx.audit_actor()).set_site_active(site_id, True, body.reason, body.version)
+
+
 @router.get("/geofences", response_model=list[GeofenceDto], operation_id="listGeofences")
-def geofences(session: DbSession, ctx: Annotated[RequestContext, Depends(GEOFENCE_READ)]) -> list[GeofenceDto]:
-    return SiteService(session, _tid(ctx), ctx.audit_actor()).geofences()
+def geofences(session: DbSession, ctx: GeoRead, include_inactive: IncludeInactive = False) -> list[GeofenceDto]:
+    return SiteService(session, _tid(ctx), ctx.audit_actor()).geofences(include_inactive)
+
+
+@router.get("/geofences/{geofence_id}", response_model=GeofenceDto, operation_id="getGeofence")
+def get_geofence(geofence_id: uuid.UUID, session: DbSession, ctx: GeoRead) -> GeofenceDto:
+    svc = SiteService(session, _tid(ctx), ctx.audit_actor())
+    return svc.to_dto(svc.geofence(geofence_id))
+
+
+def _set_geofence_active(
+    session: Session, ctx: RequestContext, geofence_id: uuid.UUID, active: bool, body: LifecycleChangeIn, now: datetime
+) -> GeofenceDto:
+    svc = SiteService(session, _tid(ctx), ctx.audit_actor())
+    dto, effective = svc.set_geofence_active(geofence_id, active, body.reason, body.version, now)
+    timeline = TimelineProcessor(session, _tid(ctx))
+    for machine_id in svc.affected_machines(geofence_id):  # derived events from `effective` follow the change
+        timeline.replay(machine_id, effective)
+    return dto
+
+
+@router.post("/geofences/{geofence_id}/deactivate", response_model=GeofenceDto, operation_id="deactivateGeofence")
+def deactivate_geofence(
+    geofence_id: uuid.UUID, body: LifecycleChangeIn, session: DbSession, now: Now, ctx: GeoWrite
+) -> GeofenceDto:
+    """Stops alerting/evaluation from now; past enter/exit events are kept."""
+    return _set_geofence_active(session, ctx, geofence_id, False, body, now)
+
+
+@router.post("/geofences/{geofence_id}/reactivate", response_model=GeofenceDto, operation_id="reactivateGeofence")
+def reactivate_geofence(
+    geofence_id: uuid.UUID, body: LifecycleChangeIn, session: DbSession, now: Now, ctx: GeoWrite
+) -> GeofenceDto:
+    return _set_geofence_active(session, ctx, geofence_id, True, body, now)
 
 
 @router.post("/geofences", response_model=GeofenceDto, status_code=201, operation_id="createGeofence")

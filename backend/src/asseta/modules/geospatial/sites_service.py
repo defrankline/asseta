@@ -11,10 +11,14 @@ from sqlalchemy.orm import Session
 
 from asseta.core.audit import AuditActor, AuditService
 from asseta.core.errors import BusinessRuleViolation, Conflict, NotFound
+from asseta.core.lifecycle import check_version, flush_versioned, mark_active, mark_inactive
 from asseta.core.search import ilike_any
 from asseta.modules.fleet.models import Machine
-from asseta.modules.geospatial.dto import GeofenceDto, GeofenceIn, GeoPoint, JobSiteDto, JobSiteIn
+from asseta.modules.geospatial.dto import GeofenceDto, GeofenceIn, GeoPoint, JobSiteDto, JobSiteIn, JobSiteUpdateIn
 from asseta.modules.geospatial.models import Geofence, GeofenceEvent, GeofenceMachine, GeofenceShape, JobSite
+from asseta.modules.jobs.models import Job, JobStatus
+
+OPEN_JOB_STATES = (JobStatus.DRAFT, JobStatus.PENDING_APPROVAL, JobStatus.APPROVED, JobStatus.IN_PROGRESS)
 
 
 class SiteService:
@@ -31,6 +35,9 @@ class SiteService:
             address=site.address,
             center=GeoPoint(coordinates=(lon, lat)),
             is_active=site.is_active,
+            version=site.version,
+            deactivated_at=site.deactivated_at,
+            deactivation_reason=site.deactivation_reason,
         )
 
     def create_site(self, body: JobSiteIn) -> JobSiteDto:
@@ -50,13 +57,72 @@ class SiteService:
         except IntegrityError as exc:
             raise Conflict("Site code already exists", code="DUPLICATE_SITE") from exc
         self._s.refresh(site)
-        return self.site_dto(site)
+        dto = self.site_dto(site)
+        self._audit("geospatial.site.created", "job_site", site.id, None, dto.model_dump(mode="json"))
+        return dto
 
-    def sites(self, q: str | None = None) -> list[JobSiteDto]:
+    def sites(self, q: str | None = None, include_inactive: bool = False) -> list[JobSiteDto]:
         stmt = select(JobSite).order_by(JobSite.code)
         if (match := ilike_any(q, JobSite.code, JobSite.name)) is not None:
             stmt = stmt.where(match)
+        if not include_inactive:
+            stmt = stmt.where(JobSite.is_active.is_(True))
         return [self.site_dto(s) for s in self._s.execute(stmt).scalars()]
+
+    def site(self, site_id: uuid.UUID, lock: bool = False) -> JobSite:
+        stmt = select(JobSite).where(JobSite.id == site_id)
+        site = self._s.execute(stmt.with_for_update() if lock else stmt).scalar_one_or_none()
+        if site is None:  # other tenants' sites are invisible under RLS
+            raise NotFound("Job site not found")
+        return site
+
+    def update_site(self, site_id: uuid.UUID, body: JobSiteUpdateIn) -> JobSiteDto:
+        site = self.site(site_id, lock=True)
+        check_version(site.version, body.version, "Job site")
+        before = self.site_dto(site).model_dump(mode="json")
+        lon, lat = body.center.coordinates
+        site.code, site.name, site.address = body.code, body.name, body.address
+        site.center = func.ST_SetSRID(func.ST_MakePoint(lon, lat), 4326)
+        flush_versioned(self._s, "Job site", "DUPLICATE_SITE", "Site code already exists")
+        self._s.refresh(site)
+        dto = self.site_dto(site)
+        self._audit("geospatial.site.updated", "job_site", site.id, before, dto.model_dump(mode="json"))
+        return dto
+
+    def set_site_active(self, site_id: uuid.UUID, active: bool, reason: str, version: int | None) -> JobSiteDto:
+        """Deactivation is refused while an open job (DRAFT..IN_PROGRESS) is at the site; geofences, contracts and
+        history keep referencing it."""
+        site = self.site(site_id, lock=True)
+        check_version(site.version, version, "Job site")
+        if active:
+            mark_active(site, "Job site")
+        else:
+            in_use = self._s.execute(
+                select(Job.id).where(Job.job_site_id == site.id, Job.status.in_(OPEN_JOB_STATES))
+            ).first()
+            if in_use is not None:
+                raise BusinessRuleViolation("Job site has open jobs; complete or move them first", code="SITE_IN_USE")
+            mark_inactive(site, self._actor.user_id, reason, "Job site")
+        flush_versioned(self._s, "Job site")
+        self._s.refresh(site)
+        dto = self.site_dto(site)
+        verb = "reactivated" if active else "deactivated"
+        self._audit(f"geospatial.site.{verb}", "job_site", site.id, None, dto.model_dump(mode="json"), reason)
+        return dto
+
+    def _audit(
+        self, action: str, entity: str, entity_id: uuid.UUID, before: Any, after: Any, reason: str | None = None
+    ) -> None:
+        AuditService(self._s).record(
+            actor=self._actor,
+            action=action,
+            entity_type=entity,
+            entity_id=entity_id,
+            tenant_id=self._tenant_id,
+            before=before,
+            after=after,
+            reason=reason,
+        )
 
     # --- geofences ------------------------------------------------------------------------------------
     def to_dto(self, g: Geofence) -> GeofenceDto:
@@ -140,6 +206,8 @@ class SiteService:
     def update_geofence(self, geofence_id: uuid.UUID, body: GeofenceIn, now: datetime) -> tuple[GeofenceDto, datetime]:
         """New shape applies from `now`; derived events from `now` are replayed by the caller."""
         g = self.geofence(geofence_id, lock=True)
+        if body.version is not None:
+            check_version(g.version, body.version, "Geofence")
         self._check_refs(body)
         src, area, shape = self._area(body)
         before = self.to_dto(g).model_dump(mode="json")
@@ -174,8 +242,28 @@ class SiteService:
             raise NotFound("Geofence not found")
         return g
 
-    def geofences(self) -> list[GeofenceDto]:
-        return [self.to_dto(g) for g in self._s.execute(select(Geofence).order_by(Geofence.name)).scalars()]
+    def geofences(self, include_inactive: bool = False) -> list[GeofenceDto]:
+        stmt = select(Geofence).order_by(Geofence.name)
+        if not include_inactive:
+            stmt = stmt.where(Geofence.is_active.is_(True))
+        return [self.to_dto(g) for g in self._s.execute(stmt).scalars()]
+
+    def set_geofence_active(
+        self, geofence_id: uuid.UUID, active: bool, reason: str, version: int | None, now: datetime
+    ) -> tuple[GeofenceDto, datetime]:
+        """Takes effect from `now`; the caller replays derived events from then (history is not rewritten)."""
+        g = self.geofence(geofence_id, lock=True)
+        check_version(g.version, version, "Geofence")
+        if active:
+            mark_active(g, "Geofence")
+        else:
+            mark_inactive(g, self._actor.user_id, reason, "Geofence")
+        g.version += 1
+        self._s.flush()
+        dto = self.to_dto(g)
+        verb = "reactivated" if active else "deactivated"
+        self._audit(f"geospatial.geofence.{verb}", "geofence", g.id, None, {"is_active": active}, reason)
+        return dto, now
 
     def affected_machines(self, geofence_id: uuid.UUID) -> list[uuid.UUID]:
         return list(
