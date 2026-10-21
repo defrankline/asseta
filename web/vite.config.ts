@@ -20,6 +20,8 @@ export default defineConfig(({ mode }) => {
       setupFiles: ['./src/test/setup.ts'],
       css: false,
       restoreMocks: true,
+      // Multi-step MUI dialog integration tests are slow on 2-core CI runners (first CI timeout at 5 s).
+      testTimeout: 20_000,
     },
   };
 });
