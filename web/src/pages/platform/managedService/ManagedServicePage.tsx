@@ -14,6 +14,7 @@ import { MANDATE_TONES } from '../../../components/mandate/mandateUi';
 import { useAsyncResource } from '../../../hooks/useAsyncResource';
 import { useNotify } from '../../../notifications/useNotify';
 import { mandateScopeLabel } from '../../../session/mandateDisplay';
+import { useSession } from '../../../session/useSession';
 import { formatDate } from '../../../utils/dates';
 import { GrantMandateDialog } from './GrantMandateDialog';
 import { MandateDetailDialog } from './MandateDetailDialog';
@@ -41,10 +42,19 @@ const columns: DataColumn<MandateDto>[] = [
 /** Platform view of managed-service mandates: grant on consent, staff, and end them. */
 export function ManagedServicePage() {
   const notify = useNotify();
+  const { reload: reloadSession } = useSession();
   const [granting, setGranting] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const load = useCallback((signal: AbortSignal) => mandateService.list(signal), []);
   const mandates = useAsyncResource(load);
+  /**
+   * Granting, staffing or ending a mandate changes which clients platform staff may enter: refresh
+   * the session (/me, in the background) so the header switcher lists them without a page reload.
+   */
+  const changed = () => {
+    mandates.reload();
+    reloadSession();
+  };
 
   return (
     <>
@@ -97,7 +107,7 @@ export function ManagedServicePage() {
           }}
           onGranted={(m) => {
             notify.success(`Mandate ${m.reference} granted for ${m.tenant_name}.`);
-            mandates.reload();
+            changed();
             setOpenId(m.id);
           }}
         />
@@ -108,7 +118,7 @@ export function ManagedServicePage() {
           onClose={() => {
             setOpenId(null);
           }}
-          onChanged={mandates.reload}
+          onChanged={changed}
         />
       )}
     </>

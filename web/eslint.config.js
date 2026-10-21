@@ -4,9 +4,10 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
+import { DROPDOWN_RULES } from './eslint/dropdownRules.js';
 
 export default tseslint.config(
-  { ignores: ['dist', 'coverage', 'node_modules', 'src/api/generated'] },
+  { ignores: ['dist', 'coverage', 'node_modules', 'src/api/generated', 'eslint/*.d.ts'] },
   {
     files: ['**/*.{ts,tsx}'],
     extends: [
@@ -30,6 +31,7 @@ export default tseslint.config(
       ],
       '@typescript-eslint/restrict-template-expressions': ['error', { allowNumber: true }],
       'max-lines': ['error', { max: 500, skipBlankLines: false, skipComments: false }],
+      'no-restricted-syntax': ['error', ...DROPDOWN_RULES],
       'no-restricted-imports': [
         'error',
         {
@@ -47,6 +49,14 @@ export default tseslint.config(
   {
     files: ['src/api/**/*.ts'],
     rules: { 'no-restricted-imports': 'off' },
+  },
+  {
+    // The sanctioned static-select primitives map their (constant) `options` prop.
+    files: [
+      'src/components/forms/FormikSelectField.tsx',
+      'src/components/forms/StaticSelectFilter.tsx',
+    ],
+    rules: { 'no-restricted-syntax': 'off' },
   },
   {
     files: ['**/*.test.{ts,tsx}', 'src/test/**'],

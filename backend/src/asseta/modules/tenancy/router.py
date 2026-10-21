@@ -2,13 +2,14 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, Request
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from asseta.core.db import get_session
 from asseta.core.errors import ERROR_RESPONSES, NotFound
 from asseta.core.idempotency import IdempotencyGuard, request_hash
 from asseta.core.paging import Page, PageParams, page_params, paginate
+from asseta.core.search import ilike_any
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.platform_billing import permissions as P
 from asseta.modules.tenancy.dto import OnboardResultDto, TenantDto, TenantOnboardIn, VerificationIn
@@ -43,9 +44,8 @@ def list_tenants(
     paging: Annotated[PageParams, Depends(page_params)],
 ) -> Page[TenantDto]:
     stmt = select(Tenant)
-    if paging.q:
-        like = f"%{paging.q}%"
-        stmt = stmt.where(or_(Tenant.legal_name.ilike(like), Tenant.display_name.ilike(like)))
+    if (match := ilike_any(paging.q, Tenant.legal_name, Tenant.display_name)) is not None:
+        stmt = stmt.where(match)
     sort_col = {"name": Tenant.display_name, "created_at": Tenant.created_at}.get(
         (paging.sort or "-created_at").lstrip("-"), Tenant.created_at
     )

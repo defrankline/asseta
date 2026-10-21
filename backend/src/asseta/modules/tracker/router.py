@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Depends, Header, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -13,6 +13,7 @@ from asseta.core.db import get_session
 from asseta.core.errors import ERROR_RESPONSES
 from asseta.core.idempotency import IdempotencyGuard, request_hash
 from asseta.core.paging import Page, PageParams, page_params, paginate
+from asseta.core.search import ilike_any
 from asseta.modules.identity.catalog import CATALOG, MenuDef
 from asseta.modules.identity.catalog import PermissionScope as S
 from asseta.modules.identity.dependencies import requires
@@ -56,12 +57,17 @@ def create_model(
 
 
 @router.get("/tenant/tracker-models", response_model=list[TrackerModelDto], operation_id="listApprovedTrackerModels")
-def approved_models(session: DbSession, _: Read) -> list[TrackerModelDto]:
-    rows = session.execute(
+def approved_models(
+    session: DbSession, _: Read, q: Annotated[str | None, Query(max_length=100)] = None
+) -> list[TrackerModelDto]:
+    stmt = (
         select(TrackerModel)
         .where(TrackerModel.approved.is_(True))
         .order_by(TrackerModel.manufacturer, TrackerModel.model)
-    ).scalars()
+    )
+    if (match := ilike_any(q, TrackerModel.manufacturer, TrackerModel.model)) is not None:
+        stmt = stmt.where(match)
+    rows = session.execute(stmt).scalars()
     return [TrackerModelDto.model_validate(r) for r in rows]
 
 

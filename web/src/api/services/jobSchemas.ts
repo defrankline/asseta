@@ -1,5 +1,5 @@
 /** Runtime (Yup) response schemas for customers, contracts, rate cards, jobs and work logs. */
-import { object, type Schema } from 'yup';
+import { array, object, type Schema } from 'yup';
 import type {
   AcknowledgementDto,
   ActivityDto,
@@ -98,6 +98,27 @@ const jobFields = {
 
 export const jobSchema: Schema<JobDto> = object(jobFields);
 
+/** Priced charge lines from the server's single pricing source (absent until hours are billable). */
+const chargesSchema = object({
+  currency: text(),
+  lines: array(
+    object({
+      kind: text(),
+      description: text(),
+      quantity: text(),
+      unit_price: text(),
+      amount: text(),
+    }),
+  ).required(),
+  subtotal: text(),
+  discount_total: text(),
+  tax_total: text(),
+  total: text(),
+})
+  .nullable()
+  .optional()
+  .default(undefined);
+
 export const jobSummarySchema: Schema<JobSummaryDto> = object({
   job: object(jobFields).required(),
   opening_reading: nullableText(),
@@ -105,6 +126,8 @@ export const jobSummarySchema: Schema<JobSummaryDto> = object({
   meter_hours: nullableText(),
   nonbillable_hours: text(),
   billable_hours: nullableText(),
+  standby_hours: text(),
+  charges: chargesSchema,
   open_exceptions: int(),
   blocking_exceptions: int(),
   billing_ready: bool(),

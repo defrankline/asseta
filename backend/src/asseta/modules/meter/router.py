@@ -47,7 +47,7 @@ APPROVE = requires("tenant.meter.approve", S.TENANT, "Approve meter resets and r
 CATALOG.register_menu(
     MenuDef("tenant.exceptions", S.TENANT, "Exceptions", "/tenant/exceptions", 62, "tenant.meter.read")
 )
-PURPOSES = {"METER_PHOTO", "SIGNATURE", "RESET_EVIDENCE"}
+PURPOSES = {"METER_PHOTO", "SIGNATURE", "RESET_EVIDENCE", "EXPENSE_RECEIPT"}
 
 router = APIRouter(prefix="/api/v1/tenant", tags=["meter"], responses=ERROR_RESPONSES)
 DbSession = Annotated[Session, Depends(get_session)]
@@ -64,8 +64,15 @@ async def upload(
 ) -> AttachmentDto:
     if purpose not in PURPOSES:
         raise BusinessRuleViolation(f"purpose must be one of {sorted(PURPOSES)}", code="BAD_PURPOSE")
+    data = await file.read(get_settings().max_image_bytes + 1)
+    return AttachmentDto.model_validate(save_attachment(session, store, ctx, data, purpose))
+
+
+def save_attachment(
+    session: Session, store: ObjectStore, ctx: RequestContext, data: bytes, purpose: str
+) -> CaptureAttachment:
+    """Validate, store content-addressed (original preserved) and register an evidence attachment."""
     limit = get_settings().max_image_bytes
-    data = await file.read(limit + 1)
     if len(data) > limit:
         raise BusinessRuleViolation(f"File exceeds {limit} bytes", code="FILE_TOO_LARGE")
     content_type, digest = sniff_image(data), sha256_hex(data)
@@ -83,7 +90,7 @@ async def upload(
     )
     session.add(row)
     session.flush()
-    return AttachmentDto.model_validate(row)
+    return row
 
 
 @router.get("/attachments/{attachment_id}/url", response_model=PhotoUrlDto, operation_id="getAttachmentUrl")

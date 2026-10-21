@@ -20,6 +20,11 @@ import {
 const base = '/platform/mandates';
 const seg = (value: string) => encodeURIComponent(value);
 const withSignal = (signal?: AbortSignal) => (signal ? { signal } : undefined);
+/** Optional text search (`q`), omitted when blank. */
+const searchOptions = (q: string | undefined, signal?: AbortSignal) => ({
+  ...(q !== undefined && q.trim() !== '' ? { params: { q: q.trim() } } : {}),
+  ...(signal ? { signal } : {}),
+});
 
 /** Platform side of the managed service: grant, staff and end client mandates. */
 export const mandateService = {
@@ -41,17 +46,21 @@ export const mandateService = {
     return parseResponse(mandateDetailSchema, data, 'mandate');
   },
 
-  /** GET /platform/mandates/staff: platform staff who can be assigned to a mandate. */
-  async listStaff(signal?: AbortSignal): Promise<PlatformStaffDto[]> {
-    const data = await apiClient.get<unknown>(`${base}/staff`, withSignal(signal));
+  /** GET /platform/mandates/staff: assignable platform staff; `q` searches name and email. */
+  async listStaff(signal?: AbortSignal, q?: string): Promise<PlatformStaffDto[]> {
+    const data = await apiClient.get<unknown>(`${base}/staff`, searchOptions(q, signal));
     return parseResponse(array(platformStaffSchema).required(), data, 'platform staff');
   },
 
-  /** GET /platform/mandates/{id}/roles: client roles allowed by the mandate scope. */
-  async listRoles(mandateId: string, signal?: AbortSignal): Promise<AssignableRoleDto[]> {
+  /** GET /platform/mandates/{id}/roles: client roles allowed by the scope; `q` searches the key. */
+  async listRoles(
+    mandateId: string,
+    signal?: AbortSignal,
+    q?: string,
+  ): Promise<AssignableRoleDto[]> {
     const data = await apiClient.get<unknown>(
       `${base}/${seg(mandateId)}/roles`,
-      withSignal(signal),
+      searchOptions(q, signal),
     );
     return parseResponse(array(assignableRoleSchema).required(), data, 'mandate roles');
   },

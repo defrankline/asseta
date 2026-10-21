@@ -35,7 +35,7 @@ export const customerService = {
       idempotencyKey,
     );
   },
-  /** GET /tenant/contracts (listContracts). Filter: `customer_id`. */
+  /** GET /tenant/contracts (listContracts). Filter: `customer_id`; `q` searches number / reference. */
   listContracts(query: TenantListQuery, signal?: AbortSignal): Promise<Page<ContractDto>> {
     return tenantPage('/tenant/contracts', contractPageSchema, query, 'contract page', signal);
   },

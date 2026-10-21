@@ -13,6 +13,7 @@ class PolicyType(StrEnum):
     METER_CAPTURE = "METER_CAPTURE"
     HIRE_BILLING = "HIRE_BILLING"
     DEVICE_SYNC = "DEVICE_SYNC"
+    EXPENSE_CAPTURE = "EXPENSE_CAPTURE"
 
 
 class PolicyScope(StrEnum):
@@ -114,11 +115,24 @@ class DeviceSyncPolicy(BaseModel):
     clock_skew_alert_seconds: int = Field(ge=30, le=86400)
 
 
+class ExpenseCapturePolicy(BaseModel):
+    """Field expense controls (R1-G). Amount thresholds are in the tenant's base currency; expenses in another
+    currency always need a receipt and a human approval (no implicit FX)."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    receipt_required_above: Decimal = Field(ge=0)  # 0 => every expense needs a receipt
+    gps_required: bool
+    gps_max_accuracy_m: float = Field(gt=0, le=5000)
+    auto_approve_limit: Decimal = Field(ge=0)  # amount <= limit => APPROVED automatically; 0 => all need approval
+
+
 SCHEMAS: dict[PolicyType, type[BaseModel]] = {
     PolicyType.TRACKING: TrackingPolicy,
     PolicyType.METER_CAPTURE: MeterCapturePolicy,
     PolicyType.HIRE_BILLING: HireBillingPolicy,
     PolicyType.DEVICE_SYNC: DeviceSyncPolicy,
+    PolicyType.EXPENSE_CAPTURE: ExpenseCapturePolicy,
 }
 
 # Fields a lower scope may override (platform/tenant may override any field).
@@ -154,6 +168,7 @@ OVERRIDABLE: dict[PolicyType, dict[PolicyScope, frozenset[str]]] = {
     },
     PolicyType.HIRE_BILLING: {PolicyScope.MACHINE: frozenset(), PolicyScope.SITE: frozenset()},
     PolicyType.DEVICE_SYNC: {PolicyScope.MACHINE: frozenset(), PolicyScope.SITE: frozenset()},
+    PolicyType.EXPENSE_CAPTURE: {PolicyScope.MACHINE: frozenset(), PolicyScope.SITE: frozenset()},
 }
 
 SEED_DEFAULTS: dict[PolicyType, dict[str, object]] = {
@@ -195,5 +210,11 @@ SEED_DEFAULTS: dict[PolicyType, dict[str, object]] = {
         "snapshot_validity_hours": 24,
         "max_batch_operations": 100,
         "clock_skew_alert_seconds": 300,
+    },
+    PolicyType.EXPENSE_CAPTURE: {
+        "receipt_required_above": "0",
+        "gps_required": True,
+        "gps_max_accuracy_m": 100.0,
+        "auto_approve_limit": "0",
     },
 }

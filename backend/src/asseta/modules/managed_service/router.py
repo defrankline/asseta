@@ -3,7 +3,7 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, Request
+from fastapi import APIRouter, Depends, Header, Query, Request
 from sqlalchemy.orm import Session
 
 from asseta.core.clock import get_today
@@ -85,9 +85,12 @@ def grant_mandate(
 
 @router.get("/platform/mandates/staff", response_model=list[PlatformStaffDto], operation_id="listPlatformStaff")
 def platform_staff(
-    request: Request, session: DbSession, ctx: Annotated[RequestContext, Depends(MANDATE_MANAGE)]
+    request: Request,
+    session: DbSession,
+    ctx: Annotated[RequestContext, Depends(MANDATE_MANAGE)],
+    q: Annotated[str | None, Query(max_length=100)] = None,
 ) -> list[PlatformStaffDto]:
-    return _svc(session, ctx, request).platform_staff()
+    return _svc(session, ctx, request).platform_staff(q)
 
 
 @router.get("/platform/mandates/{mandate_id}", response_model=MandateDetailDto, operation_id="getMandate")
@@ -102,10 +105,14 @@ def get_mandate(
     "/platform/mandates/{mandate_id}/roles", response_model=list[AssignableRoleDto], operation_id="listMandateRoles"
 )
 def mandate_roles(
-    mandate_id: uuid.UUID, request: Request, session: DbSession, ctx: Annotated[RequestContext, Depends(MANDATE_MANAGE)]
+    mandate_id: uuid.UUID,
+    request: Request,
+    session: DbSession,
+    ctx: Annotated[RequestContext, Depends(MANDATE_MANAGE)],
+    q: Annotated[str | None, Query(max_length=100)] = None,
 ) -> list[AssignableRoleDto]:
     svc = _svc(session, ctx, request)
-    return svc.assignable_roles(svc.get(mandate_id))
+    return svc.assignable_roles(svc.get(mandate_id), q)
 
 
 @router.post(

@@ -1,17 +1,19 @@
 import { Alert } from '@mui/material';
 import { useState } from 'react';
 import { jobService } from '../../../api/services/jobService';
-import type { JobDto } from '../../../api/types';
+import { PERMISSIONS } from '../../../access/permissionCodes';
+import type { JobDto, JobSiteDto } from '../../../api/types';
 import { KeyValueGrid } from '../../../components/display/KeyValueGrid';
 import { MoneyText } from '../../../components/display/MoneyText';
 import { StepperFormDialog, type FormStep } from '../../../components/forms/StepperFormDialog';
 import { useIdempotencyKey } from '../../../hooks/useIdempotencyKey';
+import { useSession } from '../../../session/useSession';
 import { formatPercent } from '../../../utils/money';
 import { formatInstantIn } from '../../../utils/time';
 import { machineLabel } from '../shared/display';
 import { withErrorCode } from '../shared/errorHints';
 import { contractLabel, JOB_ERROR_HINTS, STANDBY_OPTIONS } from '../shared/jobDisplay';
-import { useJobSites } from '../shared/useJobSites';
+import { jobSiteLabel } from '../shared/lookups';
 import { labelOf } from '../shared/display';
 import {
   ASSIGNMENT_FIELDS,
@@ -105,13 +107,21 @@ function JobReview({
 /** Assignment → Schedule → Pricing → Review. New jobs start as DRAFT. Mount only while open. */
 export function CreateJobDialog({ timeZone, onClose, onCreated }: CreateJobDialogProps) {
   const keyFor = useIdempotencyKey();
-  const { sites, label: siteLabel } = useJobSites();
+  const { hasPermission } = useSession();
+  const [site, setSite] = useState<JobSiteDto | null>(null);
+  const siteLabel = (id: string | null) =>
+    id !== null && site?.id === id ? jobSiteLabel(site) : (id ?? '—');
   const [initialValues] = useState(() => emptyJobValues(new Date().toISOString()));
   const steps: FormStep<JobFormValues>[] = [
     {
       label: 'Assignment',
       fields: ASSIGNMENT_FIELDS,
-      render: () => <AssignmentFields sites={sites} />,
+      render: () => (
+        <AssignmentFields
+          showSite={hasPermission(PERMISSIONS.tenantGeofenceRead)}
+          onSiteChange={setSite}
+        />
+      ),
     },
     {
       label: 'Schedule',

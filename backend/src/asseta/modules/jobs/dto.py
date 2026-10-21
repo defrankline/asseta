@@ -179,6 +179,25 @@ class AcknowledgementDto(Dto):
     captured_at: datetime
 
 
+class JobChargeLineDto(BaseModel):
+    kind: str  # HIRE | STANDBY | MOBILIZATION | DISCOUNT | TAX
+    description: str
+    quantity: Decimal
+    unit_price: Money
+    amount: Money
+
+
+class JobChargesDto(BaseModel):
+    """What the completed job is worth under its approved terms (the source hire invoices snapshot)."""
+
+    currency: str
+    lines: list[JobChargeLineDto]
+    subtotal: Money
+    discount_total: Money
+    tax_total: Money
+    total: Money
+
+
 class JobSummaryDto(BaseModel):
     job: JobDto
     opening_reading: Decimal | None
@@ -190,3 +209,5 @@ class JobSummaryDto(BaseModel):
     blocking_exceptions: int
     billing_ready: bool
     policy_version: str
+    standby_hours: Decimal = Decimal(0)  # billed at standby_rate only under STANDBY_RATE terms
+    charges: JobChargesDto | None = None  # None until billable hours are known

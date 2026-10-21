@@ -43,13 +43,17 @@ describe('ClientManagedServicePage', () => {
     expect(screen.getByText('Job · JOB-12')).toBeInTheDocument();
   });
 
-  it('requires a reason to revoke and sends the version', async () => {
+  it('requires a reason to revoke, sends the version and refreshes the session', async () => {
     const user = userEvent.setup();
+    const reload = vi.fn();
     mocks.revoke.mockResolvedValue({
       mandate: makeMandateDetail({ status: 'REVOKED', version: 4 }),
       recent_actions: ACTIONS,
     });
-    renderWithProviders(<ClientManagedServicePage />, { tenantPermissions: ADMIN });
+    renderWithProviders(<ClientManagedServicePage />, {
+      tenantPermissions: ADMIN,
+      session: { reload },
+    });
     await user.click(await screen.findByRole('button', { name: 'Revoke mandate' }));
     expect(await screen.findByText('A reason is required')).toBeInTheDocument();
     expect(mocks.revoke).not.toHaveBeenCalled();
@@ -67,6 +71,8 @@ describe('ClientManagedServicePage', () => {
       );
     });
     expect(await screen.findByText('Revoked')).toBeInTheDocument();
+    // /me changed for the platform staff: the session is re-read without a page reload.
+    expect(reload).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('button', { name: 'Revoke mandate' })).not.toBeInTheDocument();
   });
 

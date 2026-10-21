@@ -13,6 +13,10 @@ from sqlalchemy import or_, select, text
 from sqlalchemy.orm import Session
 
 from asseta.core.errors import AppError, ErrorDetail, NotFound, PermissionDenied
+from asseta.modules.expenses.dto import ExpenseCategoryDto
+from asseta.modules.expenses.models import ExpenseCategory
+from asseta.modules.finance.cash_service import CashCustodyService
+from asseta.modules.finance.dto import CashCustodyBalanceDto
 from asseta.modules.fleet.dto import MachineDto, StaffDto
 from asseta.modules.fleet.models import Machine, MachineAssignment, StaffMember
 from asseta.modules.geospatial.models import JobSite
@@ -165,6 +169,11 @@ class SyncService:
             else set(),
         )
         staff = self._staff()
+        categories = select(ExpenseCategory).order_by(ExpenseCategory.code)
+        if min_revision is None:
+            categories = categories.where(ExpenseCategory.is_active.is_(True))
+        else:
+            categories = categories.where(ExpenseCategory.sync_revision > min_revision)
         sites_svc = SiteService(self._s, self._tid, self._ctx.audit_actor())
         data = SyncData(
             jobs=[JobDto.model_validate(j) for j in jobs],
@@ -175,9 +184,17 @@ class SyncService:
             staff=[StaffDto.model_validate(staff)]
             if staff is not None and (min_revision is None or staff.sync_revision > min_revision)
             else [],
+            expense_categories=[ExpenseCategoryDto.model_validate(c) for c in self._s.execute(categories).scalars()],
+            cash_custody=self._custody(staff),
         )
         cursor = max(j.sync_revision for j in jobs) if has_more else watermark
         return data, cursor, has_more
+
+    def _custody(self, staff: StaffMember | None) -> list[CashCustodyBalanceDto]:
+        """Server-owned custody balance for a cash-collecting supervisor (always current, not a delta)."""
+        if staff is None or "tenant.collection.record" not in self._ctx.permissions:
+            return []
+        return CashCustodyService(self._s, self._ctx, self._now).balances(staff.id)
 
     def _watermark(self) -> int:
         """Highest revision handed out so far (read *before* querying; LOOKBACK covers late commits)."""
@@ -187,12 +204,16 @@ class SyncService:
     def snapshots(self, device: DeviceSession, machine_ids: set[uuid.UUID]) -> list[PolicySnapshotDto]:
         validity = timedelta(hours=self._policies.device_sync(self._tid, at=self._now).policy.snapshot_validity_hours)
         out: list[PolicySnapshotDto] = []
-        targets: list[tuple[str, uuid.UUID | None]] = [("tenant", None), *[(f"machine:{m}", m) for m in machine_ids]]
-        for scope_key, machine_id in targets:
-            eff = self._policies.resolve(PolicyType.METER_CAPTURE, self._tid, machine_id=machine_id, at=self._now)
+        targets: list[tuple[PolicyType, str, uuid.UUID | None]] = [
+            (PolicyType.EXPENSE_CAPTURE, "tenant", None),
+            (PolicyType.METER_CAPTURE, "tenant", None),
+            *[(PolicyType.METER_CAPTURE, f"machine:{m}", m) for m in machine_ids],
+        ]
+        for ptype, scope_key, machine_id in targets:
+            eff = self._policies.resolve(ptype, self._tid, machine_id=machine_id, at=self._now)
             values = eff.policy.model_dump(mode="json")
             snap = PolicySnapshotDto(
-                policy_type=PolicyType.METER_CAPTURE.value,
+                policy_type=ptype.value,
                 scope_key=scope_key,
                 version_ids=list(eff.version_ids),
                 version_stamp=eff.version_stamp,

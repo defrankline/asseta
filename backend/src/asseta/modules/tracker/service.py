@@ -3,12 +3,13 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Select, or_, select
+from sqlalchemy import Select, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from asseta.core.audit import AuditActor, AuditService
 from asseta.core.errors import BusinessRuleViolation, Conflict, NotFound
+from asseta.core.search import ilike_any
 from asseta.modules.fleet.models import Machine, MachineStatus
 from asseta.modules.platform_billing.models_ledger import SubscriptionAssetEnrollment
 from asseta.modules.platform_billing.repository import active_on
@@ -136,8 +137,8 @@ class TrackerService:
 
     def list_query(self, q: str | None, state: ProvisioningState | None) -> Select[Tracker]:
         stmt = select(Tracker).order_by(Tracker.label)
-        if q:
-            stmt = stmt.where(or_(Tracker.label.ilike(f"%{q}%"), Tracker.external_id.ilike(f"%{q}%")))
+        if (match := ilike_any(q, Tracker.label, Tracker.external_id)) is not None:
+            stmt = stmt.where(match)
         if state:
             stmt = stmt.where(Tracker.provisioning_state == state)
         return stmt

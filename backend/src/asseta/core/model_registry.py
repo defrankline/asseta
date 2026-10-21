@@ -1,6 +1,8 @@
 """Imports every ORM module so Base.metadata is complete (Alembic, tests)."""
 
 from asseta.core import audit, idempotency, outbox  # noqa: F401
+from asseta.modules.expenses import models as expenses_models  # noqa: F401
+from asseta.modules.finance import models as finance_models  # noqa: F401
 from asseta.modules.fleet import models as fleet_models  # noqa: F401
 from asseta.modules.fleet import photos as fleet_photos  # noqa: F401
 from asseta.modules.geospatial import models as geospatial_models  # noqa: F401

@@ -9,6 +9,7 @@ import {
   Typography,
 } from '@mui/material';
 import type { FormikProps } from 'formik';
+import type { JobSiteDto } from '../../../api/types';
 import { FormikDateTimeField } from '../../../components/forms/FormikDateTimeField';
 import { FormikSelectField } from '../../../components/forms/FormikSelectField';
 import { FormikTextField } from '../../../components/forms/FormikTextField';
@@ -18,13 +19,19 @@ import {
   FormikMachinePicker,
   FormikSupervisorPicker,
 } from '../shared/pickers';
-import { siteOptions, type JobSites } from '../shared/useJobSites';
+import { FormikJobSitePicker } from '../shared/lookupPickers';
 import type { JobFormValues } from './jobForm';
 
 const grid = 'grid grid-cols-1 gap-4 sm:grid-cols-2';
 const decimal = { htmlInput: { inputMode: 'decimal' as const } };
 
-export function AssignmentFields({ sites }: { sites: JobSites['sites'] }) {
+interface AssignmentFieldsProps {
+  /** Show the job-site picker (needs `tenant.geofence.read`). */
+  showSite: boolean;
+  onSiteChange: (site: JobSiteDto | null) => void;
+}
+
+export function AssignmentFields({ showSite, onSiteChange }: AssignmentFieldsProps) {
   return (
     <Box className={grid}>
       <FormikContractPicker name="contract" label="Contract" required />
@@ -35,11 +42,12 @@ export function AssignmentFields({ sites }: { sites: JobSites['sites'] }) {
         label="Supervisor"
         helperText="Searches staff of kind Supervisor"
       />
-      {sites !== null && (
-        <FormikSelectField
+      {showSite && (
+        <FormikJobSitePicker
           name="job_site_id"
           label="Job site"
-          options={siteOptions(sites, "— Contract's default site —")}
+          helperText="Empty = the contract's default site"
+          onOptionChange={onSiteChange}
         />
       )}
     </Box>

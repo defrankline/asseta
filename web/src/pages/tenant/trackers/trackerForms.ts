@@ -17,12 +17,22 @@ const ACTION_LABELS: Readonly<Partial<Record<ProvisioningState, string>>> = {
   REGISTERED: 'Reactivate',
 };
 
-export function stateTargetOptions(current: ProvisioningState): Option<ProvisioningState>[] {
+function targetOptions(current: ProvisioningState): readonly Option<ProvisioningState>[] {
   return STATE_TRANSITIONS[current].map((s) => ({
     value: s,
     label: `${ACTION_LABELS[s] ?? labelOf(TRACKER_STATE_OPTIONS, s)} → ${labelOf(TRACKER_STATE_OPTIONS, s)}`,
   }));
 }
+
+/** Static select options per current state (the allowed transitions). */
+export const STATE_TARGET_OPTIONS: Readonly<
+  Record<ProvisioningState, readonly Option<ProvisioningState>[]>
+> = {
+  REGISTERED: targetOptions('REGISTERED'),
+  VERIFIED_REPORTING: targetOptions('VERIFIED_REPORTING'),
+  SUSPENDED: targetOptions('SUSPENDED'),
+  RETIRED: targetOptions('RETIRED'),
+};
 
 export const reasonSchema = (required: boolean) => {
   const base = string().trim().max(500, 'Reason must be at most 500 characters');

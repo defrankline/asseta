@@ -93,8 +93,12 @@ def nearby(
 
 
 @router.get("/job-sites", response_model=list[JobSiteDto], operation_id="listJobSites")
-def sites(session: DbSession, ctx: Annotated[RequestContext, Depends(GEOFENCE_READ)]) -> list[JobSiteDto]:
-    return SiteService(session, _tid(ctx), ctx.audit_actor()).sites()
+def sites(
+    session: DbSession,
+    ctx: Annotated[RequestContext, Depends(GEOFENCE_READ)],
+    q: Annotated[str | None, Query(max_length=100)] = None,
+) -> list[JobSiteDto]:
+    return SiteService(session, _tid(ctx), ctx.audit_actor()).sites(q)
 
 
 @router.post("/job-sites", response_model=JobSiteDto, status_code=201, operation_id="createJobSite")

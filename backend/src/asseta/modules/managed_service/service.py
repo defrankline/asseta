@@ -18,6 +18,7 @@ from asseta.core.audit import AuditActor, AuditEvent, AuditService
 from asseta.core.db import utcnow
 from asseta.core.errors import BusinessRuleViolation, Conflict, NotFound
 from asseta.core.outbox import OutboxWriter
+from asseta.core.search import ilike_any, matches
 from asseta.modules.identity.authz_sync import AuthzSyncService
 from asseta.modules.identity.idp import IdentityProviderAdmin
 from asseta.modules.identity.models import AppUser, Role, RolePermission, TenantMembership
@@ -108,19 +109,22 @@ class ManagedService:
             )
         return MandateDetailDto(**self.to_dto(m).model_dump(), assignments=assignments)
 
-    def platform_staff(self) -> list[PlatformStaffDto]:
+    def platform_staff(self, q: str | None = None) -> list[PlatformStaffDto]:
         repo, now, staff = IdentityRepository(self._s), utcnow(), {}
         for group in self._idp.list_role_groups():
             if not group.path.startswith("/platform/"):
                 continue
             for member in self._idp.list_group_members(group.group_id):
                 uid = repo.upsert_member(member, now)
-                staff[uid] = PlatformStaffDto(user_id=uid, email=member.email, display_name=member.display_name)
+                if matches(q, member.display_name, member.email):
+                    staff[uid] = PlatformStaffDto(user_id=uid, email=member.email, display_name=member.display_name)
         return sorted(staff.values(), key=lambda s: s.display_name.lower())
 
-    def assignable_roles(self, m: ManagedServiceMandate) -> list[AssignableRoleDto]:
-        roles = []
-        for role in self._s.execute(select(Role).where(Role.tenant_id == m.tenant_id).order_by(Role.key)).scalars():
+    def assignable_roles(self, m: ManagedServiceMandate, q: str | None = None) -> list[AssignableRoleDto]:
+        roles, stmt = [], select(Role).where(Role.tenant_id == m.tenant_id).order_by(Role.key)
+        if (match := ilike_any(q, Role.key)) is not None:
+            stmt = stmt.where(match)
+        for role in self._s.execute(stmt).scalars():
             perms = sorted(
                 self._s.execute(
                     select(RolePermission.permission_code).where(RolePermission.role_id == role.id)

@@ -11,6 +11,12 @@ import { getIn, useFormikContext } from 'formik';
 import type { PolicyFormValues } from './policyForm';
 import { WEEKDAYS, type PolicyFieldDef } from './policyFields';
 
+const BOOL_OPTIONS = [
+  { value: 'true', label: 'Yes' },
+  { value: 'false', label: 'No' },
+] as const;
+const NO_OPTIONS: readonly { value: string; label: string }[] = [];
+
 function WeekdayPicker({
   value,
   onChange,
@@ -99,13 +105,8 @@ export function OverrideFieldInput({ def }: { def: PolicyFieldDef }) {
           error={error !== undefined}
           helperText={error ?? def.help}
         >
-          {(def.kind === 'bool'
-            ? [
-                { value: 'true', label: 'Yes' },
-                { value: 'false', label: 'No' },
-              ]
-            : (def.options ?? [])
-          ).map((o) => (
+          {(def.kind === 'bool' ? BOOL_OPTIONS : (def.options ?? NO_OPTIONS)).map((o) => (
+            // eslint-disable-next-line no-restricted-syntax -- static: BOOL_OPTIONS or a code-defined POLICY_FIELDS enum, never backend data
             <MenuItem key={o.value} value={o.value}>
               {o.label}
             </MenuItem>

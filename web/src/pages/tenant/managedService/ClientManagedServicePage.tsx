@@ -50,7 +50,7 @@ function CardSection({ title, children }: { title: string; children: ReactNode }
 /** The client's view of the managed-service mandate: terms, who has access, what they did. */
 export function ClientManagedServicePage() {
   const notify = useNotify();
-  const { activeTenant } = useSession();
+  const { activeTenant, reload: reloadSession } = useSession();
   // Staff acting under the mandate cannot revoke it themselves (the API refuses: MANDATE_SELF_REVOKE).
   const actingUnderMandate = isMandated(activeTenant);
   const revokeKey = useIdempotencyKey();
@@ -109,6 +109,8 @@ export function ClientManagedServicePage() {
                           await managedServiceService.revoke(mandate.id, body, revokeKey(body)),
                         );
                         notify.success(`Mandate ${mandate.reference} revoked.`);
+                        // The staff's /me contexts changed: refresh the session in the background.
+                        reloadSession();
                       }}
                     />
                   </CardSection>

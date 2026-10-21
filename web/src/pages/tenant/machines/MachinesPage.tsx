@@ -1,12 +1,12 @@
 import Add from '@mui/icons-material/Add';
-import { Button, MenuItem, TextField } from '@mui/material';
+import { Box, Button, MenuItem, TextField } from '@mui/material';
 import { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { CanMutate } from '../../../access/CanMutate';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import { useCanMutate } from '../../../access/useCanMutate';
 import { machineService } from '../../../api/services/machineService';
-import type { MachineDto } from '../../../api/types';
+import type { CategoryDto, MachineDto } from '../../../api/types';
 import { ServerDataTable, type DataColumn } from '../../../components/data/ServerDataTable';
 import type { ServerQuery } from '../../../components/data/useServerPage';
 import { StatusChip } from '../../../components/display/StatusChip';
@@ -22,6 +22,7 @@ import {
   labelOf,
   machineLabel,
 } from '../shared/display';
+import { CategoryFilter } from '../shared/lookupPickers';
 import { CreateMachineDialog } from './CreateMachineDialog';
 import { EnrollMachineDialog } from './EnrollMachineDialog';
 
@@ -35,7 +36,7 @@ export function MachinesPage() {
   const [enrolling, setEnrolling] = useState<MachineDto | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [status, setStatus] = useState(ALL);
-  const [categoryId, setCategoryId] = useState(ALL);
+  const [category, setCategory] = useState<CategoryDto | null>(null);
 
   const loadCategories = useCallback(
     (signal: AbortSignal) => machineService.listCategories(signal),
@@ -56,8 +57,8 @@ export function MachinesPage() {
     [],
   );
   const filters = useMemo(
-    () => ({ status: status || undefined, category_id: categoryId || undefined }),
-    [status, categoryId],
+    () => ({ status: status || undefined, category_id: category?.id }),
+    [status, category],
   );
 
   const columns: DataColumn<MachineDto>[] = [
@@ -129,23 +130,9 @@ export function MachinesPage() {
           </MenuItem>
         ))}
       </TextField>
-      <TextField
-        select
-        size="small"
-        label="Category"
-        value={categoryId}
-        onChange={(e) => {
-          setCategoryId(e.target.value);
-        }}
-        sx={{ minWidth: 180 }}
-      >
-        <MenuItem value={ALL}>All categories</MenuItem>
-        {(categories.data ?? []).map((c) => (
-          <MenuItem key={c.id} value={c.id}>
-            {c.name}
-          </MenuItem>
-        ))}
-      </TextField>
+      <Box sx={{ minWidth: 220 }}>
+        <CategoryFilter label="Category" value={category} onChange={setCategory} />
+      </Box>
     </>
   );
 

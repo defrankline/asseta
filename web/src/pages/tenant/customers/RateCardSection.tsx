@@ -1,11 +1,11 @@
 import Add from '@mui/icons-material/Add';
-import { Alert, Box, Button, MenuItem, Paper, Stack, TextField, Typography } from '@mui/material';
+import { Alert, Box, Button, Paper, Stack, Typography } from '@mui/material';
 import { useCallback, useState } from 'react';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import { useCanMutate } from '../../../access/useCanMutate';
 import { customerService } from '../../../api/services/customerService';
 import { machineService } from '../../../api/services/machineService';
-import type { RateCardDto } from '../../../api/types';
+import type { CategoryDto, RateCardDto } from '../../../api/types';
 import type { DataColumn } from '../../../components/data/ServerDataTable';
 import { StaticTable } from '../../../components/data/StaticTable';
 import { MoneyText } from '../../../components/display/MoneyText';
@@ -16,6 +16,7 @@ import { useNow } from '../../../hooks/useNow';
 import { useNotify } from '../../../notifications/useNotify';
 import { useSession } from '../../../session/useSession';
 import { formatInstantIn } from '../../../utils/time';
+import { CategoryFilter } from '../shared/lookupPickers';
 import { RateCardDialog, VERSIONING_NOTE } from './RateCardDialog';
 import { groupRateCards, type VersionState } from './rateCardVersions';
 
@@ -36,7 +37,8 @@ export function RateCardSection({ timeZone }: { timeZone: string }) {
   const canCategories = hasPermission(PERMISSIONS.tenantMachineRead);
   const now = useNow(60_000);
   const [creating, setCreating] = useState(false);
-  const [categoryId, setCategoryId] = useState('');
+  const [category, setCategory] = useState<CategoryDto | null>(null);
+  const categoryId = category?.id ?? '';
   const [reloadKey, setReloadKey] = useState(0);
   const loadCategories = useCallback(
     (signal: AbortSignal) => machineService.listCategories(signal),
@@ -85,29 +87,15 @@ export function RateCardSection({ timeZone }: { timeZone: string }) {
           </Typography>
           <Box className="flex flex-wrap items-center gap-2">
             {canCategories && (
-              <TextField
-                select
-                size="small"
-                label="Machine category"
-                value={categoryId}
-                onChange={(e) => {
-                  setCategoryId(e.target.value);
-                }}
-                sx={{ minWidth: 200 }}
-              >
-                <MenuItem value="">All categories</MenuItem>
-                {(categories.data ?? []).map((c) => (
-                  <MenuItem key={c.id} value={c.id}>
-                    {c.name}
-                  </MenuItem>
-                ))}
-              </TextField>
+              <Box sx={{ minWidth: 220 }}>
+                <CategoryFilter label="Machine category" value={category} onChange={setCategory} />
+              </Box>
             )}
             {canWrite && (
               <Button
                 variant="outlined"
                 startIcon={<Add />}
-                disabled={categories.data === null}
+                disabled={!canCategories}
                 onClick={() => {
                   setCreating(true);
                 }}
@@ -152,9 +140,8 @@ export function RateCardSection({ timeZone }: { timeZone: string }) {
           )}
         </AsyncContent>
       </Stack>
-      {creating && categories.data !== null && (
+      {creating && (
         <RateCardDialog
-          categories={categories.data}
           timeZone={timeZone}
           onClose={() => {
             setCreating(false);

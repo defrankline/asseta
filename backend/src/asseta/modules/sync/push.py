@@ -13,11 +13,15 @@ from collections.abc import Callable
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from asseta.core.errors import AppError, BusinessRuleViolation, DependencyUnavailable
+from asseta.core.errors import AppError, BusinessRuleViolation, DependencyUnavailable, NotFound
+from asseta.modules.expenses.dto import ExpenseIn, FuelEventIn
+from asseta.modules.expenses.service import ExpenseService
+from asseta.modules.finance.cash_service import CashCustodyService
+from asseta.modules.finance.dto import CashCollectionIn, CashHandoverIn
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.jobs.dto import AcknowledgementIn, ActivityIn
 from asseta.modules.jobs.models import Job
@@ -26,7 +30,7 @@ from asseta.modules.meter.dto import MeterCaptureIn
 from asseta.modules.meter.service import MeterService
 from asseta.modules.policy.service import PolicyService
 from asseta.modules.sync.dto import OperationIn, OperationResultDto, PushIn, PushResultDto
-from asseta.modules.sync.models import ClientOperation, DeviceSession, OperationStatus
+from asseta.modules.sync.models import BlobUploadSession, ClientOperation, DeviceSession, OperationStatus
 from asseta.modules.sync.service import SyncService
 
 CONFLICT_CODES = {
@@ -36,18 +40,42 @@ CONFLICT_CODES = {
     "CAPTURE_ID_CONFLICT",
     "JOB_NOT_ACTIVE",
     "STALE_VERSION",
+    "DUPLICATE_PAYMENT_REFERENCE",
 }
 REQUIRED_PERMISSION = {
     "METER_CAPTURE": "tenant.meter.capture",
     "JOB_ACTIVITY": "tenant.job.log",
     "JOB_ACKNOWLEDGEMENT": "tenant.job.log",
     "JOB_TRANSITION": "tenant.job.log",
+    "EXPENSE": "tenant.expense.write",
+    "FUEL_EVENT": "tenant.expense.write",
+    "CASH_COLLECTION": "tenant.collection.record",
+    "CASH_HANDOVER": "tenant.collection.record",
 }
 
 
 class JobTransitionOp(BaseModel):
     job_id: uuid.UUID
     action: str
+
+
+class ExpenseOp(ExpenseIn):
+    """Offline expense: receipts reference resumable blob uploads (the op waits until they complete)."""
+
+    client_id: uuid.UUID
+    receipt_upload_ids: list[uuid.UUID] = Field(default_factory=list, max_length=10)
+
+
+class CashCollectionOp(CashCollectionIn):
+    client_id: uuid.UUID
+
+
+class CashHandoverOp(CashHandoverIn):
+    client_id: uuid.UUID
+
+
+class FuelEventOp(FuelEventIn):
+    client_id: uuid.UUID
 
 
 def _hash(payload: dict[str, Any]) -> str:
@@ -101,6 +129,10 @@ class PushService:
         if unmet:
             return OperationResultDto(
                 id=op.id, status="DEFERRED", error={"code": "DEPENDENCY_PENDING", "depends_on": [str(u) for u in unmet]}
+            )
+        if pending := self._pending_uploads(op):
+            return OperationResultDto(
+                id=op.id, status="DEFERRED", error={"code": "ATTACHMENT_PENDING", "upload_ids": pending}
             )
         if self._ctx.read_only:
             result = {
@@ -160,6 +192,16 @@ class PushService:
                 uuid.UUID(str(op.payload["job_id"])), AcknowledgementIn.model_validate(op.payload)
             ),
             "JOB_TRANSITION": lambda: self._transition(JobTransitionOp.model_validate(op.payload)),
+            "EXPENSE": lambda: self._expense(ExpenseOp.model_validate(op.payload)),
+            "FUEL_EVENT": lambda: ExpenseService(self._s, self._ctx, self._now).record_fuel(
+                FuelEventOp.model_validate(op.payload), "SYNC"
+            ),
+            "CASH_COLLECTION": lambda: CashCustodyService(self._s, self._ctx, self._now).record_collection(
+                CashCollectionOp.model_validate(op.payload), "SYNC"
+            ),
+            "CASH_HANDOVER": lambda: CashCustodyService(self._s, self._ctx, self._now).record_handover(
+                CashHandoverOp.model_validate(op.payload), "SYNC"
+            ),
         }
         try:
             with self._s.begin_nested():
@@ -174,6 +216,33 @@ class PushService:
         except AppError as exc:
             status = OperationStatus.CONFLICT if exc.code in CONFLICT_CODES else OperationStatus.REJECTED
             return status, {"error": {"code": exc.code, "message": exc.message}, "server_state": self._state(op)}
+
+    def _pending_uploads(self, op: OperationIn) -> list[str]:
+        """Receipt uploads the op refers to that have not completed yet: defer (device retries), never reject."""
+        raw = op.payload.get("receipt_upload_ids") if op.op_type == "EXPENSE" else None
+        if not isinstance(raw, list):
+            return []
+        pending = []
+        for value in raw:
+            try:
+                upload = self._s.get(BlobUploadSession, uuid.UUID(str(value)))
+            except ValueError:
+                continue  # malformed ids are rejected by payload validation
+            if upload is not None and upload.status != "COMPLETE":
+                pending.append(str(upload.id))
+        return pending
+
+    def _expense(self, body: ExpenseOp) -> BaseModel:
+        attachments = list(body.receipt_attachment_ids)
+        for upload_id in body.receipt_upload_ids:
+            upload = self._s.get(BlobUploadSession, upload_id)
+            if upload is None or upload.attachment_id is None:
+                raise NotFound("Receipt upload not found", code="RECEIPT_NOT_FOUND")
+            attachments.append(upload.attachment_id)
+        expense = ExpenseIn.model_validate(
+            {**body.model_dump(exclude={"receipt_upload_ids"}), "receipt_attachment_ids": attachments}
+        )
+        return ExpenseService(self._s, self._ctx, self._now).submit(expense, "SYNC")
 
     def _transition(self, body: JobTransitionOp) -> BaseModel:
         if body.action not in ("START", "COMPLETE"):

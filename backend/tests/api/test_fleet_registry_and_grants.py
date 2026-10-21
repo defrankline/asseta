@@ -10,36 +10,61 @@ from asseta.core.config import get_settings
 from tests.support.api import Api
 
 # (table, privilege) pairs the application role must never hold.
-FORBIDDEN = [
-    (t, "UPDATE")
-    for t in (
-        "audit_event",
-        "platform_invoice_line",
-        "subscription_rate_version",
-        "credit_adjustment",
-        "machine_position_event",
-        "policy_version",
-    )
-] + [
-    (t, "DELETE")
-    for t in (
-        "audit_event",
-        "platform_invoice",
-        "platform_invoice_line",
-        "platform_payment",
-        "tenant_subscription",
-        "machine",
-        "tenant",
-        "machine_position_event",
-        "tracker",
-        "tracking_alert",
-        "policy_version",
-        "machine_photo",
-        "tenant_membership",
-        "managed_service_mandate",
-        "mandate_assignment",
-    )
-]
+FORBIDDEN = (
+    [
+        (t, "UPDATE")
+        for t in (
+            "audit_event",
+            "platform_invoice_line",
+            "subscription_rate_version",
+            "credit_adjustment",
+            "machine_position_event",
+            "policy_version",
+            # Gate 5 append-only finance evidence
+            "hire_invoice_line",
+            "financial_adjustment",
+            "supervisor_cash_custody",
+            "expense_attachment",
+            "fuel_event",
+        )
+    ]
+    + [
+        (t, "DELETE")
+        for t in (
+            "audit_event",
+            "platform_invoice",
+            "platform_invoice_line",
+            "platform_payment",
+            "tenant_subscription",
+            "machine",
+            "tenant",
+            "machine_position_event",
+            "tracker",
+            "tracking_alert",
+            "policy_version",
+            "machine_photo",
+            "tenant_membership",
+            "managed_service_mandate",
+            "mandate_assignment",
+            # Gate 5: financial records are corrected by reversal/decision, never deleted
+            "tenant_hire_invoice",
+            "hire_invoice_line",
+            "hire_invoice_job",
+            "hire_invoice_counter",
+            "financial_adjustment",
+            "customer_payment",
+            "hire_payment_allocation",
+            "supervisor_cash_custody",
+            "cash_handover",
+            "expense_category",
+            "expense",
+            "expense_attachment",
+            "fuel_event",
+            "approval_request",
+        )
+    ]
+    + [(t, "TRUNCATE") for t in ("tenant_hire_invoice", "customer_payment", "expense")]
+)
 
 
 @pytest.mark.parametrize(("table", "privilege"), FORBIDDEN)

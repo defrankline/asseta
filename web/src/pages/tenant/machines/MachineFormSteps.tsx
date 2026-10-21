@@ -1,8 +1,9 @@
-import { Alert, Box, Button, Stack } from '@mui/material';
+import { Box, Button, Stack } from '@mui/material';
 import type { FormikProps } from 'formik';
 import { FormikSelectField } from '../../../components/forms/FormikSelectField';
 import { FormikTextField } from '../../../components/forms/FormikTextField';
 import { MACHINE_STATUS_OPTIONS, OWNERSHIP_OPTIONS } from '../shared/display';
+import { FormikAreaPicker, FormikCategoryPicker } from '../shared/lookupPickers';
 import type { MachineFormValues } from './machineForm';
 import { METER_DP_OPTIONS } from './machineForm';
 import type { MachineLookups } from './useMachineLookups';
@@ -40,20 +41,16 @@ export function ClassificationFields({
   lookups,
   canCreateLookups,
 }: ClassificationFieldsProps) {
-  const none = { value: '', label: '— None —' };
   return (
     <Stack spacing={2}>
-      {lookups.loadError !== null && (
-        <Alert severity="warning">
-          Could not load categories/areas: {lookups.loadError.message}
-        </Alert>
-      )}
       <Box className="flex items-start gap-2">
-        <FormikSelectField
-          name="category_id"
-          label="Category"
-          options={[none, ...lookups.categories.map((c) => ({ value: c.id, label: c.name }))]}
-        />
+        <Box className="grow">
+          <FormikCategoryPicker
+            name="category_id"
+            label="Category"
+            onOptionChange={lookups.setCategory}
+          />
+        </Box>
         {canCreateLookups && (
           <Button
             className="mt-2 shrink-0"
@@ -68,14 +65,13 @@ export function ClassificationFields({
         )}
       </Box>
       <Box className="flex items-start gap-2">
-        <FormikSelectField
-          name="operating_area_id"
-          label="Operating area"
-          options={[
-            none,
-            ...lookups.areas.map((a) => ({ value: a.id, label: `${a.code} · ${a.name}` })),
-          ]}
-        />
+        <Box className="grow">
+          <FormikAreaPicker
+            name="operating_area_id"
+            label="Operating area"
+            onOptionChange={lookups.setArea}
+          />
+        </Box>
         {canCreateLookups && (
           <Button
             className="mt-2 shrink-0"

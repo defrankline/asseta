@@ -1,5 +1,6 @@
 import { KeyValueGrid } from '../../../components/display/KeyValueGrid';
 import { MACHINE_STATUS_OPTIONS, OWNERSHIP_OPTIONS, labelOf } from '../shared/display';
+import { areaLabel } from '../shared/lookups';
 import type { MachineFormValues } from './machineForm';
 import type { MachineLookups } from './useMachineLookups';
 
@@ -14,8 +15,12 @@ export function MachineReview({
   lookups: MachineLookups;
   mode: 'create' | 'edit';
 }) {
-  const category = lookups.categories.find((c) => c.id === v.category_id)?.name ?? '—';
-  const area = lookups.areas.find((a) => a.id === v.operating_area_id)?.name ?? '—';
+  const category =
+    v.category_id !== '' && lookups.category?.id === v.category_id ? lookups.category.name : '—';
+  const area =
+    v.operating_area_id !== '' && lookups.area?.id === v.operating_area_id
+      ? areaLabel(lookups.area)
+      : '—';
   return (
     <KeyValueGrid
       items={[

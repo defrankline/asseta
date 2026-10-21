@@ -48,6 +48,37 @@ The Keycloak client must allow redirect URI `http://localhost:5173/*` and web or
   `AsyncAutocomplete`, `MapView` (MapLibre), `PageHeader`, `EmptyState`, `ErrorState`, `LoadingState`.
   Toasts via `useNotify()`.
 
+## Frontend conventions: dropdowns (non-negotiable)
+
+**Never use `TextField select` + `MenuItem` (or `FormikSelectField`) for options that come from
+the backend.** Tenants, platform staff, roles, machines, categories, operating areas, customers,
+contracts, jobs, job sites, staff, tracker models, trackers, geofences — anything fetched — use the
+shared, generic, debounced server-search autocompletes:
+
+- `components/data/AsyncAutocomplete` (single, holds the option object; list-page filters),
+  `components/data/AsyncMultiAutocomplete` (multi, chips).
+- `components/forms/FormikAsyncIdAutocomplete` — Formik field that **stores the id** but shows and
+  searches by label; `resolveOption(id)` loads the label of an id already in an edit form;
+  `onOptionChange` exposes the picked record (e.g. for the Review step).
+  `components/forms/FormikAsyncAutocomplete` stores the option object instead.
+- `fetchOptions(query, signal)` must pass the typed text to the API as its search parameter (`q`)
+  and request one page (`LOOKUP_PAGE_SIZE`); never fetch everything and filter in the browser.
+  Domain pickers live in `pages/tenant/shared/{lookups.ts,lookupPickers.tsx,pickers.tsx,MachinePicker.tsx}`
+  and `pages/platform/shared/platformLookups.ts`. "No matches", "Searching…" and request errors
+  are shown by the shared component.
+
+Static enums defined in code (status, kind, method, scope, cadence, currency, outcome…) may use
+`FormikSelectField` / `StaticSelectFilter` / a select, and `FormikAutocompleteField` takes static
+string lists (e.g. timezones). Their option arrays are **module-level ALL_CAPS constants**
+(`STATUS_OPTIONS`), or a static lookup keyed by state (`STATE_TARGET_OPTIONS[state]`).
+
+ESLint enforces this (`eslint/dropdownRules.js`, `no-restricted-syntax`): it fails on a `<MenuItem>`
+rendered inside `.map()` whose receiver is not an ALL_CAPS constant, and on
+`<FormikSelectField|StaticSelectFilter options={x}>` where `x` is not one. The guard has a test
+(`src/test/dropdownLintGuard.test.ts`). A disable comment needs a `--` justification and is only for
+non-form navigation or code-defined data (today: the header tenant switcher over the user's own
+`/me` contexts, which shows a search box above 8 entries, and the policy field enum inputs).
+
 ## MUI + Tailwind coexistence
 
 Chosen strategy: **CSS cascade layers, no Tailwind preflight**. `src/index.css` declares

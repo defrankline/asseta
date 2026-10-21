@@ -1,4 +1,4 @@
-import { Alert, MenuItem, TextField, Tooltip } from '@mui/material';
+import { Alert, Tooltip } from '@mui/material';
 import { useCallback, useMemo, useState } from 'react';
 import { alertService } from '../../../api/services/alertService';
 import { fleetService } from '../../../api/services/fleetService';
@@ -7,6 +7,7 @@ import { ServerDataTable, type DataColumn } from '../../../components/data/Serve
 import type { ServerQuery } from '../../../components/data/useServerPage';
 import { StatusChip } from '../../../components/display/StatusChip';
 import { PageHeader } from '../../../components/feedback/PageHeader';
+import { StaticSelectFilter } from '../../../components/forms/StaticSelectFilter';
 import { useAsyncResource } from '../../../hooks/useAsyncResource';
 import { useDisplayTimeZone } from '../../../hooks/useDisplayTimeZone';
 import { useNotify } from '../../../notifications/useNotify';
@@ -18,43 +19,10 @@ import {
   ALERT_TYPE_OPTIONS,
   labelOf,
   machineLabel,
-  type Option,
   SUPERSEDED_HELP,
 } from '../shared/display';
 import { MachinePicker } from '../shared/MachinePicker';
 import { AlertDetailDialog } from './AlertDetailDialog';
-
-function FilterSelect({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  options: readonly Option[];
-  onChange: (v: string) => void;
-}) {
-  return (
-    <TextField
-      select
-      size="small"
-      label={label}
-      value={value}
-      onChange={(e) => {
-        onChange(e.target.value);
-      }}
-      sx={{ minWidth: 180 }}
-    >
-      <MenuItem value="">All</MenuItem>
-      {options.map((o) => (
-        <MenuItem key={o.value} value={o.value}>
-          {o.label}
-        </MenuItem>
-      ))}
-    </TextField>
-  );
-}
 
 /** Tracking alerts: server-filtered list, evidence detail, acknowledge / resolve. */
 export function AlertsPage() {
@@ -132,13 +100,13 @@ export function AlertsPage() {
         onRowClick={setSelected}
         toolbar={
           <>
-            <FilterSelect
+            <StaticSelectFilter
               label="Status"
               value={status}
               options={ALERT_STATUS_OPTIONS}
               onChange={setStatus}
             />
-            <FilterSelect
+            <StaticSelectFilter
               label="Type"
               value={type}
               options={ALERT_TYPE_OPTIONS}

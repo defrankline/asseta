@@ -3,9 +3,9 @@ import { geofenceSchema, jobSiteSchema } from './geoSchemas';
 import { seg, tenantList, tenantSend } from './tenantRequest';
 
 export const geofenceService = {
-  /** GET /tenant/job-sites (listJobSites). */
-  listJobSites(signal?: AbortSignal): Promise<JobSiteDto[]> {
-    return tenantList('/tenant/job-sites', jobSiteSchema, 'job sites', signal);
+  /** GET /tenant/job-sites (listJobSites); `q` searches code and name. */
+  listJobSites(signal?: AbortSignal, q?: string): Promise<JobSiteDto[]> {
+    return tenantList('/tenant/job-sites', jobSiteSchema, 'job sites', signal, { q });
   },
   /** POST /tenant/job-sites (createJobSite). */
   createJobSite(body: JobSiteIn, idempotencyKey: string): Promise<JobSiteDto> {

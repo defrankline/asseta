@@ -3,7 +3,7 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Depends, Header, Query
 from sqlalchemy.orm import Session
 
 from asseta.core.db import get_session
@@ -45,6 +45,7 @@ router = APIRouter(prefix="/api/v1/tenant", tags=["fleet"], responses=ERROR_RESP
 DbSession = Annotated[Session, Depends(get_session)]
 Read = Annotated[RequestContext, Depends(MACHINE_READ)]
 Write = Annotated[RequestContext, Depends(MACHINE_WRITE)]
+Search = Annotated[str | None, Query(max_length=100)]
 
 
 @router.post("/machines", response_model=MachineDto, status_code=201, operation_id="createMachine")
@@ -85,8 +86,8 @@ def update_machine(machine_id: uuid.UUID, body: MachineUpdateIn, session: DbSess
 
 
 @router.get("/machine-categories", response_model=list[CategoryDto], operation_id="listMachineCategories")
-def categories(session: DbSession, ctx: Read) -> list[CategoryDto]:
-    return MachineService(session, ctx).categories()
+def categories(session: DbSession, ctx: Read, q: Search = None) -> list[CategoryDto]:
+    return MachineService(session, ctx).categories(q)
 
 
 @router.post("/machine-categories", response_model=CategoryDto, status_code=201, operation_id="createMachineCategory")
@@ -95,8 +96,8 @@ def create_category(body: CategoryIn, session: DbSession, ctx: Write) -> Categor
 
 
 @router.get("/operating-areas", response_model=list[AreaDto], operation_id="listOperatingAreas")
-def areas(session: DbSession, ctx: Read) -> list[AreaDto]:
-    return MachineService(session, ctx).areas()
+def areas(session: DbSession, ctx: Read, q: Search = None) -> list[AreaDto]:
+    return MachineService(session, ctx).areas(q)
 
 
 @router.post("/operating-areas", response_model=AreaDto, status_code=201, operation_id="createOperatingArea")

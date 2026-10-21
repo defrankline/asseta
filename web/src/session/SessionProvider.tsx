@@ -1,4 +1,5 @@
 import {
+  startTransition,
   useCallback,
   useContext,
   useEffect,
@@ -25,7 +26,12 @@ import {
   resolveInitialMode,
   type ConsoleMode,
 } from './permissions';
-import { SessionContext, type SessionContextValue, type SessionStatus } from './SessionContext';
+import {
+  SessionContext,
+  type SessionContextValue,
+  type SessionStatus,
+  type SetModeOptions,
+} from './SessionContext';
 
 const PLATFORM_MODE: ConsoleMode = { kind: 'platform' };
 
@@ -59,8 +65,9 @@ export function SessionProvider({
   const [mode, setModeState] = useState<ConsoleMode>(NO_MODE);
   const [reloadKey, setReloadKey] = useState(0);
   const { me, error } = result;
+  // A reload while /me is already known refreshes in the background (no app-wide loading flash).
   const status: SessionStatus =
-    result.key !== reloadKey ? 'loading' : error !== null ? 'error' : 'ready';
+    me === null && result.key !== reloadKey ? 'loading' : error !== null ? 'error' : 'ready';
 
   // Latest values for the framework-agnostic request-context callbacks.
   const latest = useRef({ me, mode, notifier, onMandateLost });
@@ -80,7 +87,12 @@ export function SessionProvider({
       })
       .catch((err: unknown) => {
         if (controller.signal.aborted) return;
-        setResult({ key: reloadKey, me: null, error: toApiError(err) });
+        // Keep the access already shown when a background refresh fails.
+        setResult((prev) =>
+          prev.me !== null
+            ? { ...prev, key: reloadKey }
+            : { key: reloadKey, me: null, error: toApiError(err) },
+        );
       });
     return () => {
       controller.abort();
@@ -118,7 +130,7 @@ export function SessionProvider({
   );
 
   const setMode = useCallback(
-    async (next: ConsoleMode) => {
+    async (next: ConsoleMode, options?: SetModeOptions) => {
       if (!isModeAllowed(me, next)) return;
       if (next.kind === 'tenant' && isMandated(findTenant(me, next.tenantId))) {
         // The API honours a mandate group only when it is in the token: refresh before entering.
@@ -129,8 +141,13 @@ export function SessionProvider({
           return;
         }
       }
-      storeMode(next);
-      setModeState(next);
+      // Commit as a transition together with the caller's navigation (router updates are
+      // transitions): the new mode never renders on the old route, so its guard cannot 403.
+      startTransition(() => {
+        storeMode(next);
+        setModeState(next);
+        options?.onSwitched?.();
+      });
     },
     [me],
   );

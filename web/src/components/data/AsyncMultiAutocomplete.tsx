@@ -15,6 +15,8 @@ export interface AsyncMultiAutocompleteProps<T> {
   error?: string | undefined;
   helperText?: string;
   disabled?: boolean;
+  /** Shown when the server returned no match. */
+  noOptionsText?: string;
   onBlur?: () => void;
 }
 
@@ -24,7 +26,7 @@ interface LookupResult<T> {
   error: string | null;
 }
 
-/** Debounced, typed, server-backed multi-select autocomplete (chips). */
+/** Debounced, typed, server-backed multi-select autocomplete (chips); the query goes to the API. */
 export function AsyncMultiAutocomplete<T>({
   label,
   value,
@@ -36,6 +38,7 @@ export function AsyncMultiAutocomplete<T>({
   error,
   helperText,
   disabled = false,
+  noOptionsText = 'No matches',
   onBlur,
 }: AsyncMultiAutocompleteProps<T>) {
   const [open, setOpen] = useState(false);
@@ -81,6 +84,8 @@ export function AsyncMultiAutocomplete<T>({
       }}
       options={[...result.options]}
       loading={loading}
+      loadingText="Searching…"
+      noOptionsText={result.error !== null ? 'Could not load options' : noOptionsText}
       disabled={disabled}
       filterOptions={(x) => x}
       filterSelectedOptions

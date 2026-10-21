@@ -15,7 +15,7 @@ import { FormikTextField } from '../../../components/forms/FormikTextField';
 import { useIdempotencyKey } from '../../../hooks/useIdempotencyKey';
 import { todayIsoDate } from '../../../utils/dates';
 import { isoDateField, reasonField } from '../shared/validators';
-import { allowedLifecycleActions } from './lifecycle';
+import { allowedLifecycleActions, LIFECYCLE_ACTION_OPTIONS } from './lifecycle';
 
 interface TransitionValues {
   to_status: SubscriptionStatus;
@@ -77,7 +77,7 @@ export function TransitionDialog({ subscription, onClose, onTransitioned }: Tran
           <FormikSelectField
             name="to_status"
             label="Action"
-            options={actions.map((a) => ({ value: a.to, label: a.label }))}
+            options={LIFECYCLE_ACTION_OPTIONS[subscription.status]}
             required
           />
           {formik.values.to_status === 'CANCELLED' && (

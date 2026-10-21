@@ -44,9 +44,9 @@ export const machineService = {
   update(machineId: string, body: MachineUpdateIn, idempotencyKey: string): Promise<MachineDto> {
     return tenantSend('put', m(machineId), body, machineSchema, 'machine', idempotencyKey);
   },
-  /** GET /tenant/machine-categories. */
-  listCategories(signal?: AbortSignal): Promise<CategoryDto[]> {
-    return tenantList('/tenant/machine-categories', categorySchema, 'categories', signal);
+  /** GET /tenant/machine-categories; `q` searches the name. */
+  listCategories(signal?: AbortSignal, q?: string): Promise<CategoryDto[]> {
+    return tenantList('/tenant/machine-categories', categorySchema, 'categories', signal, { q });
   },
   /** POST /tenant/machine-categories. */
   createCategory(body: CategoryIn, idempotencyKey: string): Promise<CategoryDto> {
@@ -59,9 +59,9 @@ export const machineService = {
       idempotencyKey,
     );
   },
-  /** GET /tenant/operating-areas. */
-  listAreas(signal?: AbortSignal): Promise<AreaDto[]> {
-    return tenantList('/tenant/operating-areas', areaSchema, 'operating areas', signal);
+  /** GET /tenant/operating-areas; `q` searches code and name. */
+  listAreas(signal?: AbortSignal, q?: string): Promise<AreaDto[]> {
+    return tenantList('/tenant/operating-areas', areaSchema, 'operating areas', signal, { q });
   },
   /** POST /tenant/operating-areas. */
   createArea(body: AreaIn, idempotencyKey: string): Promise<AreaDto> {

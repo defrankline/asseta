@@ -5,7 +5,7 @@ import type { ReactNode } from 'react';
 import { MemoryRouter } from 'react-router';
 import type { MandateBadgeDto } from '../api/types';
 import { NotificationProvider } from '../notifications/NotificationProvider';
-import { SessionContext } from '../session/SessionContext';
+import { SessionContext, type SessionContextValue } from '../session/SessionContext';
 import { makeMe, makeSession, TENANT_A } from './fixtures';
 
 interface Options {
@@ -18,6 +18,8 @@ interface Options {
   accessState?: 'FULL' | 'READ_ONLY' | 'BLOCKED';
   /** In tenant mode: the session acts under this managed-service mandate. */
   mandate?: MandateBadgeDto | null;
+  /** Overrides on the session value (e.g. a `reload` spy). */
+  session?: Partial<SessionContextValue>;
 }
 
 /**
@@ -32,10 +34,11 @@ export function renderWithProviders(
     tenantPermissions,
     accessState = 'FULL',
     mandate = null,
+    session: overrides = {},
   }: Options = {},
 ) {
   const base = makeMe({ platform_permissions: permissions });
-  const session =
+  const built =
     tenantPermissions === undefined
       ? makeSession(base, { kind: 'platform' })
       : makeSession(
@@ -50,6 +53,7 @@ export function renderWithProviders(
           },
           { kind: 'tenant', tenantId: TENANT_A },
         );
+  const session = { ...built, ...overrides };
   return render(
     <LocalizationProvider dateAdapter={AdapterDayjs}>
       <NotificationProvider>

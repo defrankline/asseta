@@ -166,11 +166,29 @@ export const DEVICE_SYNC_FIELDS: readonly PolicyFieldDef[] = [
   { key: 'clock_skew_alert_seconds', label: 'Device clock skew alert', kind: 'int', unit: 's' },
 ];
 
+export const EXPENSE_CAPTURE_FIELDS: readonly PolicyFieldDef[] = [
+  {
+    key: 'receipt_required_above',
+    label: 'Receipt required above',
+    kind: 'decimal',
+    help: 'Expenses above this amount (tenant currency) need a receipt photo; 0 means every expense.',
+  },
+  { key: 'gps_required', label: 'GPS required on expenses', kind: 'bool' },
+  { key: 'gps_max_accuracy_m', label: 'Maximum GPS accuracy', kind: 'number', unit: 'm' },
+  {
+    key: 'auto_approve_limit',
+    label: 'Auto-approve up to',
+    kind: 'decimal',
+    help: 'Expenses up to this amount are approved automatically; 0 means every expense needs an approver.',
+  },
+];
+
 export const POLICY_FIELDS: Readonly<Record<PolicyType, readonly PolicyFieldDef[]>> = {
   TRACKING: TRACKING_FIELDS,
   METER_CAPTURE: METER_CAPTURE_FIELDS,
   HIRE_BILLING: HIRE_BILLING_FIELDS,
   DEVICE_SYNC: DEVICE_SYNC_FIELDS,
+  EXPENSE_CAPTURE: EXPENSE_CAPTURE_FIELDS,
 };
 
 export const POLICY_TYPE_LABELS: Readonly<Record<PolicyType, string>> = {
@@ -178,6 +196,7 @@ export const POLICY_TYPE_LABELS: Readonly<Record<PolicyType, string>> = {
   METER_CAPTURE: 'Meter capture',
   HIRE_BILLING: 'Hire billing',
   DEVICE_SYNC: 'Device sync',
+  EXPENSE_CAPTURE: 'Expense capture',
 };
 
 export type OverrideScope = 'TENANT' | 'MACHINE' | 'SITE';
@@ -216,6 +235,7 @@ const SCOPE_FIELDS: Readonly<
   // Hire billing is tenant-wide only.
   HIRE_BILLING: null,
   DEVICE_SYNC: null,
+  EXPENSE_CAPTURE: null,
 };
 
 /** Scopes at which a tenant may version this policy type. */

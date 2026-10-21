@@ -1,21 +1,18 @@
-import { Alert, Box } from '@mui/material';
-import { useCallback, useMemo, useState } from 'react';
+import { Box } from '@mui/material';
+import { useState } from 'react';
 import { mandateService } from '../../../api/services/mandateService';
-import { tenantService } from '../../../api/services/tenantService';
-import type { MandateDetailDto } from '../../../api/types';
+import type { MandateDetailDto, TenantDto } from '../../../api/types';
 import { KeyValueGrid } from '../../../components/display/KeyValueGrid';
 import { FormikDateField } from '../../../components/forms/FormikDateField';
-import { FormikSelectField, type SelectOption } from '../../../components/forms/FormikSelectField';
+import { FormikAsyncIdAutocomplete } from '../../../components/forms/FormikAsyncIdAutocomplete';
+import { FormikSelectField } from '../../../components/forms/FormikSelectField';
 import { FormikTextField } from '../../../components/forms/FormikTextField';
 import { StepperFormDialog, type FormStep } from '../../../components/forms/StepperFormDialog';
-import { useAsyncResource } from '../../../hooks/useAsyncResource';
 import { useIdempotencyKey } from '../../../hooks/useIdempotencyKey';
 import { formatDate, todayIsoDate } from '../../../utils/dates';
 import { optionLabel } from '../shared/billingDisplay';
+import { resolveTenant, searchTenants, tenantId, tenantLabel } from '../shared/platformLookups';
 import { grantSchema, SCOPE_OPTIONS, toGrantBody, type GrantFormValues } from './grantForm';
-
-/** Clients offered in the grant form (the platform tenant list, first page by name). */
-const TENANT_QUERY = { page: 1, page_size: 200, sort: 'name' } as const;
 
 interface GrantMandateDialogProps {
   onClose: () => void;
@@ -25,15 +22,7 @@ interface GrantMandateDialogProps {
 /** Client & scope → Consent & term → Review. Mount only while open. */
 export function GrantMandateDialog({ onClose, onGranted }: GrantMandateDialogProps) {
   const keyFor = useIdempotencyKey();
-  const loadTenants = useCallback(
-    (signal: AbortSignal) => tenantService.list(TENANT_QUERY, signal),
-    [],
-  );
-  const tenants = useAsyncResource(loadTenants);
-  const tenantOptions = useMemo<SelectOption[]>(
-    () => (tenants.data?.items ?? []).map((t) => ({ value: t.id, label: t.display_name })),
-    [tenants.data],
-  );
+  const [client, setClient] = useState<TenantDto | null>(null);
   const [initialValues] = useState<GrantFormValues>(() => ({
     tenant_id: '',
     scope: 'FULL',
@@ -49,15 +38,16 @@ export function GrantMandateDialog({ onClose, onGranted }: GrantMandateDialogPro
       fields: ['tenant_id', 'scope'],
       render: () => (
         <>
-          {tenants.error !== null && (
-            <Alert severity="error">Could not load clients: {tenants.error.message}</Alert>
-          )}
-          <FormikSelectField
+          <FormikAsyncIdAutocomplete<TenantDto>
             name="tenant_id"
             label="Client tenant"
-            options={tenantOptions}
             required
-            disabled={tenants.loading}
+            helperText="Search by display or legal name"
+            fetchOptions={searchTenants}
+            getOptionId={tenantId}
+            getOptionLabel={tenantLabel}
+            resolveOption={resolveTenant}
+            onOptionChange={setClient}
           />
           <FormikSelectField
             name="scope"
@@ -104,7 +94,10 @@ export function GrantMandateDialog({ onClose, onGranted }: GrantMandateDialogPro
       renderReview={(v) => (
         <KeyValueGrid
           items={[
-            { label: 'Client', value: optionLabel(tenantOptions, v.tenant_id) },
+            {
+              label: 'Client',
+              value: client?.id === v.tenant_id ? client.display_name : v.tenant_id,
+            },
             { label: 'Scope', value: optionLabel(SCOPE_OPTIONS, v.scope) },
             { label: 'From', value: formatDate(v.starts_on) },
             { label: 'Until', value: v.ends_on === '' ? 'Until ended' : formatDate(v.ends_on) },

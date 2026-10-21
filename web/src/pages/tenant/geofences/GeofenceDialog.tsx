@@ -1,6 +1,6 @@
 import { FormControlLabel, Radio, RadioGroup } from '@mui/material';
 import { getIn } from 'formik';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { geofenceService } from '../../../api/services/geofenceService';
 import { machineService } from '../../../api/services/machineService';
 import type { GeofenceDto, JobSiteDto } from '../../../api/types';
@@ -25,6 +25,8 @@ import {
   type GeofenceFormValues,
   type MachineOption,
 } from './geofenceForm';
+import { FormikJobSitePicker } from '../shared/lookupPickers';
+import { jobSiteLabel } from '../shared/lookups';
 import { GeofenceShapeStep } from './GeofenceShapeStep';
 
 interface GeofenceDialogProps {
@@ -48,11 +50,10 @@ export function GeofenceDialog({
   const [initialValues] = useState<GeofenceFormValues>(() =>
     geofence === undefined ? EMPTY_GEOFENCE : geofenceToValues(geofence, machineLabels),
   );
-  const siteOptions = useMemo(
-    () => [
-      { value: '', label: 'None' },
-      ...sites.map((s) => ({ value: s.id, label: `${s.code} · ${s.name}` })),
-    ],
+  const [site, setSite] = useState<JobSiteDto | null>(null);
+  /** Edit form: the page already holds the job sites (for the map), so resolve from them. */
+  const resolveSite = useCallback(
+    (id: string) => Promise.resolve(sites.find((s) => s.id === id) ?? null),
     [sites],
   );
   const fetchMachines = useCallback(
@@ -64,8 +65,9 @@ export function GeofenceDialog({
     [],
   );
   const centerFor = (siteId: string): LonLat => {
-    const site = sites.find((s) => s.id === siteId);
-    if (site !== undefined) return [site.center.coordinates[0], site.center.coordinates[1]];
+    if (site !== null && site.id === siteId) {
+      return [site.center.coordinates[0], site.center.coordinates[1]];
+    }
     return [DEFAULT_MAP_CENTER[0], DEFAULT_MAP_CENTER[1]];
   };
 
@@ -77,7 +79,12 @@ export function GeofenceDialog({
         <>
           <FormikTextField name="name" label="Name" required />
           <FormikSelectField name="kind" label="Kind" options={GEOFENCE_KIND_OPTIONS} required />
-          <FormikSelectField name="job_site_id" label="Job site (optional)" options={siteOptions} />
+          <FormikJobSitePicker
+            name="job_site_id"
+            label="Job site (optional)"
+            resolveOption={resolveSite}
+            onOptionChange={setSite}
+          />
         </>
       ),
     },
@@ -143,7 +150,15 @@ export function GeofenceDialog({
           items={[
             { label: 'Name', value: v.name },
             { label: 'Kind', value: labelOf(GEOFENCE_KIND_OPTIONS, v.kind) },
-            { label: 'Job site', value: labelOf(siteOptions, v.job_site_id) },
+            {
+              label: 'Job site',
+              value:
+                v.job_site_id === ''
+                  ? 'None'
+                  : site?.id === v.job_site_id
+                    ? jobSiteLabel(site)
+                    : v.job_site_id,
+            },
             {
               label: 'Shape',
               value:

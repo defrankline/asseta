@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from asseta.core.audit import AuditActor, AuditService
 from asseta.core.errors import BusinessRuleViolation, Conflict, NotFound
+from asseta.core.search import ilike_any
 from asseta.modules.fleet.models import Machine
 from asseta.modules.geospatial.dto import GeofenceDto, GeofenceIn, GeoPoint, JobSiteDto, JobSiteIn
 from asseta.modules.geospatial.models import Geofence, GeofenceEvent, GeofenceMachine, GeofenceShape, JobSite
@@ -51,8 +52,11 @@ class SiteService:
         self._s.refresh(site)
         return self.site_dto(site)
 
-    def sites(self) -> list[JobSiteDto]:
-        return [self.site_dto(s) for s in self._s.execute(select(JobSite).order_by(JobSite.code)).scalars()]
+    def sites(self, q: str | None = None) -> list[JobSiteDto]:
+        stmt = select(JobSite).order_by(JobSite.code)
+        if (match := ilike_any(q, JobSite.code, JobSite.name)) is not None:
+            stmt = stmt.where(match)
+        return [self.site_dto(s) for s in self._s.execute(stmt).scalars()]
 
     # --- geofences ------------------------------------------------------------------------------------
     def to_dto(self, g: Geofence) -> GeofenceDto:

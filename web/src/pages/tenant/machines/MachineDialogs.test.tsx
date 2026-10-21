@@ -66,6 +66,31 @@ describe('CreateMachineDialog', () => {
     expect(onCreated).toHaveBeenCalled();
   });
 
+  it('searches categories on the server and submits the picked category id', async () => {
+    const user = userEvent.setup();
+    mocks.create.mockResolvedValue(makeMachine());
+    renderWithProviders(<CreateMachineDialog onClose={vi.fn()} onCreated={vi.fn()} />, {
+      tenantPermissions: WRITE,
+    });
+    await user.type(screen.getByRole('textbox', { name: /Asset code/ }), 'EX-09');
+    await user.type(screen.getByRole('textbox', { name: /^Name/ }), 'Dozer');
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await user.type(await screen.findByRole('combobox', { name: /Category/ }), 'Exc');
+    await waitFor(() => {
+      expect(mocks.listCategories).toHaveBeenLastCalledWith(expect.any(AbortSignal), 'Exc');
+    });
+    await user.click(await screen.findByRole('option', { name: 'Excavators' }));
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await screen.findByRole('textbox', { name: /Capacity unit/ });
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    expect(await screen.findByText('Excavators')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Create machine' }));
+    await waitFor(() => {
+      expect(mocks.create).toHaveBeenCalledTimes(1);
+    });
+    expect(mocks.create.mock.calls[0]?.[0]).toMatchObject({ category_id: 'c1' });
+  });
+
   it('blocks Next while required identity fields are empty', async () => {
     const user = userEvent.setup();
     renderWithProviders(<CreateMachineDialog onClose={vi.fn()} onCreated={vi.fn()} />, {
@@ -103,6 +128,33 @@ describe('EditMachineDialog', () => {
     expect(body).toMatchObject({ version: 7, name: 'Excavator 1', status: 'ACTIVE' });
     expect(body).not.toHaveProperty('asset_code');
     expect(onSaved).toHaveBeenCalledWith(saved);
+  });
+
+  it('shows the existing category label and keeps its id', async () => {
+    const user = userEvent.setup();
+    mocks.update.mockResolvedValue(makeMachine({ version: 8 }));
+    renderWithProviders(
+      <EditMachineDialog
+        machine={makeMachine({ version: 7, category_id: 'c1' })}
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+        onReloadRequested={vi.fn()}
+      />,
+      { tenantPermissions: WRITE },
+    );
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await waitFor(() => {
+      expect(screen.getByRole('combobox', { name: /Category/ })).toHaveValue('Excavators');
+    });
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await screen.findByRole('textbox', { name: /Capacity unit/ });
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    expect(await screen.findByText('Excavators')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => {
+      expect(mocks.update).toHaveBeenCalledTimes(1);
+    });
+    expect(mocks.update.mock.calls[0]?.[1]).toMatchObject({ category_id: 'c1' });
   });
 
   it('prompts a reload on STALE_VERSION', async () => {

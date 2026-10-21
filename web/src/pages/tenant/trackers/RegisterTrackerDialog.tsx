@@ -1,17 +1,15 @@
 import { Alert, Box, Chip, Stack, Typography } from '@mui/material';
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 import { object, string } from 'yup';
 import { trackerService } from '../../../api/services/trackerService';
 import type { TrackerDto, TrackerIn, TrackerModelDto } from '../../../api/types';
 import { KeyValueGrid } from '../../../components/display/KeyValueGrid';
-import { ErrorState } from '../../../components/feedback/ErrorState';
-import { LoadingState } from '../../../components/feedback/LoadingState';
-import { FormikSelectField } from '../../../components/forms/FormikSelectField';
 import { FormikTextField } from '../../../components/forms/FormikTextField';
 import { StepperFormDialog, type FormStep } from '../../../components/forms/StepperFormDialog';
-import { useAsyncResource } from '../../../hooks/useAsyncResource';
 import { useIdempotencyKey } from '../../../hooks/useIdempotencyKey';
 import { CAPABILITY_LABELS } from '../shared/display';
+import { FormikTrackerModelPicker } from '../shared/lookupPickers';
+import { trackerModelLabel } from '../shared/lookups';
 import { orNull } from './trackerForms';
 
 interface RegisterValues {
@@ -60,9 +58,7 @@ function toPayload(v: RegisterValues): TrackerIn {
   };
 }
 
-function modelName(m: TrackerModelDto): string {
-  return `${m.manufacturer} ${m.model}`;
-}
+const modelName = trackerModelLabel;
 
 export function ModelInfo({ model }: { model: TrackerModelDto }) {
   return (
@@ -95,33 +91,24 @@ interface RegisterTrackerDialogProps {
 export function RegisterTrackerDialog({ onClose, onRegistered }: RegisterTrackerDialogProps) {
   const keyFor = useIdempotencyKey();
   const [initialValues] = useState(INITIAL);
-  const load = useCallback((signal: AbortSignal) => trackerService.listModels(signal), []);
-  const models = useAsyncResource(load);
-  const list = models.data ?? [];
-  const find = (id: string) => list.find((m) => m.id === id);
+  /** The approved model behind `tracker_model_id` (shown below the picker and on Review). */
+  const [model, setModel] = useState<TrackerModelDto | null>(null);
+  const find = (id: string) => (model !== null && model.id === id ? model : undefined);
 
   const steps: FormStep<RegisterValues>[] = [
     {
       label: 'Device',
       fields: ['tracker_model_id', 'external_id', 'label'],
       render: (f) => {
-        if (models.error !== null)
-          return <ErrorState error={models.error} title="Could not load tracker models" />;
-        if (models.data === null) return <LoadingState label="Loading approved models" />;
         const selected = find(f.values.tracker_model_id);
         return (
           <>
-            {list.length === 0 && (
-              <Alert severity="warning">
-                No approved tracker models are available. Ask the platform operator to approve a
-                driver/model first.
-              </Alert>
-            )}
-            <FormikSelectField
+            <FormikTrackerModelPicker
               name="tracker_model_id"
               label="Approved tracker model"
               required
-              options={list.map((m) => ({ value: m.id, label: modelName(m) }))}
+              helperText="Only models approved by the platform operator are listed"
+              onOptionChange={setModel}
             />
             {selected !== undefined && <ModelInfo model={selected} />}
             <Box className="grid grid-cols-1 gap-4 sm:grid-cols-2">

@@ -11,7 +11,7 @@ import {
   instantSchema,
   reasonSchema,
   stateSchema,
-  stateTargetOptions,
+  STATE_TARGET_OPTIONS,
   type StateValues,
 } from './trackerForms';
 
@@ -65,9 +65,9 @@ export function UnassignTrackerDialog({
 /** Suspend / retire / reactivate. Mount only while open. */
 export function TrackerStateDialog({ tracker, onClose, onDone }: ActionProps) {
   const keyFor = useIdempotencyKey();
-  const options = stateTargetOptions(tracker.provisioning_state);
+  const first = STATE_TARGET_OPTIONS[tracker.provisioning_state][0];
   const [initialValues] = useState<StateValues>(() => ({
-    state: options[0]?.value ?? '',
+    state: first?.value ?? '',
     reason: '',
   }));
   return (
@@ -84,7 +84,12 @@ export function TrackerStateDialog({ tracker, onClose, onDone }: ActionProps) {
         onDone(await trackerService.changeState(tracker.id, body, keyFor(body)));
       }}
     >
-      <FormikSelectField name="state" label="New state" options={options} required />
+      <FormikSelectField
+        name="state"
+        label="New state"
+        options={STATE_TARGET_OPTIONS[tracker.provisioning_state]}
+        required
+      />
       <FormikTextField name="reason" label="Reason" required multiline minRows={2} />
     </FormDialog>
   );

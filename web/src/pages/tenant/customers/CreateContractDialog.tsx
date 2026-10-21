@@ -1,15 +1,17 @@
 import { Box } from '@mui/material';
 import { useState } from 'react';
 import { customerService } from '../../../api/services/customerService';
-import type { ContractDto, CustomerDto } from '../../../api/types';
+import { PERMISSIONS } from '../../../access/permissionCodes';
+import type { ContractDto, CustomerDto, JobSiteDto } from '../../../api/types';
 import { KeyValueGrid } from '../../../components/display/KeyValueGrid';
 import { FormikDateTimeField } from '../../../components/forms/FormikDateTimeField';
-import { FormikSelectField } from '../../../components/forms/FormikSelectField';
 import { FormikTextField } from '../../../components/forms/FormikTextField';
 import { StepperFormDialog, type FormStep } from '../../../components/forms/StepperFormDialog';
 import { useIdempotencyKey } from '../../../hooks/useIdempotencyKey';
+import { useSession } from '../../../session/useSession';
 import { formatInstantIn } from '../../../utils/time';
-import { siteOptions, useJobSites } from '../shared/useJobSites';
+import { FormikJobSitePicker } from '../shared/lookupPickers';
+import { jobSiteLabel } from '../shared/lookups';
 import {
   CONTRACT_FIELDS,
   contractFormSchema,
@@ -34,7 +36,9 @@ export function CreateContractDialog({
   onCreated,
 }: CreateContractDialogProps) {
   const keyFor = useIdempotencyKey();
-  const { sites, label: siteLabel } = useJobSites();
+  const { hasPermission } = useSession();
+  const [site, setSite] = useState<JobSiteDto | null>(null);
+  const siteLabel = (id: string) => (id === '' ? '—' : site?.id === id ? jobSiteLabel(site) : id);
   const [initialValues] = useState(() => emptyContractValues(new Date().toISOString()));
   const steps: FormStep<ContractFormValues>[] = [
     {
@@ -44,12 +48,12 @@ export function CreateContractDialog({
         <Box className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormikTextField name="contract_number" label="Contract number" required />
           <FormikTextField name="reference" label="Customer reference" />
-          {sites !== null && (
-            <FormikSelectField
+          {hasPermission(PERMISSIONS.tenantGeofenceRead) && (
+            <FormikJobSitePicker
               name="job_site_id"
               label="Default job site"
-              options={siteOptions(sites, '— None —')}
               helperText="Jobs under this contract default to this site"
+              onOptionChange={setSite}
             />
           )}
         </Box>
@@ -89,7 +93,7 @@ export function CreateContractDialog({
             { label: 'Customer', value: `${customer.code} · ${customer.name}` },
             { label: 'Contract number', value: v.contract_number.trim() },
             { label: 'Reference', value: v.reference.trim() || '—' },
-            { label: 'Default job site', value: siteLabel(v.job_site_id || null) },
+            { label: 'Default job site', value: siteLabel(v.job_site_id) },
             { label: 'Starts', value: formatInstantIn(v.starts_on, timeZone) },
             {
               label: 'Ends',

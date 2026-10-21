@@ -4,12 +4,12 @@ import { customerService } from '../../../api/services/customerService';
 import type { CategoryDto, RateCardDto } from '../../../api/types';
 import { KeyValueGrid } from '../../../components/display/KeyValueGrid';
 import { DateTimeField } from '../../../components/forms/DateTimeField';
-import { FormikSelectField } from '../../../components/forms/FormikSelectField';
 import { FormikTextField } from '../../../components/forms/FormikTextField';
 import { StepperFormDialog, type FormStep } from '../../../components/forms/StepperFormDialog';
 import { useIdempotencyKey } from '../../../hooks/useIdempotencyKey';
 import { formatInstantIn } from '../../../utils/time';
 import { withErrorCode } from '../shared/errorHints';
+import { FormikCategoryPicker } from '../shared/lookupPickers';
 import {
   emptyRateCardValues,
   RATE_FIELDS,
@@ -24,7 +24,6 @@ const HINTS: Readonly<Record<string, string>> = {
 };
 
 interface RateCardDialogProps {
-  categories: readonly CategoryDto[];
   timeZone: string;
   onClose: () => void;
   onCreated: (card: RateCardDto) => void;
@@ -34,10 +33,11 @@ export const VERSIONING_NOTE =
   'Saving creates a new rate-card version from its effective time. Earlier versions are kept, and jobs already created keep the price they were created with.';
 
 /** Rate → Version → Review. Owner-facing; each save is a new effective-dated version. */
-export function RateCardDialog({ categories, timeZone, onClose, onCreated }: RateCardDialogProps) {
+export function RateCardDialog({ timeZone, onClose, onCreated }: RateCardDialogProps) {
   const keyFor = useIdempotencyKey();
   const [initialValues] = useState(emptyRateCardValues);
-  const categoryName = (id: string) => categories.find((c) => c.id === id)?.name ?? id;
+  const [category, setCategory] = useState<CategoryDto | null>(null);
+  const categoryName = (id: string) => (category?.id === id ? category.name : id);
   const steps: FormStep<RateCardFormValues>[] = [
     {
       label: 'Rate',
@@ -45,11 +45,11 @@ export function RateCardDialog({ categories, timeZone, onClose, onCreated }: Rat
       render: () => (
         <Box className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Box className="sm:col-span-2">
-            <FormikSelectField
+            <FormikCategoryPicker
               name="machine_category_id"
               label="Machine category"
               required
-              options={categories.map((c) => ({ value: c.id, label: c.name }))}
+              onOptionChange={setCategory}
             />
           </Box>
           <FormikTextField

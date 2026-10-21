@@ -17,6 +17,7 @@ from asseta.core.outbox import OutboxWriter
 from asseta.modules.fleet.models import Machine, StaffMember
 from asseta.modules.geospatial.models import JobSite
 from asseta.modules.identity.principal import RequestContext
+from asseta.modules.jobs.charges import JobCharges, job_charges
 from asseta.modules.jobs.dto import (
     AcknowledgementDto,
     AcknowledgementIn,
@@ -26,6 +27,8 @@ from asseta.modules.jobs.dto import (
     ContractIn,
     CustomerDto,
     CustomerIn,
+    JobChargeLineDto,
+    JobChargesDto,
     JobDto,
     JobIn,
     JobSummaryDto,
@@ -46,6 +49,7 @@ from asseta.modules.jobs.models import (
 )
 from asseta.modules.meter.models import CaptureState, ExceptionStatus, JobException, MeterCapture, ReadingKind
 from asseta.modules.meter.rules import billable_hours
+from asseta.modules.platform_billing.models_commercial import Currency
 from asseta.modules.policy.service import PolicyService
 from asseta.modules.tenancy.models import TenantSettings
 
@@ -57,6 +61,26 @@ _TRANSITIONS: dict[str, tuple[set[JobStatus], JobStatus]] = {
     "COMPLETE": ({JobStatus.IN_PROGRESS}, JobStatus.COMPLETED),
     "CANCEL": ({JobStatus.DRAFT, JobStatus.PENDING_APPROVAL, JobStatus.APPROVED}, JobStatus.CANCELLED),
 }
+
+
+def charges_dto(c: JobCharges) -> JobChargesDto:
+    return JobChargesDto(
+        currency=c.currency,
+        lines=[
+            JobChargeLineDto(
+                kind=line.kind.value,
+                description=line.description,
+                quantity=line.quantity,
+                unit_price=line.unit_price,
+                amount=line.amount,
+            )
+            for line in c.lines
+        ],
+        subtotal=c.subtotal,
+        discount_total=c.discount_total,
+        tax_total=c.tax_total,
+        total=c.total,
+    )
 
 
 class JobService:
@@ -306,6 +330,25 @@ class JobService:
         eff = PolicyService(self._s).hire_billing(self._tid, at=job.started_at or utcnow())
         meter = (closing.reading - opening.reading) if opening and closing else None
         billable = billable_hours(meter, nonbillable, job.minimum_hours, eff.policy) if meter is not None else None
+        standby = Decimal(0)
+        if job.standby_treatment is StandbyTreatment.STANDBY_RATE:
+            raw = self._s.execute(
+                select(
+                    func.coalesce(func.sum(func.extract("epoch", JobActivity.ended_at - JobActivity.started_at)), 0)
+                ).where(
+                    JobActivity.job_id == job.id,
+                    JobActivity.billable.is_(False),
+                    JobActivity.ended_at.is_not(None),
+                    JobActivity.activity_type == ActivityType.STANDBY,
+                )
+            ).scalar_one()
+            hours = Decimal(str(raw)) / Decimal(3600)
+            standby = billable_hours(hours, Decimal(0), Decimal(0), eff.policy) if hours > 0 else Decimal(0)
+        charges = None
+        if billable is not None:
+            currency = self._s.get(Currency, job.currency)
+            assert currency is not None
+            charges = charges_dto(job_charges(job, billable, standby, currency.minor_units))
         counts = dict(
             self._s.execute(
                 select(JobException.blocking, func.count())
@@ -325,4 +368,6 @@ class JobService:
             blocking_exceptions=blocking,
             billing_ready=job.status is JobStatus.COMPLETED and billable is not None and blocking == 0,
             policy_version=eff.version_stamp,
+            standby_hours=standby,
+            charges=charges,
         )

@@ -1,4 +1,5 @@
 import type { SubscriptionStatus } from '../../../api/types';
+import type { SelectOption } from '../../../components/forms/FormikSelectField';
 
 export interface LifecycleAction {
   to: SubscriptionStatus;
@@ -30,3 +31,19 @@ export function allowedLifecycleActions(status: SubscriptionStatus): readonly Li
       return [];
   }
 }
+
+const optionsFor = (status: SubscriptionStatus): readonly SelectOption[] =>
+  allowedLifecycleActions(status).map((a) => ({ value: a.to, label: a.label }));
+
+/** Static select options per current status (the manual transitions above). */
+export const LIFECYCLE_ACTION_OPTIONS: Readonly<
+  Record<SubscriptionStatus, readonly SelectOption[]>
+> = {
+  DRAFT: optionsFor('DRAFT'),
+  PENDING_ACTIVATION: optionsFor('PENDING_ACTIVATION'),
+  ACTIVE: optionsFor('ACTIVE'),
+  PAST_DUE: optionsFor('PAST_DUE'),
+  SUSPENDED: optionsFor('SUSPENDED'),
+  CANCELLED: optionsFor('CANCELLED'),
+  EXPIRED: optionsFor('EXPIRED'),
+};

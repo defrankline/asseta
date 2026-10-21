@@ -4,13 +4,14 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Select, or_, select
+from sqlalchemy import Select, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.exc import StaleDataError
 
 from asseta.core.audit import AuditService
 from asseta.core.errors import BusinessRuleViolation, Conflict, NotFound
+from asseta.core.search import ilike_any
 from asseta.modules.fleet.dto import (
     AreaDto,
     AreaIn,
@@ -112,11 +113,8 @@ class MachineService:
         self, q: str | None, status: MachineStatus | None = None, category_id: uuid.UUID | None = None
     ) -> Select[Machine]:
         stmt = select(Machine).order_by(Machine.asset_code)
-        if q:
-            like = f"%{q}%"
-            stmt = stmt.where(
-                or_(Machine.asset_code.ilike(like), Machine.name.ilike(like), Machine.serial_number.ilike(like))
-            )
+        if (match := ilike_any(q, Machine.asset_code, Machine.name, Machine.serial_number)) is not None:
+            stmt = stmt.where(match)
         if status:
             stmt = stmt.where(Machine.status == status)
         if category_id:
@@ -129,8 +127,11 @@ class MachineService:
         self._insert(cat, "DUPLICATE_CATEGORY", "Category name already exists")
         return CategoryDto.model_validate(cat)
 
-    def categories(self) -> list[CategoryDto]:
-        rows = self._s.execute(select(MachineCategory).order_by(MachineCategory.name)).scalars()
+    def categories(self, q: str | None = None) -> list[CategoryDto]:
+        stmt = select(MachineCategory).order_by(MachineCategory.name)
+        if (match := ilike_any(q, MachineCategory.name)) is not None:
+            stmt = stmt.where(match)
+        rows = self._s.execute(stmt).scalars()
         return [CategoryDto.model_validate(c) for c in rows]
 
     def create_area(self, body: AreaIn) -> AreaDto:
@@ -138,11 +139,11 @@ class MachineService:
         self._insert(area, "DUPLICATE_AREA", "Operating area code already exists")
         return AreaDto.model_validate(area)
 
-    def areas(self) -> list[AreaDto]:
-        return [
-            AreaDto.model_validate(a)
-            for a in self._s.execute(select(OperatingArea).order_by(OperatingArea.code)).scalars()
-        ]
+    def areas(self, q: str | None = None) -> list[AreaDto]:
+        stmt = select(OperatingArea).order_by(OperatingArea.code)
+        if (match := ilike_any(q, OperatingArea.code, OperatingArea.name)) is not None:
+            stmt = stmt.where(match)
+        return [AreaDto.model_validate(a) for a in self._s.execute(stmt).scalars()]
 
     # --- staff & assignments ------------------------------------------------------------------------
     def create_staff(self, body: StaffIn) -> StaffDto:
@@ -154,8 +155,8 @@ class MachineService:
 
     def staff_query(self, q: str | None, kind: StaffKind | None) -> Select[StaffMember]:
         stmt = select(StaffMember).order_by(StaffMember.full_name)
-        if q:
-            stmt = stmt.where(StaffMember.full_name.ilike(f"%{q}%"))
+        if (match := ilike_any(q, StaffMember.full_name)) is not None:
+            stmt = stmt.where(match)
         if kind:
             stmt = stmt.where(StaffMember.kind == kind)
         return stmt

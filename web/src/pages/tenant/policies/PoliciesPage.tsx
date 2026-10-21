@@ -24,6 +24,7 @@ import { useDisplayTimeZone } from '../../../hooks/useDisplayTimeZone';
 import { useNotify } from '../../../notifications/useNotify';
 import { useSession } from '../../../session/useSession';
 import { machineLabel } from '../shared/display';
+import { JobSiteFilter } from '../shared/lookupPickers';
 import { MachinePicker } from '../shared/MachinePicker';
 import { EffectivePolicyView } from './EffectivePolicyView';
 import { POLICY_TYPE_LABELS, scopesFor, type OverrideScope } from './policyFields';
@@ -36,6 +37,7 @@ const POLICY_TYPES: readonly PolicyType[] = [
   'METER_CAPTURE',
   'HIRE_BILLING',
   'DEVICE_SYNC',
+  'EXPENSE_CAPTURE',
 ];
 const SUBTITLES: Readonly<Record<PolicyType, string>> = {
   TRACKING: 'Tracking: tenant defaults with machine / site overrides',
@@ -43,6 +45,8 @@ const SUBTITLES: Readonly<Record<PolicyType, string>> = {
     'Meter capture: opening and closing modes, photo/OCR, GPS and plausibility rules (machine / site overrides)',
   HIRE_BILLING: 'Hire billing: how meter hours become billable hours (tenant-wide only)',
   DEVICE_SYNC: 'Device sync: bounded offline operation for field devices (tenant-wide only)',
+  EXPENSE_CAPTURE:
+    'Expense capture: receipts, GPS and approval limits for field expenses (tenant-wide only)',
 };
 
 /** Effective policy per type (tenant / machine / site) and its version history. */
@@ -56,7 +60,8 @@ export function PoliciesPage() {
   const scopes = scopesFor(ptype);
   const scope: OverrideScope = scopes.includes(rawScope) ? rawScope : 'TENANT';
   const [machine, setMachine] = useState<MachineDto | null>(null);
-  const [siteId, setSiteId] = useState('');
+  const [site, setSite] = useState<JobSiteDto | null>(null);
+  const siteId = site?.id ?? '';
   const [creating, setCreating] = useState(false);
   const [version, setVersion] = useState(0);
 
@@ -152,22 +157,9 @@ export function PoliciesPage() {
                 </Box>
               )}
               {scope === 'SITE' && (
-                <TextField
-                  select
-                  size="small"
-                  label="Job site"
-                  value={siteId}
-                  onChange={(e) => {
-                    setSiteId(e.target.value);
-                  }}
-                  sx={{ minWidth: 240 }}
-                >
-                  {(siteList ?? []).map((s) => (
-                    <MenuItem key={s.id} value={s.id}>
-                      {s.code} · {s.name}
-                    </MenuItem>
-                  ))}
-                </TextField>
+                <Box sx={{ minWidth: 260 }}>
+                  <JobSiteFilter label="Job site" value={site} onChange={setSite} />
+                </Box>
               )}
             </Box>
             <Typography variant="subtitle1" component="h2">

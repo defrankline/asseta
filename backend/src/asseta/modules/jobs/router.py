@@ -4,13 +4,14 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from asseta.core.db import get_session
 from asseta.core.errors import ERROR_RESPONSES, PermissionDenied
 from asseta.core.idempotency import IdempotencyGuard, request_hash
 from asseta.core.paging import Page, PageParams, page_params, paginate
+from asseta.core.search import ilike_any
 from asseta.modules.identity.catalog import CATALOG, MenuDef
 from asseta.modules.identity.catalog import PermissionScope as S
 from asseta.modules.identity.dependencies import requires
@@ -72,8 +73,8 @@ def customers(
     paging: Annotated[PageParams, Depends(page_params)],
 ) -> Page[CustomerDto]:
     stmt = select(Customer).order_by(Customer.name)
-    if paging.q:
-        stmt = stmt.where(or_(Customer.name.ilike(f"%{paging.q}%"), Customer.code.ilike(f"%{paging.q}%")))
+    if (match := ilike_any(paging.q, Customer.name, Customer.code)) is not None:
+        stmt = stmt.where(match)
     rows, total = paginate(session, stmt, paging)
     return Page(
         items=[CustomerDto.model_validate(c) for c in rows], total=total, page=paging.page, page_size=paging.page_size
@@ -104,6 +105,8 @@ def contracts(
     stmt = select(RentalContract).order_by(RentalContract.starts_on.desc())
     if customer_id:
         stmt = stmt.where(RentalContract.customer_id == customer_id)
+    if (match := ilike_any(paging.q, RentalContract.contract_number, RentalContract.reference)) is not None:
+        stmt = stmt.where(match)
     rows, total = paginate(session, stmt, paging)
     return Page(
         items=[ContractDto.model_validate(c) for c in rows], total=total, page=paging.page, page_size=paging.page_size
@@ -138,8 +141,8 @@ def jobs(
         stmt = stmt.where(Job.status == status)
     if machine_id:
         stmt = stmt.where(Job.machine_id == machine_id)
-    if paging.q:
-        stmt = stmt.where(Job.job_number.ilike(f"%{paging.q}%"))
+    if (match := ilike_any(paging.q, Job.job_number)) is not None:
+        stmt = stmt.where(match)
     rows, total = paginate(session, stmt, paging)
     return Page(
         items=[JobDto.model_validate(j) for j in rows], total=total, page=paging.page, page_size=paging.page_size

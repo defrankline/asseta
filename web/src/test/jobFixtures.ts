@@ -48,6 +48,7 @@ export function makeSummary(overrides: Partial<JobSummaryDto> = {}): JobSummaryD
     meter_hours: '8.4',
     nonbillable_hours: '1.50',
     billable_hours: '8.0',
+    standby_hours: '0.00',
     open_exceptions: 1,
     blocking_exceptions: 1,
     billing_ready: false,

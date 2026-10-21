@@ -21,7 +21,14 @@ export function MandateBanner() {
           color="inherit"
           size="small"
           onClick={() => {
-            void setMode({ kind: 'platform' }).then(() => navigate(ROUTES.home));
+            void setMode(
+              { kind: 'platform' },
+              {
+                onSwitched: () => {
+                  void navigate(ROUTES.home);
+                },
+              },
+            );
           }}
         >
           Return to your tenant

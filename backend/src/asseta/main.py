@@ -14,6 +14,9 @@ from asseta.core.db import get_sessionmaker
 from asseta.core.errors import install_error_handlers
 from asseta.core.logging import configure_logging
 from asseta.core.storage import ObjectStore, S3ObjectStore
+from asseta.modules.expenses import router as expenses_router
+from asseta.modules.finance import cash_router as finance_cash_router
+from asseta.modules.finance import router as finance_router
 from asseta.modules.fleet import photos as fleet_photos
 from asseta.modules.fleet import router as fleet_router
 from asseta.modules.geospatial import router as geospatial_router
@@ -117,6 +120,9 @@ def create_app(
         meter_router.router,
         sync_router.router,
         managed_service_router.router,
+        finance_router.router,
+        finance_cash_router.router,
+        expenses_router.router,
     ):
         app.include_router(router)
     return app

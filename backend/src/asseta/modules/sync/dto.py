@@ -6,6 +6,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from asseta.modules.expenses.dto import ExpenseCategoryDto
+from asseta.modules.finance.dto import CashCustodyBalanceDto
 from asseta.modules.fleet.dto import MachineDto, StaffDto
 from asseta.modules.geospatial.dto import JobSiteDto
 from asseta.modules.jobs.dto import ContractDto, CustomerDto, JobDto
@@ -51,6 +53,8 @@ class SyncData(BaseModel):
     customers: list[CustomerDto] = []
     contracts: list[ContractDto] = []
     staff: list[StaffDto] = []
+    expense_categories: list[ExpenseCategoryDto] = []
+    cash_custody: list[CashCustodyBalanceDto] = []  # the signed-in supervisor's current custody (server-owned)
 
 
 class BootstrapDto(BaseModel):
@@ -71,7 +75,16 @@ class ChangesDto(BaseModel):
     policy_snapshots: list[PolicySnapshotDto]
 
 
-OpType = Literal["METER_CAPTURE", "JOB_ACTIVITY", "JOB_ACKNOWLEDGEMENT", "JOB_TRANSITION"]
+OpType = Literal[
+    "METER_CAPTURE",
+    "JOB_ACTIVITY",
+    "JOB_ACKNOWLEDGEMENT",
+    "JOB_TRANSITION",
+    "EXPENSE",
+    "CASH_COLLECTION",
+    "CASH_HANDOVER",
+    "FUEL_EVENT",
+]
 
 
 class OperationIn(BaseModel):
@@ -105,7 +118,7 @@ class PushResultDto(BaseModel):
 class BlobStartIn(BaseModel):
     sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     size_bytes: int = Field(gt=0)
-    purpose: Literal["METER_PHOTO", "SIGNATURE", "RESET_EVIDENCE"]
+    purpose: Literal["METER_PHOTO", "SIGNATURE", "RESET_EVIDENCE", "EXPENSE_RECEIPT"]
 
 
 class BlobSessionDto(BaseModel):

@@ -88,8 +88,10 @@ export const trackerService = {
     );
   },
   /** GET /tenant/tracker-models (listApprovedTrackerModels). */
-  listModels(signal?: AbortSignal): Promise<TrackerModelDto[]> {
-    return tenantList('/tenant/tracker-models', trackerModelSchema, 'tracker models', signal);
+  listModels(signal?: AbortSignal, q?: string): Promise<TrackerModelDto[]> {
+    return tenantList('/tenant/tracker-models', trackerModelSchema, 'tracker models', signal, {
+      q,
+    });
   },
   /** GET /tenant/telemetry/ingestion-events (listIngestionEvents). Filters: `status`, `tracker_id`. */
   listIngestionEvents(

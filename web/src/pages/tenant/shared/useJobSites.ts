@@ -13,7 +13,10 @@ export interface JobSites {
 
 const NONE: readonly JobSiteDto[] = [];
 
-/** Job sites for selectors (only fetched with `tenant.geofence.read`). */
+/**
+ * Job-site labels for tables and detail views (only fetched with `tenant.geofence.read`).
+ * Selectors use the server-searched FormikJobSitePicker / JobSiteFilter instead.
+ */
 export function useJobSites(): JobSites {
   const { hasPermission } = useSession();
   const canRead = hasPermission(PERMISSIONS.tenantGeofenceRead);
@@ -25,11 +28,4 @@ export function useJobSites(): JobSites {
     return (id: string | null) => (id === null ? '—' : (names.get(id) ?? id));
   }, [sites]);
   return { sites, label };
-}
-
-export function siteOptions(sites: readonly JobSiteDto[] | null, emptyLabel: string) {
-  return [
-    { value: '', label: emptyLabel },
-    ...(sites ?? NONE).map((s) => ({ value: s.id, label: `${s.code} · ${s.name}` })),
-  ];
 }
