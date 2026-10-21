@@ -30,6 +30,16 @@ export const ROUTES = {
   tenantCustomerDetail: '/tenant/customers/:customerId',
   /** Matches the backend `tenant.expenses` menu path; expense categories live here. */
   tenantExpenses: '/tenant/expenses',
+  /** Expense categories (linked from Expenses & fuel). */
+  tenantExpenseCategories: '/tenant/expenses/categories',
+  /** Matches the backend `tenant.approvals` menu path. */
+  tenantApprovals: '/tenant/approvals',
+  /** Matches the backend `tenant.finance` menu path (invoices, payments, cash custody). */
+  tenantFinance: '/tenant/finance',
+  tenantHireInvoiceDetail: '/tenant/finance/invoices/:invoiceId',
+  tenantHireInvoicePrint: '/tenant/finance/invoices/:invoiceId/print',
+  /** Matches the backend `tenant.profitability` menu path. */
+  tenantProfitability: '/tenant/profitability',
   tenantJobs: '/tenant/jobs',
   tenantJobDetail: '/tenant/jobs/:jobId',
   tenantExceptions: '/tenant/exceptions',
@@ -62,6 +72,19 @@ export function exceptionsPath(jobId?: string): string {
   return jobId === undefined
     ? ROUTES.tenantExceptions
     : `${ROUTES.tenantExceptions}?job_id=${encodeURIComponent(jobId)}`;
+}
+
+/** Hire finance hub on a given tab (`invoices`, `payments`, `custody`, `handovers`, `reconciliation`). */
+export function financeTabPath(tab: string): string {
+  return `${ROUTES.tenantFinance}?tab=${encodeURIComponent(tab)}`;
+}
+
+export function hireInvoiceDetailPath(invoiceId: string): string {
+  return `${ROUTES.tenantFinance}/invoices/${encodeURIComponent(invoiceId)}`;
+}
+
+export function hireInvoicePrintPath(invoiceId: string): string {
+  return `${hireInvoiceDetailPath(invoiceId)}/print`;
 }
 
 export function tenantDetailPath(tenantId: string): string {
@@ -119,6 +142,10 @@ export const IMPLEMENTED_PATHS: ReadonlySet<string> = new Set([
   ROUTES.tenantSubscription,
   ROUTES.tenantCustomers,
   ROUTES.tenantExpenses,
+  ROUTES.tenantExpenseCategories,
+  ROUTES.tenantApprovals,
+  ROUTES.tenantFinance,
+  ROUTES.tenantProfitability,
   ROUTES.tenantJobs,
   ROUTES.tenantExceptions,
   ROUTES.tenantAccess,

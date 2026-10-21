@@ -263,3 +263,51 @@ export type GatewayDto = Schemas['GatewayDto'];
 export type GatewayIn = Schemas['GatewayIn'];
 export type GatewayCreatedDto = Schemas['GatewayCreatedDto'];
 export type TenantUpdateIn = Schemas['TenantUpdateIn'];
+
+// ---- Tenant hire finance (Gate 5, R1-G): invoices, payments, receivables, cash custody ----
+
+export type HireInvoiceDto = Schemas['HireInvoiceDto'];
+export type HireInvoiceLineDto = Schemas['HireInvoiceLineDto'];
+export type HireInvoiceStatus = Schemas['HireInvoiceStatus'];
+export type HireInvoiceDraftIn = Schemas['HireInvoiceDraftIn'];
+export type HireInvoiceIssueIn = Schemas['HireInvoiceIssueIn'];
+export type HireInvoiceVoidIn = Schemas['HireInvoiceVoidIn'];
+export type ChargeKind = Schemas['ChargeKind'];
+export type InvoicePaymentState = NonNullable<HireInvoiceDto['payment_state']>;
+export type CustomerPaymentDto = Schemas['CustomerPaymentDto'];
+export type CustomerPaymentIn = Schemas['CustomerPaymentIn'];
+export type HireAllocationDto = Schemas['HireAllocationDto'];
+export type HireAllocationIn = Schemas['HireAllocationIn'];
+export type HireAllocateIn = Schemas['HireAllocateIn'];
+export type HirePaymentMethod = Schemas['HirePaymentMethod'];
+export type SettlementStatus = Schemas['SettlementStatus'];
+export type SettlementDecisionIn = Schemas['SettlementDecisionIn'];
+export type CustomerBalanceDto = Schemas['CustomerBalanceDto'];
+export type CustomerStatementDto = Schemas['CustomerStatementDto'];
+export type StatementLineDto = Schemas['StatementLineDto'];
+export type StatementLineKind = StatementLineDto['kind'];
+export type CashCollectionIn = Schemas['CashCollectionIn'];
+export type CashFloatIn = Schemas['CashFloatIn'];
+export type CustodyEntryType = Schemas['CustodyEntryType'];
+export type CashCustodyEntryDto = Schemas['CashCustodyEntryDto'];
+export type CashCustodyBalanceDto = Schemas['CashCustodyBalanceDto'];
+export type CashHandoverIn = Schemas['CashHandoverIn'];
+export type CashHandoverDto = Schemas['CashHandoverDto'];
+export type CashReconciliationDto = Schemas['CashReconciliationDto'];
+export type CashReconciliationDayDto = Schemas['CashReconciliationDayDto'];
+export type ProfitabilityDto = Schemas['ProfitabilityDto'];
+export type ProfitabilityRowDto = Schemas['ProfitabilityRowDto'];
+export type ProfitabilityGroupBy = ProfitabilityDto['group_by'];
+
+// ---- Field expenses, fuel and approvals (Gate 5, R1-G) ----
+
+export type ExpenseDto = Schemas['ExpenseDto'];
+export type ExpenseIn = Schemas['ExpenseIn'];
+export type ExpenseStatus = Schemas['ExpenseStatus'];
+export type ExpensePaidFrom = Schemas['ExpensePaidFrom'];
+export type FuelEventDto = Schemas['FuelEventDto'];
+export type FuelEventIn = Schemas['FuelEventIn'];
+export type FuelEventType = Schemas['FuelEventType'];
+export type ApprovalRequestDto = Schemas['ApprovalRequestDto'];
+export type ApprovalStatus = Schemas['ApprovalStatus'];
+export type ApprovalDecisionIn = Schemas['ApprovalDecisionIn'];

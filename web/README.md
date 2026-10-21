@@ -201,3 +201,36 @@ Mutating actions use `<CanMutate>` / `useCanMutate()` — permission **and** ten
   (getAttachmentUrl, fetched on demand); the SHA-256 is shown as secondary info. `CaptureLocationMap`
   draws the phone fix and the tracker position at the same time (each with its accuracy) and the
   allowed-distance ring.
+
+## Tenant console (Gate 5: hire finance, expenses and accountability — R1-G)
+
+| Route                                       | Read permission         | Actions                                                                                                                                                                                                       |
+| ------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/tenant/finance` (`?tab=` below)           | `tenant.finance.read`   | invoices `tenant.finance.invoice`; payments / allocations `tenant.finance.payment`; verify / reject `tenant.finance.verify`; floats `tenant.finance.cash`; collections / handovers `tenant.collection.record` |
+| `/tenant/finance/invoices/:id` (+ `/print`) | `tenant.finance.read`   | issue / void `tenant.finance.invoice`; record payment `tenant.finance.payment`                                                                                                                                |
+| `/tenant/customers/:id` Balance, Statement  | `tenant.finance.read`   | —                                                                                                                                                                                                             |
+| `/tenant/expenses` (`?tab=fuel`)            | `tenant.expense.read`   | record expense / fuel `tenant.expense.write`                                                                                                                                                                  |
+| `/tenant/expenses/categories`               | `tenant.expense.read`   | `tenant.finance.expense_category`                                                                                                                                                                             |
+| `/tenant/approvals`                         | `tenant.approval.read`  | approve / reject `tenant.approval.expense`                                                                                                                                                                    |
+| `/tenant/profitability`                     | `tenant.finance.report` | —                                                                                                                                                                                                             |
+
+- **Services:** `financeService` (`hireInvoiceService`, `customerPaymentService`, `receivablesService`,
+  `profitabilityService`), `cashService`, `expenseService` (`expenseService`, `fuelService`, `approvalService`);
+  schemas in `financeSchemas` / `expenseSchemas`.
+- **Claimed vs verified:** payments, cash collections and handovers are `CLAIMED` until someone other than the
+  recorder verifies them. Lists default to the Claimed view with an explanation; balances and statements show
+  claimed money separately. Verify / approve is disabled for the recorder / requester (`recorded_by` /
+  `requested_by` = `/me` `user_id`), and `SEGREGATION_OF_DUTIES` from the server is still shown. Rejecting
+  always needs a reason (`DecisionDialog`).
+- **Never edited after issue:** issued invoices are voided with a reason (a recorded reversal; allocations
+  return to customer credit, jobs become invoiceable again). Drafts cannot add/remove jobs (the API does not
+  support it): discard and re-draft. Expenses and fuel events are immutable; corrections go through approval.
+- **Money:** every amount shows its currency and comes from the API. Different currencies are never summed
+  (balance cards, statements and profitability are per currency). `sumDecimals` (BigInt) is only used for form
+  checks (allocations ≤ payment) and the derived "unallocated" amount of a payment.
+- **Reconciliation (§10 #8):** `ReconciliationTab` shows the server's per-day figures for
+  `opening + floats + collections − approved cash expenses − verified handovers = outstanding`, with claimed
+  handovers, pending expenses, unverified collections and `outstanding_if_claims_verified` listed separately;
+  the UI never recomputes them.
+- **Pickers:** customers, staff, machines, jobs, expense categories, expenses and issued invoices use the shared
+  server-search autocompletes (`pages/tenant/shared/financeLookups.ts`, `financePickers.tsx`).

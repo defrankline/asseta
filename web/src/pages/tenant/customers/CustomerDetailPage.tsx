@@ -1,5 +1,7 @@
-import { useCallback } from 'react';
+import { Box, Paper, Tab, Tabs } from '@mui/material';
+import { useCallback, useState, type ReactNode } from 'react';
 import { useParams } from 'react-router';
+import { PERMISSIONS } from '../../../access/permissionCodes';
 import { customerService } from '../../../api/services/customerService';
 import { AsyncContent } from '../../../components/feedback/AsyncContent';
 import { ActionButtons } from '../../../components/lifecycle/ActionButtons';
@@ -11,12 +13,46 @@ import {
 import { useAsyncResource } from '../../../hooks/useAsyncResource';
 import { useDisplayTimeZone } from '../../../hooks/useDisplayTimeZone';
 import { ROUTES } from '../../../navigation/routes';
+import { useSession } from '../../../session/useSession';
 import { formatInstantIn } from '../../../utils/time';
+import { CustomerBalanceTab, CustomerStatementTab } from './CustomerFinanceTabs';
 import { ContractsPanel } from './ContractsPanel';
 import { CustomerFields } from './CustomerViews';
 import { customerLabel, useCustomerActions } from './useCustomerActions';
 
-/** Customer record with its contracts; edit, deactivate and reactivate. */
+type TabKey = 'contracts' | 'balance' | 'statement';
+
+/** Contracts, and with `tenant.finance.read` the receivable Balance and Statement (per currency). */
+function CustomerTabs({ customerId, children }: { customerId: string; children: ReactNode }) {
+  const { hasPermission } = useSession();
+  const timeZone = useDisplayTimeZone();
+  const [tab, setTab] = useState<TabKey>('contracts');
+  if (!hasPermission(PERMISSIONS.tenantFinanceRead)) return <>{children}</>;
+  return (
+    <Paper variant="outlined">
+      <Tabs
+        value={tab}
+        aria-label="Customer records"
+        onChange={(_e, v: TabKey) => {
+          setTab(v);
+        }}
+      >
+        <Tab value="contracts" label="Contracts" />
+        <Tab value="balance" label="Balance" />
+        <Tab value="statement" label="Statement" />
+      </Tabs>
+      <Box className="p-3">
+        {tab === 'contracts' && children}
+        {tab === 'balance' && <CustomerBalanceTab customerId={customerId} />}
+        {tab === 'statement' && (
+          <CustomerStatementTab customerId={customerId} timeZone={timeZone} />
+        )}
+      </Box>
+    </Paper>
+  );
+}
+
+/** Customer record with its contracts, balance and statement; edit, deactivate and reactivate. */
 export function CustomerDetailPage() {
   const { customerId = '' } = useParams();
   const timeZone = useDisplayTimeZone();
@@ -66,7 +102,9 @@ export function CustomerDetailPage() {
               <DetailSection title="Customer">
                 <CustomerFields customer={c} />
               </DetailSection>
-              <ContractsPanel key={c.id} customer={c} timeZone={timeZone} />
+              <CustomerTabs customerId={c.id}>
+                <ContractsPanel key={c.id} customer={c} timeZone={timeZone} />
+              </CustomerTabs>
             </div>
           )}
         </AsyncContent>

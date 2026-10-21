@@ -86,4 +86,23 @@ export const PERMISSIONS = {
   tenantExpenseRead: 'tenant.expense.read',
   /** Create, edit, deactivate and reactivate expense categories. */
   tenantExpenseCategoryManage: 'tenant.finance.expense_category',
+  /** Record expenses (receipts/GPS) and fuel events. */
+  tenantExpenseWrite: 'tenant.expense.write',
+  /** Approval requests (read); approve / reject expenses above policy limits. */
+  tenantApprovalRead: 'tenant.approval.read',
+  tenantApprovalExpense: 'tenant.approval.expense',
+  /** Hire invoices, customer payments, balances, statements and cash custody (read). */
+  tenantFinanceRead: 'tenant.finance.read',
+  /** Draft, issue and void customer hire invoices. */
+  tenantFinanceInvoice: 'tenant.finance.invoice',
+  /** Record customer payments and allocate them to invoices. */
+  tenantFinancePayment: 'tenant.finance.payment',
+  /** Verify or reject customer payments and cash handovers (never your own). */
+  tenantFinanceVerify: 'tenant.finance.verify',
+  /** Issue cash floats and record custody for any supervisor. */
+  tenantFinanceCash: 'tenant.finance.cash',
+  /** Machine / job / customer profitability. */
+  tenantFinanceReport: 'tenant.finance.report',
+  /** Record cash collections and handovers (own custody). */
+  tenantCollectionRecord: 'tenant.collection.record',
 } as const;

@@ -83,3 +83,27 @@ export const ManagedServicePage = lazy(() =>
     default: m.ManagedServicePage,
   })),
 );
+export const ExpensesPage = lazy(() =>
+  import('../pages/tenant/expenses/ExpensesPage').then((m) => ({ default: m.ExpensesPage })),
+);
+export const ApprovalsPage = lazy(() =>
+  import('../pages/tenant/approvals/ApprovalsPage').then((m) => ({ default: m.ApprovalsPage })),
+);
+export const FinancePage = lazy(() =>
+  import('../pages/tenant/finance/FinancePage').then((m) => ({ default: m.FinancePage })),
+);
+export const HireInvoiceDetailPage = lazy(() =>
+  import('../pages/tenant/finance/invoices/HireInvoiceDetailPage').then((m) => ({
+    default: m.HireInvoiceDetailPage,
+  })),
+);
+export const HireInvoicePrintPage = lazy(() =>
+  import('../pages/tenant/finance/invoices/HireInvoicePrintPage').then((m) => ({
+    default: m.HireInvoicePrintPage,
+  })),
+);
+export const ProfitabilityPage = lazy(() =>
+  import('../pages/tenant/profitability/ProfitabilityPage').then((m) => ({
+    default: m.ProfitabilityPage,
+  })),
+);

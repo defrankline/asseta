@@ -2,6 +2,7 @@ import Add from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
 import { Box, Button, InputAdornment, Paper, TextField } from '@mui/material';
 import { useCallback, useState } from 'react';
+import { Link as RouterLink } from 'react-router';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import { useCanMutate } from '../../../access/useCanMutate';
 import { expenseCategoryService } from '../../../api/services/expenseCategoryService';
@@ -21,6 +22,7 @@ import { useLifecycleDialog } from '../../../components/lifecycle/useLifecycleDi
 import { useAsyncResource } from '../../../hooks/useAsyncResource';
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue';
 import { useDisplayTimeZone } from '../../../hooks/useDisplayTimeZone';
+import { ROUTES } from '../../../navigation/routes';
 import { useNotify } from '../../../notifications/useNotify';
 import { formatInstantIn } from '../../../utils/time';
 import { ExpenseCategoryDialog } from './ExpenseCategoryDialog';
@@ -104,17 +106,22 @@ export function ExpenseCategoriesPage() {
         title="Expense categories"
         subtitle="Categories used when recording expenses and fuel"
         actions={
-          canManage ? (
-            <Button
-              variant="contained"
-              startIcon={<Add />}
-              onClick={() => {
-                setEditing({ kind: 'new' });
-              }}
-            >
-              New category
+          <Box className="flex gap-2">
+            <Button component={RouterLink} to={ROUTES.tenantExpenses} variant="outlined">
+              Expenses &amp; fuel
             </Button>
-          ) : undefined
+            {canManage && (
+              <Button
+                variant="contained"
+                startIcon={<Add />}
+                onClick={() => {
+                  setEditing({ kind: 'new' });
+                }}
+              >
+                New category
+              </Button>
+            )}
+          </Box>
         }
       />
       <Paper variant="outlined">

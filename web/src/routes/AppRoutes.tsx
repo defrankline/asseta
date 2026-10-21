@@ -18,19 +18,25 @@ import { SystemStatusPage } from '../pages/SystemStatusPage';
 import {
   AccessPage,
   AlertsPage,
+  ApprovalsPage,
   ClientManagedServicePage,
   CustomerDetailPage,
   CustomersPage,
   ExpenseCategoriesPage,
   ExceptionsPage,
+  ExpensesPage,
+  FinancePage,
   FleetMapPage,
   GeofencesPage,
+  HireInvoiceDetailPage,
+  HireInvoicePrintPage,
   JobDetailPage,
   JobsPage,
   MachineDetailPage,
   MachinesPage,
   ManagedServicePage,
   PoliciesPage,
+  ProfitabilityPage,
   StaffDetailPage,
   StaffPage,
   TelemetryCatalogPage,
@@ -143,7 +149,31 @@ export function AppRoutes() {
         />
         <Route
           path={ROUTES.tenantExpenses}
+          element={guard(PERMISSIONS.tenantExpenseRead, <ExpensesPage />)}
+        />
+        <Route
+          path={ROUTES.tenantExpenseCategories}
           element={guard(PERMISSIONS.tenantExpenseRead, <ExpenseCategoriesPage />)}
+        />
+        <Route
+          path={ROUTES.tenantApprovals}
+          element={guard(PERMISSIONS.tenantApprovalRead, <ApprovalsPage />)}
+        />
+        <Route
+          path={ROUTES.tenantFinance}
+          element={guard(PERMISSIONS.tenantFinanceRead, <FinancePage />)}
+        />
+        <Route
+          path={ROUTES.tenantHireInvoiceDetail}
+          element={guard(PERMISSIONS.tenantFinanceRead, <HireInvoiceDetailPage />)}
+        />
+        <Route
+          path={ROUTES.tenantHireInvoicePrint}
+          element={guard(PERMISSIONS.tenantFinanceRead, <HireInvoicePrintPage />)}
+        />
+        <Route
+          path={ROUTES.tenantProfitability}
+          element={guard(PERMISSIONS.tenantFinanceReport, <ProfitabilityPage />)}
         />
         <Route path={ROUTES.tenantJobs} element={guard(PERMISSIONS.tenantJobRead, <JobsPage />)} />
         <Route

@@ -131,3 +131,30 @@ export function formatPercent(value: string): string {
   const trimmed = fixed.includes('.') ? fixed.replace(/0+$/, '').replace(/\.$/, '') : fixed;
   return `${trimmed}%`;
 }
+
+/**
+ * Exact sum of decimal strings (BigInt, never floats), returned as a plain decimal string with the
+ * widest input scale, e.g. sumDecimals(['10.5', '0.25']) === '10.75'. Used only for form checks
+ * such as "allocations must not exceed the payment"; displayed totals always come from the API.
+ */
+export function sumDecimals(values: readonly string[]): string {
+  const parsed = values.map((v) => {
+    const d = parseDecimal(v);
+    if (d === null) throw new Error(`Not a decimal: ${v}`);
+    return d;
+  });
+  const scale = parsed.reduce((m, d) => Math.max(m, d.scale), 0);
+  const total = parsed.reduce((acc, d) => acc + rescale(d, scale), 0n);
+  const negative = total < 0n;
+  const digits = (negative ? -total : total).toString().padStart(scale + 1, '0');
+  const int = digits.slice(0, digits.length - scale);
+  const frac = scale > 0 ? `.${digits.slice(digits.length - scale)}` : '';
+  return `${negative ? '-' : ''}${int}${frac}`;
+}
+
+/** Sign of a decimal string: -1, 0 or 1 (e.g. to style a negative outstanding amount). */
+export function signOfDecimal(value: string): -1 | 0 | 1 {
+  const d = parseDecimal(value);
+  if (d === null || d.units === 0n) return 0;
+  return d.units < 0n ? -1 : 1;
+}

@@ -6,6 +6,8 @@ import {
   isZeroDecimal,
   minorUnits,
   roundDecimal,
+  signOfDecimal,
+  sumDecimals,
 } from './money';
 
 describe('money formatting', () => {
@@ -47,5 +49,19 @@ describe('money formatting', () => {
     expect(formatPercent('12.5000')).toBe('12.5%');
     expect(formatPercent('18.0000')).toBe('18%');
     expect(formatPercent('0')).toBe('0%');
+  });
+});
+
+describe('sumDecimals / signOfDecimal', () => {
+  it('adds decimal strings exactly with the widest scale', () => {
+    expect(sumDecimals(['0.1', '0.2'])).toBe('0.3');
+    expect(sumDecimals(['10.5', '0.25', '-1'])).toBe('9.75');
+    expect(sumDecimals([])).toBe('0');
+    expect(sumDecimals(['-0.5', '0.25'])).toBe('-0.25');
+  });
+  it('reports the sign', () => {
+    expect(signOfDecimal('-0.01')).toBe(-1);
+    expect(signOfDecimal('0.0000')).toBe(0);
+    expect(signOfDecimal('3')).toBe(1);
   });
 });
