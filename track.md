@@ -1,0 +1,208 @@
+# ASSETA — RELEASE 1 IMPLEMENTATION TRACKER
+
+**Scope authority:** `prompt.md` (FROZEN). **Enhancements:** `backlog.md` only.  
+**Last update:** 2026-10-21 (session 1: Gates 0–1 verified locally; Gate 2 backend + real Traccar E2E verified; Gate 2 UI next)  
+**Overall status:** IN PROGRESS  
+**Gate in progress:** Gate 2 — Fleet + GPS (web UI, machine photos remaining); hosted CI first run pending  
+**Owner:** Implementation agent; final scope decisions by Asseta Platform Owner.
+
+## Rules for maintaining this file
+
+- Update this file *after each material code/test change*, not only at the end of a session. Do not mark a task DONE without verified evidence (test command/results and relevant paths).
+- Status values: `NOT STARTED`, `IN PROGRESS`, `BLOCKED`, `DONE`, `FAILED TESTS`.
+- Every task includes implementation evidence, tests and unmet acceptance criteria; state blockers honestly.
+- Never add features to `prompt.md` or mark backlog requests as Release 1 without explicit owner-approved scope change.
+- Maintain the smallest next executable action. If something is blocked by external hardware/secrets, continue an independent in-scope task.
+- A task can be `DONE` only after its end-to-end acceptance criteria pass; "files created" is not enough.
+
+## Scope freeze register
+
+| ID | Decision | Status |
+|---|---|---|
+| S-001 | Asseta is multi-tenant SaaS; platform owner controls tenant subscription pricing | FROZEN |
+| S-002 | Subscription billing per DISTINCT subscribed tracked machine (min 1 active paying), monthly or yearly, negotiated tenant rates | FROZEN |
+| S-003 | Tenant equipment-hire financial ledger distinct from platform subscription billing | FROZEN |
+| S-004 | Python/FastAPI, PostgreSQL/PostGIS, Kafka, Redis, React/strict TS/MUI/Tailwind/Formik/Yup/Axios | FROZEN |
+| S-005 | Native Android Kotlin AND native iOS Swift supervisor and owner apps | FROZEN |
+| S-006 | Each machine has plug-and-play GPS/telematics adapter; Traccar gateway first | FROZEN |
+| S-007 | Owner-controlled AUTO/MANUAL independently for opening/closing readings; all captures attempt GPS | FROZEN |
+| S-008 | Genuine mobile offline capture/sync; encrypted local storage; independent machine tracker | FROZEN |
+| S-009 | ML is core architecture; production rules + governed learning, no fabricated risk scores | FROZEN |
+| S-010 | No scope growth; add ideas to backlog.md | FROZEN |
+
+## Release gate status
+
+| Gate | Milestone | Status | Evidence / acceptance |
+|---|---|---|---|
+| 0 | Foundations, infrastructure, security and CI | IN PROGRESS | All items verified locally (see evidence log). Remaining: hosted CI run BLOCKED by EXT-06 (no git remote); `tenant_membership` mirror population moves with R1-B user management (Gate 2). |
+| 1 | Commercial platform SaaS, per-asset subscription billing | IN PROGRESS | All items implemented + tested locally: backend, scheduler, platform admin UI (59 web tests, mocked services), tracker-swap no-double-billing (Gate 2 test). Awaiting first hosted CI run (EXT-06 resolved: remote added) and a browser pass against the live stack. |
+| 2 | Fleet, telematics and PostGIS geospatial | IN PROGRESS | Backend DONE + tested (registry, trackers, telemetry, PostGIS, geofences, replay, alerts, map/history, connectivity) and real Traccar E2E verified. Remaining: Gate 2 web UI (map/trackers/geofences/playback), machine photos (R1-B), tenant_membership mirror. |
+| 3 | Jobs, configurable photo/manual meter and GPS capture | NOT STARTED | — |
+| 4 | Android + iOS supervisor offline-first apps and sync | NOT STARTED | — |
+| 5 | Tenant hire finance, payments, fuel, expenses and custody | NOT STARTED | — |
+| 6 | Fraud intelligence, MLOps and validated analytics | NOT STARTED | — |
+| 7 | Android + iOS owner apps, security/performance and release | NOT STARTED | — |
+
+## Gate 0 — Foundation
+
+- [x] Repository organized: `backend/` (modular monolith + workers), `web/`, `mobile/android/`, `mobile/ios/`, `contracts/`, `infra/`, `docs/`, `branding/`.
+- [x] Version-pinned dependencies: `backend/uv.lock`, `web/package-lock.json` (exact versions), `mobile/android/gradle/libs.versions.toml`, `mobile/ios/AssetaKit/Package.resolved`; Compose images pinned by digest. Typed settings (`core/config.py`), `.env.example` with placeholders only, `.env` gitignored.
+- [x] Docker Compose (`compose.yaml`): PostGIS (built `infra/postgres`, PG 18.6 + PostGIS 3.6, multi-arch), Keycloak 26.8.0 (realm import), Kafka 4.3.1 KRaft, Redis 7.4, MinIO, `migrate`, `api`, `outbox-relay`, `billing-scheduler`, `web`; Traccar 6.10.0 in `telemetry` profile. Verified: `up -d --build`, readiness all 5 deps `ok`, `scripts/compose_smoke.py` SMOKE OK.
+- [x] Alembic migrations `44caeb5fa0e9` (baseline), `b1sec0000001` (FORCE RLS on 15 tables, immutability triggers, grants, sequences, seeds), `0ef6473c842e` (outbox retry schedule). Up→down→up and `alembic check` pass. UUID PKs, audit_event append-only.
+- [x] Keycloak authoritative authN+authZ (DEC-005, ADR-001): JWKS verification, group-path grants, startup catalog push + mirror pull, tenant role provisioning. Live test against real Keycloak passes. (`tenant_membership` mirror table exists but is not yet populated — Gate 2 R1-B.)
+- [x] OpenAPI `contracts/openapi.json` (+ `--check` drift guard), error envelope, correlation IDs, idempotency keys, web DTOs aliased to generated types (drift fails `tsc`). CI workflow `.github/workflows/ci.yml` written — **not yet executed on a hosted runner (EXT-06)**.
+- [x] Cross-tenant API + direct-SQL RLS tests, health live/ready, README/quickstart, docs (architecture, ADR-001..003, security, api, runbook).
+- [x] Native project structures: Android (Kotlin/Compose, Room+SQLCipher, Keystore, AppAuth, 8 modules) and iOS (SwiftUI, AssetaKit, SQLCipher 4.19.0, Keychain, ASWebAuthenticationSession), per-app OIDC redirect schemes, brand icons.
+
+## Gate 1 — Commercial subscriptions
+
+- [x] Platform owner onboarding (Keycloak groups + owner user + agreement + rate v1 + subscription), verification, lifecycle transitions (activate/suspend/reactivate/scheduled cancel), dashboard API (MRR/ARR per currency). — backend
+- [x] Effective-dated immutable rate versions (currency, cadence, unit price, minimum, discount, tax, mid-cycle policies, rounding); no backdating.
+- [x] Enrollment intervals per distinct machine (partial unique index), billable vs enrolled counts, minimum ≥1 (DB check).
+- [x] Idempotent invoice generation (unique per period + advisory lock; 4-thread race test), immutable lines (DB trigger test), catch-up renewal, pending proration charges with preview + audited override.
+- [x] Manual payments (record→verify/reject, unique reference, overpayment/currency guards, idempotency replay), credit adjustments, versioned entitlement policy (grace/past-due/suspend/read-only, auto-lift on payment, manual suspension).
+- [x] Scheduled billing worker (`asseta-billing-scheduler`): renewals + entitlement evaluation, idempotent re-runs.
+- [x] Platform admin UI: dashboard, tenants + onboarding stepper (one-time password dialog), tenant detail (verification, lifecycle, rate versions, enrollments w/ end-preview, pending-charge override, invoice preview/generate), invoices (record payment/credit), payments (verify/reject). `web/src/pages/platform/**`; 59 web tests; BigInt money formatting. Not yet exercised in a browser against the live stack.
+- [x] Tracker replacement does not double bill — `test_tracker_swap_keeps_one_billable_asset_and_attaches_late_data_by_event_time`.
+
+## Gate 2 — Fleet GPS/PostGIS
+
+- [x] Fleet registry (R1-B): operating areas, categories, machines (capacity, meter precision, ownership, optimistic concurrency), staff, effective-dated assignments; job sites. Customers belong to Gate 3 jobs. **Remaining:** machine photos (object storage adapter), `tenant_membership` mirror population.
+- [x] Policy engine §5: `policy_version` (platform→tenant→machine/site, field-level overridability, no backdating, immutable), `get_effective_policy` with version stamps recorded on positions/events/alerts.
+- [x] Tracker registry: platform-approved models + declared capability matrix; tenant trackers (global external-id uniqueness = anti-spoofing); provisioning REGISTERED→VERIFIED_REPORTING only on real data; capabilities verified only when observed; one open primary per machine; swap; DEC-014 enrollment gate.
+- [x] Vendor-neutral `TelemetryObservation` + `TraccarAdapter` (unit-converting, no invented values) + deterministic simulator (`asseta.tools.gps_simulator`, direct + OsmAnd modes).
+- [x] Ingestion: gateway key (SHA-256 stored), raw retained, quarantine reasons (MALFORMED, UNKNOWN_DEVICE, TRACKER_INACTIVE, UNASSIGNED, NOT_ENROLLED, CLOCK_FUTURE, TOO_OLD), dedupe on (tracker,event_time), event-time assignment resolution, late flag, implausible-jump quality, latest never overwritten by older data, outbox→Kafka timeline worker.
+- [x] PostGIS: monthly RANGE partitions + DEFAULT (`ensure_telemetry_partitions`), GiST + BRIN, geography geofences (polygon/corridor), metre tolerance, route playback, stops, distance, site visits, proximity.
+- [x] Status dimensions: reported work (UNKNOWN until Gate 3), observed engine (only verified ignition + fresh data), motion, compliance, connectivity LIVE/RECENT/STALE/OFFLINE/NEVER_REPORTED; never live when stale.
+- [x] Alerts: geofence exit, restricted entry, unauthorized movement (operating window, tenant tz), GPS anomaly, tamper, low power, tracker stale/offline (+auto-resolve); deterministic replay supersedes, never deletes.
+- [x] Tests: 22 Gate 2 API tests incl. delayed/duplicate/malformed/out-of-order/cross-tenant/spoofing; real Traccar 6.10.0 E2E (`scripts/compose_smoke.py` TELEMETRY OK).
+- [x] Tracking requires active billable enrollment (DEC-014); tracker swap keeps one billable asset.
+- [ ] Gate 2 web UI: fleet map (MapLibre), trackers/capabilities, geofence editor, history playback, alerts, policies.
+
+## Gate 3 — Jobs and meter proof
+
+- [ ] Contract/jobs, billable rate terms, assignments, approvals and customer acknowledgement.
+- [ ] Owner-configurable opening/closing AUTO/MANUAL policy hierarchy and version history.
+- [ ] GPS attempt (including accuracy/freshness/no-fix evidence) on EVERY opening/closing reading.
+- [ ] Offline-capable image OCR pipeline definitions/fixtures and secure original photo storage.
+- [ ] Meter difference, nonbillable exceptions, rollover/reset controls and telemetry reconciliation.
+- [ ] Tests covering all four capture method combinations, no-fix, stale GPS, reused photos and job boundaries.
+
+## Gate 4 — Native field applications
+
+- [ ] Android Supervisor application: secure offline auth, Room encryption, camera/GPS/OCR/jobs/expenses/collections.
+- [ ] iOS Supervisor application: secure offline auth, encrypted storage, camera/GPS/Vision OCR/jobs/expenses/collections.
+- [ ] Local policy snapshots and offline authorization restrictions on both platforms.
+- [ ] Idempotent delta sync/outbox/inbox, resumable evidence attachments and conflict UI on both.
+- [ ] Airplane-mode, prolonged-outage, device clock manipulation, process death/restart and resumed sync tests.
+
+## Gate 5 — Tenant hire finance
+
+- [ ] Tenant customer invoice/line-item creation from approved billable job hours.
+- [ ] Deposits/partial payments/receivables and verified payment statuses.
+- [ ] Supervisor cash custody, handovers, expenses, approvals, fuel events, receipts and expense GPS per policy.
+- [ ] Machine/job/customer profitability, cash reconciliation and reports.
+- [ ] Financial reversal/audit and cross-ledger separation tests.
+
+## Gate 6 — ML, anomaly and investigations
+
+- [ ] Deterministic anomaly rule catalog plus explainable investigation cases.
+- [ ] Spatial/telemetry/financial/behavior feature versioning and point-in-time extraction.
+- [ ] MLflow experiment runs, model registry, approval/deploy/rollback and governance controls.
+- [ ] Shadow anomaly detector + baseline comparison; calibrated promotion criteria.
+- [ ] Fuel/utilization/revenue/cashflow baseline analytics with explicit insufficient-data behavior.
+- [ ] Offline OCR test corpora, documented metrics and audit of manual overrides.
+- [ ] Drift/latency monitoring and safe model-off fallback.
+
+## Gate 7 — Owner apps and release hardening
+
+- [ ] Native Kotlin Owner app: fleet map, drilldown, KPIs, alerts, approvals, stale offline cache.
+- [ ] Native Swift Owner app: equivalent high-priority functionality and platform-native quality.
+- [ ] Admin console coverage of all R1 workflows, reports, reusable forms, accessibility and responsive design.
+- [ ] Notification integration with push/email/SMS adapter behavior and explicit provider config.
+- [ ] Backup/restore drill, tenant penetration/isolation tests, telemetry and Kafka failure simulation.
+- [ ] Release demos + acceptance evidence for 12 contractual criteria in prompt.md §10.
+- [ ] Deployment, operation runbook, GPS commissioning guide, model governance and security docs.
+
+## Integration test evidence log
+
+| Date | Scope/test | Command or test harness | Result | Evidence path / notes |
+|---|---|---|---|---|
+| 2026-10-21 | Backend unit + API (billing, isolation, payments, entitlements, outbox, scheduler) | `cd backend && uv run pytest -q` (local PG18+PostGIS 3.6, app role `asseta_app`) | PASS 40 passed, 3 skipped (live) | `backend/tests/unit`, `backend/tests/api` |
+| 2026-10-21 | Live Keycloak 26.8.0 + Kafka 4.3.1 | `ASSETA_IT_KEYCLOAK_URL=… ASSETA_IT_KAFKA=localhost:29192 uv run pytest -m integration` | PASS 3 passed | `backend/tests/integration` (found & fixed: realm lacked built-in `basic` scope → no `sub`) |
+| 2026-10-21 | Lint/types | `ruff check`, `ruff format --check`, `mypy --strict` (86 files) | PASS | `backend/pyproject.toml` |
+| 2026-10-21 | Migrations | `alembic upgrade head && downgrade base && upgrade head && alembic check` | PASS | `backend/migrations/versions` |
+| 2026-10-21 | Compose stack E2E | `docker compose up -d --build`; `/health/ready`; `uv run python scripts/compose_smoke.py ../.env` | PASS (all deps ok; SMOKE OK, outbox relayed) | `compose.yaml`, `backend/scripts/compose_smoke.py` |
+| 2026-10-21 | Web console foundation | `npm run lint/typecheck/test -- --run/build` | PASS 38 tests (7 files) | `web/` |
+| 2026-10-21 | Platform admin UI (Gate 1) | `npm run lint/typecheck/test -- --run/build/format:check` (after contract regen) | PASS 59 tests (15 files) | `web/src/pages/platform` |
+| 2026-10-21 | Gate 2 backend | `uv run pytest -q` | PASS 69 passed, 3 skipped (live) incl. 18-case privilege audit | `tests/api/test_trackers_ingestion.py`, `test_geospatial.py`, `test_fleet_registry_and_grants.py`, `test_authz_upgrade.py` |
+| 2026-10-21 | Real Traccar E2E | simulator (IMEI id) → Traccar 6.10.0 OsmAnd → forward → Asseta → PostGIS → Kafka timeline worker → fleet map | PASS: LIVE, engine ON, state events derived, outbox drained | `scripts/compose_smoke.py` |
+| 2026-10-21 | Migration safety | down→base→up and partial cycles **on a populated DB**; `alembic check` | PASS (fixed data-dependent seed downgrade) | `migrations/versions` |
+| 2026-10-21 | Android foundation | `./gradlew assembleDebug testDebugUnitTest lint assembleAndroidTest` | PASS (35+ unit tests; lint clean; instrumented SQLCipher test compiled, not run — no emulator) | `mobile/android/` |
+| 2026-10-21 | iOS foundation | `swift test`; `xcodebuild` Supervisor/Owner; app-hosted tests on iPhone 17 Pro sim | PASS 65 tests; both builds; 2 hosted Keychain/SQLCipher tests | `mobile/ios/` |
+
+## Blockers and external dependencies
+
+| ID | External requirement | Impact | Owner/action | State |
+|---|---|---|---|---|
+| EXT-01 | Keycloak and third-party gateway credentials for deployed staging | Real online authentication/integrations | Platform owner to provision when needed; local dev instance allowed | NOT REQUESTED |
+| EXT-02 | At least one supported tracker, SIM, installation/wiring and vendor documentation | Physical device commissioning | Client/platform owner hardware test | NOT REQUESTED |
+| EXT-03 | Mobile signing certificates and store accounts | Public App Store/Play distribution | Platform owner | NOT REQUESTED |
+| EXT-04 | Payment/tax policies applicable to tenant subscription invoices | Production invoice compliance | Platform owner/accountant | NOT REQUESTED |
+| EXT-05 | Real machine dashboard image samples with allowed test usage | OCR validation across target displays | Client/platform owner; synthetic fixtures usable until provided | NOT REQUESTED |
+| EXT-06 | Git remote (GitHub) + Actions runners (incl. macOS) | Hosted CI execution of `.github/workflows/ci.yml` | Remote `defrankline/asseta` added by owner 2026-10-21 | RESOLVED (first run pending) |
+| EXT-02a | Hardware commissioning (Gate 2/7) | Simulator + real Traccar verified; physical device not yet tested | Requires customer tracker/SIM/installation | HARDWARE_VALIDATION_BLOCKED |
+| EXT-07 | iOS export-compliance decision (`ITSAppUsesNonExemptEncryption`, SQLCipher) | App Store submission | Platform owner/legal | NOT REQUESTED |
+
+## Decision log
+
+| Date | ID | Decision | Reason | Impact |
+|---|---|---|---|---|
+| 2026-10-21 | DEC-001 | Initial scope frozen in prompt.md | Prevent never-ending implementation | All gates |
+| 2026-10-21 | DEC-002 | SaaS fees negotiated per tracked asset, monthly/yearly | User commercial requirement | Platform billing |
+| 2026-10-21 | DEC-003 | Traccar initial gateway, adapter abstraction for later vendors | Practical plug-and-play | GPS integration |
+| 2026-10-21 | DEC-004 | ML foundation plus staged model activation | No reliable models without adequate data | Intelligence |
+| 2026-10-21 | DEC-005 | **Owner clarification: Keycloak is authoritative for authentication AND authorization.** Keycloak realm holds users, per-tenant Organizations/groups and client roles (composite → permissions). API declares a permission per route, idempotently syncs the permission catalog to the Keycloak client at startup, and enforces signed-token tenant + role/permission claims (deny by default). DB `permission`/`role`/`menu` tables are a synchronized mirror for menus, audit and RLS context — never a parallel grant source. Token subject alone never grants tenant access. | Owner message 2026-10-21 | Identity, all gates |
+| 2026-10-21 | DEC-006 | Python 3.13 + sync SQLAlchemy 2/psycopg 3; versions pinned via `uv.lock` | Broadest stable library compatibility; simpler transactional reasoning | Backend |
+| 2026-10-21 | DEC-008 | Minimal `fleet.machine` core created in Gate 1 (id, asset code, name, status) because billable enrollment needs durable machine UUIDs; Gate 2 extends it | Dependency order | Gate 1/2 |
+| 2026-10-21 | DEC-009 | Tenant isolation = app checks + FORCE RLS with scopes tenant/platform/system; platform scope cannot read tenant business tables; subscription mutations serialized by advisory lock (ADR-002) | Defense in depth; FOR UPDATE needs UPDATE policy | All gates |
+| 2026-10-21 | DEC-010 | Billing model per ADR-003: bill in advance at period start; mid-cycle changes only in current period → pending charges (preview, override until invoiced); future-dated cancellation; MRR per currency | §1.2 smallest safe defaults | Gate 1 |
+| 2026-10-21 | DEC-011 | API money serialized as decimal strings at storage scale (4 dp); display uses currency minor units | Consistent contract, no floats | All clients |
+| 2026-10-21 | DEC-012 | Local dev/tests use host PG18+PostGIS 3.6; Compose uses an equivalent built image (official postgis image has no arm64). Asseta host ports: PG 5433, Kafka 29192, Redis 6380, MinIO 9100/9101 | Collisions with other local stacks; reproducibility | Infra |
+| 2026-10-21 | DEC-013 | Per-app OIDC redirect schemes `com.asseta.supervisor` / `com.asseta.owner` on single public client `asseta-mobile` | Avoid callback hijack/chooser when both apps installed | Mobile/Keycloak |
+| 2026-10-21 | DEC-014 | Gate 2 rule: tracker assignment activation and telemetry processing for a machine require an active billable enrollment on the ingestion date; platform sees "subscribed vs actively tracking" separately | Prevents tracking unbilled machines (tenant can self-unenroll) | Gate 2 |
+| 2026-10-21 | DEC-015 | Template permissions are *offered once* per role group (`role_template_grant`): new permissions from a release reach existing groups; owner removals are respected | Found on live stack: Gate 2 permissions never reached existing roles | Identity, every release |
+| 2026-10-21 | DEC-016 | Late/out-of-order telemetry handled by deterministic per-machine timeline replay from event time (Kafka keyed by machine); derived events rebuilt, alerts superseded not deleted | §6 late GPS + idempotent re-evaluation | Gate 2+ |
+| 2026-10-21 | DEC-017 | Traccar is configured via env (CONFIG_USE_ENVIRONMENT_VARIABLES); `DATABASE_REGISTER_UNKNOWN` dev-only; production commissioning registers devices explicitly | Plug-and-play dev, controlled prod | Telemetry |
+| 2026-10-21 | DEC-007 | Brand mark: "A" with GPS-pin apex and crawler-track crossbar; Slate `#0F2A3D` / Amber `#F5A300` (`branding/`) | Owner delegated logo design | Web/mobile icons |
+
+## Work session log (append each session)
+
+### 2026-10-21 — Baseline initialized
+- **Completed:** Authored `prompt.md`, `track.md` and `backlog.md` specification artifacts.
+- **Code written:** None yet.
+- **Tests run:** None yet.
+- **Open issues:** All implementation gates not started.
+- **Next smallest action:** Inspect repo and build Gate 0 scaffold, test PostGIS + Keycloak + API boot and tenant isolation.
+
+### 2026-10-21 — Session 1: Gate 0 foundation + Gate 1 backend
+- **Completed:** backend core (config, RLS scopes, error envelope, correlation, idempotency, audit, outbox→Kafka relay), Keycloak-authoritative identity (DEC-005), tenancy onboarding, full platform billing domain + scheduler, migrations, Compose stack, realm import, CI workflow, OpenAPI contract + generated web types, web/Android/iOS foundations, brand logo (`branding/`), docs.
+- **Tests run:** see evidence log (backend 40+3 live, web 38, Android 35+, iOS 65 + 2 hosted). All green.
+- **Defects found and fixed during verification:** realm import missing built-in scopes (tokens without `sub`); PG18 volume layout; TRUNCATE cascade wiping seeded policy in tests; money scale inconsistency; scheduled vs immediate cancellation.
+- **Open issues:** platform admin UI (in progress); hosted CI (EXT-06); `tenant_membership` mirror population (Gate 2 R1-B); Redis rate limiting, device sessions (later gates per §4 R1-J/R1-F).
+- **Next smallest action:** finish + verify platform admin UI; then Gate 2 — extend `fleet` (categories, specs, assignments), tracker registry/capabilities, `TelemetryObservation` contract + Traccar adapter + simulator, PostGIS position events.
+
+### 2026-10-21 — Session 1 (cont.): Gate 1 UI + Gate 2 backend
+- **Completed:** platform admin UI (agent; verified locally), policy engine, R1-B registry, tracker registry, telemetry contract + Traccar adapter + simulator, ingestion, partitioned PostGIS, geofences, timeline replay, alerts, fleet map/history, connectivity sweeper, workers (timeline, connectivity), gateway bootstrap, real Traccar E2E.
+- **Defects found and fixed:** migration re-granted revoked invoice DELETE (caught by test; grants now table-scoped + permanent privilege audit); system-scope write pending across RLS scope switch; DB session timezone leaking into API instants (sessions pinned to UTC); geofence DTO computed from unflushed expression; new release permissions not reaching existing roles (DEC-015); data-dependent seed downgrade; Traccar env key naming / device-id regex.
+- **Next smallest action:** push + first hosted CI run; Gate 2 web UI; machine photos via S3 adapter; `tenant_membership` mirror.
+
+## Release 1 completion sign-off
+
+- [ ] Gate 0–7 DONE with evidence.
+- [ ] All contractual acceptance scenarios from prompt.md §10 documented PASS.
+- [ ] No critical/high security, money integrity, sync or tenant isolation defect open.
+- [ ] Physical GPS-device validation status documented accurately (PASS or HARDWARE_VALIDATION_BLOCKED).
+- [ ] Native Android and iOS artifacts compile and perform offline test flow.
+- [ ] Deployment/restore/incident operational documentation complete.
+- [ ] Platform owner explicitly accepts Release 1.

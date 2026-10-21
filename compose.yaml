@@ -1,0 +1,165 @@
+# Asseta Release 1 — reproducible development / initial deployment stack.
+# Images are pinned (digest where pulled from a registry). Secrets come from .env (see .env.example).
+# Traccar is in the `telemetry` profile (Gate 2). TLS/reverse proxy for deployments: docs/operating-runbook.md.
+name: asseta
+
+x-api-env: &api-env
+  ASSETA_ENVIRONMENT: ${ASSETA_ENVIRONMENT:-development}
+  ASSETA_DATABASE_URL: postgresql+psycopg://asseta_app:${ASSETA_APP_DB_PASSWORD}@postgres:5432/asseta
+  ASSETA_MIGRATION_DATABASE_URL: postgresql+psycopg://asseta_owner:${ASSETA_OWNER_DB_PASSWORD}@postgres:5432/asseta
+  ASSETA_REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+  ASSETA_KAFKA_BOOTSTRAP: kafka:9092
+  ASSETA_S3_ENDPOINT: http://minio:9000
+  ASSETA_S3_ACCESS_KEY: ${MINIO_ROOT_USER}
+  ASSETA_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+  ASSETA_KEYCLOAK_URL: http://keycloak:8080
+  ASSETA_KEYCLOAK_PUBLIC_URL: ${ASSETA_PUBLIC_KEYCLOAK_URL:-http://localhost:8080}
+  ASSETA_KEYCLOAK_API_CLIENT_SECRET: ${ASSETA_API_CLIENT_SECRET}
+  ASSETA_CORS_ORIGINS: '["${ASSETA_WEB_URL:-http://localhost:5173}"]'
+
+services:
+  postgres:
+    build: ./infra/postgres
+    image: asseta/postgis:18-3.6
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?set in .env}
+      ASSETA_OWNER_DB_PASSWORD: ${ASSETA_OWNER_DB_PASSWORD:?set in .env}
+      ASSETA_APP_DB_PASSWORD: ${ASSETA_APP_DB_PASSWORD:?set in .env}
+      KEYCLOAK_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?set in .env}
+    ports: ["127.0.0.1:${ASSETA_PG_PORT:-5433}:5432"]
+    volumes: [pgdata:/var/lib/postgresql]  # PG18+ layout
+    healthcheck: {test: ["CMD-SHELL", "pg_isready -U postgres -d asseta"], interval: 5s, retries: 20}
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8.0@sha256:27b3230fbabb8c9ff3c66c864cf09dcd8a41aca82e5100679d109ef0eeb05741
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+      KC_HOSTNAME: ${ASSETA_PUBLIC_KEYCLOAK_URL:-http://localhost:8080}  # fixed public issuer
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"  # API reaches Keycloak at http://keycloak:8080 internally
+      KC_HEALTH_ENABLED: "true"
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER:?set in .env}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?set in .env}
+      ASSETA_API_CLIENT_SECRET: ${ASSETA_API_CLIENT_SECRET:?set in .env}
+      ASSETA_WEB_URL: ${ASSETA_WEB_URL:-http://localhost:5173}
+    volumes: ["./infra/keycloak:/opt/keycloak/data/import:ro"]
+    ports: ["127.0.0.1:${ASSETA_KEYCLOAK_PORT:-8080}:8080"]
+    depends_on: {postgres: {condition: service_healthy}}
+    restart: unless-stopped
+    healthcheck:  # image has no curl: raw HTTP to the management port
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q UP <&3"]
+      interval: 5s
+      retries: 60
+
+  kafka:
+    image: apache/kafka:4.3.1@sha256:77e3df9054047a88b520d0cc46e16696d3b22022e1d580aeccd2632df6532837
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: INTERNAL://:9092,EXTERNAL://:29192,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:${ASSETA_KAFKA_PORT:-29192}
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    restart: unless-stopped
+    ports: ["127.0.0.1:${ASSETA_KAFKA_PORT:-29192}:29192"]
+    volumes: [kafkadata:/var/lib/kafka/data]
+
+  redis:
+    image: redis:7.4-alpine@sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?set in .env}", "--maxmemory", "256mb",
+              "--maxmemory-policy", "allkeys-lru"]
+    ports: ["127.0.0.1:${ASSETA_REDIS_PORT:-6380}:6379"]
+
+  minio:
+    image: minio/minio:RELEASE.2024-07-16T23-46-41Z@sha256:77ff9f7e12549d269990b167fa21da010fa8b0beb40d6064569b8887e37c456b
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?set in .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set in .env}
+    ports: ["127.0.0.1:${ASSETA_MINIO_PORT:-9100}:9000", "127.0.0.1:${ASSETA_MINIO_CONSOLE_PORT:-9101}:9001"]
+    volumes: [miniodata:/data]
+
+  migrate:
+    build: ./backend
+    image: asseta/api:dev
+    command: ["sh", "-c", "alembic upgrade head && asseta-bootstrap"]
+    environment:
+      <<: *api-env
+      ASSETA_TRACCAR_GATEWAY_KEY: ${ASSETA_TRACCAR_GATEWAY_KEY:?set in .env}
+    depends_on: {postgres: {condition: service_healthy}}
+
+  api:
+    image: asseta/api:dev
+    environment: *api-env
+    ports: ["127.0.0.1:${ASSETA_API_PORT:-8000}:8000"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      keycloak: {condition: service_healthy}
+      kafka: {condition: service_started}
+    restart: unless-stopped  # fails fast if Keycloak authz sync cannot run; restarts until it can
+
+  outbox-relay:
+    image: asseta/api:dev
+    command: ["asseta-outbox-relay"]
+    environment: *api-env
+    healthcheck: {disable: true}  # no HTTP endpoint; backlog is monitored via outbox_event (runbook)
+    restart: unless-stopped
+    depends_on: {migrate: {condition: service_completed_successfully}, kafka: {condition: service_started}}
+
+  billing-scheduler:
+    image: asseta/api:dev
+    command: ["asseta-billing-scheduler"]
+    environment: *api-env
+    healthcheck: {disable: true}
+    restart: unless-stopped
+    depends_on: {migrate: {condition: service_completed_successfully}}
+
+  timeline-worker:
+    image: asseta/api:dev
+    command: ["asseta-timeline-worker"]
+    environment: *api-env
+    healthcheck: {disable: true}
+    restart: unless-stopped
+    depends_on: {migrate: {condition: service_completed_successfully}, kafka: {condition: service_started}}
+
+  connectivity-worker:
+    image: asseta/api:dev
+    command: ["asseta-connectivity-worker"]
+    environment: *api-env
+    healthcheck: {disable: true}
+    restart: unless-stopped
+    depends_on: {migrate: {condition: service_completed_successfully}}
+
+  web:
+    build:
+      context: ./web
+      args: {VITE_KEYCLOAK_URL: "${ASSETA_PUBLIC_KEYCLOAK_URL:-http://localhost:8080}"}
+    image: asseta/web:dev
+    ports: ["127.0.0.1:${ASSETA_WEB_PORT:-5173}:8080"]
+    depends_on: [api]
+
+  traccar:
+    profiles: [telemetry]
+    environment:  # Traccar config via env (CONFIG_USE_ENVIRONMENT_VARIABLES): forward positions to Asseta
+      CONFIG_USE_ENVIRONMENT_VARIABLES: "true"
+      FORWARD_TYPE: json
+      FORWARD_JSON: "true"
+      FORWARD_URL: http://api:8000/api/v1/telemetry/traccar
+      FORWARD_HEADER: "X-Asseta-Gateway-Key: ${ASSETA_TRACCAR_GATEWAY_KEY}"
+      FORWARD_RETRY_ENABLE: "true"
+      DATABASE_REGISTER_UNKNOWN: "true"  # dev only; Asseta still quarantines devices not registered to a tenant
+      LOGGER_LEVEL: info
+    image: traccar/traccar:6.10.0@sha256:bff38968f98f4c1739fa2da7b586f9eb03de7968cb8e86c55f31b69d5fbc9a0c
+    ports: ["127.0.0.1:${ASSETA_TRACCAR_PORT:-8082}:8082", "127.0.0.1:${ASSETA_TRACCAR_OSMAND_PORT:-5055}:5055"]
+    volumes: [traccardata:/opt/traccar/data]
+
+volumes: {pgdata: {}, kafkadata: {}, miniodata: {}, traccardata: {}}

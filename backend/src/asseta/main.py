@@ -1,0 +1,102 @@
+"""API application factory. Routers are thin; modules own services, repositories and DTOs."""
+
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
+import structlog
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from asseta.api import health
+from asseta.core.config import Settings, get_settings
+from asseta.core.correlation import CorrelationIdMiddleware
+from asseta.core.db import get_sessionmaker
+from asseta.core.errors import install_error_handlers
+from asseta.core.logging import configure_logging
+from asseta.modules.fleet import router as fleet_router
+from asseta.modules.geospatial import router as geospatial_router
+from asseta.modules.identity import router as identity_router
+from asseta.modules.identity.authz_sync import AuthzSyncService
+from asseta.modules.identity.idp import IdentityProviderAdmin
+from asseta.modules.identity.keycloak_admin import KeycloakAdminClient
+from asseta.modules.identity.tokens import JwksSigningKeyProvider, OidcTokenVerifier, TokenVerifier
+from asseta.modules.platform_billing import router as platform_router
+from asseta.modules.platform_billing import tenant_router as tenant_billing_router
+from asseta.modules.policy import router as policy_router
+from asseta.modules.telemetry import router as telemetry_router
+from asseta.modules.tenancy import router as tenancy_router
+from asseta.modules.tracker import router as tracker_router
+
+
+def build_keycloak_admin(settings: Settings) -> IdentityProviderAdmin:
+    return KeycloakAdminClient(
+        settings.keycloak_url,
+        settings.keycloak_realm,
+        settings.keycloak_api_client_id,
+        settings.keycloak_api_client_secret.get_secret_value(),
+        settings.http_timeout_seconds,
+    )
+
+
+def build_token_verifier(settings: Settings) -> TokenVerifier:
+    keys = JwksSigningKeyProvider(settings.jwks_url, settings.jwks_cache_seconds, settings.http_timeout_seconds)
+    return OidcTokenVerifier(keys, settings.issuer, settings.keycloak_audience)
+
+
+def create_app(
+    settings: Settings | None = None,
+    token_verifier: TokenVerifier | None = None,
+    idp_admin: IdentityProviderAdmin | None = None,
+) -> FastAPI:
+    settings = settings or get_settings()
+    configure_logging()
+    verifier = token_verifier or build_token_verifier(settings)
+    idp = idp_admin or build_keycloak_admin(settings)
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        if settings.keycloak_sync_on_startup:
+            with get_sessionmaker().begin() as session:
+                AuthzSyncService(idp).full_sync(session)
+        structlog.get_logger().info("api_started", environment=settings.environment)
+        yield
+
+    app = FastAPI(
+        title="Asseta API",
+        version="1.0.0",
+        lifespan=lifespan,
+        openapi_url="/api/v1/openapi.json",
+        docs_url="/api/v1/docs",
+    )
+    app.state.token_verifier = verifier
+    app.state.idp_admin = idp
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+        expose_headers=["x-correlation-id"],
+    )
+    app.add_middleware(CorrelationIdMiddleware)
+    install_error_handlers(app)
+    for router in (
+        health.router,
+        identity_router.router,
+        tenancy_router.router,
+        platform_router.router,
+        tenant_billing_router.router,
+        fleet_router.router,
+        policy_router.router,
+        tracker_router.router,
+        telemetry_router.router,
+        geospatial_router.router,
+    ):
+        app.include_router(router)
+    return app
+
+
+def run() -> None:
+    import uvicorn
+
+    uvicorn.run("asseta.main:create_app", factory=True, host="0.0.0.0", port=8000)  # noqa: S104

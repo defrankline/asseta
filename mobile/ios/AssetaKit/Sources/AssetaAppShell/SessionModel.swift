@@ -1,0 +1,127 @@
+import AssetaAuth
+import AssetaModel
+import AssetaNetwork
+import Foundation
+import Observation
+
+/// UI state machine shared by both apps: sign-in, profile (`/me`) and tenant selection.
+///
+/// Permissions/menus from `/me` only decide what is *shown*; the server re-authorizes every call.
+@MainActor
+@Observable
+public final class SessionModel {
+    public enum Phase: Equatable {
+        case signedOut
+        case signingIn
+        case loadingProfile
+        /// Signed in, but `/me` could not be loaded (e.g. offline); ``errorMessage`` explains.
+        case profileUnavailable
+        case ready(MeResponse)
+    }
+
+    /// Opens the authorization URL in a browser and returns the callback URL.
+    public typealias BrowserAuthenticator = @MainActor (_ url: URL, _ callbackScheme: String) async throws -> URL
+
+    public private(set) var phase: Phase = .signedOut
+    public private(set) var selectedTenant: TenantMembership?
+    public private(set) var errorMessage: String?
+
+    private let auth: AuthSession
+    private let api: APIClient
+
+    public init(auth: AuthSession, api: APIClient) {
+        self.auth = auth
+        self.api = api
+    }
+
+    /// Client scoped to the selected tenant (sends `X-Tenant-ID`), for feature screens.
+    public var tenantClient: APIClient? {
+        selectedTenant.map { api.withTenant($0.tenantID) }
+    }
+
+    /// Restores a persisted session on launch.
+    public func start() async {
+        if await auth.state == .signedIn {
+            await loadProfile()
+        } else {
+            phase = .signedOut
+        }
+    }
+
+    public func signIn(using authenticate: BrowserAuthenticator) async {
+        errorMessage = nil
+        phase = .signingIn
+        do {
+            let pending = try await auth.beginSignIn()
+            let callback = try await authenticate(pending.url, auth.callbackScheme)
+            try await auth.completeSignIn(callbackURL: callback, pending: pending)
+        } catch {
+            phase = .signedOut
+            errorMessage = Self.message(for: error)
+            return
+        }
+        await loadProfile()
+    }
+
+    public func loadProfile() async {
+        errorMessage = nil
+        phase = .loadingProfile
+        do {
+            let me = try await api.me()
+            phase = .ready(me)
+            // Keep the selection only if the server still grants entry to that tenant.
+            if let current = selectedTenant {
+                selectedTenant = me.tenants.first { $0.tenantID == current.tenantID && $0.accessState.allowsEntry }
+            }
+            if selectedTenant == nil {
+                let enterable = me.tenants.filter { $0.accessState.allowsEntry }
+                if enterable.count == 1 { selectedTenant = enterable[0] }
+            }
+        } catch APIError.notAuthenticated {
+            await signOut()
+        } catch {
+            errorMessage = Self.message(for: error)
+            // Stay signed in (e.g. offline); user can retry.
+            phase = await auth.state == .signedIn ? .profileUnavailable : .signedOut
+        }
+    }
+
+    public func selectTenant(_ tenant: TenantMembership) {
+        guard tenant.accessState.allowsEntry else { return }
+        selectedTenant = tenant
+    }
+
+    public func clearTenantSelection() {
+        selectedTenant = nil
+    }
+
+    public func signOut() async {
+        selectedTenant = nil
+        phase = .signedOut
+        await auth.signOut()
+    }
+
+    public func dismissError() {
+        errorMessage = nil
+    }
+
+    static func message(for error: any Error) -> String? {
+        switch error {
+        case AuthError.userCancelled:
+            return nil
+        case let error as APIError:
+            if let cid = error.correlationID {
+                return "\(error.localizedDescription) (ref \(cid.prefix(8)))"
+            }
+            return error.localizedDescription
+        case let AuthError.authorizationDenied(code, description):
+            return description ?? "Sign-in was refused (\(code))."
+        case is AuthError:
+            return "Sign-in failed. Please try again."
+        case let error as URLError:
+            return error.localizedDescription
+        default:
+            return "Something went wrong. Please try again."
+        }
+    }
+}

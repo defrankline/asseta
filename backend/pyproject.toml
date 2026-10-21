@@ -1,0 +1,78 @@
+[project]
+name = "asseta-api"
+version = "0.1.0"
+description = "Asseta Release 1 API and workers (modular monolith)"
+authors = [
+    { name = "Frank Kachinga", email = "frank.kachinga@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "alembic>=1.20.0",
+    "boto3>=1.43.116",
+    "confluent-kafka>=2.16.0",
+    "email-validator>=2.3.0",
+    "fastapi>=0.156.4",
+    "geoalchemy2>=0.20.0",
+    "httpx>=0.28.1",
+    "psycopg[binary]>=3.3.6",
+    "pydantic>=2",
+    "pydantic-settings>=2.16.1",
+    "pyjwt[crypto]>=2.15.1",
+    "python-multipart>=0.0.32",
+    "redis>=8.1.0",
+    "sqlalchemy>=2",
+    "structlog>=26.1.0",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[project.scripts]
+asseta-api = "asseta.main:run"
+asseta-outbox-relay = "asseta.workers.outbox_relay:run"
+asseta-billing-scheduler = "asseta.workers.billing_scheduler:run"
+asseta-timeline-worker = "asseta.workers.timeline_worker:run"
+asseta-connectivity-worker = "asseta.workers.connectivity_worker:run"
+asseta-gps-simulator = "asseta.tools.gps_simulator:main"
+asseta-bootstrap = "asseta.tools.bootstrap:run"
+
+[build-system]
+requires = ["uv_build>=0.12.7,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "asseta"
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "N", "C4", "SIM", "RUF"]
+ignore = ["S101", "N818", "N812"]
+
+[tool.mypy]
+strict = true
+plugins = ["pydantic.mypy"]
+mypy_path = "src"
+
+[[tool.mypy.overrides]]
+module = ["geoalchemy2.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+markers = ["integration: requires docker services (Keycloak/Kafka)"]
+
+[dependency-groups]
+dev = [
+    "cryptography>=50.0.2",
+    "mypy>=2.4.0",
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.17.1",
+    "types-boto3>=1.43.116",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"migrations/*" = ["E501", "S608"]
+"tests/*" = ["S105", "S106", "E501"]

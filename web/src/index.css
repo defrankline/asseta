@@ -1,0 +1,13 @@
+/*
+ * Tailwind v4 without preflight (MUI CssBaseline is the reset).
+ * Layer order lets Tailwind utilities override MUI (Emotion styles live in @layer mui).
+ */
+@layer theme, base, mui, components, utilities;
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+
+@theme {
+  --color-brand-slate: #0f2a3d;
+  --color-brand-amber: #f5a300;
+  --color-brand-offwhite: #f7f8fa;
+}

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Vector conversion of branding/asseta-mark.svg (64x64 viewBox). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="96dp"
+    android:height="96dp"
+    android:viewportWidth="64"
+    android:viewportHeight="64">
+    <path android:pathData="M14,0 L50,0 A14,14 0,0 1,64 14 L64,50 A14,14 0,0 1,50 64 L14,64 A14,14 0,0 1,0 50 L0,14 A14,14 0,0 1,14 0 Z" android:fillColor="#0F2A3D" />
+    <path android:pathData="M13,53 L26,27" android:strokeColor="#F5A300" android:strokeWidth="6" android:strokeLineCap="round" android:strokeLineJoin="round" />
+    <path android:pathData="M38,27 L51,53" android:strokeColor="#F5A300" android:strokeWidth="6" android:strokeLineCap="round" android:strokeLineJoin="round" />
+    <path android:pathData="M22.5,40 L41.5,40 A4.5,4.5 0,0 1,41.5 49 L22.5,49 A4.5,4.5 0,0 1,22.5 40 Z" android:strokeColor="#F5A300" android:strokeWidth="3.5" android:strokeLineJoin="round" />
+    <path android:pathData="M23.2,44.5 a1.8,1.8 0,1 0,3.6 0 a1.8,1.8 0,1 0,-3.6 0 Z M30.2,44.5 a1.8,1.8 0,1 0,3.6 0 a1.8,1.8 0,1 0,-3.6 0 Z M37.2,44.5 a1.8,1.8 0,1 0,3.6 0 a1.8,1.8 0,1 0,-3.6 0 Z" android:fillColor="#F5A300" />
+    <path android:pathData="M32,33 C29,29.5 21.5,24.5 21.5,18.5 a10.5,10.5 0,0 1,21 0 C42.5,24.5 35,29.5 32,33 Z" android:strokeColor="#0F2A3D" android:strokeWidth="3.5" />
+    <path android:pathData="M32,33 C29,29.5 21.5,24.5 21.5,18.5 a10.5,10.5 0,0 1,21 0 C42.5,24.5 35,29.5 32,33 Z" android:fillColor="#F5A300" />
+    <path android:pathData="M28.2,18.5 a3.8,3.8 0,1 0,7.6 0 a3.8,3.8 0,1 0,-7.6 0 Z" android:fillColor="#0F2A3D" />
+</vector>
