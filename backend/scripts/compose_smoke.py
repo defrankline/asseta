@@ -269,6 +269,10 @@ def main() -> None:
     finally:
         cid = httpx.get(f"{base}/clients", params={"clientId": client_id}, headers=h).json()[0]["id"]
         httpx.delete(f"{base}/clients/{cid}", headers=h)
+        # Throwaway users (incl. a platform owner!) must not outlive the run.
+        for email in passwords:
+            for u in httpx.get(f"{base}/users", params={"email": email, "exact": "true"}, headers=h).json():
+                httpx.delete(f"{base}/users/{u['id']}", headers=h)
 
 
 if __name__ == "__main__":
