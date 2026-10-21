@@ -5,6 +5,7 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
@@ -67,7 +68,7 @@ class FakeSyncServer(private val now: () -> Instant) : Dispatcher() {
         if (revoked) return error(403, "DEVICE_REVOKED", "This device was revoked", issue = "WIPE_LOCAL_DATA")
         val body = request.body?.toByteArray() ?: ByteArray(0)
         when {
-            request.method == "POST" && path == "/api/v1/sync/devices" -> ok(deviceSession(), 201)
+            request.method == "POST" && path == "/api/v1/sync/devices" -> register(Json.parseToJsonElement(body.decodeToString()).jsonObject)
             path == "/api/v1/sync/bootstrap" -> ok(bootstrap())
             path == "/api/v1/sync/changes" -> ok(changes())
             path == "/api/v1/sync/push" -> push(Json.parseToJsonElement(body.decodeToString()).jsonObject)
@@ -89,6 +90,11 @@ class FakeSyncServer(private val now: () -> Instant) : Dispatcher() {
             }
         }.toString(),
     )
+
+    /** Mirrors the server contract: device_id, platform and app_version are all required (422 otherwise). */
+    private fun register(body: JsonObject): MockResponse =
+        if (listOf("device_id", "platform", "app_version").all { body[it] is JsonPrimitive }) ok(deviceSession(), 201)
+        else error(422, "VALIDATION_FAILED", "Request validation failed")
 
     private fun deviceSession() = buildJsonObject {
         put("id", "44444444-4444-4444-8444-444444444444"); put("device_id", "dev"); put("platform", "ANDROID")

@@ -9,10 +9,14 @@ import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import java.util.concurrent.TimeUnit
 
 object NetworkFactory {
-    /** Lenient on unknown fields so additive server changes never break deployed apps. */
+    /**
+     * Lenient on unknown fields so additive server changes never break deployed apps. Defaults are always encoded
+     * (a defaulted field such as `DeviceRegisterIn.platform` is still required by the server); nulls are omitted.
+     */
     val json: Json = Json {
         ignoreUnknownKeys = true
         explicitNulls = false
+        encodeDefaults = true
     }
 
     fun okHttpClient(
