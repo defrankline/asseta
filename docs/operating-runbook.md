@@ -48,3 +48,16 @@ incident procedures — tracked in track.md Gate 7.
   Realm settings → Themes → Login theme `asseta` (or `PUT /admin/realms/asseta {"loginTheme":"asseta"}`).
 * Production Keycloak (`start`, not `start-dev`) caches themes: restart after changing theme files.
 * The public landing page shows a "Request a demo" mail link only when `VITE_CONTACT_EMAIL` is set at web build time.
+
+## Local demo baseline (dev only, destructive)
+```
+docker compose stop api outbox-relay billing-scheduler timeline-worker connectivity-worker
+cd backend && uv run python scripts/demo_reset.py ../.env --keep <platform-owner-email> --yes
+cd .. && docker compose run --rm migrate && docker compose up -d
+cd backend && uv run python scripts/demo_seed.py ../.env ../.demo/credentials.json
+```
+`demo_reset.py` deletes every Keycloak user except `--keep`, all `/tenants/*` groups and throwaway clients, and empties
+the business tables (reference data and platform-default policies are kept/re-seeded). `demo_seed.py` builds one
+full tenant ("Kilimanjaro Earthworks": owner, supervisor, accountant, 5 machines / 4 simulated trackers via Traccar,
+sites + geofences, customers, contracts, jobs). Demo passwords go only to `.demo/credentials.json` (0600, gitignored).
+Simulated positions are a one-off burst: the map correctly shows them ageing to stale/offline over time.
