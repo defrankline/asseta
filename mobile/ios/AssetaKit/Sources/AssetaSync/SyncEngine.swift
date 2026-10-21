@@ -155,6 +155,7 @@ public actor SyncEngine {
         let entities = try Self.entities(response.data, revision: response.cursor)
         try store.database.transaction {
             try store.syncState.replaceAll(entities, tenantID: tenantID)
+            try saveCustody(response.data.cashCustody, asOf: response.serverTime)
             try saveSnapshots(response.policySnapshots, receivedAt: response.serverTime)
             try setValue(String(response.cursor), SyncKey.cursor)
             try setDate(response.deviceSession.offlineGrantUntil, SyncKey.grantUntil)
@@ -173,6 +174,7 @@ public actor SyncEngine {
             let entities = try Self.entities(page.data, revision: page.cursor)
             try store.database.transaction {
                 written += try store.syncState.upsert(entities, tenantID: tenantID)
+                try saveCustody(page.data.cashCustody, asOf: page.serverTime)
                 try saveSnapshots(page.policySnapshots, receivedAt: page.serverTime)
                 try setValue(String(max(page.cursor, cursor)), SyncKey.cursor)
             }
@@ -245,6 +247,17 @@ public actor SyncEngine {
                                     version: object["version"]?.intValue.map(Int64.init), json: try object.jsonString())
             }
         }
+    }
+
+    /// Custody is a complete, current list (not a delta): it replaces the local copy.
+    private func saveCustody(_ objects: [JSONValue], asOf: Date) throws {
+        let balances = try objects.compactMap { object -> StoredCustodyBalance? in
+            guard let staff = object["staff_member_id"]?.stringValue.flatMap(UUID.init(uuidString:)),
+                  let currency = object["currency"]?.stringValue, currency.count == 3 else { return nil }
+            let at = object["as_of"]?.stringValue.flatMap(AssetaJSON.parseInstant) ?? asOf
+            return StoredCustodyBalance(staffMemberID: staff, currency: currency, json: try object.jsonString(), asOf: at)
+        }
+        try store.syncState.replaceCustody(balances, asOf: asOf, tenantID: tenantID)
     }
 
     private func saveSnapshots(_ snapshots: [PolicySnapshotDTO], receivedAt: Date) throws {

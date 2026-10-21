@@ -53,6 +53,10 @@ public struct CustomerDTO: Codable, Hashable, Sendable, Identifiable {
     public let id: UUID
     public let code: String
     public let name: String
+    /// Deltas carry deactivated customers with `is_active=false` (bootstrap ships active ones only).
+    public let isActive: Bool?
+
+    enum CodingKeys: String, CodingKey { case id, code, name, isActive = "is_active" }
 }
 
 public struct ContractDTO: Codable, Hashable, Sendable, Identifiable {
@@ -114,6 +118,8 @@ public struct MeterCapturePolicy: Codable, Hashable, Sendable {
 public enum OperationType: String, Codable, Sendable, CaseIterable {
     case meterCapture = "METER_CAPTURE", jobActivity = "JOB_ACTIVITY"
     case jobAcknowledgement = "JOB_ACKNOWLEDGEMENT", jobTransition = "JOB_TRANSITION"
+    case expense = "EXPENSE", cashCollection = "CASH_COLLECTION", cashHandover = "CASH_HANDOVER"
+    case fuelEvent = "FUEL_EVENT"
 }
 
 public enum GpsStatus: String, Codable, Sendable, CaseIterable {

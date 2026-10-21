@@ -153,32 +153,50 @@ public final class AttachmentRepository: Sendable {
                        [.text(error), .text(id.lowercased)])
     }
 
-    /// Marks the upload complete and, in the same transaction, writes the server attachment id into
-    /// every operation payload waiting for it — so the stored payload is exactly what is pushed.
-    public func markComplete(id: UUID, attachmentID: UUID) throws {
+    /// Marks the upload complete and, in the same transaction, writes the server attachment id (or,
+    /// for receipts, the upload session id) into every operation payload waiting for it — so the
+    /// stored payload is exactly what is pushed. `uploadID` defaults to the stored session id.
+    public func markComplete(id: UUID, attachmentID: UUID, uploadID: UUID? = nil) throws {
         try db.transaction {
+            let session = try uploadID ?? attachment(id: id)?.sessionID
             try db.execute(
                 """
                 UPDATE local_attachment SET status = 'COMPLETE', attachment_id = ?, last_error = NULL,
-                    next_attempt_at = NULL
+                    next_attempt_at = NULL, session_id = coalesce(?, session_id)
                 WHERE id = ?
                 """,
-                [.text(attachmentID.lowercased), .text(id.lowercased)]
+                [.text(attachmentID.lowercased), .optionalText(session?.lowercased), .text(id.lowercased)]
             )
             let links = try db.query(
                 "SELECT operation_id, payload_field FROM operation_attachment WHERE attachment_local_id = ?",
                 [.text(id.lowercased)]
             ) { ($0.string(0) ?? "", $0.string(1) ?? "") }
             for (operationID, field) in links {
-                guard AttachmentPayloadField(rawValue: field) != nil else { continue }
+                guard let kind = AttachmentPayloadField(rawValue: field) else { continue }
                 // Only unsent operations are rewritten; an op already sent keeps its exact payload.
-                try db.execute(
-                    """
-                    UPDATE client_operation SET payload_json = json_set(payload_json, '$.\(field)', ?)
-                    WHERE id = ? AND status = 'PENDING'
-                    """,
-                    [.text(attachmentID.lowercased), .text(operationID)]
-                )
+                switch kind {
+                case .receiptUploads:
+                    guard let session else { throw OutboxError.attachmentMissing(id) }
+                    try db.execute(
+                        """
+                        UPDATE client_operation
+                        SET payload_json = json_insert(payload_json, '$.receipt_upload_ids[#]', ?)
+                        WHERE id = ? AND status = 'PENDING'
+                          AND json_type(payload_json, '$.receipt_upload_ids') = 'array'
+                          AND NOT EXISTS (SELECT 1 FROM json_each(client_operation.payload_json, '$.receipt_upload_ids')
+                                          WHERE value = ?)
+                        """,
+                        [.text(session.lowercased), .text(operationID), .text(session.lowercased)]
+                    )
+                case .photo, .signature:
+                    try db.execute(
+                        """
+                        UPDATE client_operation SET payload_json = json_set(payload_json, '$.\(field)', ?)
+                        WHERE id = ? AND status = 'PENDING'
+                        """,
+                        [.text(attachmentID.lowercased), .text(operationID)]
+                    )
+                }
             }
         }
     }

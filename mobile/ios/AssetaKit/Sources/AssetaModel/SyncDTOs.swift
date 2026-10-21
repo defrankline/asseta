@@ -75,15 +75,27 @@ public struct SyncData: Codable, Hashable, Sendable {
     public var customers: [JSONValue]
     public var contracts: [JSONValue]
     public var staff: [JSONValue]
+    public var expenseCategories: [JSONValue]
+    /// The supervisor's current custody per currency. Not an entity (no `id`) and always complete,
+    /// so it replaces the local copy instead of being merged.
+    public var cashCustody: [JSONValue]
 
     public init(jobs: [JSONValue] = [], machines: [JSONValue] = [], sites: [JSONValue] = [],
-                customers: [JSONValue] = [], contracts: [JSONValue] = [], staff: [JSONValue] = []) {
+                customers: [JSONValue] = [], contracts: [JSONValue] = [], staff: [JSONValue] = [],
+                expenseCategories: [JSONValue] = [], cashCustody: [JSONValue] = []) {
         self.jobs = jobs
         self.machines = machines
         self.sites = sites
         self.customers = customers
         self.contracts = contracts
         self.staff = staff
+        self.expenseCategories = expenseCategories
+        self.cashCustody = cashCustody
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case jobs, machines, sites, customers, contracts, staff
+        case expenseCategories = "expense_categories", cashCustody = "cash_custody"
     }
 
     public init(from decoder: any Decoder) throws {
@@ -94,12 +106,14 @@ public struct SyncData: Codable, Hashable, Sendable {
         customers = try c.decodeIfPresent([JSONValue].self, forKey: .customers) ?? []
         contracts = try c.decodeIfPresent([JSONValue].self, forKey: .contracts) ?? []
         staff = try c.decodeIfPresent([JSONValue].self, forKey: .staff) ?? []
+        expenseCategories = try c.decodeIfPresent([JSONValue].self, forKey: .expenseCategories) ?? []
+        cashCustody = try c.decodeIfPresent([JSONValue].self, forKey: .cashCustody) ?? []
     }
 
     /// Entity type name → objects, in a stable order.
     public var byType: [(String, [JSONValue])] {
         [("job", jobs), ("machine", machines), ("site", sites), ("customer", customers),
-         ("contract", contracts), ("staff", staff)]
+         ("contract", contracts), ("staff", staff), ("expense_category", expenseCategories)]
     }
 }
 
@@ -236,6 +250,7 @@ public struct PushResultDTO: Codable, Hashable, Sendable {
 
 public enum BlobPurpose: String, Codable, Sendable, CaseIterable {
     case meterPhoto = "METER_PHOTO", signature = "SIGNATURE", resetEvidence = "RESET_EVIDENCE"
+    case expenseReceipt = "EXPENSE_RECEIPT"
 }
 
 public struct BlobStartIn: Codable, Hashable, Sendable {

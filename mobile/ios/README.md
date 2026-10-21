@@ -39,6 +39,7 @@ mobile/ios/
 | 1 | `create_client_operation_outbox` | Gate 0 outbox |
 | 2 | `outbox_sync_protocol` | Rebuilds `client_operation` (SQLite cannot alter CHECKs): adds `CONFLICT`, `error_code`, `server_result_json`, `next_attempt_at`; ACKED now requires the stored server result (push results carry the entity, not a revision; `server_revision` keeps the entity `version` when present). Adds `client_operation_dependency` (several parents, sent as `depends_on[]`), `local_attachment` (upload queue with session id, chunk size, received chunk indexes) and `operation_attachment` |
 | 3 | `sync_state_entities_policies` | `sync_kv` (cursor, registration, offline grant, backoff, clock reference), `sync_entity` (server-owned JSON by tenant/type/id with `revision` + `version`), `policy_snapshot` |
+| 4 | `finance_receipts_cash_custody` | Non-destructive rebuild (row copy; child table renamed before its parent so `foreign_keys=ON` holds) of `local_attachment` (purpose `EXPENSE_RECEIPT`) and `operation_attachment` (field `receipt_upload_ids`); new `cash_custody_balance` (server custody per staff/currency, replaced on every bootstrap/changes response, older lists ignored). Expense categories live in `sync_entity` (`expense_category`) |
 
 `EncryptedDatabase.transaction` nests as savepoints, so composed repository calls stay atomic.
 
@@ -97,6 +98,15 @@ Results on `contracts/fixtures/ocr` (24 synthetic images; real samples are still
 | iOS 26 Simulator (app-hosted test) | 17/17 (1.00) | 0 |
 
 Of the `fallback_ok` images, `lcd_7seg__blur` is read wrongly but at 0.60, so the app asks for a recapture. `lcd_7seg__glare` and `lcd_7seg__noise` are read correctly but at 0.60 because the full-frame read conflicts with them. The other four are read correctly at ≥ 0.92.
+
+## Gate 5: field finance (Supervisor)
+
+Screens on the home list under **Money & fuel**, shown by `/me` permissions (`tenant.expense.write`, `tenant.collection.record`): **Record expense**, **Record cash collection**, **Hand over cash**, **Fuel event** and **My cash**. Every picker over synced data (categories, customers, jobs, machines) is a searchable sheet with a text filter (`SearchablePicker.swift`). Money, litres, prices and readings are parsed strictly into `Decimal` (`DecimalInput`) and sent as decimal strings.
+
+- **Expense policy offline** (`FinanceRules.swift`): the tenant `EXPENSE_CAPTURE` snapshot gates the screen like meter captures (expiry, offline grant, trusted time). Receipt photo required when amount > `receipt_required_above` or in a foreign currency; GPS `FIX` with accuracy ≤ `gps_max_accuracy_m` when `gps_required`; above `auto_approve_limit` (or foreign) the form explains that a manager must approve. The recorder re-checks before writing to the outbox; the server re-checks everything.
+- **Outbox**: `EXPENSE`, `CASH_COLLECTION`, `CASH_HANDOVER`, `FUEL_EVENT`, each with a device `client_id` fixed per form (exactly-once alongside the op id). Receipts are encrypted evidence files uploaded with purpose `EXPENSE_RECEIPT`; the expense is gated on every receipt upload and `COMPLETE` appends the upload session id to `receipt_upload_ids`. `DEFERRED ATTACHMENT_PENDING` is retried after 10 s, `RECEIPT_NOT_FOUND` is a rejection, `DUPLICATE_PAYMENT_REFERENCE` a conflict; all other outcomes as in the table above.
+- **Synced data**: `expense_categories` (inactive ones hidden; deltas carry `is_active=false`), customers (likewise), and `cash_custody` (current balance per currency).
+- **My cash**: the synced balance (as of the last sync) with pending handovers/spending from the server, kept apart from local unsynced collections/expenses/handovers, which are marked unverified; rejected/conflicting items are listed but not counted.
 
 ## Pinned toolchain and dependencies
 
@@ -188,4 +198,5 @@ and no photo library access. The Owner app's Info.plist is unchanged.
 - Background sync only runs while the app process is alive with a tenant open (the tenant selection is not persisted). If iOS launches the app cold in the background, there is no session to sync. Foreground and reconnect sync are the reliable paths.
 - Signing out keeps unsynced items encrypted on the phone, and they sync after the next sign-in. The UI warns about this before sign-out.
 - The Simulator has no camera. The capture screen says so, and AUTOMATIC capture has to be tested on a device.
-- Gate 5 operations (expenses, collections, fuel, cash) are out of scope.
+- Field finance: the tenant base currency is only known from the synced custody (one currency). When it is unknown, an explicitly typed currency is treated as foreign offline (receipt + approval), and the server decides. "My cash" counts only unsynced local items as unverified; an item ACKED in a cycle whose pull then failed is not shown until the next pull refreshes the server balance.
+- A cash collection has no job field on the server; the chosen job pre-selects the customer and is written into the note.

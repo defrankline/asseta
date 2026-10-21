@@ -42,7 +42,7 @@ public struct StoredPolicySnapshot: Equatable, Sendable {
 /// snapshots. Device-wide values use the empty tenant key.
 public final class SyncStateStore: Sendable {
     public static let deviceScope = ""
-    private let db: EncryptedDatabase
+    let db: EncryptedDatabase
 
     public init(database: EncryptedDatabase) {
         self.db = database

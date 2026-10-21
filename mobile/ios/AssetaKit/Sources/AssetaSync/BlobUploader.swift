@@ -107,7 +107,7 @@ public struct BlobUploader: Sendable {
 
     private func finishIfComplete(_ state: BlobSessionDTO, _ attachment: LocalAttachment) throws -> BlobUploadOutcome? {
         guard state.isComplete, let attachmentID = state.attachmentID else { return nil }
-        try attachments.markComplete(id: attachment.id, attachmentID: attachmentID)
+        try attachments.markComplete(id: attachment.id, attachmentID: attachmentID, uploadID: state.id)
         return .complete(attachmentID: attachmentID)
     }
 

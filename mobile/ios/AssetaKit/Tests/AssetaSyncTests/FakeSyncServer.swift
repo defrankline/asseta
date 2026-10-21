@@ -28,6 +28,9 @@ final class FakeSyncServer: @unchecked Sendable {
     var jobs: [[String: Any]] = []
     var machines: [[String: Any]] = []
     var snapshots: [[String: Any]] = []
+    var customers: [[String: Any]] = []
+    var expenseCategories: [[String: Any]] = []
+    var cashCustody: [[String: Any]] = []
 
     // Observations.
     private(set) var requests: [URLRequest] = []
@@ -36,8 +39,10 @@ final class FakeSyncServer: @unchecked Sendable {
     private(set) var pushedBatchSizes: [Int] = []
     private(set) var chunkPuts: [(session: UUID, index: Int)] = []
     private(set) var sessionsStarted = 0
-    private(set) var blobs: [UUID: Blob] = [:]
+    var blobs: [UUID: Blob] = [:]
     private(set) var registrations: [[String: Any]] = []
+    /// Payloads of applied (ACKED) operations, by op id.
+    private(set) var appliedPayloads: [UUID: [String: Any]] = [:]
 
     func mutate(_ body: (FakeSyncServer) -> Void) { lock.withLock { body(self) } }
     func read<T>(_ body: (FakeSyncServer) -> T) -> T { lock.withLock { body(self) } }
@@ -118,6 +123,8 @@ final class FakeSyncServer: @unchecked Sendable {
             switch scripted {
             case "DEFERRED":
                 return ["id": id.uuidString.lowercased(), "status": "DEFERRED", "error": ["code": "DEPENDENCY_PENDING"]]
+            case "ATTACHMENT_PENDING":
+                return ["id": id.uuidString.lowercased(), "status": "DEFERRED", "error": ["code": "ATTACHMENT_PENDING"]]
             case "CONFLICT":
                 let error: [String: Any] = ["code": "INVALID_JOB_TRANSITION", "message": "Job is CANCELLED"]
                 let result: [String: Any] = ["error": error, "server_state": ["job_status": "CANCELLED", "job_version": 7]]
@@ -139,8 +146,21 @@ final class FakeSyncServer: @unchecked Sendable {
                 return ["id": id.uuidString.lowercased(), "status": "REJECTED", "result": ["error": error], "error": error]
             }
         }
+        if op["op_type"] as? String == "EXPENSE" {
+            // Mirrors push.py: an incomplete upload defers (not stored); an unknown one is rejected.
+            let uploads = (payload["receipt_upload_ids"] as? [String] ?? []).compactMap(UUID.init(uuidString:))
+            if uploads.contains(where: { blobs[$0] != nil && blobs[$0]?.attachmentID == nil }) {
+                return ["id": id.uuidString.lowercased(), "status": "DEFERRED", "error": ["code": "ATTACHMENT_PENDING"]]
+            }
+            if uploads.contains(where: { blobs[$0] == nil }) || payload["client_id"] == nil {
+                let error: [String: Any] = ["code": "RECEIPT_NOT_FOUND", "message": "Receipt upload not found"]
+                stored[id] = StoredOp(status: "REJECTED", result: ["error": error], error: error)
+                return ["id": id.uuidString.lowercased(), "status": "REJECTED", "result": ["error": error], "error": error]
+            }
+        }
         let result: [String: Any] = ["entity": ["id": id.uuidString.lowercased(), "version": 3]]
         stored[id] = StoredOp(status: "ACKED", result: result, error: nil)
+        appliedPayloads[id] = payload
         applyOrder.append(id)
         return ["id": id.uuidString.lowercased(), "status": "ACKED", "result": result, "error": NSNull()]
     }
@@ -198,7 +218,8 @@ final class FakeSyncServer: @unchecked Sendable {
     // MARK: - Helpers
 
     private func data() -> [String: Any] {
-        ["jobs": jobs, "machines": machines, "sites": [], "customers": [], "contracts": [], "staff": []]
+        ["jobs": jobs, "machines": machines, "sites": [], "customers": customers, "contracts": [], "staff": [],
+         "expense_categories": expenseCategories, "cash_custody": cashCustody]
     }
 
     private func deviceSession(_ deviceID: String) -> [String: Any] {

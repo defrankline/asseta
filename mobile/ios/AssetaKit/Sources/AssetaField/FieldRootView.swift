@@ -55,6 +55,7 @@ public struct FieldRootView: View {
         case .ready:
             List {
                 FieldBanners(model: model)
+                FinanceSection(model: model)
                 if model.jobs.isEmpty {
                     ContentUnavailableView("No assigned jobs", systemImage: "tray",
                                            description: Text(model.isSyncing ? "Syncing…" : "Pull down to sync when you are online."))

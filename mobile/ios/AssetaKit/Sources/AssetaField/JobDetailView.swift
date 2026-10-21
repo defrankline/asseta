@@ -159,6 +159,11 @@ struct OperationRow: View {
         case .jobActivity: return "Work log: \(payload?["activity_type"]?.stringValue?.capitalized ?? "")"
         case .jobAcknowledgement: return "Acknowledged by \(payload?["signer_name"]?.stringValue ?? "")"
         case .jobTransition: return payload?["action"]?.stringValue == "START" ? "Job started" : "Job completed"
+        case .expense: return "Expense \(payload?["amount"]?.stringValue ?? "")"
+        case .fuelEvent:
+            return "Fuel \(payload?["event_type"]?.stringValue?.lowercased() ?? ""): \(payload?["litres"]?.stringValue ?? "") L"
+        case .cashCollection: return "Cash collection \(payload?["amount"]?.stringValue ?? "")"
+        case .cashHandover: return "Cash handover \(payload?["amount"]?.stringValue ?? "")"
         case nil: return operation.opType
         }
     }

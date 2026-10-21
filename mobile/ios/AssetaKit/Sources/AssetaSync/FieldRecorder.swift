@@ -156,13 +156,13 @@ public struct FieldRecorder: Sendable {
 
     // MARK: - Private
 
-    private func addAttachment(_ evidence: StoredEvidence, purpose: BlobPurpose) throws -> UUID {
+    func addAttachment(_ evidence: StoredEvidence, purpose: BlobPurpose) throws -> UUID {
         try store.attachments.add(NewLocalAttachment(
             tenantID: tenantID, purpose: purpose.rawValue, fileName: evidence.fileName, sha256: evidence.sha256,
             sizeBytes: evidence.sizeBytes, contentType: evidence.contentType)).id
     }
 
-    private func enqueue(_ type: OperationType, entityType: String, entityID: UUID, payload: some Encodable,
+    func enqueue(_ type: OperationType, entityType: String, entityID: UUID, payload: some Encodable,
                          dependsOn: [UUID], attachments: [(localID: UUID, field: AttachmentPayloadField)] = [],
                          createdAt: Date) throws -> ClientOperation {
         let json = try JSONValue.encode(payload).lowercasingUUIDs().jsonString()

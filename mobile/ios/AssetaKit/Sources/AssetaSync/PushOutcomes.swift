@@ -20,7 +20,7 @@ public struct PushOutcomeApplier: Sendable {
     public static let quarantineRetry: TimeInterval = 15 * 60
     static let conflictCodes: Set<String> = [
         "INVALID_JOB_TRANSITION", "READING_NOT_ALLOWED", "MACHINE_BUSY", "CAPTURE_ID_CONFLICT", "JOB_NOT_ACTIVE",
-        "STALE_VERSION",
+        "STALE_VERSION", "DUPLICATE_PAYMENT_REFERENCE",
     ]
 
     let outbox: any ClientOperationRepository

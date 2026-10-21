@@ -32,6 +32,10 @@ public struct OutboxItem: Sendable, Equatable, Identifiable {
         case .jobActivity: "Work log entry"
         case .jobAcknowledgement: "Customer acknowledgement"
         case .jobTransition: operation.payloadJSON.contains("COMPLETE") ? "Complete job" : "Start job"
+        case .expense: "Expense"
+        case .cashCollection: "Cash collection"
+        case .cashHandover: "Cash handover"
+        case .fuelEvent: "Fuel event"
         case nil: operation.opType
         }
     }
@@ -129,7 +133,7 @@ public struct FieldDirectory: Sendable {
                 waiting = parent.status == .failed || parent.status == .conflict
                     ? "Blocked by an earlier item that needs attention" : "Waiting for an earlier item"
             } else if awaitingUpload.contains(op.id) {
-                waiting = "Waiting for its photo/signature upload"
+                waiting = "Waiting for its photo/receipt/signature upload"
             }
             return OutboxItem(operation: op, jobID: payload?["job_id"]?.stringValue.flatMap(UUID.init(uuidString:)),
                               serverState: state, waitingFor: waiting)

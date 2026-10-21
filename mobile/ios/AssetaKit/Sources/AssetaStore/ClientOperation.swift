@@ -30,6 +30,9 @@ public enum ClientOperationStatus: String, CaseIterable, Sendable, Codable {
 public enum AttachmentPayloadField: String, Sendable, CaseIterable {
     case photo = "photo_attachment_id"
     case signature = "signature_attachment_id"
+    /// EXPENSE receipts: the upload session id is appended to this array (the server resolves it
+    /// to the stored attachment, or answers DEFERRED `ATTACHMENT_PENDING` until it is complete).
+    case receiptUploads = "receipt_upload_ids"
 }
 
 /// A durable, device-generated mutation waiting to be pushed to the server.

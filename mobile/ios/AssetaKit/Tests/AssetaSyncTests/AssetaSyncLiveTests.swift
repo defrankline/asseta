@@ -16,10 +16,17 @@ struct LiveFixture: Decodable {
     let machineID: UUID
     let accessToken: String
     let tokenExpiresAt: String
+    // Gate 5 finance (optional so older fixture files still decode).
+    let customerID: UUID?
+    let expenseCategoryID: UUID?
+    let staffMemberID: UUID?
+    let cashFloat: String?
 
     enum CodingKeys: String, CodingKey {
         case apiBase = "api_base", tenantID = "tenant_id", jobID = "job_id", machineID = "machine_id"
         case accessToken = "access_token", tokenExpiresAt = "token_expires_at"
+        case customerID = "customer_id", expenseCategoryID = "expense_category_id", staffMemberID = "staff_member_id"
+        case cashFloat = "cash_float"
     }
 
     static var path: String? { ProcessInfo.processInfo.environment["ASSETA_LIVE_E2E"].flatMap { $0.isEmpty ? nil : $0 } }
@@ -32,7 +39,7 @@ struct LiveFixture: Decodable {
 /// Gate 4 live E2E: the real AssetaKit sync stack (SyncEngine, SyncAPI, URLSessionTransport, SQLCipher outbox and
 /// store, evidence files, FieldRecorder) against the running backend + Keycloak. Skipped unless `ASSETA_LIVE_E2E`
 /// names a fixture file (see scripts/field-e2e.sh); never runs in normal `swift test` or CI.
-@Suite(.enabled(if: LiveFixture.path != nil, "set ASSETA_LIVE_E2E to a field_e2e_setup.py fixture file"))
+@Suite(.serialized, .enabled(if: LiveFixture.path != nil, "set ASSETA_LIVE_E2E to a field_e2e_setup.py fixture file"))
 struct AssetaSyncLiveTests {
     @Test func openingCaptureWithPhotoSyncsExactlyOnceAgainstTheLiveBackend() async throws {
         let fixture = try LiveFixture.load()

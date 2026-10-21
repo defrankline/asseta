@@ -20,7 +20,7 @@ struct SyncStatusView: View {
                 Section("Evidence files that cannot be uploaded") {
                     ForEach(failed) { file in
                         VStack(alignment: .leading) {
-                            Text(file.purpose == "SIGNATURE" ? "Signature" : "Meter photo")
+                            Text(file.purpose == "SIGNATURE" ? "Signature" : file.purpose == "EXPENSE_RECEIPT" ? "Receipt photo" : "Meter photo")
                             Text(file.lastError ?? "").font(.caption).foregroundStyle(.red)
                         }
                     }
