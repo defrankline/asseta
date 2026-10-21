@@ -45,7 +45,9 @@ services:
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?set in .env}
       ASSETA_API_CLIENT_SECRET: ${ASSETA_API_CLIENT_SECRET:?set in .env}
       ASSETA_WEB_URL: ${ASSETA_WEB_URL:-http://localhost:5173}
-    volumes: ["./infra/keycloak:/opt/keycloak/data/import:ro"]
+    volumes:
+      - ./infra/keycloak:/opt/keycloak/data/import:ro
+      - ./infra/keycloak/themes/asseta:/opt/keycloak/themes/asseta:ro  # branded login pages
     ports: ["127.0.0.1:${ASSETA_KEYCLOAK_PORT:-8080}:8080"]
     depends_on: {postgres: {condition: service_healthy}}
     restart: unless-stopped

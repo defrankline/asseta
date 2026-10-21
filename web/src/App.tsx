@@ -1,12 +1,13 @@
 import { Box } from '@mui/material';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
-import { BrowserRouter, useNavigate } from 'react-router';
+import { BrowserRouter, useLocation, useNavigate } from 'react-router';
 import { AuthProvider } from './auth/AuthProvider';
 import { useAuth } from './auth/useAuth';
 import { ErrorState } from './components/feedback/ErrorState';
 import { LoadingState } from './components/feedback/LoadingState';
 import { NotificationProvider } from './notifications/NotificationProvider';
+import { LandingPage } from './pages/landing/LandingPage';
 import { LoginRedirectPage } from './pages/LoginRedirectPage';
 import { ROUTES } from './navigation/routes';
 import { AppRoutes } from './routes/AppRoutes';
@@ -30,8 +31,11 @@ function SessionGate() {
 function AuthGate() {
   const { status, error } = useAuth();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   if (status === 'initializing') return <LoadingState label="Signing in" />;
-  if (status === 'unauthenticated') return <LoginRedirectPage />;
+  // Signed-out visitors to the site root see the public page; deep links go straight to sign-in.
+  if (status === 'unauthenticated')
+    return pathname === '/' ? <LandingPage /> : <LoginRedirectPage />;
   if (status === 'error') {
     return (
       <Box className="p-6">

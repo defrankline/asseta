@@ -1,0 +1,90 @@
+/* Asseta brand layer over Keycloak's v2 login theme (PatternFly 5). Palette from branding/README.md. */
+:root {
+    --asseta-slate: #0F2A3D;
+    --asseta-slate-hover: #18405C;
+    --asseta-amber: #F5A300;
+    --asseta-amber-hover: #FFB627;
+    --asseta-offwhite: #F7F8FA;
+    --asseta-logo-url: url('../img/asseta-logo-light.svg');
+    --keycloak-card-top-color: var(--asseta-amber);
+    --pf-v5-global--primary-color--100: var(--asseta-slate);
+    --pf-v5-global--primary-color--200: var(--asseta-slate-hover);
+    --pf-v5-global--link--Color: var(--asseta-slate);
+    --pf-v5-global--link--Color--hover: var(--asseta-slate-hover);
+}
+
+.pf-v5-theme-dark {
+    --asseta-logo-url: url('../img/asseta-logo-dark.svg');
+    --pf-v5-global--primary-color--100: var(--asseta-amber);
+    --pf-v5-global--primary-color--200: var(--asseta-amber-hover);
+    --pf-v5-global--link--Color: var(--asseta-amber);
+    --pf-v5-global--link--Color--hover: var(--asseta-amber-hover);
+}
+
+.login-pf body,
+body#keycloak-bg {
+    background: radial-gradient(circle at 15% 10%, rgba(245, 163, 0, 0.10), transparent 40%),
+                linear-gradient(160deg, var(--asseta-offwhite) 0%, #E6EBF0 100%);
+}
+
+.pf-v5-theme-dark body#keycloak-bg {
+    background: radial-gradient(circle at 15% 10%, rgba(245, 163, 0, 0.14), transparent 45%),
+                linear-gradient(160deg, var(--asseta-slate) 0%, #081A27 100%);
+}
+
+/* Brand lockup in place of the realm name. The name stays in the DOM for screen readers. */
+#kc-header-wrapper {
+    background: var(--asseta-logo-url) no-repeat center / contain;
+    width: 248px;
+    max-width: 80vw;
+    height: 64px;
+    margin: 0 auto;
+    color: transparent;
+    font-size: 0;
+    overflow: hidden;
+}
+
+#kc-header {
+    padding-block: var(--pf-v5-global--spacer--xl) var(--pf-v5-global--spacer--lg);
+}
+
+.pf-v5-c-login__main {
+    border-radius: 12px;
+    box-shadow: 0 12px 32px rgba(15, 42, 61, 0.12);
+}
+
+.pf-v5-c-login__main-header {
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+}
+
+.pf-v5-c-button.pf-m-primary {
+    --pf-v5-c-button--m-primary--BackgroundColor: var(--asseta-slate);
+    --pf-v5-c-button--m-primary--hover--BackgroundColor: var(--asseta-slate-hover);
+    --pf-v5-c-button--m-primary--focus--BackgroundColor: var(--asseta-slate-hover);
+    --pf-v5-c-button--m-primary--active--BackgroundColor: var(--asseta-slate-hover);
+    --pf-v5-c-button--m-primary--Color: #FFFFFF;
+    font-weight: 600;
+}
+
+.pf-v5-theme-dark .pf-v5-c-button.pf-m-primary {
+    --pf-v5-c-button--m-primary--BackgroundColor: var(--asseta-amber);
+    --pf-v5-c-button--m-primary--hover--BackgroundColor: var(--asseta-amber-hover);
+    --pf-v5-c-button--m-primary--focus--BackgroundColor: var(--asseta-amber-hover);
+    --pf-v5-c-button--m-primary--active--BackgroundColor: var(--asseta-amber-hover);
+    --pf-v5-c-button--m-primary--Color: var(--asseta-slate);
+}
+
+.pf-v5-c-form-control:focus-within {
+    --pf-v5-c-form-control--after--BorderBottomColor: var(--asseta-amber);
+}
+
+/* Card surface in the brand slate family instead of PatternFly's neutral grey. */
+.pf-v5-theme-dark .pf-v5-c-login__main {
+    --pf-v5-c-login__main--BackgroundColor: #122F44;
+    background-color: #122F44;
+}
+
+.pf-v5-theme-dark .pf-v5-c-form-control {
+    --pf-v5-c-form-control--BackgroundColor: #0C2233;
+}

@@ -41,3 +41,10 @@ continue. When Kafka returns, the relay drains automatically. Scale relays horiz
 ## Pending for later gates
 Backup/restore drill, TLS reverse proxy configuration, metrics/tracing, scheduled billing/entitlement runs,
 incident procedures — tracked in track.md Gate 7.
+
+## Branding: login theme and landing page
+* Keycloak uses the `asseta` login theme (`infra/keycloak/themes/asseta`, mounted read-only into the container and
+  set as `loginTheme` in `realm-asseta.json`). An already-imported realm must be switched once: Admin console →
+  Realm settings → Themes → Login theme `asseta` (or `PUT /admin/realms/asseta {"loginTheme":"asseta"}`).
+* Production Keycloak (`start`, not `start-dev`) caches themes: restart after changing theme files.
+* The public landing page shows a "Request a demo" mail link only when `VITE_CONTACT_EMAIL` is set at web build time.

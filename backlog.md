@@ -59,4 +59,4 @@ Owner decision: UNREVIEWED
 
 | Date | Item | Owner-approved future release | Decision |
 |---|---|---|---|
-| — | None | — | No expansion authorized |
+| 2026-10-21 | Public business landing page at `/` for signed-out visitors (capabilities, how it works, pricing model, managed service; optional `VITE_CONTACT_EMAIL` demo link) and Asseta-branded Keycloak login theme (sign in, forgot/update password, register, OTP, errors) | R1 (requested directly by the Platform Owner in chat) | APPROVED by owner; implemented in R1 |

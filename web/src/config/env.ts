@@ -5,6 +5,8 @@ export interface AppConfig {
   readonly keycloakClientId: string;
   readonly apiBaseUrl: string;
   readonly mapStyleUrl: string;
+  /** Sales contact for the public landing page; the demo button is hidden when unset. */
+  readonly contactEmail: string | null;
 }
 
 function read(value: string | undefined, fallback: string): string {
@@ -20,4 +22,5 @@ export const appConfig: AppConfig = {
     import.meta.env.VITE_MAP_STYLE_URL,
     'https://demotiles.maplibre.org/style.json',
   ),
+  contactEmail: read(import.meta.env.VITE_CONTACT_EMAIL, '') || null,
 };

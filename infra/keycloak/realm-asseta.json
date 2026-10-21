@@ -1,6 +1,7 @@
 {
   "realm": "asseta",
   "displayName": "Asseta",
+  "loginTheme": "asseta",
   "enabled": true,
   "sslRequired": "external",
   "registrationAllowed": false,
