@@ -1,4 +1,5 @@
 import ArrowBack from '@mui/icons-material/ArrowBack';
+import Edit from '@mui/icons-material/Edit';
 import { Box, Button, Paper, Stack, Tab, Tabs } from '@mui/material';
 import { useCallback, useState } from 'react';
 import { Link as RouterLink, useParams } from 'react-router';
@@ -11,12 +12,15 @@ import { PageHeader } from '../../../components/feedback/PageHeader';
 import { useAsyncResource } from '../../../hooks/useAsyncResource';
 import { useSession } from '../../../session/useSession';
 import { ROUTES } from '../../../navigation/routes';
+import { useNotify } from '../../../notifications/useNotify';
 import { CompanyPanel } from './CompanyPanel';
+import { EditTenantDialog } from './EditTenantDialog';
 import { EnrollmentsTab } from './EnrollmentsTab';
 import { PendingChargesTab } from './PendingChargesTab';
 import { RateVersionsTab } from './RateVersionsTab';
 import { SubscriptionPanel } from './SubscriptionPanel';
 import { TenantInvoicesTab } from './TenantInvoicesTab';
+import { canEditTenant } from './tenantEditForm';
 
 type TabKey = 'rates' | 'enrollments' | 'pending' | 'invoices';
 
@@ -116,15 +120,33 @@ export function TenantDetailPage() {
     [tenantId],
   );
   const tenant = useAsyncResource(load);
+  const notify = useNotify();
+  const [editing, setEditing] = useState(false);
+  const current = tenant.data;
   return (
     <>
       <PageHeader
-        title={tenant.data?.display_name ?? 'Tenant'}
-        subtitle={tenant.data?.legal_name ?? 'Tenant details'}
+        title={current?.display_name ?? 'Tenant'}
+        subtitle={current?.legal_name ?? 'Tenant details'}
         actions={
-          <Button component={RouterLink} to={ROUTES.platformTenants} startIcon={<ArrowBack />}>
-            All tenants
-          </Button>
+          <>
+            <Button component={RouterLink} to={ROUTES.platformTenants} startIcon={<ArrowBack />}>
+              All tenants
+            </Button>
+            {current !== null && canEditTenant(current) && (
+              <Can permission={PERMISSIONS.platformTenantUpdate}>
+                <Button
+                  variant="contained"
+                  startIcon={<Edit />}
+                  onClick={() => {
+                    setEditing(true);
+                  }}
+                >
+                  Edit company
+                </Button>
+              </Can>
+            )}
+          </>
         }
       />
       <AsyncContent
@@ -141,6 +163,19 @@ export function TenantDetailPage() {
           </Stack>
         )}
       </AsyncContent>
+      {editing && current !== null && (
+        <EditTenantDialog
+          tenant={current}
+          onClose={() => {
+            setEditing(false);
+          }}
+          onSaved={(t) => {
+            notify.success(`${t.display_name} updated.`);
+            tenant.reload();
+          }}
+          onReload={tenant.reload}
+        />
+      )}
     </>
   );
 }

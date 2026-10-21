@@ -11,7 +11,7 @@ import type {
   TrackerDto,
   TrackerModelDto,
 } from '../types';
-import { bool, id, nullableId, nullableOneOf, nullableText, oneOf, text } from './schemaKit';
+import { bool, id, int, nullableId, nullableOneOf, nullableText, oneOf, text } from './schemaKit';
 
 export const CAPABILITIES: readonly Capability[] = [
   'GNSS',
@@ -80,6 +80,7 @@ export const trackerSchema: Schema<TrackerDto> = object({
   last_report_at: nullableText(),
   capabilities: array(capabilitySchema).required(),
   current_assignment: object(assignmentFields).nullable().optional().default(undefined),
+  version: int(),
 });
 
 export const trackerModelSchema: Schema<TrackerModelDto> = object({
@@ -91,6 +92,9 @@ export const trackerModelSchema: Schema<TrackerModelDto> = object({
   declared_capabilities: array(oneOf(CAPABILITIES)).required(),
   approved: bool(),
   notes: nullableText(),
+  deactivated_at: nullableText().default(null),
+  deactivation_reason: nullableText().default(null),
+  version: int(),
 });
 
 export const ingestionEventSchema: Schema<IngestionEventDto> = object({

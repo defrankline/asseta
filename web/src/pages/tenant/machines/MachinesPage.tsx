@@ -1,200 +1,110 @@
-import Add from '@mui/icons-material/Add';
-import { Box, Button, MenuItem, TextField } from '@mui/material';
-import { useCallback, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router';
-import { CanMutate } from '../../../access/CanMutate';
+import { Paper, Tab, Tabs } from '@mui/material';
+import { useCallback, useState } from 'react';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import { useCanMutate } from '../../../access/useCanMutate';
 import { machineService } from '../../../api/services/machineService';
-import type { CategoryDto, MachineDto } from '../../../api/types';
-import { ServerDataTable, type DataColumn } from '../../../components/data/ServerDataTable';
-import type { ServerQuery } from '../../../components/data/useServerPage';
-import { StatusChip } from '../../../components/display/StatusChip';
+import type { AreaDto, CategoryDto } from '../../../api/types';
 import { PageHeader } from '../../../components/feedback/PageHeader';
-import { useAsyncResource } from '../../../hooks/useAsyncResource';
-import { machineDetailPath } from '../../../navigation/routes';
-import { useNotify } from '../../../notifications/useNotify';
-import { formatMoney } from '../../../utils/money';
-import {
-  MACHINE_STATUS_OPTIONS,
-  MACHINE_STATUS_TONES,
-  OWNERSHIP_OPTIONS,
-  labelOf,
-  machineLabel,
-} from '../shared/display';
-import { CategoryFilter } from '../shared/lookupPickers';
-import { CreateMachineDialog } from './CreateMachineDialog';
-import { EnrollMachineDialog } from './EnrollMachineDialog';
+import { LOOKUP_ERROR_HINTS } from './lookupForms';
+import { AreaFormDialog, CategoryFormDialog } from './LookupRecordForms';
+import { MachineListPanel } from './MachineListPanel';
+import { MasterDataPanel } from './MasterDataPanel';
 
-const ALL = '';
+type TabKey = 'machines' | 'categories' | 'areas';
 
+const LOOKUP_CONSEQUENCES =
+  'Machines already using it keep it, but it can no longer be picked for new or edited machines.';
+
+function CategoriesPanel({ canWrite }: { canWrite: boolean }) {
+  const load = useCallback(
+    (signal: AbortSignal, q: string | undefined, inactive: boolean) =>
+      machineService.listCategories(signal, q, inactive),
+    [],
+  );
+  return (
+    <MasterDataPanel<CategoryDto>
+      noun="machine category"
+      searchPlaceholder="Search categories"
+      createLabel="New category"
+      emptyTitle="Machine categories"
+      load={load}
+      columns={[
+        { id: 'name', header: 'Name', render: (c) => <strong>{c.name}</strong> },
+        { id: 'description', header: 'Description', render: (c) => c.description ?? '—' },
+      ]}
+      labelOf={(c) => c.name}
+      detailItems={(c) => [
+        { label: 'Name', value: c.name },
+        { label: 'Description', value: c.description ?? '—' },
+      ]}
+      canWrite={canWrite}
+      renderForm={(p) => <CategoryFormDialog {...p} />}
+      deactivate={(id, body, key) => machineService.deactivateCategory(id, body, key)}
+      reactivate={(id, body, key) => machineService.reactivateCategory(id, body, key)}
+      errorHints={LOOKUP_ERROR_HINTS}
+      consequences={LOOKUP_CONSEQUENCES}
+    />
+  );
+}
+
+function AreasPanel({ canWrite }: { canWrite: boolean }) {
+  const load = useCallback(
+    (signal: AbortSignal, q: string | undefined, inactive: boolean) =>
+      machineService.listAreas(signal, q, inactive),
+    [],
+  );
+  return (
+    <MasterDataPanel<AreaDto>
+      noun="operating area"
+      searchPlaceholder="Search operating areas"
+      createLabel="New operating area"
+      emptyTitle="Operating areas"
+      load={load}
+      columns={[
+        { id: 'code', header: 'Code', render: (a) => <strong>{a.code}</strong> },
+        { id: 'name', header: 'Name', render: (a) => a.name },
+      ]}
+      labelOf={(a) => `${a.code} · ${a.name}`}
+      detailItems={(a) => [
+        { label: 'Code', value: a.code },
+        { label: 'Name', value: a.name },
+      ]}
+      canWrite={canWrite}
+      renderForm={(p) => <AreaFormDialog {...p} />}
+      deactivate={(id, body, key) => machineService.deactivateArea(id, body, key)}
+      reactivate={(id, body, key) => machineService.reactivateArea(id, body, key)}
+      errorHints={LOOKUP_ERROR_HINTS}
+      consequences={LOOKUP_CONSEQUENCES}
+    />
+  );
+}
+
+/** Equipment registry: machines, machine categories and operating areas. */
 export function MachinesPage() {
-  const navigate = useNavigate();
-  const notify = useNotify();
-  const canEnroll = useCanMutate(PERMISSIONS.tenantBillingEnroll);
-  const [creating, setCreating] = useState(false);
-  const [enrolling, setEnrolling] = useState<MachineDto | null>(null);
-  const [reloadKey, setReloadKey] = useState(0);
-  const [status, setStatus] = useState(ALL);
-  const [category, setCategory] = useState<CategoryDto | null>(null);
-
-  const loadCategories = useCallback(
-    (signal: AbortSignal) => machineService.listCategories(signal),
-    [],
-  );
-  const categories = useAsyncResource(loadCategories, [reloadKey]);
-  const categoryName = useMemo(() => {
-    const names = new Map((categories.data ?? []).map((c) => [c.id, c.name]));
-    return (id: string | null) => (id === null ? '—' : (names.get(id) ?? '—'));
-  }, [categories.data]);
-
-  const fetchPage = useCallback(
-    (q: ServerQuery, signal: AbortSignal) =>
-      machineService.list(
-        { page: q.page, page_size: q.page_size, q: q.q, filters: q.filters },
-        signal,
-      ),
-    [],
-  );
-  const filters = useMemo(
-    () => ({ status: status || undefined, category_id: category?.id }),
-    [status, category],
-  );
-
-  const columns: DataColumn<MachineDto>[] = [
-    { id: 'asset_code', header: 'Asset code', render: (m) => <strong>{m.asset_code}</strong> },
-    { id: 'name', header: 'Name', render: (m) => m.name },
-    { id: 'category', header: 'Category', render: (m) => categoryName(m.category_id) },
-    {
-      id: 'make',
-      header: 'Manufacturer / model',
-      render: (m) => [m.manufacturer, m.model].filter((x) => x !== null).join(' ') || '—',
-    },
-    {
-      id: 'ownership',
-      header: 'Ownership',
-      render: (m) => labelOf(OWNERSHIP_OPTIONS, m.ownership),
-    },
-    {
-      id: 'status',
-      header: 'Status',
-      render: (m) => (
-        <StatusChip
-          status={m.status}
-          tones={MACHINE_STATUS_TONES}
-          label={labelOf(MACHINE_STATUS_OPTIONS, m.status)}
-        />
-      ),
-    },
-    { id: 'meter', header: 'Meter dp', align: 'right', render: (m) => m.meter_decimal_places },
-    ...(canEnroll
-      ? [
-          {
-            id: 'actions',
-            header: '',
-            align: 'right' as const,
-            render: (m: MachineDto) =>
-              m.status === 'DISPOSED' ? null : (
-                <Button
-                  size="small"
-                  aria-label={`Enroll ${machineLabel(m)} as billable asset`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setEnrolling(m);
-                  }}
-                >
-                  Enroll
-                </Button>
-              ),
-          },
-        ]
-      : []),
-  ];
-
-  const toolbar = (
-    <>
-      <TextField
-        select
-        size="small"
-        label="Status"
-        value={status}
-        onChange={(e) => {
-          setStatus(e.target.value);
-        }}
-        sx={{ minWidth: 160 }}
-      >
-        <MenuItem value={ALL}>All statuses</MenuItem>
-        {MACHINE_STATUS_OPTIONS.map((o) => (
-          <MenuItem key={o.value} value={o.value}>
-            {o.label}
-          </MenuItem>
-        ))}
-      </TextField>
-      <Box sx={{ minWidth: 220 }}>
-        <CategoryFilter label="Category" value={category} onChange={setCategory} />
-      </Box>
-    </>
-  );
-
+  const canWrite = useCanMutate(PERMISSIONS.tenantMachineWrite);
+  const [tab, setTab] = useState<TabKey>('machines');
   return (
     <>
       <PageHeader
         title="Machines"
         subtitle="Equipment registry: individual assets, categories and operating areas"
-        actions={
-          <CanMutate permission={PERMISSIONS.tenantMachineWrite}>
-            <Button
-              variant="contained"
-              startIcon={<Add />}
-              onClick={() => {
-                setCreating(true);
-              }}
-            >
-              New machine
-            </Button>
-          </CanMutate>
-        }
       />
-      <ServerDataTable<MachineDto>
-        columns={columns}
-        fetchPage={fetchPage}
-        getRowId={(m) => m.id}
-        filters={filters}
-        toolbar={toolbar}
-        searchPlaceholder="Search asset code or name"
-        emptyTitle="No machines found"
-        emptyDescription="Register machines to track and bill them."
-        reloadKey={reloadKey}
-        onRowClick={(m) => {
-          void navigate(machineDetailPath(m.id));
-        }}
-      />
-      {creating && (
-        <CreateMachineDialog
-          onClose={() => {
-            setCreating(false);
+      <Paper variant="outlined" className="mb-3">
+        <Tabs
+          value={tab}
+          onChange={(_e, v: TabKey) => {
+            setTab(v);
           }}
-          onCreated={(m) => {
-            notify.success(`Machine ${m.asset_code} created.`);
-            setReloadKey((k) => k + 1);
-          }}
-        />
-      )}
-      {enrolling !== null && (
-        <EnrollMachineDialog
-          machine={enrolling}
-          onClose={() => {
-            setEnrolling(null);
-          }}
-          onEnrolled={(r) => {
-            notify.success(
-              r.charge === null
-                ? `${r.enrollment.asset_label} enrolled as a billable asset.`
-                : `${r.enrollment.asset_label} enrolled; pending ${formatMoney(r.charge.amount, r.charge.currency)} recorded.`,
-            );
-          }}
-        />
-      )}
+          aria-label="Registry views"
+        >
+          <Tab value="machines" label="Machines" />
+          <Tab value="categories" label="Categories" />
+          <Tab value="areas" label="Operating areas" />
+        </Tabs>
+      </Paper>
+      {tab === 'machines' && <MachineListPanel />}
+      {tab === 'categories' && <CategoriesPanel canWrite={canWrite} />}
+      {tab === 'areas' && <AreasPanel canWrite={canWrite} />}
     </>
   );
 }

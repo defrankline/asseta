@@ -10,6 +10,14 @@ export const PERMISSIONS = {
   platformTenantRead: 'platform.tenant.read',
   platformTenantCreate: 'platform.tenant.create',
   platformTenantVerify: 'platform.tenant.verify',
+  /** Edit tenant company details. */
+  platformTenantUpdate: 'platform.tenant.update',
+  /** Approved tracker driver/model catalog: view; create, edit, withdraw / restore. */
+  platformTrackerModelRead: 'platform.tracker_model.read',
+  platformTrackerModelManage: 'platform.tracker_model.manage',
+  /** Telemetry gateways: view (never their keys); create, deactivate / reactivate. */
+  platformGatewayRead: 'platform.gateway.read',
+  platformGatewayManage: 'platform.gateway.manage',
   /** Subscription, enrollments, rate versions and pending charges (read). */
   platformSubscriptionRead: 'platform.subscription.read',
   /** Lifecycle transitions and entitlement evaluation. */
@@ -74,4 +82,8 @@ export const PERMISSIONS = {
   /** The managed-service mandate held over this tenant: view; revoke. */
   tenantManagedServiceRead: 'tenant.managed_service.read',
   tenantManagedServiceRevoke: 'tenant.managed_service.revoke',
+  /** Expenses, receipts, categories and fuel events (read). */
+  tenantExpenseRead: 'tenant.expense.read',
+  /** Create, edit, deactivate and reactivate expense categories. */
+  tenantExpenseCategoryManage: 'tenant.finance.expense_category',
 } as const;

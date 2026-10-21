@@ -8,6 +8,7 @@ import { makeJob } from '../../../test/jobFixtures';
 import { renderWithProviders } from '../../../test/renderWithProviders';
 import { CustomersPage } from '../customers/CustomersPage';
 import { JobsPage } from './JobsPage';
+import { ACTIVE_RECORD } from '../../../test/lifecycleFixtures';
 
 const mocks = vi.hoisted(() => ({
   listJobs: vi.fn<typeof jobService.list>(),
@@ -28,7 +29,9 @@ beforeEach(() => {
   mocks.listJobs.mockResolvedValue({ items: [makeJob()], total: 1, page: 1, page_size: 25 });
   mocks.listCustomers.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 25 });
   mocks.listMachines.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 200 });
-  mocks.listCategories.mockResolvedValue([{ id: CATEGORY, name: 'Excavators', description: null }]);
+  mocks.listCategories.mockResolvedValue([
+    { id: CATEGORY, name: 'Excavators', description: null, ...ACTIVE_RECORD },
+  ]);
   mocks.listRateCards.mockResolvedValue([
     rateCard('rc-old', '2026-01-01T00:00:00Z', '120000.0000'),
     rateCard('rc-now', '2026-06-01T00:00:00Z', '150000.0000'),

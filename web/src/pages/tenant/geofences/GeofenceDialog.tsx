@@ -6,6 +6,8 @@ import { machineService } from '../../../api/services/machineService';
 import type { GeofenceDto, JobSiteDto } from '../../../api/types';
 import { AsyncMultiAutocomplete } from '../../../components/data/AsyncMultiAutocomplete';
 import { KeyValueGrid } from '../../../components/display/KeyValueGrid';
+import { StaleVersionAlert } from '../../../components/lifecycle/StaleVersionAlert';
+import { useStaleVersion } from '../../../components/lifecycle/useStaleVersion';
 import { FormikSelectField } from '../../../components/forms/FormikSelectField';
 import { FormikTextField } from '../../../components/forms/FormikTextField';
 import { StepperFormDialog, type FormStep } from '../../../components/forms/StepperFormDialog';
@@ -36,6 +38,8 @@ interface GeofenceDialogProps {
   machineLabels: ReadonlyMap<string, string>;
   onClose: () => void;
   onSaved: (geofence: GeofenceDto) => void;
+  /** Edit only: the server reported STALE_VERSION and the user chose Reload. */
+  onReloadRequested?: () => void;
 }
 
 /** Details → Shape (draw) → Applies to → Review. Mount only while open. */
@@ -45,8 +49,10 @@ export function GeofenceDialog({
   machineLabels,
   onClose,
   onSaved,
+  onReloadRequested,
 }: GeofenceDialogProps) {
   const keyFor = useIdempotencyKey();
+  const { stale, guard } = useStaleVersion();
   const [initialValues] = useState<GeofenceFormValues>(() =>
     geofence === undefined ? EMPTY_GEOFENCE : geofenceToValues(geofence, machineLabels),
   );
@@ -145,44 +151,57 @@ export function GeofenceDialog({
       submitLabel={geofence === undefined ? 'Create geofence' : 'Save geofence'}
       onClose={onClose}
       renderReview={(v) => (
-        <KeyValueGrid
-          columns={2}
-          items={[
-            { label: 'Name', value: v.name },
-            { label: 'Kind', value: labelOf(GEOFENCE_KIND_OPTIONS, v.kind) },
-            {
-              label: 'Job site',
-              value:
-                v.job_site_id === ''
-                  ? 'None'
-                  : site?.id === v.job_site_id
-                    ? jobSiteLabel(site)
-                    : v.job_site_id,
-            },
-            {
-              label: 'Shape',
-              value:
-                v.shape === 'POLYGON'
-                  ? `Polygon · ${String(v.vertices.length)} vertices (closed ring)`
-                  : `Corridor · ${String(v.vertices.length)} points · ${v.corridor_width_m} m wide`,
-            },
-            {
-              label: 'Applies to',
-              value:
-                v.applies_to === 'ALL' ? 'All machines' : v.machines.map((m) => m.label).join(', '),
-            },
-            { label: 'Area', value: 'Computed by the server after saving' },
-          ]}
-        />
+        <>
+          {stale && (
+            <StaleVersionAlert
+              onReload={() => {
+                onReloadRequested?.();
+                onClose();
+              }}
+            />
+          )}
+          <KeyValueGrid
+            columns={2}
+            items={[
+              { label: 'Name', value: v.name },
+              { label: 'Kind', value: labelOf(GEOFENCE_KIND_OPTIONS, v.kind) },
+              {
+                label: 'Job site',
+                value:
+                  v.job_site_id === ''
+                    ? 'None'
+                    : site?.id === v.job_site_id
+                      ? jobSiteLabel(site)
+                      : v.job_site_id,
+              },
+              {
+                label: 'Shape',
+                value:
+                  v.shape === 'POLYGON'
+                    ? `Polygon · ${String(v.vertices.length)} vertices (closed ring)`
+                    : `Corridor · ${String(v.vertices.length)} points · ${v.corridor_width_m} m wide`,
+              },
+              {
+                label: 'Applies to',
+                value:
+                  v.applies_to === 'ALL'
+                    ? 'All machines'
+                    : v.machines.map((m) => m.label).join(', '),
+              },
+              { label: 'Area', value: 'Computed by the server after saving' },
+            ]}
+          />
+        </>
       )}
       onSubmit={async (values) => {
-        const body = toGeofencePayload(values);
-        const key = keyFor(body);
-        onSaved(
-          geofence === undefined
-            ? await geofenceService.create(body, key)
-            : await geofenceService.update(geofence.id, body, key),
-        );
+        if (geofence === undefined) {
+          const body = toGeofencePayload(values);
+          onSaved(await geofenceService.create(body, keyFor(body)));
+          return;
+        }
+        // Optimistic concurrency: send the version that was read.
+        const body = { ...toGeofencePayload(values), version: geofence.version };
+        onSaved(await guard(() => geofenceService.update(geofence.id, body, keyFor(body))));
       }}
     />
   );

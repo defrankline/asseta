@@ -26,6 +26,7 @@ export function makeTracker(overrides: Partial<TrackerDto> = {}): TrackerDto {
       { capability: 'IGNITION', declared: true, verified_at: null, last_observed_at: null },
     ],
     current_assignment: null,
+    version: 1,
     ...overrides,
   };
 }

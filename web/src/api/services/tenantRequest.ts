@@ -1,5 +1,5 @@
 import { apiClient, toListParams, type QueryParams } from '../client';
-import type { Page } from '../types';
+import type { LifecycleChangeIn, Page } from '../types';
 import { parseResponse } from '../validation';
 import { array, object, type Schema } from 'yup';
 import { int } from './schemaKit';
@@ -81,3 +81,19 @@ export async function tenantSend<T>(
 }
 
 export const seg = (value: string) => encodeURIComponent(value);
+
+/** `POST {url}` for a lifecycle action (deactivate / reactivate / close / reopen) with a reason. */
+export function tenantLifecycle<T>(
+  url: string,
+  body: LifecycleChangeIn,
+  schema: Schema<T>,
+  what: string,
+  idempotencyKey: string,
+): Promise<T> {
+  return tenantSend('post', url, body, schema, what, idempotencyKey);
+}
+
+/** `{ include_inactive: 'true' }` when asked for, else nothing (lists hide inactive by default). */
+export function inactiveParam(includeInactive: boolean | undefined): QueryParams {
+  return includeInactive === true ? { include_inactive: 'true' } : {};
+}

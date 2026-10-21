@@ -242,3 +242,24 @@ export type AssignableRoleDto = Schemas['AssignableRoleDto'];
 
 export type MemberDto = Schemas['MemberDto'];
 export type MemberRoleDto = Schemas['MemberRoleDto'];
+
+// ---- Record lifecycle (details, optimistic edit, deactivate / reactivate; never deleted) ----
+
+export type LifecycleChangeIn = Schemas['LifecycleChangeIn'];
+export type CustomerUpdateIn = Schemas['CustomerUpdateIn'];
+export type StaffUpdateIn = Schemas['StaffUpdateIn'];
+export type JobSiteUpdateIn = Schemas['JobSiteUpdateIn'];
+export type CategoryUpdateIn = Schemas['CategoryUpdateIn'];
+export type AreaUpdateIn = Schemas['AreaUpdateIn'];
+export type ExpenseCategoryDto = Schemas['ExpenseCategoryDto'];
+export type ExpenseCategoryIn = Schemas['ExpenseCategoryIn'];
+export type ExpenseCategoryUpdateIn = Schemas['ExpenseCategoryUpdateIn'];
+export type ContractUpdateIn = Schemas['ContractUpdateIn'];
+export type JobUpdateIn = Schemas['JobUpdateIn'];
+export type TrackerUpdateIn = Schemas['TrackerUpdateIn'];
+export type TrackerModelIn = Schemas['TrackerModelIn'];
+export type TrackerModelUpdateIn = Schemas['TrackerModelUpdateIn'];
+export type GatewayDto = Schemas['GatewayDto'];
+export type GatewayIn = Schemas['GatewayIn'];
+export type GatewayCreatedDto = Schemas['GatewayCreatedDto'];
+export type TenantUpdateIn = Schemas['TenantUpdateIn'];

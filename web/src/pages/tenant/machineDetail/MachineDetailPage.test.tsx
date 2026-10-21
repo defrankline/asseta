@@ -5,6 +5,7 @@ import type { staffService } from '../../../api/services/staffService';
 import type { MachineDto } from '../../../api/types';
 import { renderWithProviders } from '../../../test/renderWithProviders';
 import { MachineDetailPage } from './MachineDetailPage';
+import { ACTIVE_RECORD } from '../../../test/lifecycleFixtures';
 
 vi.mock('maplibre-gl', () => import('../../../test/maplibreMock'));
 
@@ -49,7 +50,12 @@ const MACHINE: MachineDto = {
 function setup() {
   mocks.get.mockResolvedValue(MACHINE);
   mocks.listCategories.mockResolvedValue([
-    { id: 'cccccccc-0000-4000-8000-000000000001', name: 'Excavators', description: null },
+    {
+      id: 'cccccccc-0000-4000-8000-000000000001',
+      name: 'Excavators',
+      description: null,
+      ...ACTIVE_RECORD,
+    },
   ]);
   mocks.listAreas.mockResolvedValue([]);
   mocks.listAssignments.mockResolvedValue([
@@ -71,7 +77,7 @@ function setup() {
         employee_code: null,
         phone: null,
         keycloak_subject: null,
-        is_active: true,
+        ...ACTIVE_RECORD,
       },
     ],
     total: 1,

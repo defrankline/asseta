@@ -8,6 +8,7 @@ import type {
   JobIn,
   JobSummaryDto,
   JobTransitionIn,
+  JobUpdateIn,
   Page,
 } from '../types';
 import { acknowledgementSchema, activitySchema, jobSchema, jobSummarySchema } from './jobSchemas';
@@ -83,5 +84,9 @@ export const jobService = {
       'acknowledgement',
       idempotencyKey,
     );
+  },
+  /** PUT /tenant/jobs/{id} (updateJob): DRAFT / PENDING_APPROVAL only; price is re-derived. */
+  update(jobId: string, body: JobUpdateIn, idempotencyKey: string): Promise<JobDto> {
+    return tenantSend('put', j(jobId), body, jobSchema, 'job', idempotencyKey);
   },
 };

@@ -1,48 +1,82 @@
 import Add from '@mui/icons-material/Add';
-import { Box, Button, Chip, Paper, Stack, Typography } from '@mui/material';
-import { useCallback, useMemo, useState } from 'react';
+import { Box, Button, Paper, Stack, Typography } from '@mui/material';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { CanMutate } from '../../../access/CanMutate';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import { useCanMutate } from '../../../access/useCanMutate';
 import { geofenceService } from '../../../api/services/geofenceService';
 import { machineService } from '../../../api/services/machineService';
 import type { GeofenceDto, JobSiteDto } from '../../../api/types';
-import type { DataColumn } from '../../../components/data/ServerDataTable';
-import { StaticTable } from '../../../components/data/StaticTable';
 import { AsyncContent } from '../../../components/feedback/AsyncContent';
 import { PageHeader } from '../../../components/feedback/PageHeader';
+import type { RowAction } from '../../../components/lifecycle/rowActions';
+import { standardRowActions } from '../../../components/lifecycle/rowActions';
+import { ShowInactiveToggle } from '../../../components/lifecycle/ShowInactiveToggle';
+import { useLifecycleDialog } from '../../../components/lifecycle/useLifecycleDialog';
 import { useAsyncResource } from '../../../hooks/useAsyncResource';
 import { useNotify } from '../../../notifications/useNotify';
 import { useSession } from '../../../session/useSession';
-import {
-  GEOFENCE_KIND_COLORS,
-  GEOFENCE_KIND_OPTIONS,
-  labelOf,
-  machineLabel,
-} from '../shared/display';
+import { machineLabel } from '../shared/display';
+import { jobSiteLabel } from '../shared/lookups';
 import { formatArea } from './geofenceForm';
+import { GeofenceDetailsDrawer } from './GeofenceDetailsDrawer';
 import { GeofenceDialog } from './GeofenceDialog';
+import {
+  GEOFENCE_DEACTIVATE_CONSEQUENCES,
+  GEOFENCE_ERROR_HINTS,
+  JOB_SITE_DEACTIVATE_CONSEQUENCES,
+  JOB_SITE_ERROR_HINTS,
+} from './geofenceLifecycle';
 import { GeofencesMap } from './GeofencesMap';
+import { GeofencesTable } from './GeofencesTable';
+import { JobSiteDetailsDrawer } from './JobSiteDetailsDrawer';
 import { JobSiteDialog } from './JobSiteDialog';
+import { JobSitesTable } from './JobSitesTable';
 
-type Editing = { kind: 'new' } | { kind: 'edit'; geofence: GeofenceDto } | null;
+type Editing =
+  | { kind: 'new' }
+  | { kind: 'edit'; geofence: GeofenceDto }
+  | { kind: 'new-site' }
+  | { kind: 'edit-site'; site: JobSiteDto }
+  | null;
+type Viewing = { kind: 'geofence'; id: string } | { kind: 'site'; id: string } | null;
 
 const NO_SITES: readonly JobSiteDto[] = [];
+const NO_GEOFENCES: readonly GeofenceDto[] = [];
 
-/** Job sites and geofences with a map preview; draw / edit geofences. */
+function SectionTitle({ title, toggle }: { title: string; toggle: ReactNode }) {
+  return (
+    <Box className="mb-2 flex flex-wrap items-center justify-between gap-2">
+      <Typography variant="subtitle1" component="h2">
+        {title}
+      </Typography>
+      {toggle}
+    </Box>
+  );
+}
+
+/** Job sites and geofences with a map preview: view, draw / edit, deactivate / reactivate. */
 export function GeofencesPage() {
   const notify = useNotify();
   const { hasPermission } = useSession();
   const canWrite = useCanMutate(PERMISSIONS.tenantGeofenceWrite);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editing, setEditing] = useState<Editing>(null);
-  const [creatingSite, setCreatingSite] = useState(false);
+  const [viewing, setViewing] = useState<Viewing>(null);
   const [lastSaved, setLastSaved] = useState<GeofenceDto | null>(null);
+  const [inactiveFences, setInactiveFences] = useState(false);
+  const [inactiveSites, setInactiveSites] = useState(false);
 
-  const loadGeofences = useCallback((signal: AbortSignal) => geofenceService.list(signal), []);
-  const geofences = useAsyncResource(loadGeofences);
-  const loadSites = useCallback((signal: AbortSignal) => geofenceService.listJobSites(signal), []);
-  const sites = useAsyncResource(loadSites);
+  const loadGeofences = useCallback(
+    (signal: AbortSignal) => geofenceService.list(signal, inactiveFences),
+    [inactiveFences],
+  );
+  const geofences = useAsyncResource(loadGeofences, [inactiveFences]);
+  const loadSites = useCallback(
+    (signal: AbortSignal) => geofenceService.listJobSites(signal, undefined, inactiveSites),
+    [inactiveSites],
+  );
+  const sites = useAsyncResource(loadSites, [inactiveSites]);
   // Machine names for "applies to" (best effort; needs tenant.machine.read).
   const canMachines = hasPermission(PERMISSIONS.tenantMachineRead);
   const loadMachines = useCallback(
@@ -55,88 +89,110 @@ export function GeofencesPage() {
     [machines.data],
   );
   const siteList = sites.data ?? NO_SITES;
+  const fenceList = geofences.data ?? NO_GEOFENCES;
+  const siteOf = (id: string | null) =>
+    (id === null ? undefined : siteList.find((x) => x.id === id)) ?? null;
   const siteName = (id: string | null) => {
-    const s = id === null ? undefined : siteList.find((x) => x.id === id);
-    return s === undefined ? '—' : `${s.code} · ${s.name}`;
+    const s = siteOf(id);
+    return s === null ? '—' : jobSiteLabel(s);
   };
 
-  const geofenceColumns: DataColumn<GeofenceDto>[] = [
-    {
-      id: 'name',
-      header: 'Name',
-      render: (g) => (
-        <button
-          type="button"
-          className="cursor-pointer border-0 bg-transparent p-0 text-left font-semibold text-inherit underline"
-          onClick={() => {
-            setSelectedId(g.id);
-          }}
-        >
-          {g.name}
-        </button>
-      ),
+  const fenceLifecycle = useLifecycleDialog<GeofenceDto>({
+    labelOf: (g) => g.name,
+    noun: 'geofence',
+    errorHints: GEOFENCE_ERROR_HINTS,
+    consequences: GEOFENCE_DEACTIVATE_CONSEQUENCES,
+    deactivate: (g, body, key) =>
+      geofenceService.deactivate(g.id, { ...body, version: g.version }, key),
+    reactivate: (g, body, key) =>
+      geofenceService.reactivate(g.id, { ...body, version: g.version }, key),
+    onDone: (g, kind) => {
+      notify.success(
+        `Geofence ${g.name} ${kind === 'deactivate' ? 'deactivated' : 'reactivated'}.`,
+      );
+      geofences.reload();
     },
-    {
-      id: 'kind',
-      header: 'Kind',
-      render: (g) => (
-        <Chip
-          size="small"
-          variant="outlined"
-          label={labelOf(GEOFENCE_KIND_OPTIONS, g.kind)}
-          sx={{ borderColor: GEOFENCE_KIND_COLORS[g.kind], color: GEOFENCE_KIND_COLORS[g.kind] }}
-        />
-      ),
+    onReload: geofences.reload,
+  });
+  const siteLifecycle = useLifecycleDialog<JobSiteDto>({
+    labelOf: jobSiteLabel,
+    noun: 'job site',
+    errorHints: JOB_SITE_ERROR_HINTS,
+    consequences: JOB_SITE_DEACTIVATE_CONSEQUENCES,
+    deactivate: (s, body, key) =>
+      geofenceService.deactivateJobSite(s.id, { ...body, version: s.version }, key),
+    reactivate: (s, body, key) =>
+      geofenceService.reactivateJobSite(s.id, { ...body, version: s.version }, key),
+    onDone: (s, kind) => {
+      notify.success(
+        `Job site ${s.name} ${kind === 'deactivate' ? 'deactivated' : 'reactivated'}.`,
+      );
+      sites.reload();
     },
-    {
-      id: 'shape',
-      header: 'Shape',
-      render: (g) =>
-        g.shape === 'CORRIDOR' ? `Corridor · ${String(g.corridor_width_m ?? '?')} m` : 'Polygon',
-    },
-    { id: 'area', header: 'Area', align: 'right', render: (g) => formatArea(g.area_m2) },
-    { id: 'site', header: 'Job site', render: (g) => siteName(g.job_site_id) },
-    {
-      id: 'machines',
-      header: 'Applies to',
-      render: (g) =>
-        g.machine_ids.length === 0
-          ? 'All machines'
-          : g.machine_ids.map((id) => machineLabels.get(id) ?? id.slice(0, 8)).join(', '),
-    },
-    { id: 'active', header: 'Active', render: (g) => (g.is_active ? 'Yes' : 'No') },
-    ...(canWrite
-      ? [
-          {
-            id: 'actions',
-            header: '',
-            align: 'right' as const,
-            render: (g: GeofenceDto) => (
-              <Button
-                size="small"
-                onClick={() => {
-                  setEditing({ kind: 'edit', geofence: g });
-                }}
-              >
-                Edit
-              </Button>
-            ),
-          },
-        ]
-      : []),
-  ];
+    onReload: sites.reload,
+  });
 
-  const siteColumns: DataColumn<JobSiteDto>[] = [
-    { id: 'code', header: 'Code', render: (s) => s.code },
-    { id: 'name', header: 'Name', render: (s) => s.name },
-    { id: 'address', header: 'Address', render: (s) => s.address ?? '—' },
-    {
-      id: 'center',
-      header: 'Center (lat, lon)',
-      render: (s) => `${s.center.coordinates[1].toFixed(5)}, ${s.center.coordinates[0].toFixed(5)}`,
-    },
-    { id: 'active', header: 'Active', render: (s) => (s.is_active ? 'Yes' : 'No') },
-  ];
+  const geofenceActions = (g: GeofenceDto, inDrawer: boolean): RowAction[] => {
+    const [view, ...rest] = standardRowActions({
+      active: g.is_active,
+      canEdit: canWrite,
+      canChangeState: canWrite,
+      onView: () => {
+        setViewing({ kind: 'geofence', id: g.id });
+      },
+      onEdit: () => {
+        setViewing(null);
+        setEditing({ kind: 'edit', geofence: g });
+      },
+      onDeactivate: () => {
+        fenceLifecycle.open('deactivate', g);
+      },
+      onReactivate: () => {
+        fenceLifecycle.open('reactivate', g);
+      },
+    });
+    const showOnMap: RowAction = {
+      key: 'map',
+      label: 'Show on map',
+      onClick: () => {
+        setSelectedId(g.id);
+        if (inDrawer) setViewing(null);
+      },
+    };
+    return [...(view !== undefined && !inDrawer ? [view] : []), showOnMap, ...rest];
+  };
+  const siteActions = (s: JobSiteDto, inDrawer: boolean): RowAction[] =>
+    standardRowActions({
+      active: s.is_active,
+      canEdit: canWrite,
+      canChangeState: canWrite,
+      ...(inDrawer
+        ? {}
+        : {
+            onView: () => {
+              setViewing({ kind: 'site', id: s.id });
+            },
+          }),
+      onEdit: () => {
+        setEditing({ kind: 'edit-site', site: s });
+      },
+      onDeactivate: () => {
+        siteLifecycle.open('deactivate', s);
+      },
+      onReactivate: () => {
+        siteLifecycle.open('reactivate', s);
+      },
+    });
+  const viewedGeofence =
+    viewing?.kind === 'geofence' ? (fenceList.find((g) => g.id === viewing.id) ?? null) : null;
+  const viewedSite =
+    viewing?.kind === 'site' ? (siteList.find((s) => s.id === viewing.id) ?? null) : null;
+  const closeEditor = () => {
+    setEditing(null);
+  };
+  const closeViewer = () => {
+    setViewing(null);
+  };
 
   return (
     <>
@@ -147,7 +203,7 @@ export function GeofencesPage() {
           <CanMutate permission={PERMISSIONS.tenantGeofenceWrite}>
             <Button
               onClick={() => {
-                setCreatingSite(true);
+                setEditing({ kind: 'new-site' });
               }}
             >
               New job site
@@ -185,9 +241,16 @@ export function GeofencesPage() {
             )}
           </Paper>
           <Paper variant="outlined" className="p-3">
-            <Typography variant="subtitle1" component="h2" className="mb-2">
-              Geofences
-            </Typography>
+            <SectionTitle
+              title="Geofences"
+              toggle={
+                <ShowInactiveToggle
+                  checked={inactiveFences}
+                  onChange={setInactiveFences}
+                  label="Show inactive geofences"
+                />
+              }
+            />
             <AsyncContent
               resource={geofences}
               isEmpty={(g) => g.length === 0}
@@ -195,44 +258,44 @@ export function GeofencesPage() {
               emptyDescription="Draw allowed areas, restricted areas or corridors to get location alerts."
             >
               {(rows) => (
-                <StaticTable
-                  ariaLabel="Geofences"
-                  columns={geofenceColumns}
+                <GeofencesTable
                   rows={rows}
-                  getRowId={(g) => g.id}
+                  siteName={siteName}
+                  machineLabels={machineLabels}
+                  actionsFor={(g) => geofenceActions(g, false)}
+                  onSelect={setSelectedId}
                 />
               )}
             </AsyncContent>
           </Paper>
         </Box>
         <Paper variant="outlined" className="p-3">
-          <Typography variant="subtitle1" component="h2" className="mb-2">
-            Job sites
-          </Typography>
+          <SectionTitle
+            title="Job sites"
+            toggle={
+              <ShowInactiveToggle
+                checked={inactiveSites}
+                onChange={setInactiveSites}
+                label="Show inactive job sites"
+              />
+            }
+          />
           <AsyncContent
             resource={sites}
             isEmpty={(s) => s.length === 0}
             emptyTitle="No job sites yet"
           >
-            {(rows) => (
-              <StaticTable
-                ariaLabel="Job sites"
-                columns={siteColumns}
-                rows={rows}
-                getRowId={(s) => s.id}
-              />
-            )}
+            {(rows) => <JobSitesTable rows={rows} actionsFor={(s) => siteActions(s, false)} />}
           </AsyncContent>
         </Paper>
       </Stack>
-      {editing !== null && (
+      {(editing?.kind === 'new' || editing?.kind === 'edit') && (
         <GeofenceDialog
           {...(editing.kind === 'edit' ? { geofence: editing.geofence } : {})}
           sites={siteList}
           machineLabels={machineLabels}
-          onClose={() => {
-            setEditing(null);
-          }}
+          onClose={closeEditor}
+          onReloadRequested={geofences.reload}
           onSaved={(g) => {
             notify.success(`Geofence ${g.name} saved · area ${formatArea(g.area_m2)}.`);
             setLastSaved(g);
@@ -241,17 +304,41 @@ export function GeofencesPage() {
           }}
         />
       )}
-      {creatingSite && (
+      {(editing?.kind === 'new-site' || editing?.kind === 'edit-site') && (
         <JobSiteDialog
-          onClose={() => {
-            setCreatingSite(false);
-          }}
-          onCreated={(s) => {
-            notify.success(`Job site ${s.name} created.`);
+          {...(editing.kind === 'edit-site' ? { site: editing.site } : {})}
+          onClose={closeEditor}
+          onReloadRequested={sites.reload}
+          onSaved={(s) => {
+            notify.success(
+              `Job site ${s.name} ${editing.kind === 'edit-site' ? 'updated' : 'created'}.`,
+            );
             sites.reload();
           }}
         />
       )}
+      {viewedGeofence !== null && (
+        <GeofenceDetailsDrawer
+          geofence={viewedGeofence}
+          site={siteOf(viewedGeofence.job_site_id)}
+          machineLabels={machineLabels}
+          actions={geofenceActions(viewedGeofence, true)}
+          onClose={closeViewer}
+        />
+      )}
+      {viewedSite !== null && (
+        <JobSiteDetailsDrawer
+          site={viewedSite}
+          geofences={fenceList}
+          actions={siteActions(viewedSite, true)}
+          onOpenGeofence={(g) => {
+            setViewing({ kind: 'geofence', id: g.id });
+          }}
+          onClose={closeViewer}
+        />
+      )}
+      {fenceLifecycle.dialog}
+      {siteLifecycle.dialog}
     </>
   );
 }

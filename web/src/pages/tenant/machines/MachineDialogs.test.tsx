@@ -7,6 +7,7 @@ import { renderWithProviders } from '../../../test/renderWithProviders';
 import { CreateMachineDialog } from './CreateMachineDialog';
 import { EditMachineDialog, STALE_VERSION_MESSAGE } from './EditMachineDialog';
 import { makeMachine } from './machineFixtures';
+import { ACTIVE_RECORD } from '../../../test/lifecycleFixtures';
 
 const mocks = vi.hoisted(() => ({
   listCategories: vi.fn<typeof machineService.listCategories>(),
@@ -19,7 +20,9 @@ vi.mock('../../../api/services/machineService', () => ({ machineService: mocks }
 const WRITE = ['tenant.machine.read', 'tenant.machine.write'];
 
 beforeEach(() => {
-  mocks.listCategories.mockResolvedValue([{ id: 'c1', name: 'Excavators', description: null }]);
+  mocks.listCategories.mockResolvedValue([
+    { id: 'c1', name: 'Excavators', description: null, ...ACTIVE_RECORD },
+  ]);
   mocks.listAreas.mockResolvedValue([]);
 });
 

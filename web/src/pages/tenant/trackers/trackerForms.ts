@@ -1,6 +1,5 @@
-import { boolean, mixed, object, string } from 'yup';
+import { boolean, object, string } from 'yup';
 import type { ProvisioningState } from '../../../api/types';
-import { labelOf, TRACKER_STATE_OPTIONS, type Option } from '../shared/display';
 
 /** Allowed provisioning transitions (mirrors the backend; the API remains authoritative). */
 export const STATE_TRANSITIONS: Readonly<Record<ProvisioningState, readonly ProvisioningState[]>> =
@@ -10,29 +9,6 @@ export const STATE_TRANSITIONS: Readonly<Record<ProvisioningState, readonly Prov
     SUSPENDED: ['REGISTERED', 'RETIRED'],
     RETIRED: [],
   };
-
-const ACTION_LABELS: Readonly<Partial<Record<ProvisioningState, string>>> = {
-  SUSPENDED: 'Suspend',
-  RETIRED: 'Retire (permanent)',
-  REGISTERED: 'Reactivate',
-};
-
-function targetOptions(current: ProvisioningState): readonly Option<ProvisioningState>[] {
-  return STATE_TRANSITIONS[current].map((s) => ({
-    value: s,
-    label: `${ACTION_LABELS[s] ?? labelOf(TRACKER_STATE_OPTIONS, s)} → ${labelOf(TRACKER_STATE_OPTIONS, s)}`,
-  }));
-}
-
-/** Static select options per current state (the allowed transitions). */
-export const STATE_TARGET_OPTIONS: Readonly<
-  Record<ProvisioningState, readonly Option<ProvisioningState>[]>
-> = {
-  REGISTERED: targetOptions('REGISTERED'),
-  VERIFIED_REPORTING: targetOptions('VERIFIED_REPORTING'),
-  SUSPENDED: targetOptions('SUSPENDED'),
-  RETIRED: targetOptions('RETIRED'),
-};
 
 export const reasonSchema = (required: boolean) => {
   const base = string().trim().max(500, 'Reason must be at most 500 characters');
@@ -62,18 +38,6 @@ export const assignSchema = object({
   effective_from: instantSchema('Effective from'),
   replace_existing_primary: boolean().required(),
   reason: reasonSchema(false),
-});
-
-export interface StateValues {
-  state: ProvisioningState | '';
-  reason: string;
-}
-
-export const stateSchema = object({
-  state: mixed<ProvisioningState | ''>()
-    .required('Choose a new state')
-    .test('chosen', 'Choose a new state', (v) => v !== ''),
-  reason: reasonSchema(true),
 });
 
 /** Trimmed text or null (optional API strings). */

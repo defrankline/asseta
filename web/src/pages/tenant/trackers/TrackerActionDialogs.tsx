@@ -1,19 +1,12 @@
 import { object } from 'yup';
 import { useState } from 'react';
 import { trackerService } from '../../../api/services/trackerService';
-import type { ProvisioningState, TrackerDto } from '../../../api/types';
+import type { TrackerDto } from '../../../api/types';
 import { FormDialog } from '../../../components/forms/FormDialog';
-import { FormikSelectField } from '../../../components/forms/FormikSelectField';
 import { FormikTextField } from '../../../components/forms/FormikTextField';
 import { useIdempotencyKey } from '../../../hooks/useIdempotencyKey';
 import { FormikDateTimeField } from './trackerFields';
-import {
-  instantSchema,
-  reasonSchema,
-  stateSchema,
-  STATE_TARGET_OPTIONS,
-  type StateValues,
-} from './trackerForms';
+import { instantSchema, reasonSchema } from './trackerForms';
 
 interface ActionProps {
   tracker: TrackerDto;
@@ -57,39 +50,6 @@ export function UnassignTrackerDialog({
       }}
     >
       <FormikDateTimeField name="effective_to" label="Effective to" timeZone={timeZone} required />
-      <FormikTextField name="reason" label="Reason" required multiline minRows={2} />
-    </FormDialog>
-  );
-}
-
-/** Suspend / retire / reactivate. Mount only while open. */
-export function TrackerStateDialog({ tracker, onClose, onDone }: ActionProps) {
-  const keyFor = useIdempotencyKey();
-  const first = STATE_TARGET_OPTIONS[tracker.provisioning_state][0];
-  const [initialValues] = useState<StateValues>(() => ({
-    state: first?.value ?? '',
-    reason: '',
-  }));
-  return (
-    <FormDialog<StateValues>
-      open
-      title={`Change state · ${tracker.label}`}
-      initialValues={initialValues}
-      validationSchema={stateSchema}
-      submitLabel="Change state"
-      onClose={onClose}
-      onSubmit={async (v) => {
-        if (v.state === '') return;
-        const body = { state: v.state satisfies ProvisioningState, reason: v.reason.trim() };
-        onDone(await trackerService.changeState(tracker.id, body, keyFor(body)));
-      }}
-    >
-      <FormikSelectField
-        name="state"
-        label="New state"
-        options={STATE_TARGET_OPTIONS[tracker.provisioning_state]}
-        required
-      />
       <FormikTextField name="reason" label="Reason" required multiline minRows={2} />
     </FormDialog>
   );

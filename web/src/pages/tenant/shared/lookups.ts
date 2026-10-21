@@ -17,18 +17,18 @@ export const categoryLabel = (c: CategoryDto): string => c.name;
 export const searchCategories = (q: string, signal: AbortSignal) =>
   machineService.listCategories(signal, q);
 export const resolveCategory = async (id: string, signal: AbortSignal) =>
-  (await machineService.listCategories(signal)).find((c) => c.id === id) ?? null;
+  (await machineService.listCategories(signal, undefined, true)).find((c) => c.id === id) ?? null;
 
 export const areaLabel = (a: AreaDto): string => `${a.code} · ${a.name}`;
 export const searchAreas = (q: string, signal: AbortSignal) => machineService.listAreas(signal, q);
 export const resolveArea = async (id: string, signal: AbortSignal) =>
-  (await machineService.listAreas(signal)).find((a) => a.id === id) ?? null;
+  (await machineService.listAreas(signal, undefined, true)).find((a) => a.id === id) ?? null;
 
 export const jobSiteLabel = (s: JobSiteDto): string => `${s.code} · ${s.name}`;
 export const searchJobSites = (q: string, signal: AbortSignal) =>
   geofenceService.listJobSites(signal, q);
 export const resolveJobSite = async (id: string, signal: AbortSignal) =>
-  (await geofenceService.listJobSites(signal)).find((s) => s.id === id) ?? null;
+  (await geofenceService.listJobSites(signal, undefined, true)).find((s) => s.id === id) ?? null;
 
 export const trackerModelLabel = (m: TrackerModelDto): string => `${m.manufacturer} ${m.model}`;
 export const searchTrackerModels = (q: string, signal: AbortSignal) =>

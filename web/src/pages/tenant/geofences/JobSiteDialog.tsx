@@ -4,8 +4,10 @@ import type { AddLayerObject } from 'maplibre-gl';
 import { useState } from 'react';
 import { mixed, object, string } from 'yup';
 import { geofenceService } from '../../../api/services/geofenceService';
-import type { JobSiteDto, JobSiteIn } from '../../../api/types';
+import type { JobSiteDto, JobSiteIn, JobSiteUpdateIn } from '../../../api/types';
 import { KeyValueGrid } from '../../../components/display/KeyValueGrid';
+import { StaleVersionAlert } from '../../../components/lifecycle/StaleVersionAlert';
+import { useStaleVersion } from '../../../components/lifecycle/useStaleVersion';
 import { FormikTextField } from '../../../components/forms/FormikTextField';
 import { StepperFormDialog, type FormStep } from '../../../components/forms/StepperFormDialog';
 import { GeoJsonLayer } from '../../../components/map/GeoJsonLayer';
@@ -77,21 +79,30 @@ function LocationMap({ center, onPick }: { center: LonLat | null; onPick: (p: Lo
 const fmt = (c: LonLat | null) =>
   c === null ? 'Not set' : `${c[1].toFixed(6)}, ${c[0].toFixed(6)} (lat, lon)`;
 
-/** Details → Location (map click) → Review. Mount only while open. */
-export function JobSiteDialog({
-  onClose,
-  onCreated,
-}: {
+interface JobSiteDialogProps {
+  /** Existing site to edit (PUT with its `version`); omit to create. */
+  site?: JobSiteDto;
   onClose: () => void;
-  onCreated: (site: JobSiteDto) => void;
-}) {
+  onSaved: (site: JobSiteDto) => void;
+  /** Edit only: the server reported STALE_VERSION and the user chose Reload. */
+  onReloadRequested?: () => void;
+}
+
+function valuesFrom(site: JobSiteDto | undefined): JobSiteValues {
+  if (site === undefined) return { code: '', name: '', address: '', center: null };
+  return {
+    code: site.code,
+    name: site.name,
+    address: site.address ?? '',
+    center: [site.center.coordinates[0], site.center.coordinates[1]],
+  };
+}
+
+/** Details → Location (map click) → Review; create or edit. Mount only while open. */
+export function JobSiteDialog({ site, onClose, onSaved, onReloadRequested }: JobSiteDialogProps) {
   const keyFor = useIdempotencyKey();
-  const [initialValues] = useState<JobSiteValues>({
-    code: '',
-    name: '',
-    address: '',
-    center: null,
-  });
+  const { stale, guard } = useStaleVersion();
+  const [initialValues] = useState<JobSiteValues>(() => valuesFrom(site));
   const steps: FormStep<JobSiteValues>[] = [
     {
       label: 'Details',
@@ -132,22 +143,32 @@ export function JobSiteDialog({
   return (
     <StepperFormDialog<JobSiteValues>
       open
-      title="New job site"
+      title={site === undefined ? 'New job site' : `Edit job site · ${site.code}`}
       steps={steps}
       initialValues={initialValues}
       validationSchema={schema}
-      submitLabel="Create job site"
+      submitLabel={site === undefined ? 'Create job site' : 'Save changes'}
       onClose={onClose}
       renderReview={(v) => (
-        <KeyValueGrid
-          columns={2}
-          items={[
-            { label: 'Code', value: v.code },
-            { label: 'Name', value: v.name },
-            { label: 'Address', value: v.address === '' ? '—' : v.address },
-            { label: 'Center', value: fmt(v.center) },
-          ]}
-        />
+        <>
+          {stale && (
+            <StaleVersionAlert
+              onReload={() => {
+                onReloadRequested?.();
+                onClose();
+              }}
+            />
+          )}
+          <KeyValueGrid
+            columns={2}
+            items={[
+              { label: 'Code', value: v.code },
+              { label: 'Name', value: v.name },
+              { label: 'Address', value: v.address === '' ? '—' : v.address },
+              { label: 'Center', value: fmt(v.center) },
+            ]}
+          />
+        </>
       )}
       onSubmit={async (v) => {
         if (v.center === null) return;
@@ -158,7 +179,12 @@ export function JobSiteDialog({
           address: address === '' ? null : address,
           center: { type: 'Point', coordinates: [v.center[0], v.center[1]] },
         };
-        onCreated(await geofenceService.createJobSite(body, keyFor(body)));
+        if (site === undefined) {
+          onSaved(await geofenceService.createJobSite(body, keyFor(body)));
+          return;
+        }
+        const update: JobSiteUpdateIn = { ...body, version: site.version };
+        onSaved(await guard(() => geofenceService.updateJobSite(site.id, update, keyFor(update))));
       }}
     />
   );

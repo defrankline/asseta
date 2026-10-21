@@ -33,6 +33,7 @@ const result: OnboardResultDto = {
     access_state_reason: null,
     verification_status: 'UNVERIFIED',
     created_at: '2026-10-21T08:00:00Z',
+    version: 1,
   },
 };
 

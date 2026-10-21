@@ -1,5 +1,5 @@
 import { object, string, type ObjectSchema } from 'yup';
-import type { CustomerIn } from '../../../api/types';
+import type { CustomerDto, CustomerIn, CustomerUpdateIn } from '../../../api/types';
 import { optionalText, orNull } from '../shared/formRules';
 
 /** Field names equal API names so server `details[].field` errors land on the right input. */
@@ -58,4 +58,21 @@ export function toCustomerPayload(v: CustomerFormValues): CustomerIn {
     contact_phone: orNull(v.contact_phone),
     contact_email: orNull(v.contact_email),
   };
+}
+
+export function valuesFromCustomer(c: CustomerDto): CustomerFormValues {
+  return {
+    code: c.code,
+    name: c.name,
+    tax_id: c.tax_id ?? '',
+    payment_terms_days: String(c.payment_terms_days),
+    contact_name: c.contact_name ?? '',
+    contact_phone: c.contact_phone ?? '',
+    contact_email: c.contact_email ?? '',
+  };
+}
+
+/** PUT body: every editable field plus the `version` that was read. */
+export function toCustomerUpdatePayload(v: CustomerFormValues, version: number): CustomerUpdateIn {
+  return { ...toCustomerPayload(v), version };
 }

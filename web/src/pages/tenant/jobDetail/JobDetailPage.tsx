@@ -1,6 +1,8 @@
 import ArrowBack from '@mui/icons-material/ArrowBack';
+import Edit from '@mui/icons-material/Edit';
 import { Box, Button, Paper, Stack, Tab, Tabs } from '@mui/material';
 import { useCallback, useState } from 'react';
+import { CanMutate } from '../../../access/CanMutate';
 import { Link as RouterLink, useParams } from 'react-router';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import { jobService } from '../../../api/services/jobService';
@@ -16,6 +18,8 @@ import { useSession } from '../../../session/useSession';
 import { labelOf, machineLabel } from '../shared/display';
 import { JOB_STATUS_OPTIONS } from '../shared/jobDisplay';
 import { useJobSites } from '../shared/useJobSites';
+import { EditJobDialog } from '../jobs/EditJobDialog';
+import { EDITABLE_JOB_STATUSES } from '../jobs/jobForm';
 import { AcknowledgementTab } from './AcknowledgementTab';
 import { CapturesTab } from './CapturesTab';
 import { JobActions } from './JobActions';
@@ -115,6 +119,7 @@ export function JobDetailPage() {
   );
   const resource = useAsyncResource(load);
   const job = resource.data?.summary.job ?? null;
+  const [editing, setEditing] = useState(false);
   return (
     <>
       <PageHeader
@@ -125,6 +130,19 @@ export function JobDetailPage() {
             <Button component={RouterLink} to={ROUTES.tenantJobs} startIcon={<ArrowBack />}>
               All jobs
             </Button>
+            {job !== null && EDITABLE_JOB_STATUSES.includes(job.status) && (
+              <CanMutate permission={PERMISSIONS.tenantJobWrite}>
+                <Button
+                  variant="outlined"
+                  startIcon={<Edit />}
+                  onClick={() => {
+                    setEditing(true);
+                  }}
+                >
+                  Edit
+                </Button>
+              </CanMutate>
+            )}
             {job !== null && (
               <JobActions
                 job={job}
@@ -162,6 +180,20 @@ export function JobDetailPage() {
           </Stack>
         )}
       </AsyncContent>
+      {editing && job !== null && (
+        <EditJobDialog
+          job={job}
+          timeZone={timeZone}
+          onClose={() => {
+            setEditing(false);
+          }}
+          onReloadRequested={resource.reload}
+          onSaved={(j) => {
+            notify.success(`Job ${j.job_number} updated.`);
+            resource.reload();
+          }}
+        />
+      )}
     </>
   );
 }

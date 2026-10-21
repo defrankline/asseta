@@ -91,6 +91,7 @@ export const tenantSchema: Schema<TenantDto> = object({
   access_state_reason: nullableText(),
   verification_status: oneOf(VERIFICATION_STATUSES),
   created_at: string().required(),
+  version: int(),
 });
 
 export const onboardResultSchema: Schema<OnboardResultDto> = object({

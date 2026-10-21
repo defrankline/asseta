@@ -6,6 +6,7 @@ import type {
   SubscriptionDto,
   TenantDto,
   TenantOnboardIn,
+  TenantUpdateIn,
   VerificationIn,
 } from '../types';
 import { parseResponse } from '../validation';
@@ -42,6 +43,17 @@ export const tenantService = {
   async onboard(body: TenantOnboardIn, idempotencyKey: string): Promise<OnboardResultDto> {
     const data = await apiClient.post<unknown>(base, body, { idempotencyKey });
     return parseResponse(onboardResultSchema, data, 'onboarding result');
+  },
+
+  /**
+   * PUT /platform/tenants/{tenant_id} (updateTenant): company details with the `version` read.
+   * Registration number is fixed once VERIFIED; CLOSED tenants are read-only.
+   */
+  async update(tenantId: string, body: TenantUpdateIn, idempotencyKey: string): Promise<TenantDto> {
+    const data = await apiClient.put<unknown>(`${base}/${encodeURIComponent(tenantId)}`, body, {
+      idempotencyKey,
+    });
+    return parseResponse(tenantSchema, data, 'tenant');
   },
 
   /** POST /platform/tenants/{tenant_id}/verification (verifyTenant). */

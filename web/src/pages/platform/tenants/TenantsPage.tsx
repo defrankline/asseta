@@ -10,10 +10,14 @@ import { ServerDataTable, type DataColumn } from '../../../components/data/Serve
 import type { ServerQuery } from '../../../components/data/useServerPage';
 import { StatusChip } from '../../../components/display/StatusChip';
 import { PageHeader } from '../../../components/feedback/PageHeader';
+import { RowActionsMenu } from '../../../components/lifecycle/RowActionsMenu';
+import { useSession } from '../../../session/useSession';
 import { tenantDetailPath } from '../../../navigation/routes';
 import { useNotify } from '../../../notifications/useNotify';
 import { formatInstant } from '../../../utils/dates';
 import { ACCESS_TONES, TENANT_STATUS_TONES, VERIFICATION_TONES } from '../shared/billingDisplay';
+import { EditTenantDialog } from '../tenantDetail/EditTenantDialog';
+import { canEditTenant } from '../tenantDetail/tenantEditForm';
 import { OnboardTenantDialog } from './OnboardTenantDialog';
 import { TemporaryPasswordDialog } from './TemporaryPasswordDialog';
 
@@ -60,6 +64,42 @@ export function TenantsPage() {
   const [onboarding, setOnboarding] = useState(false);
   const [result, setResult] = useState<OnboardResultDto | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [editing, setEditing] = useState<TenantDto | null>(null);
+  const { hasPermission } = useSession();
+  const canUpdate = hasPermission(PERMISSIONS.platformTenantUpdate);
+  const refresh = () => {
+    setReloadKey((k) => k + 1);
+  };
+  const tableColumns: DataColumn<TenantDto>[] = [
+    ...columns,
+    {
+      id: 'actions',
+      header: '',
+      align: 'right',
+      render: (t) => (
+        <RowActionsMenu
+          label={t.display_name}
+          actions={[
+            {
+              key: 'view',
+              label: 'View details',
+              onClick: () => {
+                void navigate(tenantDetailPath(t.id));
+              },
+            },
+            {
+              key: 'edit',
+              label: 'Edit company',
+              hidden: !canUpdate || !canEditTenant(t),
+              onClick: () => {
+                setEditing(t);
+              },
+            },
+          ]}
+        />
+      ),
+    },
+  ];
 
   const fetchPage = useCallback(
     (q: ServerQuery, signal: AbortSignal) =>
@@ -95,13 +135,14 @@ export function TenantsPage() {
         }
       />
       <ServerDataTable<TenantDto>
-        columns={columns}
+        columns={tableColumns}
         fetchPage={fetchPage}
         getRowId={(t) => t.id}
         initialSort="-created_at"
         searchPlaceholder="Search tenants"
         emptyTitle="No tenants yet"
         reloadKey={reloadKey}
+        isRowMuted={(t) => t.status === 'CLOSED'}
         onRowClick={(t) => {
           void navigate(tenantDetailPath(t.id));
         }}
@@ -116,6 +157,19 @@ export function TenantsPage() {
             setReloadKey((k) => k + 1);
             notify.success(`Tenant ${r.tenant.display_name} onboarded.`);
           }}
+        />
+      )}
+      {editing !== null && (
+        <EditTenantDialog
+          tenant={editing}
+          onClose={() => {
+            setEditing(null);
+          }}
+          onSaved={(t) => {
+            notify.success(`${t.display_name} updated.`);
+            refresh();
+          }}
+          onReload={refresh}
         />
       )}
       {result !== null && (

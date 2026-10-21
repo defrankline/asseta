@@ -7,6 +7,7 @@ import type {
   TrackerIn,
   TrackerModelDto,
   TrackerStateIn,
+  TrackerUpdateIn,
   UnassignTrackerIn,
 } from '../types';
 import {
@@ -30,7 +31,7 @@ const ingestionPageSchema = tenantPageSchema(ingestionEventSchema);
 const t = (id: string) => `/tenant/trackers/${seg(id)}`;
 
 export const trackerService = {
-  /** GET /tenant/trackers (listTrackers). Filter: `state`. */
+  /** GET /tenant/trackers (listTrackers). Filters: `state`, `include_inactive` (RETIRED hidden by default). */
   list(query: TenantListQuery, signal?: AbortSignal): Promise<Page<TrackerDto>> {
     return tenantPage('/tenant/trackers', trackerPageSchema, query, 'tracker page', signal);
   },
@@ -105,5 +106,9 @@ export const trackerService = {
       'ingestion events',
       signal,
     );
+  },
+  /** PUT /tenant/trackers/{id} (updateTracker): label, SIM, carrier; RETIRED is read-only. */
+  update(trackerId: string, body: TrackerUpdateIn, idempotencyKey: string): Promise<TrackerDto> {
+    return tenantSend('put', t(trackerId), body, trackerSchema, 'tracker', idempotencyKey);
   },
 };

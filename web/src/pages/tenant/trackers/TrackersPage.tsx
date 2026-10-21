@@ -1,6 +1,7 @@
 import Add from '@mui/icons-material/Add';
 import { Box, Button, MenuItem, Paper, Tab, Tabs, TextField } from '@mui/material';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import { CanMutate } from '../../../access/CanMutate';
 import { trackerService } from '../../../api/services/trackerService';
@@ -10,25 +11,36 @@ import type { ServerQuery } from '../../../components/data/useServerPage';
 import { AgeText } from '../../../components/display/AgeText';
 import { StatusChip } from '../../../components/display/StatusChip';
 import { PageHeader } from '../../../components/feedback/PageHeader';
+import { RowActionsMenu } from '../../../components/lifecycle/RowActionsMenu';
+import { ShowInactiveToggle } from '../../../components/lifecycle/ShowInactiveToggle';
+import { inactiveFilter } from '../../../api/lifecycle';
 import { useDisplayTimeZone } from '../../../hooks/useDisplayTimeZone';
 import { useNow } from '../../../hooks/useNow';
+import { trackerDetailPath } from '../../../navigation/routes';
 import { useNotify } from '../../../notifications/useNotify';
-import { TRACKER_STATE_OPTIONS, TRACKER_STATE_TONES } from '../shared/display';
+import { labelOf, TRACKER_STATE_OPTIONS, TRACKER_STATE_TONES } from '../shared/display';
+import { useMachineLabels } from '../shared/useMachineLabels';
 import { IngestionEventsPanel, type TrackerFilter } from './IngestionEventsPanel';
 import { RegisterTrackerDialog } from './RegisterTrackerDialog';
-import { TrackerDrawer } from './TrackerDrawer';
+import { useTrackerActions } from './useTrackerActions';
 
 type TabKey = 'trackers' | 'events';
 
 /** Tracker registry, capabilities, assignments and ingestion/quarantine events. */
 export function TrackersPage() {
+  const navigate = useNavigate();
   const notify = useNotify();
+  const machineName = useMachineLabels();
   const tz = useDisplayTimeZone();
   const now = useNow();
   const [tab, setTab] = useState<TabKey>('trackers');
   const [state, setState] = useState('');
+  const [showRetired, setShowRetired] = useState(false);
+  const filters = useMemo(
+    () => ({ state: state === '' ? undefined : state, ...inactiveFilter(showRetired) }),
+    [state, showRetired],
+  );
   const [registering, setRegistering] = useState(false);
-  const [selected, setSelected] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [eventStatus, setEventStatus] = useState('');
   const [eventTracker, setEventTracker] = useState<TrackerFilter | null>(null);
@@ -42,13 +54,29 @@ export function TrackersPage() {
     [],
   );
 
+  const { actionsFor, dialogs } = useTrackerActions({
+    timeZone: tz,
+    onChanged: () => {
+      setReloadKey((k) => k + 1);
+    },
+    onView: (t) => {
+      void navigate(trackerDetailPath(t.id));
+    },
+  });
+
   const columns: DataColumn<TrackerDto>[] = [
     { id: 'label', header: 'Label', render: (t) => <strong>{t.label}</strong> },
     { id: 'external', header: 'External id', render: (t) => t.external_id },
     {
       id: 'state',
       header: 'State',
-      render: (t) => <StatusChip status={t.provisioning_state} tones={TRACKER_STATE_TONES} />,
+      render: (t) => (
+        <StatusChip
+          status={t.provisioning_state}
+          tones={TRACKER_STATE_TONES}
+          label={labelOf(TRACKER_STATE_OPTIONS, t.provisioning_state)}
+        />
+      ),
     },
     {
       id: 'last',
@@ -61,7 +89,7 @@ export function TrackersPage() {
       render: (t) => {
         const a = t.current_assignment ?? null;
         if (a === null) return 'Unassigned';
-        return `Machine ${a.machine_id.slice(0, 8)}${a.is_primary ? ' · primary' : ''}`;
+        return `${machineName(a.machine_id)}${a.is_primary ? ' · primary' : ''}`;
       },
     },
     {
@@ -69,6 +97,12 @@ export function TrackersPage() {
       header: 'SIM / carrier',
       render: (t) =>
         [t.sim_msisdn ?? t.sim_iccid, t.carrier].filter((x) => x !== null).join(' · ') || '—',
+    },
+    {
+      id: 'actions',
+      header: '',
+      align: 'right',
+      render: (t) => <RowActionsMenu label={`tracker ${t.label}`} actions={actionsFor(t)} />,
     },
   ];
 
@@ -108,31 +142,39 @@ export function TrackersPage() {
           columns={columns}
           fetchPage={fetchPage}
           getRowId={(t) => t.id}
-          filters={{ state: state === '' ? undefined : state }}
+          filters={filters}
           searchPlaceholder="Search label or device id"
           emptyTitle="No trackers registered"
           reloadKey={reloadKey}
+          isRowMuted={(t) => t.provisioning_state === 'RETIRED'}
           onRowClick={(t) => {
-            setSelected(t.id);
+            void navigate(trackerDetailPath(t.id));
           }}
           toolbar={
-            <TextField
-              select
-              size="small"
-              label="State"
-              value={state}
-              onChange={(e) => {
-                setState(e.target.value);
-              }}
-              sx={{ minWidth: 200 }}
-            >
-              <MenuItem value="">All states</MenuItem>
-              {TRACKER_STATE_OPTIONS.map((o) => (
-                <MenuItem key={o.value} value={o.value}>
-                  {o.label}
-                </MenuItem>
-              ))}
-            </TextField>
+            <>
+              <TextField
+                select
+                size="small"
+                label="State"
+                value={state}
+                onChange={(e) => {
+                  setState(e.target.value);
+                }}
+                sx={{ minWidth: 200 }}
+              >
+                <MenuItem value="">All states</MenuItem>
+                {TRACKER_STATE_OPTIONS.map((o) => (
+                  <MenuItem key={o.value} value={o.value}>
+                    {o.label}
+                  </MenuItem>
+                ))}
+              </TextField>
+              <ShowInactiveToggle
+                checked={showRetired}
+                onChange={setShowRetired}
+                label="Show retired"
+              />
+            </>
           }
         />
       ) : (
@@ -157,22 +199,7 @@ export function TrackersPage() {
           }}
         />
       )}
-      {selected !== null && (
-        <TrackerDrawer
-          trackerId={selected}
-          onClose={() => {
-            setSelected(null);
-          }}
-          onChanged={() => {
-            setReloadKey((k) => k + 1);
-          }}
-          onViewEvents={(t) => {
-            setEventTracker({ id: t.id, label: t.label });
-            setSelected(null);
-            setTab('events');
-          }}
-        />
-      )}
+      {dialogs}
     </>
   );
 }

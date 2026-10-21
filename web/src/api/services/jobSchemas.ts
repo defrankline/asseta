@@ -13,7 +13,7 @@ import type {
   RateCardDto,
   StandbyTreatment,
 } from '../types';
-import { bool, id, int, nullableId, nullableText, oneOf, text } from './schemaKit';
+import { bool, id, int, nullableId, nullableText, oneOf, text, lifecycleFields } from './schemaKit';
 
 export const CONTRACT_STATUSES: readonly ContractStatus[] = ['DRAFT', 'ACTIVE', 'CLOSED'];
 export const JOB_STATUSES: readonly JobStatus[] = [
@@ -47,6 +47,7 @@ export const customerSchema: Schema<CustomerDto> = object({
   contact_email: nullableText(),
   payment_terms_days: int(),
   is_active: bool(),
+  ...lifecycleFields(),
 });
 
 export const contractSchema: Schema<ContractDto> = object({
@@ -59,6 +60,10 @@ export const contractSchema: Schema<ContractDto> = object({
   starts_on: text(),
   ends_on: nullableText(),
   reference: nullableText(),
+  notes: nullableText().default(null),
+  closed_at: nullableText().default(null),
+  close_reason: nullableText().default(null),
+  version: int(),
 });
 
 export const rateCardSchema: Schema<RateCardDto> = object({

@@ -11,7 +11,17 @@ import type {
   StaffDto,
   StaffKind,
 } from '../types';
-import { bool, id, int, nullableId, nullableInt, nullableText, oneOf, text } from './schemaKit';
+import {
+  bool,
+  id,
+  int,
+  nullableId,
+  nullableInt,
+  nullableText,
+  oneOf,
+  text,
+  lifecycleFields,
+} from './schemaKit';
 
 export const MACHINE_STATUSES: readonly MachineStatus[] = ['ACTIVE', 'OUT_OF_SERVICE', 'DISPOSED'];
 export const OWNERSHIPS: readonly Ownership[] = ['OWNED', 'LEASED', 'HIRED_IN'];
@@ -35,18 +45,24 @@ export const machineSchema: Schema<MachineDto> = object({
   status: oneOf(MACHINE_STATUSES),
   version: int(),
   created_at: text(),
+  deactivated_at: nullableText().default(null),
+  deactivation_reason: nullableText().default(null),
 });
 
 export const categorySchema: Schema<CategoryDto> = object({
   id: id(),
   name: text(),
   description: nullableText(),
+  is_active: bool(),
+  ...lifecycleFields(),
 });
 
 export const areaSchema: Schema<AreaDto> = object({
   id: id(),
   code: text(),
   name: text(),
+  is_active: bool(),
+  ...lifecycleFields(),
 });
 
 export const staffSchema: Schema<StaffDto> = object({
@@ -57,6 +73,7 @@ export const staffSchema: Schema<StaffDto> = object({
   phone: nullableText(),
   keycloak_subject: nullableText(),
   is_active: bool(),
+  ...lifecycleFields(),
 });
 
 export const assignmentSchema: Schema<AssignmentDto> = object({

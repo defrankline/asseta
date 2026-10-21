@@ -6,6 +6,7 @@ import {
   FormLabel,
   Radio,
   RadioGroup,
+  TextField,
   Typography,
 } from '@mui/material';
 import type { FormikProps } from 'formik';
@@ -29,13 +30,29 @@ interface AssignmentFieldsProps {
   /** Show the job-site picker (needs `tenant.geofence.read`). */
   showSite: boolean;
   onSiteChange: (site: JobSiteDto | null) => void;
+  /** Edit: contract and job number are fixed and shown read-only. */
+  locked?: { contract: string; jobNumber: string };
 }
 
-export function AssignmentFields({ showSite, onSiteChange }: AssignmentFieldsProps) {
+export function AssignmentFields({ showSite, onSiteChange, locked }: AssignmentFieldsProps) {
   return (
     <Box className={grid}>
-      <FormikContractPicker name="contract" label="Contract" required />
-      <FormikTextField name="job_number" label="Job number" required />
+      {locked === undefined ? (
+        <>
+          <FormikContractPicker name="contract" label="Contract" required />
+          <FormikTextField name="job_number" label="Job number" required />
+        </>
+      ) : (
+        <>
+          <TextField
+            label="Contract"
+            value={locked.contract}
+            disabled
+            helperText="The contract cannot be changed"
+          />
+          <TextField label="Job number" value={locked.jobNumber} disabled />
+        </>
+      )}
       <FormikMachinePicker name="machine" label="Machine" required />
       <FormikSupervisorPicker
         name="supervisor"

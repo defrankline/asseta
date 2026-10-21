@@ -45,3 +45,10 @@ export const lngLat = () => mixed<[number, number]>(isLngLat).required();
 /** Free-form JSON object or null (e.g. a tracker comparison that may be absent). */
 export const nullableRecord = () =>
   mixed<Record<string, unknown>>(isPlainRecord).nullable().defined();
+
+/** Lifecycle fields shared by deactivatable records (`is_active` is declared per DTO). */
+export const lifecycleFields = () => ({
+  deactivated_at: nullableText(),
+  deactivation_reason: nullableText(),
+  version: int(),
+});

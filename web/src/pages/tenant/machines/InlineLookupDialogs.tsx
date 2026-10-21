@@ -1,29 +1,11 @@
 import { useState } from 'react';
-import { object, string, type ObjectSchema } from 'yup';
 import { machineService } from '../../../api/services/machineService';
 import { FormDialog } from '../../../components/forms/FormDialog';
 import { FormikTextField } from '../../../components/forms/FormikTextField';
 import { useIdempotencyKey } from '../../../hooks/useIdempotencyKey';
 import { useNotify } from '../../../notifications/useNotify';
+import { areaSchema, categorySchema, type AreaValues, type CategoryValues } from './lookupForms';
 import type { MachineLookups } from './useMachineLookups';
-
-interface CategoryValues {
-  name: string;
-  description: string;
-}
-const categorySchema: ObjectSchema<CategoryValues> = object({
-  name: string().trim().required('Name is required').max(100, 'At most 100 characters'),
-  description: string().trim().max(300, 'At most 300 characters').ensure(),
-});
-
-interface AreaValues {
-  code: string;
-  name: string;
-}
-const areaSchema: ObjectSchema<AreaValues> = object({
-  code: string().trim().required('Code is required').max(32, 'At most 32 characters'),
-  name: string().trim().required('Name is required').max(120, 'At most 120 characters'),
-});
 
 function NewCategoryDialog({ lookups }: { lookups: MachineLookups }) {
   const keyFor = useIdempotencyKey();

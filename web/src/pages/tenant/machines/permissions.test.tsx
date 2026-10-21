@@ -1,4 +1,5 @@
 import { screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { machineService } from '../../../api/services/machineService';
 import type { staffService } from '../../../api/services/staffService';
@@ -30,7 +31,10 @@ describe('permission-gated tenant registry actions', () => {
     renderWithProviders(<MachinesPage />, { tenantPermissions: ['tenant.machine.read'] });
     expect(await screen.findByText('EX-01')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'New machine' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^Enroll/ })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for EX-01 · Excavator 1' }));
+    expect(screen.getByRole('menuitem', { name: 'View details' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /Enroll/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Edit' })).not.toBeInTheDocument();
   });
 
   it('shows New machine with tenant.machine.write and Enroll with tenant.billing.enroll', async () => {
@@ -39,7 +43,9 @@ describe('permission-gated tenant registry actions', () => {
     });
     expect(await screen.findByText('EX-01')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'New machine' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^Enroll EX-01/ })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for EX-01 · Excavator 1' }));
+    expect(screen.getByRole('menuitem', { name: 'Enroll as billable asset' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Edit' })).toBeInTheDocument();
   });
 
   it('hides mutating actions while the tenant is READ_ONLY', async () => {
@@ -49,7 +55,10 @@ describe('permission-gated tenant registry actions', () => {
     });
     expect(await screen.findByText('EX-01')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'New machine' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^Enroll/ })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for EX-01 · Excavator 1' }));
+    expect(screen.queryByRole('menuitem', { name: /Enroll/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Edit' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /out of service/ })).not.toBeInTheDocument();
   });
 
   it('shows New staff member only with tenant.staff.write', async () => {

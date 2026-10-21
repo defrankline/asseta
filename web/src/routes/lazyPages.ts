@@ -21,6 +21,29 @@ export const StaffPage = lazy(() =>
 export const TrackersPage = lazy(() =>
   import('../pages/tenant/trackers/TrackersPage').then((m) => ({ default: m.TrackersPage })),
 );
+export const TrackerDetailPage = lazy(() =>
+  import('../pages/tenant/trackers/TrackerDetailPage').then((m) => ({
+    default: m.TrackerDetailPage,
+  })),
+);
+export const StaffDetailPage = lazy(() =>
+  import('../pages/tenant/staff/StaffDetailPage').then((m) => ({ default: m.StaffDetailPage })),
+);
+export const CustomerDetailPage = lazy(() =>
+  import('../pages/tenant/customers/CustomerDetailPage').then((m) => ({
+    default: m.CustomerDetailPage,
+  })),
+);
+export const ExpenseCategoriesPage = lazy(() =>
+  import('../pages/tenant/expenses/ExpenseCategoriesPage').then((m) => ({
+    default: m.ExpenseCategoriesPage,
+  })),
+);
+export const TelemetryCatalogPage = lazy(() =>
+  import('../pages/platform/telemetry/TelemetryCatalogPage').then((m) => ({
+    default: m.TelemetryCatalogPage,
+  })),
+);
 export const GeofencesPage = lazy(() =>
   import('../pages/tenant/geofences/GeofencesPage').then((m) => ({ default: m.GeofencesPage })),
 );

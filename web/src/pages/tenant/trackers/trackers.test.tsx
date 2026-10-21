@@ -9,7 +9,7 @@ import { renderWithProviders } from '../../../test/renderWithProviders';
 import { AssignTrackerDialog, SWAP_WARNING } from './AssignTrackerDialog';
 import { IngestionEventsPanel } from './IngestionEventsPanel';
 import { MACHINE, MACHINE_ID, makeTracker, TRACKER_ID } from './trackerFixtures';
-import { TrackerDrawer } from './TrackerDrawer';
+import { TrackerDetailPage } from './TrackerDetailPage';
 import { TrackersPage } from './TrackersPage';
 
 const mocks = vi.hoisted(() => ({
@@ -18,6 +18,8 @@ const mocks = vi.hoisted(() => ({
   assign: vi.fn<typeof trackerService.assign>(),
   listIngestionEvents: vi.fn<typeof trackerService.listIngestionEvents>(),
   listMachines: vi.fn<typeof machineService.list>(),
+  getMachine: vi.fn<typeof machineService.get>(),
+  listTrackerAssignments: vi.fn<typeof machineService.listTrackerAssignments>(),
 }));
 vi.mock('../../../api/services/trackerService', () => ({
   trackerService: {
@@ -28,7 +30,11 @@ vi.mock('../../../api/services/trackerService', () => ({
   },
 }));
 vi.mock('../../../api/services/machineService', () => ({
-  machineService: { list: mocks.listMachines },
+  machineService: {
+    list: mocks.listMachines,
+    get: mocks.getMachine,
+    listTrackerAssignments: mocks.listTrackerAssignments,
+  },
 }));
 
 const READ = [P.tenantTrackerRead];
@@ -36,15 +42,10 @@ const WRITE = [P.tenantTrackerRead, P.tenantTrackerWrite];
 const page = <T,>(items: T[]) => ({ items, total: items.length, page: 1, page_size: 25 });
 
 function renderDrawer(perms: string[]) {
-  return renderWithProviders(
-    <TrackerDrawer
-      trackerId={TRACKER_ID}
-      onClose={vi.fn()}
-      onChanged={vi.fn()}
-      onViewEvents={vi.fn()}
-    />,
-    { tenantPermissions: perms },
-  );
+  mocks.listIngestionEvents.mockResolvedValue(page([]));
+  mocks.getMachine.mockResolvedValue(MACHINE);
+  mocks.listTrackerAssignments.mockResolvedValue([]);
+  return renderWithProviders(<TrackerDetailPage />, { tenantPermissions: perms });
 }
 
 describe('tracker capability matrix', () => {
@@ -62,7 +63,7 @@ describe('tracker capability matrix', () => {
 });
 
 describe('tracker write actions are permission gated', () => {
-  it('hides assign / unassign / state change without tenant.tracker.write', async () => {
+  it('hides assign / unassign / suspend / retire without tenant.tracker.write', async () => {
     mocks.get.mockResolvedValue(
       makeTracker({
         current_assignment: {
@@ -77,17 +78,17 @@ describe('tracker write actions are permission gated', () => {
       }),
     );
     const { unmount } = renderDrawer(READ);
-    expect(
-      await screen.findByRole('button', { name: 'View ingestion events' }),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole('region', { name: 'Device' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Assign / swap' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Unassign' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Change state' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Suspend' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Retire/ })).not.toBeInTheDocument();
     unmount();
     renderDrawer(WRITE);
     expect(await screen.findByRole('button', { name: 'Assign / swap' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Unassign' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Change state' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Suspend' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Retire (decommission)' })).toBeInTheDocument();
   });
 
   it('shows "Register tracker" only with tenant.tracker.write', async () => {

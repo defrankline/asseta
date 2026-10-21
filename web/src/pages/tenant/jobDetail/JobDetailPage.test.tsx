@@ -5,7 +5,13 @@ import type { jobService } from '../../../api/services/jobService';
 import type { machineService } from '../../../api/services/machineService';
 import type { meterService } from '../../../api/services/meterService';
 import { NOT_COMPARED_TEXT } from '../../../components/meter/TrackerComparison';
-import { MACHINE, makeCapture, makeException, makeSummary } from '../../../test/jobFixtures';
+import {
+  MACHINE,
+  makeCapture,
+  makeException,
+  makeJob,
+  makeSummary,
+} from '../../../test/jobFixtures';
 import { instances } from '../../../test/maplibreMock';
 import { renderWithProviders } from '../../../test/renderWithProviders';
 import { JobDetailPage } from './JobDetailPage';
@@ -156,5 +162,27 @@ describe('JobDetailPage', () => {
     expect(await screen.findByRole('tab', { name: 'Work log' })).toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Readings & evidence' })).not.toBeInTheDocument();
     expect(mocks.listCaptures).not.toHaveBeenCalled();
+  });
+});
+
+describe('JobDetailPage edit action', () => {
+  it('shows Edit on a draft job only with tenant.job.write', async () => {
+    mocks.summary.mockResolvedValue(makeSummary({ job: makeJob({ status: 'DRAFT' }) }));
+    const { unmount } = renderWithProviders(<JobDetailPage />, { tenantPermissions: PERMS });
+    expect(await screen.findByText('EX-01 · Excavator')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument();
+    unmount();
+    renderWithProviders(<JobDetailPage />, {
+      tenantPermissions: [...PERMS, 'tenant.job.write'],
+    });
+    expect(await screen.findByRole('button', { name: 'Edit' })).toBeInTheDocument();
+  });
+
+  it('hides Edit once the job is completed', async () => {
+    renderWithProviders(<JobDetailPage />, {
+      tenantPermissions: [...PERMS, 'tenant.job.write'],
+    });
+    expect(await screen.findByText('EX-01 · Excavator')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument();
   });
 });

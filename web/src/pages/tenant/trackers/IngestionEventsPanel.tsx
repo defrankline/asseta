@@ -35,7 +35,8 @@ interface IngestionEventsPanelProps {
   status: string;
   onStatusChange: (status: string) => void;
   tracker: TrackerFilter | null;
-  onTrackerChange: (tracker: TrackerFilter | null) => void;
+  /** Omit to lock the panel to `tracker` (e.g. on the tracker details page). */
+  onTrackerChange?: (tracker: TrackerFilter | null) => void;
 }
 
 function QuarantineReasonCell({ reason }: { reason: QuarantineReason | null }) {
@@ -162,9 +163,13 @@ export function IngestionEventsPanel({
             {tracker !== null ? (
               <Chip
                 label={`Tracker: ${tracker.label}`}
-                onDelete={() => {
-                  onTrackerChange(null);
-                }}
+                {...(onTrackerChange !== undefined
+                  ? {
+                      onDelete: () => {
+                        onTrackerChange(null);
+                      },
+                    }
+                  : {})}
               />
             ) : (
               <Box sx={{ minWidth: 260 }}>
@@ -175,7 +180,7 @@ export function IngestionEventsPanel({
                   getOptionLabel={(t) => `${t.label} (${t.external_id})`}
                   isOptionEqualToValue={(a, b) => a.id === b.id}
                   onChange={(t) => {
-                    onTrackerChange(t === null ? null : { id: t.id, label: t.label });
+                    onTrackerChange?.(t === null ? null : { id: t.id, label: t.label });
                   }}
                 />
               </Box>

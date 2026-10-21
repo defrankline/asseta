@@ -30,6 +30,7 @@ describe('RegisterTrackerDialog', () => {
         declared_capabilities: ['GNSS', 'IGNITION'],
         approved: true,
         notes: null,
+        version: 1,
       },
     ]);
     const tracker = makeTracker();

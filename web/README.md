@@ -79,6 +79,25 @@ rendered inside `.map()` whose receiver is not an ALL_CAPS constant, and on
 non-form navigation or code-defined data (today: the header tenant switcher over the user's own
 `/me` contexts, which shows a search box above 8 entries, and the policy field enum inputs).
 
+## Frontend conventions: record lifecycle
+
+Records with history are never hard-deleted. Every managed entity offers list (server `q`, filters,
+"Show inactive"), view details, create, edit and deactivate / reactivate (or the domain equivalent:
+retire, close / reopen, cancel, withdraw / restore). Shared pieces live in `components/lifecycle`:
+
+- `RowActionsMenu` / `ActionButtons` render the same code-defined `RowAction[]` as a row kebab menu
+  or details-page buttons; `standardRowActions` builds View / Edit / Deactivate / Reactivate.
+- `EntityDetailsLayout` + `DetailSection` (details pages), `DetailsDrawer` (details without leaving a
+  list), `ActiveChip`, `ShowInactiveToggle` with `inactiveFilter()` (`src/api/lifecycle.ts`, sends
+  `include_inactive=true` to the server), `isRowMuted` on `ServerDataTable` / `StaticTable`.
+- `DeactivateDialog` / `ReactivateDialog` / `LifecycleActionDialog` (reason 3–500 characters, server
+  error code + hint kept in the dialog, `STALE_VERSION` offers Reload) and `useLifecycleDialog` to
+  wire them per entity. Edit forms send the `version` that was read and use `useStaleVersion` +
+  `StaleVersionAlert`.
+
+Actions are gated with `useCanMutate` / `<CanMutate>` (tenant) or `<Can>` (platform); the API stays
+authoritative.
+
 ## MUI + Tailwind coexistence
 
 Chosen strategy: **CSS cascade layers, no Tailwind preflight**. `src/index.css` declares

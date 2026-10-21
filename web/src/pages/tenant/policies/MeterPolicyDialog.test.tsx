@@ -21,6 +21,7 @@ const SITE: JobSiteDto = {
   address: null,
   center: { type: 'Point', coordinates: [39.2, -6.8] },
   is_active: true,
+  version: 1,
 };
 const CURRENT = {
   opening_mode: 'AUTOMATIC',

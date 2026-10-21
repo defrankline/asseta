@@ -1,20 +1,23 @@
-import ArrowBack from '@mui/icons-material/ArrowBack';
-import Edit from '@mui/icons-material/Edit';
-import { Box, Button, Paper, Stack, Tab, Tabs } from '@mui/material';
+import { Box, Paper, Tab, Tabs } from '@mui/material';
 import { useCallback, useState } from 'react';
-import { Link as RouterLink, useParams } from 'react-router';
-import { CanMutate } from '../../../access/CanMutate';
+import { useParams } from 'react-router';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import { machineService } from '../../../api/services/machineService';
 import type { AreaDto, CategoryDto, MachineDto } from '../../../api/types';
+import { StatusChip } from '../../../components/display/StatusChip';
 import { AsyncContent } from '../../../components/feedback/AsyncContent';
-import { PageHeader } from '../../../components/feedback/PageHeader';
+import { ActionButtons } from '../../../components/lifecycle/ActionButtons';
+import {
+  DetailSection,
+  EntityDetailsLayout,
+} from '../../../components/lifecycle/EntityDetailsLayout';
 import { useAsyncResource } from '../../../hooks/useAsyncResource';
 import { useDisplayTimeZone } from '../../../hooks/useDisplayTimeZone';
 import { ROUTES } from '../../../navigation/routes';
-import { useNotify } from '../../../notifications/useNotify';
 import { useSession } from '../../../session/useSession';
-import { EditMachineDialog } from '../machines/EditMachineDialog';
+import { formatInstantIn } from '../../../utils/time';
+import { useMachineActions } from '../machines/useMachineActions';
+import { labelOf, MACHINE_STATUS_OPTIONS, MACHINE_STATUS_TONES } from '../shared/display';
 import { HistoryTab } from './HistoryTab';
 import { LiveStatusTab } from './LiveStatusTab';
 import { MachineInfo } from './MachineInfo';
@@ -76,14 +79,13 @@ function MachineTabs({ machineId, timeZone }: { machineId: string; timeZone: str
 export function MachineDetailPage() {
   const { machineId = '' } = useParams();
   const timeZone = useDisplayTimeZone();
-  const notify = useNotify();
-  const [editing, setEditing] = useState(false);
   const load = useCallback(
     async (signal: AbortSignal): Promise<Loaded> => {
       const [machine, categories, areas] = await Promise.all([
         machineService.get(machineId, signal),
-        machineService.listCategories(signal),
-        machineService.listAreas(signal),
+        // Include inactive records so a machine's retired category / area still shows its name.
+        machineService.listCategories(signal, undefined, true),
+        machineService.listAreas(signal, undefined, true),
       ]);
       return { machine, categories, areas };
     },
@@ -91,68 +93,63 @@ export function MachineDetailPage() {
   );
   const resource = useAsyncResource(load);
   const machine = resource.data?.machine ?? null;
+  const { actionsFor, dialogs } = useMachineActions({
+    onChanged: resource.reload,
+    onReload: resource.reload,
+  });
 
   return (
     <>
-      <PageHeader
+      <EntityDetailsLayout
         title={machine === null ? 'Machine' : `${machine.asset_code} · ${machine.name}`}
         subtitle="Machine details"
-        actions={
-          <>
-            <Button component={RouterLink} to={ROUTES.tenantMachines} startIcon={<ArrowBack />}>
-              All machines
-            </Button>
-            {machine !== null && machine.status !== 'DISPOSED' && (
-              <CanMutate permission={PERMISSIONS.tenantMachineWrite}>
-                <Button
-                  variant="contained"
-                  startIcon={<Edit />}
-                  onClick={() => {
-                    setEditing(true);
-                  }}
-                >
-                  Edit
-                </Button>
-              </CanMutate>
-            )}
-          </>
+        back={{ label: 'All machines', to: ROUTES.tenantMachines }}
+        {...(machine !== null
+          ? {
+              status: (
+                <StatusChip
+                  status={machine.status}
+                  tones={MACHINE_STATUS_TONES}
+                  label={labelOf(MACHINE_STATUS_OPTIONS, machine.status)}
+                />
+              ),
+              actions: <ActionButtons actions={actionsFor(machine)} />,
+            }
+          : {})}
+        inactive={
+          machine?.status === 'DISPOSED'
+            ? {
+                title: 'This machine is retired (disposed). Its history is kept read-only.',
+                reason: machine.deactivation_reason ?? null,
+                since:
+                  machine.deactivated_at == null
+                    ? null
+                    : formatInstantIn(machine.deactivated_at, timeZone),
+              }
+            : null
         }
-      />
-      <AsyncContent
-        resource={resource}
-        errorTitle="Could not load the machine"
-        loadingLabel="Loading machine"
       >
-        {(d) => (
-          <Stack spacing={3}>
-            <Paper variant="outlined" className="p-4">
-              <MachineInfo
-                machine={d.machine}
-                categories={d.categories}
-                areas={d.areas}
-                timeZone={timeZone}
-              />
-            </Paper>
-            <MachineTabs machineId={d.machine.id} timeZone={timeZone} />
-          </Stack>
-        )}
-      </AsyncContent>
-      {editing && machine !== null && (
-        <EditMachineDialog
-          machine={machine}
-          onClose={() => {
-            setEditing(false);
-          }}
-          onSaved={() => {
-            notify.success('Machine updated.');
-            resource.reload();
-          }}
-          onReloadRequested={() => {
-            setEditing(false);
-            resource.reload();
-          }}
-        />
-      )}
+        <AsyncContent
+          resource={resource}
+          errorTitle="Could not load the machine"
+          loadingLabel="Loading machine"
+        >
+          {(d) => (
+            <Box className="flex flex-col gap-6">
+              <DetailSection title="Registry record">
+                <MachineInfo
+                  machine={d.machine}
+                  categories={d.categories}
+                  areas={d.areas}
+                  timeZone={timeZone}
+                />
+              </DetailSection>
+              <MachineTabs machineId={d.machine.id} timeZone={timeZone} />
+            </Box>
+          )}
+        </AsyncContent>
+      </EntityDetailsLayout>
+      {dialogs}
     </>
   );
 }

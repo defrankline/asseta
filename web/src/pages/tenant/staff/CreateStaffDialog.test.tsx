@@ -19,6 +19,9 @@ describe('CreateStaffDialog', () => {
       phone: null,
       keycloak_subject: null,
       is_active: true,
+      deactivated_at: null,
+      deactivation_reason: null,
+      version: 1,
     });
     const onCreated = vi.fn();
     renderWithProviders(<CreateStaffDialog onClose={vi.fn()} onCreated={onCreated} />, {

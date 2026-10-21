@@ -19,6 +19,7 @@ import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { EmptyState } from '../feedback/EmptyState';
 import { ErrorState } from '../feedback/ErrorState';
 import { LoadingState } from '../feedback/LoadingState';
+import { rowClassName } from './rowStyle';
 import { useServerPage, type FetchPage, type ServerQuery } from './useServerPage';
 
 export interface DataColumn<T> {
@@ -47,6 +48,8 @@ export interface ServerDataTableProps<T> {
   emptyTitle?: string;
   emptyDescription?: string;
   onRowClick?: (row: T) => void;
+  /** Inactive records (deactivated, retired, cancelled) are shown muted. */
+  isRowMuted?: (row: T) => boolean;
   /** Increment to refetch the current page (e.g. after a mutation). */
   reloadKey?: number;
 }
@@ -76,6 +79,7 @@ export function ServerDataTable<T>({
   emptyTitle = 'No records found',
   emptyDescription,
   onRowClick,
+  isRowMuted,
   reloadKey = 0,
 }: ServerDataTableProps<T>) {
   const [pageState, setPageState] = useState({ resetKey: '', page: 0 });
@@ -175,7 +179,8 @@ export function ServerDataTable<T>({
                 <TableRow
                   key={getRowId(row)}
                   hover={onRowClick !== undefined}
-                  className={onRowClick !== undefined ? 'cursor-pointer' : undefined}
+                  className={rowClassName(onRowClick !== undefined, isRowMuted?.(row) === true)}
+                  data-muted={isRowMuted?.(row) === true ? 'true' : undefined}
                   onClick={
                     onRowClick !== undefined
                       ? () => {

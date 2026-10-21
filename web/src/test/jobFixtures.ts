@@ -67,6 +67,7 @@ export const CONTRACT: ContractDto = {
   starts_on: '2026-10-01T00:00:00Z',
   ends_on: null,
   reference: null,
+  version: 1,
 };
 
 export const MACHINE: MachineDto = {

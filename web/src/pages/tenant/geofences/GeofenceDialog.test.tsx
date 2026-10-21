@@ -1,8 +1,10 @@
 import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
+import { ApiError } from '../../../api/ApiError';
 import type { geofenceService } from '../../../api/services/geofenceService';
 import type { GeofenceDto, GeofenceIn } from '../../../api/types';
+import { STALE_RECORD_MESSAGE } from '../../../components/lifecycle/LifecycleActionDialog';
 import { lastMap } from '../../../test/maplibreMock';
 import { renderWithProviders } from '../../../test/renderWithProviders';
 import { GeofenceDialog } from './GeofenceDialog';
@@ -132,5 +134,65 @@ describe('GeofenceDialog drawing', () => {
     });
     expect(body?.corridor_width_m).toBe(25);
     expect(body?.polygon).toBeNull();
+  });
+});
+
+describe('GeofenceDialog edit', () => {
+  const existing: GeofenceDto = {
+    ...saved({ name: 'Yard', kind: 'ALLOWED_AREA', polygon: null, machine_ids: [] }),
+    shape: 'POLYGON',
+    source_geometry: {
+      type: 'Polygon',
+      coordinates: [
+        [
+          [39.0, -6.0],
+          [39.1, -6.0],
+          [39.1, -6.1],
+          [39.0, -6.0],
+        ],
+      ],
+    },
+    version: 6,
+  };
+
+  async function saveEdit(user: ReturnType<typeof userEvent.setup>, onReload = vi.fn()) {
+    renderWithProviders(
+      <GeofenceDialog
+        geofence={existing}
+        sites={[]}
+        machineLabels={new Map()}
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+        onReloadRequested={onReload}
+      />,
+      { tenantPermissions: ['tenant.geofence.read', 'tenant.geofence.write'] },
+    );
+    expect(screen.getByLabelText(/^Name/)).toHaveValue('Yard');
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await user.click(await screen.findByRole('button', { name: 'Next' }));
+    await user.click(await screen.findByRole('button', { name: 'Next' }));
+    await user.click(await screen.findByRole('button', { name: 'Save geofence' }));
+  }
+
+  it('sends the version that was read', async () => {
+    const user = userEvent.setup();
+    mocks.update.mockResolvedValue({ ...existing, version: 7 });
+    await saveEdit(user);
+    await waitFor(() => {
+      expect(mocks.update).toHaveBeenCalledTimes(1);
+    });
+    expect(mocks.update.mock.calls[0]?.[1]).toMatchObject({ name: 'Yard', version: 6 });
+  });
+
+  it('offers Reload on STALE_VERSION', async () => {
+    const user = userEvent.setup();
+    mocks.update.mockRejectedValue(
+      new ApiError({ status: 409, code: 'STALE_VERSION', message: 'Stale', correlationId: 'c' }),
+    );
+    const onReload = vi.fn();
+    await saveEdit(user, onReload);
+    expect(await screen.findByText(STALE_RECORD_MESSAGE)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Reload' }));
+    expect(onReload).toHaveBeenCalledTimes(1);
   });
 });

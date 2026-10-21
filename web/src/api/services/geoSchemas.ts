@@ -36,6 +36,7 @@ import {
   oneOf,
   record,
   text,
+  lifecycleFields,
 } from './schemaKit';
 
 export const CONNECTIVITIES: readonly Connectivity[] = [
@@ -152,6 +153,7 @@ export const jobSiteSchema: Schema<JobSiteDto> = object({
   address: nullableText(),
   center: object({ type: oneOf(['Point'] as const), coordinates: lngLat() }).required(),
   is_active: bool(),
+  ...lifecycleFields(),
 });
 
 export const geofenceSchema: Schema<GeofenceDto> = object({
@@ -166,7 +168,7 @@ export const geofenceSchema: Schema<GeofenceDto> = object({
   area_m2: num(),
   machine_ids: idList(),
   is_active: bool(),
-  version: int(),
+  ...lifecycleFields(),
 });
 
 export const alertSchema: Schema<AlertDto> = object({

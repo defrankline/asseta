@@ -9,6 +9,8 @@ export const ROUTES = {
   platformInvoices: '/platform/invoices',
   platformPayments: '/platform/payments',
   platformManagedService: '/platform/managed-service',
+  /** Approved tracker models and telemetry gateways (platform catalog). */
+  platformTelemetry: '/platform/telemetry',
   /** Matches the backend `platform.system` menu path. */
   systemStatus: '/platform/system',
   forbidden: '/403',
@@ -17,12 +19,17 @@ export const ROUTES = {
   tenantMachines: '/tenant/machines',
   tenantMachineDetail: '/tenant/machines/:machineId',
   tenantStaff: '/tenant/staff',
+  tenantStaffDetail: '/tenant/staff/:staffId',
   tenantTrackers: '/tenant/trackers',
+  tenantTrackerDetail: '/tenant/trackers/:trackerId',
   tenantGeofences: '/tenant/geofences',
   tenantAlerts: '/tenant/alerts',
   tenantPolicies: '/tenant/policies',
   tenantSubscription: '/tenant/subscription',
   tenantCustomers: '/tenant/customers',
+  tenantCustomerDetail: '/tenant/customers/:customerId',
+  /** Matches the backend `tenant.expenses` menu path; expense categories live here. */
+  tenantExpenses: '/tenant/expenses',
   tenantJobs: '/tenant/jobs',
   tenantJobDetail: '/tenant/jobs/:jobId',
   tenantExceptions: '/tenant/exceptions',
@@ -32,6 +39,18 @@ export const ROUTES = {
 
 export function machineDetailPath(machineId: string): string {
   return `${ROUTES.tenantMachines}/${encodeURIComponent(machineId)}`;
+}
+
+export function trackerDetailPath(trackerId: string): string {
+  return `${ROUTES.tenantTrackers}/${encodeURIComponent(trackerId)}`;
+}
+
+export function staffDetailPath(staffId: string): string {
+  return `${ROUTES.tenantStaff}/${encodeURIComponent(staffId)}`;
+}
+
+export function customerDetailPath(customerId: string): string {
+  return `${ROUTES.tenantCustomers}/${encodeURIComponent(customerId)}`;
 }
 
 export function jobDetailPath(jobId: string): string {
@@ -63,6 +82,12 @@ interface StaticNavItem extends NavItem {
 /** Platform-console items; tenant items come from the active tenant's /me menus. */
 export const PLATFORM_NAV: readonly StaticNavItem[] = [
   {
+    key: 'platform.telemetry',
+    label: 'Trackers & gateways',
+    path: ROUTES.platformTelemetry,
+    permission: PERMISSIONS.platformTrackerModelRead,
+  },
+  {
     key: 'platform.system-status',
     label: 'System status',
     path: ROUTES.systemStatus,
@@ -82,6 +107,7 @@ export const IMPLEMENTED_PATHS: ReadonlySet<string> = new Set([
   ROUTES.platformInvoices,
   ROUTES.platformPayments,
   ROUTES.platformManagedService,
+  ROUTES.platformTelemetry,
   ROUTES.systemStatus,
   ROUTES.tenantFleet,
   ROUTES.tenantMachines,
@@ -92,6 +118,7 @@ export const IMPLEMENTED_PATHS: ReadonlySet<string> = new Set([
   ROUTES.tenantPolicies,
   ROUTES.tenantSubscription,
   ROUTES.tenantCustomers,
+  ROUTES.tenantExpenses,
   ROUTES.tenantJobs,
   ROUTES.tenantExceptions,
   ROUTES.tenantAccess,

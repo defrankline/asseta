@@ -41,6 +41,7 @@ const SITE: JobSiteDto = {
   address: null,
   center: { type: 'Point', coordinates: [39.2, -6.8] },
   is_active: true,
+  version: 1,
 };
 const CURRENT = { stale_after_seconds: 1800, geofence_tolerance_m: 30 };
 

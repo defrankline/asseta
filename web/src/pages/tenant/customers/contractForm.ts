@@ -1,5 +1,5 @@
 import { object, string, type ObjectSchema } from 'yup';
-import type { ContractIn } from '../../../api/types';
+import type { ContractDto, ContractIn, ContractUpdateIn } from '../../../api/types';
 import {
   isAfter,
   optionalInstant,
@@ -55,5 +55,29 @@ export function toContractPayload(customerId: string, v: ContractFormValues): Co
     starts_on: v.starts_on,
     ends_on: orNull(v.ends_on),
     notes: orNull(v.notes),
+  };
+}
+
+export function valuesFromContract(c: ContractDto): ContractFormValues {
+  return {
+    contract_number: c.contract_number,
+    reference: c.reference ?? '',
+    job_site_id: c.job_site_id ?? '',
+    starts_on: c.starts_on,
+    ends_on: c.ends_on ?? '',
+    notes: c.notes ?? '',
+  };
+}
+
+/** PUT body (the customer cannot change) with the `version` that was read. */
+export function toContractUpdatePayload(v: ContractFormValues, version: number): ContractUpdateIn {
+  return {
+    contract_number: v.contract_number.trim(),
+    reference: orNull(v.reference),
+    job_site_id: orNull(v.job_site_id),
+    starts_on: v.starts_on,
+    ends_on: orNull(v.ends_on),
+    notes: orNull(v.notes),
+    version,
   };
 }

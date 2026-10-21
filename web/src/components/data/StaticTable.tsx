@@ -1,4 +1,5 @@
 import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow } from '@mui/material';
+import { rowClassName } from './rowStyle';
 import type { DataColumn } from './ServerDataTable';
 
 interface StaticTableProps<T> {
@@ -7,6 +8,8 @@ interface StaticTableProps<T> {
   getRowId: (row: T) => string;
   ariaLabel: string;
   onRowClick?: (row: T) => void;
+  /** Inactive records (deactivated, retired, cancelled) are shown muted. */
+  isRowMuted?: (row: T) => boolean;
 }
 
 /** Small client-side table for short, unpaged lists (rate versions, invoice lines, ...). */
@@ -16,6 +19,7 @@ export function StaticTable<T>({
   getRowId,
   ariaLabel,
   onRowClick,
+  isRowMuted,
 }: StaticTableProps<T>) {
   return (
     <TableContainer>
@@ -34,7 +38,8 @@ export function StaticTable<T>({
             <TableRow
               key={getRowId(row)}
               hover={onRowClick !== undefined}
-              className={onRowClick !== undefined ? 'cursor-pointer' : undefined}
+              className={rowClassName(onRowClick !== undefined, isRowMuted?.(row) === true)}
+              data-muted={isRowMuted?.(row) === true ? 'true' : undefined}
               onClick={
                 onRowClick !== undefined
                   ? () => {

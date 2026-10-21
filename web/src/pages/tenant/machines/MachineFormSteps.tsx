@@ -2,10 +2,11 @@ import { Box, Button, Stack } from '@mui/material';
 import type { FormikProps } from 'formik';
 import { FormikSelectField } from '../../../components/forms/FormikSelectField';
 import { FormikTextField } from '../../../components/forms/FormikTextField';
-import { MACHINE_STATUS_OPTIONS, OWNERSHIP_OPTIONS } from '../shared/display';
+import { OWNERSHIP_OPTIONS } from '../shared/display';
 import { FormikAreaPicker, FormikCategoryPicker } from '../shared/lookupPickers';
 import type { MachineFormValues } from './machineForm';
 import { METER_DP_OPTIONS } from './machineForm';
+import { EDIT_STATUS_OPTIONS } from './machineLifecycle';
 import type { MachineLookups } from './useMachineLookups';
 
 const grid = 'grid grid-cols-1 gap-4 sm:grid-cols-2';
@@ -24,7 +25,7 @@ export function IdentityFields({ mode }: { mode: 'create' | 'edit' }) {
         slotProps={{ htmlInput: { inputMode: 'numeric' } }}
       />
       {mode === 'edit' && (
-        <FormikSelectField name="status" label="Status" options={MACHINE_STATUS_OPTIONS} required />
+        <FormikSelectField name="status" label="Status" options={EDIT_STATUS_OPTIONS} required />
       )}
     </Box>
   );

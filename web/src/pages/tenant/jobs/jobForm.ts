@@ -1,7 +1,10 @@
 import { mixed, object, string, type ObjectSchema } from 'yup';
 import type {
   ContractDto,
+  JobDto,
   JobIn,
+  JobStatus,
+  JobUpdateIn,
   MachineDto,
   StaffDto,
   StandbyTreatment,
@@ -16,6 +19,7 @@ import {
   requiredDecimal,
   requiredInstant,
 } from '../shared/formRules';
+import { JOB_ERROR_HINTS } from '../shared/jobDisplay';
 
 /** Where the hourly price comes from: the tenant rate card (server-resolved) or a negotiated rate. */
 export type RateMode = 'RATE_CARD' | 'NEGOTIATED';
@@ -140,5 +144,66 @@ export function toJobPayload(v: JobFormValues): JobIn {
     mobilization_fee: v.mobilization_fee.trim(),
     discount_percent: v.discount_percent.trim(),
     tax_rate_percent: v.tax_rate_percent.trim(),
+  };
+}
+
+/** A job's terms can be edited until it is approved (the API answers JOB_LOCKED afterwards). */
+export const EDITABLE_JOB_STATUSES: readonly JobStatus[] = ['DRAFT', 'PENDING_APPROVAL'];
+
+export const JOB_EDIT_ERROR_HINTS: Readonly<Record<string, string>> = {
+  ...JOB_ERROR_HINTS,
+  JOB_LOCKED: 'Approved, running and finished jobs can no longer be edited.',
+  MACHINE_INACTIVE: 'The chosen machine is retired; choose an active machine.',
+  SITE_INACTIVE: 'The chosen job site is inactive; choose an active site.',
+  STAFF_INACTIVE: 'The chosen supervisor is inactive; choose an active staff member.',
+};
+
+/**
+ * Edit-form values from a job. A negotiated job keeps its rate and minimum; a rate-card job
+ * re-derives both from the rate card (empty fields) when saved.
+ */
+export function jobToValues(
+  job: JobDto,
+  contract: ContractDto,
+  machine: MachineDto,
+  supervisor: StaffDto | null,
+): JobFormValues {
+  const negotiated = job.rate_source === 'NEGOTIATED';
+  return {
+    contract,
+    job_number: job.job_number,
+    machine,
+    job_site_id: job.job_site_id ?? '',
+    supervisor,
+    planned_start: job.planned_start,
+    planned_end: job.planned_end ?? '',
+    rate_mode: negotiated ? 'NEGOTIATED' : 'RATE_CARD',
+    hourly_rate: negotiated ? job.hourly_rate : '',
+    minimum_hours: negotiated ? job.minimum_hours : '',
+    standby_treatment: job.standby_treatment,
+    standby_rate: job.standby_rate ?? '',
+    mobilization_fee: job.mobilization_fee,
+    discount_percent: job.discount_percent,
+    tax_rate_percent: job.tax_rate_percent,
+  };
+}
+
+/** PUT body: the create payload without contract and job number, plus the version read. */
+export function toJobUpdatePayload(v: JobFormValues, version: number): JobUpdateIn {
+  const p = toJobPayload(v);
+  return {
+    machine_id: p.machine_id,
+    job_site_id: p.job_site_id ?? null,
+    supervisor_id: p.supervisor_id ?? null,
+    planned_start: p.planned_start,
+    planned_end: p.planned_end ?? null,
+    hourly_rate: p.hourly_rate ?? null,
+    minimum_hours: p.minimum_hours ?? null,
+    standby_treatment: p.standby_treatment,
+    standby_rate: p.standby_rate ?? null,
+    mobilization_fee: p.mobilization_fee,
+    discount_percent: p.discount_percent,
+    tax_rate_percent: p.tax_rate_percent,
+    version,
   };
 }

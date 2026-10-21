@@ -19,7 +19,9 @@ import {
   AccessPage,
   AlertsPage,
   ClientManagedServicePage,
+  CustomerDetailPage,
   CustomersPage,
+  ExpenseCategoriesPage,
   ExceptionsPage,
   FleetMapPage,
   GeofencesPage,
@@ -29,8 +31,11 @@ import {
   MachinesPage,
   ManagedServicePage,
   PoliciesPage,
+  StaffDetailPage,
   StaffPage,
+  TelemetryCatalogPage,
   TenantSubscriptionPage,
+  TrackerDetailPage,
   TrackersPage,
 } from './lazyPages';
 
@@ -77,6 +82,10 @@ export function AppRoutes() {
           element={guard(PERMISSIONS.platformMandateRead, <ManagedServicePage />)}
         />
         <Route
+          path={ROUTES.platformTelemetry}
+          element={guard(PERMISSIONS.platformTrackerModelRead, <TelemetryCatalogPage />)}
+        />
+        <Route
           path={ROUTES.systemStatus}
           element={guard(PERMISSIONS.platformSystemRead, <SystemStatusPage />)}
         />
@@ -97,8 +106,16 @@ export function AppRoutes() {
           element={guard(PERMISSIONS.tenantStaffRead, <StaffPage />)}
         />
         <Route
+          path={ROUTES.tenantStaffDetail}
+          element={guard(PERMISSIONS.tenantStaffRead, <StaffDetailPage />)}
+        />
+        <Route
           path={ROUTES.tenantTrackers}
           element={guard(PERMISSIONS.tenantTrackerRead, <TrackersPage />)}
+        />
+        <Route
+          path={ROUTES.tenantTrackerDetail}
+          element={guard(PERMISSIONS.tenantTrackerRead, <TrackerDetailPage />)}
         />
         <Route
           path={ROUTES.tenantGeofences}
@@ -119,6 +136,14 @@ export function AppRoutes() {
         <Route
           path={ROUTES.tenantCustomers}
           element={guard(PERMISSIONS.tenantCustomerRead, <CustomersPage />)}
+        />
+        <Route
+          path={ROUTES.tenantCustomerDetail}
+          element={guard(PERMISSIONS.tenantCustomerRead, <CustomerDetailPage />)}
+        />
+        <Route
+          path={ROUTES.tenantExpenses}
+          element={guard(PERMISSIONS.tenantExpenseRead, <ExpenseCategoriesPage />)}
         />
         <Route path={ROUTES.tenantJobs} element={guard(PERMISSIONS.tenantJobRead, <JobsPage />)} />
         <Route
