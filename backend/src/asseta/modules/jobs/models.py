@@ -24,6 +24,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from asseta.core.db import Base, SyncRevisioned, Timestamps, UuidPk, utcnow
+from asseta.core.lifecycle import Deactivatable
 
 MONEY = Numeric(18, 4)
 HOURS = Numeric(12, 2)
@@ -62,7 +63,7 @@ class ActivityType(StrEnum):
     NOTE = "NOTE"
 
 
-class Customer(UuidPk, SyncRevisioned, Timestamps, Base):
+class Customer(UuidPk, SyncRevisioned, Deactivatable, Timestamps, Base):
     __tablename__ = "customer"
     __table_args__ = (UniqueConstraint("tenant_id", "code", name="uq_customer_code"),)
 
@@ -75,6 +76,8 @@ class Customer(UuidPk, SyncRevisioned, Timestamps, Base):
     contact_email: Mapped[str | None] = mapped_column(String(320))
     payment_terms_days: Mapped[int] = mapped_column(Integer, nullable=False, default=30)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    __mapper_args__ = {"version_id_col": version}  # noqa: RUF012
 
 
 class RentalRatePolicy(UuidPk, Base):
@@ -111,6 +114,11 @@ class RentalContract(UuidPk, SyncRevisioned, Timestamps, Base):
     ends_on: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     reference: Mapped[str | None] = mapped_column(String(200))
     notes: Mapped[str | None] = mapped_column(Text)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    closed_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    close_reason: Mapped[str | None] = mapped_column(Text)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    __mapper_args__ = {"version_id_col": version}  # noqa: RUF012
 
 
 class Job(UuidPk, SyncRevisioned, Timestamps, Base):

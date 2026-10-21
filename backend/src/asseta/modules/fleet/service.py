@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.orm.exc import StaleDataError
 
 from asseta.core.audit import AuditService
+from asseta.core.db import utcnow
 from asseta.core.errors import BusinessRuleViolation, Conflict, NotFound
 from asseta.core.search import ilike_any
 from asseta.modules.fleet.dto import (
@@ -25,6 +26,7 @@ from asseta.modules.fleet.dto import (
     StaffDto,
     StaffIn,
 )
+from asseta.modules.fleet.lifecycle import FleetLifecycleService, area_query, category_query
 from asseta.modules.fleet.models import (
     Machine,
     MachineAssignment,
@@ -70,11 +72,22 @@ class MachineService:
             after=after,
         )
 
-    def _check_refs(self, category_id: uuid.UUID | None, area_id: uuid.UUID | None) -> None:
-        if category_id and self._s.get(MachineCategory, category_id) is None:
-            raise NotFound("Machine category not found")
-        if area_id and self._s.get(OperatingArea, area_id) is None:
-            raise NotFound("Operating area not found")
+    def _check_refs(
+        self, category_id: uuid.UUID | None, area_id: uuid.UUID | None, current: Machine | None = None
+    ) -> None:
+        """References must exist; newly chosen ones must also be active (an unchanged inactive one is kept)."""
+        if category_id:
+            cat = self._s.get(MachineCategory, category_id)
+            if cat is None:
+                raise NotFound("Machine category not found")
+            if not cat.is_active and (current is None or current.category_id != category_id):
+                raise BusinessRuleViolation("Machine category is deactivated", code="CATEGORY_INACTIVE")
+        if area_id:
+            area = self._s.get(OperatingArea, area_id)
+            if area is None:
+                raise NotFound("Operating area not found")
+            if not area.is_active and (current is None or current.operating_area_id != area_id):
+                raise BusinessRuleViolation("Operating area is deactivated", code="AREA_INACTIVE")
 
     def machine(self, machine_id: uuid.UUID) -> Machine:
         machine = self._s.execute(select(Machine).where(Machine.id == machine_id)).scalar_one_or_none()
@@ -96,9 +109,17 @@ class MachineService:
         if machine.version != body.version:
             raise Conflict("Machine was modified by someone else; reload and retry", code="STALE_VERSION")
         if machine.status is MachineStatus.DISPOSED:
-            raise BusinessRuleViolation("Disposed machines are read-only", code="MACHINE_DISPOSED")
-        self._check_refs(body.category_id, body.operating_area_id)
+            raise BusinessRuleViolation(
+                "Disposed machines are read-only; reactivate the machine first", code="MACHINE_DISPOSED"
+            )
+        self._check_refs(body.category_id, body.operating_area_id, machine)
         before = MachineDto.model_validate(machine).model_dump(mode="json")
+        if body.status is MachineStatus.DISPOSED:  # retiring via edit: same integrity rules as /deactivate
+            lifecycle = FleetLifecycleService(self._s, self._ctx)
+            lifecycle.guard_machine_retirement(machine)
+            lifecycle.end_machine_assignments(machine, "Machine disposed")
+            machine.deactivated_at, machine.deactivated_by = utcnow(), self._ctx.user_id
+            machine.deactivation_reason = "Status set to DISPOSED"
         for key, value in body.model_dump(exclude={"version"}).items():
             setattr(machine, key, value)
         try:
@@ -110,13 +131,20 @@ class MachineService:
         return dto
 
     def list_query(
-        self, q: str | None, status: MachineStatus | None = None, category_id: uuid.UUID | None = None
+        self,
+        q: str | None,
+        status: MachineStatus | None = None,
+        category_id: uuid.UUID | None = None,
+        include_inactive: bool = False,
     ) -> Select[Machine]:
+        """Retired (DISPOSED) machines are hidden unless asked for explicitly."""
         stmt = select(Machine).order_by(Machine.asset_code)
         if (match := ilike_any(q, Machine.asset_code, Machine.name, Machine.serial_number)) is not None:
             stmt = stmt.where(match)
         if status:
             stmt = stmt.where(Machine.status == status)
+        elif not include_inactive:
+            stmt = stmt.where(Machine.status != MachineStatus.DISPOSED)
         if category_id:
             stmt = stmt.where(Machine.category_id == category_id)
         return stmt
@@ -127,11 +155,8 @@ class MachineService:
         self._insert(cat, "DUPLICATE_CATEGORY", "Category name already exists")
         return CategoryDto.model_validate(cat)
 
-    def categories(self, q: str | None = None) -> list[CategoryDto]:
-        stmt = select(MachineCategory).order_by(MachineCategory.name)
-        if (match := ilike_any(q, MachineCategory.name)) is not None:
-            stmt = stmt.where(match)
-        rows = self._s.execute(stmt).scalars()
+    def categories(self, q: str | None = None, include_inactive: bool = False) -> list[CategoryDto]:
+        rows = self._s.execute(category_query(q, include_inactive)).scalars()
         return [CategoryDto.model_validate(c) for c in rows]
 
     def create_area(self, body: AreaIn) -> AreaDto:
@@ -139,11 +164,8 @@ class MachineService:
         self._insert(area, "DUPLICATE_AREA", "Operating area code already exists")
         return AreaDto.model_validate(area)
 
-    def areas(self, q: str | None = None) -> list[AreaDto]:
-        stmt = select(OperatingArea).order_by(OperatingArea.code)
-        if (match := ilike_any(q, OperatingArea.code, OperatingArea.name)) is not None:
-            stmt = stmt.where(match)
-        return [AreaDto.model_validate(a) for a in self._s.execute(stmt).scalars()]
+    def areas(self, q: str | None = None, include_inactive: bool = False) -> list[AreaDto]:
+        return [AreaDto.model_validate(a) for a in self._s.execute(area_query(q, include_inactive)).scalars()]
 
     # --- staff & assignments ------------------------------------------------------------------------
     def create_staff(self, body: StaffIn) -> StaffDto:
@@ -153,10 +175,12 @@ class MachineService:
         self._record("fleet.staff.created", "staff_member", staff.id, None, dto.model_dump(mode="json"))
         return dto
 
-    def staff_query(self, q: str | None, kind: StaffKind | None) -> Select[StaffMember]:
+    def staff_query(self, q: str | None, kind: StaffKind | None, include_inactive: bool = False) -> Select[StaffMember]:
         stmt = select(StaffMember).order_by(StaffMember.full_name)
-        if (match := ilike_any(q, StaffMember.full_name)) is not None:
+        if (match := ilike_any(q, StaffMember.full_name, StaffMember.employee_code)) is not None:
             stmt = stmt.where(match)
+        if not include_inactive:
+            stmt = stmt.where(StaffMember.is_active.is_(True))
         if kind:
             stmt = stmt.where(StaffMember.kind == kind)
         return stmt

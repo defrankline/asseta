@@ -15,6 +15,18 @@ class Dto(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class LifecycleDto(Dto):
+    """Soft-lifecycle state shown on details pages (deactivated records are hidden from lists by default)."""
+
+    is_active: bool
+    deactivated_at: datetime | None
+    deactivation_reason: str | None
+    version: int
+
+
+Version = Annotated[int, Field(ge=1, description="Optimistic concurrency token from the last read")]
+
+
 class MachineFields(BaseModel):
     name: Name
     category_id: uuid.UUID | None = None
@@ -55,6 +67,8 @@ class MachineDto(Dto):
     status: MachineStatus
     version: int
     created_at: datetime
+    deactivated_at: datetime | None = None
+    deactivation_reason: str | None = None
 
 
 class CategoryIn(BaseModel):
@@ -62,7 +76,11 @@ class CategoryIn(BaseModel):
     description: str | None = Field(default=None, max_length=300)
 
 
-class CategoryDto(Dto):
+class CategoryUpdateIn(CategoryIn):
+    version: Version
+
+
+class CategoryDto(LifecycleDto):
     id: uuid.UUID
     name: str
     description: str | None
@@ -73,7 +91,11 @@ class AreaIn(BaseModel):
     name: Annotated[str, StringConstraints(min_length=1, max_length=120, strip_whitespace=True)]
 
 
-class AreaDto(Dto):
+class AreaUpdateIn(AreaIn):
+    version: Version
+
+
+class AreaDto(LifecycleDto):
     id: uuid.UUID
     code: str
     name: str
@@ -88,14 +110,24 @@ class StaffIn(BaseModel):
     is_active: bool = True
 
 
-class StaffDto(Dto):
+class StaffUpdateIn(BaseModel):
+    full_name: Name
+    kind: StaffKind
+    employee_code: str | None = Field(default=None, max_length=40)
+    phone: str | None = Field(default=None, max_length=40)
+    keycloak_subject: str | None = Field(
+        default=None, max_length=64, description="Login link; changing it moves field-app access to another login"
+    )
+    version: Version
+
+
+class StaffDto(LifecycleDto):
     id: uuid.UUID
     full_name: str
     kind: StaffKind
     employee_code: str | None
     phone: str | None
     keycloak_subject: str | None
-    is_active: bool
 
 
 class AssignIn(BaseModel):

@@ -12,6 +12,7 @@ from sqlalchemy import (
     Enum,
     ForeignKey,
     Index,
+    Integer,
     String,
     Text,
     UniqueConstraint,
@@ -21,6 +22,7 @@ from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from asseta.core.db import Base, Timestamps, UuidPk, utcnow
+from asseta.core.lifecycle import Deactivatable
 
 
 class Capability(StrEnum):
@@ -52,7 +54,7 @@ def _enum(cls: type[StrEnum], length: int = 24) -> Enum:
     return Enum(cls, native_enum=False, length=length)
 
 
-class TrackerModel(UuidPk, Timestamps, Base):
+class TrackerModel(UuidPk, Deactivatable, Timestamps, Base):
     """Platform catalog of approved tracker drivers; capabilities are *declared*, never assumed verified."""
 
     __tablename__ = "tracker_model"
@@ -63,8 +65,10 @@ class TrackerModel(UuidPk, Timestamps, Base):
     adapter: Mapped[TelemetryAdapterKind] = mapped_column(_enum(TelemetryAdapterKind), nullable=False)
     protocol: Mapped[str] = mapped_column(String(50), nullable=False)
     declared_capabilities: Mapped[list[str]] = mapped_column(ARRAY(String(32)), nullable=False)
-    approved: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    approved: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)  # False = not offered to tenants
     notes: Mapped[str | None] = mapped_column(Text)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    __mapper_args__ = {"version_id_col": version}  # noqa: RUF012
 
 
 class Tracker(UuidPk, Timestamps, Base):
@@ -86,6 +90,8 @@ class Tracker(UuidPk, Timestamps, Base):
     provisioning_state: Mapped[ProvisioningState] = mapped_column(_enum(ProvisioningState), nullable=False)
     first_report_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_report_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Bumped only by user edits (not by ingestion touching last_report_at), so edits never race telemetry.
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
 
 
 class TrackerCapability(Base):

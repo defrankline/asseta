@@ -22,6 +22,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from asseta.core.db import Base, SyncRevisioned, Timestamps, UuidPk, utcnow
+from asseta.core.lifecycle import Deactivatable
 
 
 def _enum(cls: type[StrEnum], length: int = 24) -> Enum:
@@ -51,25 +52,31 @@ class AssignmentRole(StrEnum):
     OPERATOR = "OPERATOR"
 
 
-class OperatingArea(UuidPk, Timestamps, Base):
+class OperatingArea(UuidPk, Deactivatable, Timestamps, Base):
     __tablename__ = "operating_area"
     __table_args__ = (UniqueConstraint("tenant_id", "code", name="uq_operating_area_code"),)
 
     tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenant.id"), nullable=False, index=True)
     code: Mapped[str] = mapped_column(String(32), nullable=False)
     name: Mapped[str] = mapped_column(String(120), nullable=False)
+    is_active: Mapped[bool] = mapped_column(nullable=False, default=True)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    __mapper_args__ = {"version_id_col": version}  # noqa: RUF012
 
 
-class MachineCategory(UuidPk, Timestamps, Base):
+class MachineCategory(UuidPk, Deactivatable, Timestamps, Base):
     __tablename__ = "machine_category"
     __table_args__ = (UniqueConstraint("tenant_id", "name", name="uq_machine_category_name"),)
 
     tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenant.id"), nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str | None] = mapped_column(String(300))
+    is_active: Mapped[bool] = mapped_column(nullable=False, default=True)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    __mapper_args__ = {"version_id_col": version}  # noqa: RUF012
 
 
-class Machine(UuidPk, SyncRevisioned, Timestamps, Base):
+class Machine(UuidPk, SyncRevisioned, Deactivatable, Timestamps, Base):
     __tablename__ = "machine"
     __table_args__ = (
         UniqueConstraint("tenant_id", "asset_code", name="uq_machine_asset_code"),
@@ -96,7 +103,7 @@ class Machine(UuidPk, SyncRevisioned, Timestamps, Base):
     __mapper_args__ = {"version_id_col": version}  # noqa: RUF012
 
 
-class StaffMember(UuidPk, SyncRevisioned, Timestamps, Base):
+class StaffMember(UuidPk, SyncRevisioned, Deactivatable, Timestamps, Base):
     """Supervisor/operator record; `keycloak_subject` links a login when the person has one."""
 
     __tablename__ = "staff_member"
@@ -112,6 +119,8 @@ class StaffMember(UuidPk, SyncRevisioned, Timestamps, Base):
     phone: Mapped[str | None] = mapped_column(String(40))
     keycloak_subject: Mapped[str | None] = mapped_column(String(64))
     is_active: Mapped[bool] = mapped_column(nullable=False, default=True)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    __mapper_args__ = {"version_id_col": version}  # noqa: RUF012
 
 
 class MachineAssignment(UuidPk, SyncRevisioned, Base):

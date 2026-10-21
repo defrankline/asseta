@@ -13,6 +13,7 @@ from sqlalchemy import (
     Enum,
     Float,
     ForeignKey,
+    Integer,
     Numeric,
     String,
     Text,
@@ -22,6 +23,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from asseta.core.db import Base, SyncRevisioned, Timestamps, UuidPk, utcnow
+from asseta.core.lifecycle import Deactivatable
 
 MONEY = Numeric(18, 4)
 
@@ -53,7 +55,7 @@ class ApprovalStatus(StrEnum):
     REJECTED = "REJECTED"
 
 
-class ExpenseCategory(UuidPk, SyncRevisioned, Timestamps, Base):
+class ExpenseCategory(UuidPk, SyncRevisioned, Deactivatable, Timestamps, Base):
     __tablename__ = "expense_category"
     __table_args__ = (UniqueConstraint("tenant_id", "code", name="uq_expense_category_code"),)
 
@@ -61,6 +63,8 @@ class ExpenseCategory(UuidPk, SyncRevisioned, Timestamps, Base):
     code: Mapped[str] = mapped_column(String(32), nullable=False)
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    __mapper_args__ = {"version_id_col": version}  # noqa: RUF012
 
 
 class Expense(UuidPk, Base):

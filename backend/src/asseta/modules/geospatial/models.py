@@ -6,11 +6,12 @@ from enum import StrEnum
 from typing import Any
 
 from geoalchemy2 import Geography, Geometry
-from sqlalchemy import Boolean, DateTime, Enum, Float, ForeignKey, Index, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Enum, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from asseta.core.db import Base, SyncRevisioned, Timestamps, UuidPk, utcnow
+from asseta.core.lifecycle import Deactivatable
 
 
 def _enum(cls: type[StrEnum], length: int = 24) -> Enum:
@@ -57,7 +58,7 @@ class AlertStatus(StrEnum):
     SUPERSEDED = "SUPERSEDED"  # evidence changed (late/replayed data) — kept for audit, never deleted
 
 
-class JobSite(UuidPk, SyncRevisioned, Timestamps, Base):
+class JobSite(UuidPk, SyncRevisioned, Deactivatable, Timestamps, Base):
     __tablename__ = "job_site"
     __table_args__ = (UniqueConstraint("tenant_id", "code", name="uq_job_site_code"),)
 
@@ -67,9 +68,11 @@ class JobSite(UuidPk, SyncRevisioned, Timestamps, Base):
     address: Mapped[str | None] = mapped_column(String(300))
     center: Mapped[Any] = mapped_column(Geometry("POINT", srid=4326, spatial_index=False), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    __mapper_args__ = {"version_id_col": version}  # noqa: RUF012
 
 
-class Geofence(UuidPk, Timestamps, Base):
+class Geofence(UuidPk, Deactivatable, Timestamps, Base):
     __tablename__ = "geofence"
     __table_args__ = (Index("ix_geofence_area", "area", postgresql_using="gist"),)
 
