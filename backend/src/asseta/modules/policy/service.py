@@ -19,7 +19,15 @@ from asseta.core.audit import AuditActor, AuditService
 from asseta.core.db import utcnow
 from asseta.core.errors import BusinessRuleViolation, ErrorDetail
 from asseta.modules.policy.models import PolicyVersion
-from asseta.modules.policy.schemas import OVERRIDABLE, SCHEMAS, PolicyScope, PolicyType, TrackingPolicy
+from asseta.modules.policy.schemas import (
+    OVERRIDABLE,
+    SCHEMAS,
+    HireBillingPolicy,
+    MeterCapturePolicy,
+    PolicyScope,
+    PolicyType,
+    TrackingPolicy,
+)
 
 BACKDATE_TOLERANCE = timedelta(minutes=5)
 _ABBR = {PolicyScope.PLATFORM: "P", PolicyScope.TENANT: "T", PolicyScope.MACHINE: "M", PolicyScope.SITE: "S"}
@@ -96,6 +104,34 @@ class PolicyService:
             EffectivePolicy[TrackingPolicy],
             self.resolve(PolicyType.TRACKING, tenant_id, machine_id=machine_id, site_id=site_id, at=at),
         )
+
+    def meter_capture(
+        self,
+        tenant_id: uuid.UUID,
+        machine_id: uuid.UUID | None = None,
+        site_id: uuid.UUID | None = None,
+        at: datetime | None = None,
+    ) -> EffectivePolicy[MeterCapturePolicy]:
+        return cast(
+            EffectivePolicy[MeterCapturePolicy],
+            self.resolve(PolicyType.METER_CAPTURE, tenant_id, machine_id=machine_id, site_id=site_id, at=at),
+        )
+
+    def hire_billing(self, tenant_id: uuid.UUID, at: datetime | None = None) -> EffectivePolicy[HireBillingPolicy]:
+        return cast(EffectivePolicy[HireBillingPolicy], self.resolve(PolicyType.HIRE_BILLING, tenant_id, at=at))
+
+    def by_stamp(self, ptype: PolicyType, version_ids: list[uuid.UUID]) -> dict[str, Any]:
+        """Re-materialize the policy snapshot a device enforced offline, from its version ids."""
+        rows = {
+            r.id: r for r in self._s.execute(select(PolicyVersion).where(PolicyVersion.id.in_(version_ids))).scalars()
+        }
+        if set(version_ids) - rows.keys() or any(r.policy_type is not ptype for r in rows.values()):
+            raise BusinessRuleViolation("Unknown policy snapshot", code="POLICY_SNAPSHOT_UNKNOWN")
+        order = [PolicyScope.PLATFORM, PolicyScope.TENANT, PolicyScope.MACHINE, PolicyScope.SITE]
+        merged: dict[str, Any] = {}
+        for row in sorted(rows.values(), key=lambda r: order.index(r.scope)):
+            merged.update(row.values)
+        return merged
 
     def create_version(
         self,

@@ -16,7 +16,7 @@ Platform console (platform scopes) and the Tenant console (tenant scopes). Node 
 | `npm run format` / `format:check` | Prettier                                                                                                                                   |
 | `npm run gen:api`                 | Generate `src/api/generated/schema.ts` from `../contracts/openapi.json` (openapi-typescript)                                               |
 
-All four gates (`lint`, `typecheck`, `test -- --run`, `build`) must pass before merging.
+All gates (`lint`, `typecheck`, `test -- --run`, `build`, `format:check`) must pass before merging.
 
 ## Configuration
 
@@ -81,3 +81,39 @@ Routes (each wrapped in `RequirePermission`; menus come from `/me` `platform_men
 - Generic pieces: `MoneyText`, `StatusChip`, `KeyValueGrid`, `CopyButton` (`components/display`),
   `StaticTable`, `AsyncContent`, `FormikSelectField`, `FormikDateField` (MUI DatePicker, ISO date),
   `FormikAutocompleteField`; `useAsyncResource` for loading/error/reload state.
+
+## Tenant console (Gate 2)
+
+Routes match the backend tenant menu paths (menus come from `/me` tenant menus) and are wrapped in
+`RequirePermission`; pages are lazy-loaded (`src/routes/lazyPages.ts`) so MapLibre is its own chunk.
+Mutating actions use `<CanMutate>` / `useCanMutate()` — permission **and** tenant not READ_ONLY.
+
+| Route                             | Read permission        | Actions                                                               |
+| --------------------------------- | ---------------------- | --------------------------------------------------------------------- |
+| `/tenant/fleet`                   | `tenant.fleet.read`    | —                                                                     |
+| `/tenant/machines`, `/:machineId` | `tenant.machine.read`  | `tenant.machine.write`, `tenant.billing.enroll`, `tenant.staff.write` |
+| `/tenant/staff`                   | `tenant.staff.read`    | `tenant.staff.write`                                                  |
+| `/tenant/trackers`                | `tenant.tracker.read`  | `tenant.tracker.write`                                                |
+| `/tenant/geofences`               | `tenant.geofence.read` | `tenant.geofence.write`                                               |
+| `/tenant/alerts`                  | `tenant.fleet.read`    | `tenant.fleet.alert_manage`                                           |
+| `/tenant/policies`                | `tenant.policy.read`   | `tenant.policy.manage`                                                |
+| `/tenant/subscription`            | `tenant.billing.read`  | — (read-only)                                                         |
+
+- **Services:** one per resource in `src/api/services` (`machineService`, `staffService`,
+  `trackerService`, `fleetService`, `geofenceService`, `alertService`, `policyService`,
+  `tenantBillingService`); all calls are `tenantScoped` (`X-Tenant-ID`) via `tenantRequest.ts`, and
+  responses are Yup-validated (`fleetSchemas`, `trackerSchemas`, `geoSchemas`, built from `schemaKit`).
+- **Time:** instants are UTC ISO from the API and shown with `formatInstantIn(…, tz)` where
+  `tz = useDisplayTimeZone()`. `/me` does not expose the tenant timezone yet, so this is the browser
+  zone; positions always show an age (`AgeText`, `formatAge`, ticking via `useNow`).
+- **Never stale as live:** `components/fleet/connectivity.ts#markerStyle` styles a marker as live only
+  for `connectivity === 'LIVE' && is_live`; everything else is "last known" (hollow / faded / greyed)
+  and labelled so. Status is four independent dimensions (`StatusDimensions`), `UNKNOWN` shown
+  explicitly.
+- **Map:** `MapView` provides the loaded map to children (`MapContext`): `GeoJsonLayer` (declarative
+  source + layers, in-place `setData`), `FitBounds`, `useMapClick`, `FleetMarkersLayer`, and
+  `DrawPolygonControl` (plain MapLibre click handlers; polygon rings are closed by `closeRing`,
+  corridors are a LineString + width). Tests mock `maplibre-gl` at the module boundary with
+  `src/test/maplibreMock.ts` (fire `lastMap().click(lon, lat)` / `clickLayer(id, props)`).
+- **Formik note:** Formik passes `''` to Yup as `undefined`; optional strings use `.default('')` /
+  `.ensure()` rather than `.defined()`.

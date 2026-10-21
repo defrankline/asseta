@@ -11,7 +11,21 @@ export const ROUTES = {
   /** Matches the backend `platform.system` menu path. */
   systemStatus: '/platform/system',
   forbidden: '/403',
+  // Tenant console paths match the backend tenant menu paths (`/me` tenant menus).
+  tenantFleet: '/tenant/fleet',
+  tenantMachines: '/tenant/machines',
+  tenantMachineDetail: '/tenant/machines/:machineId',
+  tenantStaff: '/tenant/staff',
+  tenantTrackers: '/tenant/trackers',
+  tenantGeofences: '/tenant/geofences',
+  tenantAlerts: '/tenant/alerts',
+  tenantPolicies: '/tenant/policies',
+  tenantSubscription: '/tenant/subscription',
 } as const;
+
+export function machineDetailPath(machineId: string): string {
+  return `${ROUTES.tenantMachines}/${encodeURIComponent(machineId)}`;
+}
 
 export function tenantDetailPath(tenantId: string): string {
   return `${ROUTES.platformTenants}/${encodeURIComponent(tenantId)}`;
@@ -50,4 +64,12 @@ export const IMPLEMENTED_PATHS: ReadonlySet<string> = new Set([
   ROUTES.platformInvoices,
   ROUTES.platformPayments,
   ROUTES.systemStatus,
+  ROUTES.tenantFleet,
+  ROUTES.tenantMachines,
+  ROUTES.tenantStaff,
+  ROUTES.tenantTrackers,
+  ROUTES.tenantGeofences,
+  ROUTES.tenantAlerts,
+  ROUTES.tenantPolicies,
+  ROUTES.tenantSubscription,
 ]);

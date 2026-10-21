@@ -16,8 +16,11 @@ uv run pytest -q -p no:warnings
 
 echo "== web"
 cd "$ROOT/web"
+before="$(shasum src/api/generated/schema.ts)"
 node scripts/gen-api.mjs --strict >/dev/null
-git -C "$ROOT" diff --exit-code -- web/src/api/generated
+if [[ "$before" != "$(shasum src/api/generated/schema.ts)" ]]; then
+  echo "web/src/api/generated/schema.ts was stale vs contracts/openapi.json (now regenerated) — review and commit"; exit 1
+fi
 npm run lint
 npm run typecheck
 npm test -- --run

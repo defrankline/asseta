@@ -1,0 +1,172 @@
+import { Alert, MenuItem, TextField, Tooltip } from '@mui/material';
+import { useCallback, useMemo, useState } from 'react';
+import { alertService } from '../../../api/services/alertService';
+import { fleetService } from '../../../api/services/fleetService';
+import type { AlertDto, MachineDto } from '../../../api/types';
+import { ServerDataTable, type DataColumn } from '../../../components/data/ServerDataTable';
+import type { ServerQuery } from '../../../components/data/useServerPage';
+import { StatusChip } from '../../../components/display/StatusChip';
+import { PageHeader } from '../../../components/feedback/PageHeader';
+import { useAsyncResource } from '../../../hooks/useAsyncResource';
+import { useDisplayTimeZone } from '../../../hooks/useDisplayTimeZone';
+import { useNotify } from '../../../notifications/useNotify';
+import { formatInstantIn } from '../../../utils/time';
+import {
+  ALERT_SEVERITY_TONES,
+  ALERT_STATUS_OPTIONS,
+  ALERT_STATUS_TONES,
+  ALERT_TYPE_OPTIONS,
+  labelOf,
+  machineLabel,
+  type Option,
+  SUPERSEDED_HELP,
+} from '../shared/display';
+import { MachinePicker } from '../shared/MachinePicker';
+import { AlertDetailDialog } from './AlertDetailDialog';
+
+function FilterSelect({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: readonly Option[];
+  onChange: (v: string) => void;
+}) {
+  return (
+    <TextField
+      select
+      size="small"
+      label={label}
+      value={value}
+      onChange={(e) => {
+        onChange(e.target.value);
+      }}
+      sx={{ minWidth: 180 }}
+    >
+      <MenuItem value="">All</MenuItem>
+      {options.map((o) => (
+        <MenuItem key={o.value} value={o.value}>
+          {o.label}
+        </MenuItem>
+      ))}
+    </TextField>
+  );
+}
+
+/** Tracking alerts: server-filtered list, evidence detail, acknowledge / resolve. */
+export function AlertsPage() {
+  const tz = useDisplayTimeZone();
+  const notify = useNotify();
+  const [status, setStatus] = useState('OPEN');
+  const [type, setType] = useState('');
+  const [machine, setMachine] = useState<MachineDto | null>(null);
+  const [selected, setSelected] = useState<AlertDto | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  // Machine labels for the table (the alert DTO carries only machine_id).
+  const loadFleet = useCallback((signal: AbortSignal) => fleetService.map(signal), []);
+  const fleet = useAsyncResource(loadFleet);
+  const labels = useMemo(
+    () => new Map((fleet.data ?? []).map((m) => [m.machine_id, machineLabel(m)])),
+    [fleet.data],
+  );
+
+  const fetchPage = useCallback(
+    (q: ServerQuery, signal: AbortSignal) => alertService.list(q, signal),
+    [],
+  );
+  const filters = useMemo(
+    () => ({ status, alert_type: type, machine_id: machine?.id }),
+    [status, type, machine],
+  );
+
+  const columns: DataColumn<AlertDto>[] = [
+    { id: 'time', header: 'Event time', render: (a) => formatInstantIn(a.event_time, tz) },
+    {
+      id: 'severity',
+      header: 'Severity',
+      render: (a) => <StatusChip status={a.severity} tones={ALERT_SEVERITY_TONES} />,
+    },
+    { id: 'type', header: 'Type', render: (a) => labelOf(ALERT_TYPE_OPTIONS, a.alert_type) },
+    { id: 'title', header: 'Title', render: (a) => a.title },
+    {
+      id: 'machine',
+      header: 'Machine',
+      render: (a) => (a.machine_id === null ? '—' : (labels.get(a.machine_id) ?? a.machine_id)),
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      render: (a) =>
+        a.status === 'SUPERSEDED' ? (
+          <Tooltip title={SUPERSEDED_HELP}>
+            <span>
+              <StatusChip status={a.status} tones={ALERT_STATUS_TONES} />
+            </span>
+          </Tooltip>
+        ) : (
+          <StatusChip status={a.status} tones={ALERT_STATUS_TONES} />
+        ),
+    },
+  ];
+
+  return (
+    <>
+      <PageHeader title="Alerts" subtitle={`Tracking alerts · times in ${tz}`} />
+      {status === 'SUPERSEDED' && (
+        <Alert severity="info" className="mb-3">
+          {SUPERSEDED_HELP}
+        </Alert>
+      )}
+      <ServerDataTable<AlertDto>
+        columns={columns}
+        fetchPage={fetchPage}
+        getRowId={(a) => a.id}
+        filters={filters}
+        searchPlaceholder="Search alerts"
+        emptyTitle="No alerts match these filters"
+        reloadKey={reloadKey}
+        onRowClick={setSelected}
+        toolbar={
+          <>
+            <FilterSelect
+              label="Status"
+              value={status}
+              options={ALERT_STATUS_OPTIONS}
+              onChange={setStatus}
+            />
+            <FilterSelect
+              label="Type"
+              value={type}
+              options={ALERT_TYPE_OPTIONS}
+              onChange={setType}
+            />
+            <div className="min-w-64">
+              <MachinePicker label="Machine" value={machine} onChange={setMachine} />
+            </div>
+          </>
+        }
+      />
+      {selected !== null && (
+        <AlertDetailDialog
+          alert={selected}
+          machineLabel={
+            selected.machine_id === null ? null : (labels.get(selected.machine_id) ?? null)
+          }
+          timeZone={tz}
+          onClose={() => {
+            setSelected(null);
+          }}
+          onChanged={(a) => {
+            notify.success(a.status === 'RESOLVED' ? 'Alert resolved.' : 'Alert acknowledged.');
+            setSelected(a);
+            setReloadKey((k) => k + 1);
+          }}
+        />
+      )}
+    </>
+  );
+}

@@ -23,6 +23,12 @@
   ([operating-runbook.md](operating-runbook.md)).
 * Mobile: SQLCipher-encrypted local DBs with Keystore/Keychain-held keys; no cloud backup of app data.
 
+## Telemetry & evidence
+* Ingestion accepts only gateway-authenticated requests (SHA-256 key hash lookup); device identity is globally unique
+  per adapter (a tenant cannot claim another tenant's device); unresolvable data is quarantined, never attributed.
+* Telemetry positions, policy versions, machine photos and membership history are immutable for the app role.
+* Evidence objects: tenant-prefixed, content-addressed, write-once; clients get 300 s presigned URLs only after an
+  RLS-scoped authorization check; buckets are private (verified by `tests/integration/test_minio_live.py`).
+
 ## Known gaps (tracked in track.md, in scope for later gates)
-* Rate limiting (Redis), device sessions/offline session bounds, signed device ingestion, object-storage URL
-  policies, `asseta-api` least-privilege via fine-grained admin permissions, consent/retention notices.
+* Rate limiting (Redis), device sessions/offline session bounds, mTLS for device gateways, `asseta-api` least-privilege via fine-grained admin permissions, consent/retention notices.

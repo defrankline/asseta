@@ -23,7 +23,7 @@ from sqlalchemy import Engine, create_engine, text
 from asseta.core.config import get_settings
 from asseta.main import create_app
 from asseta.modules.identity.tokens import OidcTokenVerifier
-from asseta.modules.policy.schemas import SEED_DEFAULTS, PolicyType
+from asseta.modules.policy.schemas import SEED_DEFAULTS
 from tests.support.api import Api
 from tests.support.idp import InMemoryIdp, InMemoryObjectStore
 from tests.support.tokens import AUDIENCE, ISSUER, StaticKeyProvider, TokenFactory
@@ -54,14 +54,16 @@ def clean_db(owner_engine: Engine) -> None:
         conn.execute(text("DELETE FROM entitlement_policy"))
         conn.execute(text(SEED_POLICY))
         conn.execute(text("DELETE FROM policy_version"))
-        conn.execute(
-            text(
-                "INSERT INTO policy_version (id, policy_type, scope, tenant_id, scope_ref_id, version, effective_from,"
-                " values, reason, created_at, source) VALUES (gen_random_uuid(), 'TRACKING', 'PLATFORM', NULL, NULL, 1,"
-                " TIMESTAMPTZ '2000-01-01 00:00:00+00', CAST(:v AS jsonb), 'Seeded platform default', now(), 'migration')"
-            ),
-            {"v": json.dumps(SEED_DEFAULTS[PolicyType.TRACKING])},
-        )
+        for ptype, values in SEED_DEFAULTS.items():  # every platform default, from the single source of truth
+            conn.execute(
+                text(
+                    "INSERT INTO policy_version (id, policy_type, scope, tenant_id, scope_ref_id, version,"
+                    " effective_from, values, reason, created_at, source) VALUES (gen_random_uuid(), :t, 'PLATFORM',"
+                    " NULL, NULL, 1, TIMESTAMPTZ '2000-01-01 00:00:00+00', CAST(:v AS jsonb),"
+                    " 'Seeded platform default', now(), 'migration')"
+                ),
+                {"t": ptype.value, "v": json.dumps(values)},
+            )
 
 
 class MutableClock:
@@ -70,6 +72,9 @@ class MutableClock:
 
     def set(self, d: date) -> None:
         self.now = datetime.combine(d, time(9, 0), UTC)
+
+    def set_at(self, instant: datetime) -> None:
+        self.now = instant
 
     def __call__(self) -> datetime:
         return self.now

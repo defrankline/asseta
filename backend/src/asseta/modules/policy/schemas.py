@@ -2,6 +2,7 @@
 configuration — prompt.md §5), and which fields may be overridden below tenant level."""
 
 from datetime import datetime, time
+from decimal import Decimal
 from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -9,6 +10,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 class PolicyType(StrEnum):
     TRACKING = "TRACKING"
+    METER_CAPTURE = "METER_CAPTURE"
+    HIRE_BILLING = "HIRE_BILLING"
 
 
 class PolicyScope(StrEnum):
@@ -59,7 +62,51 @@ class TrackingPolicy(BaseModel):
         return start <= t < end if start <= end else (t >= start or t < end)  # supports overnight windows
 
 
-SCHEMAS: dict[PolicyType, type[BaseModel]] = {PolicyType.TRACKING: TrackingPolicy}
+class CaptureMode(StrEnum):
+    AUTOMATIC = "AUTOMATIC"  # in-app camera photo + on-device OCR
+    MANUAL = "MANUAL"  # numeric entry (+ photo when manual_photo_required)
+
+
+class GpsEnforcement(StrEnum):
+    HARD = "HARD"  # reading without valid fix is rejected (field must retry)
+    SOFT = "SOFT"  # reading accepted as PROVISIONAL with an auditable exception
+
+
+class MeterCapturePolicy(BaseModel):
+    """Owner-controlled hour-meter capture rules (R1-E, S-007). Opening and closing modes are independent."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    opening_mode: CaptureMode
+    closing_mode: CaptureMode
+    manual_photo_required: bool
+    min_ocr_confidence: float = Field(ge=0, le=1)
+    max_recapture_attempts: int = Field(ge=0, le=10)
+    manual_correction_requires_review: bool
+    gps_enforcement: GpsEnforcement
+    gps_max_accuracy_m: float = Field(gt=0, le=5000)
+    gps_max_age_seconds: int = Field(ge=5, le=3600)
+    tracker_comparison_window_seconds: int = Field(ge=30, le=3600)
+    tracker_distance_tolerance_m: float = Field(ge=0, le=10000)
+    max_hours_per_elapsed_hour: Decimal = Field(gt=0, le=Decimal(5))  # meter can't run faster than wall clock
+    continuity_tolerance_hours: Decimal = Field(ge=0, le=Decimal(100))
+    telemetry_engine_hours_tolerance: Decimal = Field(ge=0, le=Decimal(100))
+
+
+class HireBillingPolicy(BaseModel):
+    """How meter hours become billable hours (engine hours != billable hours)."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    billable_hours_increment: Decimal = Field(gt=0, le=Decimal(1))  # e.g. 0.1 h
+    rounding: str = Field(pattern="^(UP|HALF_UP|DOWN)$")
+
+
+SCHEMAS: dict[PolicyType, type[BaseModel]] = {
+    PolicyType.TRACKING: TrackingPolicy,
+    PolicyType.METER_CAPTURE: MeterCapturePolicy,
+    PolicyType.HIRE_BILLING: HireBillingPolicy,
+}
 
 # Fields a lower scope may override (platform/tenant may override any field).
 OVERRIDABLE: dict[PolicyType, dict[PolicyScope, frozenset[str]]] = {
@@ -79,6 +126,20 @@ OVERRIDABLE: dict[PolicyType, dict[PolicyScope, frozenset[str]]] = {
         ),
         PolicyScope.SITE: frozenset({"geofence_tolerance_m"}),
     },
+    PolicyType.METER_CAPTURE: {
+        PolicyScope.MACHINE: frozenset(
+            {
+                "opening_mode",
+                "closing_mode",
+                "manual_photo_required",
+                "min_ocr_confidence",
+                "max_hours_per_elapsed_hour",
+                "telemetry_engine_hours_tolerance",
+            }
+        ),
+        PolicyScope.SITE: frozenset({"gps_max_accuracy_m", "tracker_distance_tolerance_m"}),
+    },
+    PolicyType.HIRE_BILLING: {PolicyScope.MACHINE: frozenset(), PolicyScope.SITE: frozenset()},
 }
 
 SEED_DEFAULTS: dict[PolicyType, dict[str, object]] = {
@@ -98,4 +159,21 @@ SEED_DEFAULTS: dict[PolicyType, dict[str, object]] = {
         "operating_window_end": None,
         "operating_weekdays": [0, 1, 2, 3, 4, 5, 6],
     },
+    PolicyType.METER_CAPTURE: {
+        "opening_mode": "AUTOMATIC",
+        "closing_mode": "AUTOMATIC",
+        "manual_photo_required": True,
+        "min_ocr_confidence": 0.85,
+        "max_recapture_attempts": 3,
+        "manual_correction_requires_review": True,
+        "gps_enforcement": "SOFT",
+        "gps_max_accuracy_m": 50.0,
+        "gps_max_age_seconds": 120,
+        "tracker_comparison_window_seconds": 300,
+        "tracker_distance_tolerance_m": 150.0,
+        "max_hours_per_elapsed_hour": "1.05",
+        "continuity_tolerance_hours": "0.5",
+        "telemetry_engine_hours_tolerance": "0.5",
+    },
+    PolicyType.HIRE_BILLING: {"billable_hours_increment": "0.1", "rounding": "HALF_UP"},
 }

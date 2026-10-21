@@ -1,12 +1,14 @@
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { Map as MapLibreMap, NavigationControl } from 'maplibre-gl';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { appConfig } from '../../config/env';
+import { MapContext } from './MapContext';
 
 /** [longitude, latitude] in WGS84. */
 export type LngLat = readonly [number, number];
 
 export interface MapViewProps {
+  /** Initial center; later changes re-center the map without recreating it. */
   center: LngLat;
   zoom?: number;
   /** MapLibre style JSON URL; defaults to VITE_MAP_STYLE_URL. */
@@ -18,6 +20,8 @@ export interface MapViewProps {
   onReady?: (map: MapLibreMap) => void;
   /** Called just before the map is destroyed. */
   onDispose?: (map: MapLibreMap) => void;
+  /** Declarative map children (GeoJsonLayer, FitBounds, click handlers); mounted after load. */
+  children?: ReactNode;
 }
 
 /** Thin typed wrapper around a MapLibre GL map instance. Owns creation and disposal only. */
@@ -29,9 +33,11 @@ export function MapView({
   className,
   onReady,
   onDispose,
+  children,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
+  const [loaded, setLoaded] = useState<MapLibreMap | null>(null);
   const callbacks = useRef({ onReady, onDispose });
   useEffect(() => {
     callbacks.current = { onReady, onDispose };
@@ -46,8 +52,10 @@ export function MapView({
     mapRef.current = map;
     map.on('load', () => {
       callbacks.current.onReady?.(map);
+      setLoaded(map);
     });
     return () => {
+      setLoaded(null);
       callbacks.current.onDispose?.(map);
       map.remove();
       mapRef.current = null;
@@ -61,11 +69,14 @@ export function MapView({
   }, [lng, lat, zoom]);
 
   return (
-    <div
-      ref={containerRef}
-      role="region"
-      aria-label={ariaLabel}
-      className={className ?? 'h-96 w-full rounded'}
-    />
+    <>
+      <div
+        ref={containerRef}
+        role="region"
+        aria-label={ariaLabel}
+        className={className ?? 'h-96 w-full rounded'}
+      />
+      {loaded !== null && <MapContext.Provider value={loaded}>{children}</MapContext.Provider>}
+    </>
   );
 }

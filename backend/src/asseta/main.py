@@ -23,6 +23,8 @@ from asseta.modules.identity.authz_sync import AuthzSyncService
 from asseta.modules.identity.idp import IdentityProviderAdmin
 from asseta.modules.identity.keycloak_admin import KeycloakAdminClient
 from asseta.modules.identity.tokens import JwksSigningKeyProvider, OidcTokenVerifier, TokenVerifier
+from asseta.modules.jobs import router as jobs_router
+from asseta.modules.meter import router as meter_router
 from asseta.modules.platform_billing import router as platform_router
 from asseta.modules.platform_billing import tenant_router as tenant_billing_router
 from asseta.modules.policy import router as policy_router
@@ -109,6 +111,8 @@ def create_app(
         geospatial_router.router,
         fleet_photos.router,
         identity_access.router,
+        jobs_router.router,
+        meter_router.router,
     ):
         app.include_router(router)
     return app

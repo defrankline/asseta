@@ -42,7 +42,17 @@ TENANT_TEMPLATES = (
         "supervisor",
         "Supervisor",
         PermissionScope.TENANT,
-        ("tenant.job.", "tenant.meter.", "tenant.expense.", "tenant.collection.", "tenant.sync."),
+        (
+            "tenant.job.read",
+            "tenant.job.log",
+            "tenant.meter.capture",
+            "tenant.meter.read",
+            "tenant.customer.read",
+            "tenant.expense.",
+            "tenant.collection.",
+            "tenant.sync.",
+            "tenant.fleet.read",
+        ),
     ),
     RoleTemplate(
         "accountant",

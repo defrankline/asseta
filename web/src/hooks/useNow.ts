@@ -1,0 +1,15 @@
+import { useEffect, useState } from 'react';
+
+/** Current time in ms, re-rendering every `intervalMs` (for "x min ago" ages). */
+export function useNow(intervalMs = 30_000): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setNow(Date.now());
+    }, intervalMs);
+    return () => {
+      window.clearInterval(id);
+    };
+  }, [intervalMs]);
+  return now;
+}

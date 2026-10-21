@@ -1,7 +1,8 @@
-import type { ReactNode } from 'react';
+import { Suspense, type ReactNode } from 'react';
 import { Route, Routes } from 'react-router';
 import { PERMISSIONS } from '../access/permissionCodes';
 import { RequirePermission } from '../access/RequirePermission';
+import { LoadingState } from '../components/feedback/LoadingState';
 import { AppShell } from '../layout/AppShell';
 import { ROUTES } from '../navigation/routes';
 import { ForbiddenPage } from '../pages/ForbiddenPage';
@@ -14,9 +15,24 @@ import { PaymentsPage } from '../pages/platform/payments/PaymentsPage';
 import { TenantDetailPage } from '../pages/platform/tenantDetail/TenantDetailPage';
 import { TenantsPage } from '../pages/platform/tenants/TenantsPage';
 import { SystemStatusPage } from '../pages/SystemStatusPage';
+import {
+  AlertsPage,
+  FleetMapPage,
+  GeofencesPage,
+  MachineDetailPage,
+  MachinesPage,
+  PoliciesPage,
+  StaffPage,
+  TenantSubscriptionPage,
+  TrackersPage,
+} from './lazyPages';
 
 function guard(permission: string, page: ReactNode) {
-  return <RequirePermission permission={permission}>{page}</RequirePermission>;
+  return (
+    <RequirePermission permission={permission}>
+      <Suspense fallback={<LoadingState label="Loading page" />}>{page}</Suspense>
+    </RequirePermission>
+  );
 }
 
 /**
@@ -52,6 +68,42 @@ export function AppRoutes() {
         <Route
           path={ROUTES.systemStatus}
           element={guard(PERMISSIONS.platformSystemRead, <SystemStatusPage />)}
+        />
+        <Route
+          path={ROUTES.tenantFleet}
+          element={guard(PERMISSIONS.tenantFleetRead, <FleetMapPage />)}
+        />
+        <Route
+          path={ROUTES.tenantMachines}
+          element={guard(PERMISSIONS.tenantMachineRead, <MachinesPage />)}
+        />
+        <Route
+          path={ROUTES.tenantMachineDetail}
+          element={guard(PERMISSIONS.tenantMachineRead, <MachineDetailPage />)}
+        />
+        <Route
+          path={ROUTES.tenantStaff}
+          element={guard(PERMISSIONS.tenantStaffRead, <StaffPage />)}
+        />
+        <Route
+          path={ROUTES.tenantTrackers}
+          element={guard(PERMISSIONS.tenantTrackerRead, <TrackersPage />)}
+        />
+        <Route
+          path={ROUTES.tenantGeofences}
+          element={guard(PERMISSIONS.tenantGeofenceRead, <GeofencesPage />)}
+        />
+        <Route
+          path={ROUTES.tenantAlerts}
+          element={guard(PERMISSIONS.tenantFleetRead, <AlertsPage />)}
+        />
+        <Route
+          path={ROUTES.tenantPolicies}
+          element={guard(PERMISSIONS.tenantPolicyRead, <PoliciesPage />)}
+        />
+        <Route
+          path={ROUTES.tenantSubscription}
+          element={guard(PERMISSIONS.tenantBillingRead, <TenantSubscriptionPage />)}
         />
         <Route path={ROUTES.forbidden} element={<ForbiddenPage />} />
         <Route path="*" element={<NotFoundPage />} />
