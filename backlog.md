@@ -59,4 +59,5 @@ Owner decision: UNREVIEWED
 
 | Date | Item | Owner-approved future release | Decision |
 |---|---|---|---|
+| 2026-10-21 | Platform ad-hoc invoices with catalog items (subscription, SMS bundles, services) and per-line fulfilment; tenant SMS wallet; notification engine (in-app inbox, WebSocket real-time, SMS channel), reminders and anomaly notifications | R1 (requested directly by the Platform Owner in chat) | APPROVED by owner; DEC-022 |
 | 2026-10-21 | Public business landing page at `/` for signed-out visitors (capabilities, how it works, pricing model, managed service; optional `VITE_CONTACT_EMAIL` demo link) and Asseta-branded Keycloak login theme (sign in, forgot/update password, register, OTP, errors) | R1 (requested directly by the Platform Owner in chat) | APPROVED by owner; implemented in R1 |
