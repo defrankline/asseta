@@ -338,7 +338,9 @@ def finance_fixture(o: Owner, tag: str, staff: str) -> dict[str, Any]:
     """An active expense category and a cash float for the supervisor (so collections, handovers and custody
     expenses have a balance to move). The tenant keeps the default EXPENSE_CAPTURE policy (receipt and GPS fix
     required, every expense needs approval). Each run uses a fresh tenant, so this is idempotent per fixture."""
-    category = o.post("/tenant/expense-categories", {"code": f"FE2E{tag}"[:32], "name": "Field E2E parts"}, "expense cat")
+    category = o.post(
+        "/tenant/expense-categories", {"code": f"FE2E{tag}"[:32], "name": "Field E2E parts"}, "expense cat"
+    )
     float_amount = "500000"
     o.post(
         "/tenant/cash/floats",
