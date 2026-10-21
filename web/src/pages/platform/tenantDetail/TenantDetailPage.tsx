@@ -70,7 +70,13 @@ function SubscriptionTabs({
   );
 }
 
-function SubscriptionSection({ tenantId }: { tenantId: string }) {
+interface SubscriptionSectionProps {
+  tenantId: string;
+  /** Lifecycle changes also change the tenant's access state and reason shown in the company panel. */
+  onTenantChanged: () => void;
+}
+
+function SubscriptionSection({ tenantId, onTenantChanged }: SubscriptionSectionProps) {
   const [version, setVersion] = useState(0);
   const load = useCallback(
     (signal: AbortSignal) => tenantService.getSubscription(tenantId, signal),
@@ -79,6 +85,7 @@ function SubscriptionSection({ tenantId }: { tenantId: string }) {
   const subscription = useAsyncResource(load, [version]);
   const changed = () => {
     setVersion((v) => v + 1);
+    onTenantChanged();
   };
   return (
     <AsyncContent
@@ -129,7 +136,7 @@ export function TenantDetailPage() {
           <Stack spacing={3}>
             <CompanyPanel tenant={t} onChanged={tenant.reload} />
             <Can permission={PERMISSIONS.platformSubscriptionRead}>
-              <SubscriptionSection tenantId={t.id} />
+              <SubscriptionSection tenantId={t.id} onTenantChanged={tenant.reload} />
             </Can>
           </Stack>
         )}

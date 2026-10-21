@@ -51,15 +51,17 @@ object MeterReadingParser {
             i += 1
         }
         if (candidates.isEmpty()) return ParseResult(null, Reason.NO_NUMBER)
-        if (candidates.size > 1) return ParseResult(null, Reason.AMBIGUOUS)
+        val texts = candidates.map { it.text }
+        if (candidates.size > 1) return ParseResult(null, Reason.AMBIGUOUS, candidates = texts)
         val chosen = candidates.single()
         val value = BigDecimal(chosen.text)
-        if (value.scale() > decimalPlaces) return ParseResult(null, Reason.PRECISION_EXCEEDS_METER)
+        if (value.scale() > decimalPlaces) return ParseResult(null, Reason.PRECISION_EXCEEDS_METER, candidates = texts)
         return ParseResult(
             value = value.setScale(decimalPlaces).toPlainString(),
             reason = Reason.OK,
             explicitSeparator = chosen.explicitSeparator,
             drumSplit = chosen.drumSplit,
+            candidates = texts,
         )
     }
 
@@ -76,10 +78,12 @@ object MeterReadingParser {
 /**
  * [value] is a decimal string at the meter's precision, or null (manual fallback). [explicitSeparator]/[drumSplit]
  * say how the fractional part was established; app-level confidence uses them (not part of the shared spec output).
+ * [candidates] are the normalized candidate tokens the decision was based on (diagnostics / OCR consistency checks).
  */
 data class ParseResult(
     val value: String?,
     val reason: String,
     val explicitSeparator: Boolean = false,
     val drumSplit: Boolean = false,
+    val candidates: List<String> = emptyList(),
 )

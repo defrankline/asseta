@@ -16,7 +16,7 @@ Gate 5 operations (expenses, collections, fuel, cash) are not part of this gate.
 | Module | Purpose |
 | --- | --- |
 | `:core:model` | Pure-Kotlin/JVM API DTOs (kotlinx.serialization): `MeResponse`, `TenantAccess`, `TenantAccessState`, `ErrorEnvelope`, strict UUID serializer, `DecimalAmount`/`Money` (decimal string on the wire; floats rejected), `ClientOperationStatus`. `sync/`: protocol v1 DTOs (`DeviceRegisterIn`, `BootstrapDto`, `ChangesDto`, `PushIn`/`PushResultDto`, `BlobStartIn`/`BlobSessionDto`, job/machine/... DTOs) and op payloads (`MeterCaptureIn`, `GpsIn`, `ActivityPayload`, `AcknowledgementPayload`, `JobTransitionPayload`), per contracts/openapi.json. |
-| `:core:domain` | Pure-Kotlin field rules shared by all screens and the engine (JVM-tested): `MeterReadingParser` (port of the shared OCR spec v1), `OcrAssessor`/`OcrConsensus`/`PixelRedCellDetector` (confidence + drum handling), `PolicySelector` (machine > tenant snapshot, expiry, offline grant), `CaptureValidator`/`ReadingValidator`/`OcrFlow` (mode, photo, recapture, decimals), `JobStateRules`, `GpsOutcome`, `OutboxTransitions` (state machine), `JobOperationPlanner` (dependency chain), `Backoff`, `ClockCheck`. |
+| `:core:domain` | Pure-Kotlin field rules shared by all screens and the engine (JVM-tested): `MeterReadingParser` (port of the shared OCR spec v1), `GlyphSegmenter`/`GlyphRenderer`/`SevenSegmentDecoder`/`GeometricOcr` (glyph geometry, re-rendering, segment decoder and agreement scoring of the OCR pipeline), `OcrAssessor`/`OcrConsensus`/`PixelRedCellDetector` (text-only fallback + drum handling), `PolicySelector` (machine > tenant snapshot, expiry, offline grant), `CaptureValidator`/`ReadingValidator`/`OcrFlow` (mode, photo, recapture, decimals), `JobStateRules`, `GpsOutcome`, `OutboxTransitions` (state machine), `JobOperationPlanner` (dependency chain), `Backoff`, `ClockCheck`. |
 | `:core:sync` | Data + engine (Android library): `SyncEngine` (register -> bootstrap/changes -> blob upload -> push -> changes), `OutboxPusher`, `BlobUploader`, `ServerDataWriter`, `FieldRepository` (read side), use cases `CaptureMeterReading` and `JobWorkflow`, `FieldOutbox` (single place that enqueues ops with dependencies), `EncryptedEvidenceStore`, `DeviceWipe`, `SyncWorker`/`SyncScheduler` (WorkManager). |
 | `:core:security` | Android Keystore AES-256-GCM key per purpose (`KeystoreSecretCipher`), wrapped-secret file store in `noBackupFilesDir`, SQLCipher passphrase provider (32 random bytes, generated once, never regenerated silently), encrypted token store, evidence data key (`WrappedRandomKey`), device id (`DeviceIdStore`), `wipeLocalSecrets()` (deletes wrapped files and their Keystore keys). |
 | `:core:database` | Room + SQLCipher (`SupportOpenHelperFactory`), schema v2. Outbox `client_operation` (+ `client_operation_dependency` for multi-parent deps, attachment gate, server result/error code) with SQL-guarded transitions; `attachment` (resumable upload state), `job`, `machine`, `reference_record`, `policy_snapshot`, `sync_state`, `meter_capture`, `work_log_entry`. `DatabaseHolder` (close + delete for the wipe). Exported schemas in `core/database/schemas/`; v1->v2 is a Room AutoMigration with a post-migrate step copying legacy `depends_on`; **no destructive fallback**. |
@@ -126,25 +126,32 @@ without coordinates. Capture id: UUID generated once per capture screen visit.
 
 ## OCR accuracy (bundled ML Kit Latin 16.0.1, API 35 arm64 emulator, 2026-10-21)
 
-`MeterOcrFixtureTest` over the 24 images of `contracts/fixtures/ocr/manifest.json` ("confident" = >= 0.85):
+Pipeline (same algorithm as iOS `MeterOCR`; pure parts in `:core:domain`, JVM-tested): ML Kit's own confidence is
+high even for wrong reads of segmented displays, so it is not the score. The photo is segmented into glyphs (median
+filter, Otsu polarity, adaptive threshold, connected components, column merge, row chaining, deskew above 1.5 deg);
+the decimal point comes from geometry and the drum tenths wheel from a red cell. The three most prominent rows are
+re-rendered as clean glyphs in three layouts, each read by ML Kit, and every layout must give exactly one character
+per glyph. A deterministic seven-segment decoder is a second opinion. ML Kit reads an upright seven-segment `7` as
+`1`: when the only difference to the decoder is such a too-wide `1`, italic renders of the row are also read, and the
+decoder's digits are used only if one of those reads matches them exactly. Scores (`GeometricOcr`): unanimous 0.92
+(+0.05 with full-frame agreement), 2 of 3 layouts 0.70, else 0.50; capped at 0.60 for a suspicious `1`, a decoder
+conflict or a full-frame conflict, and at 0.50 for an ambiguous dot or another same-size row with a different number.
+Without a geometric read the text-only assessment is used, capped at 0.40. These are heuristic agreement scores, not
+calibrated probabilities; any disagreement keeps a read below 0.85, so the app asks for a recapture.
+
+`MeterOcrFixtureTest` over the 24 images of `contracts/fixtures/ocr/manifest.json` ("confident" = >= 0.85), identical
+over three runs:
 
 | Metric | Result |
 | --- | --- |
 | Confident wrong reads (all 24) | **0** (hard assertion) |
-| must_read accepted correct (confident and right) | **9/17 = 0.53** — manifest target 0.90 **not met** |
-| must_read value correct (incl. below threshold -> confirm/recapture) | 13/17 |
-| fallback_ok accepted correct | 2/7 |
+| must_read accepted correct (confident and right) | **17/17 = 1.00** (manifest target 0.90 asserted; regression floor 1.0) |
+| By style (must_read) | lcd_7seg 3/3, mechanical_drum 4/4, backlit_amber 5/5, plain_digital 5/5 |
+| fallback_ok accepted correct | 5/7 |
 
-By style (must_read): plain_digital 3/5 and backlit_amber 4/5 accepted (the rest correct but just below 0.85, or a clock read
-without its colon making the text ambiguous); mechanical_drum 2/4 must_read accepted, all 6 drum values correct
-after the drum handling; lcd_7seg 0/3 — the Latin model misreads seven-segment digits (e.g. `9L52E9` for 63257.6),
-and those reads are all capped below threshold. Drum risk (manifest `known_risks`): ML Kit splits the wheels into
-arbitrary groups (`2026 4 1`) or merges them; `OcrAssessor` treats the run of digit words on a line as one counter
-and, if the last character cell sits on a red wheel (colour/geometry), splits it off as the tenths before applying
-the shared parser. Without colour evidence, merged reads (no separator) and fragmented digit groups are capped at
-0.5, so they can never be accepted automatically. A second, contrast-enhanced variant is consulted when the first
-read is not confident; disagreement caps confidence. Reaching 0.9 needs a seven-segment-specific recogniser and
-real device samples (EXT-05); the test asserts a regression floor of 0.47.
+Of the `fallback_ok` images, `lcd_7seg__blur` is read wrongly (`41213.3`) at 0.50 and `lcd_7seg__noise` gets no
+geometric read, so the text-only read (`212.5`, wrong) is capped at 0.35; both lead to a recapture. The other five are
+read correctly at >= 0.92. The fixtures are synthetic; real samples are still required (EXT-05).
 
 ## Rules for later gates
 

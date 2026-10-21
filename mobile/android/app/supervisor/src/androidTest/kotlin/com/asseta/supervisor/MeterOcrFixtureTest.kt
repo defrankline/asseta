@@ -20,17 +20,16 @@ import java.math.BigDecimal
 
 /**
  * Bundled ML Kit OCR over every image in contracts/fixtures/ocr (mounted as test assets, read via manifest.json).
- * Hard requirement: zero confident wrong reads (confidence >= 0.85 and value != expected). Accuracy on `must_read`
- * is reported in logcat (tag AssetaOcr) and in the instrumentation output. The manifest target
- * (`must_read_min_accuracy`, 0.9) is NOT reached by the bundled ML Kit Latin model on these synthetic fixtures
- * (seven-segment LCD digits are misread; see README "OCR accuracy"); [REGRESSION_FLOOR] guards the measured level.
+ * Hard requirements: zero confident wrong reads (confidence >= 0.85 and value != expected) and the manifest target
+ * (`must_read_min_accuracy`) on `must_read`; [REGRESSION_FLOOR] guards the measured level. Accuracy overall and per
+ * display style is reported in logcat (tag AssetaOcr) and in the instrumentation output.
  */
 @RunWith(AndroidJUnit4::class)
 class MeterOcrFixtureTest {
     private val assets = InstrumentationRegistry.getInstrumentation().context.assets
 
-    data class Outcome(val file: String, val category: String, val expected: String, val value: String?, val confidence: Double,
-        val flags: Set<String>, val raw: String) {
+    data class Outcome(val file: String, val style: String, val category: String, val expected: String, val value: String?,
+        val confidence: Double, val flags: Set<String>, val raw: String) {
         val correct get() = value != null && BigDecimal(value).compareTo(BigDecimal(expected)) == 0
         val confidentWrong get() = value != null && confidence >= CONFIDENT && !correct
         val acceptedCorrect get() = correct && confidence >= CONFIDENT
@@ -46,11 +45,12 @@ class MeterOcrFixtureTest {
             val file = img["file"]!!.jsonPrimitive.content
             val bitmap = assets.open(file).use { BitmapFactory.decodeStream(it) }!!
             val r = ocr.read(bitmap, img["decimal_places"]!!.jsonPrimitive.int, CONFIDENT)
-            Outcome(file, img["category"]!!.jsonPrimitive.content, img["expected_reading"]!!.jsonPrimitive.content,
+            fun field(name: String) = img[name]!!.jsonPrimitive.content
+            Outcome(file, field("style"), field("category"), field("expected_reading"),
                 r.value, r.confidence, r.flags, r.rawText.replace('\n', '|'))
         }
         outcomes.forEach {
-            Log.i(TAG, "${it.file} [${it.category}] expected=${it.expected} got=${it.value} conf=${"%.3f".format(java.util.Locale.ROOT, it.confidence)} " +
+            Log.i(TAG, "${it.file} [${it.style}/${it.category}] expected=${it.expected} got=${it.value} conf=${"%.3f".format(java.util.Locale.ROOT, it.confidence)} " +
                 "correct=${it.correct} accepted=${it.acceptedCorrect} confidentWrong=${it.confidentWrong} flags=${it.flags} raw='${it.raw}'")
         }
         val must = outcomes.filter { it.category == "must_read" }
@@ -61,12 +61,17 @@ class MeterOcrFixtureTest {
         val summary = "must_read: accepted-correct $accepted/${must.size} (${"%.3f".format(java.util.Locale.ROOT, accepted.toDouble() / must.size)}), " +
             "value-correct $parsedCorrect/${must.size}; fallback_ok: accepted-correct ${fallback.count { it.acceptedCorrect }}/${fallback.size}; " +
             "confident wrong reads: ${confidentWrong.size} ${confidentWrong.map { it.file }}"
+        val byStyle = must.groupBy { it.style }.entries.joinToString(", ") { (style, list) ->
+            "$style ${list.count { it.acceptedCorrect }}/${list.size}"
+        }
         Log.i(TAG, "SUMMARY $summary")
-        InstrumentationRegistry.getInstrumentation().sendStatus(0, android.os.Bundle().apply { putString("stream", "AssetaOcr $summary\n") })
+        Log.i(TAG, "BY STYLE (must_read accepted-correct): $byStyle")
+        InstrumentationRegistry.getInstrumentation().sendStatus(0, android.os.Bundle().apply { putString("stream", "AssetaOcr $summary\nAssetaOcr by style: $byStyle\n") })
         assertEquals(24, outcomes.size)
         assertEquals("confident wrong reads: $summary", 0, confidentWrong.size)
         val accuracy = accepted.toDouble() / must.size
-        Log.i(TAG, if (accuracy >= minAccuracy) "manifest target $minAccuracy met" else "BELOW manifest target $minAccuracy (known gap)")
+        Log.i(TAG, if (accuracy >= minAccuracy) "manifest target $minAccuracy met" else "BELOW manifest target $minAccuracy")
+        assertTrue("must_read accuracy below manifest target $minAccuracy: $summary", accuracy >= minAccuracy)
         assertTrue("must_read accuracy regressed below $REGRESSION_FLOOR: $summary", accuracy >= REGRESSION_FLOOR)
     }
 
@@ -88,7 +93,10 @@ class MeterOcrFixtureTest {
     private companion object {
         const val TAG = "AssetaOcr"
         const val CONFIDENT = 0.85
-        /** Measured 9/17 = 0.529 on API 35 emulator (2026-10-21); keep a small margin for engine nondeterminism. */
-        const val REGRESSION_FLOOR = 0.47
+        /**
+         * Measured 17/17 = 1.0 on the API 35 arm64 emulator (2026-10-21, geometric pipeline, repeated runs). One fixture
+         * of headroom for ML Kit model or device variation; the manifest target still applies.
+         */
+        const val REGRESSION_FLOOR = 16.0 / 17
     }
 }
