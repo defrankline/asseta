@@ -15,7 +15,10 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     kafka_bootstrap: str = "localhost:9092"
     s3_endpoint: str = "http://localhost:9000"
+    s3_public_endpoint: str | None = None  # host used in presigned URLs (defaults to s3_endpoint)
     s3_bucket: str = "asseta-evidence"
+    presigned_url_ttl_seconds: int = Field(default=300, ge=30, le=3600)
+    max_image_bytes: int = Field(default=10 * 1024 * 1024, ge=1024)
     s3_access_key: SecretStr = SecretStr("")
     s3_secret_key: SecretStr = SecretStr("")
 

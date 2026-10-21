@@ -13,6 +13,13 @@ class RoleGroup:
 
 
 @dataclass(frozen=True)
+class GroupMember:
+    subject: str
+    email: str
+    display_name: str
+
+
+@dataclass(frozen=True)
 class CreatedUser:
     subject: str
     temporary_password: str
@@ -30,3 +37,9 @@ class IdentityProviderAdmin(Protocol):
     def create_user(self, email: str, first_name: str, last_name: str) -> CreatedUser: ...
 
     def add_user_to_group(self, subject: str, group_id: str) -> None: ...
+
+    def remove_user_from_group(self, subject: str, group_id: str) -> None: ...
+
+    def list_group_members(self, group_id: str) -> list[GroupMember]: ...
+
+    def find_user_by_email(self, email: str) -> str | None: ...

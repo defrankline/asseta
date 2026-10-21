@@ -35,6 +35,19 @@ def ensure_traccar_gateway(key: str) -> uuid.UUID:
 
 def run() -> None:
     configure_logging()
+    from asseta.core.config import get_settings
+    from asseta.core.storage import S3ObjectStore
+
+    settings = get_settings()
+    S3ObjectStore(
+        settings.s3_endpoint,
+        settings.s3_public_endpoint,
+        settings.s3_bucket,
+        settings.s3_access_key.get_secret_value(),
+        settings.s3_secret_key.get_secret_value(),
+        settings.http_timeout_seconds,
+    ).ensure_bucket()
+    structlog.get_logger().info("bootstrap_bucket_ready", bucket=get_settings().s3_bucket)
     key = os.environ.get("ASSETA_TRACCAR_GATEWAY_KEY", "")
     if len(key) < 24:
         structlog.get_logger().warning("bootstrap_skipped_gateway", reason="ASSETA_TRACCAR_GATEWAY_KEY unset/short")

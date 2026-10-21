@@ -25,7 +25,7 @@ from asseta.main import create_app
 from asseta.modules.identity.tokens import OidcTokenVerifier
 from asseta.modules.policy.schemas import SEED_DEFAULTS, PolicyType
 from tests.support.api import Api
-from tests.support.idp import InMemoryIdp
+from tests.support.idp import InMemoryIdp, InMemoryObjectStore
 from tests.support.tokens import AUDIENCE, ISSUER, StaticKeyProvider, TokenFactory
 
 SEED_POLICY = """INSERT INTO entitlement_policy (id, tenant_id, version, effective_from, grace_days, suspend_after_days,
@@ -93,7 +93,7 @@ def idp() -> InMemoryIdp:
 @pytest.fixture
 def client(tokens: TokenFactory, idp: InMemoryIdp, clock: MutableClock) -> Iterator[TestClient]:
     verifier = OidcTokenVerifier(StaticKeyProvider(tokens.public_key), ISSUER, AUDIENCE)
-    app = create_app(token_verifier=verifier, idp_admin=idp)
+    app = create_app(token_verifier=verifier, idp_admin=idp, object_store=InMemoryObjectStore())
     app.state.clock = clock
     with TestClient(app, raise_server_exceptions=False) as c:
         yield c

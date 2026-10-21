@@ -14,12 +14,14 @@ PLATFORM_SUBJECT = "platform-owner-subject"
 
 
 class Actor:
-    def __init__(self, api: "Api", subject: str, groups: list[str], tenant_id: str | None = None):
-        self.api, self.subject, self.groups, self.tenant_id = api, subject, groups, tenant_id
+    def __init__(
+        self, api: "Api", subject: str, groups: list[str], tenant_id: str | None = None, email: str = "user@example.com"
+    ):
+        self.api, self.subject, self.groups, self.tenant_id, self.email = api, subject, groups, tenant_id, email
 
     def headers(self, idem: bool, tenant: str | None) -> dict[str, str]:
         h = {
-            "Authorization": f"Bearer {self.api.tokens.mint(self.subject, self.groups)}",
+            "Authorization": f"Bearer {self.api.tokens.mint(self.subject, self.groups, email=self.email)}",
             "X-Correlation-ID": str(uuid.uuid4()),
         }
         if tenant or self.tenant_id:
@@ -47,11 +49,11 @@ class Actor:
 class Api:
     def __init__(self, client: TestClient, tokens: TokenFactory, idp: InMemoryIdp, clock: Any):
         self.client, self.tokens, self.idp, self.clock = client, tokens, idp, clock
-        self.platform = Actor(self, PLATFORM_SUBJECT, ["/platform/platform-owner"])
+        self.platform = Actor(self, PLATFORM_SUBJECT, ["/platform/platform-owner"], email="platform@asseta.local")
 
     def tenant_user(self, email: str, tenant_id: str) -> Actor:
         subject = self.idp.subject_for(email)
-        return Actor(self, subject, sorted(self.idp.memberships[subject]), tenant_id)
+        return Actor(self, subject, sorted(self.idp.memberships[subject]), tenant_id, email=email)
 
     def onboard(
         self,

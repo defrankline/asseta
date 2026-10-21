@@ -148,8 +148,10 @@ def downgrade() -> None:
         op.execute(f"DROP TRIGGER IF EXISTS trg_{table}_immutable ON {table}")
     op.execute("DROP TRIGGER IF EXISTS trg_platform_invoice_immutable ON platform_invoice")
     # Seeds stay when referenced by business data (re-upgrade is idempotent); tables go with the baseline revision.
-    op.execute("DELETE FROM entitlement_policy p WHERE tenant_id IS NULL AND version = 1 AND NOT EXISTS ("
-               "SELECT 1 FROM entitlement_event e WHERE e.policy_id = p.id)")
+    op.execute(
+        "DELETE FROM entitlement_policy p WHERE tenant_id IS NULL AND version = 1 AND NOT EXISTS ("
+        "SELECT 1 FROM entitlement_event e WHERE e.policy_id = p.id)"
+    )
     op.execute(
         "DROP FUNCTION IF EXISTS guard_platform_invoice(); DROP FUNCTION IF EXISTS reject_mutation();"
         "DROP FUNCTION IF EXISTS app_tenant_id(); DROP FUNCTION IF EXISTS app_scope();"

@@ -67,7 +67,9 @@
 
 ## Gate 2 — Fleet GPS/PostGIS
 
-- [x] Fleet registry (R1-B): operating areas, categories, machines (capacity, meter precision, ownership, optimistic concurrency), staff, effective-dated assignments; job sites. Customers belong to Gate 3 jobs. **Remaining:** machine photos (object storage adapter), `tenant_membership` mirror population.
+- [x] Fleet registry (R1-B): operating areas, categories, machines (capacity, meter precision, ownership, optimistic concurrency), staff, effective-dated assignments; job sites. Customers belong to Gate 3 jobs.
+- [x] Machine photos: S3/MinIO adapter (`core/storage.py`), magic-byte validation, content-hash idempotency, immutable rows, 300 s presigned URLs after RLS-scoped authorization; live MinIO test proves expiry and no anonymous access.
+- [x] Tenant users & roles (`identity/access.py`): invite (new or existing Keycloak account), grant/revoke role groups in Keycloak, effective-dated `tenant_membership` mirror (never deleted), last-owner guard; orphan Keycloak tenant groups tolerated by sync.
 - [x] Policy engine §5: `policy_version` (platform→tenant→machine/site, field-level overridability, no backdating, immutable), `get_effective_policy` with version stamps recorded on positions/events/alerts.
 - [x] Tracker registry: platform-approved models + declared capability matrix; tenant trackers (global external-id uniqueness = anti-spoofing); provisioning REGISTERED→VERIFIED_REPORTING only on real data; capabilities verified only when observed; one open primary per machine; swap; DEC-014 enrollment gate.
 - [x] Vendor-neutral `TelemetryObservation` + `TraccarAdapter` (unit-converting, no invented values) + deterministic simulator (`asseta.tools.gps_simulator`, direct + OsmAnd modes).
@@ -137,6 +139,8 @@
 | 2026-10-21 | Platform admin UI (Gate 1) | `npm run lint/typecheck/test -- --run/build/format:check` (after contract regen) | PASS 59 tests (15 files) | `web/src/pages/platform` |
 | 2026-10-21 | Gate 2 backend | `uv run pytest -q` | PASS 69 passed, 3 skipped (live) incl. 18-case privilege audit | `tests/api/test_trackers_ingestion.py`, `test_geospatial.py`, `test_fleet_registry_and_grants.py`, `test_authz_upgrade.py` |
 | 2026-10-21 | Real Traccar E2E | simulator (IMEI id) → Traccar 6.10.0 OsmAnd → forward → Asseta → PostGIS → Kafka timeline worker → fleet map | PASS: LIVE, engine ON, state events derived, outbox drained | `scripts/compose_smoke.py` |
+| 2026-10-21 | First hosted CI run 39580991361 | GitHub Actions | web PASS, iOS PASS; backend FAIL (`ruff format --check`: migration edited after local check), Android FAIL (`setup-android` preview-license prompt). Fixed: `scripts/ci-local.sh` gate before every commit; Android uses preinstalled SDK + `sdkmanager --licenses`. | `.github/workflows/ci.yml`, `scripts/ci-local.sh` |
+| 2026-10-21 | Live integrations (Keycloak, Kafka, MinIO) | `uv run pytest -m integration` with live services | PASS 4/4 (found & fixed: orphan Keycloak tenant groups crashed mirror sync) | `tests/integration` |
 | 2026-10-21 | Migration safety | down→base→up and partial cycles **on a populated DB**; `alembic check` | PASS (fixed data-dependent seed downgrade) | `migrations/versions` |
 | 2026-10-21 | Android foundation | `./gradlew assembleDebug testDebugUnitTest lint assembleAndroidTest` | PASS (35+ unit tests; lint clean; instrumented SQLCipher test compiled, not run — no emulator) | `mobile/android/` |
 | 2026-10-21 | iOS foundation | `swift test`; `xcodebuild` Supervisor/Owner; app-hosted tests on iPhone 17 Pro sim | PASS 65 tests; both builds; 2 hosted Keychain/SQLCipher tests | `mobile/ios/` |
@@ -195,7 +199,7 @@
 ### 2026-10-21 — Session 1 (cont.): Gate 1 UI + Gate 2 backend
 - **Completed:** platform admin UI (agent; verified locally), policy engine, R1-B registry, tracker registry, telemetry contract + Traccar adapter + simulator, ingestion, partitioned PostGIS, geofences, timeline replay, alerts, fleet map/history, connectivity sweeper, workers (timeline, connectivity), gateway bootstrap, real Traccar E2E.
 - **Defects found and fixed:** migration re-granted revoked invoice DELETE (caught by test; grants now table-scoped + permanent privilege audit); system-scope write pending across RLS scope switch; DB session timezone leaking into API instants (sessions pinned to UTC); geofence DTO computed from unflushed expression; new release permissions not reaching existing roles (DEC-015); data-dependent seed downgrade; Traccar env key naming / device-id regex.
-- **Next smallest action:** push + first hosted CI run; Gate 2 web UI; machine photos via S3 adapter; `tenant_membership` mirror.
+- **Next smallest action:** confirm CI run 2 green; finish + verify Gate 2 web UI (agent running); then Gate 3 (customers, rental contracts/jobs, meter capture policy + GPS evidence).
 
 ## Release 1 completion sign-off
 

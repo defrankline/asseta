@@ -20,7 +20,7 @@ jobs:
       PGPASSWORD: postgres
     defaults: {run: {working-directory: backend}}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: astral-sh/setup-uv@v6
         with: {version: "0.12.7"}
       - name: Create least-privilege roles and test database
@@ -52,8 +52,8 @@ jobs:
     runs-on: ubuntu-24.04
     defaults: {run: {working-directory: web}}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with: {node-version: "24", cache: npm, cache-dependency-path: web/package-lock.json}
       - run: npm ci
       - run: node scripts/gen-api.mjs --strict && git diff --exit-code src/api/generated
@@ -66,17 +66,21 @@ jobs:
     runs-on: ubuntu-24.04
     defaults: {run: {working-directory: mobile/android}}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
         with: {distribution: temurin, java-version: "25"}
-      - uses: android-actions/setup-android@v3
+      - name: Android SDK packages (runner image ships the SDK; accept licenses non-interactively)
+        run: |
+          SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKM" --licenses > /dev/null || true
+          "$SDKM" --install "platforms;android-37.0" "build-tools;37.0.0" "platform-tools" > /dev/null
       - run: ./gradlew assembleDebug testDebugUnitTest lint assembleAndroidTest --console=plain
 
   ios:
     runs-on: macos-26
     defaults: {run: {working-directory: mobile/ios}}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - run: brew install xcodegen
       - run: xcodegen generate
       - run: cd AssetaKit && swift test

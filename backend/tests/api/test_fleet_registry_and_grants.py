@@ -34,6 +34,8 @@ FORBIDDEN = [
         "tracker",
         "tracking_alert",
         "policy_version",
+        "machine_photo",
+        "tenant_membership",
     )
 ]
 

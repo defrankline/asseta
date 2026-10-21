@@ -13,7 +13,7 @@ import httpx
 
 from asseta.core.errors import DependencyUnavailable
 from asseta.modules.identity.catalog import KEYCLOAK_PERMISSION_ROLE_PREFIX, PLATFORM_GROUP_ROOT, TENANT_GROUP_ROOT
-from asseta.modules.identity.idp import CreatedUser, RoleGroup
+from asseta.modules.identity.idp import CreatedUser, GroupMember, RoleGroup
 
 _RETRYABLE = {502, 503, 504}
 
@@ -205,3 +205,24 @@ class KeycloakAdminClient:
 
     def add_user_to_group(self, subject: str, group_id: str) -> None:
         self._ok(self._request("PUT", f"/users/{subject}/groups/{group_id}"))
+
+    def remove_user_from_group(self, subject: str, group_id: str) -> None:
+        self._ok(self._request("DELETE", f"/users/{subject}/groups/{group_id}"), 204, 404)
+
+    def list_group_members(self, group_id: str) -> list[GroupMember]:
+        rows = self._ok(
+            self._request("GET", f"/groups/{group_id}/members", params={"max": "10000", "briefRepresentation": "true"})
+        ).json()
+        return [
+            GroupMember(
+                subject=str(r["id"]),
+                email=str(r.get("email") or r.get("username", "")),
+                display_name=" ".join(x for x in (r.get("firstName"), r.get("lastName")) if x)
+                or str(r.get("username", "")),
+            )
+            for r in rows
+        ]
+
+    def find_user_by_email(self, email: str) -> str | None:
+        rows = self._ok(self._request("GET", "/users", params={"email": email, "exact": "true"})).json()
+        return str(rows[0]["id"]) if rows else None

@@ -63,16 +63,18 @@ class AuthzSyncService:
             log.info("authz_template_permissions_offered", groups=changed)
         return changed
 
-    def pull_role_mirror(self, session: Session) -> int:
+    def pull_role_mirror(self, session: Session, only_tenant: uuid.UUID | None = None) -> int:
         repo = IdentityRepository(session)
         groups = self._idp.list_role_groups()
         now = utcnow()
+        known_tenants = repo.tenant_ids()
+        orphans: set[str] = set()
         for g in groups:
             parts = [p for p in g.path.split("/") if p]
             tenant_id = uuid.UUID(parts[1]) if parts[0] == TENANT_GROUP_ROOT else None
             if parts[0] not in (PLATFORM_GROUP_ROOT, TENANT_GROUP_ROOT):
                 continue
-            repo.replace_role_mirror(
+            role_id = repo.replace_role_mirror(
                 tenant_id=tenant_id,
                 key=g.name,
                 name=g.name,
@@ -81,7 +83,14 @@ class AuthzSyncService:
                 permission_codes=set(g.permission_codes),
                 synced_at=now,
             )
+            if tenant_id is not None and (only_tenant is None or tenant_id == only_tenant):
+                if tenant_id not in known_tenants:  # orphan group (e.g. onboarding rolled back after Keycloak)
+                    orphans.add(str(tenant_id))
+                    continue
+                repo.reconcile_memberships(tenant_id, role_id, self._idp.list_group_members(g.group_id), now)
         repo.delete_roles_not_in({g.path for g in groups})
+        if orphans:
+            log.warning("authz_orphan_tenant_groups", tenants=sorted(orphans))
         log.info("authz_mirror_synced", role_groups=len(groups))
         return len(groups)
 

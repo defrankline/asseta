@@ -4,7 +4,7 @@ menus, audit attribution, request-time permission resolution and offline policy 
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -66,11 +66,20 @@ class TenantMembership(UuidPk, Timestamps, Base):
     """Effective-dated membership mirror, refreshed from Keycloak group membership."""
 
     __tablename__ = "tenant_membership"
-    __table_args__ = (UniqueConstraint("tenant_id", "user_id", "role_id", name="uq_membership"),)
+    __table_args__ = (
+        Index(
+            "uq_membership_open",
+            "tenant_id",
+            "user_id",
+            "role_id",
+            unique=True,
+            postgresql_where=text("effective_to IS NULL"),
+        ),
+    )
 
     tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenant.id"), nullable=False, index=True)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("app_user.id"), nullable=False)
-    role_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("role.id", ondelete="CASCADE"), nullable=False)
+    role_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("role.id", ondelete="RESTRICT"), nullable=False)
     effective_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     effective_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 

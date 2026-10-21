@@ -13,8 +13,11 @@ from asseta.core.correlation import CorrelationIdMiddleware
 from asseta.core.db import get_sessionmaker
 from asseta.core.errors import install_error_handlers
 from asseta.core.logging import configure_logging
+from asseta.core.storage import ObjectStore, S3ObjectStore
+from asseta.modules.fleet import photos as fleet_photos
 from asseta.modules.fleet import router as fleet_router
 from asseta.modules.geospatial import router as geospatial_router
+from asseta.modules.identity import access as identity_access
 from asseta.modules.identity import router as identity_router
 from asseta.modules.identity.authz_sync import AuthzSyncService
 from asseta.modules.identity.idp import IdentityProviderAdmin
@@ -43,10 +46,22 @@ def build_token_verifier(settings: Settings) -> TokenVerifier:
     return OidcTokenVerifier(keys, settings.issuer, settings.keycloak_audience)
 
 
+def build_object_store(settings: Settings) -> ObjectStore:
+    return S3ObjectStore(
+        settings.s3_endpoint,
+        settings.s3_public_endpoint,
+        settings.s3_bucket,
+        settings.s3_access_key.get_secret_value(),
+        settings.s3_secret_key.get_secret_value(),
+        settings.http_timeout_seconds,
+    )
+
+
 def create_app(
     settings: Settings | None = None,
     token_verifier: TokenVerifier | None = None,
     idp_admin: IdentityProviderAdmin | None = None,
+    object_store: ObjectStore | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
     configure_logging()
@@ -70,6 +85,7 @@ def create_app(
     )
     app.state.token_verifier = verifier
     app.state.idp_admin = idp
+    app.state.object_store = object_store or build_object_store(settings)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
@@ -91,6 +107,8 @@ def create_app(
         tracker_router.router,
         telemetry_router.router,
         geospatial_router.router,
+        fleet_photos.router,
+        identity_access.router,
     ):
         app.include_router(router)
     return app

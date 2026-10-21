@@ -10,7 +10,16 @@ from sqlalchemy.orm import Session
 
 from asseta.core.db import utcnow
 from asseta.modules.identity.catalog import MenuDef, PermissionDef
-from asseta.modules.identity.models import AppUser, Menu, Permission, Role, RolePermission, RoleTemplateGrant
+from asseta.modules.identity.idp import GroupMember
+from asseta.modules.identity.models import (
+    AppUser,
+    Menu,
+    Permission,
+    Role,
+    RolePermission,
+    RoleTemplateGrant,
+    TenantMembership,
+)
 from asseta.modules.identity.principal import TokenClaims
 from asseta.modules.tenancy.models import Tenant, TenantAccessState
 
@@ -71,6 +80,62 @@ class IdentityRepository:
         return list(self._s.execute(select(Menu).order_by(Menu.scope, Menu.sort_order)).scalars())
 
     # --- catalog / Keycloak mirror sync -------------------------------------------------------------
+    def reconcile_memberships(
+        self, tenant_id: uuid.UUID, role_id: uuid.UUID, members: list[GroupMember], now: datetime
+    ) -> tuple[int, int]:
+        """Mirror Keycloak group membership as effective-dated rows: open new, close removed (never delete)."""
+        user_ids: set[uuid.UUID] = set()
+        for m in members:
+            uid = self._s.execute(
+                insert(AppUser)
+                .values(
+                    id=uuid.uuid4(),
+                    keycloak_subject=m.subject,
+                    email=m.email,
+                    display_name=m.display_name or m.email,
+                    is_active=True,
+                    created_at=now,
+                    updated_at=now,
+                )
+                .on_conflict_do_update(
+                    index_elements=[AppUser.keycloak_subject], set_={"email": m.email, "updated_at": now}
+                )
+                .returning(AppUser.id)
+            ).scalar_one()
+            user_ids.add(uid)
+        current = {
+            r.user_id: r
+            for r in self._s.execute(
+                select(TenantMembership).where(
+                    TenantMembership.tenant_id == tenant_id,
+                    TenantMembership.role_id == role_id,
+                    TenantMembership.effective_to.is_(None),
+                )
+            ).scalars()
+        }
+        opened = closed = 0
+        for uid in user_ids - current.keys():
+            self._s.add(
+                TenantMembership(
+                    id=uuid.uuid4(),
+                    tenant_id=tenant_id,
+                    user_id=uid,
+                    role_id=role_id,
+                    effective_from=now,
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+            opened += 1
+        for uid in current.keys() - user_ids:
+            current[uid].effective_to = now
+            closed += 1
+        self._s.flush()
+        return opened, closed
+
+    def tenant_ids(self) -> set[uuid.UUID]:
+        return set(self._s.execute(select(Tenant.id)).scalars())
+
     def offered_codes(self, group_path: str) -> set[str]:
         return set(
             self._s.execute(
@@ -175,4 +240,7 @@ class IdentityRepository:
         return role_id
 
     def delete_roles_not_in(self, group_paths: set[str]) -> None:
-        self._s.execute(delete(Role).where(Role.keycloak_group_path.not_in(group_paths)))
+        """Drop mirror rows for groups deleted in Keycloak (only those never referenced by membership history)."""
+        stale = select(Role.id).where(Role.keycloak_group_path.not_in(group_paths))
+        self._s.execute(delete(RolePermission).where(RolePermission.role_id.in_(stale)))
+        self._s.execute(delete(Role).where(Role.id.in_(stale), ~Role.id.in_(select(TenantMembership.role_id))))

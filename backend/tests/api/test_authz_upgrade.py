@@ -37,3 +37,13 @@ def test_new_release_permissions_reach_existing_groups_but_removals_stick(api: A
     assert "platform.tracker_model.manage" in api.idp.group_perms[platform_group]
     perms = t["owner"].get("/api/v1/me").json()["tenants"][0]["permissions"]
     assert "tenant.geofence.write" in perms and "tenant.policy.manage" not in perms
+
+
+def test_orphan_keycloak_tenant_groups_do_not_break_sync(api: Api) -> None:
+    import uuid as _uuid
+
+    ghost = _uuid.uuid4()  # e.g. onboarding failed after Keycloak provisioning and the DB rolled back
+    gid = api.idp.ensure_group(f"/tenants/{ghost}/owner")
+    api.idp.add_user_to_group(api.idp.create_user("ghost@example.com", "G", "H").subject, gid)
+    with get_sessionmaker().begin() as s:
+        AuthzSyncService(api.idp).full_sync(s)  # must not raise
