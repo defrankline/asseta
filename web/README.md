@@ -117,3 +117,37 @@ Mutating actions use `<CanMutate>` / `useCanMutate()` — permission **and** ten
   `src/test/maplibreMock.ts` (fire `lastMap().click(lon, lat)` / `clickLayer(id, props)`).
 - **Formik note:** Formik passes `''` to Yup as `undefined`; optional strings use `.default('')` /
   `.ensure()` rather than `.defined()`.
+
+## Tenant console (Gate 3: jobs and hour-meter evidence)
+
+| Route                     | Read permission        | Actions                                                                                                                           |
+| ------------------------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `/tenant/customers`       | `tenant.customer.read` | `tenant.customer.write` (customers, contracts, rate-card versions)                                                                |
+| `/tenant/jobs`, `/:jobId` | `tenant.job.read`      | create/SUBMIT `tenant.job.write`; APPROVE/CANCEL `tenant.job.approve`; START/COMPLETE, work log, acknowledgement `tenant.job.log` |
+| (job) Readings & evidence | `tenant.meter.read`    | console reading `tenant.meter.capture`                                                                                            |
+| (job) Meter resets        | —                      | request `tenant.meter.capture`; decide `tenant.meter.approve`                                                                     |
+| `/tenant/exceptions`      | `tenant.meter.read`    | review `tenant.meter.review`                                                                                                      |
+| `/tenant/policies`        | `tenant.policy.read`   | TRACKING, METER_CAPTURE, HIRE_BILLING versions with `tenant.policy.manage`                                                        |
+
+- **Services:** `customerService`, `jobService`, `meterService` (schemas in `jobSchemas`, `meterSchemas`).
+- **Hours:** `HoursComparison` always shows meter hours, non-billable hours and billable hours separately;
+  meter (engine) hours are never presented as billable hours. Decimal strings are shown as sent.
+- **Evidence components** (`components/meter`): `CaptureStateChip`, `GpsEvidence`, `TrackerComparison`
+  (shows "No tracker position within comparison window" when not compared), `CaptureLocationMap`,
+  `EvidenceKeyValues` + `exceptionText.ts` (neutral, per-type explanations: exceptions "require review",
+  never a verdict), `AttachmentUpload`, `AttachmentPhoto` (fetches the short-lived URL on demand).
+- **Console reading** (fallback; mobile apps are the primary capture path): the capture `id` is a UUID
+  generated once per dialog open (retries replay, never duplicate); `utils/geolocation.ts` attempts one
+  fresh browser fix and submits its real outcome (`FIX` with coordinates/accuracy/fix time, or
+  `PERMISSION_DENIED` / `TIMEOUT` / `NO_FIX` / `DISABLED` with no coordinates). The effective
+  METER_CAPTURE policy (required mode for this reading) is shown before submitting. No OCR runs in
+  the console.
+- **Retry safety:** work-log entries and acknowledgements carry a `client_id` UUID fixed per dialog open.
+- **Lists:** rate-card versions per category (`listRateCards`; newest first, labelled In force /
+  Scheduled / Superseded), the machine's meter resets (`listMeterResets`; approvers pick a PENDING
+  reset — Decide is disabled on resets the user requested, and SEGREGATION_OF_DUTIES from the server is
+  still shown) and job acknowledgements (`listJobAcknowledgements`) all come from the API.
+- **Photos and maps:** capture photos, reset evidence and signatures open through `AttachmentPhoto`
+  (getAttachmentUrl, fetched on demand); the SHA-256 is shown as secondary info. `CaptureLocationMap`
+  draws the phone fix and the tracker position at the same time (each with its accuracy) and the
+  allowed-distance ring.

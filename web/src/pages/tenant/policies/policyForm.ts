@@ -1,11 +1,11 @@
 import { mixed, object, string } from 'yup';
-import type { MachineDto, PolicyVersionIn } from '../../../api/types';
+import type { MachineDto, PolicyType, PolicyVersionIn } from '../../../api/types';
 import {
   allowedFields,
   fromInputValue,
   inputError,
+  POLICY_FIELDS,
   toInputValue,
-  TRACKING_FIELDS,
   type OverrideScope,
 } from './policyFields';
 
@@ -15,6 +15,7 @@ export interface FieldOverride {
 }
 
 export interface PolicyFormValues {
+  policy_type: PolicyType;
   scope: OverrideScope;
   machine: MachineDto | null;
   site_id: string;
@@ -25,23 +26,38 @@ export interface PolicyFormValues {
 }
 
 export function initialPolicyValues(
+  policyType: PolicyType,
   scope: OverrideScope,
   current: Record<string, unknown> | null,
   machine: MachineDto | null,
   siteId: string,
 ): PolicyFormValues {
   const overrides: Record<string, FieldOverride> = {};
-  for (const def of TRACKING_FIELDS) {
+  for (const def of POLICY_FIELDS[policyType]) {
     overrides[def.key] = { enabled: false, value: toInputValue(def, current?.[def.key]) };
   }
-  return { scope, machine, site_id: siteId, effective_from: '', reason: '', overrides };
+  return {
+    policy_type: policyType,
+    scope,
+    machine,
+    site_id: siteId,
+    effective_from: '',
+    reason: '',
+    overrides,
+  };
 }
 
 function isOverrideMap(value: unknown): value is Record<string, FieldOverride> {
   return typeof value === 'object' && value !== null;
 }
 
+interface FormParent {
+  policy_type: PolicyType;
+  scope: OverrideScope;
+}
+
 export const policyFormSchema = object({
+  policy_type: mixed<PolicyType>().oneOf(['TRACKING', 'METER_CAPTURE', 'HIRE_BILLING']).required(),
   scope: mixed<OverrideScope>().oneOf(['TENANT', 'MACHINE', 'SITE']).required(),
   machine: mixed<MachineDto>()
     .nullable()
@@ -64,8 +80,8 @@ export const policyFormSchema = object({
   overrides: mixed<Record<string, FieldOverride>>(isOverrideMap)
     .required()
     .test('overrides', function (value) {
-      const scope = (this.parent as { scope: OverrideScope }).scope;
-      const fields = allowedFields(scope);
+      const { policy_type, scope } = this.parent as FormParent;
+      const fields = allowedFields(policy_type, scope);
       let enabled = 0;
       for (const def of fields) {
         const o = value[def.key];
@@ -84,7 +100,7 @@ export const policyFormSchema = object({
 /** Only enabled fields allowed for the scope are sent. */
 export function toPolicyPayload(v: PolicyFormValues): PolicyVersionIn {
   const values: Record<string, unknown> = {};
-  for (const def of allowedFields(v.scope)) {
+  for (const def of allowedFields(v.policy_type, v.scope)) {
     const o = v.overrides[def.key];
     if (o?.enabled === true) values[def.key] = fromInputValue(def, o.value);
   }

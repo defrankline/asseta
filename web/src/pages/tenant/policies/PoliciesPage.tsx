@@ -15,7 +15,7 @@ import { CanMutate } from '../../../access/CanMutate';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import { geofenceService } from '../../../api/services/geofenceService';
 import { policyService } from '../../../api/services/policyService';
-import type { JobSiteDto, MachineDto } from '../../../api/types';
+import type { JobSiteDto, MachineDto, PolicyType } from '../../../api/types';
 import { AsyncContent } from '../../../components/feedback/AsyncContent';
 import { EmptyState } from '../../../components/feedback/EmptyState';
 import { PageHeader } from '../../../components/feedback/PageHeader';
@@ -26,19 +26,35 @@ import { useSession } from '../../../session/useSession';
 import { machineLabel } from '../shared/display';
 import { MachinePicker } from '../shared/MachinePicker';
 import { EffectivePolicyView } from './EffectivePolicyView';
-import type { OverrideScope } from './policyFields';
+import { POLICY_TYPE_LABELS, scopesFor, type OverrideScope } from './policyFields';
 import { PolicyOverrideDialog } from './PolicyOverrideDialog';
 import { PolicyVersionsTable } from './PolicyVersionsTable';
 
 const NO_SITES: readonly JobSiteDto[] = [];
+const POLICY_TYPES: readonly PolicyType[] = [
+  'TRACKING',
+  'METER_CAPTURE',
+  'HIRE_BILLING',
+  'DEVICE_SYNC',
+];
+const SUBTITLES: Readonly<Record<PolicyType, string>> = {
+  TRACKING: 'Tracking: tenant defaults with machine / site overrides',
+  METER_CAPTURE:
+    'Meter capture: opening and closing modes, photo/OCR, GPS and plausibility rules (machine / site overrides)',
+  HIRE_BILLING: 'Hire billing: how meter hours become billable hours (tenant-wide only)',
+  DEVICE_SYNC: 'Device sync: bounded offline operation for field devices (tenant-wide only)',
+};
 
-/** Effective TRACKING policy (tenant / machine / site) and its version history. */
+/** Effective policy per type (tenant / machine / site) and its version history. */
 export function PoliciesPage() {
   const tz = useDisplayTimeZone();
   const notify = useNotify();
   const { hasPermission } = useSession();
   const canSites = hasPermission(PERMISSIONS.tenantGeofenceRead);
-  const [scope, setScope] = useState<OverrideScope>('TENANT');
+  const [ptype, setPtype] = useState<PolicyType>('TRACKING');
+  const [rawScope, setScope] = useState<OverrideScope>('TENANT');
+  const scopes = scopesFor(ptype);
+  const scope: OverrideScope = scopes.includes(rawScope) ? rawScope : 'TENANT';
   const [machine, setMachine] = useState<MachineDto | null>(null);
   const [siteId, setSiteId] = useState('');
   const [creating, setCreating] = useState(false);
@@ -53,19 +69,19 @@ export function PoliciesPage() {
   const loadEffective = useCallback(
     (signal: AbortSignal) =>
       policyService.effective(
-        'TRACKING',
+        ptype,
         {
           machine_id: scope === 'MACHINE' ? machine?.id : undefined,
           site_id: scope === 'SITE' ? siteId : undefined,
         },
         signal,
       ),
-    [scope, machine, siteId],
+    [ptype, scope, machine, siteId],
   );
   const effective = useAsyncResource(loadEffective, [version], target !== null);
   const loadVersions = useCallback(
-    (signal: AbortSignal) => policyService.versions('TRACKING', signal),
-    [],
+    (signal: AbortSignal) => policyService.versions(ptype, signal),
+    [ptype],
   );
   const versions = useAsyncResource(loadVersions, [version]);
 
@@ -80,7 +96,7 @@ export function PoliciesPage() {
     <>
       <PageHeader
         title="Policies"
-        subtitle="TRACKING policy: tenant defaults with machine / site overrides"
+        subtitle={SUBTITLES[ptype]}
         actions={
           <CanMutate permission={PERMISSIONS.tenantPolicyManage}>
             <Button
@@ -99,6 +115,22 @@ export function PoliciesPage() {
         <Paper variant="outlined" className="p-4">
           <Stack spacing={2}>
             <Box className="flex flex-wrap items-center gap-3">
+              <TextField
+                select
+                size="small"
+                label="Policy type"
+                value={ptype}
+                onChange={(e) => {
+                  setPtype(e.target.value as PolicyType);
+                }}
+                sx={{ minWidth: 180 }}
+              >
+                {POLICY_TYPES.map((t) => (
+                  <MenuItem key={t} value={t}>
+                    {POLICY_TYPE_LABELS[t]}
+                  </MenuItem>
+                ))}
+              </TextField>
               <ToggleButtonGroup
                 exclusive
                 size="small"
@@ -109,8 +141,10 @@ export function PoliciesPage() {
                 aria-label="Policy scope"
               >
                 <ToggleButton value="TENANT">Tenant</ToggleButton>
-                <ToggleButton value="MACHINE">Machine</ToggleButton>
-                {canSites && <ToggleButton value="SITE">Site</ToggleButton>}
+                {scopes.includes('MACHINE') && <ToggleButton value="MACHINE">Machine</ToggleButton>}
+                {canSites && scopes.includes('SITE') && (
+                  <ToggleButton value="SITE">Site</ToggleButton>
+                )}
               </ToggleButtonGroup>
               {scope === 'MACHINE' && (
                 <Box className="min-w-72">
@@ -173,6 +207,7 @@ export function PoliciesPage() {
       </Stack>
       {creating && (
         <PolicyOverrideDialog
+          policyType={ptype}
           initialScope={scope}
           initialMachine={machine}
           initialSiteId={siteId}

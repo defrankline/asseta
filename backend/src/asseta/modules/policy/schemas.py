@@ -12,6 +12,7 @@ class PolicyType(StrEnum):
     TRACKING = "TRACKING"
     METER_CAPTURE = "METER_CAPTURE"
     HIRE_BILLING = "HIRE_BILLING"
+    DEVICE_SYNC = "DEVICE_SYNC"
 
 
 class PolicyScope(StrEnum):
@@ -102,10 +103,22 @@ class HireBillingPolicy(BaseModel):
     rounding: str = Field(pattern="^(UP|HALF_UP|DOWN)$")
 
 
+class DeviceSyncPolicy(BaseModel):
+    """Bounded offline operation for field devices (R1-F)."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    offline_grant_hours: int = Field(ge=1, le=24 * 14)  # max time a device may work without contacting the server
+    snapshot_validity_hours: int = Field(ge=1, le=24 * 14)  # cached policies expire; device must refresh
+    max_batch_operations: int = Field(ge=1, le=500)
+    clock_skew_alert_seconds: int = Field(ge=30, le=86400)
+
+
 SCHEMAS: dict[PolicyType, type[BaseModel]] = {
     PolicyType.TRACKING: TrackingPolicy,
     PolicyType.METER_CAPTURE: MeterCapturePolicy,
     PolicyType.HIRE_BILLING: HireBillingPolicy,
+    PolicyType.DEVICE_SYNC: DeviceSyncPolicy,
 }
 
 # Fields a lower scope may override (platform/tenant may override any field).
@@ -140,6 +153,7 @@ OVERRIDABLE: dict[PolicyType, dict[PolicyScope, frozenset[str]]] = {
         PolicyScope.SITE: frozenset({"gps_max_accuracy_m", "tracker_distance_tolerance_m"}),
     },
     PolicyType.HIRE_BILLING: {PolicyScope.MACHINE: frozenset(), PolicyScope.SITE: frozenset()},
+    PolicyType.DEVICE_SYNC: {PolicyScope.MACHINE: frozenset(), PolicyScope.SITE: frozenset()},
 }
 
 SEED_DEFAULTS: dict[PolicyType, dict[str, object]] = {
@@ -176,4 +190,10 @@ SEED_DEFAULTS: dict[PolicyType, dict[str, object]] = {
         "telemetry_engine_hours_tolerance": "0.5",
     },
     PolicyType.HIRE_BILLING: {"billable_hours_increment": "0.1", "rounding": "HALF_UP"},
+    PolicyType.DEVICE_SYNC: {
+        "offline_grant_hours": 72,
+        "snapshot_validity_hours": 24,
+        "max_batch_operations": 100,
+        "clock_skew_alert_seconds": 300,
+    },
 }

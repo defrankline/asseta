@@ -21,7 +21,7 @@ class SiteService:
         self._s, self._tenant_id, self._actor = session, tenant_id, actor
 
     # --- sites ----------------------------------------------------------------------------------------
-    def _site_dto(self, site: JobSite) -> JobSiteDto:
+    def site_dto(self, site: JobSite) -> JobSiteDto:
         lon, lat = self._s.execute(select(func.ST_X(site.center), func.ST_Y(site.center))).one()
         return JobSiteDto(
             id=site.id,
@@ -49,10 +49,10 @@ class SiteService:
         except IntegrityError as exc:
             raise Conflict("Site code already exists", code="DUPLICATE_SITE") from exc
         self._s.refresh(site)
-        return self._site_dto(site)
+        return self.site_dto(site)
 
     def sites(self) -> list[JobSiteDto]:
-        return [self._site_dto(s) for s in self._s.execute(select(JobSite).order_by(JobSite.code)).scalars()]
+        return [self.site_dto(s) for s in self._s.execute(select(JobSite).order_by(JobSite.code)).scalars()]
 
     # --- geofences ------------------------------------------------------------------------------------
     def to_dto(self, g: Geofence) -> GeofenceDto:

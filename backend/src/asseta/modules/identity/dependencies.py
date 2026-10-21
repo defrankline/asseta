@@ -45,8 +45,14 @@ def _resolve_tenant_header(raw: str | None) -> uuid.UUID:
         raise PermissionDenied("Invalid X-Tenant-ID", code="TENANT_REQUIRED") from exc
 
 
-def requires(code: str, scope: PermissionScope, description: str) -> Callable[..., RequestContext]:
-    """Declare a route permission (registered in the catalog at import time) and enforce it."""
+def requires(
+    code: str, scope: PermissionScope, description: str, quarantine_when_read_only: bool = False
+) -> Callable[..., RequestContext]:
+    """Declare a route permission (registered in the catalog at import time) and enforce it.
+
+    `quarantine_when_read_only` lets a write route (offline sync push) run for READ_ONLY tenants so the handler can
+    *quarantine* writes instead of losing them; `RequestContext.read_only` tells it to do so.
+    """
     CATALOG.register(code, scope, description)
 
     def dependency(
@@ -73,7 +79,7 @@ def requires(code: str, scope: PermissionScope, description: str) -> Callable[..
             if access is None or access is TenantAccessState.BLOCKED:
                 raise PermissionDenied("Tenant access is blocked", code="TENANT_ACCESS_BLOCKED")
             read_only = access is TenantAccessState.READ_ONLY
-            if read_only and request.method not in READ_METHODS:
+            if read_only and request.method not in READ_METHODS and not quarantine_when_read_only:
                 raise PermissionDenied("Subscription allows read-only access", code="SUBSCRIPTION_READ_ONLY")
             group_paths = frozenset(g for g in claims.groups if g.startswith(f"/tenants/{tenant_id}/"))
             permissions = repo.permissions_for_groups(group_paths)

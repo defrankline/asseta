@@ -2,7 +2,7 @@ import { Box, Chip, Stack, Typography } from '@mui/material';
 import type { EffectivePolicyDto } from '../../../api/types';
 import type { DataColumn } from '../../../components/data/ServerDataTable';
 import { StaticTable } from '../../../components/data/StaticTable';
-import { formatPolicyValue, TRACKING_FIELDS, type PolicyFieldDef } from './policyFields';
+import { formatPolicyValue, POLICY_FIELDS, type PolicyFieldDef } from './policyFields';
 
 interface Row {
   key: string;
@@ -22,13 +22,14 @@ const columns: DataColumn<Row>[] = [
 
 /** Resolved policy values with the version stamp that produced them. */
 export function EffectivePolicyView({ policy }: { policy: EffectivePolicyDto }) {
-  const known: Row[] = TRACKING_FIELDS.map((def) => ({
+  const fields = POLICY_FIELDS[policy.policy_type];
+  const known: Row[] = fields.map((def) => ({
     key: def.key,
     def,
     value: policy.values[def.key],
   }));
   const extra: Row[] = Object.keys(policy.values)
-    .filter((k) => !TRACKING_FIELDS.some((d) => d.key === k))
+    .filter((k) => !fields.some((d) => d.key === k))
     .map((key) => ({ key, def: undefined, value: policy.values[key] }));
   return (
     <Stack spacing={1}>

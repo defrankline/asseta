@@ -46,4 +46,23 @@ export const PERMISSIONS = {
   tenantBillingRead: 'tenant.billing.read',
   /** Enroll a machine as a billable asset (proration preview first). */
   tenantBillingEnroll: 'tenant.billing.enroll',
+  /** Customers and contracts (read); write also covers rate-card versions. */
+  tenantCustomerRead: 'tenant.customer.read',
+  tenantCustomerWrite: 'tenant.customer.write',
+  /** Jobs, work logs and job summaries (read). */
+  tenantJobRead: 'tenant.job.read',
+  /** Create jobs and SUBMIT them for approval. */
+  tenantJobWrite: 'tenant.job.write',
+  /** APPROVE and CANCEL jobs. */
+  tenantJobApprove: 'tenant.job.approve',
+  /** START / COMPLETE jobs, work logs and customer acknowledgements. */
+  tenantJobLog: 'tenant.job.log',
+  /** Meter readings, evidence and exceptions (read). */
+  tenantMeterRead: 'tenant.meter.read',
+  /** Capture readings, upload evidence and request meter resets. */
+  tenantMeterCapture: 'tenant.meter.capture',
+  /** Review meter/GPS exceptions. */
+  tenantMeterReview: 'tenant.meter.review',
+  /** Decide meter resets and reading corrections. */
+  tenantMeterApprove: 'tenant.meter.approve',
 } as const;

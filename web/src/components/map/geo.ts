@@ -63,3 +63,25 @@ export function asGeoJson(value: Record<string, unknown>): Feature | FeatureColl
   if (type === 'Feature') return value as unknown as Feature;
   return { type: 'Feature', geometry: value as unknown as Geometry, properties: {} };
 }
+
+const EARTH_RADIUS_M = 6_371_008.8;
+
+/** Approximate circle of `radiusM` metres around `[lon, lat]` as a closed polygon ring (display only). */
+export function circleFeature(
+  center: LonLat,
+  radiusM: number,
+  properties: GeoJsonProperties = {},
+  steps = 64,
+): Feature {
+  const [lon, lat] = center;
+  const latRad = (lat * Math.PI) / 180;
+  const ring: LonLat[] = [];
+  for (let i = 0; i <= steps; i += 1) {
+    const theta = (2 * Math.PI * i) / steps;
+    const dLat = ((radiusM * Math.cos(theta)) / EARTH_RADIUS_M) * (180 / Math.PI);
+    const dLon =
+      ((radiusM * Math.sin(theta)) / (EARTH_RADIUS_M * Math.cos(latRad))) * (180 / Math.PI);
+    ring.push([lon + dLon, lat + dLat]);
+  }
+  return { type: 'Feature', geometry: { type: 'Polygon', coordinates: [ring] }, properties };
+}

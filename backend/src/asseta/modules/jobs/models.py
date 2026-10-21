@@ -23,7 +23,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from asseta.core.db import Base, Timestamps, UuidPk, utcnow
+from asseta.core.db import Base, SyncRevisioned, Timestamps, UuidPk, utcnow
 
 MONEY = Numeric(18, 4)
 HOURS = Numeric(12, 2)
@@ -62,7 +62,7 @@ class ActivityType(StrEnum):
     NOTE = "NOTE"
 
 
-class Customer(UuidPk, Timestamps, Base):
+class Customer(UuidPk, SyncRevisioned, Timestamps, Base):
     __tablename__ = "customer"
     __table_args__ = (UniqueConstraint("tenant_id", "code", name="uq_customer_code"),)
 
@@ -97,7 +97,7 @@ class RentalRatePolicy(UuidPk, Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
 
 
-class RentalContract(UuidPk, Timestamps, Base):
+class RentalContract(UuidPk, SyncRevisioned, Timestamps, Base):
     __tablename__ = "rental_contract"
     __table_args__ = (UniqueConstraint("tenant_id", "contract_number", name="uq_contract_number"),)
 
@@ -113,7 +113,7 @@ class RentalContract(UuidPk, Timestamps, Base):
     notes: Mapped[str | None] = mapped_column(Text)
 
 
-class Job(UuidPk, Timestamps, Base):
+class Job(UuidPk, SyncRevisioned, Timestamps, Base):
     """One machine on one contract at one site; billing terms are snapshotted at approval."""
 
     __tablename__ = "job"

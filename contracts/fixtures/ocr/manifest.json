@@ -1,0 +1,231 @@
+{
+  "spec_version": "1",
+  "generator": "asseta.tools.ocr_fixtures",
+  "seed": 20261021,
+  "acceptance": {
+    "must_read_min_accuracy": 0.9,
+    "wrong_confident_reads_allowed": 0,
+    "note": "Measured per platform in Gate 4; real samples required (EXT-05)."
+  },
+  "known_risks": [
+    "mechanical_drum: the red tenths wheel is spatial; text OCR may merge it into the integer (e.g. 20264.1 read as 202641). Apps must use drum geometry or fall back; the server's IMPOSSIBLE_INCREMENT/METER_DECREASE sequence rules catch merged reads."
+  ],
+  "images": [
+    {
+      "file": "images/lcd_7seg__normal.png",
+      "style": "lcd_7seg",
+      "condition": "normal",
+      "displayed": "71691.6",
+      "expected_reading": "71691.6",
+      "decimal_places": 1,
+      "category": "must_read"
+    },
+    {
+      "file": "images/lcd_7seg__dim.png",
+      "style": "lcd_7seg",
+      "condition": "dim",
+      "displayed": "76165.0",
+      "expected_reading": "76165.0",
+      "decimal_places": 1,
+      "category": "must_read"
+    },
+    {
+      "file": "images/lcd_7seg__glare.png",
+      "style": "lcd_7seg",
+      "condition": "glare",
+      "displayed": "50060.6",
+      "expected_reading": "50060.6",
+      "decimal_places": 1,
+      "category": "fallback_ok"
+    },
+    {
+      "file": "images/lcd_7seg__blur.png",
+      "style": "lcd_7seg",
+      "condition": "blur",
+      "displayed": "41273.3",
+      "expected_reading": "41273.3",
+      "decimal_places": 1,
+      "category": "fallback_ok"
+    },
+    {
+      "file": "images/lcd_7seg__rotated.png",
+      "style": "lcd_7seg",
+      "condition": "rotated",
+      "displayed": "63257.6",
+      "expected_reading": "63257.6",
+      "decimal_places": 1,
+      "category": "must_read"
+    },
+    {
+      "file": "images/lcd_7seg__noise.png",
+      "style": "lcd_7seg",
+      "condition": "noise",
+      "displayed": "53272.0",
+      "expected_reading": "53272.0",
+      "decimal_places": 1,
+      "category": "fallback_ok"
+    },
+    {
+      "file": "images/mechanical_drum__normal.png",
+      "style": "mechanical_drum",
+      "condition": "normal",
+      "displayed": "17945.9",
+      "expected_reading": "17945.9",
+      "decimal_places": 1,
+      "category": "must_read"
+    },
+    {
+      "file": "images/mechanical_drum__dim.png",
+      "style": "mechanical_drum",
+      "condition": "dim",
+      "displayed": "20264.1",
+      "expected_reading": "20264.1",
+      "decimal_places": 1,
+      "category": "must_read"
+    },
+    {
+      "file": "images/mechanical_drum__glare.png",
+      "style": "mechanical_drum",
+      "condition": "glare",
+      "displayed": "25507.0",
+      "expected_reading": "25507.0",
+      "decimal_places": 1,
+      "category": "fallback_ok"
+    },
+    {
+      "file": "images/mechanical_drum__blur.png",
+      "style": "mechanical_drum",
+      "condition": "blur",
+      "displayed": "30284.9",
+      "expected_reading": "30284.9",
+      "decimal_places": 1,
+      "category": "fallback_ok"
+    },
+    {
+      "file": "images/mechanical_drum__rotated.png",
+      "style": "mechanical_drum",
+      "condition": "rotated",
+      "displayed": "62741.5",
+      "expected_reading": "62741.5",
+      "decimal_places": 1,
+      "category": "must_read"
+    },
+    {
+      "file": "images/mechanical_drum__noise.png",
+      "style": "mechanical_drum",
+      "condition": "noise",
+      "displayed": "89464.2",
+      "expected_reading": "89464.2",
+      "decimal_places": 1,
+      "category": "must_read"
+    },
+    {
+      "file": "images/backlit_amber__normal.png",
+      "style": "backlit_amber",
+      "condition": "normal",
+      "displayed": "13464.0",
+      "expected_reading": "13464.0",
+      "decimal_places": 1,
+      "category": "must_read"
+    },
+    {
+      "file": "images/backlit_amber__dim.png",
+      "style": "backlit_amber",
+      "condition": "dim",
+      "displayed": "46646.9",
+      "expected_reading": "46646.9",
+      "decimal_places": 1,
+      "category": "must_read"
+    },
+    {
+      "file": "images/backlit_amber__glare.png",
+      "style": "backlit_amber",
+      "condition": "glare",
+      "displayed": "09410.5",
+      "expected_reading": "9410.5",
+      "decimal_places": 1,
+      "category": "fallback_ok"
+    },
+    {
+      "file": "images/backlit_amber__blur.png",
+      "style": "backlit_amber",
+      "condition": "blur",
+      "displayed": "89396.7",
+      "expected_reading": "89396.7",
+      "decimal_places": 1,
+      "category": "must_read"
+    },
+    {
+      "file": "images/backlit_amber__rotated.png",
+      "style": "backlit_amber",
+      "condition": "rotated",
+      "displayed": "30008.6",
+      "expected_reading": "30008.6",
+      "decimal_places": 1,
+      "category": "must_read"
+    },
+    {
+      "file": "images/backlit_amber__noise.png",
+      "style": "backlit_amber",
+      "condition": "noise",
+      "displayed": "27254.3",
+      "expected_reading": "27254.3",
+      "decimal_places": 1,
+      "category": "must_read"
+    },
+    {
+      "file": "images/plain_digital__normal.png",
+      "style": "plain_digital",
+      "condition": "normal",
+      "displayed": "03190.6",
+      "expected_reading": "3190.6",
+      "decimal_places": 1,
+      "category": "must_read"
+    },
+    {
+      "file": "images/plain_digital__dim.png",
+      "style": "plain_digital",
+      "condition": "dim",
+      "displayed": "15950.4",
+      "expected_reading": "15950.4",
+      "decimal_places": 1,
+      "category": "must_read"
+    },
+    {
+      "file": "images/plain_digital__glare.png",
+      "style": "plain_digital",
+      "condition": "glare",
+      "displayed": "65262.4",
+      "expected_reading": "65262.4",
+      "decimal_places": 1,
+      "category": "fallback_ok"
+    },
+    {
+      "file": "images/plain_digital__blur.png",
+      "style": "plain_digital",
+      "condition": "blur",
+      "displayed": "84771.0",
+      "expected_reading": "84771.0",
+      "decimal_places": 1,
+      "category": "must_read"
+    },
+    {
+      "file": "images/plain_digital__rotated.png",
+      "style": "plain_digital",
+      "condition": "rotated",
+      "displayed": "72489.8",
+      "expected_reading": "72489.8",
+      "decimal_places": 1,
+      "category": "must_read"
+    },
+    {
+      "file": "images/plain_digital__noise.png",
+      "style": "plain_digital",
+      "condition": "noise",
+      "displayed": "15715.0",
+      "expected_reading": "15715.0",
+      "decimal_places": 1,
+      "category": "must_read"
+    }
+  ]
+}

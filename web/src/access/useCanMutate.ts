@@ -6,3 +6,9 @@ export function useCanMutate(permission: PermissionRequirement): boolean {
   const { status, hasPermission, isReadOnly } = useSession();
   return status === 'ready' && !isReadOnly && hasPermission(permission);
 }
+
+/** Predicate form for checking several mutating permissions (e.g. one per action button). */
+export function useMutationGuard(): (permission: PermissionRequirement) => boolean {
+  const { status, hasPermission, isReadOnly } = useSession();
+  return (permission) => status === 'ready' && !isReadOnly && hasPermission(permission);
+}

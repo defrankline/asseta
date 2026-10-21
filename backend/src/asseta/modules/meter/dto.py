@@ -72,6 +72,7 @@ class MeterCaptureDto(Dto):
     ocr_value: Decimal | None
     ocr_confidence: float | None
     manually_corrected: bool
+    photo_attachment_id: uuid.UUID | None
     photo_sha256: str | None
     gps_status: GpsStatus
     latitude: float | None
@@ -116,7 +117,9 @@ class ResetDto(Dto):
     new_reading: Decimal
     effective_at: datetime
     reason: str
+    evidence_attachment_id: uuid.UUID | None
     status: str
+    requested_by: uuid.UUID | None
     decided_at: datetime | None
 
 

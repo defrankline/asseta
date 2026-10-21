@@ -245,7 +245,7 @@ class MeterService:
         window = timedelta(seconds=policy.tracker_comparison_window_seconds)
         row = self._s.execute(
             text("""
-            SELECT event_time, accuracy_m,
+            SELECT event_time, accuracy_m, ST_Y(location) AS lat, ST_X(location) AS lon,
                    ST_Distance(location::geography, ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)::geography) AS d
             FROM machine_position_event
             WHERE machine_id = :m AND event_time BETWEEN :f AND :t AND quality = 'GOOD'
@@ -261,9 +261,13 @@ class MeterService:
         ).first()
         if row is None:
             return location_findings(policy, None, body.gps.accuracy_m, None, None, body.gps.captured_at)
-        return location_findings(
+        findings, comparison = location_findings(
             policy, float(row.d), body.gps.accuracy_m, row.accuracy_m, row.event_time, body.gps.captured_at
         )
+        comparison.update(
+            {"tracker_latitude": row.lat, "tracker_longitude": row.lon, "tracker_accuracy_m": row.accuracy_m}
+        )
+        return findings, comparison
 
     def _telemetry(self, job: Job, body: MeterCaptureIn, policy: MeterCapturePolicy) -> list[Finding]:
         opening = self._s.execute(

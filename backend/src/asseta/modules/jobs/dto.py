@@ -173,6 +173,8 @@ class AcknowledgementDto(Dto):
     id: uuid.UUID
     method: str
     signer_name: str
+    signer_phone: str | None
+    signature_attachment_id: uuid.UUID | None
     acknowledged_hours: Decimal | None
     captured_at: datetime
 

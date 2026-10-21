@@ -172,3 +172,51 @@ export type PolicyVersionDto = Schemas['PolicyVersionDto'];
 export type PolicyVersionIn = Schemas['PolicyVersionIn'];
 
 export type EnrollAssetIn = Schemas['EnrollAssetIn'];
+
+// ---- Tenant console (Gate 3): customers, contracts, rate cards, jobs, meter evidence ----
+
+export type CustomerDto = Schemas['CustomerDto'];
+export type CustomerIn = Schemas['CustomerIn'];
+export type CustomerPage = Schemas['Page_CustomerDto_'];
+export type ContractStatus = Schemas['ContractStatus'];
+export type ContractDto = Schemas['ContractDto'];
+export type ContractIn = Schemas['ContractIn'];
+export type ContractPage = Schemas['Page_ContractDto_'];
+export type RateCardDto = Schemas['RateCardDto'];
+export type RateCardIn = Schemas['RateCardIn'];
+
+export type JobStatus = Schemas['JobStatus'];
+export type StandbyTreatment = Schemas['StandbyTreatment'];
+export type JobDto = Schemas['JobDto'];
+export type JobIn = Schemas['JobIn'];
+export type JobPage = Schemas['Page_JobDto_'];
+export type JobSummaryDto = Schemas['JobSummaryDto'];
+export type JobTransitionIn = Schemas['JobTransitionIn'];
+export type JobAction = JobTransitionIn['action'];
+export type ActivityType = Schemas['ActivityType'];
+export type ActivityDto = Schemas['ActivityDto'];
+export type ActivityIn = Schemas['ActivityIn'];
+export type AcknowledgementDto = Schemas['AcknowledgementDto'];
+export type AcknowledgementIn = Schemas['AcknowledgementIn'];
+export type AcknowledgementMethod = AcknowledgementIn['method'];
+
+export type AttachmentDto = Schemas['AttachmentDto'];
+export type AttachmentUploadIn = Schemas['Body_uploadAttachment'];
+export type PhotoUrlDto = Schemas['PhotoUrlDto'];
+export type CaptureMode = Schemas['CaptureMode'];
+export type CaptureState = Schemas['CaptureState'];
+export type ReadingKind = Schemas['ReadingKind'];
+export type GpsStatus = Schemas['GpsStatus'];
+export type GpsIn = Schemas['GpsIn'];
+export type MeterCaptureDto = Schemas['MeterCaptureDto'];
+export type MeterCaptureIn = Schemas['MeterCaptureIn'];
+export type FindingDto = Schemas['FindingDto'];
+export type CaptureResultDto = Schemas['CaptureResultDto'];
+export type ExceptionType = Schemas['ExceptionType'];
+export type ExceptionStatus = Schemas['ExceptionStatus'];
+export type ExceptionDto = Schemas['ExceptionDto'];
+export type ExceptionPage = Schemas['Page_ExceptionDto_'];
+export type ReviewIn = Schemas['ReviewIn'];
+export type ReviewOutcome = ReviewIn['outcome'];
+export type ResetDto = Schemas['ResetDto'];
+export type ResetIn = Schemas['ResetIn'];

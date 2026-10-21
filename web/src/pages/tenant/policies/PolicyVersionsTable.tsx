@@ -3,7 +3,7 @@ import type { DataColumn } from '../../../components/data/ServerDataTable';
 import { StaticTable } from '../../../components/data/StaticTable';
 import { StatusChip } from '../../../components/display/StatusChip';
 import { formatInstantIn } from '../../../utils/time';
-import { formatPolicyValue, TRACKING_FIELDS } from './policyFields';
+import { findField, formatPolicyValue } from './policyFields';
 
 interface PolicyVersionsTableProps {
   versions: readonly PolicyVersionDto[];
@@ -12,11 +12,11 @@ interface PolicyVersionsTableProps {
   refLabel: (id: string) => string;
 }
 
-function summary(values: Record<string, unknown>): string {
-  return Object.entries(values)
-    .map(([k, v]) => {
-      const def = TRACKING_FIELDS.find((f) => f.key === k);
-      return `${def?.label ?? k}: ${formatPolicyValue(def, v)}`;
+function summary(v: PolicyVersionDto): string {
+  return Object.entries(v.values)
+    .map(([k, value]) => {
+      const def = findField(v.policy_type, k);
+      return `${def?.label ?? k}: ${formatPolicyValue(def, value)}`;
     })
     .join(' · ');
 }
@@ -48,7 +48,7 @@ export function PolicyVersionsTable({ versions, timeZone, refLabel }: PolicyVers
       header: 'Effective from',
       render: (v) => formatInstantIn(v.effective_from, timeZone),
     },
-    { id: 'values', header: 'Values', render: (v) => summary(v.values) },
+    { id: 'values', header: 'Values', render: (v) => summary(v) },
     { id: 'reason', header: 'Reason', render: (v) => v.reason },
     { id: 'created', header: 'Created', render: (v) => formatInstantIn(v.created_at, timeZone) },
   ];

@@ -2,7 +2,7 @@ import { Alert, Box, MenuItem, TextField, Typography } from '@mui/material';
 import { getIn, type FormikProps } from 'formik';
 import { useMemo, useState } from 'react';
 import { policyService } from '../../../api/services/policyService';
-import type { JobSiteDto, MachineDto, PolicyVersionDto } from '../../../api/types';
+import type { JobSiteDto, MachineDto, PolicyType, PolicyVersionDto } from '../../../api/types';
 import { KeyValueGrid } from '../../../components/display/KeyValueGrid';
 import { DateTimeField } from '../../../components/forms/DateTimeField';
 import { FormikTextField } from '../../../components/forms/FormikTextField';
@@ -15,8 +15,11 @@ import { OverrideFieldInput } from './OverrideFieldInput';
 import { withPolicyErrorCode } from './policyErrors';
 import {
   allowedFields,
+  findField,
   formatPolicyValue,
-  TRACKING_FIELDS,
+  POLICY_FIELDS,
+  POLICY_TYPE_LABELS,
+  scopesFor,
   type OverrideScope,
 } from './policyFields';
 import {
@@ -27,6 +30,7 @@ import {
 } from './policyForm';
 
 interface PolicyOverrideDialogProps {
+  policyType: PolicyType;
   initialScope: OverrideScope;
   initialMachine: MachineDto | null;
   initialSiteId: string;
@@ -68,13 +72,13 @@ function ScopeStep({
           const scope = e.target.value as OverrideScope;
           void setFieldValue('scope', scope);
           // Reset toggles so fields from another scope never leak into the payload.
-          for (const def of TRACKING_FIELDS) {
+          for (const def of POLICY_FIELDS[values.policy_type]) {
             void setFieldValue(`overrides.${def.key}.enabled`, false, false);
           }
         }}
         fullWidth
       >
-        {(['TENANT', 'MACHINE', 'SITE'] as const)
+        {scopesFor(values.policy_type)
           .filter((s) => s !== 'SITE' || sites !== null)
           .map((s) => (
             <MenuItem key={s} value={s}>
@@ -127,7 +131,7 @@ function ScopeStep({
 }
 
 function ValuesStep({ formik }: { formik: FormikProps<PolicyFormValues> }) {
-  const fields = allowedFields(formik.values.scope);
+  const fields = allowedFields(formik.values.policy_type, formik.values.scope);
   const groupError: unknown = formik.errors.overrides;
   return (
     <>
@@ -148,11 +152,12 @@ function ValuesStep({ formik }: { formik: FormikProps<PolicyFormValues> }) {
 
 /** Scope + reason → allowed field values → Review. Mount only while open. */
 export function PolicyOverrideDialog(props: PolicyOverrideDialogProps) {
-  const { sites, timeZone, onClose, onCreated } = props;
+  const { policyType, sites, timeZone, onClose, onCreated } = props;
   const keyFor = useIdempotencyKey();
   const [initialValues] = useState(() =>
     initialPolicyValues(
-      props.initialScope,
+      policyType,
+      scopesFor(policyType).includes(props.initialScope) ? props.initialScope : 'TENANT',
       props.current,
       props.initialMachine,
       props.initialSiteId,
@@ -175,7 +180,7 @@ export function PolicyOverrideDialog(props: PolicyOverrideDialogProps) {
   return (
     <StepperFormDialog<PolicyFormValues>
       open
-      title="New TRACKING policy version"
+      title={`New ${POLICY_TYPE_LABELS[policyType].toLowerCase()} policy version`}
       steps={steps}
       initialValues={initialValues}
       validationSchema={policyFormSchema}
@@ -208,7 +213,7 @@ export function PolicyOverrideDialog(props: PolicyOverrideDialogProps) {
             <KeyValueGrid
               columns={2}
               items={Object.entries(payload.values).map(([key, value]) => {
-                const def = TRACKING_FIELDS.find((f) => f.key === key);
+                const def = findField(policyType, key);
                 return { label: def?.label ?? key, value: formatPolicyValue(def, value) };
               })}
             />
@@ -218,7 +223,7 @@ export function PolicyOverrideDialog(props: PolicyOverrideDialogProps) {
       onSubmit={async (values) => {
         const payload = toPolicyPayload(values);
         try {
-          onCreated(await policyService.create('TRACKING', payload, keyFor(payload)));
+          onCreated(await policyService.create(policyType, payload, keyFor(payload)));
         } catch (err) {
           throw withPolicyErrorCode(err);
         }

@@ -10,7 +10,7 @@ from sqlalchemy import Boolean, DateTime, Enum, Float, ForeignKey, Index, String
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from asseta.core.db import Base, Timestamps, UuidPk, utcnow
+from asseta.core.db import Base, SyncRevisioned, Timestamps, UuidPk, utcnow
 
 
 def _enum(cls: type[StrEnum], length: int = 24) -> Enum:
@@ -57,7 +57,7 @@ class AlertStatus(StrEnum):
     SUPERSEDED = "SUPERSEDED"  # evidence changed (late/replayed data) — kept for audit, never deleted
 
 
-class JobSite(UuidPk, Timestamps, Base):
+class JobSite(UuidPk, SyncRevisioned, Timestamps, Base):
     __tablename__ = "job_site"
     __table_args__ = (UniqueConstraint("tenant_id", "code", name="uq_job_site_code"),)
 

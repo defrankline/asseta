@@ -41,3 +41,7 @@ function isLngLat(value: unknown): value is [number, number] {
 
 /** GeoJSON position `[lon, lat]`. */
 export const lngLat = () => mixed<[number, number]>(isLngLat).required();
+
+/** Free-form JSON object or null (e.g. a tracker comparison that may be absent). */
+export const nullableRecord = () =>
+  mixed<Record<string, unknown>>(isPlainRecord).nullable().defined();

@@ -28,6 +28,7 @@ from asseta.modules.meter import router as meter_router
 from asseta.modules.platform_billing import router as platform_router
 from asseta.modules.platform_billing import tenant_router as tenant_billing_router
 from asseta.modules.policy import router as policy_router
+from asseta.modules.sync import router as sync_router
 from asseta.modules.telemetry import router as telemetry_router
 from asseta.modules.tenancy import router as tenancy_router
 from asseta.modules.tracker import router as tracker_router
@@ -113,6 +114,7 @@ def create_app(
         identity_access.router,
         jobs_router.router,
         meter_router.router,
+        sync_router.router,
     ):
         app.include_router(router)
     return app

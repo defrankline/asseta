@@ -280,3 +280,37 @@ def test_supervisor_cannot_approve_and_exception_review_unblocks_billing(api: Ap
         )
         assert rv.json()["status"] == "EXPLAINED"
     assert o.get(f"/api/v1/tenant/jobs/{c.job_id}").json()["blocking_exceptions"] == 0
+
+
+def test_review_lists_photo_link_and_tracker_coordinates(api: Api) -> None:
+    c = setup_job(api)
+    o, now = c.owner, api.clock.now + timedelta(minutes=2)
+    api.clock.set_at(now)
+    gw = api.platform.post("/api/v1/platform/telemetry-gateways", {"name": "gw-review", "adapter": "TRACCAR"}).json()
+    api.client.post(
+        "/api/v1/telemetry/traccar",
+        json=traccar_payload(c.t.device_id, Fix(now - timedelta(seconds=20), DAR[0], DAR[1], 0, 0)),
+        headers={"X-Asseta-Gateway-Key": gw["gateway_key"]},
+    )
+    pid = photo(api, o)
+    r = _submit(api, o, capture(c.job_id, "OPENING", "42.0", now, photo_id=pid))
+    assert r["capture"]["photo_attachment_id"] == pid
+    comp = r["capture"]["tracker_comparison"]
+    assert comp["tracker_latitude"] == DAR[0] and comp["tracker_longitude"] == DAR[1]
+    url = o.get(f"/api/v1/tenant/attachments/{pid}/url").json()
+    assert url["expires_in_seconds"] == 300
+    cards = o.get("/api/v1/tenant/rate-cards", machine_category_id=c.category_id).json()
+    assert len(cards) == 1 and cards[0]["hourly_rate"] == "85000.0000"
+    reset = o.post(
+        "/api/v1/tenant/meter-resets",
+        {
+            "machine_id": c.t.machine_id,
+            "old_reading": "42.0",
+            "new_reading": "0.0",
+            "effective_at": now.isoformat(),
+            "reason": "Cluster replaced under warranty",
+        },
+    ).json()
+    pending = o.get("/api/v1/tenant/meter-resets", status="PENDING").json()
+    assert [p["id"] for p in pending] == [reset["id"]] and pending[0]["requested_by"]
+    assert o.get(f"/api/v1/tenant/jobs/{c.job_id}/acknowledgements").json() == []

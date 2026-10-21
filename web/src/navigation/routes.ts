@@ -21,10 +21,25 @@ export const ROUTES = {
   tenantAlerts: '/tenant/alerts',
   tenantPolicies: '/tenant/policies',
   tenantSubscription: '/tenant/subscription',
+  tenantCustomers: '/tenant/customers',
+  tenantJobs: '/tenant/jobs',
+  tenantJobDetail: '/tenant/jobs/:jobId',
+  tenantExceptions: '/tenant/exceptions',
 } as const;
 
 export function machineDetailPath(machineId: string): string {
   return `${ROUTES.tenantMachines}/${encodeURIComponent(machineId)}`;
+}
+
+export function jobDetailPath(jobId: string): string {
+  return `${ROUTES.tenantJobs}/${encodeURIComponent(jobId)}`;
+}
+
+/** Exceptions page, optionally pre-filtered to one job. */
+export function exceptionsPath(jobId?: string): string {
+  return jobId === undefined
+    ? ROUTES.tenantExceptions
+    : `${ROUTES.tenantExceptions}?job_id=${encodeURIComponent(jobId)}`;
 }
 
 export function tenantDetailPath(tenantId: string): string {
@@ -72,4 +87,7 @@ export const IMPLEMENTED_PATHS: ReadonlySet<string> = new Set([
   ROUTES.tenantAlerts,
   ROUTES.tenantPolicies,
   ROUTES.tenantSubscription,
+  ROUTES.tenantCustomers,
+  ROUTES.tenantJobs,
+  ROUTES.tenantExceptions,
 ]);

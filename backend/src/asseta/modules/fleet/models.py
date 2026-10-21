@@ -21,7 +21,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from asseta.core.db import Base, Timestamps, UuidPk, utcnow
+from asseta.core.db import Base, SyncRevisioned, Timestamps, UuidPk, utcnow
 
 
 def _enum(cls: type[StrEnum], length: int = 24) -> Enum:
@@ -69,7 +69,7 @@ class MachineCategory(UuidPk, Timestamps, Base):
     description: Mapped[str | None] = mapped_column(String(300))
 
 
-class Machine(UuidPk, Timestamps, Base):
+class Machine(UuidPk, SyncRevisioned, Timestamps, Base):
     __tablename__ = "machine"
     __table_args__ = (
         UniqueConstraint("tenant_id", "asset_code", name="uq_machine_asset_code"),
@@ -96,7 +96,7 @@ class Machine(UuidPk, Timestamps, Base):
     __mapper_args__ = {"version_id_col": version}  # noqa: RUF012
 
 
-class StaffMember(UuidPk, Timestamps, Base):
+class StaffMember(UuidPk, SyncRevisioned, Timestamps, Base):
     """Supervisor/operator record; `keycloak_subject` links a login when the person has one."""
 
     __tablename__ = "staff_member"
@@ -114,7 +114,7 @@ class StaffMember(UuidPk, Timestamps, Base):
     is_active: Mapped[bool] = mapped_column(nullable=False, default=True)
 
 
-class MachineAssignment(UuidPk, Base):
+class MachineAssignment(UuidPk, SyncRevisioned, Base):
     """Effective-dated machine <-> staff assignment; at most one open assignment per (machine, role)."""
 
     __tablename__ = "machine_assignment"

@@ -3,7 +3,7 @@
 **Scope authority:** `prompt.md` (FROZEN). **Enhancements:** `backlog.md` only.  
 **Last update:** 2026-10-21 (session 1: Gates 0–1 verified locally; Gate 2 backend + real Traccar E2E verified; Gate 2 UI next)  
 **Overall status:** IN PROGRESS  
-**Gate in progress:** Gate 3 — Jobs + meter (backend done; OCR fixtures + Gate 3 web UI next). Gates 1–2 await a live browser walkthrough.  
+**Gate in progress:** Gate 4 — sync backend done; native Android + iOS supervisor field apps next. Gates 1–3 await a live browser walkthrough.  
 **Owner:** Implementation agent; final scope decisions by Asseta Platform Owner.
 
 ## Rules for maintaining this file
@@ -37,8 +37,8 @@
 | 0 | Foundations, infrastructure, security and CI | DONE | All Gate 0 items verified locally and on hosted CI run 39582358460 (backend, web, Android, iOS all green) at commit 6857129. |
 | 1 | Commercial platform SaaS, per-asset subscription billing | IN PROGRESS | All items implemented + tested locally: backend, scheduler, platform admin UI (59 web tests, mocked services), tracker-swap no-double-billing (Gate 2 test). Awaiting first hosted CI run (EXT-06 resolved: remote added) and a browser pass against the live stack. |
 | 2 | Fleet, telematics and PostGIS geospatial | IN PROGRESS | Backend + photos + tenant access + tenant console UI all implemented and tested (web 112 tests); real Traccar E2E verified. Remaining: live browser walkthrough of the console against the Compose stack (UI so far verified with mocked services). |
-| 3 | Jobs, configurable photo/manual meter and GPS capture | IN PROGRESS | Backend DONE + 6 acceptance API tests + 9 rule unit tests (§10 #5 combinations, GPS attempt/no-fix/HARD, tracker same-time comparison, duplicate image, decrease/reset, offline snapshot, billable≠meter). Remaining: OCR fixture corpus, Gate 3 web UI. |
-| 4 | Android + iOS supervisor offline-first apps and sync | NOT STARTED | — |
+| 3 | Jobs, configurable photo/manual meter and GPS capture | IN PROGRESS | Backend + OCR corpus + console UI implemented and tested (API 7 acceptance tests, 9 rule tests, 13 OCR parse/manifest tests; web 165 tests mocked). Remaining: live browser walkthrough; mobile capture is Gate 4. |
+| 4 | Android + iOS supervisor offline-first apps and sync | IN PROGRESS | Sync protocol v1 backend DONE + 3 acceptance tests (§10 #7: deferred/duplicate/exactly-once, conflict, rejection, quarantine→ACKED after reactivation, revocation+wipe, resumable/checksum upload, delta pull). Remaining: native Android + iOS supervisor field slices. |
 | 5 | Tenant hire finance, payments, fuel, expenses and custody | NOT STARTED | — |
 | 6 | Fraud intelligence, MLOps and validated analytics | NOT STARTED | — |
 | 7 | Android + iOS owner apps, security/performance and release | NOT STARTED | — |
@@ -86,13 +86,14 @@
 - [x] Customers, versioned rate cards, contracts, jobs (owner-approved price snapshot: rate, minimum hours, standby treatment/rate, mobilization, discount, tax; RATE_CARD vs NEGOTIATED source), job state machine with per-action permissions (supervisor cannot approve), one active job per machine, work log + customer acknowledgement (idempotent client ids).
 - [x] METER_CAPTURE policy (independent opening/closing AUTOMATIC/MANUAL, photo rules, OCR confidence, GPS enforcement HARD/SOFT, accuracy/freshness, tracker window/tolerance, increment limits) with tenant/machine/site overrides; HIRE_BILLING policy (increment, rounding). Offline snapshots enforced via `policy_version_ids`; both stamps recorded.
 - [x] Every reading carries the GPS attempt result (FIX/NO_FIX/TIMEOUT/PERMISSION_DENIED/DISABLED, accuracy, location time, provider); contract rejects coordinates without a fix; no-fix → PROVISIONAL+GPS_UNAVAILABLE (SOFT) or REJECTED (HARD).
-- [ ] OCR fixture corpus (dashboard formats/lighting) for on-device OCR tests (Gate 4 consumes). Original photos: content-addressed, immutable, presigned access (done).
+- [x] OCR fixture corpus: 24 deterministic images (`contracts/fixtures/ocr`, generator `asseta.tools.ocr_fixtures`): 4 display styles (7-segment LCD, mechanical drum with tenths wheel, backlit amber with clock distractor, plain digital) × 6 conditions (normal, dim, glare, blur, rotated, noise); 17 must_read / 7 fallback_ok; acceptance targets ≥90% must_read, 0 wrong confident reads (measured per platform in Gate 4). Shared parse spec v1 (`parse_cases.json`, 12 cases) with Python reference parser — both native apps must pass the same cases. Known risk recorded: drum tenths wheel merges in text OCR → caught by sequence rules. Synthetic only — real samples needed (EXT-05). Original photos: content-addressed, immutable, presigned access.
 - [x] Meter rules: decrease, impossible increment vs wall clock, cross-job continuity gap, approved reset (segregation of duties), duplicate image hash, tracker location at same time (±window, accuracy-aware), telemetry engine-hours mismatch when reported, clock skew; exceptions auditable + review (EXPLAINED/CONFIRMED), billing_ready only without open blocking exceptions; captures immutable except supersession (DB guard).
 - [x] Tests: `tests/api/test_jobs_meter.py` (6) + `tests/unit/test_meter_rules.py` (9) — all four mode combinations, per-machine override, no-fix/HARD/inaccurate, location mismatch vs no comparison, reused photo, boundaries (OPENING_REQUIRED, CLOSING/ACK required), billable 6.5 h vs meter 8.0 h.
-- [ ] Gate 3 web UI (customers/contracts/rate cards/jobs/approvals, capture evidence + photo review, exceptions review).
+- [x] Gate 3 web UI: customers/contracts, rate-card version history, jobs (rate card vs negotiated), job detail (meter vs billable hours, transitions per permission), readings & evidence (photo on demand, GPS evidence, phone vs tracker map), console capture with real browser geolocation attempt, work log, acknowledgements, meter resets (segregation of duties), exceptions review (neutral wording), METER_CAPTURE/HIRE_BILLING/DEVICE_SYNC policies. Contract gaps found by the UI were closed in the API (rate-card/reset/ack lists, photo_attachment_id, tracker coordinates).
 
 ## Gate 4 — Native field applications
 
+- [x] Sync protocol v1 server (`modules/sync`, `docs/offline-sync.md`): device sessions + bounded offline grant + revocation/wipe; bootstrap with METER_CAPTURE policy snapshots (audited `device_policy_snapshot`); global `sync_revision` delta pull with lookback; idempotent dependency-ordered push (ACKED/DUPLICATE/DEFERRED/CONFLICT/REJECTED/QUARANTINED) dispatching to the same domain services as the online API; resumable SHA-256-verified chunked evidence upload; DEVICE_SYNC policy. Tests: `tests/api/test_sync.py`.
 - [ ] Android Supervisor application: secure offline auth, Room encryption, camera/GPS/OCR/jobs/expenses/collections.
 - [ ] iOS Supervisor application: secure offline auth, encrypted storage, camera/GPS/Vision OCR/jobs/expenses/collections.
 - [ ] Local policy snapshots and offline authorization restrictions on both platforms.
@@ -143,7 +144,9 @@
 | 2026-10-21 | First hosted CI run 39580991361 | GitHub Actions | web PASS, iOS PASS; backend FAIL (`ruff format --check`: migration edited after local check), Android FAIL (`setup-android` preview-license prompt). Fixed: `scripts/ci-local.sh` gate before every commit; Android uses preinstalled SDK + `sdkmanager --licenses`. | `.github/workflows/ci.yml`, `scripts/ci-local.sh` |
 | 2026-10-21 | Hosted CI run 39582358460 @6857129 | GitHub Actions | PASS backend, web, Android, iOS | https://github.com/defrankline/asseta/actions/runs/39582358460 |
 | 2026-10-21 | Live integrations (Keycloak, Kafka, MinIO) | `uv run pytest -m integration` with live services | PASS 4/4 (found & fixed: orphan Keycloak tenant groups crashed mirror sync) | `tests/integration` |
+| 2026-10-21 | Hosted CI run 39584890367 @39b8d20 (Gate 2 UI + Gate 3 backend) | GitHub Actions | PASS backend, web, Android, iOS | https://github.com/defrankline/asseta/actions/runs/39584890367 |
 | 2026-10-21 | Gate 2 UI + Gate 3 backend | `scripts/ci-local.sh` | PASS backend 88 passed / 4 live skipped; web 30 files / 112 tests; build | found & fixed: meter service used wall clock instead of injected request clock (skew false positives) |
+| 2026-10-21 | Gate 3 UI + Gate 4 sync backend | `scripts/ci-local.sh` | PASS backend 106 passed, 4 skipped; web 41 files / 165 tests; build | `tests/api/test_sync.py`, `web/src/pages/tenant/jobDetail` |
 | 2026-10-21 | Migration safety | down→base→up and partial cycles **on a populated DB**; `alembic check` | PASS (fixed data-dependent seed downgrade) | `migrations/versions` |
 | 2026-10-21 | Android foundation | `./gradlew assembleDebug testDebugUnitTest lint assembleAndroidTest` | PASS (35+ unit tests; lint clean; instrumented SQLCipher test compiled, not run — no emulator) | `mobile/android/` |
 | 2026-10-21 | iOS foundation | `swift test`; `xcodebuild` Supervisor/Owner; app-hosted tests on iPhone 17 Pro sim | PASS 65 tests; both builds; 2 hosted Keychain/SQLCipher tests | `mobile/ios/` |

@@ -47,6 +47,7 @@ const CURRENT = { stale_after_seconds: 1800, geofence_tolerance_m: 30 };
 function open(scope: OverrideScope) {
   renderWithProviders(
     <PolicyOverrideDialog
+      policyType="TRACKING"
       initialScope={scope}
       initialMachine={scope === 'MACHINE' ? MACHINE : null}
       initialSiteId={scope === 'SITE' ? SITE.id : ''}

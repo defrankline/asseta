@@ -1,4 +1,12 @@
-import { Box, Checkbox, FormControlLabel, Switch, TextField, Typography } from '@mui/material';
+import {
+  Box,
+  Checkbox,
+  FormControlLabel,
+  MenuItem,
+  Switch,
+  TextField,
+  Typography,
+} from '@mui/material';
 import { getIn, useFormikContext } from 'formik';
 import type { PolicyFormValues } from './policyForm';
 import { WEEKDAYS, type PolicyFieldDef } from './policyFields';
@@ -78,6 +86,31 @@ export function OverrideFieldInput({ def }: { def: PolicyFieldDef }) {
             </Typography>
           )}
         </Box>
+      ) : def.kind === 'bool' || def.kind === 'enum' ? (
+        <TextField
+          select
+          size="small"
+          label={def.label}
+          value={value}
+          disabled={!enabled}
+          onChange={(e) => {
+            setValue(e.target.value);
+          }}
+          error={error !== undefined}
+          helperText={error ?? def.help}
+        >
+          {(def.kind === 'bool'
+            ? [
+                { value: 'true', label: 'Yes' },
+                { value: 'false', label: 'No' },
+              ]
+            : (def.options ?? [])
+          ).map((o) => (
+            <MenuItem key={o.value} value={o.value}>
+              {o.label}
+            </MenuItem>
+          ))}
+        </TextField>
       ) : (
         <TextField
           size="small"

@@ -31,7 +31,15 @@ from asseta.modules.jobs.dto import (
     RateCardDto,
     RateCardIn,
 )
-from asseta.modules.jobs.models import Customer, Job, JobActivity, JobStatus, RentalContract
+from asseta.modules.jobs.models import (
+    Customer,
+    CustomerAcknowledgement,
+    Job,
+    JobActivity,
+    JobStatus,
+    RentalContract,
+    RentalRatePolicy,
+)
 from asseta.modules.jobs.service import JobService
 
 CUSTOMER_READ = requires("tenant.customer.read", S.TENANT, "View customers and contracts")
@@ -186,3 +194,33 @@ def acknowledge(
     job_id: uuid.UUID, body: AcknowledgementIn, session: DbSession, ctx: Annotated[RequestContext, Depends(JOB_LOG)]
 ) -> AcknowledgementDto:
     return JobService(session, ctx).acknowledge(job_id, body)
+
+
+@router.get("/rate-cards", response_model=list[RateCardDto], operation_id="listRateCards")
+def rate_cards(
+    session: DbSession,
+    _: Annotated[RequestContext, Depends(CUSTOMER_READ)],
+    machine_category_id: uuid.UUID | None = None,
+) -> list[RateCardDto]:
+    """All versions, newest first; the effective card for a time is the latest with effective_from <= time."""
+    stmt = select(RentalRatePolicy).order_by(
+        RentalRatePolicy.machine_category_id, RentalRatePolicy.effective_from.desc()
+    )
+    if machine_category_id:
+        stmt = stmt.where(RentalRatePolicy.machine_category_id == machine_category_id)
+    return [RateCardDto.model_validate(r) for r in session.execute(stmt).scalars()]
+
+
+@router.get(
+    "/jobs/{job_id}/acknowledgements", response_model=list[AcknowledgementDto], operation_id="listJobAcknowledgements"
+)
+def acknowledgements(
+    job_id: uuid.UUID, session: DbSession, ctx: Annotated[RequestContext, Depends(JOB_READ)]
+) -> list[AcknowledgementDto]:
+    JobService(session, ctx).job(job_id)
+    rows = session.execute(
+        select(CustomerAcknowledgement)
+        .where(CustomerAcknowledgement.job_id == job_id)
+        .order_by(CustomerAcknowledgement.captured_at)
+    ).scalars()
+    return [AcknowledgementDto.model_validate(a) for a in rows]

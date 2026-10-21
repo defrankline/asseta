@@ -10,7 +10,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from functools import lru_cache
 
-from sqlalchemy import DateTime, Engine, create_engine, text
+from sqlalchemy import BigInteger, DateTime, Engine, create_engine, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
@@ -33,6 +33,14 @@ class Timestamps:
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False
+    )
+
+
+class SyncRevisioned:
+    """Server-monotonic change revision for offline delta pull (bumped on every update by trigger)."""
+
+    sync_revision: Mapped[int] = mapped_column(
+        BigInteger, server_default=text("nextval('sync_revision_seq')"), nullable=False, index=True
     )
 
 

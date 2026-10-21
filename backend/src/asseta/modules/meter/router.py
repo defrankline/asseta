@@ -202,3 +202,18 @@ def review(
     )
     session.flush()
     return ExceptionDto.model_validate(row)
+
+
+@router.get("/meter-resets", response_model=list[ResetDto], operation_id="listMeterResets")
+def resets(
+    session: DbSession,
+    _: Annotated[RequestContext, Depends(METER_READ)],
+    machine_id: uuid.UUID | None = None,
+    status: str | None = None,
+) -> list[ResetDto]:
+    stmt = select(MeterResetEvent).order_by(MeterResetEvent.created_at.desc())
+    if machine_id:
+        stmt = stmt.where(MeterResetEvent.machine_id == machine_id)
+    if status:
+        stmt = stmt.where(MeterResetEvent.status == status)
+    return [ResetDto.model_validate(r) for r in session.execute(stmt).scalars()]

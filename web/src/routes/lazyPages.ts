@@ -35,3 +35,15 @@ export const TenantSubscriptionPage = lazy(() =>
     default: m.TenantSubscriptionPage,
   })),
 );
+export const CustomersPage = lazy(() =>
+  import('../pages/tenant/customers/CustomersPage').then((m) => ({ default: m.CustomersPage })),
+);
+export const JobsPage = lazy(() =>
+  import('../pages/tenant/jobs/JobsPage').then((m) => ({ default: m.JobsPage })),
+);
+export const JobDetailPage = lazy(() =>
+  import('../pages/tenant/jobDetail/JobDetailPage').then((m) => ({ default: m.JobDetailPage })),
+);
+export const ExceptionsPage = lazy(() =>
+  import('../pages/tenant/exceptions/ExceptionsPage').then((m) => ({ default: m.ExceptionsPage })),
+);
