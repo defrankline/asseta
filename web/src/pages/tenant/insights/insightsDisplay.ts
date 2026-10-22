@@ -56,9 +56,9 @@ const READINESS_LABELS: Readonly<Record<string, string>> = {
   min_machines: 'Machines with history',
   min_machine_weeks: 'Usable machine-weeks',
   min_weeks_history: 'Weeks of history',
-  min_present_fraction: 'Share of features present',
-  min_validation_rows: 'Validation weeks',
-  min_test_rows: 'Test weeks',
+  min_present_fraction: 'Share of measures recorded',
+  min_validation_rows: 'Machine-weeks to check the model',
+  min_test_rows: 'Machine-weeks to test the model',
 };
 
 export function readinessLabel(key: string): string {
@@ -66,8 +66,10 @@ export function readinessLabel(key: string): string {
 }
 
 /** Formats a JSON fact (number, boolean, text) for a key/value list. */
-export function factText(value: unknown): string {
-  if (typeof value === 'number') return formatNumber(value, 2);
+export function factText(value: unknown, key = ''): string {
+  if (typeof value === 'number') {
+    return key.endsWith('_fraction') ? `${formatNumber(value * 100, 0)}%` : formatNumber(value, 2);
+  }
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
   if (value === null || value === undefined) return '—';
   return typeof value === 'string' ? value : JSON.stringify(value);
@@ -90,7 +92,9 @@ export function insufficientText(item: HistoryFacts): string {
   const weeks = `Not enough history yet: ${String(item.weeks_observed)} of ${String(
     item.min_weeks_required,
   )} weeks observed.`;
-  return item.missing.length === 0 ? weeks : `${weeks} Missing: ${item.missing.join('; ')}.`;
+  // Server reasons are sentences: drop their own full stops so the joined text ends with exactly one.
+  const missing = item.missing.map((m) => m.trim().replace(/\.+$/, ''));
+  return missing.length === 0 ? weeks : `${weeks} Missing: ${missing.join('; ')}.`;
 }
 
 /** Start of a tenant-local calendar day as a UTC instant (inclusive lower bound). */

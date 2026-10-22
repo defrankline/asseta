@@ -43,15 +43,14 @@ CURRENT_MAX_AGE = timedelta(days=14)  # a "current" fuel week older than this is
 _CODES = ("litres_per_meter_hour", "meter_hours", "engine_hours", "exceptions_count")
 _CENT = Decimal("0.0001")
 METHOD = [
-    "Fuel efficiency: litres per captured meter hour in the latest week, compared with the median of the machine's "
-    f"own previous weeks; outside the band median +/- max(3 x MAD x 1.4826, 15% of median) is shown as outside the "
-    f"usual range. Needs {FUEL_MIN_WEEKS} previous weeks with both fuel and meter hours.",
-    "Utilisation: captured meter hours (engine hours when no reading was captured) per calendar day of the observed "
-    f"weeks, with the weekly trend. Needs {UTILISATION_MIN_WEEKS} observed weeks.",
-    "Cash flow: verified customer receipts minus approved expenses per tenant-local week, with a least-squares trend. "
-    f"Needs {CASHFLOW_MIN_WEEKS} complete weeks since the first recorded receipt or expense.",
-    "Only weekly snapshots computed from your own records are used (point-in-time: facts recorded after a week's end "
-    "never change that week).",
+    "Fuel efficiency: litres used per meter hour in the latest week, compared with the same machine's earlier weeks. "
+    "A week well above or below its usual level is marked so you can take a look. "
+    f"Needs {FUEL_MIN_WEEKS} earlier weeks with both fuel and meter readings.",
+    "Utilisation: hours worked per day (meter readings, or engine hours when no reading was taken), week by week, "
+    f"and whether that is rising, falling or steady. Needs {UTILISATION_MIN_WEEKS} weeks of readings.",
+    "Cash flow: verified customer payments minus approved expenses, week by week, and the direction it is moving. "
+    f"Needs {CASHFLOW_MIN_WEEKS} complete weeks since the first payment or expense.",
+    "Only your own records are used, and a finished week never changes when late records arrive afterwards.",
 ]
 
 

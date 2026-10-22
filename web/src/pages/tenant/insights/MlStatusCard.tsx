@@ -18,17 +18,39 @@ function Minimums({ readiness }: { readiness: MlReadinessDto }) {
       label: readinessLabel(key),
       value:
         observed === undefined
-          ? `needs ${factText(min)}`
-          : `${factText(observed)} of ${factText(min)} needed`,
+          ? `needs ${factText(min, key)}`
+          : `${factText(observed, key)} of ${factText(min, key)} needed`,
     };
   });
   if (items.length === 0) return null;
   return <KeyValueGrid columns={3} items={items} />;
 }
 
+/** Lines whose text is not already shown elsewhere (ignoring a "Not enough history yet:" prefix). */
+function distinctLines(candidates: readonly string[], shown: readonly string[]): string[] {
+  const norm = (t: string) =>
+    t
+      .replace(/^not enough history yet:\s*/i, '')
+      .trim()
+      .toLowerCase();
+  const seen = new Set(shown.map(norm));
+  const out: string[] = [];
+  for (const c of candidates) {
+    const n = norm(c);
+    if (n === '' || seen.has(n)) continue;
+    seen.add(n);
+    out.push(c);
+  }
+  return out;
+}
+
 function StatusBody({ status, timeZone }: { status: TenantMlStatusDto; timeZone: string }) {
   const readiness = status.readiness;
   const short = ML_STATE_LABELS[status.state];
+  // The label, summary and reasons often repeat one sentence: show each distinct line once.
+  const reasons =
+    status.state === 'NOT_ENOUGH_HISTORY' && readiness !== null ? readiness.reasons : [];
+  const lines = distinctLines([status.label, status.summary], [short, ...reasons]);
   return (
     <Box className="flex flex-col gap-2">
       <Box className="flex flex-wrap items-center gap-2">
@@ -37,10 +59,11 @@ function StatusBody({ status, timeZone }: { status: TenantMlStatusDto; timeZone:
         </Typography>
         <StatusChip status={status.state} tones={ML_STATE_TONES} label={short} />
       </Box>
-      {status.label !== short && <Typography variant="body2">{status.label}</Typography>}
-      <Typography variant="body2" color="text.secondary">
-        {status.summary}
-      </Typography>
+      {lines.map((line) => (
+        <Typography key={line} variant="body2" color="text.secondary">
+          {line}
+        </Typography>
+      ))}
       {status.deployed !== null && (
         <Typography variant="body2" color="text.secondary">
           Version {status.deployed.version},{' '}
@@ -50,9 +73,9 @@ function StatusBody({ status, timeZone }: { status: TenantMlStatusDto; timeZone:
       )}
       {status.state === 'NOT_ENOUGH_HISTORY' && readiness !== null && (
         <Box className="flex flex-col gap-2">
-          {readiness.reasons.length > 0 && (
+          {reasons.length > 0 && (
             <Box component="ul" className="m-0 pl-5" aria-label="What is missing">
-              {readiness.reasons.map((r) => (
+              {reasons.map((r) => (
                 <li key={r}>
                   <Typography variant="body2">{r}</Typography>
                 </li>

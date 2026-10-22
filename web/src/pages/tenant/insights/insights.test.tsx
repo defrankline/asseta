@@ -123,6 +123,27 @@ describe('InsightsPage: model status', () => {
     expect(card.textContent).not.toMatch(NO_SCORE);
   });
 
+  it('says each reason once and shows fractions as percentages', async () => {
+    const reason =
+      'No feature history yet; anomaly scoring starts once machines accumulate observed weeks.';
+    mocks.status.mockResolvedValue(
+      makeTenantStatus({
+        label: `Not enough history yet: ${reason}`,
+        summary: `Not enough history yet: ${reason}`,
+        readiness: makeReadiness({
+          reasons: [reason],
+          observed: { machines: 0 },
+          minimums: { min_machines: 5, min_present_fraction: 0.5 },
+        }),
+      }),
+    );
+    renderPage([...FLEET, P.tenantSignalRead]);
+    const card = await screen.findByRole('region', { name: 'Model status' });
+    expect(await within(card).findAllByText(new RegExp(reason.slice(0, 30)))).toHaveLength(1);
+    expect(within(card).getByText('Share of measures recorded')).toBeInTheDocument();
+    expect(within(card).getByText('needs 50%')).toBeInTheDocument();
+  });
+
   it('hides the status card without tenant.signal.read', async () => {
     renderPage(FLEET);
     await screen.findByText('EX-01 · Excavator 1');
