@@ -75,6 +75,28 @@ class MeterOcrFixtureTest {
         assertTrue("must_read accuracy regressed below $REGRESSION_FLOOR: $summary", accuracy >= REGRESSION_FLOOR)
     }
 
+    /** Real dashboard photos (EXT-05, contracts/fixtures/ocr/real): no confident wrong read; results are logged. */
+    @Test
+    fun realSamplesHaveNoConfidentWrongReads() = runBlocking {
+        val manifest = Json.parseToJsonElement(assets.open("real/manifest.json").use { it.readBytes().decodeToString() }).jsonObject
+        val allowed = manifest["acceptance"]!!.jsonObject["wrong_confident_reads_allowed"]!!.jsonPrimitive.int
+        val ocr = MeterOcr(InstrumentationRegistry.getInstrumentation().targetContext)
+        val outcomes = manifest["images"]!!.jsonArray.map { it.jsonObject }.map { img ->
+            fun field(name: String) = img[name]!!.jsonPrimitive.content
+            val bitmap = assets.open("real/${field("file")}").use { BitmapFactory.decodeStream(it) }!!
+            val r = ocr.read(bitmap, img["decimal_places"]!!.jsonPrimitive.int, CONFIDENT)
+            Outcome(field("file"), field("style"), field("category"), field("expected_reading"),
+                r.value, r.confidence, r.flags, r.rawText.replace('\n', '|'))
+        }
+        val lines = outcomes.joinToString("\n") {
+            "real ${it.file} expected=${it.expected} got=${it.value} conf=${"%.3f".format(java.util.Locale.ROOT, it.confidence)} flags=${it.flags} raw='${it.raw}'"
+        }
+        Log.i(TAG, lines)
+        InstrumentationRegistry.getInstrumentation().sendStatus(0, android.os.Bundle().apply { putString("stream", "AssetaOcr $lines\n") })
+        val confidentWrong = outcomes.filter { it.confidentWrong }
+        assertTrue("confident wrong reads on real samples: $lines", confidentWrong.size <= allowed)
+    }
+
     /** The shared parse spec must hold on the device runtime (ICU regex), not only on the JVM. */
     @Test
     fun sharedParseCasesPassOnDevice() {
