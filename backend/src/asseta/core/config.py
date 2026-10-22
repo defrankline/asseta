@@ -33,6 +33,11 @@ class Settings(BaseSettings):
 
     billing_scheduler_interval_seconds: int = Field(default=3600, ge=60)
 
+    # Gate 6 ML (ADR-007). Unset tracking URI -> training runs are recorded only in Asseta's governance tables
+    # (`model_version.tracking_note` says so); the MLflow server keeps its artifacts in its own MinIO bucket.
+    mlflow_tracking_uri: str | None = None
+    mlflow_artifact_bucket: str = "asseta-mlflow"
+
     cors_origins: list[str] = ["http://localhost:5173"]
     http_timeout_seconds: float = Field(default=5.0, gt=0)
 

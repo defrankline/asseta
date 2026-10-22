@@ -39,15 +39,17 @@ def run() -> None:
     from asseta.core.storage import S3ObjectStore
 
     settings = get_settings()
-    S3ObjectStore(
-        settings.s3_endpoint,
-        settings.s3_public_endpoint,
-        settings.s3_bucket,
-        settings.s3_access_key.get_secret_value(),
-        settings.s3_secret_key.get_secret_value(),
-        settings.http_timeout_seconds,
-    ).ensure_bucket()
-    structlog.get_logger().info("bootstrap_bucket_ready", bucket=get_settings().s3_bucket)
+    # Evidence objects (and platform-private model bundles), then the MLflow server's artifact bucket (ADR-007).
+    for bucket in (settings.s3_bucket, settings.mlflow_artifact_bucket):
+        S3ObjectStore(
+            settings.s3_endpoint,
+            settings.s3_public_endpoint,
+            bucket,
+            settings.s3_access_key.get_secret_value(),
+            settings.s3_secret_key.get_secret_value(),
+            settings.http_timeout_seconds,
+        ).ensure_bucket()
+        structlog.get_logger().info("bootstrap_bucket_ready", bucket=bucket)
     key = os.environ.get("ASSETA_TRACCAR_GATEWAY_KEY", "")
     if len(key) < 24:
         structlog.get_logger().warning("bootstrap_skipped_gateway", reason="ASSETA_TRACCAR_GATEWAY_KEY unset/short")

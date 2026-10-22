@@ -16,6 +16,7 @@ x-api-env: &api-env
   ASSETA_KEYCLOAK_PUBLIC_URL: ${ASSETA_PUBLIC_KEYCLOAK_URL:-http://localhost:8080}
   ASSETA_KEYCLOAK_API_CLIENT_SECRET: ${ASSETA_API_CLIENT_SECRET}
   ASSETA_CORS_ORIGINS: '["${ASSETA_WEB_URL:-http://localhost:5173}"]'
+  ASSETA_MLFLOW_TRACKING_URI: http://mlflow:5000  # optional: training still records runs locally when MLflow is down
 
 # SMS provider for notification SMS (console = logs only, sends nothing). Credentials only from .env.
 x-sms-env: &sms-env
@@ -99,6 +100,32 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set in .env}
     ports: ["127.0.0.1:${ASSETA_MINIO_PORT:-9100}:9000", "127.0.0.1:${ASSETA_MINIO_CONSOLE_PORT:-9101}:9001"]
     volumes: [miniodata:/data]
+
+  mlflow-db-init:  # one-shot, idempotent: MLflow backend-store role + database (fresh or existing pg volume)
+    image: asseta/postgis:18-3.6
+    entrypoint: ["bash", "/opt/asseta/mlflow-db.sh"]
+    environment:
+      PGPASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?set in .env}
+      MLFLOW_DB_PASSWORD: ${MLFLOW_DB_PASSWORD:?set in .env}
+    volumes: ["./infra/postgres/mlflow-db.sh:/opt/asseta/mlflow-db.sh:ro"]
+    depends_on: {postgres: {condition: service_healthy}}
+    restart: "no"
+
+  mlflow:  # Gate 6 (ADR-007): experiment runs + artifacts; Asseta's model_version tables stay the governance record
+    build: ./infra/mlflow
+    image: asseta/mlflow:3.17.0
+    environment:
+      MLFLOW_DB_USER: mlflow
+      MLFLOW_DB_PASSWORD: ${MLFLOW_DB_PASSWORD:?set in .env}
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+      MLFLOW_ARTIFACT_BUCKET: asseta-mlflow
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+    ports: ["127.0.0.1:${ASSETA_MLFLOW_PORT:-5500}:5000"]
+    depends_on:
+      mlflow-db-init: {condition: service_completed_successfully}
+      minio: {condition: service_started}
+    restart: unless-stopped
 
   migrate:
     build: ./backend

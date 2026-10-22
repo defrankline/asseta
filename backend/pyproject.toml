@@ -39,6 +39,7 @@ asseta-notification-scheduler = "asseta.workers.notification_scheduler:run"
 asseta-intelligence-worker = "asseta.workers.intelligence_worker:run"
 asseta-gps-simulator = "asseta.tools.gps_simulator:main"
 asseta-bootstrap = "asseta.tools.bootstrap:run"
+asseta-ml = "asseta.tools.ml_cli:main"
 
 [build-system]
 requires = ["uv_build>=0.12.7,<0.13.0"]

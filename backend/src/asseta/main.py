@@ -28,6 +28,7 @@ from asseta.modules.identity.authz_sync import AuthzSyncService
 from asseta.modules.identity.idp import IdentityProviderAdmin
 from asseta.modules.identity.keycloak_admin import KeycloakAdminClient
 from asseta.modules.identity.tokens import JwksSigningKeyProvider, OidcTokenVerifier, TokenVerifier
+from asseta.modules.intelligence import ml_router as intelligence_ml_router
 from asseta.modules.intelligence import router as intelligence_router
 from asseta.modules.jobs import router as jobs_router
 from asseta.modules.managed_service import router as managed_service_router
@@ -136,6 +137,8 @@ def create_app(
         finance_cash_router.router,
         expenses_router.router,
         intelligence_router.router,
+        intelligence_ml_router.platform_router,
+        intelligence_ml_router.tenant_router,
         commerce_router.router,
         commerce_router.tenant_router,
         notification_router.tenant_router,
