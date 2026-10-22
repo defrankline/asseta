@@ -39,7 +39,7 @@
 | 2 | Fleet, telematics and PostGIS geospatial | IN PROGRESS | Backend + photos + tenant access + tenant console UI all implemented and tested (web 112 tests); real Traccar E2E verified. Remaining: live browser walkthrough of the console against the Compose stack (UI so far verified with mocked services). |
 | 3 | Jobs, configurable photo/manual meter and GPS capture | IN PROGRESS | Backend + OCR corpus + console UI implemented and tested (API 7 acceptance tests, 9 rule tests, 13 OCR parse/manifest tests; web 165 tests mocked). Remaining: live browser walkthrough; mobile capture is Gate 4. |
 | 4 | Android + iOS supervisor offline-first apps and sync | IN PROGRESS | Sync protocol v1 backend DONE + 3 acceptance tests. Supervisor field apps implemented on both platforms (offline queue, all push outcomes, resumable blobs, policy snapshots/offline grant, clock tamper, revocation wipe, OCR + GPS capture), verified: iOS 113 `swift test` + 5 app-hosted, Android 93 JVM + 4 instrumented on emulator. Android OCR now 17/17 must_read on emulator (geometric pipeline + seven-segment decoder, ported from iOS), 0 confident wrong. Hosted CI green (39600636563). Live E2E of both apps' real sync clients vs live backend + Keycloak PASS (`scripts/field-e2e.sh`). **Open:** real meter samples (EXT-05); live E2E covers the opening reading only (START/closing/acknowledgement/COMPLETE covered by unit + server acceptance tests). |
-| 5 | Tenant hire finance, payments, fuel, expenses and custody | IN PROGRESS | Backend DONE + verified (161 tests incl. hire invoices, receivables, expenses/approvals/fuel, §10 #8 cash reconciliation, §10 #7 offline finance ops, finance isolation; migrations up/down). Remaining: web finance UI, mobile expense/collection/handover capture, entity lifecycle completion (owner request). |
+| 5 | Tenant hire finance, payments, fuel, expenses and custody | DONE (signed off 2026-10-22, owner request) | Backend (API acceptance incl. §10 #7/#8, isolation, reversal), web finance UI, mobile capture (live field E2E both apps), entity lifecycle (DEC-021); live three-person browser walkthrough 2026-10-22 (evidence log); hosted CI 39749518328 green. Residual (non-blocking): second-person expense approval clicked only via API tests (same decision dialog verified in browser for payments/handovers); hands-on phone use of mobile finance screens. |
 | 6 | Fraud intelligence, MLOps and validated analytics | NOT STARTED | — |
 | 7 | Android + iOS owner apps, security/performance and release | NOT STARTED | — |
 
@@ -102,11 +102,11 @@
 
 ## Gate 5 — Tenant hire finance
 
-- [ ] Tenant customer invoice/line-item creation from approved billable job hours.
-- [ ] Deposits/partial payments/receivables and verified payment statuses.
-- [ ] Supervisor cash custody, handovers, expenses, approvals, fuel events, receipts and expense GPS per policy.
-- [ ] Machine/job/customer profitability, cash reconciliation and reports.
-- [ ] Financial reversal/audit and cross-ledger separation tests.
+- [x] Tenant customer invoice/line-item creation from approved billable job hours. — `test_hire_invoices.py` (single source of truth = job summary, DRAFT_STALE, numbering); browser: J-1001 → HINV-2026-00001 TZS 1,092,500.00.
+- [x] Deposits/partial payments/receivables and verified payment statuses. — `test_receivables.py`, CLAIMED→VERIFIED SoD; browser: claimed 500,000 → verified by a second person → Partially paid, balance 592,500.00.
+- [x] Supervisor cash custody, handovers, expenses, approvals, fuel events, receipts and expense GPS per policy. — `test_cash_custody.py`, `test_expenses.py`, `test_finance_sync.py`; live field E2E (both apps); browser: float → handover (recorder blocked) → verified by owner; expense with receipt + GPS → PENDING_APPROVAL with SoD notice.
+- [x] Machine/job/customer profitability, cash reconciliation and reports. — `test_profitability.py`, §10 #8; browser: EX-01 revenue 1,092,500.00; reconciliation 200,000 − 150,000 = 50,000.00.
+- [x] Financial reversal/audit and cross-ledger separation tests. — void-as-reversal + allocation release (`test_hire_invoices.py`), `test_finance_isolation.py` (tenant + ledger separation from platform billing).
 
 ## Gate 6 — ML, anomaly and investigations
 
