@@ -22,7 +22,7 @@
       "expected_reading": "1822.3",
       "decimal_places": 1,
       "category": "fallback_ok",
-      "distractors": ["0.6 hrs secondary counter", "fuel 10x%", "decimal comma", "photographer reflection"]
+      "distractors": ["0.6 hrs secondary counter", "fuel 10x%", "decimal comma", "glare"], "note": "cropped below a reflection of the photographer"
     }
   ]
 }
