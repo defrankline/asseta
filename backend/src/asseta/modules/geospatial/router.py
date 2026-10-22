@@ -13,6 +13,8 @@ from asseta.core.db import get_session, utcnow
 from asseta.core.errors import ERROR_RESPONSES, BusinessRuleViolation, Conflict, NotFound
 from asseta.core.lifecycle import IncludeInactive, LifecycleChangeIn
 from asseta.core.paging import Page, PageParams, page_params, paginate
+from asseta.modules.fleet.models import MachineStatus
+from asseta.modules.geospatial.alerts import alert_list_query
 from asseta.modules.geospatial.dto import (
     AlertActionIn,
     AlertDto,
@@ -23,7 +25,7 @@ from asseta.modules.geospatial.dto import (
     JobSiteIn,
     JobSiteUpdateIn,
 )
-from asseta.modules.geospatial.fleet_map import FleetMapService, MachineMapDto
+from asseta.modules.geospatial.fleet_map import Connectivity, FleetMapService, MachineMapDto, filter_fleet
 from asseta.modules.geospatial.history import HistoryDto, HistoryService, NearbyMachineDto
 from asseta.modules.geospatial.models import AlertStatus, AlertType, TrackingAlert
 from asseta.modules.geospatial.sites_service import SiteService
@@ -68,8 +70,16 @@ def _tid(ctx: RequestContext) -> uuid.UUID:
 
 
 @router.get("/fleet/map", response_model=list[MachineMapDto], operation_id="getFleetMap")
-def fleet_map(session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(FLEET_READ)]) -> list[MachineMapDto]:
-    return FleetMapService(session, _tid(ctx)).fleet(now)
+def fleet_map(
+    session: DbSession,
+    now: Now,
+    ctx: Annotated[RequestContext, Depends(FLEET_READ)],
+    q: Annotated[str | None, Query(max_length=100)] = None,
+    connectivity: Connectivity | None = None,
+    machine_status: MachineStatus | None = None,
+) -> list[MachineMapDto]:
+    rows = FleetMapService(session, _tid(ctx)).fleet(now)
+    return filter_fleet(rows, q, connectivity, machine_status.value if machine_status else None)
 
 
 @router.get("/fleet/machines/{machine_id}", response_model=MachineMapDto, operation_id="getMachineStatus")
@@ -226,13 +236,7 @@ def alerts(
     alert_type: AlertType | None = None,
     machine_id: uuid.UUID | None = None,
 ) -> Page[AlertDto]:
-    stmt = select(TrackingAlert).order_by(TrackingAlert.event_time.desc())
-    if status:
-        stmt = stmt.where(TrackingAlert.status == status)
-    if alert_type:
-        stmt = stmt.where(TrackingAlert.alert_type == alert_type)
-    if machine_id:
-        stmt = stmt.where(TrackingAlert.machine_id == machine_id)
+    stmt = alert_list_query(status, alert_type, machine_id)
     rows, total = paginate(session, stmt, paging)
     return Page(
         items=[AlertDto.model_validate(a) for a in rows], total=total, page=paging.page, page_size=paging.page_size

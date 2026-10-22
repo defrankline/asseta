@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import Select, select
 from sqlalchemy.orm import Session
 
 from asseta.core.audit import AuditService
@@ -62,6 +62,25 @@ def expense_dto(session: Session, e: Expense) -> ExpenseDto:
         select(ApprovalRequest.id).where(ApprovalRequest.subject_type == SUBJECT, ApprovalRequest.subject_id == e.id)
     ).scalar_one_or_none()
     return dto
+
+
+def expense_list_query(
+    status: ExpenseStatus | None = None,
+    machine_id: uuid.UUID | None = None,
+    job_id: uuid.UUID | None = None,
+    custodian_staff_id: uuid.UUID | None = None,
+) -> Select[Expense]:
+    """The expense list (latest incurred first) shared by the expenses endpoint and the expenses report."""
+    stmt = select(Expense).order_by(Expense.incurred_at.desc(), Expense.id)
+    for col, val in (
+        (Expense.status, status),
+        (Expense.machine_id, machine_id),
+        (Expense.job_id, job_id),
+        (Expense.custodian_staff_id, custodian_staff_id),
+    ):
+        if val is not None:
+            stmt = stmt.where(col == val)
+    return stmt
 
 
 class ExpenseService:

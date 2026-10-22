@@ -15,6 +15,7 @@ from asseta.core.errors import install_error_handlers
 from asseta.core.logging import configure_logging
 from asseta.core.sms import SmsClient, build_sms_client
 from asseta.core.storage import ObjectStore, S3ObjectStore
+from asseta.modules.audit_log import router as audit_log_router
 from asseta.modules.expenses import router as expenses_router
 from asseta.modules.finance import cash_router as finance_cash_router
 from asseta.modules.finance import router as finance_router
@@ -35,13 +36,16 @@ from asseta.modules.intelligence import router as intelligence_router
 from asseta.modules.jobs import router as jobs_router
 from asseta.modules.managed_service import router as managed_service_router
 from asseta.modules.meter import router as meter_router
+from asseta.modules.notification import channels_router as notification_channels_router
 from asseta.modules.notification import gateway as notification_gateway
 from asseta.modules.notification import router as notification_router
 from asseta.modules.notification.realtime import RealtimeBroker, RedisBroker
+from asseta.modules.overview import router as overview_router
 from asseta.modules.platform_billing import commerce_router
 from asseta.modules.platform_billing import router as platform_router
 from asseta.modules.platform_billing import tenant_router as tenant_billing_router
 from asseta.modules.policy import router as policy_router
+from asseta.modules.reports import router as reports_router
 from asseta.modules.sync import router as sync_router
 from asseta.modules.telemetry import router as telemetry_router
 from asseta.modules.tenancy import router as tenancy_router
@@ -148,6 +152,14 @@ def create_app(
         notification_router.tenant_router,
         notification_router.platform_router,
         notification_gateway.router,
+        notification_channels_router.me_router,
+        notification_channels_router.tenant_router,
+        notification_channels_router.platform_router,
+        overview_router.router,
+        reports_router.tenant_router,
+        reports_router.platform_router,
+        audit_log_router.tenant_router,
+        audit_log_router.platform_router,
     ):
         app.include_router(router)
     return app

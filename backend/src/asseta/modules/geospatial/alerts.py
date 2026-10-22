@@ -5,13 +5,27 @@ from collections.abc import Iterable
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import select, update
+from sqlalchemy import Select, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from asseta.core.db import utcnow
 from asseta.core.outbox import OutboxWriter
 from asseta.modules.geospatial.models import AlertSeverity, AlertStatus, AlertType, TrackingAlert
+
+
+def alert_list_query(
+    status: AlertStatus | None = None, alert_type: AlertType | None = None, machine_id: uuid.UUID | None = None
+) -> Select[TrackingAlert]:
+    """The alert list (newest first) shared by the alerts endpoint and the alerts report."""
+    stmt = select(TrackingAlert).order_by(TrackingAlert.event_time.desc(), TrackingAlert.id)
+    if status:
+        stmt = stmt.where(TrackingAlert.status == status)
+    if alert_type:
+        stmt = stmt.where(TrackingAlert.alert_type == alert_type)
+    if machine_id:
+        stmt = stmt.where(TrackingAlert.machine_id == machine_id)
+    return stmt
 
 
 class AlertService:

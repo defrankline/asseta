@@ -10,6 +10,8 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from asseta.core.search import matches
+from asseta.modules.jobs.work_state import ReportedWorkState, reported_work_states
 from asseta.modules.policy.schemas import TrackingPolicy
 from asseta.modules.policy.service import PolicyService
 
@@ -52,7 +54,7 @@ class MachineMapDto(BaseModel):
     position_quality: str | None
     connectivity: Connectivity
     is_live: bool
-    reported_work_status: str  # from jobs (Gate 3); UNKNOWN until then — never inferred from GPS
+    reported_work_status: str  # supervisor reports (jobs/work logs, `ReportedWorkState`) — never inferred from GPS
     observed_engine: Observed
     observed_motion: Observed
     location_compliance: Compliance
@@ -118,9 +120,10 @@ class FleetMapService:
             _FLEET_SQL,
             {"now": now, "tol": tenant_policy.geofence_tolerance_m, "machine": str(machine_id) if machine_id else None},
         ).all()
-        return [self._row(r, now) for r in rows]
+        work = reported_work_states(self._s, now)
+        return [self._row(r, now, work.get(r.id, ReportedWorkState.NO_ACTIVE_JOB)) for r in rows]
 
-    def _row(self, r: Any, now: datetime) -> MachineMapDto:
+    def _row(self, r: Any, now: datetime, work: ReportedWorkState) -> MachineMapDto:
         eff = self._policies.tracking(self._tenant_id, r.id, at=now)
         policy = eff.policy
         msg_age = (now - r.last_message_at).total_seconds() if r.last_message_at else None
@@ -154,7 +157,7 @@ class FleetMapService:
             position_quality=r.quality,
             connectivity=conn,
             is_live=conn is Connectivity.LIVE and pos_age is not None and pos_age <= policy.live_max_age_seconds,
-            reported_work_status="UNKNOWN",
+            reported_work_status=work.value,
             observed_engine=engine,
             observed_motion=motion,
             location_compliance=compliance,
@@ -165,3 +168,19 @@ class FleetMapService:
             open_alerts=int(r.open_alerts or 0),
             policy_version=eff.version_stamp,
         )
+
+
+def filter_fleet(
+    rows: list[MachineMapDto],
+    q: str | None = None,
+    connectivity: Connectivity | None = None,
+    machine_status: str | None = None,
+) -> list[MachineMapDto]:
+    """Optional filters shared by the fleet map endpoint and the fleet report (same rows, same order)."""
+    return [
+        r
+        for r in rows
+        if matches(q, r.asset_code, r.name)
+        and (connectivity is None or r.connectivity is connectivity)
+        and (machine_status is None or r.machine_status == machine_status)
+    ]

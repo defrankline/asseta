@@ -272,6 +272,26 @@ class CashCustodyBalanceDto(BaseModel):
     as_of: datetime
 
 
+class CashSupervisorSummaryDto(BaseModel):
+    """One custodian x currency over a tenant-local period: the daily reconciliation, totalled.
+    closing_outstanding = opening + floats_issued + collections - approved_spending - verified_handovers."""
+
+    staff_member_id: uuid.UUID
+    staff_name: str
+    currency: str
+    period_from: date
+    period_to: date
+    opening: Money
+    floats_issued: Money
+    collections: Money
+    approved_spending: Money
+    verified_handovers: Money
+    closing_outstanding: Money
+    claimed_unverified_handovers: Money
+    pending_spending: Money
+    unverified_collections: Money
+
+
 # --- profitability ------------------------------------------------------------------------------------------
 class ProfitabilityRowDto(BaseModel):
     group_key: uuid.UUID | None  # None = costs not attributable to this grouping

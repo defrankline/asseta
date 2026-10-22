@@ -9,6 +9,7 @@ import uuid
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 from decimal import Decimal
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -37,6 +38,7 @@ from asseta.modules.finance.dto import (
     CashHandoverIn,
     CashReconciliationDayDto,
     CashReconciliationDto,
+    CashSupervisorSummaryDto,
     CustomerPaymentDto,
     CustomerPaymentIn,
     SettlementDecisionIn,
@@ -49,6 +51,7 @@ from asseta.modules.finance.models import (
     SupervisorCashCustody,
 )
 from asseta.modules.finance.payment_service import CustomerPaymentService
+from asseta.modules.fleet.models import StaffKind, StaffMember
 from asseta.modules.identity.principal import RequestContext
 
 TOPIC = "asseta.finance"
@@ -56,6 +59,15 @@ TOPIC = "asseta.finance"
 FLOAT, COLLECTION, SPEND, HANDOVER = "floats", "collections", "spend", "handover"
 CLAIMED_HANDOVER, PENDING_SPEND, UNVERIFIED_COLLECTION = "claimed_handover", "pending_spend", "unverified_collection"
 SIGN = {FLOAT: 1, COLLECTION: 1, SPEND: -1, HANDOVER: -1}
+_SUMMED = (
+    "floats_issued",
+    "collections",
+    "approved_spending",
+    "verified_handovers",
+    "claimed_unverified_handovers",
+    "pending_spending",
+    "unverified_collections",
+)
 
 
 class CashCustodyService:
@@ -318,4 +330,58 @@ class CashCustodyService:
                     as_of=self._now,
                 )
             )
+        return out
+
+    # --- tenant-wide views (overview, cash report) ----------------------------------------------------------
+    def custodians(self, staff_id: uuid.UUID | None = None) -> list[StaffMember]:
+        """Active supervisors plus anyone who ever held custody (incl. inactive staff still holding cash)."""
+        held = {
+            *self._s.execute(select(SupervisorCashCustody.staff_member_id)).scalars(),
+            *self._s.execute(
+                select(CustomerPayment.received_by_staff_id).where(CustomerPayment.method == HirePaymentMethod.CASH)
+            ).scalars(),
+            *self._s.execute(select(CashHandover.staff_member_id)).scalars(),
+            *self._s.execute(
+                select(Expense.custodian_staff_id).where(Expense.paid_from == ExpensePaidFrom.CASH_CUSTODY)
+            ).scalars(),
+        }
+        stmt = select(StaffMember).order_by(StaffMember.full_name, StaffMember.id)
+        if staff_id is not None:
+            stmt = stmt.where(StaffMember.id == staff_id)
+        return [
+            s
+            for s in self._s.execute(stmt).scalars()
+            if s.id in held or (s.kind is StaffKind.SUPERVISOR and s.is_active)
+        ]
+
+    def outstanding_by_currency(self) -> dict[str, Decimal]:
+        """Cash currently held by all custodians, per currency (sum of `balances`)."""
+        totals: dict[str, Decimal] = defaultdict(Decimal)
+        for staff in self.custodians():
+            for bal in self.balances(staff.id):
+                totals[bal.currency] += bal.outstanding
+        return dict(sorted(totals.items()))
+
+    def supervisor_summaries(
+        self, first: date, last: date, currency: str | None = None, staff_id: uuid.UUID | None = None
+    ) -> list[CashSupervisorSummaryDto]:
+        """Per custodian and currency: the reconciliation over [first, last] (tenant-local days), totalled."""
+        out = []
+        for staff in self.custodians(staff_id):
+            currencies = [currency] if currency else [b.currency for b in self.balances(staff.id)]
+            for cur in currencies:
+                days = self.reconciliation(staff.id, cur, first, last).days
+                sums: dict[str, Any] = {f: sum((getattr(d, f) for d in days), ZERO) for f in _SUMMED}
+                out.append(
+                    CashSupervisorSummaryDto(
+                        staff_member_id=staff.id,
+                        staff_name=staff.full_name,
+                        currency=cur,
+                        period_from=first,
+                        period_to=last,
+                        opening=days[0].opening,
+                        closing_outstanding=days[-1].outstanding,
+                        **sums,
+                    )
+                )
         return out

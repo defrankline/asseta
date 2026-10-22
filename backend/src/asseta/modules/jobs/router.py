@@ -36,11 +36,10 @@ from asseta.modules.jobs.dto import (
     RateCardDto,
     RateCardIn,
 )
-from asseta.modules.jobs.lifecycle import RecordLifecycleService, customer_query
+from asseta.modules.jobs.lifecycle import RecordLifecycleService, customer_query, job_list_query
 from asseta.modules.jobs.models import (
     ContractStatus,
     CustomerAcknowledgement,
-    Job,
     JobActivity,
     JobStatus,
     RentalContract,
@@ -212,14 +211,7 @@ def jobs(
     status: JobStatus | None = None,
     machine_id: uuid.UUID | None = None,
 ) -> Page[JobDto]:
-    stmt = select(Job).order_by(Job.planned_start.desc())
-    if status:
-        stmt = stmt.where(Job.status == status)
-    if machine_id:
-        stmt = stmt.where(Job.machine_id == machine_id)
-    if (match := ilike_any(paging.q, Job.job_number)) is not None:
-        stmt = stmt.where(match)
-    rows, total = paginate(session, stmt, paging)
+    rows, total = paginate(session, job_list_query(paging.q, status, machine_id), paging)
     return Page(
         items=[JobDto.model_validate(j) for j in rows], total=total, page=paging.page, page_size=paging.page_size
     )

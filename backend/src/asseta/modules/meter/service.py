@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timedelta
 from decimal import Decimal
 
-from sqlalchemy import select, text
+from sqlalchemy import Select, select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -40,6 +40,31 @@ from asseta.modules.policy.service import PolicyService
 
 FUTURE_SKEW = timedelta(minutes=5)
 _ACTIVE = (CaptureState.ACCEPTED, CaptureState.PROVISIONAL)
+
+
+def capture_list_query(
+    job_id: uuid.UUID | None = None,
+    machine_id: uuid.UUID | None = None,
+    kind: ReadingKind | None = None,
+    state: CaptureState | None = None,
+    captured_from: datetime | None = None,
+    captured_to: datetime | None = None,
+) -> Select[MeterCapture]:
+    """Meter readings across jobs (latest captured first), shared by the readings endpoint and report."""
+    stmt = select(MeterCapture).order_by(MeterCapture.captured_at.desc(), MeterCapture.id)
+    for col, val in (
+        (MeterCapture.job_id, job_id),
+        (MeterCapture.machine_id, machine_id),
+        (MeterCapture.kind, kind),
+        (MeterCapture.state, state),
+    ):
+        if val is not None:
+            stmt = stmt.where(col == val)
+    if captured_from is not None:
+        stmt = stmt.where(MeterCapture.captured_at >= captured_from)
+    if captured_to is not None:
+        stmt = stmt.where(MeterCapture.captured_at < captured_to)
+    return stmt
 
 
 class MeterService:

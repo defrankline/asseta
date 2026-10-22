@@ -5,7 +5,6 @@ from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from asseta.core.clock import get_today
@@ -25,8 +24,7 @@ from asseta.modules.platform_billing.dto import (
 )
 from asseta.modules.platform_billing.enrollment_service import EnrollmentService
 from asseta.modules.platform_billing.models_commercial import TenantSubscription
-from asseta.modules.platform_billing.models_ledger import PlatformInvoice
-from asseta.modules.platform_billing.repository import BillingRepository
+from asseta.modules.platform_billing.repository import BillingRepository, tenant_invoice_query
 from asseta.modules.platform_billing.subscription_service import SubscriptionService
 
 router = APIRouter(prefix="/api/v1/tenant/billing", tags=["tenant-billing"], responses=ERROR_RESPONSES)
@@ -54,9 +52,7 @@ def my_invoices(
     session: DbSession, today: Today, ctx: Annotated[RequestContext, Depends(P.TENANT_BILLING_READ)]
 ) -> list[InvoiceDto]:
     alloc = AllocationService(session, ctx.audit_actor(), today)
-    rows = session.execute(
-        select(PlatformInvoice).order_by(PlatformInvoice.period_start.desc(), PlatformInvoice.issued_at.desc())
-    ).scalars()
+    rows = session.execute(tenant_invoice_query()).scalars()
     return [alloc.invoice_view(i) for i in rows]
 
 

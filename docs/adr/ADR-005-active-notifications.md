@@ -67,5 +67,29 @@ engine change. The SoD signal is also an input for those rules.
 
 - Recipients must exist in the membership mirror (Keycloak is authoritative; the mirror refreshes on role changes,
   at startup and hourly). A user added in Keycloak directly is notified after the next refresh.
-- Email stays backlog BL-027; mobile push is Gate 7.
+- Mobile push and e-mail arrived in Gate 7 (below).
 - Redis outage: in-app notifications still persist; live push resumes when Redis returns (clients re-read the inbox).
+
+## Gate 7 addendum — PUSH and EMAIL channels
+
+- **Routing** (`modules/notification/routing.py`): PUSH and EMAIL are chosen per *category x severity* ("configurable
+  priority notifications"): user row > tenant default (`tenant.notification.manage`) > built-in (push for ACTION and
+  for WARNING/CRITICAL; e-mail for CRITICAL). IN_APP and SMS keep their per-type preferences. A channel a type declares
+  mandatory is forced on and its cell cannot be switched off (`422 MANDATORY_CHANNEL`); access-restriction notices
+  (`SUBSCRIPTION_RESTRICTION_UPCOMING`) are always e-mailed. API: `GET/PUT /api/v1/{tenant,platform}/notification-routing`.
+- **Devices**: `POST/GET/DELETE /api/v1/me/push-devices` (ANDROID/IOS, OWNER/SUPERVISOR app). With `X-Tenant-ID` the
+  full tenant gate applies and the device receives only that tenant's notifications; without it the request runs in
+  the self-service `user` RLS scope and the device receives every context of the user. DELETE deactivates (never
+  deletes). A token re-registered later by another user (handed-over phone) belongs to that user only.
+- **Token storage**: providers need the exact token, so it is stored as issued plus a SHA-256 for lookups. FORCE RLS
+  confines rows to the owning user and the SYSTEM worker, the API returns only a hint, and the database relies on
+  encryption at rest; application-level encryption needs a managed key (KMS) that R1 deployments do not have.
+- **Delivery** (`notification_delivery`, `channel_dispatch.py`): queued in the notification transaction (one row per
+  device / address), dispatched by `asseta-notification-worker` with exponential backoff
+  (`ASSETA_NOTIFY_CHANNEL_*`); the delivery id is the provider reference (`apns-id`, `X-Asseta-Reference`). A provider
+  "unregistered" reply (FCM `UNREGISTERED`/404, APNs 410/`BadDeviceToken`/`DeviceTokenNotForTopic`) deactivates the
+  device (`PROVIDER_UNREGISTERED`). Log: `GET /api/v1/{tenant,platform}/notification-deliveries` (manage permission).
+- **Providers** (environment only, console by default): `ASSETA_EMAIL_PROVIDER=console|smtp` + `ASSETA_EMAIL_*`;
+  `ASSETA_PUSH_ANDROID_PROVIDER=console|fcm` (HTTP v1, service-account JSON file) and
+  `ASSETA_PUSH_IOS_PROVIDER=console|apns` (token-based .p8 over HTTP/2). Key files are mounted, never committed.
+  Local development can route e-mail to the Mailpit container (see `.env.example`).

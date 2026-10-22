@@ -19,6 +19,11 @@ class NotificationSettings(BaseSettings):
     sms_max_chars: int = Field(default=459, ge=70, le=1530, description="Longer texts are truncated (3 segments)")
     sms_wallet_low_threshold: int = Field(default=50, ge=0)
 
+    # PUSH / EMAIL channels (providers: ASSETA_PUSH_* in asseta.core.push, ASSETA_EMAIL_* in asseta.core.email)
+    channel_max_attempts: int = Field(default=5, ge=1, le=20)
+    channel_retry_base_seconds: int = Field(default=60, ge=1)
+    web_base_url: str | None = Field(default=None, description="Console origin for links in e-mails")
+
     # Reminder thresholds
     invoice_due_soon_days: int = Field(default=3, ge=0)
     approval_pending_hours: int = Field(default=24, ge=1)

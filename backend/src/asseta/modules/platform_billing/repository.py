@@ -5,7 +5,7 @@ import uuid
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import ColumnElement, and_, func, or_, select, text
+from sqlalchemy import ColumnElement, Select, and_, func, or_, select, text
 from sqlalchemy.orm import Session
 
 from asseta.core.errors import BusinessRuleViolation, NotFound
@@ -29,6 +29,27 @@ from asseta.modules.platform_billing.models_ledger import (
 def active_on(d: date) -> ColumnElement[bool]:
     e = SubscriptionAssetEnrollment
     return and_(e.effective_from <= d, or_(e.effective_to.is_(None), e.effective_to > d))
+
+
+def platform_invoice_query(
+    tenant_id: uuid.UUID | None = None, status: InvoiceStatus | None = None, kind: InvoiceKind | None = None
+) -> Select[PlatformInvoice]:
+    """The platform invoice list (latest issued first) shared by the invoices endpoint and the subscription report."""
+    stmt = select(PlatformInvoice).order_by(PlatformInvoice.issued_at.desc(), PlatformInvoice.id)
+    if tenant_id:
+        stmt = stmt.where(PlatformInvoice.tenant_id == tenant_id)
+    if kind:
+        stmt = stmt.where(PlatformInvoice.kind == kind)
+    if status:
+        stmt = stmt.where(PlatformInvoice.status == status)
+    return stmt
+
+
+def tenant_invoice_query() -> Select[PlatformInvoice]:
+    """The tenant's own platform invoices (RLS), latest period first: the tenant invoice list and report."""
+    return select(PlatformInvoice).order_by(
+        PlatformInvoice.period_start.desc(), PlatformInvoice.issued_at.desc(), PlatformInvoice.id
+    )
 
 
 class BillingRepository:

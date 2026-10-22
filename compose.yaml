@@ -28,6 +28,28 @@ x-sms-env: &sms-env
   ASSETA_NEXTSMS_PASSWORD: ${ASSETA_NEXTSMS_PASSWORD:-}
   ASSETA_NEXTSMS_AUTH_TOKEN: ${ASSETA_NEXTSMS_AUTH_TOKEN:-}
 
+# Push + e-mail notification channels (Gate 7). console = log only (code default). Key files (FCM service-account
+# JSON, APNs .p8) are never committed: mount them read-only into notification-worker (e.g. compose.override.yaml)
+# and point the *_FILE variables at the mounted paths. Local dev e-mail: see the Mailpit block in .env.example.
+x-channel-env: &channel-env
+  ASSETA_EMAIL_PROVIDER: ${ASSETA_EMAIL_PROVIDER:-console}
+  ASSETA_EMAIL_FROM: ${ASSETA_EMAIL_FROM:-Asseta <no-reply@asseta.local>}
+  ASSETA_EMAIL_SMTP_HOST: ${ASSETA_EMAIL_SMTP_HOST:-}
+  ASSETA_EMAIL_SMTP_PORT: ${ASSETA_EMAIL_SMTP_PORT:-587}
+  ASSETA_EMAIL_SMTP_USERNAME: ${ASSETA_EMAIL_SMTP_USERNAME:-}
+  ASSETA_EMAIL_SMTP_PASSWORD: ${ASSETA_EMAIL_SMTP_PASSWORD:-}
+  ASSETA_EMAIL_SMTP_SECURITY: ${ASSETA_EMAIL_SMTP_SECURITY:-starttls}
+  ASSETA_PUSH_ANDROID_PROVIDER: ${ASSETA_PUSH_ANDROID_PROVIDER:-console}
+  ASSETA_PUSH_IOS_PROVIDER: ${ASSETA_PUSH_IOS_PROVIDER:-console}
+  ASSETA_PUSH_FCM_SERVICE_ACCOUNT_FILE: ${ASSETA_PUSH_FCM_SERVICE_ACCOUNT_FILE:-}
+  ASSETA_PUSH_FCM_PROJECT_ID: ${ASSETA_PUSH_FCM_PROJECT_ID:-}
+  ASSETA_PUSH_APNS_KEY_FILE: ${ASSETA_PUSH_APNS_KEY_FILE:-}
+  ASSETA_PUSH_APNS_KEY_ID: ${ASSETA_PUSH_APNS_KEY_ID:-}
+  ASSETA_PUSH_APNS_TEAM_ID: ${ASSETA_PUSH_APNS_TEAM_ID:-}
+  ASSETA_PUSH_APNS_TOPIC: ${ASSETA_PUSH_APNS_TOPIC:-}
+  ASSETA_PUSH_APNS_ENVIRONMENT: ${ASSETA_PUSH_APNS_ENVIRONMENT:-production}
+  ASSETA_NOTIFY_WEB_BASE_URL: ${ASSETA_WEB_URL:-http://localhost:5173}  # links in e-mails
+
 services:
   postgres:
     build: ./infra/postgres
@@ -191,7 +213,7 @@ services:
   notification-worker:  # DEC-022: domain events -> rules -> inbox + WebSocket (Redis) + SMS (wallet-metered)
     image: asseta/api:dev
     command: ["asseta-notification-worker"]
-    environment: {<<: [*api-env, *sms-env]}
+    environment: {<<: [*api-env, *sms-env, *channel-env]}  # + PUSH/EMAIL dispatch (Gate 7)
     healthcheck: {disable: true}
     restart: unless-stopped
     depends_on:
@@ -232,5 +254,15 @@ services:
     image: traccar/traccar:6.10.0@sha256:bff38968f98f4c1739fa2da7b586f9eb03de7968cb8e86c55f31b69d5fbc9a0c
     ports: ["127.0.0.1:${ASSETA_TRACCAR_PORT:-8082}:8082", "127.0.0.1:${ASSETA_TRACCAR_OSMAND_PORT:-5055}:5055"]
     volumes: [traccardata:/opt/traccar/data]
+
+  mailpit:  # local dev SMTP sink (Gate 7): SMTP on mailpit:1025 inside the network only; web UI on 127.0.0.1
+    image: axllent/mailpit:v1.31.4@sha256:b68349e3a014b90c5610bfb26b2ae36f3892d7b8cf25ee140c6c71c98d2fcf48
+    environment:
+      MP_MAX_MESSAGES: 500
+      MP_SMTP_AUTH_ACCEPT_ANY: "1"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+    ports: ["127.0.0.1:${ASSETA_MAILPIT_UI_PORT:-8025}:8025"]
+    healthcheck: {test: ["CMD", "/mailpit", "readyz"], interval: 10s, retries: 10}
+    restart: unless-stopped
 
 volumes: {pgdata: {}, kafkadata: {}, miniodata: {}, traccardata: {}}

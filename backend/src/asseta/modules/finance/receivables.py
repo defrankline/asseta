@@ -2,6 +2,7 @@
 VERIFIED payments move the balance; claimed-but-unverified payments are reported separately."""
 
 import uuid
+from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
@@ -26,6 +27,47 @@ from asseta.modules.finance.payment_service import payment_dto
 from asseta.modules.jobs.models import Customer
 
 Kind = Literal["INVOICE", "REVERSAL", "PAYMENT"]
+
+
+@dataclass(frozen=True)
+class ReceivableTotals:
+    """Open customer receivables in one currency: unpaid balance of ISSUED invoices (VERIFIED allocations only)."""
+
+    currency: str
+    outstanding: Decimal
+    overdue: Decimal  # part of `outstanding` on invoices past their due date (tenant-local today)
+    open_invoices: int
+    overdue_invoices: int
+
+
+def open_receivables(session: Session, today: date) -> list[ReceivableTotals]:
+    """Tenant-wide (RLS-scoped) open receivables per currency; the same paid amount as `verified_paid`."""
+    paid = (
+        select(func.coalesce(func.sum(HirePaymentAllocation.amount), 0))
+        .join(CustomerPayment, CustomerPayment.id == HirePaymentAllocation.payment_id)
+        .where(
+            HirePaymentAllocation.invoice_id == TenantHireInvoice.id,
+            HirePaymentAllocation.released_at.is_(None),
+            CustomerPayment.status == SettlementStatus.VERIFIED,
+        )
+        .scalar_subquery()
+    )
+    rows = session.execute(
+        select(TenantHireInvoice.currency, TenantHireInvoice.due_date, TenantHireInvoice.total - paid).where(
+            TenantHireInvoice.status == HireInvoiceStatus.ISSUED, TenantHireInvoice.total > paid
+        )
+    ).tuples()
+    acc: dict[str, list[Decimal]] = {}
+    for currency, due, balance in rows:
+        t = acc.setdefault(currency, [ZERO, ZERO, ZERO, ZERO])
+        late = due is not None and due < today
+        t[0] += balance
+        t[1] += balance if late else ZERO
+        t[2] += 1
+        t[3] += 1 if late else 0
+    return [ReceivableTotals(c, t[0], t[1], int(t[2]), int(t[3])) for c, t in sorted(acc.items())]
+
+
 Entry = tuple[datetime, Kind, str, str, Decimal, Decimal]  # at, kind, reference, description, debit, credit
 
 

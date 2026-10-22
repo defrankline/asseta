@@ -40,6 +40,7 @@ TENANT_TEMPLATES = (
             "tenant.directory.read",
             "tenant.case.",  # investigation cases (Gate 6)
             "tenant.signal.read",
+            "tenant.audit.read",  # tenant audit log (Gate 7)
         ),
     ),
     RoleTemplate(

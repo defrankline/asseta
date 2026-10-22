@@ -75,6 +75,57 @@ def mandate_gate_on(
     return grant
 
 
+def _context(
+    request: Request,
+    claims: TokenClaims,
+    session: Session,
+    x_tenant_id: str | None,
+    scope: PermissionScope,
+    quarantine_when_read_only: bool,
+) -> RequestContext:
+    repo = IdentityRepository(session)
+    user = repo.upsert_user_from_claims(claims)
+    if not user.is_active:
+        raise PermissionDenied("User is deactivated", code="USER_INACTIVE")
+    grants = parse_group_grants(claims.groups)
+    if scope is PermissionScope.PLATFORM:
+        group_paths = frozenset(g for g in claims.groups if g.startswith("/platform/"))
+        permissions = repo.permissions_for_groups(group_paths)
+        return RequestContext(user.id, claims.subject, DbScope.PLATFORM, None, grants.platform_roles, permissions)
+    tenant_id = _resolve_tenant_header(x_tenant_id)
+    group_paths = frozenset(g for g in claims.groups if g.startswith(f"/tenants/{tenant_id}/"))
+    mandate = mandate_gate(session, request, claims, user.id, tenant_id)
+    if mandate is not None:
+        group_paths &= mandate.group_paths  # Keycloak membership AND an in-force assignment
+    roles = frozenset(p.rsplit("/", 1)[-1] for p in group_paths)
+    if not roles:
+        raise PermissionDenied("No membership in requested tenant", code="TENANT_ACCESS_DENIED")
+    access = repo.tenant_access_state(tenant_id)
+    if access is None or access is TenantAccessState.BLOCKED:
+        raise PermissionDenied("Tenant access is blocked", code="TENANT_ACCESS_BLOCKED")
+    read_only = access is TenantAccessState.READ_ONLY
+    if read_only and request.method not in READ_METHODS and not quarantine_when_read_only:
+        raise PermissionDenied("Subscription allows read-only access", code="SUBSCRIPTION_READ_ONLY")
+    permissions = repo.permissions_for_groups(group_paths)
+    return RequestContext(
+        user.id,
+        claims.subject,
+        DbScope.TENANT,
+        tenant_id,
+        roles,
+        permissions,
+        read_only,
+        mandate.mandate_id if mandate else None,
+        mandate.reference if mandate else None,
+    )
+
+
+def _bind(session: Session, ctx: RequestContext) -> RequestContext:
+    apply_scope(session, ctx.scope, ctx.tenant_id, ctx.user_id)
+    session.info["mandate_id"] = ctx.mandate_id  # stamped on every audit event of this request
+    return ctx
+
+
 def requires(
     code: str, scope: PermissionScope, description: str, quarantine_when_read_only: bool = False
 ) -> Callable[..., RequestContext]:
@@ -91,47 +142,34 @@ def requires(
         session: Annotated[Session, Depends(get_session)],
         x_tenant_id: Annotated[str | None, Header()] = None,
     ) -> RequestContext:
-        repo = IdentityRepository(session)
-        user = repo.upsert_user_from_claims(claims)
-        if not user.is_active:
-            raise PermissionDenied("User is deactivated", code="USER_INACTIVE")
-        grants = parse_group_grants(claims.groups)
-        if scope is PermissionScope.PLATFORM:
-            group_paths = frozenset(g for g in claims.groups if g.startswith("/platform/"))
-            permissions = repo.permissions_for_groups(group_paths)
-            ctx = RequestContext(user.id, claims.subject, DbScope.PLATFORM, None, grants.platform_roles, permissions)
-        else:
-            tenant_id = _resolve_tenant_header(x_tenant_id)
-            group_paths = frozenset(g for g in claims.groups if g.startswith(f"/tenants/{tenant_id}/"))
-            mandate = mandate_gate(session, request, claims, user.id, tenant_id)
-            if mandate is not None:
-                group_paths &= mandate.group_paths  # Keycloak membership AND an in-force assignment
-            roles = frozenset(p.rsplit("/", 1)[-1] for p in group_paths)
-            if not roles:
-                raise PermissionDenied("No membership in requested tenant", code="TENANT_ACCESS_DENIED")
-            access = repo.tenant_access_state(tenant_id)
-            if access is None or access is TenantAccessState.BLOCKED:
-                raise PermissionDenied("Tenant access is blocked", code="TENANT_ACCESS_BLOCKED")
-            read_only = access is TenantAccessState.READ_ONLY
-            if read_only and request.method not in READ_METHODS and not quarantine_when_read_only:
-                raise PermissionDenied("Subscription allows read-only access", code="SUBSCRIPTION_READ_ONLY")
-            permissions = repo.permissions_for_groups(group_paths)
-            ctx = RequestContext(
-                user.id,
-                claims.subject,
-                DbScope.TENANT,
-                tenant_id,
-                roles,
-                permissions,
-                read_only,
-                mandate.mandate_id if mandate else None,
-                mandate.reference if mandate else None,
-            )
+        ctx = _context(request, claims, session, x_tenant_id, scope, quarantine_when_read_only)
         if code not in ctx.permissions:
             raise PermissionDenied(f"Missing permission {code}")
-        apply_scope(session, ctx.scope, ctx.tenant_id, ctx.user_id)
-        session.info["mandate_id"] = ctx.mandate_id  # stamped on every audit event of this request
-        return ctx
+        return _bind(session, ctx)
 
     dependency.__name__ = f"requires_{code.replace('.', '_')}"
+    return dependency
+
+
+def requires_any(codes: tuple[str, ...], scope: PermissionScope) -> Callable[..., RequestContext]:
+    """Enforce that the caller holds at least one of `codes` (each already declared with `requires`). For views
+    assembled from sections that are each gated by their own permission (overview, report menus)."""
+    if not codes:
+        raise ValueError("requires_any needs at least one permission")
+
+    def dependency(
+        request: Request,
+        claims: Annotated[TokenClaims, Depends(get_claims)],
+        session: Annotated[Session, Depends(get_session)],
+        x_tenant_id: Annotated[str | None, Header()] = None,
+    ) -> RequestContext:
+        unknown = [c for c in codes if c not in {p.code for p in CATALOG.permissions()}]
+        if unknown:
+            raise ValueError(f"requires_any: undeclared permissions {unknown}")
+        ctx = _context(request, claims, session, x_tenant_id, scope, False)
+        if not any(c in ctx.permissions for c in codes):
+            raise PermissionDenied(f"Missing any of permissions {', '.join(codes)}")
+        return _bind(session, ctx)
+
+    dependency.__name__ = "requires_any_" + "_".join(c.replace(".", "_") for c in codes)
     return dependency

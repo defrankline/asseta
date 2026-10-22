@@ -22,6 +22,7 @@ from asseta.modules.finance.dto import (
     CashHandoverDto,
     CashHandoverIn,
     CashReconciliationDto,
+    CashSupervisorSummaryDto,
     CustomerPaymentDto,
     SettlementDecisionIn,
 )
@@ -127,6 +128,22 @@ def reconciliation(
     currency: Annotated[str | None, Query(pattern=r"^[A-Z]{3}$")] = None,
 ) -> CashReconciliationDto:
     return CashCustodyService(session, ctx, now).reconciliation(staff_member_id, currency, period_from, period_to)
+
+
+@router.get(
+    "/supervisor-summary", response_model=list[CashSupervisorSummaryDto], operation_id="listCashSupervisorSummaries"
+)
+def supervisor_summary(
+    session: DbSession,
+    now: Now,
+    ctx: Annotated[RequestContext, Depends(FINANCE_READ)],
+    period_from: Annotated[date, Query(alias="from")],
+    period_to: Annotated[date, Query(alias="to")],
+    currency: Annotated[str | None, Query(pattern=r"^[A-Z]{3}$")] = None,
+    staff_member_id: uuid.UUID | None = None,
+) -> list[CashSupervisorSummaryDto]:
+    """Every custodian's reconciliation over the period (tenant-local days), one row per currency."""
+    return CashCustodyService(session, ctx, now).supervisor_summaries(period_from, period_to, currency, staff_member_id)
 
 
 @router.get("/custody", response_model=list[CashCustodyBalanceDto], operation_id="getCashCustody")

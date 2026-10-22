@@ -33,13 +33,15 @@ from asseta.modules.meter.dto import (
 )
 from asseta.modules.meter.models import (
     CaptureAttachment,
+    CaptureState,
     ExceptionStatus,
     ExceptionType,
     JobException,
     MeterCapture,
     MeterResetEvent,
+    ReadingKind,
 )
-from asseta.modules.meter.service import MeterService
+from asseta.modules.meter.service import MeterService, capture_list_query
 
 CAPTURE = requires("tenant.meter.capture", S.TENANT, "Capture hour-meter readings and evidence")
 METER_READ = requires("tenant.meter.read", S.TENANT, "View meter readings, evidence and exceptions")
@@ -125,6 +127,29 @@ def captures(
         select(MeterCapture).where(MeterCapture.job_id == job_id).order_by(MeterCapture.captured_at)
     ).scalars()
     return [MeterCaptureDto.model_validate(c) for c in rows]
+
+
+@router.get("/meter-captures", response_model=Page[MeterCaptureDto], operation_id="listMeterCaptures")
+def list_captures(
+    session: DbSession,
+    _: Annotated[RequestContext, Depends(METER_READ)],
+    paging: Annotated[PageParams, Depends(page_params)],
+    job_id: uuid.UUID | None = None,
+    machine_id: uuid.UUID | None = None,
+    kind: ReadingKind | None = None,
+    state: CaptureState | None = None,
+    captured_from: datetime | None = None,
+    captured_to: datetime | None = None,
+) -> Page[MeterCaptureDto]:
+    """Meter readings across jobs, latest captured first (`captured_to` exclusive)."""
+    stmt = capture_list_query(job_id, machine_id, kind, state, captured_from, captured_to)
+    rows, total = paginate(session, stmt, paging)
+    return Page(
+        items=[MeterCaptureDto.model_validate(c) for c in rows],
+        total=total,
+        page=paging.page,
+        page_size=paging.page_size,
+    )
 
 
 @router.post("/meter-resets", response_model=ResetDto, status_code=201, operation_id="requestMeterReset")

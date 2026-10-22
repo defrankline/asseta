@@ -38,7 +38,7 @@ from asseta.modules.expenses.models import (
     FuelEvent,
     FuelEventType,
 )
-from asseta.modules.expenses.service import ExpenseService, expense_dto
+from asseta.modules.expenses.service import ExpenseService, expense_dto, expense_list_query
 from asseta.modules.fleet.photos import PhotoUrlDto, get_object_store
 from asseta.modules.identity.catalog import CATALOG, MenuDef
 from asseta.modules.identity.catalog import PermissionScope as S
@@ -183,15 +183,7 @@ def list_expenses(
     job_id: uuid.UUID | None = None,
     custodian_staff_id: uuid.UUID | None = None,
 ) -> Page[ExpenseDto]:
-    stmt = select(Expense).order_by(Expense.incurred_at.desc())
-    for col, val in (
-        (Expense.status, status),
-        (Expense.machine_id, machine_id),
-        (Expense.job_id, job_id),
-        (Expense.custodian_staff_id, custodian_staff_id),
-    ):
-        if val is not None:
-            stmt = stmt.where(col == val)
+    stmt = expense_list_query(status, machine_id, job_id, custodian_staff_id)
     rows, total = paginate(session, stmt, paging)
     return Page(
         items=[expense_dto(session, e) for e in rows], total=total, page=paging.page, page_size=paging.page_size

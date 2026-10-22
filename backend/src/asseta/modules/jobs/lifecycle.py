@@ -78,6 +78,18 @@ def customer_query(q: str | None, include_inactive: bool) -> Select[Customer]:
     return stmt if include_inactive else stmt.where(Customer.is_active.is_(True))
 
 
+def job_list_query(q: str | None, status: JobStatus | None, machine_id: uuid.UUID | None) -> Select[Job]:
+    """The job list (latest planned first) shared by the jobs endpoint and the jobs report."""
+    stmt = select(Job).order_by(Job.planned_start.desc(), Job.id)
+    if status:
+        stmt = stmt.where(Job.status == status)
+    if machine_id:
+        stmt = stmt.where(Job.machine_id == machine_id)
+    if (match := ilike_any(q, Job.job_number)) is not None:
+        stmt = stmt.where(match)
+    return stmt
+
+
 class RecordLifecycleService:
     def __init__(self, session: Session, ctx: RequestContext):
         assert ctx.tenant_id is not None

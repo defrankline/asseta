@@ -40,11 +40,11 @@ from asseta.modules.platform_billing.enrollment_service import EnrollmentService
 from asseta.modules.platform_billing.enums import InvoiceKind, InvoiceStatus
 from asseta.modules.platform_billing.invoice_service import InvoiceService
 from asseta.modules.platform_billing.mappers import invoice_dto, rate_dto
-from asseta.modules.platform_billing.models_ledger import PlatformInvoice, PlatformPayment
+from asseta.modules.platform_billing.models_ledger import PlatformPayment
 from asseta.modules.platform_billing.payment_service import PaymentService
 from asseta.modules.platform_billing.pending_charge_service import PendingChargeService
 from asseta.modules.platform_billing.reporting_service import PlatformDashboardDto, PlatformReportingService
-from asseta.modules.platform_billing.repository import BillingRepository
+from asseta.modules.platform_billing.repository import BillingRepository, platform_invoice_query
 from asseta.modules.platform_billing.subscription_service import SubscriptionService
 
 router = APIRouter(prefix="/api/v1/platform", tags=["platform-billing"], responses=ERROR_RESPONSES)
@@ -218,13 +218,7 @@ def list_invoices(
     status: InvoiceStatus | None = None,
     kind: InvoiceKind | None = None,
 ) -> Page[InvoiceDto]:
-    stmt = select(PlatformInvoice).order_by(PlatformInvoice.issued_at.desc())
-    if tenant_id:
-        stmt = stmt.where(PlatformInvoice.tenant_id == tenant_id)
-    if kind:
-        stmt = stmt.where(PlatformInvoice.kind == kind)
-    if status:
-        stmt = stmt.where(PlatformInvoice.status == status)
+    stmt = platform_invoice_query(tenant_id, status, kind)
     rows, total = paginate(session, stmt, paging)
     return Page(items=[invoice_dto(i, []) for i in rows], total=total, page=paging.page, page_size=paging.page_size)
 

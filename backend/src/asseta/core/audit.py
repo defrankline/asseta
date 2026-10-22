@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import DateTime, String, Text
+from sqlalchemy import DateTime, Index, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
@@ -14,6 +14,7 @@ from asseta.core.db import Base, UuidPk, utcnow
 
 class AuditEvent(UuidPk, Base):
     __tablename__ = "audit_event"
+    __table_args__ = (Index("ix_audit_event_tenant_time", "tenant_id", "occurred_at"),)  # audit log views
 
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
     tenant_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), index=True)

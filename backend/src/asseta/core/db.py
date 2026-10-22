@@ -48,6 +48,7 @@ class DbScope(StrEnum):
     PLATFORM = "platform"  # platform-owner operations: platform tables only, no tenant business data
     TENANT = "tenant"  # a single tenant, via app.tenant_id
     SYSTEM = "system"  # internal workers with explicit, audited cross-tenant need
+    USER = "user"  # the signed-in user's own self-service rows only (e.g. push devices); no tenant/platform data
 
 
 @lru_cache

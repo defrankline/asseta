@@ -1,6 +1,7 @@
 """The finite, code-defined catalog of notification types: severity, default channels, which channels are
 mandatory (cannot be disabled by preferences) and whether SMS is low priority (sent only when opted in).
-WebSocket push accompanies every in-app notification; email is backlog BL-027."""
+WebSocket push accompanies every in-app notification. Mobile PUSH and EMAIL are routed per category x severity
+(`routing.py`); a type may make either mandatory."""
 
 from dataclasses import dataclass
 from enum import StrEnum
@@ -15,6 +16,8 @@ class Severity(StrEnum):
 class Channel(StrEnum):
     IN_APP = "IN_APP"  # inbox + real-time WebSocket push
     SMS = "SMS"
+    PUSH = "PUSH"  # mobile push to the recipient's registered Owner/Supervisor app devices (FCM / APNs)
+    EMAIL = "EMAIL"  # the recipient's login e-mail address (Keycloak)
 
 
 class Category(StrEnum):
@@ -45,6 +48,7 @@ class NotificationType:
 T, P = frozenset({Context.TENANT}), frozenset({Context.PLATFORM})
 BOTH = T | P
 IN_APP = frozenset({Channel.IN_APP})
+IN_APP_EMAIL = frozenset({Channel.IN_APP, Channel.EMAIL})
 
 _TYPES = (
     # Platform commerce
@@ -65,14 +69,14 @@ _TYPES = (
     NotificationType(
         "SUBSCRIPTION_STATUS_CHANGED", "Subscription status", Category.BILLING, Severity.WARNING, BOTH, True, IN_APP
     ),
-    NotificationType(
+    NotificationType(  # access-affecting notice: always also e-mailed
         "SUBSCRIPTION_RESTRICTION_UPCOMING",
         "Access restriction upcoming",
         Category.REMINDER,
         Severity.WARNING,
         T,
         True,
-        IN_APP,
+        IN_APP_EMAIL,
     ),
     NotificationType("SMS_WALLET_LOW", "SMS credits low", Category.BILLING, Severity.WARNING, T, mandatory=IN_APP),
     NotificationType(

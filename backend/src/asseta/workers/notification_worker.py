@@ -1,6 +1,7 @@
 """Notification worker: consumes every `asseta.*` domain topic (relayed from the outbox), applies the notification
 rules, and dispatches due SMS deliveries. Offsets are committed only after the notification transaction commits;
-redelivery is harmless (notifications are unique per recipient + event)."""
+redelivery is harmless (notifications are unique per recipient + event). Also dispatches due PUSH/EMAIL deliveries
+(providers from ASSETA_PUSH_* / ASSETA_EMAIL_*; console by default)."""
 
 import json
 import signal
@@ -15,8 +16,11 @@ from asseta.core.clock import system_clock
 from asseta.core.config import get_settings
 from asseta.core.correlation import set_correlation_id
 from asseta.core.db import get_sessionmaker
+from asseta.core.email import build_email_client
 from asseta.core.logging import configure_logging
+from asseta.core.push import build_push_router
 from asseta.core.sms import build_sms_client
+from asseta.modules.notification.channel_dispatch import ChannelDispatcher
 from asseta.modules.notification.processing import process_event
 from asseta.modules.notification.realtime import RedisBroker, SafePublisher
 from asseta.modules.notification.rules import DomainEvent
@@ -46,6 +50,7 @@ def run() -> None:
     settings = get_settings()
     publisher = SafePublisher(RedisBroker(settings.redis_url))
     dispatcher = SmsDispatcher(get_sessionmaker(), build_sms_client(), system_clock, publisher)
+    channels = ChannelDispatcher(get_sessionmaker(), build_push_router(), build_email_client(), system_clock)
     consumer = Consumer(
         {
             "bootstrap.servers": settings.kafka_bootstrap,
@@ -92,5 +97,11 @@ def run() -> None:
                         log.info("sms_dispatched", **summary.__dict__)
                 except Exception:
                     log.exception("sms_dispatch_failed")
+                try:
+                    pushed = channels.dispatch_due()
+                    if pushed.sent or pushed.failed or pushed.undeliverable:
+                        log.info("channel_deliveries_dispatched", **pushed.__dict__)
+                except Exception:
+                    log.exception("channel_dispatch_failed")
     finally:
         consumer.close()

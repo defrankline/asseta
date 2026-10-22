@@ -128,7 +128,7 @@ def test_fleet_map_status_dimensions_staleness_and_history(api: Api) -> None:
     [m] = a.owner.get("/api/v1/tenant/fleet/map").json()
     assert m["connectivity"] == "LIVE" and m["is_live"] and m["observed_motion"] == "STATIONARY"
     assert m["observed_engine"] == "UNKNOWN"  # ignition capability never verified -> no engine claim
-    assert m["reported_work_status"] == "UNKNOWN" and m["location_compliance"] == "COMPLIANT"
+    assert m["reported_work_status"] == "NO_ACTIVE_JOB" and m["location_compliance"] == "COMPLIANT"
     assert m["position_source"] == "TRACKER:MAP-1" and m["accuracy_m"] == 5.0
 
     api.clock.now += timedelta(hours=2)

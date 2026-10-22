@@ -12,6 +12,8 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
+from asseta.modules.notification import routing
+from asseta.modules.notification.channel_dispatch import queue_email, queue_push
 from asseta.modules.notification.dto import notification_dto
 from asseta.modules.notification.models import (
     DeliveryStatus,
@@ -25,7 +27,7 @@ from asseta.modules.notification.recipients import Directory, Recipient
 from asseta.modules.notification.rules import Audience, Intent
 from asseta.modules.notification.segments import sms_segments
 from asseta.modules.notification.settings import NotificationSettings, get_notification_settings
-from asseta.modules.notification.types import TYPES, Channel, NotificationType
+from asseta.modules.notification.types import TYPES, Channel, NotificationType, Severity
 
 
 def scope_key(tenant_id: uuid.UUID | None) -> str:
@@ -37,11 +39,19 @@ class Channels:
     in_app: bool
     sms: bool
     sms_opted_in: bool  # explicit opt-in (needed for low-priority SMS)
+    push: bool = False
+    email: bool = False
 
 
 def effective_channels(
-    session: Session, user_id: uuid.UUID, tenant_id: uuid.UUID | None, ntype: NotificationType
+    session: Session,
+    user_id: uuid.UUID,
+    tenant_id: uuid.UUID | None,
+    ntype: NotificationType,
+    severity: Severity | None = None,
 ) -> Channels:
+    """In-app/SMS from the per-type preferences; PUSH/EMAIL from category x severity routing (`routing.py`);
+    mandatory channels always on."""
     rows = session.execute(
         select(NotificationPreference).where(
             NotificationPreference.scope_key == scope_key(tenant_id),
@@ -54,10 +64,13 @@ def effective_channels(
     in_app = chosen.in_app if chosen else True
     sms = chosen.sms if chosen else (ntype.sms_default and not ntype.low_priority)
     opted = bool(chosen and chosen.sms)
+    push, email, _ = routing.resolve(session, user_id, tenant_id, ntype.category.value, severity or ntype.severity)
     return Channels(
         in_app or Channel.IN_APP in ntype.mandatory,
         sms or Channel.SMS in ntype.mandatory,
         opted or Channel.SMS in ntype.mandatory,
+        push or Channel.PUSH in ntype.mandatory,
+        email or Channel.EMAIL in ntype.mandatory,
     )
 
 
@@ -125,9 +138,10 @@ class NotificationEngine:
         ntype: NotificationType,
         source_event_id: uuid.UUID | None,
     ) -> Notification | None:
-        ch = effective_channels(self._s, r.user_id, tenant_id, ntype)
+        severity = intent.severity or ntype.severity
+        ch = effective_channels(self._s, r.user_id, tenant_id, ntype, severity)
         wants_sms = ch.sms and (not ntype.low_priority or ch.sms_opted_in)
-        if not ch.in_app and not wants_sms:
+        if not ch.in_app and not wants_sms and not ch.push and not ch.email:
             return None
         nid = self._s.execute(
             insert(Notification)
@@ -137,7 +151,7 @@ class NotificationEngine:
                 recipient_user_id=r.user_id,
                 notification_type=ntype.code,
                 category=ntype.category.value,
-                severity=intent.severity or ntype.severity,
+                severity=severity,
                 title=intent.title[:200],
                 body=intent.body,
                 link=intent.link,
@@ -158,6 +172,10 @@ class NotificationEngine:
         assert n is not None
         if wants_sms:
             self._queue_sms(n, r)
+        if ch.push:
+            queue_push(self._s, n, self._now)
+        if ch.email:
+            queue_email(self._s, n, self._now)
         if ch.in_app:
             self._s.flush()
             self.pending.append(
