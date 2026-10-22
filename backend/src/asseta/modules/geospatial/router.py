@@ -27,7 +27,7 @@ from asseta.modules.geospatial.dto import (
 )
 from asseta.modules.geospatial.fleet_map import Connectivity, FleetMapService, MachineMapDto, filter_fleet
 from asseta.modules.geospatial.history import HistoryDto, HistoryService, NearbyMachineDto
-from asseta.modules.geospatial.models import AlertStatus, AlertType, TrackingAlert
+from asseta.modules.geospatial.models import AlertSeverity, AlertStatus, AlertType, TrackingAlert
 from asseta.modules.geospatial.sites_service import SiteService
 from asseta.modules.geospatial.timeline import TimelineProcessor
 from asseta.modules.identity.catalog import CATALOG, MenuDef
@@ -235,8 +235,9 @@ def alerts(
     status: AlertStatus | None = None,
     alert_type: AlertType | None = None,
     machine_id: uuid.UUID | None = None,
+    severity: AlertSeverity | None = None,
 ) -> Page[AlertDto]:
-    stmt = alert_list_query(status, alert_type, machine_id)
+    stmt = alert_list_query(status, alert_type, machine_id, severity)
     rows, total = paginate(session, stmt, paging)
     return Page(
         items=[AlertDto.model_validate(a) for a in rows], total=total, page=paging.page, page_size=paging.page_size

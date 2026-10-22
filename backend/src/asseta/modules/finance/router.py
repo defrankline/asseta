@@ -4,6 +4,7 @@ platform scope never reaches these routes or rows)."""
 import uuid
 from datetime import date, datetime
 from typing import Annotated, Literal
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Header, Query
 from sqlalchemy import select
@@ -14,6 +15,7 @@ from asseta.core.db import get_session
 from asseta.core.errors import ERROR_RESPONSES
 from asseta.core.idempotency import IdempotencyGuard, request_hash
 from asseta.core.paging import Page, PageParams, page_params, paginate
+from asseta.modules.finance.common import tenant_settings
 from asseta.modules.finance.dto import (
     CustomerBalanceDto,
     CustomerPaymentDto,
@@ -32,7 +34,7 @@ from asseta.modules.finance.models import CustomerPayment, HireInvoiceStatus, Se
 from asseta.modules.finance.payment_service import CustomerPaymentService, payment_dto
 from asseta.modules.finance.permissions import FINANCE_READ, INVOICE_WRITE, PAYMENT_WRITE, REPORT, VERIFY
 from asseta.modules.finance.profitability import ProfitabilityService
-from asseta.modules.finance.receivables import ReceivablesService
+from asseta.modules.finance.receivables import ReceivablesService, overdue_conditions
 from asseta.modules.identity.principal import RequestContext
 
 router = APIRouter(prefix="/api/v1/tenant", tags=["finance"], responses=ERROR_RESPONSES)
@@ -60,12 +62,18 @@ def create_draft(
 @router.get("/hire-invoices", response_model=Page[HireInvoiceDto], operation_id="listHireInvoices")
 def list_invoices(
     session: DbSession,
-    _: Annotated[RequestContext, Depends(FINANCE_READ)],
+    ctx: Annotated[RequestContext, Depends(FINANCE_READ)],
     paging: Annotated[PageParams, Depends(page_params)],
+    now: Now,
     status: HireInvoiceStatus | None = None,
     customer_id: uuid.UUID | None = None,
+    overdue: Annotated[bool, Query(description="Only issued invoices past due with a balance left")] = False,
 ) -> Page[HireInvoiceDto]:
     stmt = select(TenantHireInvoice).order_by(TenantHireInvoice.created_at.desc())
+    if overdue:
+        assert ctx.tenant_id is not None
+        tz = ZoneInfo(tenant_settings(session, ctx.tenant_id).timezone)
+        stmt = stmt.where(*overdue_conditions(now.astimezone(tz).date()))
     if status:
         stmt = stmt.where(TenantHireInvoice.status == status)
     if customer_id:

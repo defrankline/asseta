@@ -83,12 +83,12 @@ export const SEVERITY_ROWS: readonly {
 /** Deep links into the filtered list pages behind each figure. */
 export const DASHBOARD_LINKS = {
   fleet: (connectivity?: string) => withQuery(ROUTES.tenantFleet, { connectivity }),
-  /** The alert list filters by status and type (not severity): open alerts, most recent first. */
-  openAlerts: () => withQuery(ROUTES.tenantAlerts, { status: 'OPEN' }),
+  openAlerts: (severity?: string) => withQuery(ROUTES.tenantAlerts, { status: 'OPEN', severity }),
   jobs: (status?: string) => withQuery(ROUTES.tenantJobs, { status }),
   approvals: () => ROUTES.tenantApprovals,
   openExceptions: () => withQuery(ROUTES.tenantExceptions, { status: 'OPEN' }),
   receivables: () => withQuery(financeTabPath('invoices'), { status: 'ISSUED' }),
+  overdue: () => withQuery(financeTabPath('invoices'), { overdue: 'true' }),
   receipts: () => financeTabPath('payments'),
   cashCustody: () => financeTabPath('custody'),
   approvedExpenses: () => withQuery(ROUTES.tenantExpenses, { status: 'APPROVED' }),

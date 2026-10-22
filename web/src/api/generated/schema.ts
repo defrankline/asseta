@@ -20968,6 +20968,7 @@ export interface operations {
                 status?: components["schemas"]["AlertStatus"] | null;
                 alert_type?: components["schemas"]["AlertType"] | null;
                 machine_id?: string | null;
+                severity?: components["schemas"]["AlertSeverity"] | null;
                 page?: number;
                 page_size?: number;
                 q?: string | null;
@@ -27972,6 +27973,8 @@ export interface operations {
             query?: {
                 status?: components["schemas"]["HireInvoiceStatus"] | null;
                 customer_id?: string | null;
+                /** @description Only issued invoices past due with a balance left */
+                overdue?: boolean;
                 page?: number;
                 page_size?: number;
                 q?: string | null;
@@ -35006,6 +35009,7 @@ export interface operations {
                 status?: components["schemas"]["AlertStatus"] | null;
                 alert_type?: components["schemas"]["AlertType"] | null;
                 machine_id?: string | null;
+                severity?: components["schemas"]["AlertSeverity"] | null;
             };
             header?: {
                 "x-tenant-id"?: string | null;
@@ -35096,6 +35100,7 @@ export interface operations {
                 status?: components["schemas"]["AlertStatus"] | null;
                 alert_type?: components["schemas"]["AlertType"] | null;
                 machine_id?: string | null;
+                severity?: components["schemas"]["AlertSeverity"] | null;
             };
             header?: {
                 "x-tenant-id"?: string | null;

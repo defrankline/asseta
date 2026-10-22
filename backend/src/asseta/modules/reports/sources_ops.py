@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from asseta.modules.fleet.models import Machine, MachineStatus
 from asseta.modules.geospatial.alerts import alert_list_query
 from asseta.modules.geospatial.fleet_map import Connectivity, FleetMapService, filter_fleet
-from asseta.modules.geospatial.models import AlertStatus, AlertType
+from asseta.modules.geospatial.models import AlertSeverity, AlertStatus, AlertType
 from asseta.modules.identity.catalog import PermissionScope as S
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.intelligence.insights import machine_insights
@@ -221,11 +221,14 @@ class AlertsReportFilters(_Filters):
     status: AlertStatus | None = None
     alert_type: AlertType | None = None
     machine_id: uuid.UUID | None = None
+    severity: AlertSeverity | None = None
 
 
 def _alerts(session: Session, ctx: RequestContext, now: datetime, f: BaseModel, limit: int) -> list[dict[str, Any]]:
     assert isinstance(f, AlertsReportFilters)
-    alerts = list(session.execute(alert_list_query(f.status, f.alert_type, f.machine_id).limit(limit + 1)).scalars())
+    alerts = list(
+        session.execute(alert_list_query(f.status, f.alert_type, f.machine_id, f.severity).limit(limit + 1)).scalars()
+    )
     machines = machine_codes(session, (a.machine_id for a in alerts))
     return [
         {

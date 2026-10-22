@@ -1,6 +1,7 @@
 import { array, object, string, type Schema } from 'yup';
 import { ApiError, isErrorEnvelope } from '../ApiError';
-import { apiClient, http, type QueryParams } from '../client';
+import { apiClient, http, MANDATE_LOST_CODES, type QueryParams } from '../client';
+import { requestContext } from '../requestContext';
 import type { ReportColumnDto, ReportDefinitionDto } from '../types';
 import { parseResponse } from '../validation';
 import { int, text } from './schemaKit';
@@ -123,7 +124,17 @@ export const reportService = {
       },
     );
     if (response.status < 200 || response.status >= 300) {
-      throw await exportError(response.status, response.data);
+      const error = await exportError(response.status, response.data);
+      // Statuses are read here (blob body), so give the session the same signals the interceptor would:
+      // an expired session goes to sign-in, a lost mandate leaves the client's console.
+      if (error.status === 401) requestContext.onUnauthorized();
+      if (MANDATE_LOST_CODES.has(error.code)) {
+        requestContext.onMandateLost(
+          console === 'tenant' ? requestContext.getActiveTenantId() : null,
+          error.code,
+        );
+      }
+      throw error;
     }
     const rows = header(response.headers, 'X-Report-Rows');
     return {

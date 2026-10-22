@@ -7,7 +7,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 
-from sqlalchemy import func, select
+from sqlalchemy import ColumnElement, ScalarSelect, func, select
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import Executable
 
@@ -40,9 +40,9 @@ class ReceivableTotals:
     overdue_invoices: int
 
 
-def open_receivables(session: Session, today: date) -> list[ReceivableTotals]:
-    """Tenant-wide (RLS-scoped) open receivables per currency; the same paid amount as `verified_paid`."""
-    paid = (
+def verified_paid_subquery() -> ScalarSelect[Decimal]:
+    """Verified money allocated to the outer TenantHireInvoice (the same paid amount as `verified_paid`)."""
+    return (
         select(func.coalesce(func.sum(HirePaymentAllocation.amount), 0))
         .join(CustomerPayment, CustomerPayment.id == HirePaymentAllocation.payment_id)
         .where(
@@ -52,6 +52,21 @@ def open_receivables(session: Session, today: date) -> list[ReceivableTotals]:
         )
         .scalar_subquery()
     )
+
+
+def overdue_conditions(today: date) -> tuple[ColumnElement[bool], ...]:
+    """Issued, not fully paid by verified money, and due before `today` (the tenant's local date): the one
+    definition behind the dashboard's overdue figures and the invoice list's `overdue` filter."""
+    return (
+        TenantHireInvoice.status == HireInvoiceStatus.ISSUED,
+        TenantHireInvoice.total > verified_paid_subquery(),
+        TenantHireInvoice.due_date < today,
+    )
+
+
+def open_receivables(session: Session, today: date) -> list[ReceivableTotals]:
+    """Tenant-wide (RLS-scoped) open receivables per currency; the same paid amount as `verified_paid`."""
+    paid = verified_paid_subquery()
     rows = session.execute(
         select(TenantHireInvoice.currency, TenantHireInvoice.due_date, TenantHireInvoice.total - paid).where(
             TenantHireInvoice.status == HireInvoiceStatus.ISSUED, TenantHireInvoice.total > paid

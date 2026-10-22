@@ -118,7 +118,10 @@ describe('DashboardPage', () => {
       'href',
       '/tenant/jobs?status=IN_PROGRESS',
     );
-    expect(link(/^Open alerts, Critical: 4/)).toHaveAttribute('href', '/tenant/alerts?status=OPEN');
+    expect(link(/^Open alerts, Critical: 4/)).toHaveAttribute(
+      'href',
+      '/tenant/alerts?status=OPEN&severity=CRITICAL',
+    );
     expect(link(/^Pending approvals: 3/)).toHaveAttribute('href', '/tenant/approvals');
   });
 
@@ -127,7 +130,7 @@ describe('DashboardPage', () => {
     const money = await screen.findByRole('article', { name: 'TZS' });
     expect(within(money).getByRole('link', { name: /Overdue \(2 invoices\)/ })).toHaveAttribute(
       'href',
-      '/tenant/finance?tab=invoices&status=ISSUED',
+      '/tenant/finance?tab=invoices&overdue=true',
     );
     expect(within(money).getByRole('link', { name: /Cash held by supervisors/ })).toHaveAttribute(
       'href',

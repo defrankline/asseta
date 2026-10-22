@@ -235,7 +235,7 @@ function CurrencyCard({ c, can }: { c: OverviewCurrencyMoneyDto; can: Can }) {
       key: 'overdue',
       label: `Overdue (${String(c.overdue_invoices)} ${c.overdue_invoices === 1 ? 'invoice' : 'invoices'})`,
       ...money(c.receivables_overdue, c.currency),
-      to: L.receivables(),
+      to: L.overdue(),
     },
     {
       key: 'receipts',

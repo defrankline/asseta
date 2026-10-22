@@ -102,6 +102,11 @@ export const ALERT_STATUS_OPTIONS: readonly Option<AlertStatus>[] = [
   { value: 'RESOLVED', label: 'Resolved' },
   { value: 'SUPERSEDED', label: 'Superseded' },
 ];
+export const ALERT_SEVERITY_OPTIONS: readonly Option<AlertSeverity>[] = [
+  { value: 'CRITICAL', label: 'Critical' },
+  { value: 'WARNING', label: 'Warning' },
+  { value: 'INFO', label: 'Info' },
+];
 export const ALERT_SEVERITY_TONES: Readonly<Record<AlertSeverity, StatusTone>> = {
   INFO: 'info',
   WARNING: 'warning',

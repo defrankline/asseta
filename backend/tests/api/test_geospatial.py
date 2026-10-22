@@ -115,6 +115,9 @@ def test_corridor_restricted_area_and_unauthorized_movement(api: Api) -> None:
     assert {"RESTRICTED_AREA_ENTRY", "UNAUTHORIZED_MOVEMENT"} <= types
     [mv] = _alerts(a, alert_type="UNAUTHORIZED_MOVEMENT")
     assert mv["severity"] == "CRITICAL" and mv["evidence"]["local_time"].startswith("2026-11-01T19:")
+    # Dashboard severity links filter on the server: exactly the CRITICAL alerts of the full list.
+    expected = {x["id"] for x in _alerts(a) if x["severity"] == "CRITICAL"}
+    assert expected and {x["id"] for x in _alerts(a, severity="CRITICAL")} == expected
 
 
 def test_fleet_map_status_dimensions_staleness_and_history(api: Api) -> None:

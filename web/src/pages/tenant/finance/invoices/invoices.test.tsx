@@ -107,6 +107,22 @@ function renderDetail(permissions: string[], accessState: 'FULL' | 'READ_ONLY' =
 }
 
 describe('InvoicesTab', () => {
+  it('opens with the overdue filter from a dashboard link and can switch it off', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<InvoicesTab timeZone="UTC" />, {
+      tenantPermissions: READ,
+      route: '/tenant/finance?tab=invoices&overdue=true',
+    });
+    await screen.findByText('HINV-2026-00001');
+    const toggle = screen.getByRole('switch', { name: 'Overdue only' });
+    expect(toggle).toBeChecked();
+    expect(mocks.list.mock.lastCall?.[0].filters).toMatchObject({ overdue: 'true' });
+    await user.click(toggle);
+    await waitFor(() => {
+      expect(mocks.list.mock.lastCall?.[0].filters?.overdue).toBeUndefined();
+    });
+  });
+
   it('lists invoices with currency and filters by status and server-searched customer', async () => {
     const user = userEvent.setup();
     renderWithProviders(<InvoicesTab timeZone="UTC" />, { tenantPermissions: READ });

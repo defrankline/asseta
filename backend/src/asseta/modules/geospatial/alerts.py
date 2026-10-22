@@ -15,7 +15,10 @@ from asseta.modules.geospatial.models import AlertSeverity, AlertStatus, AlertTy
 
 
 def alert_list_query(
-    status: AlertStatus | None = None, alert_type: AlertType | None = None, machine_id: uuid.UUID | None = None
+    status: AlertStatus | None = None,
+    alert_type: AlertType | None = None,
+    machine_id: uuid.UUID | None = None,
+    severity: AlertSeverity | None = None,
 ) -> Select[TrackingAlert]:
     """The alert list (newest first) shared by the alerts endpoint and the alerts report."""
     stmt = select(TrackingAlert).order_by(TrackingAlert.event_time.desc(), TrackingAlert.id)
@@ -25,6 +28,8 @@ def alert_list_query(
         stmt = stmt.where(TrackingAlert.alert_type == alert_type)
     if machine_id:
         stmt = stmt.where(TrackingAlert.machine_id == machine_id)
+    if severity:
+        stmt = stmt.where(TrackingAlert.severity == severity)
     return stmt
 
 

@@ -16,6 +16,7 @@ import { useNotify } from '../../../notifications/useNotify';
 import { formatInstantIn } from '../../../utils/time';
 import {
   ALERT_SEVERITY_TONES,
+  ALERT_SEVERITY_OPTIONS,
   ALERT_STATUS_OPTIONS,
   ALERT_STATUS_TONES,
   ALERT_TYPE_OPTIONS,
@@ -40,6 +41,9 @@ export function AlertsPage() {
   const [type, setType] = useState(() =>
     initialFilter(params, 'alert_type', ALERT_TYPE_OPTIONS, ''),
   );
+  const [severity, setSeverity] = useState(() =>
+    initialFilter(params, 'severity', ALERT_SEVERITY_OPTIONS, ''),
+  );
   const [machine, setMachine] = useState<MachineDto | null>(null);
   const [selected, setSelected] = useState<AlertDto | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -61,8 +65,8 @@ export function AlertsPage() {
     [],
   );
   const filters = useMemo(
-    () => ({ status, alert_type: type, machine_id: machine?.id }),
-    [status, type, machine],
+    () => ({ status, alert_type: type, severity, machine_id: machine?.id }),
+    [status, type, severity, machine],
   );
 
   const columns: DataColumn<AlertDto>[] = [
@@ -129,6 +133,12 @@ export function AlertsPage() {
               value={type}
               options={ALERT_TYPE_OPTIONS}
               onChange={setType}
+            />
+            <StaticSelectFilter
+              label="Severity"
+              value={severity}
+              options={ALERT_SEVERITY_OPTIONS}
+              onChange={setSeverity}
             />
             <div className="min-w-64">
               <MachinePicker label="Machine" value={machine} onChange={setMachine} />

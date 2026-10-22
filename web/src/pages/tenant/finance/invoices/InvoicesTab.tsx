@@ -1,5 +1,5 @@
 import Add from '@mui/icons-material/Add';
-import { Box, Button } from '@mui/material';
+import { Box, Button, FormControlLabel, Switch } from '@mui/material';
 import { useCallback, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { initialFilter } from '../../../../navigation/urlFilters';
@@ -35,6 +35,8 @@ export function InvoicesTab({ timeZone }: { timeZone: string }) {
   const [status, setStatus] = useState(() =>
     initialFilter(params, 'status', INVOICE_STATUS_OPTIONS, ''),
   );
+  // `?overdue=true` (dashboard link): issued invoices past due with a balance, as the server defines it.
+  const [overdue, setOverdue] = useState(() => params.get('overdue') === 'true');
   const [customer, setCustomer] = useState<CustomerDto | null>(null);
   const [creating, setCreating] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
@@ -86,7 +88,11 @@ export function InvoicesTab({ timeZone }: { timeZone: string }) {
         columns={columns}
         fetchPage={fetchPage}
         getRowId={(i) => i.id}
-        filters={{ status: status || undefined, customer_id: customer?.id }}
+        filters={{
+          status: status || undefined,
+          customer_id: customer?.id,
+          overdue: overdue ? 'true' : undefined,
+        }}
         searchPlaceholder="Search invoice number"
         reloadKey={reloadKey}
         emptyTitle="No hire invoices"
@@ -106,6 +112,17 @@ export function InvoicesTab({ timeZone }: { timeZone: string }) {
             <Box sx={{ minWidth: 240 }}>
               <CustomerFilter label="Customer" value={customer} onChange={setCustomer} />
             </Box>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={overdue}
+                  onChange={(e) => {
+                    setOverdue(e.target.checked);
+                  }}
+                />
+              }
+              label="Overdue only"
+            />
             <Box className="flex-1" />
             <CanMutate permission={PERMISSIONS.tenantFinanceInvoice}>
               <Button

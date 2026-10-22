@@ -79,6 +79,8 @@ def test_owner_sees_every_section_with_values_and_freshness(api: Api) -> None:
     tzs = _money(body)
     assert Decimal(tzs["receivables_outstanding"]) == Decimal(inv["total"]) - 200000 == Decimal("352500")
     assert Decimal(tzs["receivables_overdue"]) == 0 and tzs["overdue_invoices"] == 0
+    # The dashboard's overdue link opens the invoice list with the same definition.
+    assert f.owner.get("/api/v1/tenant/hire-invoices", overdue="true").json()["total"] == 0
     assert Decimal(tzs["verified_receipts_mtd"]) == 200000
     assert Decimal(tzs["approved_expenses_mtd"]) == 30000
     assert Decimal(tzs["cash_with_supervisors"]) == 70000  # float 100,000 - approved cash spend 30,000
@@ -91,6 +93,8 @@ def test_owner_sees_every_section_with_values_and_freshness(api: Api) -> None:
     api.clock.set_at(api.clock.now + timedelta(days=45))
     later = _money(_ok(f.owner.get(OVERVIEW)))
     assert Decimal(later["receivables_overdue"]) == Decimal("352500") and later["overdue_invoices"] == 1
+    overdue = f.owner.get("/api/v1/tenant/hire-invoices", overdue="true").json()
+    assert [i["id"] for i in overdue["items"]] == [inv["id"]] and overdue["total"] == later["overdue_invoices"]
     assert Decimal(later["verified_receipts_mtd"]) == 0 and Decimal(later["approved_expenses_mtd"]) == 0
     assert Decimal(later["cash_with_supervisors"]) == 70000
 
