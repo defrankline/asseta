@@ -6,6 +6,7 @@ from sqlalchemy import create_engine, text
 from asseta.core.config import get_settings
 from asseta.core.db import get_sessionmaker
 from asseta.modules.identity.authz_sync import AuthzSyncService
+from asseta.modules.identity.role_templates import TENANT_TEMPLATES, template_permissions
 from tests.support.api import Api
 
 
@@ -47,3 +48,11 @@ def test_orphan_keycloak_tenant_groups_do_not_break_sync(api: Api) -> None:
     api.idp.add_user_to_group(api.idp.create_user("ghost@example.com", "G", "H").subject, gid)
     with get_sessionmaker().begin() as s:
         AuthzSyncService(api.idp).full_sync(s)  # must not raise
+
+
+def test_accountant_reads_reference_data_but_writes_only_finance() -> None:
+    accountant = next(t for t in TENANT_TEMPLATES if t.key == "accountant")
+    perms = template_permissions(accountant)
+    assert {"tenant.customer.read", "tenant.job.read", "tenant.machine.read", "tenant.staff.read"} <= perms
+    operational = ("tenant.customer.", "tenant.job.", "tenant.machine.", "tenant.staff.")
+    assert {p for p in perms if p.startswith(operational) and not p.endswith(".read")} == set()

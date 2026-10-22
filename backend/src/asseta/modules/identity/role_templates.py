@@ -66,6 +66,12 @@ TENANT_TEMPLATES = (
             "tenant.collection.",
             "tenant.billing.read",
             "tenant.notification.read",
+            # Read-only reference data so invoices, payments and custody show customer, job, machine and
+            # supervisor names (DEC-023); no write on operations.
+            "tenant.customer.read",
+            "tenant.job.read",
+            "tenant.machine.read",
+            "tenant.staff.read",
         ),
     ),
     RoleTemplate("operator", "Operator", PermissionScope.TENANT, ("tenant.profile.", "tenant.notification.read")),
