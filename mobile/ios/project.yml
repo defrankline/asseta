@@ -103,14 +103,23 @@ targets:
     sources:
       - path: Apps/Owner
         excludes: ["Info.plist"]
+    dependencies:
+      - package: AssetaKit
+        product: AssetaOwnerUI
     info:
       path: Apps/Owner/Info.plist
+      properties:
+        # Capability check for APNs: stays NO until the build is signed with a provisioning profile
+        # carrying the aps-environment entitlement (see README "Owner push notifications").
+        AssetaPushEnabled: $(ASSETA_PUSH_ENABLED)
+        UIBackgroundModes: [remote-notification]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.asseta.owner
         PRODUCT_NAME: AssetaOwner
         ASSETA_DISPLAY_NAME: Asseta Owner
         ASSETA_OIDC_SCHEME: com.asseta.owner
+        ASSETA_PUSH_ENABLED: "NO"
 
   AssetaSupervisorTests:
     type: bundle.unit-test

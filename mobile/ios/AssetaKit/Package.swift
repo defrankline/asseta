@@ -24,6 +24,8 @@ let package = Package(
         .library(name: "AssetaCapture", targets: ["AssetaCapture"]),
         .library(name: "AssetaSync", targets: ["AssetaSync"]),
         .library(name: "AssetaField", targets: ["AssetaField"]),
+        .library(name: "AssetaOwnerKit", targets: ["AssetaOwnerKit"]),
+        .library(name: "AssetaOwnerUI", targets: ["AssetaOwnerUI"]),
     ],
     dependencies: [
         // Official Zetetic SQLCipher binary distribution. Pinned exactly; bump deliberately.
@@ -70,6 +72,19 @@ let package = Package(
             ],
             swiftSettings: strict
         ),
+        // Gate 7: Owner app logic (API, encrypted read-only snapshot cache, staleness, mutation guard,
+        // deep links, push registration, realtime feed). Platform-independent and unit-tested on macOS.
+        .target(
+            name: "AssetaOwnerKit",
+            dependencies: ["AssetaModel", "AssetaNetwork", "AssetaStore", "AssetaSecurity"],
+            swiftSettings: strict
+        ),
+        // Gate 7: Owner SwiftUI screens (iOS only; compiles empty on macOS).
+        .target(
+            name: "AssetaOwnerUI",
+            dependencies: ["AssetaAppShell", "AssetaOwnerKit", "AssetaModel", "AssetaNetwork", "AssetaStore", "AssetaSecurity"],
+            swiftSettings: strict
+        ),
         // Test doubles shared by test targets only (not exported as a product).
         .target(name: "AssetaTestSupport", dependencies: ["AssetaNetwork"], swiftSettings: strict),
         .testTarget(name: "AssetaModelTests", dependencies: ["AssetaModel"]),
@@ -86,6 +101,12 @@ let package = Package(
             dependencies: [
                 "AssetaSync", "AssetaCapture", "AssetaStore", "AssetaSecurity", "AssetaNetwork", "AssetaModel",
                 "AssetaTestSupport",
+            ]
+        ),
+        .testTarget(
+            name: "AssetaOwnerKitTests",
+            dependencies: [
+                "AssetaOwnerKit", "AssetaModel", "AssetaNetwork", "AssetaStore", "AssetaSecurity", "AssetaTestSupport",
             ]
         ),
         .testTarget(

@@ -1,7 +1,6 @@
 #if os(iOS)
 import BackgroundTasks
 import Foundation
-import Network
 
 /// Opportunistic background refresh via `BGAppRefreshTask`. iOS decides if and when it runs (often
 /// rarely, never after the user force-quits the app), so this is a bonus, not a guarantee: the
@@ -37,26 +36,5 @@ public enum BackgroundSync {
         }
         task.expirationHandler = { work.cancel() }
     }
-}
-
-/// Reports connectivity changes (NWPathMonitor) on the main actor.
-@MainActor
-final class ConnectivityMonitor {
-    private let monitor = NWPathMonitor()
-    private(set) var isOnline = true
-
-    func start(onChange: @escaping @MainActor (Bool) -> Void) {
-        monitor.pathUpdateHandler = { path in
-            let online = path.status == .satisfied
-            Task { @MainActor [weak self] in
-                guard let self, self.isOnline != online else { return }
-                self.isOnline = online
-                onChange(online)
-            }
-        }
-        monitor.start(queue: DispatchQueue(label: "asseta.connectivity"))
-    }
-
-    func stop() { monitor.cancel() }
 }
 #endif

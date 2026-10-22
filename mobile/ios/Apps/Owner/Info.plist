@@ -10,6 +10,8 @@
 	<string>$(ASSETA_OIDC_SCHEME):/logout</string>
 	<key>AssetaOIDCRedirectURI</key>
 	<string>$(ASSETA_OIDC_SCHEME):/oauth2redirect</string>
+	<key>AssetaPushEnabled</key>
+	<string>$(ASSETA_PUSH_ENABLED)</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
@@ -35,6 +37,10 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 	<key>UILaunchScreen</key>
 	<dict>
 		<key>UIColorName</key>

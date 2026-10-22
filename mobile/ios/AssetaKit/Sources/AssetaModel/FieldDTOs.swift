@@ -21,12 +21,21 @@ public struct JobDTO: Codable, Hashable, Sendable, Identifiable {
     public let startedAt: Date?
     public let completedAt: Date?
     public let version: Int
+    // Commercial terms: present on the REST `JobDto` (Owner app), optional so synced entities that
+    // omit them still decode.
+    public let supervisorID: UUID?
+    public let currency: String?
+    public let hourlyRate: DecimalString?
+    public let minimumHours: DecimalString?
+    public let approvedAt: Date?
 
     enum CodingKeys: String, CodingKey {
         case id, status, version
         case contractID = "contract_id", jobNumber = "job_number", machineID = "machine_id"
         case jobSiteID = "job_site_id", plannedStart = "planned_start", plannedEnd = "planned_end"
         case startedAt = "started_at", completedAt = "completed_at"
+        case supervisorID = "supervisor_id", currency, hourlyRate = "hourly_rate", minimumHours = "minimum_hours"
+        case approvedAt = "approved_at"
     }
 }
 

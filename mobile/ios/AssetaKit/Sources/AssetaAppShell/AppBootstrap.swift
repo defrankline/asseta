@@ -35,10 +35,15 @@ public struct AssetaAppScene: View {
     private let home: HomeBuilder?
     @State private var result: Result<SessionModel, any Error>
 
-    public init(flavor: AppFlavor, info: [String: Any] = Bundle.main.infoDictionary ?? [:], home: HomeBuilder? = nil) {
+    /// `configure` runs once on the new session (e.g. the Owner app installs its offline profile
+    /// cache and sign-out wipe).
+    public init(flavor: AppFlavor, info: [String: Any] = Bundle.main.infoDictionary ?? [:], home: HomeBuilder? = nil,
+                configure: (@MainActor (SessionModel) -> Void)? = nil) {
         self.flavor = flavor
         self.home = home
-        _result = State(initialValue: Result { try AppBootstrap.makeSession(info: info) })
+        let result = Result { try AppBootstrap.makeSession(info: info) }
+        if case let .success(model) = result { configure?(model) }
+        _result = State(initialValue: result)
     }
 
     public var body: some View {

@@ -1,4 +1,4 @@
-# Asseta iOS (Gate 0 foundation + Gate 4 Supervisor field app)
+# Asseta iOS (Gate 0 foundation + Gate 4 Supervisor field app + Gate 7 Owner app)
 
 Native SwiftUI apps **Asseta Supervisor** (`com.asseta.supervisor`) and **Asseta Owner**
 (`com.asseta.owner`), iOS 17+, sharing one Swift package, `AssetaKit`. Business rules live in
@@ -30,6 +30,8 @@ mobile/ios/
 | `AssetaCapture` | Gate 4 capture: shared-spec OCR text parser (`MeterReadingParser`), Vision OCR pipeline (`MeterOCR`, `GlyphSegmenter`, `GlyphRenderer`, `SevenSegmentDecoder`), capture rules and the recapture state machine (`CaptureRules`), one-shot GPS (`LocationCapturer`, pure `GpsAttempt`), protected evidence files with SHA-256 (`EvidenceStore`) |
 | `AssetaSync` | Gate 4 offline sync: Keychain device id, `/sync` client with `X-Device-Id`, `SyncEngine` (register → bootstrap → upload → push → pull), push outcome state machine, resumable `BlobUploader`, policy snapshot selection and capture gate, clock tamper monitor, backoff, `FieldRecorder` (outbox ops + dependency chain), `FieldDirectory` (read side), `DeviceWipe` |
 | `AssetaField` | Gate 4 Supervisor SwiftUI screens (iOS only): jobs, job detail, meter capture with AVFoundation camera, work log, acknowledgement with PencilKit signature, sync status; `NWPathMonitor` and `BGAppRefreshTask` triggers |
+| `AssetaOwnerKit` | Gate 7 Owner logic (no UIKit, tested on macOS): `OwnerAPI` requests, `SnapshotCache` (encrypted read-only snapshots), `OwnerRepository` (network-first, offline fallback, wipe on lost access), `MutationGuard`/`OwnerFeatures`, `DeepLinkParser`, `FleetPresentation`, `OwnerFormat`, `RoutingMatrix`, `PushRegistration`, `RealtimeClient` (`/api/v1/ws`) |
+| `AssetaOwnerUI` | Gate 7 Owner SwiftUI screens (iOS only), `OwnerModel`, `PushCenter` + `OwnerAppDelegate` |
 | `AssetaTestSupport` | Test doubles (`MockTransport`, `MockURLProtocol`, fixtures). Not a product |
 
 ### Local schema (versioned migrations in `AssetaStore/Migrations.swift`)
@@ -108,6 +110,76 @@ Screens on the home list under **Money & fuel**, shown by `/me` permissions (`te
 - **Synced data**: `expense_categories` (inactive ones hidden; deltas carry `is_active=false`), customers (likewise), and `cash_custody` (current balance per currency).
 - **My cash**: the synced balance (as of the last sync) with pending handovers/spending from the server, kept apart from local unsynced collections/expenses/handovers, which are marked unverified; rejected/conflicting items are listed but not counted.
 
+## Gate 7: Owner app (`AssetaOwner`, `com.asseta.owner`)
+
+Read-mostly companion for owners/managers (prompt.md §4 R1-I). It is not a tenant admin console.
+The only business mutations are **alert acknowledge/resolve** and **approval decisions**. The
+user can also change their own push routing, push device and inbox read state.
+
+**Sign-in and tenant.** The shared shell (ASWebAuthenticationSession, PKCE S256, ephemeral browser,
+Keychain tokens) with redirect `com.asseta.owner:/oauth2redirect`. The Keycloak realm already lists
+it on the public client `asseta-mobile` (`infra/keycloak/realm-asseta.json`), so nothing was added.
+Tenant picker as in the Supervisor app. The app shows only tabs whose `/me` permission hints are present.
+
+**Screens.** Tabs **Overview · Fleet · Jobs · Alerts · More** (Approvals, Investigations,
+Notifications, Settings):
+
+| Screen | API | Notes |
+|---|---|---|
+| Overview | `GET /tenant/overview` | Fleet/work/money/risk KPIs. Each section shows "Latest data … ago" from `latest_source_at` plus the server `as_of`. Money comes from `Decimal`, per currency. When cached, "Live now" becomes "Live when saved" |
+| Fleet | `GET /tenant/fleet/map` | MapKit (no key) + list, search. Markers are coloured by connectivity, and only fresh `LIVE` + `is_live` is solid/"Live". Every other state is dashed and shows its age. Cached data is never "live". Machines without a fix are listed and counted |
+| Machine | `GET /fleet/machines/{id}`, `/history?from&to` (24 h), `/alerts?machine_id`, `/jobs?machine_id&status=IN_PROGRESS`, `/meter-captures?machine_id` | Status dimensions (reported work vs observed engine/motion, compliance, accuracy), 24 h `MapPolyline`, distance/stops, current job, recent alerts, recent readings. **Evidence photo on demand**: `GET /attachments/{id}/url` → presigned URL fetched into memory with an ephemeral session, never cached |
+| Jobs | `GET /tenant/jobs`, `GET /tenant/jobs/{id}` | Status filter; detail with readings, hours and charges (decimal money) |
+| Alerts | `GET /tenant/alerts`, `POST /alerts/{id}/action` | Acknowledge, or resolve with a required note, if `tenant.fleet.alert_manage` |
+| Approvals | `GET /tenant/approvals`, `POST /approvals/{id}/decision` | Approve/reject (reject is confirmed) with note if `tenant.approval.expense`. `SEGREGATION_OF_DUTIES` is shown as "Segregation of duties: you can't decide on a request you submitted…" |
+| Investigations | `GET /tenant/cases`, `/cases/{id}` | Read-only, neutral wording ("signals are indicators that need review; they are not conclusions") |
+| Notifications | `GET /tenant/notifications`, `/{id}`, `/unread-count`, `POST /read` | Live in the foreground over the WebSocket (`asseta.v1, bearer.<jwt>` sub-protocol, `subscribe` first frame, pong on ping, token refresh on `reauth_required`, backoff reconnect, no reconnect after 4403 access codes). The inbox is re-read on each `auth_ok`/`notification`. `entity.changed` reloads open screens (throttled to 10 s) |
+| Settings | `GET/PUT /tenant/notification-routing`, `GET /me/push-devices` | Push matrix by category × severity. Mandatory PUSH cells are locked. Only changed cells are sent. Push status, device list, sign-out |
+
+Every screen supports Dynamic Type (system text styles), VoiceOver (combined row labels, marker
+labels, announcements after decisions), and light/dark (system colours plus brand amber/slate).
+
+**Offline read-only cache.** `SnapshotCache` stores each read (the server JSON plus `fetchedAt`)
+in its own SQLCipher file `asseta-owner-cache.sqlite`. It uses its own Keychain key
+`asseta.owner.cache.key.v1` and its own migrator, so the Supervisor schema is untouched.
+- Reads go to the network first. On a network error, 5xx or 429, the last snapshot is shown with
+  the banner **"Offline — data from 14:05 (stale)"**.
+- Snapshots are bounded: never shown after **7 days**, purged on open, at most 300 entries per
+  tenant (oldest dropped first), and a future `fetchedAt` counts as expired.
+- `/me` is cached too, so the app can open offline. `SessionModel.profileCache` is opt-in, so the
+  Supervisor behaviour is unchanged.
+- **Mutations are disabled** when offline, when showing cached data, when the tenant is not FULL,
+  or when the permission hint is missing (`MutationGuard`). The disabled control explains why.
+- **Wipes.** Sign-out (including a `/me` 401) runs `SessionModel.onSignOut`. That deactivates the
+  push device as best effort, then destroys the database and its key.
+- `TENANT_ACCESS_DENIED/BLOCKED`, `MANDATE_*` and `USER_INACTIVE` wipe that tenant's cache and
+  return to the picker. 403/404 drop that entry. Tenants no longer enterable in `/me` are purged.
+
+**Push.** `OwnerAppDelegate` (`@UIApplicationDelegateAdaptor`) receives APNs callbacks. When
+`AssetaPushEnabled` is YES, the app asks for permission after a tenant opens, then registers.
+The hex token goes to `POST /me/push-devices {platform: IOS, app: OWNER}` with `X-Tenant-ID`. The
+server binds the device to the open company, so a company switch re-registers. Taps are parsed by
+`DeepLinkParser` from `notification_id`/`tenant_id`/`link`:
+- A record link (`/tenant/cases/<id>`, `/tenant/jobs/<id>`) opens that record.
+- A list link (`/tenant/alerts`) opens the notification, which follows its `target` (alert,
+  approval, case, job, machine).
+- A push for another company switches to it first, if the user may enter it.
+
+Payloads only navigate; they never execute anything.
+
+**What push needs (external, not in the repo):** an Apple Developer team, an App ID
+`com.asseta.owner` with Push Notifications enabled, a provisioning profile with `aps-environment`,
+an entitlements file (`aps-environment: development|production`) added to the target, and
+`ASSETA_PUSH_ENABLED=YES`. The backend must run with `ASSETA_PUSH_IOS_PROVIDER=apns` and
+`ASSETA_PUSH_APNS_KEY_FILE` (.p8), `_KEY_ID`, `_TEAM_ID`, `_TOPIC=com.asseta.owner` and
+`_ENVIRONMENT=sandbox|production`. Until then the app never prompts for or registers with APNs, and
+Settings shows "Push is not enabled in this build". The in-app inbox and live WebSocket work without push.
+
+**Known gaps.** There is no single-alert or single-approval GET endpoint, so detail screens find the
+record in the latest 200 of the list, and older ones say "not found". Lists show the first page
+(≤ 100) with "showing N of M". Evidence photos are online-only by design. The realtime feed runs in
+the foreground only. Investigations are read-only; review happens in the web console.
+
 ## Pinned toolchain and dependencies
 
 - Xcode 26.6, Swift 6.3.3. The package uses swift-tools 6.0 and the Swift 6 language mode.
@@ -118,7 +190,7 @@ Screens on the home list under **Money & fuel**, shown by `/me` permissions (`te
 ## Commands
 
 ```sh
-# Package unit tests on macOS
+# Package unit tests on macOS (incl. AssetaOwnerKitTests: contract samples checked against contracts/openapi.json)
 cd mobile/ios/AssetaKit && swift test
 
 # Package tests on the iOS Simulator
@@ -180,7 +252,8 @@ ephemeral, so no SSO cookie stays on the device.
 Supervisor Info.plist (from `project.yml`): `NSCameraUsageDescription` and
 `NSLocationWhenInUseUsageDescription` (both requested just in time), `UIBackgroundModes: fetch` and
 `BGTaskSchedulerPermittedIdentifiers: com.asseta.supervisor.sync`. There is no background location
-and no photo library access. The Owner app's Info.plist is unchanged.
+and no photo library access. Owner Info.plist adds `AssetaPushEnabled` (from `ASSETA_PUSH_ENABLED`,
+default `NO`) and `UIBackgroundModes: remote-notification`; it asks for no camera or location.
 
 ## Security notes
 
