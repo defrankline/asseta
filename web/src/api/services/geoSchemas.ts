@@ -16,6 +16,7 @@ import type {
   MachineMapDto,
   Observed,
   PolicyScope,
+  PolicyType,
   PolicyVersionDto,
   SiteVisitDto,
   StopDto,
@@ -79,6 +80,15 @@ export const ALERT_TYPES: readonly AlertType[] = [
 ];
 export const ALERT_SEVERITIES: readonly AlertSeverity[] = ['INFO', 'WARNING', 'CRITICAL'];
 export const POLICY_SCOPES: readonly PolicyScope[] = ['PLATFORM', 'TENANT', 'MACHINE', 'SITE'];
+// A Record so a policy type added to the API fails typecheck here instead of failing validation at runtime.
+const POLICY_TYPE_SET: Readonly<Record<PolicyType, true>> = {
+  TRACKING: true,
+  METER_CAPTURE: true,
+  HIRE_BILLING: true,
+  DEVICE_SYNC: true,
+  EXPENSE_CAPTURE: true,
+};
+export const POLICY_TYPES = Object.keys(POLICY_TYPE_SET) as readonly PolicyType[];
 
 export const machineMapSchema: Schema<MachineMapDto> = object({
   machine_id: id(),
@@ -189,14 +199,14 @@ export const alertSchema: Schema<AlertDto> = object({
 });
 
 export const effectivePolicySchema: Schema<EffectivePolicyDto> = object({
-  policy_type: oneOf(['TRACKING'] as const),
+  policy_type: oneOf(POLICY_TYPES),
   version_stamp: text(),
   values: record(),
 });
 
 export const policyVersionSchema: Schema<PolicyVersionDto> = object({
   id: id(),
-  policy_type: oneOf(['TRACKING'] as const),
+  policy_type: oneOf(POLICY_TYPES),
   scope: oneOf(POLICY_SCOPES),
   scope_ref_id: nullableId(),
   version: int(),
