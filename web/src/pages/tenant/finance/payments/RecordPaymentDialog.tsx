@@ -16,6 +16,7 @@ import { FormikSelectField } from '../../../../components/forms/FormikSelectFiel
 import { FormikTextField } from '../../../../components/forms/FormikTextField';
 import { StepperFormDialog, type FormStep } from '../../../../components/forms/StepperFormDialog';
 import { useIdempotencyKey } from '../../../../hooks/useIdempotencyKey';
+import { formatEnteredMoney } from '../../../../utils/money';
 import { formatInstantIn } from '../../../../utils/time';
 import { withErrorCode } from '../../shared/errorHints';
 import {
@@ -181,7 +182,7 @@ export function RecordPaymentDialog({
                 label: 'Amount',
                 value:
                   v.currency === '' ? (
-                    `${v.amount} (tenant base currency)`
+                    formatEnteredMoney(v.amount, '')
                   ) : (
                     <MoneyText amount={v.amount} currency={v.currency} strong />
                   ),

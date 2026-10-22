@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  formatEnteredMoney,
   compareDecimal,
   formatMoney,
   formatPercent,
@@ -78,5 +79,18 @@ describe('multiplyDecimals', () => {
 
   it('rejects non-decimals', () => {
     expect(() => multiplyDecimals('1e3', '2')).toThrow();
+  });
+});
+
+describe('formatEnteredMoney', () => {
+  it('formats with the currency when one is chosen', () => {
+    expect(formatEnteredMoney('200000', 'TZS')).toBe('TZS 200,000.00');
+    expect(formatEnteredMoney('1500.5', 'UGX')).toBe('UGX 1,501');
+  });
+
+  it('groups but never re-scales when the tenant base currency applies', () => {
+    expect(formatEnteredMoney('200000', '')).toBe('200,000 (tenant base currency)');
+    expect(formatEnteredMoney('1234.5', '')).toBe('1,234.5 (tenant base currency)');
+    expect(formatEnteredMoney('abc', '')).toBe('abc (tenant base currency)');
   });
 });

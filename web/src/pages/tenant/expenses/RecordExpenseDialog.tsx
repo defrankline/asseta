@@ -9,6 +9,7 @@ import { FormikSelectField } from '../../../components/forms/FormikSelectField';
 import { FormikTextField } from '../../../components/forms/FormikTextField';
 import { StepperFormDialog, type FormStep } from '../../../components/forms/StepperFormDialog';
 import { useIdempotencyKey } from '../../../hooks/useIdempotencyKey';
+import { formatEnteredMoney } from '../../../utils/money';
 import { formatInstantIn } from '../../../utils/time';
 import { withErrorCode } from '../shared/errorHints';
 import {
@@ -125,7 +126,7 @@ export function RecordExpenseDialog({ timeZone, onClose, onRecorded }: RecordExp
                 value: category === null ? v.category_id : expenseCategoryOptionLabel(category),
               },
               { label: 'Description', value: v.description.trim() },
-              { label: 'Amount', value: `${v.amount} ${v.currency || '(tenant base currency)'}` },
+              { label: 'Amount', value: formatEnteredMoney(v.amount, v.currency) },
               { label: 'Incurred at', value: formatInstantIn(v.incurred_at, timeZone) },
               { label: 'Paid from', value: PAID_FROM_LABELS[v.paid_from] },
               {

@@ -123,6 +123,20 @@ export function formatMoney(amount: string, currency: string, locale = 'en-US'):
   return `${negative ? '-' : ''}${currency} ${int}${frac}`;
 }
 
+/**
+ * A form-entered amount for a review step. With a currency it is formatted like formatMoney; with none
+ * (the server applies the tenant base currency) the digits are only grouped, never re-scaled, because the
+ * minor units are unknown here: formatEnteredMoney('200000', '') === '200,000 (tenant base currency)'.
+ */
+export function formatEnteredMoney(amount: string, currency: string, locale = 'en-US'): string {
+  if (currency !== '') return formatMoney(amount, currency, locale);
+  const m = DECIMAL_RE.exec(amount.trim());
+  if (m === null) return `${amount} (tenant base currency)`;
+  const [, sign = '', int = '0', frac] = m;
+  const grouped = groupInteger(BigInt(int), locale);
+  return `${sign === '-' ? '-' : ''}${grouped}${frac === undefined ? '' : `.${frac}`} (tenant base currency)`;
+}
+
 /** Format a decimal percentage string such as '12.5000' as '12.5%'. */
 export function formatPercent(value: string): string {
   const d = parseDecimal(value);

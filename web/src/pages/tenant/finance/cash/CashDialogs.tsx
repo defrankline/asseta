@@ -9,6 +9,7 @@ import { FormikSelectField } from '../../../../components/forms/FormikSelectFiel
 import { FormikTextField } from '../../../../components/forms/FormikTextField';
 import { StepperFormDialog } from '../../../../components/forms/StepperFormDialog';
 import { useIdempotencyKey } from '../../../../hooks/useIdempotencyKey';
+import { formatEnteredMoney } from '../../../../utils/money';
 import { formatInstantIn } from '../../../../utils/time';
 import { withErrorCode } from '../../shared/errorHints';
 import { CURRENCY_OPTIONS, FINANCE_ERROR_HINTS } from '../../shared/financeDisplay';
@@ -23,8 +24,7 @@ import {
   type HandoverValues,
 } from './cashForms';
 
-const amountText = (amount: string, currency: string) =>
-  `${amount} ${currency === '' ? '(tenant base currency)' : currency}`;
+const amountText = (amount: string, currency: string) => formatEnteredMoney(amount, currency);
 
 interface FloatDialogProps {
   staffMemberId?: string;
