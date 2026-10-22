@@ -1,12 +1,18 @@
 """Gate 2 (R1-D) acceptance: polygon/corridor geofences with tolerance, late/out-of-order replay, restricted
 areas, unauthorized movement, fleet map status dimensions, stale handling, playback, proximity, connectivity."""
 
+import uuid
 from datetime import timedelta
 from typing import Any
+
+import pytest
+from sqlalchemy import text
+from sqlalchemy.exc import DBAPIError
 
 from asseta.core.db import DbScope, apply_scope, get_sessionmaker
 from asseta.modules.geospatial.connectivity import sweep_tenant
 from asseta.tools.gps_simulator import Fix, route
+from asseta.workers.connectivity_worker import sweep_all
 from tests.support.api import Api
 from tests.support.telemetry import DAR, Telemetry, Tracked
 
@@ -170,6 +176,18 @@ def test_connectivity_sweeper_stale_offline_and_recovery(api: Api) -> None:
     assert {x["status"] for x in _alerts(a) if x["alert_type"].startswith("TRACKER_")} == {"RESOLVED"}
     sub = api.platform.get(f"/api/v1/platform/tenants/{tenant_id}/subscription").json()
     assert sub["enrolled_assets"] == 1  # offline hardware never removes an asset from billing
+
+
+def test_worker_sweep_runs_as_runtime_role(api: Api) -> None:
+    """The worker's full sweep (partition top-up included) works as asseta_app, which has no CREATE on the schema."""
+    tel, a = _setup(api, "Sweep Co", "SWP-1")
+    tel.send("SWP-1", _at(api, 0, LAT))
+    with get_sessionmaker().begin() as s:
+        s.execute(text("SELECT ensure_telemetry_partitions(3, 0)"))
+        s.execute(text("SELECT ensure_telemetry_partitions(3, 0)"))  # idempotent
+        with pytest.raises(DBAPIError, match="between 0 and 24"), s.begin_nested():
+            s.execute(text("SELECT ensure_telemetry_partitions(1000, 0)"))
+    assert uuid.UUID(a.tenant["tenant"]["id"]) in sweep_all()
 
 
 def test_policy_hierarchy_overrides_and_guards(api: Api) -> None:
