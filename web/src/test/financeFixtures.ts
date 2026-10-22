@@ -187,7 +187,7 @@ export function makeApproval(overrides: Partial<ApprovalRequestDto> = {}): Appro
     subject_id: '88888888-0000-4000-8000-000000000001',
     amount: '250000.0000',
     currency: 'TZS',
-    reason: 'Amount 250000 TZS exceeds the auto-approval limit (100000)',
+    reason: 'Amount TZS 250,000.00 exceeds the auto-approval limit (TZS 100,000.00)',
     policy_version: 'EC:T3',
     status: 'PENDING',
     requested_by: OTHER_USER,

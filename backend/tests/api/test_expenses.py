@@ -84,6 +84,9 @@ def test_expense_policy_receipts_gps_auto_approval_and_segregation(api: Api) -> 
 
     pending = f.manager.get("/api/v1/tenant/approvals", status="PENDING").json()
     assert {a["subject_id"] for a in pending["items"]} == {big["id"], owner_big["id"], usd["id"]}
+    reasons = {a["subject_id"]: a["reason"] for a in pending["items"]}
+    assert reasons[big["id"]] == "Amount TZS 250,000.00 exceeds the auto-approval limit (TZS 100,000.00)"
+    assert reasons[usd["id"]] == "Amount USD 10.00 exceeds the auto-approval limit (foreign currency)"
     decide = "/api/v1/tenant/approvals/{}/decision"
     assert sup.post(decide.format(big["approval_request_id"]), {"approve": True}).status_code == 403
     own = f.owner.post(decide.format(owner_big["approval_request_id"]), {"approve": True})

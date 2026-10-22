@@ -65,6 +65,11 @@ def expense_dto(session: Session, e: Expense) -> ExpenseDto:
 
 
 class ExpenseService:
+    def _money(self, amount: Decimal, currency: str) -> str:
+        """Human-readable amount for reasons and notes: 'TZS 250,000.00' (currency minor units, grouped)."""
+        row = self._s.get(Currency, currency)
+        return f"{currency} {quantize(amount, row.minor_units if row else 2):,}"
+
     def __init__(self, session: Session, ctx: RequestContext, now: datetime):
         assert ctx.tenant_id is not None
         self._s, self._ctx, self._tid, self._now = session, ctx, ctx.tenant_id, now
@@ -208,9 +213,11 @@ class ExpenseService:
             submitted_by=self._ctx.user_id,
             submitted_at=self._now,
             decided_at=self._now if auto else None,
-            decision_note=f"Auto-approved: amount <= {policy.auto_approve_limit} ({eff.version_stamp})"
-            if auto
-            else None,
+            decision_note=(
+                f"Auto-approved: amount <= {self._money(policy.auto_approve_limit, currency)} ({eff.version_stamp})"
+                if auto
+                else None
+            ),
         )
         insert(self._s, row, "DUPLICATE_EXPENSE", "Expense already recorded")
         self._s.add_all(
@@ -218,9 +225,9 @@ class ExpenseService:
             for a in receipts
         )
         if not auto:
-            limit = policy.auto_approve_limit if in_base else "foreign currency"
+            limit = self._money(policy.auto_approve_limit, currency) if in_base else "foreign currency"
             approval_id = uuid.uuid4()
-            reason = f"Amount {row.amount} {currency} exceeds the auto-approval limit ({limit})"
+            reason = f"Amount {self._money(row.amount, currency)} exceeds the auto-approval limit ({limit})"
             OutboxWriter(self._s).emit(
                 topic=TOPIC,
                 event_type="ApprovalRequested",
@@ -243,7 +250,7 @@ class ExpenseService:
                     subject_id=row.id,
                     amount=row.amount,
                     currency=currency,
-                    reason=f"Amount {row.amount} {currency} exceeds the auto-approval limit ({limit})",
+                    reason=reason,
                     policy_version=eff.version_stamp,
                     status=ApprovalStatus.PENDING,
                     requested_by=self._ctx.user_id,

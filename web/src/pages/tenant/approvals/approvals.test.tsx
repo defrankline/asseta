@@ -47,7 +47,7 @@ describe('ApprovalsPage', () => {
     mocks.decide.mockResolvedValue(makeApproval({ status: 'REJECTED' }));
     renderWithProviders(<ApprovalsPage />, { tenantPermissions: APPROVER });
     await user.click(
-      await screen.findByRole('button', { name: /^Actions for approval Amount 250000/ }),
+      await screen.findByRole('button', { name: /^Actions for approval Amount TZS 250,000.00/ }),
     );
     await user.click(screen.getByRole('menuitem', { name: 'Approve / reject' }));
     const dialog = await screen.findByRole('dialog');
@@ -74,7 +74,7 @@ describe('ApprovalsPage', () => {
       accessState: 'READ_ONLY',
     });
     await user.click(
-      await screen.findByRole('button', { name: /^Actions for approval Amount 250000/ }),
+      await screen.findByRole('button', { name: /^Actions for approval Amount TZS 250,000.00/ }),
     );
     expect(screen.getByRole('menuitem', { name: 'View expense' })).toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: /Approve/ })).not.toBeInTheDocument();
