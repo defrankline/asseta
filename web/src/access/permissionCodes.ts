@@ -42,6 +42,10 @@ export const PERMISSIONS = {
   /** Own platform inbox and preferences; SMS delivery log and test-send. */
   platformNotificationRead: 'platform.notification.read',
   platformNotificationManage: 'platform.notification.manage',
+  /** Governed ML (ADR-007): view model versions, evaluations, readiness, drift and settings. */
+  platformMlRead: 'platform.ml.read',
+  /** Approve, deploy, roll back and disable models; the inference switch; run snapshots/training. */
+  platformMlManage: 'platform.ml.manage',
 
   // ---- Tenant console (only granted in tenant mode, for the active tenant) ----
   /** Fleet map, positions, history and alerts (read). */

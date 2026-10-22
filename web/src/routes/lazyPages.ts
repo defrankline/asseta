@@ -76,6 +76,17 @@ export const CasesPage = lazy(() =>
 export const CaseDetailPage = lazy(() =>
   import('../pages/tenant/cases/CaseDetailPage').then((m) => ({ default: m.CaseDetailPage })),
 );
+export const InsightsPage = lazy(() =>
+  import('../pages/tenant/insights/InsightsPage').then((m) => ({ default: m.InsightsPage })),
+);
+export const ModelsPage = lazy(() =>
+  import('../pages/platform/models/ModelsPage').then((m) => ({ default: m.ModelsPage })),
+);
+export const ModelDetailPage = lazy(() =>
+  import('../pages/platform/models/ModelDetailPage').then((m) => ({
+    default: m.ModelDetailPage,
+  })),
+);
 export const AccessPage = lazy(() =>
   import('../pages/tenant/access/AccessPage').then((m) => ({ default: m.AccessPage })),
 );

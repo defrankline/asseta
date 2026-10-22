@@ -33,6 +33,9 @@ import {
   ExceptionsPage,
   CasesPage,
   CaseDetailPage,
+  InsightsPage,
+  ModelDetailPage,
+  ModelsPage,
   ExpensesPage,
   FinancePage,
   FleetMapPage,
@@ -143,6 +146,14 @@ export function AppRoutes() {
           element={guard(PERMISSIONS.platformTrackerModelRead, <TelemetryCatalogPage />)}
         />
         <Route
+          path={ROUTES.platformModels}
+          element={guard(PERMISSIONS.platformMlRead, <ModelsPage />)}
+        />
+        <Route
+          path={ROUTES.platformModelDetail}
+          element={guard(PERMISSIONS.platformMlRead, <ModelDetailPage />)}
+        />
+        <Route
           path={ROUTES.systemStatus}
           element={guard(PERMISSIONS.platformSystemRead, <SystemStatusPage />)}
         />
@@ -242,6 +253,10 @@ export function AppRoutes() {
         <Route
           path={ROUTES.tenantCaseDetail}
           element={guard(PERMISSIONS.tenantCaseRead, <CaseDetailPage />)}
+        />
+        <Route
+          path={ROUTES.tenantInsights}
+          element={guard(PERMISSIONS.tenantFleetRead, <InsightsPage />)}
         />
         <Route
           path={ROUTES.tenantAccess}

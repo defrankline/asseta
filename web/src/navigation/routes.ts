@@ -17,6 +17,9 @@ export const ROUTES = {
   platformManagedService: '/platform/managed-service',
   /** Approved tracker models and telemetry gateways (platform catalog). */
   platformTelemetry: '/platform/telemetry',
+  /** Matches the backend `platform.models` menu path (governed ML, ADR-007). */
+  platformModels: '/platform/models',
+  platformModelDetail: '/platform/models/:modelId',
   /** Matches the backend `platform.system` menu path. */
   systemStatus: '/platform/system',
   forbidden: '/403',
@@ -57,6 +60,8 @@ export const ROUTES = {
   /** Matches the backend `tenant.cases` menu path ("Investigations"). */
   tenantCases: '/tenant/cases',
   tenantCaseDetail: '/tenant/cases/:caseId',
+  /** Matches the backend `tenant.insights` menu path (Risk & review group). */
+  tenantInsights: '/tenant/insights',
   tenantAccess: '/tenant/access',
   tenantManagedService: '/tenant/managed-service',
   /** The tenant's own SMS wallet (balance + ledger). */
@@ -111,6 +116,10 @@ export function hireInvoicePrintPath(invoiceId: string): string {
   return `${hireInvoiceDetailPath(invoiceId)}/print`;
 }
 
+export function modelDetailPath(modelId: string): string {
+  return `${ROUTES.platformModels}/${encodeURIComponent(modelId)}`;
+}
+
 export function tenantDetailPath(tenantId: string): string {
   return `${ROUTES.platformTenants}/${encodeURIComponent(tenantId)}`;
 }
@@ -157,6 +166,7 @@ export const IMPLEMENTED_PATHS: ReadonlySet<string> = new Set([
   ROUTES.platformPayments,
   ROUTES.platformManagedService,
   ROUTES.platformTelemetry,
+  ROUTES.platformModels,
   ROUTES.systemStatus,
   ROUTES.tenantFleet,
   ROUTES.tenantMachines,
@@ -175,6 +185,7 @@ export const IMPLEMENTED_PATHS: ReadonlySet<string> = new Set([
   ROUTES.tenantJobs,
   ROUTES.tenantExceptions,
   ROUTES.tenantCases,
+  ROUTES.tenantInsights,
   ROUTES.tenantAccess,
   ROUTES.tenantManagedService,
 ]);
