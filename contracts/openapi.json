@@ -47263,12 +47263,39 @@
             "description": "Comma-separated user ids (at most 100)",
             "in": "query",
             "name": "ids",
-            "required": true,
+            "required": false,
             "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[0-9a-fA-F-]{36}(,[0-9a-fA-F-]{36}){0,99}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "description": "Comma-separated user ids (at most 100)",
-              "pattern": "^[0-9a-fA-F-]{36}(,[0-9a-fA-F-]{36}){0,99}$",
-              "title": "Ids",
-              "type": "string"
+              "title": "Ids"
+            }
+          },
+          {
+            "description": "Name search over current members (at most 20)",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Name search over current members (at most 20)",
+              "title": "Q"
             }
           },
           {

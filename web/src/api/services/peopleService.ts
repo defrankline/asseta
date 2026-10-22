@@ -14,4 +14,8 @@ export const peopleService = {
   list(ids: readonly string[], signal?: AbortSignal): Promise<PersonDto[]> {
     return tenantList('/tenant/people', personSchema, 'people', signal, { ids: ids.join(',') });
   },
+  /** GET /tenant/people?q= (listTenantPeople): current members by name, for pickers (at most 20). */
+  search(q: string, signal?: AbortSignal): Promise<PersonDto[]> {
+    return tenantList('/tenant/people', personSchema, 'people', signal, { q });
+  },
 };

@@ -28334,9 +28334,11 @@ export interface operations {
     };
     listTenantPeople: {
         parameters: {
-            query: {
+            query?: {
                 /** @description Comma-separated user ids (at most 100) */
-                ids: string;
+                ids?: string | null;
+                /** @description Name search over current members (at most 20) */
+                q?: string | null;
             };
             header?: {
                 "x-tenant-id"?: string | null;
