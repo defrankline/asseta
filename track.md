@@ -40,7 +40,7 @@
 | 3 | Jobs, configurable photo/manual meter and GPS capture | IN PROGRESS | Backend + OCR corpus + console UI implemented and tested (API 7 acceptance tests, 9 rule tests, 13 OCR parse/manifest tests; web 165 tests mocked). Remaining: live browser walkthrough; mobile capture is Gate 4. |
 | 4 | Android + iOS supervisor offline-first apps and sync | IN PROGRESS | Sync protocol v1 backend DONE + 3 acceptance tests. Supervisor field apps implemented on both platforms (offline queue, all push outcomes, resumable blobs, policy snapshots/offline grant, clock tamper, revocation wipe, OCR + GPS capture), verified: iOS 113 `swift test` + 5 app-hosted, Android 93 JVM + 4 instrumented on emulator. Android OCR now 17/17 must_read on emulator (geometric pipeline + seven-segment decoder, ported from iOS), 0 confident wrong. Hosted CI green (39600636563). Live E2E of both apps' real sync clients vs live backend + Keycloak PASS (`scripts/field-e2e.sh`). **Open:** real meter samples (EXT-05); live E2E covers the opening reading only (START/closing/acknowledgement/COMPLETE covered by unit + server acceptance tests). |
 | 5 | Tenant hire finance, payments, fuel, expenses and custody | DONE (signed off 2026-10-22, owner request) | Backend (API acceptance incl. §10 #7/#8, isolation, reversal), web finance UI, mobile capture (live field E2E both apps), entity lifecycle (DEC-021); live three-person browser walkthrough 2026-10-22 (evidence log); hosted CI 39749518328 green. Residual (non-blocking): second-person expense approval clicked only via API tests (same decision dialog verified in browser for payments/handovers); hands-on phone use of mobile finance screens. |
-| 6 | Fraud intelligence, MLOps and validated analytics | IN PROGRESS | Design ADR-007 / DEC-024. Slices: 6A deterministic signals + cases (backend+web); 6B feature definitions + point-in-time snapshots + training sets; 6C MLflow lifecycle + shadow anomaly vs baseline + kill switch; 6D baseline insights, drift/latency, OCR override audit + metrics. |
+| 6 | Fraud intelligence, MLOps and validated analytics | IMPLEMENTED — awaiting sign-off | All 7 Gate 6 items implemented and tested (ADR-007 / DEC-024); hosted CI green on 6073bf9; live: investigations walkthrough (§10 #9) and shadow-mode demo on the dev stack. Remaining before sign-off: browser pass of Insights + platform Models screens (needs platform sign-in). Known: anomaly model does not yet pass promotion on synthetic data (correctly stays shadow); real OCR samples EXT-05. |
 | 7 | Android + iOS owner apps, security/performance and release | NOT STARTED | — |
 
 ## Gate 0 — Foundation
@@ -110,13 +110,13 @@
 
 ## Gate 6 — ML, anomaly and investigations
 
-- [ ] Deterministic anomaly rule catalog plus explainable investigation cases.
-- [ ] Spatial/telemetry/financial/behavior feature versioning and point-in-time extraction.
-- [ ] MLflow experiment runs, model registry, approval/deploy/rollback and governance controls.
-- [ ] Shadow anomaly detector + baseline comparison; calibrated promotion criteria.
-- [ ] Fuel/utilization/revenue/cashflow baseline analytics with explicit insufficient-data behavior.
-- [ ] Offline OCR test corpora, documented metrics and audit of manual overrides.
-- [ ] Drift/latency monitoring and safe model-off fallback.
+- [x] Deterministic anomaly rule catalog plus explainable investigation cases. — 6 detectors + existing exceptions/alerts/SoD via FRAUD_CONTROLS policy; cases with immutable outcomes, SoD (dede875, a4b7ab6); live: 4 cases from Kilimanjaro telemetry, one resolved LEGITIMATE_EXPLANATION in the browser (§10 #9).
+- [x] Spatial/telemetry/financial/behavior feature versioning and point-in-time extraction. — `asseta.ml.features` (13 versioned features, set hash) + DB fact loader filtering event AND recorded time ≤ as_of; feature_snapshot append-only (bc39e38, 4e31ac3); late-sync leakage test.
+- [x] MLflow experiment runs, model registry, approval/deploy/rollback and governance controls. — MLflow 3.17.0 in compose (Postgres store, MinIO artifacts); model_version/evaluation/approval with DB-guarded transitions, DEPLOY_ACTIVE needs passing evaluation + approval, rollback/disable, platform hard switch (4e31ac3); platform Models UI (74b2277); live demo run logged to MLflow.
+- [x] Shadow anomaly detector + baseline comparison; calibrated promotion criteria. — IsolationForest vs robust z-score baseline, synthetic-anomaly evaluation + PromotionCriteria, calibration flag; shadow predictions platform-only (RLS) (6073bf9); live: `asseta-ml demo` on Kilimanjaro → READY, DEPLOYED_SHADOW, 8 SHADOW predictions, none tenant-visible; real data → INSUFFICIENT_DATA with reason, no model.
+- [x] Fuel/utilization/revenue/cashflow baseline analytics with explicit insufficient-data behavior. — /tenant/insights (fuel band, utilisation trend, cash-flow trend; INSUFFICIENT_DATA with minimums) + Insights page (6073bf9, 74b2277). Revenue/profitability already in Gate 5.
+- [x] Offline OCR test corpora, documented metrics and audit of manual overrides. — corpus contracts/fixtures/ocr (Gate 3/4), metrics in docs/ml-ocr-metrics.md, manual-override audit report API + Insights tab. Real samples still EXT-05.
+- [x] Drift/latency monitoring and safe model-off fallback. — daily PSI per deployed model (model_drift, MlModelDriftDetected notification), inference_audit latency/outcomes on the model detail; hard switch/disabled/missing-artifact paths never block the product and deterministic rules keep running (tests).
 
 ## Gate 7 — Owner apps and release hardening
 
