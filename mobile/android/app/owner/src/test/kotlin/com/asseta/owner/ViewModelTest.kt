@@ -148,13 +148,14 @@ class ViewModelTest {
         }
         val vm = SettingsViewModel(h.data, push)
         vm.ui.await { !it.loading }
+        // Routing and devices GETs must both reach the server before the PUT, or the PUT could take the devices response.
+        h.server.takeRequest(); h.server.takeRequest()
         vm.toggle("ACTION", "CRITICAL", false) // mandatory: ignored
         vm.toggle("INFO", "INFO", true)
         assertTrue(vm.ui.value.dirty)
         h.ok("[${Samples.routing("ACTION", "CRITICAL", true, true)},${Samples.routing("INFO", "INFO", true)}]")
         vm.save()
         vm.ui.await { it.message != null }
-        h.server.takeRequest(); h.server.takeRequest()
         val put = h.server.takeRequest()
         assertEquals("PUT", put.method)
         assertEquals("""{"changes":[{"category":"INFO","severity":"INFO","push":true,"email":true}],"tenant_default":false}""", put.body!!.utf8())
