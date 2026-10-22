@@ -1,5 +1,5 @@
 {
-  "spec_version": "1",
+  "spec_version": "2",
   "description": "Shared OCR text -> reading cases. Android and iOS parsers MUST produce exactly these results.",
   "cases": [
     {"text": "01234.5", "decimal_places": 1, "value": "1234.5", "reason": "OK"},
@@ -13,6 +13,12 @@
     {"text": "4521", "decimal_places": 0, "value": "4521", "reason": "OK"},
     {"text": "4521.75", "decimal_places": 1, "value": null, "reason": "PRECISION_EXCEEDS_METER"},
     {"text": "00123.4\n", "decimal_places": 2, "value": "123.40", "reason": "OK"},
-    {"text": "I2O4.6 H", "decimal_places": 1, "value": "1204.6", "reason": "OK"}
+    {"text": "I2O4.6 H", "decimal_places": 1, "value": "1204.6", "reason": "OK"},
+    {"text": "+8010 0,6 hrs 1822,3 hrs", "decimal_places": 1, "value": "1822.3", "reason": "OK"},
+    {"text": "eco 1814.1hrs 0.6 hrs 97", "decimal_places": 1, "value": "1814.1", "reason": "OK"},
+    {"text": "1822,3 hrs 1790,4 hrs", "decimal_places": 1, "value": null, "reason": "AMBIGUOUS"},
+    {"text": "4521 h 3310.2", "decimal_places": 1, "value": null, "reason": "AMBIGUOUS"},
+    {"text": "08765 3 h 112 km/h", "decimal_places": 1, "value": "8765.3", "reason": "OK"},
+    {"text": "Hours 2214.0 Hrs 950", "decimal_places": 1, "value": "2214.0", "reason": "OK"}
   ]
 }
