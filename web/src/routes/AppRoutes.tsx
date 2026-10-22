@@ -31,6 +31,8 @@ import {
   CustomersPage,
   ExpenseCategoriesPage,
   ExceptionsPage,
+  CasesPage,
+  CaseDetailPage,
   ExpensesPage,
   FinancePage,
   FleetMapPage,
@@ -232,6 +234,14 @@ export function AppRoutes() {
         <Route
           path={ROUTES.tenantExceptions}
           element={guard(PERMISSIONS.tenantMeterRead, <ExceptionsPage />)}
+        />
+        <Route
+          path={ROUTES.tenantCases}
+          element={guard(PERMISSIONS.tenantCaseRead, <CasesPage />)}
+        />
+        <Route
+          path={ROUTES.tenantCaseDetail}
+          element={guard(PERMISSIONS.tenantCaseRead, <CaseDetailPage />)}
         />
         <Route
           path={ROUTES.tenantAccess}

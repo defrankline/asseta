@@ -119,4 +119,12 @@ export const PERMISSIONS = {
   tenantCollectionRecord: 'tenant.collection.record',
   /** Colleagues' display names on records (recorded / decided / requested by). */
   tenantDirectoryRead: 'tenant.directory.read',
+  /** Investigation cases with linked evidence, notes and outcomes (read). */
+  tenantCaseRead: 'tenant.case.read',
+  /** Assign, annotate and reopen investigation cases. */
+  tenantCaseManage: 'tenant.case.manage',
+  /** Resolve investigation cases with a recorded outcome (never a case built on your own records). */
+  tenantCaseResolve: 'tenant.case.resolve',
+  /** Deterministic risk signals and their evidence (read). */
+  tenantSignalRead: 'tenant.signal.read',
 } as const;

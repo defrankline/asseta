@@ -18,6 +18,8 @@ export const ENTITY = {
   platformInvoice: 'platform_invoice',
   platformPayment: 'platform_payment',
   subscription: 'subscription',
+  /** Investigation case opened, escalated, assigned, noted, resolved or reopened. */
+  anomalyCase: 'case',
 } as const;
 
 export type EntityKind = (typeof ENTITY)[keyof typeof ENTITY];

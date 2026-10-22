@@ -54,6 +54,9 @@ export const ROUTES = {
   tenantJobs: '/tenant/jobs',
   tenantJobDetail: '/tenant/jobs/:jobId',
   tenantExceptions: '/tenant/exceptions',
+  /** Matches the backend `tenant.cases` menu path ("Investigations"). */
+  tenantCases: '/tenant/cases',
+  tenantCaseDetail: '/tenant/cases/:caseId',
   tenantAccess: '/tenant/access',
   tenantManagedService: '/tenant/managed-service',
   /** The tenant's own SMS wallet (balance + ledger). */
@@ -89,6 +92,10 @@ export function exceptionsPath(jobId?: string): string {
   return jobId === undefined
     ? ROUTES.tenantExceptions
     : `${ROUTES.tenantExceptions}?job_id=${encodeURIComponent(jobId)}`;
+}
+
+export function caseDetailPath(caseId: string): string {
+  return `${ROUTES.tenantCases}/${encodeURIComponent(caseId)}`;
 }
 
 /** Hire finance hub on a given tab (`invoices`, `payments`, `custody`, `handovers`, `reconciliation`). */
@@ -195,6 +202,7 @@ export const IMPLEMENTED_PATHS: ReadonlySet<string> = new Set([
   ROUTES.tenantProfitability,
   ROUTES.tenantJobs,
   ROUTES.tenantExceptions,
+  ROUTES.tenantCases,
   ROUTES.tenantAccess,
   ROUTES.tenantManagedService,
 ]);

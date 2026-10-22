@@ -70,6 +70,12 @@ export const JobDetailPage = lazy(() =>
 export const ExceptionsPage = lazy(() =>
   import('../pages/tenant/exceptions/ExceptionsPage').then((m) => ({ default: m.ExceptionsPage })),
 );
+export const CasesPage = lazy(() =>
+  import('../pages/tenant/cases/CasesPage').then((m) => ({ default: m.CasesPage })),
+);
+export const CaseDetailPage = lazy(() =>
+  import('../pages/tenant/cases/CaseDetailPage').then((m) => ({ default: m.CaseDetailPage })),
+);
 export const AccessPage = lazy(() =>
   import('../pages/tenant/access/AccessPage').then((m) => ({ default: m.AccessPage })),
 );

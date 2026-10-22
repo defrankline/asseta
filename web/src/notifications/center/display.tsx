@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 import type { NotificationDto, NotificationSeverity, NotificationTarget } from '../../api/types';
 import type { SelectOption } from '../../components/forms/FormikSelectField';
 import {
+  caseDetailPath,
   exceptionsPath,
   financeTabPath,
   hireInvoiceDetailPath,
@@ -61,6 +62,7 @@ const BY_ENTITY: Readonly<Record<string, (id: string | null) => string>> = {
   [ENTITY.platformInvoice]: (id) =>
     id === null ? ROUTES.platformInvoices : platformInvoiceDetailPath(id),
   [ENTITY.platformPayment]: () => ROUTES.platformPayments,
+  [ENTITY.anomalyCase]: (id) => (id === null ? ROUTES.tenantCases : caseDetailPath(id)),
   [ENTITY.job]: (id) => (id === null ? ROUTES.tenantJobs : jobDetailPath(id)),
   machine: (id) => (id === null ? ROUTES.tenantMachines : machineDetailPath(id)),
   tenant: (id) => (id === null ? ROUTES.platformTenants : tenantDetailPath(id)),

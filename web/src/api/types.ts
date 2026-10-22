@@ -351,3 +351,25 @@ export type SmsWalletDto = Schemas['SmsWalletDto'];
 export type SmsWalletEntryDto = Schemas['SmsWalletEntryDto'];
 export type SmsWalletEntryType = Schemas['SmsWalletEntryType'];
 export type SmsWalletEntryPage = Schemas['Page_SmsWalletEntryDto_'];
+
+// ---- Risk signals and investigation cases (ADR-007) ----
+export type RuleCode = Schemas['RuleCode'];
+export type SignalSeverity = Schemas['SignalSeverity'];
+export type SignalStatus = Schemas['SignalStatus'];
+export type SubjectType = Schemas['SubjectType'];
+export type CaseStatus = Schemas['CaseStatus'];
+export type CaseSourceType = Schemas['CaseSourceType'];
+export type CaseNoteKind = Schemas['CaseNoteKind'];
+export type CaseOutcomeKind = Schemas['CaseOutcomeKind'];
+export type RiskSignalDto = Schemas['RiskSignalDto'];
+export type RiskSignalPage = Schemas['Page_RiskSignalDto_'];
+export type AnomalyCaseDto = Schemas['AnomalyCaseDto'];
+export type AnomalyCasePage = Schemas['Page_AnomalyCaseDto_'];
+export type AnomalyCaseDetailDto = Schemas['AnomalyCaseDetailDto'];
+export type CaseSignalDto = Schemas['CaseSignalDto'];
+export type CaseNoteDto = Schemas['CaseNoteDto'];
+export type CaseOutcomeDto = Schemas['CaseOutcomeDto'];
+export type CaseAssignIn = Schemas['CaseAssignIn'];
+export type CaseNoteIn = Schemas['CaseNoteIn'];
+export type CaseResolveIn = Schemas['CaseResolveIn'];
+export type CaseReopenIn = Schemas['CaseReopenIn'];
