@@ -120,10 +120,10 @@
 
 ## Gate 7 — Owner apps and release hardening
 
-- [ ] Native Kotlin Owner app: fleet map, drilldown, KPIs, alerts, approvals, stale offline cache.
-- [ ] Native Swift Owner app: equivalent high-priority functionality and platform-native quality.
-- [ ] Admin console coverage of all R1 workflows, reports, reusable forms, accessibility and responsive design.
-- [ ] Notification integration with push/email/SMS adapter behavior and explicit provider config.
+- [x] Native Kotlin Owner app: fleet map, drilldown, KPIs, alerts, approvals, stale offline cache. — 4dd89cf: Compose app on shared core modules, MapLibre/OSM fleet, offline SQLCipher snapshot cache (7 d / 200 / 512 KB, stale banner, mutations disabled), FCM behind provider interface; 57 new JVM tests incl. contract-checked DTOs; full Android gate green; emulator reached Keycloak sign-in with the owner redirect. Pending: signed-in live walkthrough; FCM needs google-services.json (EXT).
+- [x] Native Swift Owner app: equivalent high-priority functionality and platform-native quality. — b0133de: SwiftUI app (MapKit, Dynamic Type, VoiceOver), AssetaOwnerKit logic + AssetaOwnerUI, encrypted cache with own Keychain key; swift test 186 (56 new); Owner + Supervisor build; Supervisor app tests pass. Pending: signed-in live walkthrough; APNs needs Apple entitlement (EXT).
+- [x] Admin console coverage of all R1 workflows, reports, reusable forms, accessibility and responsive design. — 7A af6df12 (overview, 8 CSV/PDF report families, audit log API) + 7B fcd210e (tenant Dashboard as landing, export menus, audit pages, a11y/responsive sweep: skip link, keyboard rows, 360 px header, contrast ≥ 4.5:1). Live: Dashboard verified in the browser with honest stale-data warning.
+- [x] Notification integration with push/email/SMS adapter behavior and explicit provider config. — af6df12: PUSH (console|FCM|APNs) + EMAIL (console|SMTP) providers, env-only config validated at startup, device registration, category × severity routing with mandatory channels, delivery log + retries, Mailpit dev inbox; web settings + delivery log (fcd210e). Real FCM/APNs/SMTP credentials are EXT.
 - [ ] Backup/restore drill, tenant penetration/isolation tests, telemetry and Kafka failure simulation.
 - [ ] Release demos + acceptance evidence for 12 contractual criteria in prompt.md §10.
 - [ ] Deployment, operation runbook, GPS commissioning guide, model governance and security docs.
