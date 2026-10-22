@@ -151,6 +151,16 @@ services:
     restart: unless-stopped
     depends_on: {migrate: {condition: service_completed_successfully}}
 
+  intelligence-worker:  # Gate 6 (ADR-007): deterministic risk signals + investigation cases (event-driven + sweep)
+    image: asseta/api:dev
+    command: ["asseta-intelligence-worker"]
+    environment: *api-env
+    healthcheck: {disable: true}
+    restart: unless-stopped
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      kafka: {condition: service_started}
+
   notification-worker:  # DEC-022: domain events -> rules -> inbox + WebSocket (Redis) + SMS (wallet-metered)
     image: asseta/api:dev
     command: ["asseta-notification-worker"]

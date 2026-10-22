@@ -449,6 +449,8 @@ ENTITY_CHANGES: dict[str, tuple[str, str, str]] = {
     "PlatformPaymentVerified": ("platform_payment", "payment_id", "verified"),
     "PlatformInvoiceLineFulfilled": ("platform_invoice", "invoice_id", "fulfilled"),
     "SubscriptionStatusChanged": ("subscription", "subscription_id", "updated"),
+    "AnomalyDetected": ("case", "entity_id", "updated"),
+    "CaseUpdated": ("case", "case_id", "updated"),
 }
 PLATFORM_ENTITY_EVENTS = frozenset(
     {

@@ -275,6 +275,21 @@ class CashCustodyService:
             opening, day = closing, day + timedelta(days=1)
         return CashReconciliationDto(staff_member_id=staff.id, currency=currency, timezone=tz, days=days)
 
+    def outstanding_since(self, staff_id: uuid.UUID, currency: str) -> tuple[Decimal, datetime | None]:
+        """Current outstanding custody (the reconciliation formula) and when it last rose above zero (None when
+        nothing is held). Used by the Gate 6 cash-handover risk signal."""
+        running, since = ZERO, None
+        movements = self._movements(staff_id, currency, self._now + timedelta(days=3650))
+        for at, kind, amount in sorted(movements, key=lambda m: m[0]):
+            if kind not in SIGN:
+                continue
+            before, running = running, running + SIGN[kind] * amount
+            if before <= 0 < running:
+                since = at
+            elif running <= 0:
+                since = None
+        return running, since
+
     def balances(self, staff_id: uuid.UUID | None) -> list[CashCustodyBalanceDto]:
         """Current custody per currency (for the supervisor's device and dashboards)."""
         staff = resolve_staff(self._s, self._ctx, staff_id, require_active=False)

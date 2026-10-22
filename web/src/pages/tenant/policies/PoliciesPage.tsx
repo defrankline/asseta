@@ -38,6 +38,7 @@ const POLICY_TYPES: readonly PolicyType[] = [
   'HIRE_BILLING',
   'DEVICE_SYNC',
   'EXPENSE_CAPTURE',
+  'FRAUD_CONTROLS',
 ];
 const SUBTITLES: Readonly<Record<PolicyType, string>> = {
   TRACKING: 'Tracking: tenant defaults with machine / site overrides',
@@ -47,6 +48,8 @@ const SUBTITLES: Readonly<Record<PolicyType, string>> = {
   DEVICE_SYNC: 'Device sync: bounded offline operation for field devices (tenant-wide only)',
   EXPENSE_CAPTURE:
     'Expense capture: receipts, GPS and approval limits for field expenses (tenant-wide only)',
+  FRAUD_CONTROLS:
+    'Risk signals: thresholds for deterministic checks that open investigation cases (machine overrides)',
 };
 
 /** Effective policy per type (tenant / machine / site) and its version history. */

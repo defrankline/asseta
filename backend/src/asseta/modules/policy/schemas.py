@@ -14,6 +14,7 @@ class PolicyType(StrEnum):
     HIRE_BILLING = "HIRE_BILLING"
     DEVICE_SYNC = "DEVICE_SYNC"
     EXPENSE_CAPTURE = "EXPENSE_CAPTURE"
+    FRAUD_CONTROLS = "FRAUD_CONTROLS"
 
 
 class PolicyScope(StrEnum):
@@ -127,12 +128,30 @@ class ExpenseCapturePolicy(BaseModel):
     auto_approve_limit: Decimal = Field(ge=0)  # amount <= limit => APPROVED automatically; 0 => all need approval
 
 
+class FraudControlsPolicy(BaseModel):
+    """Deterministic risk-signal thresholds (R1-H, ADR-007). Signals are evidence for human review, never verdicts.
+    A nullable threshold switches its rule off. Amounts are in the tenant's base currency (no implicit FX)."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    engine_activity_min_minutes: int = Field(ge=1, le=24 * 60)  # verified engine-on time without a running job
+    fuel_max_litres_per_meter_hour: Decimal | None = Field(default=None, gt=0, le=Decimal(1000))
+    expense_threshold_per_machine_per_week: Decimal | None = Field(default=None, gt=0)
+    cash_outstanding_max_hours: int = Field(ge=1, le=24 * 60)
+    cash_outstanding_max_amount: Decimal | None = Field(default=None, gt=0)
+    case_grouping_window_hours: int = Field(ge=1, le=24 * 90)  # new signals join an open case on the same subject
+    duplicate_receipt_lookback_days: int = Field(ge=1, le=3660)
+    authorization_tolerance_minutes: int = Field(ge=0, le=24 * 60)  # clock tolerance around job authorization
+    detection_lookback_hours: int = Field(ge=1, le=24 * 90)  # how far back each periodic sweep re-examines facts
+
+
 SCHEMAS: dict[PolicyType, type[BaseModel]] = {
     PolicyType.TRACKING: TrackingPolicy,
     PolicyType.METER_CAPTURE: MeterCapturePolicy,
     PolicyType.HIRE_BILLING: HireBillingPolicy,
     PolicyType.DEVICE_SYNC: DeviceSyncPolicy,
     PolicyType.EXPENSE_CAPTURE: ExpenseCapturePolicy,
+    PolicyType.FRAUD_CONTROLS: FraudControlsPolicy,
 }
 
 # Fields a lower scope may override (platform/tenant may override any field).
@@ -169,6 +188,12 @@ OVERRIDABLE: dict[PolicyType, dict[PolicyScope, frozenset[str]]] = {
     PolicyType.HIRE_BILLING: {PolicyScope.MACHINE: frozenset(), PolicyScope.SITE: frozenset()},
     PolicyType.DEVICE_SYNC: {PolicyScope.MACHINE: frozenset(), PolicyScope.SITE: frozenset()},
     PolicyType.EXPENSE_CAPTURE: {PolicyScope.MACHINE: frozenset(), PolicyScope.SITE: frozenset()},
+    PolicyType.FRAUD_CONTROLS: {
+        PolicyScope.MACHINE: frozenset(
+            {"engine_activity_min_minutes", "fuel_max_litres_per_meter_hour", "expense_threshold_per_machine_per_week"}
+        ),
+        PolicyScope.SITE: frozenset(),
+    },
 }
 
 SEED_DEFAULTS: dict[PolicyType, dict[str, object]] = {
@@ -216,5 +241,16 @@ SEED_DEFAULTS: dict[PolicyType, dict[str, object]] = {
         "gps_required": True,
         "gps_max_accuracy_m": 100.0,
         "auto_approve_limit": "0",
+    },
+    PolicyType.FRAUD_CONTROLS: {
+        "engine_activity_min_minutes": 30,
+        "fuel_max_litres_per_meter_hour": None,
+        "expense_threshold_per_machine_per_week": None,
+        "cash_outstanding_max_hours": 48,
+        "cash_outstanding_max_amount": None,
+        "case_grouping_window_hours": 72,
+        "duplicate_receipt_lookback_days": 90,
+        "authorization_tolerance_minutes": 5,
+        "detection_lookback_hours": 168,
     },
 }

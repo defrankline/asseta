@@ -38,6 +38,8 @@ TENANT_TEMPLATES = (
             "tenant.policy.read",
             "tenant.notification.read",
             "tenant.directory.read",
+            "tenant.case.",  # investigation cases (Gate 6)
+            "tenant.signal.read",
         ),
     ),
     RoleTemplate(
@@ -75,6 +77,8 @@ TENANT_TEMPLATES = (
             "tenant.job.read",
             "tenant.machine.read",
             "tenant.staff.read",
+            "tenant.case.read",  # read-only view of investigation cases and signals (Gate 6)
+            "tenant.signal.read",
         ),
     ),
     RoleTemplate(

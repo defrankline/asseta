@@ -87,6 +87,7 @@ const POLICY_TYPE_SET: Readonly<Record<PolicyType, true>> = {
   HIRE_BILLING: true,
   DEVICE_SYNC: true,
   EXPENSE_CAPTURE: true,
+  FRAUD_CONTROLS: true,
 };
 export const POLICY_TYPES = Object.keys(POLICY_TYPE_SET) as readonly PolicyType[];
 

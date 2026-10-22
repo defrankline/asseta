@@ -224,6 +224,13 @@ class ExpenseService:
             ExpenseAttachment(id=uuid.uuid4(), tenant_id=self._tid, expense_id=row.id, attachment_id=a)
             for a in receipts
         )
+        OutboxWriter(self._s).emit(  # Gate 6: event-driven receipt/authorization checks (intelligence worker)
+            topic=TOPIC,
+            event_type="ExpenseSubmitted",
+            key=str(row.machine_id or row.id),
+            payload={"expense_id": str(row.id), "machine_id": str(row.machine_id) if row.machine_id else None},
+            tenant_id=self._tid,
+        )
         if not auto:
             limit = self._money(policy.auto_approve_limit, currency) if in_base else "foreign currency"
             approval_id = uuid.uuid4()

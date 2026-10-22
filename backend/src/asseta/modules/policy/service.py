@@ -24,6 +24,7 @@ from asseta.modules.policy.schemas import (
     SCHEMAS,
     DeviceSyncPolicy,
     ExpenseCapturePolicy,
+    FraudControlsPolicy,
     HireBillingPolicy,
     MeterCapturePolicy,
     PolicyScope,
@@ -129,6 +130,14 @@ class PolicyService:
         self, tenant_id: uuid.UUID, at: datetime | None = None
     ) -> EffectivePolicy[ExpenseCapturePolicy]:
         return cast(EffectivePolicy[ExpenseCapturePolicy], self.resolve(PolicyType.EXPENSE_CAPTURE, tenant_id, at=at))
+
+    def fraud_controls(
+        self, tenant_id: uuid.UUID, machine_id: uuid.UUID | None = None, at: datetime | None = None
+    ) -> EffectivePolicy[FraudControlsPolicy]:
+        return cast(
+            EffectivePolicy[FraudControlsPolicy],
+            self.resolve(PolicyType.FRAUD_CONTROLS, tenant_id, machine_id=machine_id, at=at),
+        )
 
     def by_stamp(self, ptype: PolicyType, version_ids: list[uuid.UUID]) -> dict[str, Any]:
         """Re-materialize the policy snapshot a device enforced offline, from its version ids."""
