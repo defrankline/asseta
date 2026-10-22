@@ -9,6 +9,7 @@ import {
   Typography,
 } from '@mui/material';
 import { useCallback, useState } from 'react';
+import { Link as RouterLink } from 'react-router';
 import { Can } from '../../../access/Can';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import { platformInvoiceService } from '../../../api/services/platformInvoiceService';
@@ -17,6 +18,7 @@ import type { InvoiceDto } from '../../../api/types';
 import { StaticTable } from '../../../components/data/StaticTable';
 import { AsyncContent } from '../../../components/feedback/AsyncContent';
 import { useAsyncResource } from '../../../hooks/useAsyncResource';
+import { platformInvoiceDetailPath } from '../../../navigation/routes';
 import { useNotify } from '../../../notifications/useNotify';
 import { isZeroDecimal } from '../../../utils/money';
 import { PAYMENT_COLUMNS } from '../shared/paymentColumns';
@@ -128,6 +130,9 @@ export function InvoiceDetailDialog({ invoiceId, onClose, onChanged }: InvoiceDe
             Record payment
           </Button>
         </Can>
+        <Button component={RouterLink} to={platformInvoiceDetailPath(invoiceId)}>
+          Open details
+        </Button>
         <Button onClick={onClose}>Close</Button>
       </DialogActions>
       {action === 'payment' && withId !== null && (

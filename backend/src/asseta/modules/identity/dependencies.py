@@ -7,6 +7,7 @@ scope.
 
 import uuid
 from collections.abc import Callable
+from datetime import date
 from typing import Annotated
 
 from fastapi import Depends, Header, Request
@@ -55,12 +56,18 @@ def is_platform_staff(claims: TokenClaims) -> bool:
 def mandate_gate(
     session: Session, request: Request, claims: TokenClaims, user_id: uuid.UUID, tenant_id: uuid.UUID
 ) -> MandateGrant | None:
+    return mandate_gate_on(session, claims, user_id, tenant_id, get_today(request))
+
+
+def mandate_gate_on(
+    session: Session, claims: TokenClaims, user_id: uuid.UUID, tenant_id: uuid.UUID, today: date
+) -> MandateGrant | None:
     """None for an ordinary tenant member. For platform staff (or anyone who ever held a mandate assignment here)
     the in-force mandate grant, else refuse: Keycloak groups alone never carry platform staff into a tenant."""
     apply_scope(session, DbScope.TENANT, tenant_id, user_id)  # mandate rows are readable in the client's scope
     if not is_platform_staff(claims) and not has_assignment_history(session, tenant_id, user_id):
         return None
-    grant = active_grant(session, tenant_id, user_id, get_today(request))
+    grant = active_grant(session, tenant_id, user_id, today)
     if grant is None:
         if has_assignment_history(session, tenant_id, user_id):
             raise PermissionDenied("The managed-service mandate for this tenant is not in force", code="MANDATE_ENDED")

@@ -1,6 +1,12 @@
 import type { MenuDto, MeResponse, TenantAccess } from '../api/types';
 import { isGranted, type ConsoleMode } from '../session/permissions';
-import { ACCOUNT_NAV, PLATFORM_NAV, type NavItem } from './routes';
+import {
+  ACCOUNT_NAV,
+  NOTIFICATION_READ,
+  NOTIFICATIONS_NAV,
+  PLATFORM_NAV,
+  type NavItem,
+} from './routes';
 
 function sortMenus(menus: readonly MenuDto[]): NavItem[] {
   return [...menus]
@@ -33,5 +39,6 @@ export function buildNav(
     );
     items = dedupeByPath([...sortMenus(me?.platform_menus ?? []), ...builtIn]);
   }
-  return [...items, ...ACCOUNT_NAV];
+  const inbox = isGranted(permissions, [...NOTIFICATION_READ], 'any') ? [NOTIFICATIONS_NAV] : [];
+  return [...items, ...inbox, ...ACCOUNT_NAV];
 }

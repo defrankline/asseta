@@ -34,6 +34,8 @@ import { useCustomerLabels, useMyUserId, useStaffLabels } from '../../shared/use
 import { unallocatedOf } from './paymentForm';
 import { RecordPaymentDialog } from './RecordPaymentDialog';
 import { SOD_RECORDER_NOTE, usePaymentActions } from './usePaymentActions';
+import { ENTITY } from '../../../../realtime/entities';
+import { useLiveRefresh } from '../../../../realtime/hooks';
 
 type View = SettlementStatus | 'ALL';
 
@@ -139,6 +141,10 @@ export function PaymentsTab({ timeZone }: { timeZone: string }) {
   const [recording, setRecording] = useState(false);
   const [viewing, setViewing] = useState<CustomerPaymentDto | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const liveReload = useCallback(() => {
+    setReloadKey((k) => k + 1);
+  }, []);
+  useLiveRefresh([ENTITY.customerPayment], liveReload);
   const changed = (p: CustomerPaymentDto) => {
     setReloadKey((k) => k + 1);
     setViewing((v) => (v?.id === p.id ? p : v));

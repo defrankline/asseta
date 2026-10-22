@@ -8,6 +8,8 @@ export interface AuthClient {
   authenticated?: boolean | undefined;
   onTokenExpired?: (() => void) | undefined;
   onAuthRefreshError?: (() => void) | undefined;
+  /** keycloak-js calls this after every successful `updateToken` refresh. */
+  onAuthRefreshSuccess?: (() => void) | undefined;
   init(options: KeycloakInitOptions): Promise<boolean>;
   login(options?: { redirectUri?: string }): Promise<void>;
   logout(options?: { redirectUri?: string }): Promise<void>;

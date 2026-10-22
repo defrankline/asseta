@@ -18,6 +18,11 @@ export interface AuthContextValue {
    * Rejects when the refresh fails (interactive login is then started).
    */
   refreshToken: () => Promise<void>;
+  /**
+   * Registers a listener called after every successful token refresh (silent or forced), e.g. so the
+   * realtime connection re-authenticates. Returns the unsubscribe function.
+   */
+  subscribeTokenRefresh: (listener: () => void) => () => void;
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null);

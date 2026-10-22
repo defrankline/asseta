@@ -277,7 +277,7 @@ class JobService:
             topic=TOPIC,
             event_type=f"Job{target.value.title().replace('_', '')}",
             key=str(job.machine_id),
-            payload={"job_id": str(job.id), "status": target.value},
+            payload={"job_id": str(job.id), "job_number": job.job_number, "status": target.value},
             tenant_id=self._tid,
         )
         return JobDto.model_validate(job)

@@ -22,6 +22,8 @@ import { CreateInvoiceDialog } from './CreateInvoiceDialog';
 import { InvoiceStatusChips } from './InvoiceViews';
 import { invoiceTitle } from './invoiceData';
 import { useInvoiceActions } from './useInvoiceActions';
+import { ENTITY } from '../../../../realtime/entities';
+import { useLiveRefresh } from '../../../../realtime/hooks';
 
 /** Tenant customer hire invoices (separate from platform subscription invoices). */
 export function InvoicesTab({ timeZone }: { timeZone: string }) {
@@ -32,6 +34,10 @@ export function InvoicesTab({ timeZone }: { timeZone: string }) {
   const [customer, setCustomer] = useState<CustomerDto | null>(null);
   const [creating, setCreating] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const liveReload = useCallback(() => {
+    setReloadKey((k) => k + 1);
+  }, []);
+  useLiveRefresh([ENTITY.hireInvoice, ENTITY.customerPayment], liveReload);
   const reload = () => {
     setReloadKey((k) => k + 1);
   };

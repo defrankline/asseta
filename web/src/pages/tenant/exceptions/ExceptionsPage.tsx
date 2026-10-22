@@ -25,6 +25,8 @@ import {
   EXCEPTION_TYPE_OPTIONS,
 } from './exceptionDisplay';
 import { ExceptionDetailDialog } from './ExceptionDetailDialog';
+import { ENTITY } from '../../../realtime/entities';
+import { useLiveRefresh } from '../../../realtime/hooks';
 
 /** Meter/GPS exceptions awaiting or after human review; filtered by status, type and job. */
 export function ExceptionsPage() {
@@ -38,6 +40,10 @@ export function ExceptionsPage() {
   const [job, setJob] = useState<JobDto | null>(null);
   const [selected, setSelected] = useState<ExceptionDto | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const liveReload = useCallback(() => {
+    setReloadKey((k) => k + 1);
+  }, []);
+  useLiveRefresh([ENTITY.meterException, ENTITY.meterCapture], liveReload);
   const filters = useMemo(
     () => ({
       status: status || undefined,

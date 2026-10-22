@@ -38,6 +38,8 @@ import {
 } from './invoiceData';
 import { InvoiceLinesTable, InvoiceStatusChips, InvoiceTotals } from './InvoiceViews';
 import { useInvoiceActions } from './useInvoiceActions';
+import { ENTITY, entityKey } from '../../../../realtime/entities';
+import { useLiveRefresh } from '../../../../realtime/hooks';
 
 function AllocationsSection({ invoice, timeZone }: { invoice: HireInvoiceDto; timeZone: string }) {
   const res = useInvoiceAllocations(invoice);
@@ -160,6 +162,8 @@ export function HireInvoiceDetailPage() {
     [invoiceId],
   );
   const res = useAsyncResource(load);
+  // Issue / void / payments on this invoice are pushed by the server.
+  useLiveRefresh([entityKey(ENTITY.hireInvoice, invoiceId), ENTITY.customerPayment], res.reload);
   const inv = res.data;
   const { actionsFor, dialogs } = useInvoiceActions({ onChanged: res.reload, onDetails: true });
   const actions = inv === null ? [] : actionsFor(inv);

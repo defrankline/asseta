@@ -15,6 +15,7 @@ from asseta.modules.identity.models import (
     AppUser,
     Menu,
     Permission,
+    PlatformMembership,
     Role,
     RolePermission,
     RoleTemplateGrant,
@@ -134,6 +135,27 @@ class IdentityRepository:
         self._s.flush()
         return opened, closed
 
+    def reconcile_platform_memberships(self, role_id: uuid.UUID, members: list[GroupMember], now: datetime) -> None:
+        """Mirror a `/platform/<role>` group's members as effective-dated rows (open new, close removed)."""
+        user_ids = {self.upsert_member(m, now) for m in members}
+        current = {
+            r.user_id: r
+            for r in self._s.execute(
+                select(PlatformMembership).where(
+                    PlatformMembership.role_id == role_id, PlatformMembership.effective_to.is_(None)
+                )
+            ).scalars()
+        }
+        for uid in user_ids - current.keys():
+            self._s.add(
+                PlatformMembership(
+                    id=uuid.uuid4(), user_id=uid, role_id=role_id, effective_from=now, created_at=now, updated_at=now
+                )
+            )
+        for uid in current.keys() - user_ids:
+            current[uid].effective_to = now
+        self._s.flush()
+
     def tenant_ids(self) -> set[uuid.UUID]:
         return set(self._s.execute(select(Tenant.id)).scalars())
 
@@ -244,4 +266,10 @@ class IdentityRepository:
         """Drop mirror rows for groups deleted in Keycloak (only those never referenced by membership history)."""
         stale = select(Role.id).where(Role.keycloak_group_path.not_in(group_paths))
         self._s.execute(delete(RolePermission).where(RolePermission.role_id.in_(stale)))
-        self._s.execute(delete(Role).where(Role.id.in_(stale), ~Role.id.in_(select(TenantMembership.role_id))))
+        self._s.execute(
+            delete(Role).where(
+                Role.id.in_(stale),
+                ~Role.id.in_(select(TenantMembership.role_id)),
+                ~Role.id.in_(select(PlatformMembership.role_id)),
+            )
+        )

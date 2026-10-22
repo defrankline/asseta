@@ -14,6 +14,7 @@ from asseta.core.errors import ERROR_RESPONSES, NotFound
 from asseta.core.idempotency import IdempotencyGuard, request_hash
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.platform_billing import permissions as P
+from asseta.modules.platform_billing.allocation import AllocationService
 from asseta.modules.platform_billing.dto import (
     ChargePreviewDto,
     EndEnrollmentIn,
@@ -23,7 +24,6 @@ from asseta.modules.platform_billing.dto import (
     SubscriptionDto,
 )
 from asseta.modules.platform_billing.enrollment_service import EnrollmentService
-from asseta.modules.platform_billing.mappers import invoice_dto
 from asseta.modules.platform_billing.models_commercial import TenantSubscription
 from asseta.modules.platform_billing.models_ledger import PlatformInvoice
 from asseta.modules.platform_billing.repository import BillingRepository
@@ -50,10 +50,14 @@ def my_subscription(
 
 
 @router.get("/invoices", response_model=list[InvoiceDto], operation_id="listMyPlatformInvoices")
-def my_invoices(session: DbSession, ctx: Annotated[RequestContext, Depends(P.TENANT_BILLING_READ)]) -> list[InvoiceDto]:
-    repo = BillingRepository(session)
-    rows = session.execute(select(PlatformInvoice).order_by(PlatformInvoice.period_start.desc())).scalars()
-    return [invoice_dto(i, repo.invoice_lines(i.id)) for i in rows]
+def my_invoices(
+    session: DbSession, today: Today, ctx: Annotated[RequestContext, Depends(P.TENANT_BILLING_READ)]
+) -> list[InvoiceDto]:
+    alloc = AllocationService(session, ctx.audit_actor(), today)
+    rows = session.execute(
+        select(PlatformInvoice).order_by(PlatformInvoice.period_start.desc(), PlatformInvoice.issued_at.desc())
+    ).scalars()
+    return [alloc.invoice_view(i) for i in rows]
 
 
 @router.post("/enrollments/preview", response_model=ChargePreviewDto | None, operation_id="previewEnrollment")

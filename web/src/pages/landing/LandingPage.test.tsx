@@ -15,6 +15,7 @@ function renderLanding(login = vi.fn()) {
     logout: vi.fn(),
     getAccessToken: () => Promise.resolve(null),
     refreshToken: () => Promise.resolve(),
+    subscribeTokenRefresh: () => () => undefined,
   };
   render(
     <AuthContext.Provider value={auth}>

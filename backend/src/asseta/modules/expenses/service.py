@@ -14,6 +14,7 @@ from asseta.core.errors import BusinessRuleViolation, Conflict, NotFound
 from asseta.core.lifecycle import check_version, flush_versioned, mark_active, mark_inactive
 from asseta.core.money import quantize
 from asseta.core.outbox import OutboxWriter
+from asseta.core.signals import sod_violation
 from asseta.modules.expenses.dto import (
     ApprovalDecisionIn,
     ApprovalRequestDto,
@@ -218,9 +219,25 @@ class ExpenseService:
         )
         if not auto:
             limit = policy.auto_approve_limit if in_base else "foreign currency"
+            approval_id = uuid.uuid4()
+            reason = f"Amount {row.amount} {currency} exceeds the auto-approval limit ({limit})"
+            OutboxWriter(self._s).emit(
+                topic=TOPIC,
+                event_type="ApprovalRequested",
+                key=str(row.machine_id or row.id),
+                payload={
+                    "approval_id": str(approval_id),
+                    "subject_type": SUBJECT,
+                    "subject_id": str(row.id),
+                    "amount": str(row.amount),
+                    "currency": currency,
+                    "reason": reason,
+                },
+                tenant_id=self._tid,
+            )
             self._s.add(
                 ApprovalRequest(
-                    id=uuid.uuid4(),
+                    id=approval_id,
                     tenant_id=self._tid,
                     subject_type=SUBJECT,
                     subject_id=row.id,
@@ -259,6 +276,7 @@ class ExpenseService:
                 "paid_from": e.paid_from.value,
                 "auto": e.decided_by is None,
                 "policy_version": e.policy_version,
+                "submitted_by": str(e.submitted_by) if e.submitted_by else None,
             },
             tenant_id=self._tid,
         )
@@ -272,6 +290,7 @@ class ExpenseService:
         if req.status is not ApprovalStatus.PENDING:
             raise Conflict(f"Approval already {req.status.value}", code="APPROVAL_ALREADY_DECIDED")
         if req.requested_by == self._ctx.user_id:
+            sod_violation(self._tid, self._ctx.user_id, "approve", "expense", req.subject_id)
             raise BusinessRuleViolation("Submitters cannot approve their own expenses", code="SEGREGATION_OF_DUTIES")
         expense = self._s.execute(select(Expense).where(Expense.id == req.subject_id).with_for_update()).scalar_one()
         req.status = ApprovalStatus.APPROVED if body.approve else ApprovalStatus.REJECTED
@@ -292,6 +311,19 @@ class ExpenseService:
         )
         if body.approve:
             self._approved_event(expense)
+        else:
+            OutboxWriter(self._s).emit(
+                topic=TOPIC,
+                event_type="ExpenseRejected",
+                key=str(expense.machine_id or expense.id),
+                payload={
+                    "expense_id": str(expense.id),
+                    "amount": str(expense.amount),
+                    "currency": expense.currency,
+                    "submitted_by": str(expense.submitted_by) if expense.submitted_by else None,
+                },
+                tenant_id=self._tid,
+            )
         return ApprovalRequestDto.model_validate(req)
 
     def record_fuel(self, body: FuelEventIn, source: str = "API") -> FuelEventDto:

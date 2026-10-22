@@ -83,6 +83,8 @@ class AuthzSyncService:
                 permission_codes=set(g.permission_codes),
                 synced_at=now,
             )
+            if tenant_id is None and only_tenant is None:
+                repo.reconcile_platform_memberships(role_id, self._idp.list_group_members(g.group_id), now)
             if tenant_id is not None and (only_tenant is None or tenant_id == only_tenant):
                 if tenant_id not in known_tenants:  # orphan group (e.g. onboarding rolled back after Keycloak)
                     orphans.add(str(tenant_id))

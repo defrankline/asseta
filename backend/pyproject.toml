@@ -31,6 +31,8 @@ asseta-outbox-relay = "asseta.workers.outbox_relay:run"
 asseta-billing-scheduler = "asseta.workers.billing_scheduler:run"
 asseta-timeline-worker = "asseta.workers.timeline_worker:run"
 asseta-connectivity-worker = "asseta.workers.connectivity_worker:run"
+asseta-notification-worker = "asseta.workers.notification_worker:run"
+asseta-notification-scheduler = "asseta.workers.notification_scheduler:run"
 asseta-gps-simulator = "asseta.tools.gps_simulator:main"
 asseta-bootstrap = "asseta.tools.bootstrap:run"
 

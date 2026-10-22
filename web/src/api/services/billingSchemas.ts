@@ -10,13 +10,16 @@ import type {
   EnrollmentEndReason,
   EnrollmentResultDto,
   EntitlementDto,
+  FulfilmentStatus,
   GenerateInvoicesDto,
+  InvoiceKind,
   InvoiceDto,
   InvoiceLineDto,
   InvoiceLineType,
   InvoiceStatus,
   OnboardResultDto,
   Page,
+  PaymentAllocationDto,
   PaymentDto,
   PaymentMethod,
   PaymentStatus,
@@ -41,7 +44,18 @@ export const SUBSCRIPTION_STATUSES: readonly SubscriptionStatus[] = [
   'CANCELLED',
   'EXPIRED',
 ];
-export const INVOICE_STATUSES: readonly InvoiceStatus[] = ['ISSUED', 'PARTIALLY_PAID', 'PAID'];
+export const INVOICE_STATUSES: readonly InvoiceStatus[] = [
+  'ISSUED',
+  'PARTIALLY_PAID',
+  'PAID',
+  'VOIDED',
+];
+export const INVOICE_KINDS: readonly InvoiceKind[] = ['SUBSCRIPTION', 'AD_HOC'];
+export const FULFILMENT_STATUSES: readonly FulfilmentStatus[] = [
+  'FULFILLED',
+  'REVERSED',
+  'REVERSAL_FLAGGED',
+];
 export const PAYMENT_METHODS: readonly PaymentMethod[] = ['CASH', 'BANK_TRANSFER', 'MOBILE_MONEY'];
 export const PAYMENT_STATUSES: readonly PaymentStatus[] = ['RECORDED', 'VERIFIED', 'REJECTED'];
 export const ENROLLMENT_END_REASONS: readonly EnrollmentEndReason[] = [
@@ -57,6 +71,9 @@ const LINE_TYPES: readonly InvoiceLineType[] = [
   'PRORATION_CREDIT',
   'DISCOUNT',
   'TAX',
+  'SUBSCRIPTION_FEE',
+  'SMS_BUNDLE',
+  'SERVICE',
 ];
 const PENDING_STATUSES: readonly PendingChargeStatus[] = ['PENDING', 'INVOICED', 'WAIVED'];
 const TENANT_STATUSES: readonly TenantStatus[] = ['ONBOARDING', 'ACTIVE', 'CLOSED'];
@@ -200,6 +217,12 @@ export const invoiceLineSchema: Schema<InvoiceLineDto> = object({
   amount: text(),
   service_from: nullableText(),
   service_to: nullableText(),
+  id: string().nullable().optional(),
+  product_id: string().nullable().optional(),
+  sms_credits: number().integer().nullable().optional(),
+  payable: string().nullable().optional(),
+  paid: string().nullable().optional(),
+  fulfilment_status: mixed<FulfilmentStatus>().oneOf(FULFILMENT_STATUSES).nullable().optional(),
 });
 
 export const invoiceSchema: Schema<InvoiceDto> = object({
@@ -222,6 +245,10 @@ export const invoiceSchema: Schema<InvoiceDto> = object({
   credits_applied: text(),
   balance: text(),
   lines: array(invoiceLineSchema).required(),
+  kind: oneOf(INVOICE_KINDS),
+  notes: string().nullable().optional(),
+  voided_at: string().nullable().optional(),
+  void_reason: string().nullable().optional(),
 });
 
 export const generateInvoicesSchema: Schema<GenerateInvoicesDto> = object({
@@ -229,9 +256,21 @@ export const generateInvoicesSchema: Schema<GenerateInvoicesDto> = object({
   existing_periods: array(string().required()).required(),
 });
 
-export const paymentSchema: Schema<PaymentDto> = object({
+export const paymentAllocationSchema: Schema<PaymentAllocationDto> = object({
   id: string().required(),
   invoice_id: string().required(),
+  line_id: nullableText(),
+  amount: text(),
+  created_at: string().required(),
+  released_at: nullableText(),
+  release_reason: nullableText(),
+});
+
+export const paymentSchema: Schema<PaymentDto> = object({
+  id: string().required(),
+  invoice_id: nullableText(),
+  allocations: array(paymentAllocationSchema).required(),
+  unallocated: string().nullable().optional(),
   tenant_id: string().required(),
   amount: text(),
   currency: text(),

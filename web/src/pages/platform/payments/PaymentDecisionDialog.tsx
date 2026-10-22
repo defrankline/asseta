@@ -41,8 +41,10 @@ export function PaymentDecisionDialog({
       <Alert severity={verified ? 'info' : 'warning'}>
         {formatMoney(payment.amount, payment.currency)} · ref {payment.reference}.{' '}
         {verified
-          ? 'Verifying applies the payment to the invoice balance.'
-          : 'A rejected payment never affects the invoice balance.'}
+          ? payment.invoice_id === null
+            ? "Verifying applies the money to the tenant's oldest open invoices; any surplus stays tenant credit."
+            : 'Verifying applies the payment to its invoice; fully paid lines are fulfilled.'
+          : 'A rejected payment never affects any invoice balance.'}
       </Alert>
       <FormikTextField name="note" label="Note" required multiline minRows={2} />
     </FormDialog>

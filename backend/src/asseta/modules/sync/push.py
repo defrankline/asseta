@@ -18,6 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from asseta.core.errors import AppError, BusinessRuleViolation, DependencyUnavailable, NotFound
+from asseta.core.outbox import OutboxWriter
 from asseta.modules.expenses.dto import ExpenseIn, FuelEventIn
 from asseta.modules.expenses.service import ExpenseService
 from asseta.modules.finance.cash_service import CashCustodyService
@@ -98,10 +99,31 @@ class PushService:
         offset = (self._now - body.device_now).total_seconds()
         results = [self._one(device, op) for op in body.operations]
         sync.touch(device, offset)
+        skewed = abs(offset) > policy.clock_skew_alert_seconds
+        quarantined = sum(1 for r in results if r.status == "QUARANTINED")
+        if skewed or quarantined:
+            detail = (
+                f"Device {device.device_id} clock is {round(offset)} s off server time (possible tampering)."
+                if skewed
+                else f"Device {device.device_id}: {quarantined} offline operation(s) quarantined."
+            )
+            OutboxWriter(self._s).emit(
+                topic="asseta.sync",
+                event_type="SyncAnomalyDetected",
+                key=str(device.id),
+                payload={
+                    "device_session_id": str(device.id),
+                    "kind": "CLOCK_SKEW" if skewed else "QUARANTINE",
+                    "clock_offset_s": round(offset, 1),
+                    "quarantined": quarantined,
+                    "detail": detail,
+                },
+                tenant_id=self._tid,
+            )
         return PushResultDto(
             server_time=self._now,
             clock_offset_s=round(offset, 1),
-            clock_skew_alert=abs(offset) > policy.clock_skew_alert_seconds,
+            clock_skew_alert=skewed,
             results=results,
         )
 

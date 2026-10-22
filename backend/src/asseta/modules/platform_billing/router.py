@@ -15,6 +15,7 @@ from asseta.core.idempotency import IdempotencyGuard, request_hash
 from asseta.core.paging import Page, PageParams, page_params, paginate
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.platform_billing import permissions as P
+from asseta.modules.platform_billing.allocation import AllocationService
 from asseta.modules.platform_billing.dto import (
     ChargePreviewDto,
     CreditAdjustmentIn,
@@ -36,7 +37,7 @@ from asseta.modules.platform_billing.dto import (
     TransitionIn,
 )
 from asseta.modules.platform_billing.enrollment_service import EnrollmentService
-from asseta.modules.platform_billing.enums import InvoiceStatus
+from asseta.modules.platform_billing.enums import InvoiceKind, InvoiceStatus
 from asseta.modules.platform_billing.invoice_service import InvoiceService
 from asseta.modules.platform_billing.mappers import invoice_dto, rate_dto
 from asseta.modules.platform_billing.models_ledger import PlatformInvoice, PlatformPayment
@@ -215,10 +216,13 @@ def list_invoices(
     paging: Annotated[PageParams, Depends(page_params)],
     tenant_id: uuid.UUID | None = None,
     status: InvoiceStatus | None = None,
+    kind: InvoiceKind | None = None,
 ) -> Page[InvoiceDto]:
     stmt = select(PlatformInvoice).order_by(PlatformInvoice.issued_at.desc())
     if tenant_id:
         stmt = stmt.where(PlatformInvoice.tenant_id == tenant_id)
+    if kind:
+        stmt = stmt.where(PlatformInvoice.kind == kind)
     if status:
         stmt = stmt.where(PlatformInvoice.status == status)
     rows, total = paginate(session, stmt, paging)
@@ -227,39 +231,43 @@ def list_invoices(
 
 @router.get("/invoices/{invoice_id}", response_model=InvoiceDto, operation_id="getPlatformInvoice")
 def get_invoice(
-    invoice_id: uuid.UUID, session: DbSession, _: Annotated[RequestContext, Depends(P.INVOICE_READ)]
+    invoice_id: uuid.UUID, session: DbSession, today: Today, ctx: Annotated[RequestContext, Depends(P.INVOICE_READ)]
 ) -> InvoiceDto:
-    repo = BillingRepository(session)
-    return invoice_dto(repo.invoice(invoice_id), repo.invoice_lines(invoice_id))
+    alloc = AllocationService(session, ctx.audit_actor(), today)
+    return alloc.invoice_view(BillingRepository(session).invoice(invoice_id))
 
 
 @router.get("/payments", response_model=Page[PaymentDto], operation_id="listPlatformPayments")
 def list_payments(
     session: DbSession,
-    _: Annotated[RequestContext, Depends(P.PAYMENT_READ)],
+    today: Today,
+    ctx: Annotated[RequestContext, Depends(P.PAYMENT_READ)],
     paging: Annotated[PageParams, Depends(page_params)],
     invoice_id: uuid.UUID | None = None,
+    tenant_id: uuid.UUID | None = None,
 ) -> Page[PaymentDto]:
     stmt = select(PlatformPayment).order_by(PlatformPayment.recorded_at.desc())
     if invoice_id:
         stmt = stmt.where(PlatformPayment.invoice_id == invoice_id)
+    if tenant_id:
+        stmt = stmt.where(PlatformPayment.tenant_id == tenant_id)
     rows, total = paginate(session, stmt, paging)
-    return Page(
-        items=[PaymentDto.model_validate(p) for p in rows], total=total, page=paging.page, page_size=paging.page_size
-    )
+    alloc = AllocationService(session, ctx.audit_actor(), today)
+    return Page(items=[alloc.payment_dto(p) for p in rows], total=total, page=paging.page, page_size=paging.page_size)
 
 
 @router.post("/payments", response_model=PaymentDto, status_code=201, operation_id="recordPlatformPayment")
 def record_payment(
     body: RecordPaymentIn,
     session: DbSession,
+    today: Today,
     ctx: Annotated[RequestContext, Depends(P.PAYMENT_MANAGE)],
     idempotency_key: IdemKey = None,
 ) -> PaymentDto:
     guard = IdempotencyGuard(session, "platform", "recordPlatformPayment", idempotency_key, request_hash(body))
     if (replay := guard.begin()) is not None:
         return PaymentDto.model_validate(replay)
-    dto = PaymentService(session, ctx.audit_actor()).record(body)
+    dto = PaymentService(session, ctx.audit_actor(), today).record(body)
     guard.complete(dto, 201)
     return dto
 
@@ -272,7 +280,7 @@ def decide_payment(
     today: Today,
     ctx: Annotated[RequestContext, Depends(P.PAYMENT_MANAGE)],
 ) -> PaymentDto:
-    dto = PaymentService(session, ctx.audit_actor()).decide(payment_id, body)
+    dto = PaymentService(session, ctx.audit_actor(), today).decide(payment_id, body)
     sub = BillingRepository(session).current_subscription_for_tenant(dto.tenant_id)
     if sub is not None:  # payment can lift past-due/automatic suspension deterministically
         SubscriptionService(session, ctx.audit_actor()).evaluate_entitlement(sub, today)
@@ -283,12 +291,13 @@ def decide_payment(
 def apply_credit(
     body: CreditAdjustmentIn,
     session: DbSession,
+    today: Today,
     ctx: Annotated[RequestContext, Depends(P.CREDIT_MANAGE)],
     idempotency_key: IdemKey = None,
 ) -> InvoiceDto:
     guard = IdempotencyGuard(session, "platform", "applyCredit", idempotency_key, request_hash(body))
     if (replay := guard.begin()) is not None:
         return InvoiceDto.model_validate(replay)
-    dto = PaymentService(session, ctx.audit_actor()).credit(body)
+    dto = PaymentService(session, ctx.audit_actor(), today).credit(body)
     guard.complete(dto, 201)
     return dto

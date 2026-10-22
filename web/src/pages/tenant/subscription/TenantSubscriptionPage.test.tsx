@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { tenantBillingService } from '../../../api/services/tenantBillingService';
@@ -11,6 +11,15 @@ const mocks = vi.hoisted(() => ({
   invoices: vi.fn<typeof tenantBillingService.invoices>(),
 }));
 vi.mock('../../../api/services/tenantBillingService', () => ({ tenantBillingService: mocks }));
+vi.mock('../../../api/services/smsWalletService', async () => {
+  const f = await import('../../../test/fakePlatformInvoicingService');
+  return {
+    smsWalletService: {
+      get: () => Promise.resolve(f.WALLET),
+      entries: () => Promise.resolve({ items: f.LEDGER, total: 2, page: 1, page_size: 25 }),
+    },
+  };
+});
 
 describe('TenantSubscriptionPage', () => {
   it('shows the subscription read-only and opens an invoice', async () => {
@@ -40,5 +49,11 @@ describe('TenantSubscriptionPage', () => {
     await user.click(screen.getByRole('button', { name: 'View' }));
     expect(await screen.findByText('Invoice INV-2026-0001')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Record payment|Apply credit/ })).toBeNull();
+    // Tenant billing area: the SMS wallet funded by paid SMS bundle lines (behind the dialog).
+    const wallet = screen.getByRole('region', { name: 'SMS wallet', hidden: true });
+    expect(await within(wallet).findByText('+5,000')).toBeInTheDocument();
+    expect(
+      within(wallet).getByRole('group', { name: 'Available SMS credits', hidden: true }),
+    ).toHaveTextContent('420');
   });
 });

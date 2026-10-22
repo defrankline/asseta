@@ -14,3 +14,62 @@
 * Dates are ISO `YYYY-MM-DD`; instants are UTC ISO-8601.
 * Route groups: `/health/*` (unauthenticated probes), `/me`, `/platform/**` (platform scope), `/tenant/**`
   (tenant scope).
+
+## Notifications (DEC-022, ADR-005)
+
+* REST, mirrored per context: `/api/v1/tenant/notifications/**` (with `X-Tenant-ID`) and
+  `/api/v1/platform/notifications/**`. `GET ""` (inbox: `unread_only`, `severity`, `q`, paging), `GET /{id}`,
+  `GET /unread-count`, `POST /read {"ids": [...]}`, `POST /read-all`, `GET|PUT /preferences`
+  (`{"changes": [{"type", "in_app", "sms"}], "tenant_default": false}`; mandatory channels → `422 MANDATORY_CHANNEL`;
+  tenant defaults need `tenant.notification.manage`), `GET|PUT /profile` (`{"msisdn"}` normalised, invalid →
+  `422 INVALID_MSISDN`), `GET /deliveries` (SMS log, `*.notification.manage`), platform `POST /test-send`.
+* A notification: `{"id", "type", "category", "severity" (INFO|WARNING|CRITICAL), "priority" (NORMAL|HIGH),
+  "title", "body", "created_at", "read_at", "target": {"entity", "id", "path"} | null, "tenant_id", "data"}`.
+  `target.path` is the console route to act on.
+
+### WebSocket `/api/v1/ws` (sub-protocol `asseta.v1`)
+
+The token is **never** put in the URL. Either send it in the first message, or offer
+`Sec-WebSocket-Protocol: asseta.v1, bearer.<access token>` (the server selects `asseta.v1`). JSON text frames.
+
+Client → server
+
+| message | meaning |
+|---|---|
+| `{"type":"auth","token":"<jwt>","tenant_id":"<uuid>"\|null}` | first message (≤10 s); `tenant_id` null = platform console. Re-sent on the open socket after a token refresh (same user; context kept unless `tenant_id` is given) |
+| `{"type":"subscribe","scope":{"kind":"tenant","tenantId":"<uuid>"}\|{"kind":"platform"}}` | switch context (re-authorized); may also be the first message when the token came in the sub-protocol |
+| `{"type":"ping"}` / `{"type":"pong"}` | heartbeat (any message counts as activity) |
+
+Server → client (`{"type", "payload"}`)
+
+| type | payload |
+|---|---|
+| `auth_ok` | `{"user_id","tenant_id","scope","expires_at","unread_count","heartbeat_seconds"}` |
+| `auth_error` | `{"code","message"}`, then close: 4401 (`NOT_AUTHENTICATED`, `AUTH_REQUIRED`, `TOKEN_EXPIRED`, `SUBJECT_CHANGED`) or 4403 (`TENANT_ACCESS_DENIED`, `MANDATE_REQUIRED`, `MANDATE_ENDED`, `TENANT_ACCESS_BLOCKED`, `PLATFORM_REQUIRED`, `PERMISSION_DENIED`) |
+| `notification` | a notification (above) for this user in this context |
+| `unread_count` | `{"count"}` (after new notifications or reads on another tab/device) |
+| `entity.changed` | `{"entity","id","action"}` — e.g. `alert`, `approval`, `customer_payment`, `cash_handover`, `job`, `fleet.position`, `platform_invoice`, `platform_payment`; open screens reload |
+| `ping` / `pong` | server heartbeat every `heartbeat_seconds` (25 s); reply `pong` |
+| `reauth_required` | `{"expires_at"}` ~60 s before the token expires: send a fresh `auth` |
+
+Rules: same membership, mandate (DEC-018) and access-state checks as REST, re-checked every 60 s (an ended mandate
+closes the socket with 4403); idle > 75 s closes with 4408; expiry closes with 4401. Messages fan out through Redis
+pub/sub (`asseta:rt:user:<user>:<tenant|platform>`, `asseta:rt:entity:<tenant|platform>`), so any API instance can
+deliver; delivery is best effort and the inbox is the durable record (re-read it on reconnect).
+
+## Platform commerce (DEC-022, ADR-006)
+
+* Catalog `/api/v1/platform/products` (list `q`/`include_inactive`/`product_type`, get, create, `PUT` with `version`,
+  `/deactivate`, `/reactivate`). Types `SUBSCRIPTION_FEE` (priced by the negotiated rate), `SMS_BUNDLE`
+  (`sms_credits` per unit), `SERVICE`; `prices` per currency.
+* Ad-hoc invoices: `POST /api/v1/platform/invoices/preview` and `POST /api/v1/platform/invoices` (Idempotency-Key)
+  `{"tenant_id","currency?","due_date?","notes?","lines":[{"product_id","quantity","unit_price?","discount_percent",
+  "description?","period_start?"}]}`; `POST /api/v1/platform/invoices/{id}/void {"reason"}`. `InvoiceDto` gained
+  `kind` (SUBSCRIPTION|AD_HOC), `notes`, `voided_at`, `void_reason`; lines gained `id`, `product_id`, `sms_credits`,
+  `payable`, `paid`, `fulfilment_status`.
+* Payments: `RecordPaymentIn.invoice_id` is now optional (give `tenant_id` instead → oldest open invoices first) and
+  accepts `allocations: [{"line_id","amount"}]`; `PaymentDecisionIn.allocations` overrides at verification;
+  `POST /api/v1/platform/payments/{id}/allocations` applies unallocated verified money (e.g. released by a void).
+  `PaymentDto.invoice_id` is nullable; new `allocations`, `unallocated`.
+* SMS wallet: tenant `GET /api/v1/tenant/billing/sms-wallet` and `/sms-wallet/entries`; platform
+  `GET /api/v1/platform/tenants/{id}/sms-wallet` (+ `/entries`).

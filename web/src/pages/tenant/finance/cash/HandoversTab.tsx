@@ -21,6 +21,8 @@ import {
 } from '../../shared/financeDisplay';
 import { StaffFilter } from '../../shared/financePickers';
 import { useMyUserId, useStaffLabels } from '../../shared/useFinanceLabels';
+import { ENTITY } from '../../../../realtime/entities';
+import { useLiveRefresh } from '../../../../realtime/hooks';
 
 type View = SettlementStatus | 'ALL';
 
@@ -34,6 +36,10 @@ export function HandoversTab({ timeZone }: { timeZone: string }) {
   const [staff, setStaff] = useState<StaffDto | null>(null);
   const [deciding, setDeciding] = useState<CashHandoverDto | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const liveReload = useCallback(() => {
+    setReloadKey((k) => k + 1);
+  }, []);
+  useLiveRefresh([ENTITY.cashHandover], liveReload);
   const fetchPage = useCallback<FetchPage<CashHandoverDto>>(
     (query, signal) => cashService.listHandovers(query, signal),
     [],

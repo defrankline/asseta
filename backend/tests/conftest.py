@@ -9,6 +9,7 @@ os.environ.setdefault(
     "ASSETA_MIGRATION_DATABASE_URL", "postgresql+psycopg://asseta_owner:asseta_owner@localhost:5432/asseta_test"
 )
 os.environ["ASSETA_KEYCLOAK_URL"] = "http://keycloak.test"
+os.environ["ASSETA_SMS_PROVIDER"] = "console"  # tests never send real SMS (NextSMS is exercised via a fake transport)
 
 from collections.abc import Iterator
 from datetime import UTC, date, datetime, time

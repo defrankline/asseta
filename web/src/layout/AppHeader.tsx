@@ -4,6 +4,8 @@ import Logout from '@mui/icons-material/Logout';
 import MenuIcon from '@mui/icons-material/Menu';
 import { AppBar, Box, IconButton, Toolbar, Tooltip, Typography } from '@mui/material';
 import { useAuth } from '../auth/useAuth';
+import { NotificationBell } from '../notifications/center/NotificationBell';
+import { ConnectionIndicator } from '../realtime/ConnectionIndicator';
 import { useSession } from '../session/useSession';
 import { useColorMode } from '../theme/ColorModeContext';
 import { TenantSwitcher } from './TenantSwitcher';
@@ -33,6 +35,8 @@ export function AppHeader({ onToggleNav }: AppHeaderProps) {
         <Logo height={30} />
         <Box className="flex-1" />
         <TenantSwitcher />
+        <ConnectionIndicator />
+        <NotificationBell />
         {me !== null && (
           <Typography variant="body2" className="hidden sm:block">
             {me.display_name}

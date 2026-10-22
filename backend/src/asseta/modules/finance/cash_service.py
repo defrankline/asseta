@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from asseta.core.audit import AuditService
 from asseta.core.errors import BusinessRuleViolation, Conflict, NotFound
 from asseta.core.outbox import OutboxWriter
+from asseta.core.signals import sod_violation
 from asseta.modules.expenses.models import Expense, ExpensePaidFrom, ExpenseStatus
 from asseta.modules.finance.common import (
     ZERO,
@@ -139,6 +140,18 @@ class CashCustodyService:
             tenant_id=self._tid,
             after={"staff_member_id": str(staff.id), "amount": str(row.amount), "status": "CLAIMED"},
         )
+        OutboxWriter(self._s).emit(
+            topic=TOPIC,
+            event_type="CashHandoverRecorded",
+            key=str(staff.id),
+            payload={
+                "handover_id": str(row.id),
+                "staff_member_id": str(staff.id),
+                "amount": str(row.amount),
+                "currency": row.currency,
+            },
+            tenant_id=self._tid,
+        )
         return CashHandoverDto.model_validate(row)
 
     def decide_handover(self, handover_id: uuid.UUID, body: SettlementDecisionIn) -> CashHandoverDto:
@@ -150,6 +163,7 @@ class CashCustodyService:
         if row.status is not SettlementStatus.CLAIMED:
             raise Conflict(f"Handover already {row.status.value}", code="HANDOVER_ALREADY_DECIDED")
         if row.recorded_by == self._ctx.user_id:
+            sod_violation(self._tid, self._ctx.user_id, "verify", "cash_handover", row.id)
             raise BusinessRuleViolation("The recorder of a handover cannot verify it", code="SEGREGATION_OF_DUTIES")
         row.status = SettlementStatus.VERIFIED if body.verified else SettlementStatus.REJECTED
         row.verified_by, row.verified_at, row.decision_note = self._ctx.user_id, self._now, body.note

@@ -24,6 +24,8 @@ import { useExpenseCategoryLabels } from '../shared/useFinanceLabels';
 import { useMachineLabels } from '../shared/useMachineLabels';
 import { ExpenseDetailsDrawer } from './ExpenseDetailsDrawer';
 import { RecordExpenseDialog } from './RecordExpenseDialog';
+import { ENTITY } from '../../../realtime/entities';
+import { useLiveRefresh } from '../../../realtime/hooks';
 
 /** Field expenses: list with filters, details (receipts, GPS, policy, approval), console capture. */
 export function ExpensesTab({ timeZone }: { timeZone: string }) {
@@ -36,6 +38,10 @@ export function ExpensesTab({ timeZone }: { timeZone: string }) {
   const [viewing, setViewing] = useState<ExpenseDto | null>(null);
   const [recording, setRecording] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const liveReload = useCallback(() => {
+    setReloadKey((k) => k + 1);
+  }, []);
+  useLiveRefresh([ENTITY.expense, ENTITY.approval], liveReload);
   const fetchPage = useCallback<FetchPage<ExpenseDto>>(
     (query, signal) => expenseService.list(query, signal),
     [],

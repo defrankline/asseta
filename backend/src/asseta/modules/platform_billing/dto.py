@@ -5,12 +5,14 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, PlainSerializer, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, PlainSerializer, StringConstraints, model_validator
 
 from asseta.core.money import RoundingMode
 from asseta.modules.platform_billing.enums import (
     Cadence,
     EnrollmentEndReason,
+    FulfilmentStatus,
+    InvoiceKind,
     InvoiceLineType,
     InvoiceStatus,
     MidCycleAddPolicy,
@@ -152,6 +154,7 @@ class OverridePendingChargeIn(BaseModel):
 
 
 class InvoiceLineDto(Dto):
+    id: uuid.UUID | None = None
     line_no: int
     line_type: InvoiceLineType
     machine_id: uuid.UUID | None
@@ -161,6 +164,11 @@ class InvoiceLineDto(Dto):
     amount: Money
     service_from: date | None
     service_to: date | None
+    product_id: uuid.UUID | None = None
+    sms_credits: int | None = None
+    payable: Money | None = Field(default=None, description="Share of the invoice total this line settles")
+    paid: Money | None = Field(default=None, description="Allocated from verified payments and credits")
+    fulfilment_status: FulfilmentStatus | None = None
 
 
 class InvoiceDto(Dto):
@@ -183,6 +191,10 @@ class InvoiceDto(Dto):
     due_date: date
     issued_at: datetime | None
     lines: list[InvoiceLineDto]
+    kind: InvoiceKind = InvoiceKind.SUBSCRIPTION
+    notes: str | None = None
+    voided_at: datetime | None = None
+    void_reason: str | None = None
 
 
 class GenerateInvoicesIn(BaseModel):
@@ -194,24 +206,59 @@ class GenerateInvoicesDto(BaseModel):
     existing_periods: list[date]
 
 
+class LineAllocationIn(BaseModel):
+    line_id: uuid.UUID
+    amount: Decimal = Field(gt=0, max_digits=18, decimal_places=4)
+
+
 class RecordPaymentIn(BaseModel):
-    invoice_id: uuid.UUID
+    invoice_id: uuid.UUID | None = Field(
+        default=None, description="Invoice paid; omit (with tenant_id) to apply to the oldest open invoices"
+    )
+    tenant_id: uuid.UUID | None = Field(default=None, description="Required when invoice_id is omitted")
+    allocations: list[LineAllocationIn] | None = Field(
+        default=None, description="Explicit per-line allocation applied on verification (remainder: default order)"
+    )
     amount: Decimal = Field(gt=0, max_digits=18, decimal_places=4)
     currency: CurrencyCode
     method: PaymentMethod
     reference: Annotated[str, StringConstraints(min_length=2, max_length=120, strip_whitespace=True)]
     received_on: date
 
+    @model_validator(mode="after")
+    def _target(self) -> "RecordPaymentIn":
+        if self.invoice_id is None and self.tenant_id is None:
+            raise ValueError("invoice_id or tenant_id is required")
+        lines = [a.line_id for a in self.allocations or []]
+        if len(lines) != len(set(lines)):
+            raise ValueError("Each line may appear once in allocations")
+        if sum((a.amount for a in self.allocations or []), Decimal(0)) > self.amount:
+            raise ValueError("Allocations exceed the payment amount")
+        return self
+
 
 class PaymentDecisionIn(BaseModel):
     verified: bool
     note: Reason
+    allocations: list[LineAllocationIn] | None = Field(
+        default=None, description="Overrides the recorded allocation plan when verifying"
+    )
+
+
+class PaymentAllocationDto(Dto):
+    id: uuid.UUID
+    invoice_id: uuid.UUID
+    line_id: uuid.UUID | None
+    amount: Money
+    created_at: datetime
+    released_at: datetime | None
+    release_reason: str | None
 
 
 class PaymentDto(Dto):
     id: uuid.UUID
     tenant_id: uuid.UUID
-    invoice_id: uuid.UUID
+    invoice_id: uuid.UUID | None
     amount: Money
     currency: str
     method: PaymentMethod
@@ -219,8 +266,12 @@ class PaymentDto(Dto):
     received_on: date
     status: PaymentStatus
     recorded_at: datetime
+    recorded_by: uuid.UUID | None = None
     decided_at: datetime | None
+    decided_by: uuid.UUID | None = None
     decision_note: str | None
+    allocations: list[PaymentAllocationDto] = []
+    unallocated: Money | None = Field(default=None, description="Verified money not yet applied (tenant credit)")
 
 
 class CreditAdjustmentIn(BaseModel):

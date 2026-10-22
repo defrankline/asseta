@@ -38,6 +38,7 @@ export const INVOICE_TONES: Readonly<Record<string, StatusTone>> = {
   ISSUED: 'warning',
   PARTIALLY_PAID: 'info',
   PAID: 'success',
+  VOIDED: 'default',
 };
 export const PAYMENT_TONES: Readonly<Record<string, StatusTone>> = {
   RECORDED: 'info',

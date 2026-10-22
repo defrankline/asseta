@@ -5,6 +5,7 @@ import {
   formatPercent,
   isZeroDecimal,
   minorUnits,
+  multiplyDecimals,
   roundDecimal,
   signOfDecimal,
   sumDecimals,
@@ -63,5 +64,19 @@ describe('sumDecimals / signOfDecimal', () => {
     expect(signOfDecimal('-0.01')).toBe(-1);
     expect(signOfDecimal('0.0000')).toBe(0);
     expect(signOfDecimal('3')).toBe(1);
+  });
+});
+
+describe('multiplyDecimals', () => {
+  it('multiplies exactly without floating point', () => {
+    expect(multiplyDecimals('2.5', '1000.10')).toBe('2500.250');
+    expect(multiplyDecimals('0.1', '0.2')).toBe('0.02');
+    expect(multiplyDecimals('3', '33333333333333333.3333')).toBe('99999999999999999.9999');
+    expect(multiplyDecimals('-2', '0.5')).toBe('-1.0');
+    expect(multiplyDecimals('0', '-5')).toBe('0');
+  });
+
+  it('rejects non-decimals', () => {
+    expect(() => multiplyDecimals('1e3', '2')).toThrow();
   });
 });

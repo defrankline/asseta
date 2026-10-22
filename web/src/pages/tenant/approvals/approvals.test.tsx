@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PERMISSIONS as P } from '../../../access/permissionCodes';
 import type { approvalService } from '../../../api/services/expenseService';
 import { makeApproval, ME, page } from '../../../test/financeFixtures';
+import { fakeSocketServer } from '../../../test/fakeWebSocket';
+import { acceptSocket, LiveProviders, push } from '../../../test/realtimeHarness';
 import { renderWithProviders } from '../../../test/renderWithProviders';
 import { ApprovalsPage } from './ApprovalsPage';
 
@@ -76,5 +78,23 @@ describe('ApprovalsPage', () => {
     );
     expect(screen.getByRole('menuitem', { name: 'View expense' })).toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: /Approve/ })).not.toBeInTheDocument();
+  });
+
+  it('reloads itself when the server pushes an approval or expense change', async () => {
+    const server = fakeSocketServer();
+    renderWithProviders(
+      <LiveProviders server={server}>
+        <ApprovalsPage />
+      </LiveProviders>,
+      { tenantPermissions: APPROVER },
+    );
+    expect(await screen.findByText(/exceeds the auto-approval limit/)).toBeInTheDocument();
+    const before = mocks.list.mock.calls.length;
+    await acceptSocket(server);
+    push(server, 'entity.changed', { entity: 'cash_handover', id: 'h1' });
+    push(server, 'entity.changed', { entity: 'approval', id: 'a9', action: 'created' });
+    await waitFor(() => {
+      expect(mocks.list.mock.calls.length).toBe(before + 1);
+    });
   });
 });

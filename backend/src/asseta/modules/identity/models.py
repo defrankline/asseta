@@ -84,6 +84,27 @@ class TenantMembership(UuidPk, Timestamps, Base):
     effective_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class PlatformMembership(UuidPk, Timestamps, Base):
+    """Effective-dated mirror of Keycloak `/platform/<role>` group membership (never deleted). Used to address
+    platform staff (e.g. notification audiences); request authorization still comes from the token (DEC-005)."""
+
+    __tablename__ = "platform_membership"
+    __table_args__ = (
+        Index(
+            "uq_platform_membership_open",
+            "user_id",
+            "role_id",
+            unique=True,
+            postgresql_where=text("effective_to IS NULL"),
+        ),
+    )
+
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("app_user.id"), nullable=False, index=True)
+    role_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("role.id", ondelete="RESTRICT"), nullable=False)
+    effective_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    effective_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class RoleTemplateGrant(Base):
     """Which template permissions have been offered to a Keycloak role group (once offered, an owner's later
     removal is respected; permissions introduced by new releases are offered exactly once)."""

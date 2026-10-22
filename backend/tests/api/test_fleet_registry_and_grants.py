@@ -26,6 +26,8 @@ FORBIDDEN = (
             "supervisor_cash_custody",
             "expense_attachment",
             "fuel_event",
+            # DEC-022 append-only ledger
+            "sms_wallet_entry",
         )
     ]
     + [
@@ -71,9 +73,22 @@ FORBIDDEN = (
             "job",
             "geofence",
             "tracker_model",
+            # DEC-022: commerce and notification records are reversed/closed/marked, never deleted
+            "platform_product",
+            "platform_line_allocation",
+            "platform_line_fulfilment",
+            "sms_wallet_entry",
+            "platform_membership",
+            "notification",
+            "notification_preference",
+            "notification_profile",
+            "sms_delivery",
         )
     ]
-    + [(t, "TRUNCATE") for t in ("tenant_hire_invoice", "customer_payment", "expense")]
+    + [
+        (t, "TRUNCATE")
+        for t in ("tenant_hire_invoice", "customer_payment", "expense", "sms_wallet_entry", "platform_line_allocation")
+    ]
 )
 
 

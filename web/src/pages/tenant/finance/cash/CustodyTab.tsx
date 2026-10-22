@@ -14,6 +14,8 @@ import { formatInstantIn } from '../../../../utils/time';
 import { StaffFilter } from '../../shared/financePickers';
 import { RecordPaymentDialog } from '../payments/RecordPaymentDialog';
 import { FloatDialog, HandoverDialog } from './CashDialogs';
+import { ENTITY } from '../../../../realtime/entities';
+import { useLiveRefresh } from '../../../../realtime/hooks';
 
 type Open = 'float' | 'collection' | 'handover' | null;
 
@@ -70,6 +72,7 @@ export function CustodyTab({ timeZone, supervisor, onSupervisorChange }: Custody
     [staffId],
   );
   const res = useAsyncResource(load, [], staffId !== '');
+  useLiveRefresh([ENTITY.cashHandover, ENTITY.customerPayment, ENTITY.expense], res.reload);
   const close = () => {
     setOpen(null);
   };

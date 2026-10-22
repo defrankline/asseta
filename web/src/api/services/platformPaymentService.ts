@@ -1,5 +1,12 @@
 import { apiClient, toListParams } from '../client';
-import type { ListQuery, Page, PaymentDecisionIn, PaymentDto, RecordPaymentIn } from '../types';
+import type {
+  AllocatePaymentIn,
+  ListQuery,
+  Page,
+  PaymentDecisionIn,
+  PaymentDto,
+  RecordPaymentIn,
+} from '../types';
 import { parseResponse } from '../validation';
 import { pageSchema, paymentSchema } from './billingSchemas';
 
@@ -7,14 +14,15 @@ const paymentPageSchema = pageSchema(paymentSchema);
 
 export interface PaymentListQuery extends ListQuery {
   invoice_id?: string;
+  tenant_id?: string;
 }
 
 export const platformPaymentService = {
-  /** GET /platform/payments (listPlatformPayments). Server filter: invoice_id. */
+  /** GET /platform/payments (listPlatformPayments). Server filters: invoice_id, tenant_id. */
   async list(query: PaymentListQuery, signal?: AbortSignal): Promise<Page<PaymentDto>> {
-    const { invoice_id, ...rest } = query;
+    const { invoice_id, tenant_id, ...rest } = query;
     const data = await apiClient.get<unknown>('/platform/payments', {
-      params: toListParams({ ...rest, filters: { invoice_id } }),
+      params: toListParams({ ...rest, filters: { invoice_id, tenant_id } }),
       ...(signal ? { signal } : {}),
     });
     return parseResponse(paymentPageSchema, data, 'payment page');
@@ -34,6 +42,24 @@ export const platformPaymentService = {
   ): Promise<PaymentDto> {
     const data = await apiClient.post<unknown>(
       `/platform/payments/${encodeURIComponent(paymentId)}/decision`,
+      body,
+      { idempotencyKey },
+    );
+    return parseResponse(paymentSchema, data, 'payment');
+  },
+
+  /**
+   * POST /platform/payments/{id}/allocations (allocatePlatformPayment): applies verified,
+   * unallocated money (e.g. released by a void) to invoice lines; omitted allocations apply it to
+   * the tenant's oldest open invoices.
+   */
+  async allocate(
+    paymentId: string,
+    body: AllocatePaymentIn,
+    idempotencyKey: string,
+  ): Promise<PaymentDto> {
+    const data = await apiClient.post<unknown>(
+      `/platform/payments/${encodeURIComponent(paymentId)}/allocations`,
       body,
       { idempotencyKey },
     );

@@ -7,6 +7,12 @@ export const ROUTES = {
   platformTenants: '/platform/tenants',
   platformTenantDetail: '/platform/tenants/:tenantId',
   platformInvoices: '/platform/invoices',
+  /** Platform invoice with per-line payment / fulfilment (DEC-022). */
+  platformInvoiceDetail: '/platform/invoices/:invoiceId',
+  /** Product catalog: subscription fees, SMS bundles, services (DEC-022). */
+  platformCatalog: '/platform/catalog',
+  /** Tenant SMS wallets (balance + ledger) for platform staff. */
+  platformSmsWallets: '/platform/sms-wallets',
   platformPayments: '/platform/payments',
   platformManagedService: '/platform/managed-service',
   /** Approved tracker models and telemetry gateways (platform catalog). */
@@ -14,6 +20,11 @@ export const ROUTES = {
   /** Matches the backend `platform.system` menu path. */
   systemStatus: '/platform/system',
   forbidden: '/403',
+  /** The signed-in user's own notification inbox and preferences (no feature permission). */
+  notifications: '/notifications',
+  notificationPreferences: '/notifications/preferences',
+  /** SMS delivery log of the current console (`*.notification.manage`). */
+  notificationDeliveries: '/notifications/deliveries',
   // Tenant console paths match the backend tenant menu paths (`/me` tenant menus).
   tenantFleet: '/tenant/fleet',
   tenantMachines: '/tenant/machines',
@@ -45,7 +56,13 @@ export const ROUTES = {
   tenantExceptions: '/tenant/exceptions',
   tenantAccess: '/tenant/access',
   tenantManagedService: '/tenant/managed-service',
+  /** The tenant's own SMS wallet (balance + ledger). */
+  tenantSmsWallet: '/tenant/sms-wallet',
 } as const;
+
+export function platformInvoiceDetailPath(invoiceId: string): string {
+  return `${ROUTES.platformInvoices}/${encodeURIComponent(invoiceId)}`;
+}
 
 export function machineDetailPath(machineId: string): string {
   return `${ROUTES.tenantMachines}/${encodeURIComponent(machineId)}`;
@@ -111,12 +128,36 @@ export const PLATFORM_NAV: readonly StaticNavItem[] = [
     permission: PERMISSIONS.platformTrackerModelRead,
   },
   {
+    key: 'platform.catalog',
+    label: 'Product catalog',
+    path: ROUTES.platformCatalog,
+    permission: PERMISSIONS.platformCatalogRead,
+  },
+  {
+    key: 'platform.sms-wallets',
+    label: 'SMS wallets',
+    path: ROUTES.platformSmsWallets,
+    permission: PERMISSIONS.platformSmsWalletRead,
+  },
+  {
     key: 'platform.system-status',
     label: 'System status',
     path: ROUTES.systemStatus,
     permission: PERMISSIONS.platformSystemRead,
   },
 ];
+
+/** The current console's inbox (shown with `tenant.notification.read` / `platform.notification.read`). */
+export const NOTIFICATIONS_NAV: NavItem = {
+  key: 'account.notifications',
+  label: 'Notifications',
+  path: ROUTES.notifications,
+};
+
+export const NOTIFICATION_READ = [
+  PERMISSIONS.tenantNotificationRead,
+  PERMISSIONS.platformNotificationRead,
+] as const;
 
 export const ACCOUNT_NAV: readonly NavItem[] = [
   { key: 'account.my-access', label: 'My access', path: ROUTES.myAccess },
@@ -125,6 +166,12 @@ export const ACCOUNT_NAV: readonly NavItem[] = [
 /** Paths with a page in this build; used to avoid landing users on not-yet-built menu targets. */
 export const IMPLEMENTED_PATHS: ReadonlySet<string> = new Set([
   ROUTES.myAccess,
+  ROUTES.notifications,
+  ROUTES.notificationPreferences,
+  ROUTES.notificationDeliveries,
+  ROUTES.platformCatalog,
+  ROUTES.platformSmsWallets,
+  ROUTES.tenantSmsWallet,
   ROUTES.platformDashboard,
   ROUTES.platformTenants,
   ROUTES.platformInvoices,

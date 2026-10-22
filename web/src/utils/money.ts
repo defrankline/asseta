@@ -158,3 +158,23 @@ export function signOfDecimal(value: string): -1 | 0 | 1 {
   if (d === null || d.units === 0n) return 0;
   return d.units < 0n ? -1 : 1;
 }
+
+function formatScaled(units: bigint, scale: number): string {
+  const negative = units < 0n;
+  const digits = (negative ? -units : units).toString().padStart(scale + 1, '0');
+  const int = digits.slice(0, digits.length - scale);
+  const frac = scale > 0 ? `.${digits.slice(digits.length - scale)}` : '';
+  return `${negative && units !== 0n ? '-' : ''}${int}${frac}`;
+}
+
+/**
+ * Exact product of two decimal strings (BigInt), e.g. multiplyDecimals('2.5', '1000.10') ===
+ * '2500.250'. For form checks only (a discount may not exceed quantity × unit price); invoice
+ * totals always come from the server.
+ */
+export function multiplyDecimals(a: string, b: string): string {
+  const da = parseDecimal(a);
+  const db = parseDecimal(b);
+  if (da === null || db === null) throw new Error('multiplyDecimals expects decimal strings');
+  return formatScaled(da.units * db.units, da.scale + db.scale);
+}

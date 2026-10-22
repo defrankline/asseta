@@ -24,6 +24,7 @@ export function makeInvoice(overrides: Partial<InvoiceDto> = {}): InvoiceDto & {
     credits_applied: '0.0000',
     balance: '354000.0000',
     lines: [],
+    kind: 'SUBSCRIPTION',
     ...overrides,
   };
   return { ...invoice, id: invoice.id ?? INVOICE_ID };
@@ -43,6 +44,7 @@ export function makePayment(overrides: Partial<PaymentDto> = {}): PaymentDto {
     recorded_at: '2026-10-10T09:00:00Z',
     decided_at: null,
     decision_note: null,
+    allocations: [],
     ...overrides,
   };
 }

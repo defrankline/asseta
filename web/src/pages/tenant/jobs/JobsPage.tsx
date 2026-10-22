@@ -31,6 +31,8 @@ import { CreateJobDialog } from './CreateJobDialog';
 import { EditJobDialog } from './EditJobDialog';
 import { EDITABLE_JOB_STATUSES } from './jobForm';
 import { JobCancelDialog } from './JobCancelDialog';
+import { ENTITY } from '../../../realtime/entities';
+import { useLiveRefresh } from '../../../realtime/hooks';
 
 const CANCEL = JOB_TRANSITIONS.find((t) => t.action === 'CANCEL');
 
@@ -46,6 +48,10 @@ export function JobsPage() {
   const [cancelling, setCancelling] = useState<JobDto | null>(null);
   const [editing, setEditing] = useState<JobDto | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const liveReload = useCallback(() => {
+    setReloadKey((k) => k + 1);
+  }, []);
+  useLiveRefresh([ENTITY.job], liveReload);
   const refresh = () => {
     setReloadKey((k) => k + 1);
   };

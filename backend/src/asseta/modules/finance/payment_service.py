@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from asseta.core.audit import AuditService
 from asseta.core.errors import BusinessRuleViolation, Conflict, NotFound
 from asseta.core.outbox import OutboxWriter
+from asseta.core.signals import sod_violation
 from asseta.modules.finance.common import currency_or_default, insert
 from asseta.modules.finance.dto import (
     CustomerPaymentDto,
@@ -103,6 +104,19 @@ class CustomerPaymentService:
         )
         if body.allocations:
             self._allocate(payment, body.allocations)
+        OutboxWriter(self._s).emit(
+            topic=TOPIC,
+            event_type="CustomerPaymentRecorded",
+            key=str(payment.customer_id),
+            payload={
+                "payment_id": str(payment.id),
+                "customer_id": str(payment.customer_id),
+                "amount": str(payment.amount),
+                "currency": payment.currency,
+                "method": payment.method.value,
+            },
+            tenant_id=self._tid,
+        )
         return payment_dto(self._s, payment)
 
     def _allocate(self, payment: CustomerPayment, items: list[HireAllocationIn]) -> None:
@@ -175,6 +189,7 @@ class CustomerPaymentService:
         if payment.status is not SettlementStatus.CLAIMED:
             raise Conflict(f"Payment already {payment.status.value}", code="PAYMENT_ALREADY_DECIDED")
         if payment.recorded_by == self._ctx.user_id:
+            sod_violation(self._tid, self._ctx.user_id, "verify", "customer_payment", payment.id)
             raise BusinessRuleViolation(
                 "The person who recorded a payment cannot verify it", code="SEGREGATION_OF_DUTIES"
             )

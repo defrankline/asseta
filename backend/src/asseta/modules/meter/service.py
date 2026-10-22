@@ -182,6 +182,20 @@ class MeterService:
             payload={"capture_id": str(capture.id), "job_id": str(job.id), "state": state.value},
             tenant_id=self._tid,
         )
+        if findings:
+            OutboxWriter(self._s).emit(
+                topic="asseta.meter",
+                event_type="MeterExceptionRaised",
+                key=str(job.machine_id),
+                payload={
+                    "capture_id": str(capture.id),
+                    "job_id": str(job.id),
+                    "machine_id": str(job.machine_id),
+                    "exception_types": sorted({f.type.value for f in findings}),
+                    "blocking": any(f.blocking for f in findings),
+                },
+                tenant_id=self._tid,
+            )
         return self._result(capture)
 
     def _result(self, capture: MeterCapture) -> CaptureResultDto:

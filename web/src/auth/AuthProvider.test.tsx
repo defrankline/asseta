@@ -1,4 +1,5 @@
 import { act, render, screen, waitFor } from '@testing-library/react';
+import { useEffect } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { requestContext } from '../api/requestContext';
 import { useAuth } from './useAuth';
@@ -97,5 +98,31 @@ describe('AuthProvider forced refresh', () => {
     });
     await expect(requestContext.refreshAccessToken()).rejects.toThrow('refresh token expired');
     expect(login).toHaveBeenCalled();
+  });
+
+  it('notifies token-refresh subscribers after keycloak reports a successful refresh', async () => {
+    const { client } = signedInClient();
+    const listener = vi.fn();
+    function Subscriber() {
+      const { subscribeTokenRefresh } = useAuth();
+      useEffect(() => subscribeTokenRefresh(listener), [subscribeTokenRefresh]);
+      return null;
+    }
+    const view = render(
+      <AuthProvider client={client}>
+        <Subscriber />
+        <Status />
+      </AuthProvider>,
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId('status').textContent).toBe('authenticated');
+    });
+    act(() => {
+      client.onAuthRefreshSuccess?.();
+    });
+    expect(listener).toHaveBeenCalledTimes(1);
+    view.unmount();
+    client.onAuthRefreshSuccess?.();
+    expect(listener).toHaveBeenCalledTimes(1);
   });
 });

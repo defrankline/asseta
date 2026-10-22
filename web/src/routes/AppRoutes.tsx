@@ -4,7 +4,7 @@ import { PERMISSIONS } from '../access/permissionCodes';
 import { RequirePermission } from '../access/RequirePermission';
 import { LoadingState } from '../components/feedback/LoadingState';
 import { AppShell } from '../layout/AppShell';
-import { ROUTES } from '../navigation/routes';
+import { NOTIFICATION_READ, ROUTES } from '../navigation/routes';
 import { ForbiddenPage } from '../pages/ForbiddenPage';
 import { HomeRedirect } from '../pages/HomeRedirect';
 import { MyAccessPage } from '../pages/MyAccessPage';
@@ -17,6 +17,13 @@ import { TenantsPage } from '../pages/platform/tenants/TenantsPage';
 import { SystemStatusPage } from '../pages/SystemStatusPage';
 import {
   AccessPage,
+  CatalogPage,
+  NotificationPreferencesPage,
+  NotificationsPage,
+  PlatformInvoiceDetailPage,
+  PlatformSmsWalletsPage,
+  SmsDeliveriesPage,
+  TenantSmsWalletPage,
   AlertsPage,
   ApprovalsPage,
   ClientManagedServicePage,
@@ -45,6 +52,20 @@ import {
   TrackersPage,
 } from './lazyPages';
 
+const NOTIFICATION_MANAGE = [
+  PERMISSIONS.tenantNotificationManage,
+  PERMISSIONS.platformNotificationManage,
+] as const;
+
+/** Console-agnostic pages: the current console's code of either kind grants access. */
+function guardAny(permissions: readonly string[], page: ReactNode) {
+  return (
+    <RequirePermission permission={[...permissions]} match="any">
+      <Suspense fallback={<LoadingState label="Loading page" />}>{page}</Suspense>
+    </RequirePermission>
+  );
+}
+
 function guard(permission: string, page: ReactNode) {
   return (
     <RequirePermission permission={permission}>
@@ -64,6 +85,18 @@ export function AppRoutes() {
         <Route index element={<HomeRedirect />} />
         <Route path={ROUTES.myAccess} element={<MyAccessPage />} />
         <Route
+          path={ROUTES.notifications}
+          element={guardAny(NOTIFICATION_READ, <NotificationsPage />)}
+        />
+        <Route
+          path={ROUTES.notificationPreferences}
+          element={guardAny(NOTIFICATION_READ, <NotificationPreferencesPage />)}
+        />
+        <Route
+          path={ROUTES.notificationDeliveries}
+          element={guardAny(NOTIFICATION_MANAGE, <SmsDeliveriesPage />)}
+        />
+        <Route
           path={ROUTES.platformDashboard}
           element={guard(PERMISSIONS.platformDashboardRead, <PlatformDashboardPage />)}
         />
@@ -78,6 +111,22 @@ export function AppRoutes() {
         <Route
           path={ROUTES.platformInvoices}
           element={guard(PERMISSIONS.platformInvoiceRead, <InvoicesPage />)}
+        />
+        <Route
+          path={ROUTES.platformInvoiceDetail}
+          element={guard(PERMISSIONS.platformInvoiceRead, <PlatformInvoiceDetailPage />)}
+        />
+        <Route
+          path={ROUTES.platformCatalog}
+          element={guard(PERMISSIONS.platformCatalogRead, <CatalogPage />)}
+        />
+        <Route
+          path={ROUTES.platformSmsWallets}
+          element={guard(PERMISSIONS.platformSmsWalletRead, <PlatformSmsWalletsPage />)}
+        />
+        <Route
+          path={ROUTES.tenantSmsWallet}
+          element={guard(PERMISSIONS.tenantBillingRead, <TenantSmsWalletPage />)}
         />
         <Route
           path={ROUTES.platformPayments}

@@ -17,6 +17,20 @@ describe('buildNav', () => {
     expect(paths).toEqual(['/platform/tenants', '/platform/billing', '/platform/system', '/me']);
   });
 
+  it('adds the product catalog and SMS wallets only with their permissions', () => {
+    const me = makeMe({ platform_permissions: ['platform.catalog.read'] });
+    const mode = { kind: 'platform' } as const;
+    const paths = buildNav(mode, null, effectivePermissions(me, mode), me).map((i) => i.path);
+    expect(paths).toEqual(['/platform/catalog', '/me']);
+  });
+
+  it('shows the inbox only with the console notification read permission', () => {
+    const me = makeMe({ platform_permissions: ['platform.notification.read'] });
+    const mode = { kind: 'platform' } as const;
+    const paths = buildNav(mode, null, effectivePermissions(me, mode), me).map((i) => i.path);
+    expect(paths).toEqual(['/notifications', '/me']);
+  });
+
   it('hides tenant menus for BLOCKED tenants', () => {
     const me = makeMe();
     const [first] = me.tenants;

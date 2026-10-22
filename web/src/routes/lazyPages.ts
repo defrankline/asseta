@@ -107,3 +107,38 @@ export const ProfitabilityPage = lazy(() =>
     default: m.ProfitabilityPage,
   })),
 );
+
+// ---- DEC-022: notifications and platform invoicing ----
+export const NotificationsPage = lazy(() =>
+  import('../pages/notifications/NotificationsPage').then((m) => ({
+    default: m.NotificationsPage,
+  })),
+);
+export const NotificationPreferencesPage = lazy(() =>
+  import('../pages/notifications/NotificationPreferencesPage').then((m) => ({
+    default: m.NotificationPreferencesPage,
+  })),
+);
+export const CatalogPage = lazy(() =>
+  import('../pages/platform/catalog/CatalogPage').then((m) => ({ default: m.CatalogPage })),
+);
+export const PlatformInvoiceDetailPage = lazy(() =>
+  import('../pages/platform/invoiceDetail/PlatformInvoiceDetailPage').then((m) => ({
+    default: m.PlatformInvoiceDetailPage,
+  })),
+);
+export const PlatformSmsWalletsPage = lazy(() =>
+  import('../pages/platform/smsWallet/SmsWalletPages').then((m) => ({
+    default: m.PlatformSmsWalletsPage,
+  })),
+);
+export const TenantSmsWalletPage = lazy(() =>
+  import('../pages/platform/smsWallet/SmsWalletPages').then((m) => ({
+    default: m.TenantSmsWalletPage,
+  })),
+);
+export const SmsDeliveriesPage = lazy(() =>
+  import('../pages/notifications/SmsDeliveriesPage').then((m) => ({
+    default: m.SmsDeliveriesPage,
+  })),
+);

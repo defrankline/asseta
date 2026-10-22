@@ -11,7 +11,8 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 5173,
       proxy: {
-        '/api': { target: apiTarget, changeOrigin: true },
+        // `ws: true` proxies the realtime WebSocket upgrade (DEC-022).
+        '/api': { target: apiTarget, changeOrigin: true, ws: true },
       },
     },
     test: {

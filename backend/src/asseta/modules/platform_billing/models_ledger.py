@@ -19,12 +19,13 @@ from sqlalchemy import (
     UniqueConstraint,
     text,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from asseta.core.db import Base, UuidPk, utcnow
 from asseta.modules.platform_billing.enums import (
     EnrollmentEndReason,
+    InvoiceKind,
     InvoiceLineType,
     InvoiceStatus,
     PaymentMethod,
@@ -95,11 +96,18 @@ class PlatformInvoice(UuidPk, Base):
     )
 
     tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenant.id"), nullable=False, index=True)
-    subscription_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenant_subscription.id"), nullable=False)
-    rate_version_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("subscription_rate_version.id"), nullable=False)
+    # Ad-hoc invoices have no subscription/rate of their own (a SUBSCRIPTION_FEE line carries its subscription).
+    subscription_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tenant_subscription.id"))
+    rate_version_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("subscription_rate_version.id"))
+    kind: Mapped[InvoiceKind] = mapped_column(
+        _enum(InvoiceKind, "invoice_kind"),
+        nullable=False,
+        default=InvoiceKind.SUBSCRIPTION,
+        server_default=InvoiceKind.SUBSCRIPTION.value,
+    )
     invoice_number: Mapped[str] = mapped_column(String(40), unique=True, nullable=False)
     period_start: Mapped[date] = mapped_column(Date, nullable=False)
-    period_end: Mapped[date] = mapped_column(Date, nullable=False)  # exclusive
+    period_end: Mapped[date] = mapped_column(Date, nullable=False)  # exclusive (ad-hoc: lines' service span)
     currency: Mapped[str] = mapped_column(ForeignKey("currency.code"), nullable=False)
     billable_assets: Mapped[int] = mapped_column(nullable=False)
     enrolled_assets: Mapped[int] = mapped_column(nullable=False)
@@ -114,6 +122,10 @@ class PlatformInvoice(UuidPk, Base):
     issued_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     due_date: Mapped[date] = mapped_column(Date, nullable=False)
     issued_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    notes: Mapped[str | None] = mapped_column(Text)
+    voided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    voided_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    void_reason: Mapped[str | None] = mapped_column(Text)
 
 
 class PlatformInvoiceLine(UuidPk, Base):
@@ -133,6 +145,10 @@ class PlatformInvoiceLine(UuidPk, Base):
     service_from: Mapped[date | None] = mapped_column(Date)
     service_to: Mapped[date | None] = mapped_column(Date)
     pending_charge_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("subscription_pending_charge.id"))
+    # Ad-hoc catalog lines (DEC-022): what fulfilment does once the line is fully paid.
+    product_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("platform_product.id"))
+    sms_credits: Mapped[int | None] = mapped_column()  # SMS_BUNDLE: credits added to the tenant SMS wallet
+    subscription_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tenant_subscription.id"))
 
 
 class PlatformPayment(UuidPk, Base):
@@ -143,9 +159,12 @@ class PlatformPayment(UuidPk, Base):
     )
 
     tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenant.id"), nullable=False, index=True)
-    invoice_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("platform_invoice.id"), nullable=False, index=True)
+    # Invoice the payment was recorded against; NULL = tenant-level payment applied to the oldest open invoices.
+    invoice_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("platform_invoice.id"), index=True)
     amount: Mapped[Decimal] = mapped_column(MONEY, nullable=False)
     currency: Mapped[str] = mapped_column(ForeignKey("currency.code"), nullable=False)
+    # Explicit per-line allocation requested by the platform owner, applied on verification.
+    allocation_plan: Mapped[list[dict[str, str]] | None] = mapped_column(JSONB)
     method: Mapped[PaymentMethod] = mapped_column(_enum(PaymentMethod, "payment_method"), nullable=False)
     reference: Mapped[str] = mapped_column(String(120), nullable=False)
     received_on: Mapped[date] = mapped_column(Date, nullable=False)
@@ -168,3 +187,7 @@ class CreditAdjustment(UuidPk, Base):
     reason: Mapped[str] = mapped_column(Text, nullable=False)
     created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+# Catalog/allocation/fulfilment/wallet tables reference the ledger (and lines reference products): register together.
+from asseta.modules.platform_billing import models_catalog  # noqa: E402, F401

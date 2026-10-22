@@ -26,6 +26,8 @@ import { JobActions } from './JobActions';
 import { JobSummaryPanel } from './JobSummaryPanel';
 import { MeterResetsTab } from './MeterResetsTab';
 import { WorkLogTab } from './WorkLogTab';
+import { ENTITY, entityKey } from '../../../realtime/entities';
+import { useLiveRefresh } from '../../../realtime/hooks';
 
 type TabKey = 'readings' | 'worklog' | 'ack' | 'resets';
 
@@ -118,6 +120,10 @@ export function JobDetailPage() {
     [jobId, canMachines],
   );
   const resource = useAsyncResource(load);
+  useLiveRefresh(
+    [entityKey(ENTITY.job, jobId), ENTITY.meterCapture, ENTITY.meterException],
+    resource.reload,
+  );
   const job = resource.data?.summary.job ?? null;
   const [editing, setEditing] = useState(false);
   return (

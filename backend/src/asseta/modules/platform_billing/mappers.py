@@ -1,9 +1,13 @@
 """ORM -> DTO mapping and domain-term construction for platform billing."""
 
+import uuid
+from dataclasses import dataclass
 from datetime import date
+from decimal import Decimal
 
 from asseta.modules.platform_billing.calendar import Period, period_containing
 from asseta.modules.platform_billing.dto import InvoiceDto, InvoiceLineDto, RateVersionDto
+from asseta.modules.platform_billing.enums import FulfilmentStatus
 from asseta.modules.platform_billing.models_commercial import Currency, SubscriptionRateVersion, TenantSubscription
 from asseta.modules.platform_billing.models_ledger import PlatformInvoice, PlatformInvoiceLine
 from asseta.modules.platform_billing.pricing import RateTerms
@@ -31,7 +35,22 @@ def period_for(sub: TenantSubscription, rate: SubscriptionRateVersion, on: date)
     return period_containing(sub.billing_start_date, sub.billing_anchor_day, rate.cadence, on)
 
 
-def invoice_dto(inv: PlatformInvoice, lines: list[PlatformInvoiceLine]) -> InvoiceDto:
+@dataclass(frozen=True)
+class LineExtras:
+    payable: Decimal
+    paid: Decimal
+    fulfilment_status: FulfilmentStatus | None
+
+
+def invoice_dto(
+    inv: PlatformInvoice, lines: list[PlatformInvoiceLine], extras: dict[uuid.UUID, LineExtras] | None = None
+) -> InvoiceDto:
+    def line_dto(line: PlatformInvoiceLine) -> InvoiceLineDto:
+        dto = InvoiceLineDto.model_validate(line)
+        if extras and (x := extras.get(line.id)) is not None:
+            dto.payable, dto.paid, dto.fulfilment_status = x.payable, x.paid, x.fulfilment_status
+        return dto
+
     return InvoiceDto(
         id=inv.id,
         tenant_id=inv.tenant_id,
@@ -51,5 +70,9 @@ def invoice_dto(inv: PlatformInvoice, lines: list[PlatformInvoiceLine]) -> Invoi
         status=inv.status,
         due_date=inv.due_date,
         issued_at=inv.issued_at,
-        lines=[InvoiceLineDto.model_validate(line) for line in lines],
+        lines=[line_dto(line) for line in lines],
+        kind=inv.kind,
+        notes=inv.notes,
+        voided_at=inv.voided_at,
+        void_reason=inv.void_reason,
     )

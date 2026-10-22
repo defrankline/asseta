@@ -62,13 +62,13 @@ def test_payment_record_verify_partial_and_full(api: Api) -> None:
     )  # helper always adds a key
     # Recorded (unverified) payments do not reduce the balance.
     assert api.platform.get(f"/api/v1/platform/invoices/{inv['id']}").json()["balance"] == "100000.0000"
-    v = api.platform.post(
+    v = api.platform_checker.post(
         f"/api/v1/platform/payments/{p1.json()['id']}/decision", {"verified": True, "note": "Matched M-Pesa statement"}
     )
     assert v.json()["status"] == "VERIFIED"
     after = api.platform.get(f"/api/v1/platform/invoices/{inv['id']}").json()
     assert (after["amount_paid"], after["balance"], after["status"]) == ("40000.0000", "60000.0000", "PARTIALLY_PAID")
-    again = api.platform.post(
+    again = api.platform_checker.post(
         f"/api/v1/platform/payments/{p1.json()['id']}/decision", {"verified": False, "note": "flip"}
     )
     assert again.json()["error"]["code"] == "PAYMENT_ALREADY_DECIDED"
@@ -144,7 +144,7 @@ def test_grace_past_due_suspension_and_reactivation(api: Api) -> None:
     dec = api.generate(sid, date(2026, 12, 20))["created"][0]
     for i, invoice in enumerate((inv, dec)):
         p = _pay(api, invoice, invoice["total"], f"BANK-{i}")
-        d = api.platform.post(
+        d = api.platform_checker.post(
             f"/api/v1/platform/payments/{p.json()['id']}/decision", {"verified": True, "note": "Bank statement"}
         )
         assert d.status_code == 200
@@ -205,3 +205,20 @@ def test_access_reason_follows_status_even_when_access_level_unchanged(api: Api)
     api.activate(t)  # TRIAL/onboarding -> ACTIVE keeps FULL access; the explanation must still change
     tenant = api.platform.get(f"/api/v1/platform/tenants/{tid}").json()
     assert tenant["access_state"] == "FULL" and tenant["access_state_reason"] != "Onboarding"
+
+
+def test_platform_payment_two_person_rule(api: Api) -> None:
+    _, invoice = _billed_tenant(api, "Two Person Co")
+    p = _pay(api, invoice, invoice["total"], "BANK-SOD-1")
+    own = api.platform.post(f"/api/v1/platform/payments/{p.json()['id']}/decision", {"verified": True, "note": "self"})
+    assert own.status_code == 422 and own.json()["error"]["code"] == "SEGREGATION_OF_DUTIES"
+    ok = api.platform_checker.post(
+        f"/api/v1/platform/payments/{p.json()['id']}/decision", {"verified": True, "note": "Bank statement matched"}
+    )
+    assert ok.status_code == 200 and ok.json()["status"] == "VERIFIED"
+
+
+def test_platform_payment_exposes_recorder_for_two_person_ui(api: Api) -> None:
+    _, invoice = _billed_tenant(api, "Recorder Co")
+    p = _pay(api, invoice, invoice["total"], "BANK-REC-1").json()
+    assert p["recorded_by"] is not None and p["decided_by"] is None

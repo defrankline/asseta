@@ -9,6 +9,8 @@ import type {
   hireInvoiceService,
 } from '../../../../api/services/financeService';
 import { CUSTOMER, ME, makeInvoice, makePayment, page } from '../../../../test/financeFixtures';
+import { fakeSocketServer } from '../../../../test/fakeWebSocket';
+import { acceptSocket, LiveProviders, push } from '../../../../test/realtimeHarness';
 import { renderWithProviders } from '../../../../test/renderWithProviders';
 import { PaymentsTab } from './PaymentsTab';
 
@@ -51,6 +53,26 @@ beforeEach(() => {
 const MENU = 'Actions for payment TRX-1';
 
 describe('PaymentsTab', () => {
+  it('reloads when the server announces a customer payment change', async () => {
+    const server = fakeSocketServer();
+    renderWithProviders(
+      <LiveProviders server={server}>
+        <PaymentsTab timeZone="UTC" />
+      </LiveProviders>,
+      { tenantPermissions: VERIFY },
+    );
+    expect(await screen.findByText(/do NOT reduce customer balances/)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(mocks.list).toHaveBeenCalled();
+    });
+    const before = mocks.list.mock.calls.length;
+    await acceptSocket(server);
+    push(server, 'entity.changed', { entity: 'customer_payment', id: 'p1', action: 'verified' });
+    await waitFor(() => {
+      expect(mocks.list.mock.calls.length).toBe(before + 1);
+    });
+  });
+
   it('shows claimed payments by default, separately from verified ones', async () => {
     const user = userEvent.setup();
     renderWithProviders(<PaymentsTab timeZone="UTC" />, { tenantPermissions: VERIFY });

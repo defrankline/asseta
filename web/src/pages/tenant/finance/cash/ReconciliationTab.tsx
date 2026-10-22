@@ -27,6 +27,8 @@ import { useAsyncResource } from '../../../../hooks/useAsyncResource';
 import { formatDate, isIsoDate, todayIsoDate } from '../../../../utils/dates';
 import { CURRENCY_FILTER_OPTIONS } from '../../shared/financeDisplay';
 import { StaffFilter } from '../../shared/financePickers';
+import { ENTITY } from '../../../../realtime/entities';
+import { useLiveRefresh } from '../../../../realtime/hooks';
 
 /** The reconciliation identity (acceptance §10 #8), as computed by the server per tenant-local day. */
 export const RECONCILIATION_FORMULA =
@@ -189,6 +191,7 @@ export function ReconciliationTab({ supervisor, onSupervisorChange }: Reconcilia
     [staffId, from, to, currency],
   );
   const res = useAsyncResource(load, [], staffId !== '' && valid);
+  useLiveRefresh([ENTITY.cashHandover, ENTITY.customerPayment, ENTITY.expense], res.reload);
   return (
     <Box className="flex flex-col gap-3">
       <Alert severity="info">

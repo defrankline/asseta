@@ -27,6 +27,11 @@ export interface FormStep<V> {
   label: string;
   /** Field paths validated before leaving this step. */
   fields: readonly string[];
+  /**
+   * Value-dependent field paths (e.g. one set per row of a repeating section); replaces `fields`
+   * when given, so every row's errors are shown before leaving the step.
+   */
+  fieldsFor?: (values: V) => readonly string[];
   render: (formik: FormikProps<V>) => ReactNode;
 }
 
@@ -71,8 +76,9 @@ export function StepperFormDialog<V extends FormikValues>({
     const step = steps[active];
     if (step === undefined) return;
     const errors = await formik.validateForm();
-    await Promise.all(step.fields.map((f) => formik.setFieldTouched(f, true, false)));
-    const blocking = step.fields.some((f) => getIn(errors, f) !== undefined);
+    const fields = step.fieldsFor?.(formik.values) ?? step.fields;
+    await Promise.all(fields.map((f) => formik.setFieldTouched(f, true, false)));
+    const blocking = fields.some((f) => getIn(errors, f) !== undefined);
     if (!blocking) setActive((a) => a + 1);
   };
 

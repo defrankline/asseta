@@ -54,6 +54,10 @@ class Api:
     def __init__(self, client: TestClient, tokens: TokenFactory, idp: InMemoryIdp, clock: Any):
         self.client, self.tokens, self.idp, self.clock = client, tokens, idp, clock
         self.platform = Actor(self, PLATFORM_SUBJECT, ["/platform/platform-owner"], email="platform@asseta.local")
+        # Second platform staff member: verifies what `platform` records (two-person rule on platform payments).
+        self.platform_checker = Actor(
+            self, "platform-checker-subject", ["/platform/platform-owner"], email="checker@asseta.local"
+        )
 
     def tenant_user(self, email: str, tenant_id: str) -> Actor:
         subject = self.idp.subject_for(email)

@@ -23,6 +23,8 @@ import {
 } from '../shared/display';
 import { MachinePicker } from '../shared/MachinePicker';
 import { AlertDetailDialog } from './AlertDetailDialog';
+import { ENTITY } from '../../../realtime/entities';
+import { useLiveRefresh } from '../../../realtime/hooks';
 
 /** Tracking alerts: server-filtered list, evidence detail, acknowledge / resolve. */
 export function AlertsPage() {
@@ -33,6 +35,10 @@ export function AlertsPage() {
   const [machine, setMachine] = useState<MachineDto | null>(null);
   const [selected, setSelected] = useState<AlertDto | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const liveReload = useCallback(() => {
+    setReloadKey((k) => k + 1);
+  }, []);
+  useLiveRefresh([ENTITY.alert], liveReload);
 
   // Machine labels for the table (the alert DTO carries only machine_id).
   const loadFleet = useCallback((signal: AbortSignal) => fleetService.map(signal), []);

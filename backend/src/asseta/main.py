@@ -13,6 +13,7 @@ from asseta.core.correlation import CorrelationIdMiddleware
 from asseta.core.db import get_sessionmaker
 from asseta.core.errors import install_error_handlers
 from asseta.core.logging import configure_logging
+from asseta.core.sms import SmsClient, build_sms_client
 from asseta.core.storage import ObjectStore, S3ObjectStore
 from asseta.modules.expenses import router as expenses_router
 from asseta.modules.finance import cash_router as finance_cash_router
@@ -29,6 +30,10 @@ from asseta.modules.identity.tokens import JwksSigningKeyProvider, OidcTokenVeri
 from asseta.modules.jobs import router as jobs_router
 from asseta.modules.managed_service import router as managed_service_router
 from asseta.modules.meter import router as meter_router
+from asseta.modules.notification import gateway as notification_gateway
+from asseta.modules.notification import router as notification_router
+from asseta.modules.notification.realtime import RealtimeBroker, RedisBroker
+from asseta.modules.platform_billing import commerce_router
 from asseta.modules.platform_billing import router as platform_router
 from asseta.modules.platform_billing import tenant_router as tenant_billing_router
 from asseta.modules.policy import router as policy_router
@@ -69,6 +74,8 @@ def create_app(
     token_verifier: TokenVerifier | None = None,
     idp_admin: IdentityProviderAdmin | None = None,
     object_store: ObjectStore | None = None,
+    realtime: RealtimeBroker | None = None,
+    sms_client: SmsClient | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
     configure_logging()
@@ -93,6 +100,8 @@ def create_app(
     app.state.token_verifier = verifier
     app.state.idp_admin = idp
     app.state.object_store = object_store or build_object_store(settings)
+    app.state.realtime = realtime or RedisBroker(settings.redis_url)  # WebSocket fan-out across API instances
+    app.state.sms_client = sms_client or build_sms_client()  # console provider unless ASSETA_SMS_PROVIDER=nextsms
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
@@ -123,6 +132,11 @@ def create_app(
         finance_router.router,
         finance_cash_router.router,
         expenses_router.router,
+        commerce_router.router,
+        commerce_router.tenant_router,
+        notification_router.tenant_router,
+        notification_router.platform_router,
+        notification_gateway.router,
     ):
         app.include_router(router)
     return app

@@ -17,6 +17,11 @@ INVOICE_GENERATE = requires("platform.invoice.generate", S.PLATFORM, "Generate s
 PAYMENT_READ = requires("platform.payment.read", S.PLATFORM, "View platform payments")
 PAYMENT_MANAGE = requires("platform.payment.manage", S.PLATFORM, "Record and verify platform payments")
 CREDIT_MANAGE = requires("platform.credit.manage", S.PLATFORM, "Apply credits/override pending charges")
+INVOICE_RAISE = requires("platform.invoice.raise", S.PLATFORM, "Raise ad-hoc platform invoices with catalog lines")
+INVOICE_VOID = requires("platform.invoice.void", S.PLATFORM, "Void platform invoices (reversal)")
+CATALOG_READ = requires("platform.catalog.read", S.PLATFORM, "View the platform product catalog")
+CATALOG_MANAGE = requires("platform.catalog.manage", S.PLATFORM, "Manage platform products and prices")
+SMS_WALLET_READ = requires("platform.sms_wallet.read", S.PLATFORM, "View tenant SMS wallets")
 DASHBOARD_READ = requires("platform.dashboard.read", S.PLATFORM, "View platform dashboard")
 SYSTEM_READ = requires("platform.system.read", S.PLATFORM, "View system/integration health")
 
@@ -27,6 +32,7 @@ for menu in (
     MenuDef("platform.dashboard", S.PLATFORM, "Dashboard", "/platform", 10, "platform.dashboard.read"),
     MenuDef("platform.tenants", S.PLATFORM, "Tenants", "/platform/tenants", 20, "platform.tenant.read"),
     MenuDef("platform.invoices", S.PLATFORM, "Invoices", "/platform/invoices", 30, "platform.invoice.read"),
+    MenuDef("platform.catalog", S.PLATFORM, "Products", "/platform/catalog", 35, "platform.catalog.read"),
     MenuDef("platform.payments", S.PLATFORM, "Payments", "/platform/payments", 40, "platform.payment.read"),
     MenuDef("platform.system", S.PLATFORM, "System status", "/platform/system", 90, "platform.system.read"),
     MenuDef("tenant.billing", S.TENANT, "Subscription", "/tenant/subscription", 90, "tenant.billing.read"),

@@ -234,3 +234,47 @@ Mutating actions use `<CanMutate>` / `useCanMutate()` — permission **and** ten
   the UI never recomputes them.
 - **Pickers:** customers, staff, machines, jobs, expense categories, expenses and issued invoices use the shared
   server-search autocompletes (`pages/tenant/shared/financeLookups.ts`, `financePickers.tsx`).
+
+## Active system (DEC-022)
+
+- **Realtime** (`src/realtime`): one WebSocket per signed-in session to `/api/v1/ws`
+  (`SessionRealtimeProvider` → `RealtimeProvider` → framework-agnostic `RealtimeClient`), protocol per
+  `docs/api.md`: `{type, payload}` envelopes; the token is never in the URL — first message
+  `{"type":"auth","token","tenant_id"}` (default, `firstMessageAuth`) or
+  `Sec-WebSocket-Protocol: asseta.v1, bearer.<jwt>` + `subscribe` (`subprotocolAuth`). Console switch
+  sends `subscribe`; a token refresh (`AuthContext.subscribeTokenRefresh`) re-sends `auth` on the open
+  socket; `reauth_required` forces a refresh. Client ping every 25 s, server `ping` answered with
+  `pong`; exponential backoff with jitter; close codes **4401** → refresh token, reconnect; **4403** →
+  stop (`denied`) and re-read `/me` (mandate ended…), retried on console change / wake; **4408** →
+  reconnect. Offline/online and tab visibility handled. `auth_ok.unread_count` re-syncs the badge.
+  Endpoint: `VITE_REALTIME_URL` or `<API base>/ws` (dev proxy has `ws: true`). Header dot:
+  `ConnectionIndicator`.
+- **Screens refresh themselves** with `useLiveRefresh([ENTITY.x, entityKey(ENTITY.y, id)], reload)`
+  (debounced; also after a reconnect). `ENTITY` mirrors the backend kinds (`alert`, `fleet.position`,
+  `approval`, `expense`, `customer_payment`, `cash_handover`, `hire_invoice`, `meter_capture`,
+  `meter_exception`, `job`, `platform_invoice`, `platform_payment`, `subscription`). Wired: alerts,
+  exceptions, approvals, expenses, jobs / job details, hire invoices (list + details), customer
+  payments, cash custody / handovers / reconciliation, fleet map, platform invoices (list + details),
+  platform payments, tenant subscription + SMS wallet, notification inbox (`useRealtimeResync`).
+- **Notifications** (`src/notifications/center`, `src/pages/notifications`): per-console HTTP services
+  (`/tenant/notifications` with X-Tenant-ID, `/platform/notifications`), gated by
+  `tenant.notification.read` / `platform.notification.read` (bell, nav entry, routes). Bell + unread
+  badge, inbox drawer, `/notifications` (filters, load more, mark read / all), high-priority toasts with
+  a View link, `/notifications/preferences` (per-channel locks from `mandatory_channels`, low-priority
+  hint, `422 MANDATORY_CHANNEL` shown, tenant-wide defaults with `tenant.notification.manage`, SMS
+  number with `422 INVALID_MSISDN`), `/notifications/deliveries` (SMS delivery log,
+  `*.notification.manage`; platform "Send test" with `platform.notification.manage`).
+- **Platform commerce** (ADR-006): product catalog `/platform/catalog` (`platform.catalog.read/manage`;
+  prices per currency, subscription fees priced by the negotiated rate); Invoices list with kind
+  (SUBSCRIPTION / AD_HOC) filter and "Raise invoice" stepper (`platform.invoice.raise`; Review shows the
+  server preview; `PERIOD_ALREADY_BILLED` etc. shown with hints); invoice details
+  `/platform/invoices/:id` (payable / paid / fulfilment per line incl. `REVERSED` / `REVERSAL_FLAGGED`,
+  payments with per-line allocations and released ones, record payment, apply credit, void =
+  reversal with `platform.invoice.void`); Payments: tenant-level recording (`tenant_id`, no invoice),
+  allocations / unallocated shown, "Allocate" to invoice lines (`/payments/{id}/allocations`); SMS
+  wallets `/platform/sms-wallets` (`platform.sms_wallet.read`) and the tenant's own in Subscription
+  (also `/tenant/sms-wallet`).
+- Commerce screens use `PlatformInvoicingService` (context, HTTP by default) so tests inject
+  `src/test/fakePlatformInvoicingService.ts`; notification screens take the console's
+  `NotificationService` from the center (`src/test/fakeNotificationService.ts`). Fake socket:
+  `src/test/fakeWebSocket.ts`, `src/test/realtimeHarness.tsx`.

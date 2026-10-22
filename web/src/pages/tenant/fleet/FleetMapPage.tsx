@@ -22,6 +22,8 @@ import { DEFAULT_MAP_CENTER } from '../shared/display';
 import { FleetMachineList } from './FleetMachineList';
 import { filterFleet, FLEET_REFRESH_MS, type ConnectivityFilter } from './fleetFilter';
 import { MachineStatusPanel } from './MachineStatusPanel';
+import { ENTITY } from '../../../realtime/entities';
+import { useLiveRefresh } from '../../../realtime/hooks';
 
 interface FleetSnapshot {
   items: MachineMapDto[];
@@ -116,6 +118,8 @@ export function FleetMapPage() {
   }, []);
   const fleet = useAsyncResource(load);
   useInterval(fleet.reload, FLEET_REFRESH_MS);
+  // Positions and alerts are also pushed; the interval stays as a fallback.
+  useLiveRefresh([ENTITY.fleetPosition, ENTITY.alert], fleet.reload, { debounceMs: 1500 });
   const fetchedAt = fleet.data?.fetchedAt ?? null;
 
   return (

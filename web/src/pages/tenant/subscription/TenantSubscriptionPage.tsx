@@ -21,7 +21,11 @@ import { PageHeader } from '../../../components/feedback/PageHeader';
 import { useAsyncResource } from '../../../hooks/useAsyncResource';
 import { formatDate } from '../../../utils/dates';
 import { humanize } from '../../../utils/text';
+import { INVOICE_KIND_LABELS } from '../../platform/invoiceDetail/invoiceDisplay';
 import { InvoiceSummary } from '../../platform/invoices/InvoiceSummary';
+import { SmsWalletView } from '../../platform/smsWallet/SmsWalletView';
+import { ENTITY } from '../../../realtime/entities';
+import { useLiveRefresh } from '../../../realtime/hooks';
 import { INVOICE_TONES, SUBSCRIPTION_TONES } from '../../platform/shared/billingDisplay';
 
 function SubscriptionSummary({ subscription: s }: { subscription: SubscriptionDto }) {
@@ -108,9 +112,16 @@ export function TenantSubscriptionPage() {
   );
   const subscription = useAsyncResource(loadSubscription);
   const invoices = useAsyncResource(loadInvoices);
+  const reloadAll = useCallback(() => {
+    subscription.reload();
+    invoices.reload();
+  }, [subscription, invoices]);
+  // Invoices raised, paid or voided and subscription changes are pushed by the server.
+  useLiveRefresh([ENTITY.platformInvoice, ENTITY.subscription], reloadAll);
 
   const columns: DataColumn<InvoiceDto>[] = [
     { id: 'number', header: 'Invoice no.', render: (i) => i.invoice_number ?? '—' },
+    { id: 'kind', header: 'Kind', render: (i) => INVOICE_KIND_LABELS[i.kind] },
     {
       id: 'period',
       header: 'Period',
@@ -154,7 +165,10 @@ export function TenantSubscriptionPage() {
 
   return (
     <>
-      <PageHeader title="Subscription" subtitle="Your Asseta subscription and platform invoices" />
+      <PageHeader
+        title="Subscription"
+        subtitle="Your Asseta subscription, platform invoices and SMS credits"
+      />
       <Stack spacing={3}>
         <AsyncContent
           resource={subscription}
@@ -183,6 +197,12 @@ export function TenantSubscriptionPage() {
               />
             )}
           </AsyncContent>
+        </Paper>
+        <Paper variant="outlined" className="p-4" component="section" aria-label="SMS wallet">
+          <Typography variant="h6" component="h2" className="mb-2">
+            SMS wallet
+          </Typography>
+          <SmsWalletView tenantId={null} />
         </Paper>
       </Stack>
       {viewing !== null && (

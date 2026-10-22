@@ -14,6 +14,7 @@ from asseta.core.config import get_settings
 from asseta.core.db import get_session, utcnow
 from asseta.core.errors import ERROR_RESPONSES, BusinessRuleViolation, Conflict, NotFound
 from asseta.core.paging import Page, PageParams, page_params, paginate
+from asseta.core.signals import sod_violation
 from asseta.core.storage import ObjectStore, sha256_hex, sniff_image
 from asseta.modules.fleet.photos import PhotoUrlDto, get_object_store
 from asseta.modules.identity.catalog import CATALOG, MenuDef
@@ -146,6 +147,8 @@ def decide_reset(
     if row.status != "PENDING":
         raise Conflict("Reset already decided", code="RESET_DECIDED")
     if row.requested_by == ctx.user_id:
+        assert ctx.tenant_id is not None
+        sod_violation(ctx.tenant_id, ctx.user_id, "approve", "meter_reset", row.id)
         raise BusinessRuleViolation("Requester cannot approve their own reset", code="SEGREGATION_OF_DUTIES")
     row.status = "APPROVED" if body.outcome == "EXPLAINED" else "REJECTED"
     row.decided_by, row.decided_at = ctx.user_id, utcnow()

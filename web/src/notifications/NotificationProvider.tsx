@@ -1,4 +1,4 @@
-import { Alert, Snackbar } from '@mui/material';
+import { Alert, Button, Snackbar } from '@mui/material';
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { ApiError } from '../api/ApiError';
 import { newUuid } from '../api/ids';
@@ -6,12 +6,15 @@ import {
   NotificationContext,
   type NotificationSeverity,
   type Notifier,
+  type ToastAction,
+  type ToastOptions,
 } from './NotificationContext';
 
 interface Toast {
   id: string;
   message: string;
   severity: NotificationSeverity;
+  action: ToastAction | null;
 }
 
 function errorMessage(error: unknown, fallback: string): string {
@@ -28,9 +31,15 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const [queue, setQueue] = useState<Toast[]>([]);
   const current = queue[0];
 
-  const notify = useCallback((message: string, severity: NotificationSeverity = 'info') => {
-    setQueue((q) => [...q, { id: newUuid(), message, severity }]);
-  }, []);
+  const notify = useCallback(
+    (message: string, severity: NotificationSeverity = 'info', options?: ToastOptions) => {
+      setQueue((q) => [
+        ...q,
+        { id: newUuid(), message, severity, action: options?.action ?? null },
+      ]);
+    },
+    [],
+  );
 
   const dismiss = useCallback(() => {
     setQueue((q) => q.slice(1));
@@ -68,7 +77,30 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
       >
         {current !== undefined ? (
-          <Alert variant="filled" severity={current.severity} onClose={dismiss}>
+          <Alert
+            variant="filled"
+            severity={current.severity}
+            onClose={dismiss}
+            action={
+              current.action !== null ? (
+                <>
+                  <Button
+                    color="inherit"
+                    size="small"
+                    onClick={() => {
+                      current.action?.onClick();
+                      dismiss();
+                    }}
+                  >
+                    {current.action.label}
+                  </Button>
+                  <Button color="inherit" size="small" aria-label="Dismiss" onClick={dismiss}>
+                    ✕
+                  </Button>
+                </>
+              ) : undefined
+            }
+          >
             {current.message}
           </Alert>
         ) : undefined}

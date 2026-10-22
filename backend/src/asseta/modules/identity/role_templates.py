@@ -36,6 +36,7 @@ TENANT_TEMPLATES = (
             "tenant.customer.",
             "tenant.approval.",
             "tenant.policy.read",
+            "tenant.notification.read",
         ),
     ),
     RoleTemplate(
@@ -52,15 +53,22 @@ TENANT_TEMPLATES = (
             "tenant.collection.",
             "tenant.sync.",
             "tenant.fleet.read",
+            "tenant.notification.read",
         ),
     ),
     RoleTemplate(
         "accountant",
         "Accountant / Finance",
         PermissionScope.TENANT,
-        ("tenant.finance.", "tenant.expense.", "tenant.collection.", "tenant.billing.read"),
+        (
+            "tenant.finance.",
+            "tenant.expense.",
+            "tenant.collection.",
+            "tenant.billing.read",
+            "tenant.notification.read",
+        ),
     ),
-    RoleTemplate("operator", "Operator", PermissionScope.TENANT, ("tenant.profile.",)),
+    RoleTemplate("operator", "Operator", PermissionScope.TENANT, ("tenant.profile.", "tenant.notification.read")),
 )
 
 

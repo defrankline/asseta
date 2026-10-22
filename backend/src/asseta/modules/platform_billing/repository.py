@@ -9,7 +9,8 @@ from sqlalchemy import ColumnElement, and_, func, or_, select, text
 from sqlalchemy.orm import Session
 
 from asseta.core.errors import BusinessRuleViolation, NotFound
-from asseta.modules.platform_billing.enums import InvoiceStatus, PendingChargeStatus
+from asseta.modules.platform_billing.enums import InvoiceKind, InvoiceLineType, InvoiceStatus, PendingChargeStatus
+from asseta.modules.platform_billing.models_catalog import PlatformLineFulfilment
 from asseta.modules.platform_billing.models_commercial import (
     CommercialAgreement,
     Currency,
@@ -140,6 +141,25 @@ class BillingRepository:
             )
         ).scalar_one_or_none()
 
+    def period_billed(self, subscription_id: uuid.UUID, period_start: date, include_voided: bool = True) -> bool:
+        """A period is billed by its scheduled invoice (even when voided: voiding waives it, the scheduler never
+        re-issues) or by a non-voided ad-hoc SUBSCRIPTION_FEE line for that period."""
+        scheduled = self.invoice_for_period(subscription_id, period_start)
+        if scheduled is not None and (include_voided or scheduled.status is not InvoiceStatus.VOIDED):
+            return True
+        line = self.s.execute(
+            select(PlatformInvoiceLine.id)
+            .join(PlatformInvoice, PlatformInvoice.id == PlatformInvoiceLine.invoice_id)
+            .where(
+                PlatformInvoiceLine.subscription_id == subscription_id,
+                PlatformInvoiceLine.line_type == InvoiceLineType.SUBSCRIPTION_FEE,
+                PlatformInvoiceLine.service_from == period_start,
+                PlatformInvoice.status != InvoiceStatus.VOIDED,
+            )
+            .limit(1)
+        ).first()
+        return line is not None
+
     def invoice(self, invoice_id: uuid.UUID, for_update: bool = False) -> PlatformInvoice:
         stmt = select(PlatformInvoice).where(PlatformInvoice.id == invoice_id)
         inv = self.s.execute(stmt.with_for_update() if for_update else stmt).scalar_one_or_none()
@@ -157,14 +177,38 @@ class BillingRepository:
         )
 
     def oldest_overdue_due_date(self, tenant_id: uuid.UUID, as_of: date) -> date | None:
-        return self.s.execute(
+        """Entitlement looks at subscription money only: unpaid scheduled invoices, and ad-hoc invoices whose
+        SUBSCRIPTION_FEE line is not yet settled (fulfilled). Unpaid SMS bundles/services never restrict access."""
+        scheduled = self.s.execute(
             select(func.min(PlatformInvoice.due_date)).where(
                 PlatformInvoice.tenant_id == tenant_id,
-                PlatformInvoice.status != InvoiceStatus.PAID,
+                PlatformInvoice.kind == InvoiceKind.SUBSCRIPTION,
+                PlatformInvoice.status.not_in([InvoiceStatus.PAID, InvoiceStatus.VOIDED]),
                 PlatformInvoice.balance > Decimal(0),
                 PlatformInvoice.due_date < as_of,
             )
         ).scalar_one_or_none()
+        unsettled = (
+            select(PlatformInvoiceLine.id)
+            .outerjoin(PlatformLineFulfilment, PlatformLineFulfilment.line_id == PlatformInvoiceLine.id)
+            .where(
+                PlatformInvoiceLine.invoice_id == PlatformInvoice.id,
+                PlatformInvoiceLine.line_type == InvoiceLineType.SUBSCRIPTION_FEE,
+                PlatformLineFulfilment.id.is_(None),
+            )
+            .exists()
+        )
+        ad_hoc = self.s.execute(
+            select(func.min(PlatformInvoice.due_date)).where(
+                PlatformInvoice.tenant_id == tenant_id,
+                PlatformInvoice.kind == InvoiceKind.AD_HOC,
+                PlatformInvoice.status != InvoiceStatus.VOIDED,
+                PlatformInvoice.due_date < as_of,
+                unsettled,
+            )
+        ).scalar_one_or_none()
+        found = [d for d in (scheduled, ad_hoc) if d is not None]
+        return min(found) if found else None
 
     def entitlement_policy(self, tenant_id: uuid.UUID, on: date) -> EntitlementPolicy:
         policy = self.s.execute(

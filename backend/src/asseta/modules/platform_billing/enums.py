@@ -72,6 +72,12 @@ class InvoiceStatus(StrEnum):
     ISSUED = "ISSUED"
     PARTIALLY_PAID = "PARTIALLY_PAID"
     PAID = "PAID"
+    VOIDED = "VOIDED"  # reversed: allocations released, fulfilled lines reversed where possible (DEC-022)
+
+
+class InvoiceKind(StrEnum):
+    SUBSCRIPTION = "SUBSCRIPTION"  # scheduled recurring invoice, one per subscription period
+    AD_HOC = "AD_HOC"  # raised by the platform owner at any time with catalog lines (DEC-022)
 
 
 class InvoiceLineType(StrEnum):
@@ -81,6 +87,34 @@ class InvoiceLineType(StrEnum):
     PRORATION_CREDIT = "PRORATION_CREDIT"
     DISCOUNT = "DISCOUNT"
     TAX = "TAX"
+    # Ad-hoc catalog lines (DEC-022); each is fulfilled in its own area once fully paid.
+    SUBSCRIPTION_FEE = "SUBSCRIPTION_FEE"
+    SMS_BUNDLE = "SMS_BUNDLE"
+    SERVICE = "SERVICE"
+
+
+FULFILLABLE_LINE_TYPES = frozenset(
+    {InvoiceLineType.SUBSCRIPTION_FEE, InvoiceLineType.SMS_BUNDLE, InvoiceLineType.SERVICE}
+)
+
+
+class ProductType(StrEnum):
+    SUBSCRIPTION_FEE = "SUBSCRIPTION_FEE"  # period-based: priced by the tenant's negotiated subscription rate
+    SMS_BUNDLE = "SMS_BUNDLE"  # SMS credits for the tenant SMS wallet
+    SERVICE = "SERVICE"  # one-off: installation, training, hardware...
+
+
+class FulfilmentStatus(StrEnum):
+    FULFILLED = "FULFILLED"
+    REVERSED = "REVERSED"  # effect fully undone (e.g. unused SMS credits debited back)
+    REVERSAL_FLAGGED = "REVERSAL_FLAGGED"  # effect could not be (fully) undone: flagged for platform review
+
+
+class SmsWalletEntryType(StrEnum):
+    BUNDLE_CREDIT = "BUNDLE_CREDIT"  # fulfilment of a paid SMS_BUNDLE line
+    BUNDLE_REVERSAL = "BUNDLE_REVERSAL"  # void of a fulfilled SMS_BUNDLE line (unused credits only)
+    SMS_DEBIT = "SMS_DEBIT"  # one tenant SMS delivery (per segment)
+    SMS_REFUND = "SMS_REFUND"  # delivery finally failed: debit returned
 
 
 class PaymentMethod(StrEnum):

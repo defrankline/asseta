@@ -15,6 +15,7 @@ from asseta.modules.platform_billing.dto import GenerateInvoicesDto, InvoiceDto,
 from asseta.modules.platform_billing.enums import (
     BILLABLE_STATUSES,
     Cadence,
+    InvoiceKind,
     InvoiceStatus,
     PendingChargeStatus,
 )
@@ -41,7 +42,7 @@ class InvoiceService:
         self._audit = AuditService(session)
         self._outbox = OutboxWriter(session)
 
-    def _compute(self, sub: TenantSubscription, period: Period) -> tuple[ComputedInvoice, uuid.UUID, str]:
+    def compute_period(self, sub: TenantSubscription, period: Period) -> tuple[ComputedInvoice, uuid.UUID, str]:
         rate = self._repo.rate_effective(sub.agreement_id, period.start)
         terms = rate_terms(rate, self._repo.currency(rate.currency))
         assets = [
@@ -69,8 +70,8 @@ class InvoiceService:
     def preview_next(self, sub: TenantSubscription, as_of: date) -> InvoiceDto | None:
         """Dry run of the next invoice that would be generated (nothing persisted)."""
         for period in self._due_periods(sub, as_of):
-            if self._repo.invoice_for_period(sub.id, period.start) is None:
-                computed, _, currency = self._compute(sub, period)
+            if not self._repo.period_billed(sub.id, period.start):
+                computed, _, currency = self.compute_period(sub, period)
                 agreement = self._repo.agreement(sub.agreement_id)
                 return InvoiceDto(
                     id=None,
@@ -119,10 +120,10 @@ class InvoiceService:
         created: list[InvoiceDto] = []
         existing: list[date] = []
         for period in self._due_periods(sub, as_of):
-            if self._repo.invoice_for_period(sub.id, period.start) is not None:
+            if self._repo.period_billed(sub.id, period.start):
                 existing.append(period.start)
                 continue
-            computed, rate_id, currency = self._compute(sub, period)
+            computed, rate_id, currency = self.compute_period(sub, period)
             number = f"AST-{period.start.year}-{self._repo.next_number('platform_invoice_number_seq'):07d}"
             zero = computed.total * 0
             inv = PlatformInvoice(
@@ -130,6 +131,7 @@ class InvoiceService:
                 tenant_id=sub.tenant_id,
                 subscription_id=sub.id,
                 rate_version_id=rate_id,
+                kind=InvoiceKind.SUBSCRIPTION,
                 invoice_number=number,
                 period_start=period.start,
                 period_end=period.end,
@@ -193,8 +195,10 @@ class InvoiceService:
                 payload={
                     "invoice_id": str(inv.id),
                     "invoice_number": number,
+                    "kind": InvoiceKind.SUBSCRIPTION.value,
                     "total": str(inv.total),
                     "currency": currency,
+                    "due_date": inv.due_date.isoformat(),
                 },
                 tenant_id=sub.tenant_id,
             )

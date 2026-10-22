@@ -33,6 +33,15 @@ export const PERMISSIONS = {
   /** Managed-service mandates (DEC-018): view; grant, staff and end. */
   platformMandateRead: 'platform.mandate.read',
   platformMandateManage: 'platform.mandate.manage',
+  /** DEC-022: product catalog, ad-hoc invoices (raise / void), tenant SMS wallets. */
+  platformCatalogRead: 'platform.catalog.read',
+  platformCatalogManage: 'platform.catalog.manage',
+  platformInvoiceRaise: 'platform.invoice.raise',
+  platformInvoiceVoid: 'platform.invoice.void',
+  platformSmsWalletRead: 'platform.sms_wallet.read',
+  /** Own platform inbox and preferences; SMS delivery log and test-send. */
+  platformNotificationRead: 'platform.notification.read',
+  platformNotificationManage: 'platform.notification.manage',
 
   // ---- Tenant console (only granted in tenant mode, for the active tenant) ----
   /** Fleet map, positions, history and alerts (read). */
@@ -103,6 +112,9 @@ export const PERMISSIONS = {
   tenantFinanceCash: 'tenant.finance.cash',
   /** Machine / job / customer profitability. */
   tenantFinanceReport: 'tenant.finance.report',
+  /** Own tenant inbox and preferences; tenant-wide defaults and the SMS delivery log. */
+  tenantNotificationRead: 'tenant.notification.read',
+  tenantNotificationManage: 'tenant.notification.manage',
   /** Record cash collections and handovers (own custody). */
   tenantCollectionRecord: 'tenant.collection.record',
 } as const;

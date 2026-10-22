@@ -311,3 +311,41 @@ export type FuelEventType = Schemas['FuelEventType'];
 export type ApprovalRequestDto = Schemas['ApprovalRequestDto'];
 export type ApprovalStatus = Schemas['ApprovalStatus'];
 export type ApprovalDecisionIn = Schemas['ApprovalDecisionIn'];
+
+// ---- Active system (DEC-022): notifications, platform commerce, SMS wallets ----
+
+export type NotificationDto = Schemas['NotificationDto'];
+export type NotificationTarget = Schemas['NotificationTarget'];
+export type NotificationSeverity = Schemas['Severity'];
+export type NotificationPriority = NotificationDto['priority'];
+export type NotificationPage = Schemas['Page_NotificationDto_'];
+export type NotificationPreferenceDto = Schemas['NotificationPreferenceDto'];
+export type NotificationPreferencesIn = Schemas['NotificationPreferencesIn'];
+export type NotificationPreferenceChangeIn = Schemas['NotificationPreferenceChangeIn'];
+export type NotificationMarkReadResultDto = Schemas['NotificationMarkReadResultDto'];
+export type NotificationUnreadCountDto = Schemas['NotificationUnreadCountDto'];
+export type NotificationProfileDto = Schemas['NotificationProfileDto'];
+export type NotificationProfileIn = Schemas['NotificationProfileIn'];
+export type NotificationTestSendIn = Schemas['NotificationTestSendIn'];
+export type NotificationTestSendResultDto = Schemas['NotificationTestSendResultDto'];
+export type SmsDeliveryDto = Schemas['SmsDeliveryDto'];
+export type SmsDeliveryStatus = Schemas['DeliveryStatus'];
+export type SmsDeliveryPage = Schemas['Page_SmsDeliveryDto_'];
+
+export type InvoiceKind = Schemas['InvoiceKind'];
+export type FulfilmentStatus = Schemas['FulfilmentStatus'];
+export type ProductDto = Schemas['ProductDto'];
+export type ProductIn = Schemas['ProductIn'];
+export type ProductUpdateIn = Schemas['ProductUpdateIn'];
+export type ProductType = Schemas['ProductType'];
+export type ProductPage = Schemas['Page_ProductDto_'];
+export type AdHocInvoiceIn = Schemas['AdHocInvoiceIn'];
+export type AdHocLineIn = Schemas['AdHocLineIn'];
+export type VoidInvoiceIn = Schemas['VoidInvoiceIn'];
+export type PaymentAllocationDto = Schemas['PaymentAllocationDto'];
+export type LineAllocationIn = Schemas['LineAllocationIn'];
+export type AllocatePaymentIn = Schemas['AllocatePaymentIn'];
+export type SmsWalletDto = Schemas['SmsWalletDto'];
+export type SmsWalletEntryDto = Schemas['SmsWalletEntryDto'];
+export type SmsWalletEntryType = Schemas['SmsWalletEntryType'];
+export type SmsWalletEntryPage = Schemas['Page_SmsWalletEntryDto_'];

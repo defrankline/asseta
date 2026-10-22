@@ -43,11 +43,16 @@ function initOnce(client: AuthClient, timeoutMs: number): Promise<boolean> {
 }
 
 /** Silent refresh: renew shortly before expiry; fall back to interactive login on failure. */
-function attachRefreshHandlers(kc: AuthClient, onFailure: () => void): void {
+function attachRefreshHandlers(
+  kc: AuthClient,
+  onFailure: () => void,
+  onRefreshed: () => void,
+): void {
   kc.onTokenExpired = () => {
     kc.updateToken(TOKEN_MIN_VALIDITY_SECONDS).catch(onFailure);
   };
   kc.onAuthRefreshError = onFailure;
+  kc.onAuthRefreshSuccess = onRefreshed;
 }
 
 export function AuthProvider({
@@ -59,6 +64,15 @@ export function AuthProvider({
   const [status, setStatus] = useState<AuthStatus>('initializing');
   const [error, setError] = useState<string | null>(null);
   const redirecting = useRef(false);
+  const refreshListeners = useRef(new Set<() => void>());
+
+  const subscribeTokenRefresh = useCallback((listener: () => void) => {
+    const listeners = refreshListeners.current;
+    listeners.add(listener);
+    return () => {
+      listeners.delete(listener);
+    };
+  }, []);
 
   const login = useCallback(() => {
     if (redirecting.current) return;
@@ -93,7 +107,9 @@ export function AuthProvider({
 
   useEffect(() => {
     let active = true;
-    attachRefreshHandlers(kc, login);
+    attachRefreshHandlers(kc, login, () => {
+      for (const listener of [...refreshListeners.current]) listener();
+    });
     initOnce(kc, silentSsoTimeoutMs)
       .then((authenticated) => {
         if (active) setStatus(authenticated ? 'authenticated' : 'unauthenticated');
@@ -131,8 +147,9 @@ export function AuthProvider({
       logout,
       getAccessToken,
       refreshToken,
+      subscribeTokenRefresh,
     }),
-    [status, error, kc, login, logout, getAccessToken, refreshToken],
+    [status, error, kc, login, logout, getAccessToken, refreshToken, subscribeTokenRefresh],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

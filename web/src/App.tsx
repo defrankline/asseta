@@ -6,7 +6,14 @@ import { AuthProvider } from './auth/AuthProvider';
 import { useAuth } from './auth/useAuth';
 import { ErrorState } from './components/feedback/ErrorState';
 import { LoadingState } from './components/feedback/LoadingState';
+import {
+  platformNotificationService,
+  tenantNotificationService,
+} from './api/services/notificationService';
+import { PERMISSIONS } from './access/permissionCodes';
+import { NotificationCenterProvider } from './notifications/center/NotificationCenterProvider';
 import { NotificationProvider } from './notifications/NotificationProvider';
+import { SessionRealtimeProvider } from './realtime/SessionRealtimeProvider';
 import { LandingPage } from './pages/landing/LandingPage';
 import { LoginRedirectPage } from './pages/LoginRedirectPage';
 import { ROUTES } from './navigation/routes';
@@ -16,7 +23,7 @@ import { useSession } from './session/useSession';
 import { AppThemeProvider } from './theme/AppThemeProvider';
 
 function SessionGate() {
-  const { status, error, reload } = useSession();
+  const { status, error, reload, mode, hasPermission } = useSession();
   if (status === 'loading') return <LoadingState label="Loading your access" />;
   if (status === 'error') {
     return (
@@ -25,7 +32,22 @@ function SessionGate() {
       </Box>
     );
   }
-  return <AppRoutes />;
+  const scopeKey = mode.kind === 'tenant' ? `tenant:${mode.tenantId}` : mode.kind;
+  // One realtime connection per signed-in session, and the per-console notification inbox.
+  return (
+    <SessionRealtimeProvider>
+      <NotificationCenterProvider
+        service={mode.kind === 'tenant' ? tenantNotificationService : platformNotificationService}
+        scopeKey={scopeKey}
+        enabled={hasPermission(
+          [PERMISSIONS.tenantNotificationRead, PERMISSIONS.platformNotificationRead],
+          'any',
+        )}
+      >
+        <AppRoutes />
+      </NotificationCenterProvider>
+    </SessionRealtimeProvider>
+  );
 }
 
 function AuthGate() {

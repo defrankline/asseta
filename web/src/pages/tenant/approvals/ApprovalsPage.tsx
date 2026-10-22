@@ -26,6 +26,8 @@ import {
 } from '../shared/financeDisplay';
 import { useMyUserId } from '../shared/useFinanceLabels';
 import { ExpenseDetailsDrawer } from '../expenses/ExpenseDetailsDrawer';
+import { ENTITY } from '../../../realtime/entities';
+import { useLiveRefresh } from '../../../realtime/hooks';
 
 type View = ApprovalStatus | 'ALL';
 
@@ -41,6 +43,10 @@ export function ApprovalsPage() {
   const [expense, setExpense] = useState<ExpenseDto | null>(null);
   const [loadError, setLoadError] = useState<ApiError | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const liveReload = useCallback(() => {
+    setReloadKey((k) => k + 1);
+  }, []);
+  useLiveRefresh([ENTITY.approval, ENTITY.expense], liveReload);
   const fetchPage = useCallback<FetchPage<ApprovalRequestDto>>(
     (query, signal) => approvalService.list(query, signal),
     [],

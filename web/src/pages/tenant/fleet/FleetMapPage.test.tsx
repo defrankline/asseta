@@ -4,6 +4,8 @@ import { describe, expect, it, vi } from 'vitest';
 import type { fleetService } from '../../../api/services/fleetService';
 import type { MachineMapDto } from '../../../api/types';
 import { lastMap } from '../../../test/maplibreMock';
+import { fakeSocketServer } from '../../../test/fakeWebSocket';
+import { acceptSocket, LiveProviders, push } from '../../../test/realtimeHarness';
 import { renderWithProviders } from '../../../test/renderWithProviders';
 import { FleetMapPage } from './FleetMapPage';
 
@@ -77,6 +79,28 @@ const FLEET: MachineMapDto[] = [
 const PERMS = ['tenant.fleet.read'];
 
 describe('FleetMapPage', () => {
+  it('reloads positions when the server pushes fleet.position changes', async () => {
+    mocks.map.mockResolvedValue(FLEET);
+    const server = fakeSocketServer();
+    renderWithProviders(
+      <LiveProviders server={server}>
+        <FleetMapPage />
+      </LiveProviders>,
+      { tenantPermissions: PERMS },
+    );
+    await screen.findByRole('list', { name: 'Machines' });
+    const before = mocks.map.mock.calls.length;
+    await acceptSocket(server);
+    push(server, 'entity.changed', { entity: 'fleet.position', id: 'm1', action: 'updated' });
+    push(server, 'entity.changed', { entity: 'fleet.position', id: 'm2', action: 'updated' });
+    await waitFor(
+      () => {
+        expect(mocks.map.mock.calls.length).toBe(before + 1);
+      },
+      { timeout: 3_000 },
+    );
+  });
+
   it('lists machines, labels stale data as last known and shows the refresh time', async () => {
     mocks.map.mockResolvedValue(FLEET);
     renderWithProviders(<FleetMapPage />, { tenantPermissions: PERMS });
