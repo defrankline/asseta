@@ -1,0 +1,19 @@
+package com.asseta.owner.push
+
+import com.asseta.owner.OwnerApplication
+import com.google.firebase.messaging.FirebaseMessagingService
+import com.google.firebase.messaging.RemoteMessage
+
+/** FCM entry point (only invoked when Firebase is configured). Never logs tokens or message content. */
+class OwnerMessagingService : FirebaseMessagingService() {
+    override fun onNewToken(token: String) {
+        (application as OwnerApplication).graph.onPushTokenRefreshed()
+    }
+
+    override fun onMessageReceived(message: RemoteMessage) {
+        val data = message.data
+        val title = message.notification?.title ?: data["title"] ?: "Asseta"
+        val body = message.notification?.body ?: data["body"] ?: ""
+        PushNotifier.show(this, title, body, data)
+    }
+}

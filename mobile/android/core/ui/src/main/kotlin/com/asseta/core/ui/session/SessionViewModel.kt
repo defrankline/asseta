@@ -12,12 +12,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 class SessionViewModel(
     private val auth: AuthManager,
     private val api: AssetaApi,
     private val tenants: SelectedTenantStore,
     private val notice: SessionNotice? = null,
+    private val hooks: SessionHooks = NoSessionHooks,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<SessionState>(SessionState.SignedOut())
@@ -32,6 +34,7 @@ class SessionViewModel(
                     if (message != null) {
                         tenants.clear()
                         auth.logout()
+                        hooks.onSignedOut()
                         _state.value = SessionState.SignedOut(UiError(n.consume() ?: message))
                     }
                 }
@@ -64,13 +67,12 @@ class SessionViewModel(
                 .onSuccess { me ->
                     val selected = SessionRules.resolveSelection(me, tenants.tenantId())
                     if (selected == null) tenants.clear() else tenants.select(selected)
+                    hooks.onProfile(me)
                     _state.value = SessionState.Ready(me, selected)
                 }
                 .onFailure { e ->
                     if (e is ApiException && e.isUnauthenticated) {
-                        auth.logout()
-                        tenants.clear()
-                        _state.value = SessionState.SignedOut(UiError("Your session ended. Please sign in again.", e.correlationId))
+                        endSession(e.correlationId)
                     } else {
                         _state.value = SessionState.ProfileError(SessionRules.toUiError(e))
                     }
@@ -96,8 +98,29 @@ class SessionViewModel(
     fun logout(): Intent? {
         tenants.clear()
         val intent = auth.logout()
+        hooks.onSignedOut()
         _state.value = SessionState.SignedOut()
         return intent
+    }
+
+    /** User sign-out: app hooks first (bounded, e.g. deactivate this device's push token), then [logout]. */
+    fun signOut(launch: (Intent) -> Unit) {
+        viewModelScope.launch {
+            withTimeoutOrNull(SIGN_OUT_HOOK_TIMEOUT_MS) { runCatching { hooks.beforeSignOut() } }
+            logout()?.let(launch)
+        }
+    }
+
+    /** The API rejected the session (401): sign out locally and explain why. */
+    fun endSession(reference: String? = null) {
+        auth.logout()
+        tenants.clear()
+        hooks.onSignedOut()
+        _state.value = SessionState.SignedOut(UiError("Your session ended. Please sign in again.", reference))
+    }
+
+    private companion object {
+        const val SIGN_OUT_HOOK_TIMEOUT_MS = 5_000L
     }
 
     private fun Throwable.unwrapAuth(): Throwable =

@@ -14,6 +14,7 @@ plugins {
     alias(libs.plugins.kotlin.serialization) apply false
     alias(libs.plugins.ksp) apply false
     alias(libs.plugins.room) apply false
+    alias(libs.plugins.google.services) apply false
 }
 
 val catalog = extensions.getByType<VersionCatalogsExtension>().named("libs")
@@ -49,6 +50,12 @@ subprojects {
         extensions.configure<ApplicationExtension> {
             assetaDefaults()
             defaultConfig.targetSdk = v("targetSdk").toInt()
+        }
+    }
+    // Pure-JVM modules run standalone lint (which also scans the shared version catalog): same deliberate-pin policy.
+    pluginManager.withPlugin("com.android.lint") {
+        extensions.configure<com.android.build.api.dsl.Lint> {
+            disable += setOf("GradleDependency", "NewerVersionAvailable", "AndroidGradlePluginVersion")
         }
     }
     pluginManager.withPlugin("org.jetbrains.kotlin.jvm") {

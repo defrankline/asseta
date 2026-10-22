@@ -9,6 +9,8 @@ import com.asseta.core.database.DatabaseHolder
 import com.asseta.core.network.AssetaApi
 import com.asseta.core.network.NetworkFactory
 import com.asseta.core.security.SecurityComponents
+import com.asseta.core.ui.session.NoSessionHooks
+import com.asseta.core.ui.session.SessionHooks
 import com.asseta.core.ui.session.SessionNotice
 
 /**
@@ -28,6 +30,9 @@ class AssetaAppContainer(context: Context, val role: AppRole, private val oidcRe
     val authManager: AuthManager by lazy {
         AuthManager(appContext, AuthConfig.fromBuildConfig(oidcRedirectScheme), security.tokenStore)
     }
+
+    /** App-specific session reactions (set once in Application.onCreate; default: none). */
+    @Volatile var sessionHooks: SessionHooks = NoSessionHooks
 
     val tenantStore: SelectedTenantStore by lazy { SelectedTenantStore(appContext) }
 

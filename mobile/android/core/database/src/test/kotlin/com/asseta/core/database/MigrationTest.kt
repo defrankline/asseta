@@ -11,6 +11,7 @@ import org.robolectric.RobolectricTestRunner
 /**
  * v1 -> v2 keeps every outbox row (unsynced evidence) and carries legacy dependencies into the new table.
  * v2 -> v3 adds the field-finance tables without touching the outbox, attachments or cached server data.
+ * v3 -> v4 adds the Owner app's `read_snapshot` cache table.
  */
 @RunWith(RobolectricTestRunner::class)
 class MigrationTest {
@@ -106,6 +107,23 @@ class MigrationTest {
         }
         helper.runMigrationsAndValidate(DB, 3, true).use { db ->
             db.query("SELECT COUNT(*) FROM client_operation").use { c -> c.moveToFirst(); assertEquals(1, c.getInt(0)) }
+        }
+    }
+
+    @Test
+    fun migrate3To4KeepsFieldDataAndAddsOwnerSnapshots() {
+        helper.createDatabase(DB, 3).use { db ->
+            db.execSQL(
+                """INSERT INTO client_operation (id, tenant_id, op_type, entity_type, entity_id, payload_json, depends_on,
+                   created_at_device, status, attempt_count, last_error, server_revision) VALUES
+                   ('p', 't', 'METER_CAPTURE', 'e', 'x', '{}', NULL, 1, 'PENDING', 0, NULL, NULL)""",
+            )
+        }
+        helper.runMigrationsAndValidate(DB, 4, true).use { db ->
+            fun count(sql: String) = db.query(sql).use { c -> c.moveToFirst(); c.getInt(0) }
+            assertEquals(1, count("SELECT COUNT(*) FROM client_operation WHERE status = 'PENDING'"))
+            db.execSQL("INSERT INTO read_snapshot (tenant_id, cache_key, payload_json, fetched_at) VALUES ('t', 'overview', '{}', 1)")
+            assertEquals(1, count("SELECT COUNT(*) FROM read_snapshot"))
         }
     }
 

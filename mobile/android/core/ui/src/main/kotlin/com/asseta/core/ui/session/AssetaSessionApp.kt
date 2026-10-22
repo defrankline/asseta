@@ -15,6 +15,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -31,13 +32,13 @@ typealias TenantHome = @Composable (ready: SessionState.Ready, onSwitchTenant: (
 
 /**
  * Shared session shell: login -> `/me` -> tenant selection -> optional app [home] (the Supervisor field app).
- * Without a [home] the tenant picker stays the landing screen (Owner app until Gate 7).
+ * Without a [home] the tenant picker stays the landing screen. Inside [home], [LocalSessionActions] offers sign-out etc.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AssetaSessionApp(container: AssetaAppContainer, home: TenantHome? = null) {
     val vm: SessionViewModel = viewModel {
-        SessionViewModel(container.authManager, container.api, container.tenantStore, container.sessionNotice)
+        SessionViewModel(container.authManager, container.api, container.tenantStore, container.sessionNotice, container.sessionHooks)
     }
     val state by vm.state.collectAsStateWithLifecycle()
     val loginLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
@@ -56,7 +57,7 @@ fun AssetaSessionApp(container: AssetaAppContainer, home: TenantHome? = null) {
                         actionIconContentColor = AssetaColors.Amber,
                     ),
                     actions = {
-                        TextButton(onClick = { vm.logout()?.let(logoutLauncher::launch) }) {
+                        TextButton(onClick = { vm.signOut(logoutLauncher::launch) }) {
                             Text(stringResource(R.string.sign_out), color = AssetaColors.Amber)
                         }
                     },
@@ -66,7 +67,14 @@ fun AssetaSessionApp(container: AssetaAppContainer, home: TenantHome? = null) {
             val modifier = Modifier.padding(padding)
             when (s) {
                 is SessionState.Ready -> if (home != null && s.selectedTenant != null) {
-                    home(s, vm::showTenantPicker, modifier)
+                    val actions = SessionActions(
+                        signOut = { vm.signOut(logoutLauncher::launch) },
+                        switchTenant = vm::showTenantPicker,
+                        sessionExpired = { vm.endSession() },
+                        refreshProfile = vm::loadProfile,
+                        selectTenant = vm::selectTenant,
+                    )
+                    CompositionLocalProvider(LocalSessionActions provides actions) { home(s, vm::showTenantPicker, modifier) }
                 } else {
                     TenantPickerScreen(s, vm::selectTenant, modifier)
                 }

@@ -42,6 +42,9 @@ object NetworkFactory {
     fun syncApi(baseUrl: String, client: OkHttpClient, allowCleartext: Boolean): SyncApi =
         retrofit(baseUrl, client, allowCleartext).create(SyncApi::class.java)
 
+    fun tenantApi(baseUrl: String, client: OkHttpClient, allowCleartext: Boolean): TenantApi =
+        retrofit(baseUrl, client, allowCleartext).create(TenantApi::class.java)
+
     private fun retrofit(baseUrl: String, client: OkHttpClient, allowCleartext: Boolean): Retrofit {
         require(baseUrl.isNotBlank()) { "API base URL is not configured (gradle property asseta.<buildType>.apiBaseUrl)" }
         val url = baseUrl.toHttpUrl()
@@ -55,6 +58,14 @@ object NetworkFactory {
 
     /** Uses the build-type endpoint from BuildConfig. */
     fun defaultApi(client: OkHttpClient): AssetaApi = api(BuildConfig.API_BASE_URL, client, BuildConfig.ALLOW_CLEARTEXT)
+
+    fun defaultTenantApi(client: OkHttpClient): TenantApi = tenantApi(BuildConfig.API_BASE_URL, client, BuildConfig.ALLOW_CLEARTEXT)
+
+    /** The build-type API base URL (also the origin of the `/api/v1/ws` WebSocket). */
+    val defaultBaseUrl: String get() = BuildConfig.API_BASE_URL
+
+    /** Whether this build may talk to a cleartext (http/ws) endpoint (debug emulator only). */
+    val defaultAllowCleartext: Boolean get() = BuildConfig.ALLOW_CLEARTEXT
 
     fun defaultSyncApi(client: OkHttpClient): SyncApi = syncApi(BuildConfig.API_BASE_URL, client, BuildConfig.ALLOW_CLEARTEXT)
 }

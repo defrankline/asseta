@@ -1,4 +1,4 @@
-# Asseta Android (Gate 4: offline-first Supervisor field app)
+# Asseta Android (Supervisor field app + Owner app)
 
 Native Android apps for Asseta: **Supervisor** (`com.asseta.supervisor`, offline-first field app) and
 **Owner** (`com.asseta.owner`). Both are thin shells over shared `:core:*` modules so business rules are
@@ -8,7 +8,8 @@ Gate 0 delivered the foundation (secure storage, encrypted DB + outbox, typed ne
 tenant selection). Gate 4 adds the Supervisor field app: device registration, bootstrap/delta sync with policy
 snapshots, hour-meter capture (CameraX + bundled on-device ML Kit OCR, or manual), mandatory fresh GPS attempt,
 resumable encrypted evidence upload, the outbox sync engine (WorkManager), work log, customer acknowledgement,
-job START/COMPLETE, sync status screen, clock-tamper alert and device-revocation wipe. The Owner app is unchanged.
+job START/COMPLETE, sync status screen, clock-tamper alert and device-revocation wipe.
+Gate 7 adds the read-mostly Owner app (see "Owner app (Gate 7)" below).
 Gate 5 adds offline field finance to the Supervisor app: record expense (receipt photo + GPS under the synced
 `EXPENSE_CAPTURE` snapshot), cash collection, cash handover, fuel event and a "My cash" view (see below).
 
@@ -20,12 +21,12 @@ Gate 5 adds offline field finance to the Supervisor app: record expense (receipt
 | `:core:domain` | Pure-Kotlin field rules shared by all screens and the engine (JVM-tested): `MeterReadingParser` (port of the shared OCR spec v1), `GlyphSegmenter`/`GlyphRenderer`/`SevenSegmentDecoder`/`GeometricOcr` (glyph geometry, re-rendering, segment decoder and agreement scoring of the OCR pipeline), `OcrAssessor`/`OcrConsensus`/`PixelRedCellDetector` (text-only fallback + drum handling), `PolicySelector` (machine > tenant snapshot, expiry, offline grant), `CaptureValidator`/`ReadingValidator`/`OcrFlow` (mode, photo, recapture, decimals), `JobStateRules`, `GpsOutcome`, `OutboxTransitions` (state machine), `JobOperationPlanner` (dependency chain), `Backoff`, `ClockCheck`. |
 | `:core:sync` | Data + engine (Android library): `SyncEngine` (register -> bootstrap/changes -> blob upload -> push -> changes), `OutboxPusher`, `BlobUploader`, `ServerDataWriter`, `FieldRepository` (read side), use cases `CaptureMeterReading` and `JobWorkflow`, `FieldOutbox` (single place that enqueues ops with dependencies), `EncryptedEvidenceStore`, `DeviceWipe`, `SyncWorker`/`SyncScheduler` (WorkManager). |
 | `:core:security` | Android Keystore AES-256-GCM key per purpose (`KeystoreSecretCipher`), wrapped-secret file store in `noBackupFilesDir`, SQLCipher passphrase provider (32 random bytes, generated once, never regenerated silently), encrypted token store, evidence data key (`WrappedRandomKey`), device id (`DeviceIdStore`), `wipeLocalSecrets()` (deletes wrapped files and their Keystore keys). |
-| `:core:database` | Room + SQLCipher (`SupportOpenHelperFactory`), schema v3 (v2->v3 AutoMigration: `expense_category`, `cash_custody_balance`, nullable `job.currency`; tested in `MigrationTest`). Outbox `client_operation` (+ `client_operation_dependency` for multi-parent deps, attachment gate, server result/error code) with SQL-guarded transitions; `attachment` (resumable upload state), `job`, `machine`, `reference_record`, `policy_snapshot`, `sync_state`, `meter_capture`, `work_log_entry`. `DatabaseHolder` (close + delete for the wipe). Exported schemas in `core/database/schemas/`; v1->v2 is a Room AutoMigration with a post-migrate step copying legacy `depends_on`; **no destructive fallback**. |
+| `:core:database` | Room + SQLCipher (`SupportOpenHelperFactory`), schema v4 (v2->v3 AutoMigration: `expense_category`, `cash_custody_balance`, nullable `job.currency`; v3->v4: Owner `read_snapshot` cache; tested in `MigrationTest`). Outbox `client_operation` (+ `client_operation_dependency` for multi-parent deps, attachment gate, server result/error code) with SQL-guarded transitions; `attachment` (resumable upload state), `job`, `machine`, `reference_record`, `policy_snapshot`, `sync_state`, `meter_capture`, `work_log_entry`. `DatabaseHolder` (close + delete for the wipe). Exported schemas in `core/database/schemas/`; v1->v2 is a Room AutoMigration with a post-migrate step copying legacy `depends_on`; **no destructive fallback**. |
 | `:core:network` | OkHttp/Retrofit client. Interceptors: `Authorization: Bearer`, `X-Tenant-ID`, `X-Correlation-ID` (UUID per request), `Idempotency-Key` on POST/PUT/PATCH/DELETE (an explicit key, e.g. the outbox operation id, is preserved), error envelope → `ApiException`. Base URL from `BuildConfig`. Debug-only cleartext to `10.0.2.2`/`localhost`. |
 | `:core:auth` | AppAuth Authorization Code + PKCE against Keycloak realm `asseta`, public client `asseta-mobile`; the redirect scheme is supplied per app (see Configuration), never defined in core; token refresh; logout (local clear + Keycloak end-session). `SelectedTenantStore`. Keycloak and the API are authoritative; the app never authorizes locally, it only hides UI. |
 | `:core:ui` | Material3 brand theme (Slate `#0F2A3D`, Amber `#F5A300`), launcher adaptive icon (vector conversion of `branding/asseta-mark.svg`), login screen, `/me` + tenant picker, `SessionViewModel` (+ forced sign-out via `SessionNotice`), `AssetaSessionApp(container, home)` (optional per-app home after tenant selection), `AssetaAppContainer` (manual DI, resettable `databaseHolder`). |
 | `:app:supervisor` | `FieldGraph` (manual DI for the field app), screens (jobs, job detail, capture, acknowledgement + signature pad, sync status, clock banner), `MeterOcr` (ML Kit bundled), `ImageEnhancer`, `GpsLocator` (Fused, foreground only), `CameraCapture` (CameraX in-memory JPEG), just-in-time permission rationale. Manifest: INTERNET, CAMERA, FINE/COARSE location (no background location), backups disabled. |
-| `:app:owner` | Application, `MainActivity`, manifest (INTERNET only). Unchanged in Gate 4. |
+| `:app:owner` | Owner app (Gate 7): `OwnerGraph` (manual DI), `OwnerRepository`/`OwnerData` (server-first reads + offline snapshots, online-only actions), `LiveUpdates` (WebSocket), push (`PushTokenProvider`, `PushRegistrar`, `OwnerMessagingService`), MapLibre map, Compose screens. Manifest: INTERNET, ACCESS_NETWORK_STATE, POST_NOTIFICATIONS. |
 
 ## Toolchain
 
@@ -178,6 +179,54 @@ read correctly at >= 0.92. The fixtures are synthetic; real samples are still re
 - **My cash**: synced custody (outstanding, handovers awaiting verification, expenses awaiting approval) next to this
   device's unsynced collections/handovers/cash expenses, labelled "not verified"; refused records are listed, never
   counted.
+
+## Owner app (Gate 7)
+
+Read-mostly app for owners (prompt.md R1-I): login (shared AppAuth/PKCE flow, client `asseta-mobile`, redirect
+`com.asseta.owner:/oauth2redirect`), tenant picker when several tenants, then bottom tabs **Home** (overview KPIs per
+permitted section with each section's `latest_source_at` freshness), **Fleet** (MapLibre map + accessible list, search
+and connectivity filters, tap -> machine), **Jobs** (status filters; detail with meter vs billable hours, charges,
+readings with photos, customer acknowledgement), **Alerts** (acknowledge / resolve with a required note), **More**
+(Approvals with approve/reject + note, Investigations read-only, Notifications inbox, Settings). The only mutations are
+alert acknowledge/resolve, approval decisions, the user's push routing and push devices; nothing else changes data.
+
+- **Shared code**: DTOs in `:core:model` (`owner/`, checked field-by-field against `contracts/openapi.json` by
+  `OwnerContractTest`), `TenantApi` + `RealtimeSocket` in `:core:network`, pure rules in `:core:domain` (`owner/`:
+  `Freshness`, `SnapshotPolicy`/`OfflineFallback`, `MutationGate`, `DeepLinkRouter`, `OwnerFormat`, `NotificationMatrix`,
+  `OwnerErrors`), table `read_snapshot` in `:core:database` (schema v4, additive AutoMigration 3->4, tested),
+  `SessionHooks`/`LocalSessionActions` in `:core:ui` (no-op defaults; Supervisor behaviour unchanged).
+- **Offline read-only cache**: every read goes to the server first and stores the JSON response in `read_snapshot`
+  (SQLCipher) with `fetched_at`. Only a *network* failure falls back to a snapshot; screens then show
+  "Offline — data from <time> (stale)" and disable every action. Server refusals are never masked by cache. Bounds:
+  7 days (older rows are hidden and purged at each profile load), 200 snapshots per tenant (oldest evicted), 512 KB
+  per payload (bigger responses are not cached). Evidence photos are never cached (presigned URL fetched on tap, image
+  in memory only). A machine is never shown as "Live" from cached data or from a response older than 2 minutes.
+- **Wipe**: sign-out (and a 401) closes and deletes the encrypted database and clears the cache directory; `/me` drops
+  snapshots of tenants that are no longer enterable; a `403 TENANT_ACCESS_DENIED/BLOCKED` wipes that tenant's
+  snapshots and re-reads `/me`.
+- **Live updates**: `/api/v1/ws` with `Sec-WebSocket-Protocol: asseta.v1, bearer.<jwt>` while the activity is
+  STARTED; `notification`/`unread_count` update the inbox and badge, `entity.changed` reloads open screens (debounced);
+  pings answered, fresh token on `reauth_required`, jittered reconnect (2 s .. 60 s), stops on 4403.
+- **Errors**: server codes get owner wording (`OwnerErrors`); `SEGREGATION_OF_DUTIES` is shown on the request itself
+  ("Not allowed: segregation of duties" + reference); `ALERT_CLOSED`/`APPROVAL_ALREADY_DECIDED` reload the list.
+
+### Push (FCM) — external input
+
+`google-services.json` is not in the repository. Without it `BuildConfig.FCM_ENABLED=false`, the Google Services
+plugin is not applied, and `NoOpPushTokenProvider` is used (Settings says push is not configured; the inbox and
+live updates still work). To enable: put the Firebase file at `app/owner/google-services.json` (package
+`com.asseta.owner`) and rebuild; `FcmPushTokenProvider` then registers the token at `POST /me/push-devices`
+(`platform=ANDROID`, `app=OWNER`, bound to the selected tenant) when the user enables push in Settings (asks for
+`POST_NOTIFICATIONS` on Android 13+). Sign-out deactivates the registration (`DELETE /me/push-devices/{id}`) and
+deletes the token. Taps (tray or in-app notification) carry `notification_id/tenant_id/link`; the app switches to
+that tenant if needed, resolves the notification's target and opens the machine/alert/approval/case/job screen.
+
+### Map tiles
+
+MapLibre Android 13.6.1 with a raster style built in code; default tiles `https://tile.openstreetmap.org/{z}/{x}/{y}.png`
+with visible "© OpenStreetMap contributors" attribution and an identifying User-Agent. The OSM tile policy allows only
+light use: production must set `-Passeta.mapTileUrl=...` (and `asseta.mapAttribution`) to a contracted/self-hosted
+tile server. No Google Maps key is needed.
 
 ## Rules for later gates
 

@@ -1,8 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Gate 0: network only. Camera/location are added with the features that need them. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Online/offline indicator (mutations disabled while offline). -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Push (Android 13+), requested only when the user enables push in Settings. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:name=".OwnerApplication"
@@ -16,6 +19,7 @@
         android:theme="@style/Theme.Asseta">
         <activity
             android:name=".MainActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
             android:exported="true"
             android:launchMode="singleTask">
             <intent-filter>
@@ -23,5 +27,20 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- FCM entry point; only receives messages when the build has a Firebase config (README "Push"). -->
+        <service
+            android:name=".push.OwnerMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_asseta" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="owner_priority" />
     </application>
 </manifest>

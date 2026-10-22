@@ -22,6 +22,10 @@ object AssetaMigrations {
      * `job.currency` column (Room AutoMigration, purely additive). Finance operations reuse the existing outbox and
      * attachment tables; the EXPENSE_CAPTURE policy snapshot reuses `policy_snapshot`. No existing row is changed.
      */
+    /*
+     * v3 -> v4 (Gate 7 Owner app): new table `read_snapshot` (offline read-only cache of server responses, bounded and
+     * wiped on sign-out). Purely additive AutoMigration; the Supervisor's outbox and cached field data are untouched.
+     */
 
     class V1ToV2 : AutoMigrationSpec {
         override fun onPostMigrate(db: SupportSQLiteDatabase) {

@@ -1,0 +1,1022 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 4,
+    "identityHash": "509327e26a5e763f28e92e4a213beee0",
+    "entities": [
+      {
+        "tableName": "client_operation",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `tenant_id` TEXT NOT NULL, `op_type` TEXT NOT NULL, `entity_type` TEXT NOT NULL, `entity_id` TEXT NOT NULL, `payload_json` TEXT NOT NULL, `depends_on` TEXT, `created_at_device` INTEGER NOT NULL, `status` TEXT NOT NULL, `attempt_count` INTEGER NOT NULL, `last_error` TEXT, `server_revision` INTEGER, `job_id` TEXT, `error_code` TEXT, `result_json` TEXT, `attachment_local_id` TEXT, `last_attempt_at` INTEGER, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tenantId",
+            "columnName": "tenant_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "opType",
+            "columnName": "op_type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "entityType",
+            "columnName": "entity_type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "entityId",
+            "columnName": "entity_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "payloadJson",
+            "columnName": "payload_json",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dependsOn",
+            "columnName": "depends_on",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "createdAtDevice",
+            "columnName": "created_at_device",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "attemptCount",
+            "columnName": "attempt_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastError",
+            "columnName": "last_error",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "serverRevision",
+            "columnName": "server_revision",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "jobId",
+            "columnName": "job_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "errorCode",
+            "columnName": "error_code",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "resultJson",
+            "columnName": "result_json",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "attachmentLocalId",
+            "columnName": "attachment_local_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "lastAttemptAt",
+            "columnName": "last_attempt_at",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_client_operation_tenant_id_status_created_at_device",
+            "unique": false,
+            "columnNames": [
+              "tenant_id",
+              "status",
+              "created_at_device"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_client_operation_tenant_id_status_created_at_device` ON `${TABLE_NAME}` (`tenant_id`, `status`, `created_at_device`)"
+          },
+          {
+            "name": "index_client_operation_depends_on",
+            "unique": false,
+            "columnNames": [
+              "depends_on"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_client_operation_depends_on` ON `${TABLE_NAME}` (`depends_on`)"
+          },
+          {
+            "name": "index_client_operation_entity_type_entity_id",
+            "unique": false,
+            "columnNames": [
+              "entity_type",
+              "entity_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_client_operation_entity_type_entity_id` ON `${TABLE_NAME}` (`entity_type`, `entity_id`)"
+          },
+          {
+            "name": "index_client_operation_job_id",
+            "unique": false,
+            "columnNames": [
+              "job_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_client_operation_job_id` ON `${TABLE_NAME}` (`job_id`)"
+          },
+          {
+            "name": "index_client_operation_attachment_local_id",
+            "unique": false,
+            "columnNames": [
+              "attachment_local_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_client_operation_attachment_local_id` ON `${TABLE_NAME}` (`attachment_local_id`)"
+          }
+        ]
+      },
+      {
+        "tableName": "client_operation_dependency",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`operation_id` TEXT NOT NULL, `depends_on_id` TEXT NOT NULL, PRIMARY KEY(`operation_id`, `depends_on_id`))",
+        "fields": [
+          {
+            "fieldPath": "operationId",
+            "columnName": "operation_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dependsOnId",
+            "columnName": "depends_on_id",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "operation_id",
+            "depends_on_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_client_operation_dependency_depends_on_id",
+            "unique": false,
+            "columnNames": [
+              "depends_on_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_client_operation_dependency_depends_on_id` ON `${TABLE_NAME}` (`depends_on_id`)"
+          }
+        ]
+      },
+      {
+        "tableName": "attachment",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `tenant_id` TEXT NOT NULL, `purpose` TEXT NOT NULL, `file_name` TEXT NOT NULL, `sha256` TEXT NOT NULL, `size_bytes` INTEGER NOT NULL, `content_type` TEXT NOT NULL, `status` TEXT NOT NULL, `session_id` TEXT, `chunk_size` INTEGER, `received_chunks` TEXT, `server_attachment_id` TEXT, `attempt_count` INTEGER NOT NULL, `last_error` TEXT, `created_at` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tenantId",
+            "columnName": "tenant_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "purpose",
+            "columnName": "purpose",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fileName",
+            "columnName": "file_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sha256",
+            "columnName": "sha256",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sizeBytes",
+            "columnName": "size_bytes",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "contentType",
+            "columnName": "content_type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sessionId",
+            "columnName": "session_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "chunkSize",
+            "columnName": "chunk_size",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "receivedChunks",
+            "columnName": "received_chunks",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "serverAttachmentId",
+            "columnName": "server_attachment_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "attemptCount",
+            "columnName": "attempt_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastError",
+            "columnName": "last_error",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_attachment_tenant_id_status",
+            "unique": false,
+            "columnNames": [
+              "tenant_id",
+              "status"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_attachment_tenant_id_status` ON `${TABLE_NAME}` (`tenant_id`, `status`)"
+          }
+        ]
+      },
+      {
+        "tableName": "job",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `tenant_id` TEXT NOT NULL, `job_number` TEXT NOT NULL, `machine_id` TEXT NOT NULL, `contract_id` TEXT NOT NULL, `job_site_id` TEXT, `status` TEXT NOT NULL, `version` INTEGER NOT NULL, `planned_start` TEXT NOT NULL, `planned_end` TEXT, `standby_treatment` TEXT, `currency` TEXT, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tenantId",
+            "columnName": "tenant_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "jobNumber",
+            "columnName": "job_number",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "machineId",
+            "columnName": "machine_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "contractId",
+            "columnName": "contract_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "jobSiteId",
+            "columnName": "job_site_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "version",
+            "columnName": "version",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "plannedStart",
+            "columnName": "planned_start",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "plannedEnd",
+            "columnName": "planned_end",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "standbyTreatment",
+            "columnName": "standby_treatment",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "currency",
+            "columnName": "currency",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_job_tenant_id_status",
+            "unique": false,
+            "columnNames": [
+              "tenant_id",
+              "status"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_job_tenant_id_status` ON `${TABLE_NAME}` (`tenant_id`, `status`)"
+          }
+        ]
+      },
+      {
+        "tableName": "machine",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `tenant_id` TEXT NOT NULL, `asset_code` TEXT NOT NULL, `name` TEXT NOT NULL, `meter_decimal_places` INTEGER NOT NULL, `status` TEXT NOT NULL, `version` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tenantId",
+            "columnName": "tenant_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "assetCode",
+            "columnName": "asset_code",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "meterDecimalPlaces",
+            "columnName": "meter_decimal_places",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "version",
+            "columnName": "version",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_machine_tenant_id",
+            "unique": false,
+            "columnNames": [
+              "tenant_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_machine_tenant_id` ON `${TABLE_NAME}` (`tenant_id`)"
+          }
+        ]
+      },
+      {
+        "tableName": "reference_record",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`kind` TEXT NOT NULL, `id` TEXT NOT NULL, `tenant_id` TEXT NOT NULL, `title` TEXT NOT NULL, `json` TEXT NOT NULL, PRIMARY KEY(`kind`, `id`))",
+        "fields": [
+          {
+            "fieldPath": "kind",
+            "columnName": "kind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tenantId",
+            "columnName": "tenant_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "json",
+            "columnName": "json",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "kind",
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_reference_record_tenant_id",
+            "unique": false,
+            "columnNames": [
+              "tenant_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_reference_record_tenant_id` ON `${TABLE_NAME}` (`tenant_id`)"
+          }
+        ]
+      },
+      {
+        "tableName": "policy_snapshot",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`tenant_id` TEXT NOT NULL, `policy_type` TEXT NOT NULL, `scope_key` TEXT NOT NULL, `version_ids_json` TEXT NOT NULL, `version_stamp` TEXT NOT NULL, `values_json` TEXT NOT NULL, `valid_until` INTEGER NOT NULL, `received_at` INTEGER NOT NULL, PRIMARY KEY(`tenant_id`, `policy_type`, `scope_key`))",
+        "fields": [
+          {
+            "fieldPath": "tenantId",
+            "columnName": "tenant_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "policyType",
+            "columnName": "policy_type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "scopeKey",
+            "columnName": "scope_key",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "versionIdsJson",
+            "columnName": "version_ids_json",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "versionStamp",
+            "columnName": "version_stamp",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "valuesJson",
+            "columnName": "values_json",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "validUntil",
+            "columnName": "valid_until",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "receivedAt",
+            "columnName": "received_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "tenant_id",
+            "policy_type",
+            "scope_key"
+          ]
+        }
+      },
+      {
+        "tableName": "sync_state",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`tenant_id` TEXT NOT NULL, `device_session_id` TEXT, `offline_grant_until` INTEGER, `cursor` INTEGER, `server_time` INTEGER, `server_time_elapsed` INTEGER, `last_sync_at` INTEGER, `failure_streak` INTEGER NOT NULL, `last_error` TEXT, `clock_offset_s` REAL, `server_clock_alert` INTEGER NOT NULL, `max_batch` INTEGER, PRIMARY KEY(`tenant_id`))",
+        "fields": [
+          {
+            "fieldPath": "tenantId",
+            "columnName": "tenant_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "deviceSessionId",
+            "columnName": "device_session_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "offlineGrantUntil",
+            "columnName": "offline_grant_until",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "cursor",
+            "columnName": "cursor",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "serverTime",
+            "columnName": "server_time",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "serverTimeElapsed",
+            "columnName": "server_time_elapsed",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "lastSyncAt",
+            "columnName": "last_sync_at",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "failureStreak",
+            "columnName": "failure_streak",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastError",
+            "columnName": "last_error",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "clockOffsetS",
+            "columnName": "clock_offset_s",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "serverClockAlert",
+            "columnName": "server_clock_alert",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "maxBatch",
+            "columnName": "max_batch",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "tenant_id"
+          ]
+        }
+      },
+      {
+        "tableName": "meter_capture",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `tenant_id` TEXT NOT NULL, `job_id` TEXT NOT NULL, `kind` TEXT NOT NULL, `capture_mode` TEXT NOT NULL, `reading` TEXT NOT NULL, `ocr_value` TEXT, `ocr_raw_text` TEXT, `ocr_confidence` REAL, `photo_attachment_local_id` TEXT, `gps_status` TEXT NOT NULL, `latitude` REAL, `longitude` REAL, `accuracy_m` REAL, `gps_captured_at` INTEGER, `gps_provider` TEXT, `captured_at` INTEGER NOT NULL, `policy_version_ids_json` TEXT NOT NULL, `operation_id` TEXT NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tenantId",
+            "columnName": "tenant_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "jobId",
+            "columnName": "job_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "kind",
+            "columnName": "kind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "captureMode",
+            "columnName": "capture_mode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reading",
+            "columnName": "reading",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ocrValue",
+            "columnName": "ocr_value",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "ocrRawText",
+            "columnName": "ocr_raw_text",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "ocrConfidence",
+            "columnName": "ocr_confidence",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "photoAttachmentLocalId",
+            "columnName": "photo_attachment_local_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "gpsStatus",
+            "columnName": "gps_status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "latitude",
+            "columnName": "latitude",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "longitude",
+            "columnName": "longitude",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "accuracyM",
+            "columnName": "accuracy_m",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "gpsCapturedAt",
+            "columnName": "gps_captured_at",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "gpsProvider",
+            "columnName": "gps_provider",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "capturedAt",
+            "columnName": "captured_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "policyVersionIdsJson",
+            "columnName": "policy_version_ids_json",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "operationId",
+            "columnName": "operation_id",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_meter_capture_job_id",
+            "unique": false,
+            "columnNames": [
+              "job_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_meter_capture_job_id` ON `${TABLE_NAME}` (`job_id`)"
+          }
+        ]
+      },
+      {
+        "tableName": "work_log_entry",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`client_id` TEXT NOT NULL, `tenant_id` TEXT NOT NULL, `job_id` TEXT NOT NULL, `activity_type` TEXT NOT NULL, `started_at` INTEGER NOT NULL, `ended_at` INTEGER, `note` TEXT, `operation_id` TEXT, PRIMARY KEY(`client_id`))",
+        "fields": [
+          {
+            "fieldPath": "clientId",
+            "columnName": "client_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tenantId",
+            "columnName": "tenant_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "jobId",
+            "columnName": "job_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "activityType",
+            "columnName": "activity_type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startedAt",
+            "columnName": "started_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endedAt",
+            "columnName": "ended_at",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "note",
+            "columnName": "note",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "operationId",
+            "columnName": "operation_id",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "client_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_work_log_entry_job_id",
+            "unique": false,
+            "columnNames": [
+              "job_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_work_log_entry_job_id` ON `${TABLE_NAME}` (`job_id`)"
+          }
+        ]
+      },
+      {
+        "tableName": "expense_category",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `tenant_id` TEXT NOT NULL, `code` TEXT NOT NULL, `name` TEXT NOT NULL, `is_active` INTEGER NOT NULL, `sync_revision` INTEGER NOT NULL, `version` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tenantId",
+            "columnName": "tenant_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "code",
+            "columnName": "code",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isActive",
+            "columnName": "is_active",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "syncRevision",
+            "columnName": "sync_revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "version",
+            "columnName": "version",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_expense_category_tenant_id_is_active",
+            "unique": false,
+            "columnNames": [
+              "tenant_id",
+              "is_active"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_expense_category_tenant_id_is_active` ON `${TABLE_NAME}` (`tenant_id`, `is_active`)"
+          }
+        ]
+      },
+      {
+        "tableName": "cash_custody_balance",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`tenant_id` TEXT NOT NULL, `currency` TEXT NOT NULL, `staff_member_id` TEXT NOT NULL, `outstanding` TEXT NOT NULL, `claimed_unverified_handovers` TEXT NOT NULL, `pending_spending` TEXT NOT NULL, `as_of` INTEGER NOT NULL, `received_at` INTEGER NOT NULL, PRIMARY KEY(`tenant_id`, `currency`))",
+        "fields": [
+          {
+            "fieldPath": "tenantId",
+            "columnName": "tenant_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "currency",
+            "columnName": "currency",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "staffMemberId",
+            "columnName": "staff_member_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "outstanding",
+            "columnName": "outstanding",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "claimedUnverifiedHandovers",
+            "columnName": "claimed_unverified_handovers",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pendingSpending",
+            "columnName": "pending_spending",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "asOf",
+            "columnName": "as_of",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "receivedAt",
+            "columnName": "received_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "tenant_id",
+            "currency"
+          ]
+        }
+      },
+      {
+        "tableName": "read_snapshot",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`tenant_id` TEXT NOT NULL, `cache_key` TEXT NOT NULL, `payload_json` TEXT NOT NULL, `fetched_at` INTEGER NOT NULL, PRIMARY KEY(`tenant_id`, `cache_key`))",
+        "fields": [
+          {
+            "fieldPath": "tenantId",
+            "columnName": "tenant_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cacheKey",
+            "columnName": "cache_key",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "payloadJson",
+            "columnName": "payload_json",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fetchedAt",
+            "columnName": "fetched_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "tenant_id",
+            "cache_key"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '509327e26a5e763f28e92e4a213beee0')"
+    ]
+  }
+}
