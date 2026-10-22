@@ -183,7 +183,9 @@ describe('customer details page', () => {
     );
     renderWithProviders(<CustomerDetailPage />, { tenantPermissions: WRITE });
     expect(await screen.findByRole('heading', { name: 'C-01 · Acme Roads' })).toBeInTheDocument();
-    expect(screen.getByRole('status')).toHaveTextContent('Reason: Went bankrupt');
+    // The inactive banner is a status region; a still-loading section may be another one on slow runners.
+    const banner = screen.getByText(/Reason: Went bankrupt/).closest('[role="status"]');
+    expect(banner).not.toBeNull();
     expect(await screen.findByText('K-7')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Reactivate' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument();
