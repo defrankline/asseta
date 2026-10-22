@@ -183,7 +183,8 @@ describe('staff details page', () => {
     );
     renderWithProviders(<StaffDetailPage />, { tenantPermissions: WRITE });
     expect(await screen.findByRole('heading', { name: 'Asha Mwita' })).toBeInTheDocument();
-    expect(screen.getByRole('status')).toHaveTextContent('Reason: Left the company');
+    // The inactive banner is a status region; a still-loading section may be another one on slow runners.
+    expect(screen.getByText(/Reason: Left the company/).closest('[role="status"]')).not.toBeNull();
     expect(screen.getByText('E-1')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Reactivate' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument();

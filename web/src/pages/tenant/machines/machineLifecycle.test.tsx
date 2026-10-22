@@ -206,7 +206,8 @@ describe('machine details page actions', () => {
     );
     renderWithProviders(<MachineDetailPage />, { tenantPermissions: WRITE });
     expect(await screen.findByText(/This machine is retired/)).toBeInTheDocument();
-    expect(screen.getByRole('status')).toHaveTextContent('Reason: Sold at auction');
+    // The inactive banner is a status region; a still-loading section may be another one on slow runners.
+    expect(screen.getByText(/Reason: Sold at auction/).closest('[role="status"]')).not.toBeNull();
     expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Reinstate' })).toBeInTheDocument();
   });
