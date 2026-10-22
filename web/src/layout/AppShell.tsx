@@ -22,7 +22,34 @@ export function AppShell() {
           setMobileOpen(false);
         }}
       />
-      <Box component="main" className="min-w-0 flex-1 p-4 md:p-6">
+      <Box
+        component="a"
+        href="#main-content"
+        className="sr-only focus:not-sr-only"
+        sx={{
+          '&:focus': {
+            position: 'fixed',
+            top: 8,
+            left: 8,
+            zIndex: (t) => t.zIndex.tooltip + 1,
+            px: 2,
+            py: 1,
+            borderRadius: 1,
+            bgcolor: 'background.paper',
+            color: 'text.primary',
+            outline: '2px solid',
+            outlineColor: 'primary.main',
+          },
+        }}
+      >
+        Skip to main content
+      </Box>
+      <Box
+        component="main"
+        id="main-content"
+        tabIndex={-1}
+        className="min-w-0 flex-1 p-4 outline-none md:p-6"
+      >
         <Toolbar />
         <MandateBanner />
         <TenantAccessBanner />

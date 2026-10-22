@@ -59,7 +59,7 @@ export function NotificationsPage() {
           <>
             {canSeeDeliveries && (
               <Button component={RouterLink} to={ROUTES.notificationDeliveries}>
-                SMS delivery log
+                Delivery log
               </Button>
             )}
             <Button component={RouterLink} to={ROUTES.notificationPreferences}>

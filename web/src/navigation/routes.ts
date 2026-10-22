@@ -28,7 +28,13 @@ export const ROUTES = {
   notificationPreferences: '/notifications/preferences',
   /** SMS delivery log of the current console (`*.notification.manage`). */
   notificationDeliveries: '/notifications/deliveries',
+  /** Platform audit log (backend `platform.audit` menu). */
+  platformAudit: '/platform/audit',
   // Tenant console paths match the backend tenant menu paths (`/me` tenant menus).
+  /** Tenant landing page (backend `tenant.dashboard` menu, first item of the Overview group). */
+  tenantDashboard: '/tenant/dashboard',
+  /** Tenant audit log (backend `tenant.audit` menu). */
+  tenantAudit: '/tenant/audit',
   tenantFleet: '/tenant/fleet',
   tenantMachines: '/tenant/machines',
   tenantMachineDetail: '/tenant/machines/:machineId',
@@ -168,6 +174,9 @@ export const IMPLEMENTED_PATHS: ReadonlySet<string> = new Set([
   ROUTES.platformTelemetry,
   ROUTES.platformModels,
   ROUTES.systemStatus,
+  ROUTES.platformAudit,
+  ROUTES.tenantDashboard,
+  ROUTES.tenantAudit,
   ROUTES.tenantFleet,
   ROUTES.tenantMachines,
   ROUTES.tenantStaff,

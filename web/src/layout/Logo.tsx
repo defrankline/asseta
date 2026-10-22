@@ -1,15 +1,18 @@
 interface LogoProps {
   height?: number;
+  /** Mark only (no wordmark), for narrow headers. */
+  compact?: boolean;
 }
 
 /** Inline Asseta lockup so the wordmark follows `currentColor` (img tags cannot). */
-export function Logo({ height = 32 }: LogoProps) {
+export function Logo({ height = 32, compact = false }: LogoProps) {
+  const viewWidth = compact ? 64 : 248;
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 248 64"
+      viewBox={`0 0 ${String(viewWidth)} 64`}
       height={height}
-      width={(height * 248) / 64}
+      width={(height * viewWidth) / 64}
       role="img"
       aria-label="Asseta"
     >
@@ -30,17 +33,19 @@ export function Logo({ height = 32 }: LogoProps) {
         paintOrder="stroke"
       />
       <circle cx="32" cy="18.5" r="3.8" fill="#0F2A3D" />
-      <text
-        x="78"
-        y="45"
-        fontFamily="Inter, 'Segoe UI', Helvetica, Arial, sans-serif"
-        fontSize="36"
-        fontWeight="800"
-        letterSpacing="-0.5"
-        fill="currentColor"
-      >
-        asseta
-      </text>
+      {!compact && (
+        <text
+          x="78"
+          y="45"
+          fontFamily="Inter, 'Segoe UI', Helvetica, Arial, sans-serif"
+          fontSize="36"
+          fontWeight="800"
+          letterSpacing="-0.5"
+          fill="currentColor"
+        >
+          asseta
+        </text>
+      )}
     </svg>
   );
 }

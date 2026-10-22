@@ -1,8 +1,10 @@
 import { Alert, Tooltip } from '@mui/material';
 import { useCallback, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router';
 import { alertService } from '../../../api/services/alertService';
 import { fleetService } from '../../../api/services/fleetService';
 import type { AlertDto, MachineDto } from '../../../api/types';
+import { ExportMenu } from '../../../components/data/ExportMenu';
 import { ServerDataTable, type DataColumn } from '../../../components/data/ServerDataTable';
 import type { ServerQuery } from '../../../components/data/useServerPage';
 import { StatusChip } from '../../../components/display/StatusChip';
@@ -25,13 +27,19 @@ import { MachinePicker } from '../shared/MachinePicker';
 import { AlertDetailDialog } from './AlertDetailDialog';
 import { ENTITY } from '../../../realtime/entities';
 import { useLiveRefresh } from '../../../realtime/hooks';
+import { initialFilter } from '../../../navigation/urlFilters';
 
 /** Tracking alerts: server-filtered list, evidence detail, acknowledge / resolve. */
 export function AlertsPage() {
   const tz = useDisplayTimeZone();
   const notify = useNotify();
-  const [status, setStatus] = useState('OPEN');
-  const [type, setType] = useState('');
+  const [params] = useSearchParams();
+  const [status, setStatus] = useState(() =>
+    initialFilter(params, 'status', ALERT_STATUS_OPTIONS, 'OPEN'),
+  );
+  const [type, setType] = useState(() =>
+    initialFilter(params, 'alert_type', ALERT_TYPE_OPTIONS, ''),
+  );
   const [machine, setMachine] = useState<MachineDto | null>(null);
   const [selected, setSelected] = useState<AlertDto | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -89,7 +97,11 @@ export function AlertsPage() {
 
   return (
     <>
-      <PageHeader title="Alerts" subtitle={`Tracking alerts · times in ${tz}`} />
+      <PageHeader
+        title="Alerts"
+        subtitle={`Tracking alerts · times in ${tz}`}
+        actions={<ExportMenu reports={[{ code: 'alerts', filters }]} />}
+      />
       {status === 'SUPERSEDED' && (
         <Alert severity="info" className="mb-3">
           {SUPERSEDED_HELP}

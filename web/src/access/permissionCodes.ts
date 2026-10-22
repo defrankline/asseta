@@ -46,6 +46,8 @@ export const PERMISSIONS = {
   platformMlRead: 'platform.ml.read',
   /** Approve, deploy, roll back and disable models; the inference switch; run snapshots/training. */
   platformMlManage: 'platform.ml.manage',
+  /** Platform and billing audit trail (who changed what, when). */
+  platformAuditRead: 'platform.audit.read',
 
   // ---- Tenant console (only granted in tenant mode, for the active tenant) ----
   /** Fleet map, positions, history and alerts (read). */
@@ -131,4 +133,6 @@ export const PERMISSIONS = {
   tenantCaseResolve: 'tenant.case.resolve',
   /** Deterministic risk signals and their evidence (read). */
   tenantSignalRead: 'tenant.signal.read',
+  /** The tenant's audit log (who changed what, when). */
+  tenantAuditRead: 'tenant.audit.read',
 } as const;

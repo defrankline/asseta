@@ -159,3 +159,9 @@ export const SmsDeliveriesPage = lazy(() =>
     default: m.SmsDeliveriesPage,
   })),
 );
+export const DashboardPage = lazy(() =>
+  import('../pages/tenant/dashboard/DashboardPage').then((m) => ({ default: m.DashboardPage })),
+);
+export const AuditLogPage = lazy(() =>
+  import('../pages/audit/AuditLogPage').then((m) => ({ default: m.AuditLogPage })),
+);

@@ -62,7 +62,7 @@ def test_me_returns_menu_groups_in_order_only_when_visible(api: Api) -> None:
         "Risk & review",
         "Administration",
     ]
-    assert tenant["menus"][0]["path"] == "/tenant/fleet"
+    assert tenant["menus"][0]["path"] == "/tenant/dashboard"
     # An operator (self-service only) sees just the Administration group: empty groups are not listed.
     r = a["owner"].post(
         "/api/v1/tenant/access/members",

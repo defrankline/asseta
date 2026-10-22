@@ -12,6 +12,13 @@ export const TENANT_GROUPS: MenuGroupDto[] = [
 
 export const TENANT_MENUS: MenuDto[] = [
   {
+    key: 'tenant.dashboard',
+    label: 'Dashboard',
+    path: '/tenant/dashboard',
+    order: 5,
+    group: 'tenant.overview',
+  },
+  {
     key: 'tenant.machines',
     label: 'Machines',
     path: '/tenant/machines',

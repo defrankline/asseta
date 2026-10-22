@@ -1,6 +1,7 @@
 import { Box } from '@mui/material';
 import { useCallback, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
+import { initialFilter } from '../../../navigation/urlFilters';
 import { caseService, riskSignalService } from '../../../api/services/caseService';
 import type { MachineDto, RiskSignalDto } from '../../../api/types';
 import { ServerDataTable, type DataColumn } from '../../../components/data/ServerDataTable';
@@ -58,7 +59,10 @@ export function SignalsTab({ timeZone }: { timeZone: string }) {
   const machineName = useMachineLabels();
   const staffName = useStaffLabels();
   const [rule, setRule] = useState('');
-  const [severity, setSeverity] = useState('');
+  const [params] = useSearchParams();
+  const [severity, setSeverity] = useState(() =>
+    initialFilter(params, 'severity', SEVERITY_FILTER_OPTIONS, ''),
+  );
   const [status, setStatus] = useState('');
   const [machine, setMachine] = useState<MachineDto | null>(null);
   const [reloadKey, setReloadKey] = useState(0);

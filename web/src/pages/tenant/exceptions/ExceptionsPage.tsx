@@ -28,6 +28,7 @@ import {
 import { ExceptionDetailDialog } from './ExceptionDetailDialog';
 import { ENTITY } from '../../../realtime/entities';
 import { useLiveRefresh } from '../../../realtime/hooks';
+import { initialFilter } from '../../../navigation/urlFilters';
 
 /** Meter/GPS exceptions awaiting or after human review; filtered by status, type and job. */
 export function ExceptionsPage() {
@@ -36,8 +37,12 @@ export function ExceptionsPage() {
   const machineName = useMachineLabels();
   const [params, setParams] = useSearchParams();
   const jobId = params.get('job_id') ?? '';
-  const [status, setStatus] = useState('OPEN');
-  const [type, setType] = useState('');
+  const [status, setStatus] = useState(() =>
+    initialFilter(params, 'status', EXCEPTION_STATUS_OPTIONS, 'OPEN'),
+  );
+  const [type, setType] = useState(() =>
+    initialFilter(params, 'exception_type', EXCEPTION_TYPE_OPTIONS, ''),
+  );
   const [job, setJob] = useState<JobDto | null>(null);
   const [selected, setSelected] = useState<ExceptionDto | null>(null);
   const [reloadKey, setReloadKey] = useState(0);

@@ -49,7 +49,7 @@ def test_groups_follow_the_daily_workflow_and_start_on_the_landing_page() -> Non
     everything = frozenset(p.code for p in CATALOG.permissions())
     tenant_menus, _ = menus_for(_rows(), "TENANT", everything)
     platform_menus, _ = menus_for(_rows(), "PLATFORM", everything)
-    assert (tenant_menus[0].group, tenant_menus[0].path) == ("tenant.overview", "/tenant/fleet")
+    assert (tenant_menus[0].group, tenant_menus[0].path) == ("tenant.overview", "/tenant/dashboard")
     assert (platform_menus[0].group, platform_menus[0].path) == ("platform.overview", "/platform")
 
 

@@ -17,6 +17,7 @@ import { KeyValueGrid } from '../../../components/display/KeyValueGrid';
 import { MoneyText } from '../../../components/display/MoneyText';
 import { StatusChip } from '../../../components/display/StatusChip';
 import { AsyncContent } from '../../../components/feedback/AsyncContent';
+import { ExportMenu } from '../../../components/data/ExportMenu';
 import { PageHeader } from '../../../components/feedback/PageHeader';
 import { useAsyncResource } from '../../../hooks/useAsyncResource';
 import { formatDate } from '../../../utils/dates';
@@ -168,6 +169,7 @@ export function TenantSubscriptionPage() {
       <PageHeader
         title="Subscription"
         subtitle="Your Asseta subscription, platform invoices and SMS credits"
+        actions={<ExportMenu reports={[{ code: 'subscription' }]} />}
       />
       <Stack spacing={3}>
         <AsyncContent

@@ -1,7 +1,8 @@
 import Add from '@mui/icons-material/Add';
 import { Box, Button } from '@mui/material';
 import { useCallback, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
+import { initialFilter } from '../../../../navigation/urlFilters';
 import { PERMISSIONS } from '../../../../access/permissionCodes';
 import { CanMutate } from '../../../../access/CanMutate';
 import { hireInvoiceService } from '../../../../api/services/financeService';
@@ -30,7 +31,10 @@ export function InvoicesTab({ timeZone }: { timeZone: string }) {
   const navigate = useNavigate();
   const notify = useNotify();
   const customerLabel = useCustomerLabels();
-  const [status, setStatus] = useState('');
+  const [params] = useSearchParams();
+  const [status, setStatus] = useState(() =>
+    initialFilter(params, 'status', INVOICE_STATUS_OPTIONS, ''),
+  );
   const [customer, setCustomer] = useState<CustomerDto | null>(null);
   const [creating, setCreating] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);

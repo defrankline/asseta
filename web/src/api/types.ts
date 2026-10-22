@@ -416,3 +416,27 @@ export type InsightTrend = NonNullable<UtilisationInsightDto['trend']>;
 export type ManualOverrideItemDto = Schemas['ManualOverrideItemDto'];
 export type ManualOverrideSummaryDto = Schemas['ManualOverrideSummaryDto'];
 export type ManualOverrideReportDto = Schemas['ManualOverrideReportDto'];
+
+// ---- Gate 7: overview KPIs, report exports, audit log, PUSH/EMAIL channels ----
+export type TenantOverviewDto = Schemas['TenantOverviewDto'];
+export type OverviewFleetSectionDto = Schemas['OverviewFleetSectionDto'];
+export type OverviewWorkSectionDto = Schemas['OverviewWorkSectionDto'];
+export type OverviewMoneySectionDto = Schemas['OverviewMoneySectionDto'];
+export type OverviewCurrencyMoneyDto = Schemas['OverviewCurrencyMoneyDto'];
+export type OverviewRiskSectionDto = Schemas['OverviewRiskSectionDto'];
+export type OverviewSeverityCountsDto = Schemas['OverviewSeverityCountsDto'];
+export type OverviewConnectivityCountsDto = Schemas['OverviewConnectivityCountsDto'];
+export type ReportDefinitionDto = Schemas['ReportDefinitionDto'];
+export type ReportColumnDto = Schemas['ReportColumnDto'];
+export type AuditEventDto = Schemas['AuditEventDto'];
+export type NotificationChannel = Schemas['Channel'];
+export type NotificationCategory = Schemas['Category'];
+export type NotificationRoutingDto = Schemas['NotificationRoutingDto'];
+export type NotificationRoutingIn = Schemas['NotificationRoutingIn'];
+export type NotificationRoutingChangeIn = Schemas['NotificationRoutingChangeIn'];
+export type PushDeviceDto = Schemas['PushDeviceDto'];
+export type DevicePlatform = Schemas['DevicePlatform'];
+export type DeviceApp = Schemas['DeviceApp'];
+export type DeviceDeactivation = Schemas['DeviceDeactivation'];
+export type ChannelDeliveryStatus = Schemas['ChannelDeliveryStatus'];
+export type NotificationChannelDeliveryDto = Schemas['NotificationChannelDeliveryDto'];

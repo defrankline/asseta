@@ -1,11 +1,14 @@
 import Add from '@mui/icons-material/Add';
 import { Box, Button } from '@mui/material';
 import { useCallback, useState } from 'react';
+import { useSearchParams } from 'react-router';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import { CanMutate } from '../../../access/CanMutate';
 import { expenseService } from '../../../api/services/expenseService';
 import type { ExpenseDto, MachineDto, StaffDto } from '../../../api/types';
+import { ExportMenu } from '../../../components/data/ExportMenu';
 import { ServerDataTable, type DataColumn } from '../../../components/data/ServerDataTable';
+import { initialFilter } from '../../../navigation/urlFilters';
 import type { FetchPage } from '../../../components/data/useServerPage';
 import { MoneyText } from '../../../components/display/MoneyText';
 import { StatusChip } from '../../../components/display/StatusChip';
@@ -32,7 +35,10 @@ export function ExpensesTab({ timeZone }: { timeZone: string }) {
   const notify = useNotify();
   const categoryLabel = useExpenseCategoryLabels();
   const machineLabel = useMachineLabels();
-  const [status, setStatus] = useState('');
+  const [params] = useSearchParams();
+  const [status, setStatus] = useState(() =>
+    initialFilter(params, 'status', EXPENSE_STATUS_OPTIONS, ''),
+  );
   const [machine, setMachine] = useState<MachineDto | null>(null);
   const [custodian, setCustodian] = useState<StaffDto | null>(null);
   const [viewing, setViewing] = useState<ExpenseDto | null>(null);
@@ -129,6 +135,18 @@ export function ExpensesTab({ timeZone }: { timeZone: string }) {
               />
             </Box>
             <Box className="flex-1" />
+            <ExportMenu
+              reports={[
+                {
+                  code: 'expenses',
+                  filters: {
+                    status,
+                    machine_id: machine?.id,
+                    custodian_staff_id: custodian?.id,
+                  },
+                },
+              ]}
+            />
             <CanMutate permission={PERMISSIONS.tenantExpenseWrite}>
               <Button
                 variant="contained"

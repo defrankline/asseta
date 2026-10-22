@@ -10,7 +10,7 @@ interface PageHeaderProps {
 export function PageHeader({ title, subtitle, actions }: PageHeaderProps) {
   return (
     <Box className="mb-6 flex flex-wrap items-start justify-between gap-4">
-      <Box>
+      <Box className="min-w-0">
         <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
           {title}
         </Typography>
@@ -20,7 +20,7 @@ export function PageHeader({ title, subtitle, actions }: PageHeaderProps) {
           </Typography>
         )}
       </Box>
-      {actions !== undefined && <Box className="flex gap-2">{actions}</Box>}
+      {actions !== undefined && <Box className="flex flex-wrap gap-2">{actions}</Box>}
     </Box>
   );
 }

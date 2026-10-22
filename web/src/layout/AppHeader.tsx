@@ -22,7 +22,7 @@ export function AppHeader({ onToggleNav }: AppHeaderProps) {
 
   return (
     <AppBar position="fixed" elevation={0} sx={{ zIndex: (t) => t.zIndex.drawer + 1 }}>
-      <Toolbar className="gap-3">
+      <Toolbar className="gap-1 sm:gap-3">
         <IconButton
           color="inherit"
           edge="start"
@@ -32,7 +32,12 @@ export function AppHeader({ onToggleNav }: AppHeaderProps) {
         >
           <MenuIcon />
         </IconButton>
-        <Logo height={30} />
+        <Box className="hidden shrink-0 sm:block">
+          <Logo height={30} />
+        </Box>
+        <Box className="shrink-0 sm:hidden">
+          <Logo height={24} compact />
+        </Box>
         <Box className="flex-1" />
         <TenantSwitcher />
         <ConnectionIndicator />

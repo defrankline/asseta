@@ -55,6 +55,8 @@ import {
   TenantSubscriptionPage,
   TrackerDetailPage,
   TrackersPage,
+  DashboardPage,
+  AuditLogPage,
 } from './lazyPages';
 
 const NOTIFICATION_MANAGE = [
@@ -156,6 +158,18 @@ export function AppRoutes() {
         <Route
           path={ROUTES.systemStatus}
           element={guard(PERMISSIONS.platformSystemRead, <SystemStatusPage />)}
+        />
+        <Route
+          path={ROUTES.platformAudit}
+          element={guard(PERMISSIONS.platformAuditRead, <AuditLogPage scope="platform" />)}
+        />
+        <Route
+          path={ROUTES.tenantDashboard}
+          element={guard(PERMISSIONS.tenantFleetRead, <DashboardPage />)}
+        />
+        <Route
+          path={ROUTES.tenantAudit}
+          element={guard(PERMISSIONS.tenantAuditRead, <AuditLogPage scope="tenant" />)}
         />
         <Route
           path={ROUTES.tenantFleet}

@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from asseta.core.clock import get_now
 from asseta.core.db import get_session
 from asseta.core.errors import ERROR_RESPONSES
+from asseta.modules.identity.catalog import CATALOG, MenuDef
 from asseta.modules.identity.catalog import PermissionScope as S
 from asseta.modules.identity.dependencies import requires_any
 from asseta.modules.identity.principal import RequestContext
@@ -16,6 +17,13 @@ from asseta.modules.overview.dto import TenantOverviewDto
 from asseta.modules.overview.service import SECTION_PERMISSIONS, OverviewService
 
 OVERVIEW_READ = requires_any(SECTION_PERMISSIONS, S.TENANT)
+# The console landing page: first item of the Overview group. A menu carries one permission, so it uses the most basic
+# read (fleet); the page renders only the sections the API returns for the caller.
+CATALOG.register_menu(
+    MenuDef(
+        "tenant.dashboard", S.TENANT, "Dashboard", "/tenant/dashboard", 5, "tenant.fleet.read", group="tenant.overview"
+    )
+)
 
 router = APIRouter(prefix="/api/v1/tenant", tags=["overview"], responses=ERROR_RESPONSES)
 

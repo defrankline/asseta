@@ -1,7 +1,7 @@
 import Send from '@mui/icons-material/Send';
-import { Button, Typography } from '@mui/material';
+import { Button, Paper, Tab, Tabs, Typography } from '@mui/material';
 import { useCallback, useMemo, useState } from 'react';
-import { Link as RouterLink } from 'react-router';
+import { Link as RouterLink, useSearchParams } from 'react-router';
 import { object, string } from 'yup';
 import { PERMISSIONS } from '../../access/permissionCodes';
 import { SMS_DELIVERY_STATUSES } from '../../api/services/notificationSchemas';
@@ -21,6 +21,7 @@ import { useNotify } from '../../notifications/useNotify';
 import { useSession } from '../../session/useSession';
 import { formatInstant } from '../../utils/dates';
 import { humanize } from '../../utils/text';
+import { ChannelDeliveriesTable } from './ChannelDeliveriesTable';
 
 const STATUS_TONES: Readonly<Record<string, StatusTone>> = {
   PENDING: 'info',
@@ -112,10 +113,15 @@ function TestSendDialog({ onClose, onSent }: { onClose: () => void; onSent: () =
   );
 }
 
-/** SMS delivery log of the current console (`*.notification.manage`), with platform test-send. */
+/**
+ * Delivery log of the current console (`*.notification.manage`): SMS (with platform test-send) and,
+ * on the second tab, push and e-mail deliveries.
+ */
 export function SmsDeliveriesPage() {
   const { service } = useNotificationCenter();
-  const { hasPermission } = useSession();
+  const { hasPermission, mode } = useSession();
+  const [params, setParams] = useSearchParams();
+  const tab = params.get('channel') === 'push-email' ? 'push-email' : 'sms';
   const canTest =
     service.testSend !== undefined && hasPermission(PERMISSIONS.platformNotificationManage);
   const [status, setStatus] = useState('');
@@ -140,14 +146,14 @@ export function SmsDeliveriesPage() {
   return (
     <>
       <PageHeader
-        title="SMS delivery log"
-        subtitle="SMS notifications sent from this console: status, segments and wallet billing"
+        title="Delivery log"
+        subtitle="Notifications sent from this console by SMS, push and e-mail: status and attempts"
         actions={
           <>
             <Button component={RouterLink} to={ROUTES.notifications}>
               Back to notifications
             </Button>
-            {canTest && (
+            {canTest && tab === 'sms' && (
               <Button
                 variant="contained"
                 startIcon={<Send />}
@@ -161,23 +167,40 @@ export function SmsDeliveriesPage() {
           </>
         }
       />
-      <ServerDataTable<SmsDeliveryDto>
-        columns={COLUMNS}
-        fetchPage={fetchPage}
-        getRowId={(d) => d.id}
-        filters={filters}
-        searchPlaceholder="Search number or type"
-        reloadKey={reloadKey}
-        emptyTitle="No SMS deliveries"
-        toolbar={
-          <StaticSelectFilter
-            label="Status"
-            value={status}
-            options={STATUS_OPTIONS}
-            onChange={setStatus}
-          />
-        }
-      />
+      <Paper variant="outlined" className="mb-3">
+        <Tabs
+          value={tab}
+          aria-label="Delivery channel"
+          variant="scrollable"
+          onChange={(_e, v: string) => {
+            setParams(v === 'sms' ? {} : { channel: v });
+          }}
+        >
+          <Tab value="sms" label="SMS" />
+          <Tab value="push-email" label="Push and e-mail" />
+        </Tabs>
+      </Paper>
+      {tab === 'push-email' ? (
+        <ChannelDeliveriesTable console={mode.kind === 'tenant' ? 'tenant' : 'platform'} />
+      ) : (
+        <ServerDataTable<SmsDeliveryDto>
+          columns={COLUMNS}
+          fetchPage={fetchPage}
+          getRowId={(d) => d.id}
+          filters={filters}
+          searchPlaceholder="Search number or type"
+          reloadKey={reloadKey}
+          emptyTitle="No SMS deliveries"
+          toolbar={
+            <StaticSelectFilter
+              label="Status"
+              value={status}
+              options={STATUS_OPTIONS}
+              onChange={setStatus}
+            />
+          }
+        />
+      )}
       {testing && (
         <TestSendDialog
           onClose={() => {

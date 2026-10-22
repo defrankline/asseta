@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router';
 import { Can } from '../../../access/Can';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import type { InvoiceDto, InvoiceStatus } from '../../../api/types';
+import { ExportMenu } from '../../../components/data/ExportMenu';
 import { ServerDataTable } from '../../../components/data/ServerDataTable';
 import { PageHeader } from '../../../components/feedback/PageHeader';
 import type { SelectOption } from '../../../components/forms/FormikSelectField';
@@ -48,17 +49,20 @@ export function InvoicesPage() {
         title="Invoices"
         subtitle="Subscription and ad-hoc invoices issued to tenants"
         actions={
-          <Can permission={PERMISSIONS.platformInvoiceRaise}>
-            <Button
-              variant="contained"
-              startIcon={<Add />}
-              onClick={() => {
-                setRaising(true);
-              }}
-            >
-              Raise invoice
-            </Button>
-          </Can>
+          <>
+            <ExportMenu reports={[{ code: 'subscription', filters }]} />
+            <Can permission={PERMISSIONS.platformInvoiceRaise}>
+              <Button
+                variant="contained"
+                startIcon={<Add />}
+                onClick={() => {
+                  setRaising(true);
+                }}
+              >
+                Raise invoice
+              </Button>
+            </Can>
+          </>
         }
       />
       <ServerDataTable<InvoiceDto>

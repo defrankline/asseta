@@ -26,8 +26,9 @@ describe('buildNav', () => {
     expect(groups[1]?.items.map((i) => i.label)).toEqual(['Jobs', 'Customers']);
     // My access joins Administration, last.
     expect(groups.at(-1)?.items.map((i) => i.path)).toEqual(['/tenant/policies', '/me']);
-    // The landing page (HomeRedirect) is the first item: the Fleet map.
-    expect(navItems(groups)[0]?.path).toBe('/tenant/fleet');
+    // The landing page (HomeRedirect) is the first item: the Dashboard, then the Fleet map.
+    expect(groups[0]?.items.map((i) => i.label)).toEqual(['Dashboard', 'Fleet map']);
+    expect(navItems(groups)[0]?.path).toBe('/tenant/dashboard');
   });
 
   it('drops groups without visible menus and menus whose group was not listed', () => {

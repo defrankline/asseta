@@ -1,9 +1,12 @@
 import Refresh from '@mui/icons-material/Refresh';
 import { Box, Button, Paper, Typography } from '@mui/material';
 import { useCallback, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router';
 import { fleetService } from '../../../api/services/fleetService';
 import type { MachineMapDto } from '../../../api/types';
+import { ExportMenu } from '../../../components/data/ExportMenu';
 import { AgeText } from '../../../components/display/AgeText';
+import { CONNECTIVITY_ORDER } from '../../../components/fleet/connectivity';
 import { ConnectivityLegend } from '../../../components/fleet/ConnectivityLegend';
 import { FleetMarkersLayer } from '../../../components/fleet/FleetMarkersLayer';
 import { EmptyState } from '../../../components/feedback/EmptyState';
@@ -24,6 +27,7 @@ import { filterFleet, FLEET_REFRESH_MS, type ConnectivityFilter } from './fleetF
 import { MachineStatusPanel } from './MachineStatusPanel';
 import { ENTITY } from '../../../realtime/entities';
 import { useLiveRefresh } from '../../../realtime/hooks';
+import { initialFilter } from '../../../navigation/urlFilters';
 
 interface FleetSnapshot {
   items: MachineMapDto[];
@@ -40,7 +44,11 @@ function FleetView({
   timeZone: string;
 }) {
   const [search, setSearch] = useState('');
-  const [connectivity, setConnectivity] = useState<ConnectivityFilter>('ALL');
+  const [params] = useSearchParams();
+  // Deep links (dashboard cards) open the map on one connectivity state.
+  const [connectivity, setConnectivity] = useState<ConnectivityFilter>(
+    () => initialFilter(params, 'connectivity', CONNECTIVITY_ORDER, 'ALL') as ConnectivityFilter,
+  );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const visible = useMemo(
     () => filterFleet(snapshot.items, search, connectivity),
@@ -64,45 +72,60 @@ function FleetView({
     );
   }
   return (
-    <Box className="grid grid-cols-1 gap-4 lg:grid-cols-[22rem_minmax(0,1fr)]">
-      <FleetMachineList
-        all={snapshot.items}
-        machines={visible}
-        search={search}
-        onSearch={setSearch}
-        connectivity={connectivity}
-        onConnectivity={setConnectivity}
-        selectedId={selectedId}
-        onSelect={setSelectedId}
-        now={now}
-        timeZone={timeZone}
-      />
-      <Box className="flex min-w-0 flex-col gap-3">
-        <Paper variant="outlined" className="overflow-hidden">
-          <MapView
-            center={DEFAULT_MAP_CENTER}
-            zoom={6}
-            ariaLabel="Fleet map"
-            className="h-[28rem] w-full"
-          >
-            <FleetMarkersLayer
-              machines={visible}
-              selectedId={selectedId}
-              onSelect={setSelectedId}
-            />
-            <FitBounds positions={positions} fitKey="initial" />
-          </MapView>
-        </Paper>
-        <ConnectivityLegend />
-        <Paper variant="outlined" className="p-3">
-          {selected === null ? (
-            <Typography variant="body2" color="text.secondary">
-              Select a machine on the map or in the list to see its status evidence.
-            </Typography>
-          ) : (
-            <MachineStatusPanel machine={selected} now={now} timeZone={timeZone} linkToDetail />
-          )}
-        </Paper>
+    <Box className="flex flex-col gap-3">
+      <Box className="flex justify-end">
+        <ExportMenu
+          reports={[
+            {
+              code: 'fleet',
+              filters: {
+                q: search.trim(),
+                connectivity: connectivity === 'ALL' ? '' : connectivity,
+              },
+            },
+          ]}
+        />
+      </Box>
+      <Box className="grid grid-cols-1 gap-4 lg:grid-cols-[22rem_minmax(0,1fr)]">
+        <FleetMachineList
+          all={snapshot.items}
+          machines={visible}
+          search={search}
+          onSearch={setSearch}
+          connectivity={connectivity}
+          onConnectivity={setConnectivity}
+          selectedId={selectedId}
+          onSelect={setSelectedId}
+          now={now}
+          timeZone={timeZone}
+        />
+        <Box className="flex min-w-0 flex-col gap-3">
+          <Paper variant="outlined" className="overflow-hidden">
+            <MapView
+              center={DEFAULT_MAP_CENTER}
+              zoom={6}
+              ariaLabel="Fleet map"
+              className="h-[28rem] w-full"
+            >
+              <FleetMarkersLayer
+                machines={visible}
+                selectedId={selectedId}
+                onSelect={setSelectedId}
+              />
+              <FitBounds positions={positions} fitKey="initial" />
+            </MapView>
+          </Paper>
+          <ConnectivityLegend />
+          <Paper variant="outlined" className="p-3">
+            {selected === null ? (
+              <Typography variant="body2" color="text.secondary">
+                Select a machine on the map or in the list to see its status evidence.
+              </Typography>
+            ) : (
+              <MachineStatusPanel machine={selected} now={now} timeZone={timeZone} linkToDetail />
+            )}
+          </Paper>
+        </Box>
       </Box>
     </Box>
   );

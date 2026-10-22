@@ -40,6 +40,29 @@ export function StaticTable<T>({
               hover={onRowClick !== undefined}
               className={rowClassName(onRowClick !== undefined, isRowMuted?.(row) === true)}
               data-muted={isRowMuted?.(row) === true ? 'true' : undefined}
+              tabIndex={onRowClick !== undefined ? 0 : undefined}
+              onKeyDown={
+                onRowClick !== undefined
+                  ? (e) => {
+                      if (e.target !== e.currentTarget) return;
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        onRowClick(row);
+                      }
+                    }
+                  : undefined
+              }
+              sx={
+                onRowClick !== undefined
+                  ? {
+                      '&:focus-visible': {
+                        outline: '2px solid',
+                        outlineColor: 'primary.main',
+                        outlineOffset: -2,
+                      },
+                    }
+                  : undefined
+              }
               onClick={
                 onRowClick !== undefined
                   ? () => {

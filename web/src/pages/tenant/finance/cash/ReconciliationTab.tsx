@@ -19,6 +19,7 @@ import type {
   CashReconciliationDto,
   StaffDto,
 } from '../../../../api/types';
+import { ExportMenu } from '../../../../components/data/ExportMenu';
 import { MoneyText } from '../../../../components/display/MoneyText';
 import { AsyncContent } from '../../../../components/feedback/AsyncContent';
 import { EmptyState } from '../../../../components/feedback/EmptyState';
@@ -235,6 +236,15 @@ export function ReconciliationTab({ supervisor, onSupervisorChange }: Reconcilia
           options={CURRENCY_FILTER_OPTIONS}
           allLabel="Tenant base currency"
           onChange={setCurrency}
+        />
+        <Box className="flex-1" />
+        <ExportMenu
+          reports={[
+            {
+              code: 'cash',
+              filters: valid ? { from, to, currency, staff_member_id: supervisor?.id } : {},
+            },
+          ]}
         />
       </Box>
       {!valid && <Alert severity="error">Choose a valid period (from must not be after to).</Alert>}

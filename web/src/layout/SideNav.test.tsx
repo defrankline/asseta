@@ -108,6 +108,7 @@ describe('HomeRedirect', () => {
         <MemoryRouter initialEntries={['/']}>
           <Routes>
             <Route path="/" element={<HomeRedirect />} />
+            <Route path="/tenant/dashboard" element={<p>Tenant dashboard page</p>} />
             <Route path="/tenant/fleet" element={<p>Fleet map page</p>} />
             <Route path="/platform" element={<p>Dashboard page</p>} />
             <Route path="*" element={<p>Somewhere else</p>} />
@@ -117,8 +118,14 @@ describe('HomeRedirect', () => {
     );
   }
 
-  it('lands tenant users on the first Overview item: the Fleet map', () => {
+  it('lands tenant users on the first Overview item: the Dashboard', () => {
     landOn(makeSession(makeGroupedTenantMe(), { kind: 'tenant', tenantId: TENANT_A }));
+    expect(screen.getByText('Tenant dashboard page')).toBeInTheDocument();
+  });
+
+  it('lands on the Fleet map when the role has no Dashboard menu', () => {
+    const menus = TENANT_MENUS.filter((m) => m.key !== 'tenant.dashboard');
+    landOn(makeSession(makeGroupedTenantMe(menus), { kind: 'tenant', tenantId: TENANT_A }));
     expect(screen.getByText('Fleet map page')).toBeInTheDocument();
   });
 

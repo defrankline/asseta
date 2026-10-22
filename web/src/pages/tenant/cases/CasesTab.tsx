@@ -1,6 +1,7 @@
 import { Box } from '@mui/material';
 import { useCallback, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
+import { initialFilter } from '../../../navigation/urlFilters';
 import { caseService } from '../../../api/services/caseService';
 import type { AnomalyCaseDto, MachineDto, PersonDto } from '../../../api/types';
 import { AsyncAutocomplete } from '../../../components/data/AsyncAutocomplete';
@@ -33,8 +34,13 @@ export function CasesTab({ timeZone }: { timeZone: string }) {
   const navigate = useNavigate();
   const machineName = useMachineLabels();
   const staffName = useStaffLabels();
-  const [status, setStatus] = useState('OPEN');
-  const [severity, setSeverity] = useState('');
+  const [params] = useSearchParams();
+  const [status, setStatus] = useState(() =>
+    initialFilter(params, 'status', CASE_STATUS_OPTIONS, 'OPEN'),
+  );
+  const [severity, setSeverity] = useState(() =>
+    initialFilter(params, 'severity', SEVERITY_FILTER_OPTIONS, ''),
+  );
   const [assignee, setAssignee] = useState<PersonDto | null>(null);
   const [machine, setMachine] = useState<MachineDto | null>(null);
   const [reloadKey, setReloadKey] = useState(0);

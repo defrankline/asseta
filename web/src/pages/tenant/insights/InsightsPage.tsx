@@ -5,6 +5,7 @@ import { PERMISSIONS } from '../../../access/permissionCodes';
 import { insightsService } from '../../../api/services/insightsService';
 import type { TenantInsightsDto } from '../../../api/types';
 import { AsyncContent } from '../../../components/feedback/AsyncContent';
+import { ExportMenu } from '../../../components/data/ExportMenu';
 import { PageHeader } from '../../../components/feedback/PageHeader';
 import { useAsyncResource } from '../../../hooks/useAsyncResource';
 import { useDisplayTimeZone } from '../../../hooks/useDisplayTimeZone';
@@ -94,6 +95,7 @@ export function InsightsPage() {
       <PageHeader
         title="Insights"
         subtitle="Each machine compared with its own history, plus model status and review aids"
+        actions={<ExportMenu reports={[{ code: 'utilisation' }]} />}
       />
       <Stack spacing={2}>
         <Alert severity="info">{INSIGHTS_NOTICE}</Alert>

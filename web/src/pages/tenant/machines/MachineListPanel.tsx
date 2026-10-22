@@ -7,6 +7,7 @@ import { PERMISSIONS } from '../../../access/permissionCodes';
 import { inactiveFilter } from '../../../api/lifecycle';
 import { machineService } from '../../../api/services/machineService';
 import type { CategoryDto, MachineDto } from '../../../api/types';
+import { ExportMenu } from '../../../components/data/ExportMenu';
 import { ServerDataTable, type DataColumn } from '../../../components/data/ServerDataTable';
 import type { ServerQuery } from '../../../components/data/useServerPage';
 import { StatusChip } from '../../../components/display/StatusChip';
@@ -47,6 +48,7 @@ export function MachineListPanel() {
   const [status, setStatus] = useState(ALL);
   const [showInactive, setShowInactive] = useState(false);
   const [category, setCategory] = useState<CategoryDto | null>(null);
+  const [search, setSearch] = useState('');
 
   const loadCategories = useCallback(
     (signal: AbortSignal) => machineService.listCategories(signal, undefined, true),
@@ -138,8 +140,13 @@ export function MachineListPanel() {
 
   return (
     <>
-      <CanMutate permission={PERMISSIONS.tenantMachineWrite}>
-        <Box className="mb-3 flex justify-end">
+      <Box className="mb-3 flex flex-wrap justify-end gap-2">
+        <ExportMenu
+          reports={[
+            { code: 'fleet', filters: { q: search, machine_status: status === ALL ? '' : status } },
+          ]}
+        />
+        <CanMutate permission={PERMISSIONS.tenantMachineWrite}>
           <Button
             variant="contained"
             startIcon={<Add />}
@@ -149,8 +156,8 @@ export function MachineListPanel() {
           >
             New machine
           </Button>
-        </Box>
-      </CanMutate>
+        </CanMutate>
+      </Box>
       <ServerDataTable<MachineDto>
         columns={columns}
         fetchPage={fetchPage}
@@ -158,6 +165,7 @@ export function MachineListPanel() {
         filters={filters}
         toolbar={toolbar}
         searchPlaceholder="Search asset code or name"
+        onSearchChange={setSearch}
         emptyTitle="No machines found"
         emptyDescription="Register machines to track and bill them."
         reloadKey={reloadKey}

@@ -96,7 +96,13 @@ export function TenantSwitcher() {
         onClick={(e) => {
           setAnchor(e.currentTarget);
         }}
-        sx={{ textTransform: 'none', bgcolor: 'rgba(255,255,255,0.08)', maxWidth: 320 }}
+        sx={{
+          textTransform: 'none',
+          bgcolor: 'rgba(255,255,255,0.08)',
+          maxWidth: { xs: 132, sm: 320 },
+          minWidth: 0,
+          '& .MuiButton-startIcon': { display: { xs: 'none', sm: 'inherit' } },
+        }}
       >
         <span className="truncate">{label}</span>
       </Button>

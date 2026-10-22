@@ -4,6 +4,7 @@ import { PERMISSIONS } from '../../../../access/permissionCodes';
 import { useMutationGuard } from '../../../../access/useCanMutate';
 import { cashService } from '../../../../api/services/cashService';
 import type { CashCustodyBalanceDto, StaffDto } from '../../../../api/types';
+import { ExportMenu } from '../../../../components/data/ExportMenu';
 import { KeyValueGrid } from '../../../../components/display/KeyValueGrid';
 import { MoneyText } from '../../../../components/display/MoneyText';
 import { AsyncContent } from '../../../../components/feedback/AsyncContent';
@@ -93,6 +94,7 @@ export function CustodyTab({ timeZone, supervisor, onSupervisorChange }: Custody
           />
         </Box>
         <Box className="flex-1" />
+        <ExportMenu reports={[{ code: 'cash', filters: { staff_member_id: supervisor?.id } }]} />
         {can(PERMISSIONS.tenantFinanceCash) && (
           <Button
             variant="outlined"

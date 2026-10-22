@@ -116,7 +116,12 @@ export function StepperFormDialog<V extends FormikValues>({
             <DialogTitle id="stepper-dialog-title">{title}</DialogTitle>
             <DialogContent dividers>
               <Stack spacing={3}>
-                <Stepper activeStep={active} alternativeLabel>
+                {/* Many steps on a phone scroll inside the dialog instead of widening it. */}
+                <Stepper
+                  activeStep={active}
+                  alternativeLabel
+                  sx={{ overflowX: 'auto', pb: 0.5, '& .MuiStep-root': { minWidth: 72 } }}
+                >
                   {[...steps.map((s) => s.label), REVIEW_STEP_LABEL].map((label) => (
                     <Step key={label}>
                       <StepLabel>{label}</StepLabel>

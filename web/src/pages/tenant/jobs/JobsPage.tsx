@@ -1,12 +1,13 @@
 import Add from '@mui/icons-material/Add';
 import { Box, Button, MenuItem, TextField } from '@mui/material';
 import { useCallback, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { CanMutate } from '../../../access/CanMutate';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import { useMutationGuard } from '../../../access/useCanMutate';
 import { jobService } from '../../../api/services/jobService';
 import type { JobDto, MachineDto } from '../../../api/types';
+import { ExportMenu } from '../../../components/data/ExportMenu';
 import { ServerDataTable, type DataColumn } from '../../../components/data/ServerDataTable';
 import type { ServerQuery } from '../../../components/data/useServerPage';
 import { MoneyText } from '../../../components/display/MoneyText';
@@ -33,6 +34,7 @@ import { EDITABLE_JOB_STATUSES } from './jobForm';
 import { JobCancelDialog } from './JobCancelDialog';
 import { ENTITY } from '../../../realtime/entities';
 import { useLiveRefresh } from '../../../realtime/hooks';
+import { initialFilter } from '../../../navigation/urlFilters';
 
 const CANCEL = JOB_TRANSITIONS.find((t) => t.action === 'CANCEL');
 
@@ -57,8 +59,12 @@ export function JobsPage() {
   };
   const canCancel = (j: JobDto) =>
     CANCEL !== undefined && CANCEL.from.includes(j.status) && canMutate(CANCEL.permission);
-  const [status, setStatus] = useState('');
+  const [params] = useSearchParams();
+  const [status, setStatus] = useState(() =>
+    initialFilter(params, 'status', JOB_STATUS_OPTIONS, ''),
+  );
   const [machine, setMachine] = useState<MachineDto | null>(null);
+  const [search, setSearch] = useState('');
   const filters = useMemo(
     () => ({ status: status || undefined, machine_id: machine?.id }),
     [status, machine],
@@ -138,17 +144,26 @@ export function JobsPage() {
         title="Jobs"
         subtitle="Contracted rental jobs: approval, meter readings, work logs and acknowledgements"
         actions={
-          <CanMutate permission={PERMISSIONS.tenantJobWrite}>
-            <Button
-              variant="contained"
-              startIcon={<Add />}
-              onClick={() => {
-                setCreating(true);
-              }}
-            >
-              New job
-            </Button>
-          </CanMutate>
+          <>
+            {/* No readings list has a menu yet: meter readings export from here (machine filter). */}
+            <ExportMenu
+              reports={[
+                { code: 'jobs', filters: { q: search, status, machine_id: machine?.id } },
+                { code: 'readings', filters: { machine_id: machine?.id } },
+              ]}
+            />
+            <CanMutate permission={PERMISSIONS.tenantJobWrite}>
+              <Button
+                variant="contained"
+                startIcon={<Add />}
+                onClick={() => {
+                  setCreating(true);
+                }}
+              >
+                New job
+              </Button>
+            </CanMutate>
+          </>
         }
       />
       <ServerDataTable<JobDto>
@@ -157,6 +172,7 @@ export function JobsPage() {
         getRowId={(j) => j.id}
         filters={filters}
         searchPlaceholder="Search job number"
+        onSearchChange={setSearch}
         emptyTitle="No jobs found"
         emptyDescription="Create a job against an active contract."
         reloadKey={reloadKey}

@@ -1,6 +1,10 @@
+import KeyboardArrowDown from '@mui/icons-material/KeyboardArrowDown';
+import KeyboardArrowRight from '@mui/icons-material/KeyboardArrowRight';
 import SearchIcon from '@mui/icons-material/Search';
 import {
   Box,
+  Collapse,
+  IconButton,
   InputAdornment,
   LinearProgress,
   Paper,
@@ -14,7 +18,7 @@ import {
   TableSortLabel,
   TextField,
 } from '@mui/material';
-import { useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { EmptyState } from '../feedback/EmptyState';
 import { ErrorState } from '../feedback/ErrorState';
@@ -52,6 +56,12 @@ export interface ServerDataTableProps<T> {
   isRowMuted?: (row: T) => boolean;
   /** Increment to refetch the current page (e.g. after a mutation). */
   reloadKey?: number;
+  /** Told the debounced search text (e.g. so an export can use the same `q`). */
+  onSearchChange?: (q: string) => void;
+  /** Expandable rows: details shown under the row, toggled by a disclosure button. */
+  renderDetail?: (row: T) => ReactNode;
+  /** Accessible name of a row's disclosure button (default "Show details"). */
+  detailLabel?: (row: T) => string;
 }
 
 const NO_FILTERS: Readonly<Record<string, string | undefined>> = {};
@@ -81,7 +91,11 @@ export function ServerDataTable<T>({
   onRowClick,
   isRowMuted,
   reloadKey = 0,
+  onSearchChange,
+  renderDetail,
+  detailLabel = () => 'Show details',
 }: ServerDataTableProps<T>) {
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
   const [pageState, setPageState] = useState({ resetKey: '', page: 0 });
   const [pageSize, setPageSize] = useState(initialPageSize);
   const [sort, setSort] = useState<string | undefined>(initialSort);
@@ -102,6 +116,26 @@ export function ServerDataTable<T>({
     ...(debouncedSearch !== '' ? { q: debouncedSearch } : {}),
   };
   const { data, loading, error } = useServerPage(fetchPage, query, reloadKey);
+  useEffect(() => {
+    onSearchChange?.(debouncedSearch);
+  }, [debouncedSearch, onSearchChange]);
+  const toggleExpanded = (id: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  // Clickable rows are reachable and operable from the keyboard (Enter / Space), not only by mouse.
+  const rowKeyDown = (row: T) => (e: KeyboardEvent<HTMLTableRowElement>) => {
+    if (onRowClick === undefined || e.target !== e.currentTarget) return;
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onRowClick(row);
+    }
+  };
+  const columnCount = columns.length + (renderDetail !== undefined ? 1 : 0);
   const activeSort = parseSort(sort);
 
   const toggleSort = (field: string) => {
@@ -155,6 +189,11 @@ export function ServerDataTable<T>({
           <Table size="small">
             <TableHead>
               <TableRow>
+                {renderDetail !== undefined && (
+                  <TableCell padding="checkbox">
+                    <span className="sr-only">Details</span>
+                  </TableCell>
+                )}
                 {columns.map((c) => (
                   <TableCell key={c.id} align={c.align ?? 'left'}>
                     {c.sortField !== undefined ? (
@@ -175,27 +214,77 @@ export function ServerDataTable<T>({
               </TableRow>
             </TableHead>
             <TableBody>
-              {rows.map((row) => (
-                <TableRow
-                  key={getRowId(row)}
-                  hover={onRowClick !== undefined}
-                  className={rowClassName(onRowClick !== undefined, isRowMuted?.(row) === true)}
-                  data-muted={isRowMuted?.(row) === true ? 'true' : undefined}
-                  onClick={
-                    onRowClick !== undefined
-                      ? () => {
-                          onRowClick(row);
-                        }
-                      : undefined
-                  }
-                >
-                  {columns.map((c) => (
-                    <TableCell key={c.id} align={c.align ?? 'left'}>
-                      {c.render(row)}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))}
+              {rows.map((row) => {
+                const id = getRowId(row);
+                const open = expanded.has(id);
+                const detailId = `row-detail-${id}`;
+                return (
+                  <Fragment key={id}>
+                    <TableRow
+                      hover={onRowClick !== undefined}
+                      className={rowClassName(onRowClick !== undefined, isRowMuted?.(row) === true)}
+                      data-muted={isRowMuted?.(row) === true ? 'true' : undefined}
+                      tabIndex={onRowClick !== undefined ? 0 : undefined}
+                      onKeyDown={onRowClick !== undefined ? rowKeyDown(row) : undefined}
+                      sx={
+                        onRowClick !== undefined
+                          ? {
+                              '&:focus-visible': {
+                                outline: '2px solid',
+                                outlineColor: 'primary.main',
+                                outlineOffset: -2,
+                              },
+                            }
+                          : undefined
+                      }
+                      onClick={
+                        onRowClick !== undefined
+                          ? () => {
+                              onRowClick(row);
+                            }
+                          : undefined
+                      }
+                    >
+                      {renderDetail !== undefined && (
+                        <TableCell padding="checkbox">
+                          <IconButton
+                            size="small"
+                            aria-label={detailLabel(row)}
+                            aria-expanded={open}
+                            aria-controls={open ? detailId : undefined}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleExpanded(id);
+                            }}
+                          >
+                            {open ? (
+                              <KeyboardArrowDown fontSize="small" />
+                            ) : (
+                              <KeyboardArrowRight fontSize="small" />
+                            )}
+                          </IconButton>
+                        </TableCell>
+                      )}
+                      {columns.map((c) => (
+                        <TableCell key={c.id} align={c.align ?? 'left'}>
+                          {c.render(row)}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                    {renderDetail !== undefined && open && (
+                      <TableRow>
+                        <TableCell colSpan={columnCount} sx={{ py: 0 }}>
+                          <Collapse in={open} unmountOnExit>
+                            <Box id={detailId} className="py-3">
+                              {renderDetail(row)}
+                            </Box>
+                          </Collapse>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </Fragment>
+                );
+              })}
             </TableBody>
           </Table>
         </TableContainer>

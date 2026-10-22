@@ -1,4 +1,4 @@
-import { Alert, Box, Button, Tab, Tabs } from '@mui/material';
+import { Alert, Box, Button, Divider, Tab, Tabs } from '@mui/material';
 import { useCallback, useState } from 'react';
 import { Link as RouterLink } from 'react-router';
 import { PERMISSIONS } from '../../access/permissionCodes';
@@ -14,6 +14,8 @@ import { useNotify } from '../../notifications/useNotify';
 import { useSession } from '../../session/useSession';
 import { effective, preferenceChanges, type Channel, type Draft } from './preferences';
 import { PreferencesTable } from './PreferencesTable';
+import { PushDevicesSection } from './PushDevicesSection';
+import { RoutingEditor } from './RoutingEditor';
 import { SmsProfileSection } from './SmsProfileSection';
 
 function PreferencesEditor({ tenantDefault }: { tenantDefault: boolean }) {
@@ -110,7 +112,7 @@ export function NotificationPreferencesPage() {
     <>
       <PageHeader
         title="Notification preferences"
-        subtitle="Choose how you are told about each kind of event in this console"
+        subtitle="Choose how you are told about each kind of event in this console: in-app, SMS, push and e-mail"
         actions={
           <Button component={RouterLink} to={ROUTES.notifications}>
             Back to notifications
@@ -132,6 +134,18 @@ export function NotificationPreferencesPage() {
           </Tabs>
         )}
         <PreferencesEditor key={tenantDefault ? 'tenant' : 'mine'} tenantDefault={tenantDefault} />
+        <Divider />
+        <RoutingEditor
+          key={tenantDefault ? 'routing-tenant' : 'routing-mine'}
+          console={mode.kind === 'tenant' ? 'tenant' : 'platform'}
+          tenantDefault={tenantDefault}
+        />
+        {!tenantDefault && (
+          <>
+            <Divider />
+            <PushDevicesSection />
+          </>
+        )}
       </Box>
     </>
   );

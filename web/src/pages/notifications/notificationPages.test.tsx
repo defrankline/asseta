@@ -90,7 +90,7 @@ describe('NotificationsPage', () => {
     });
     expect(await screen.findByText('Handover due today')).toBeInTheDocument();
     // The delivery log link needs *.notification.manage.
-    expect(screen.queryByRole('link', { name: 'SMS delivery log' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Delivery log' })).not.toBeInTheDocument();
   });
 
   it('marks everything read and offers the SMS log to managers', async () => {
@@ -99,7 +99,7 @@ describe('NotificationsPage', () => {
       permissions: [P.platformNotificationRead, P.platformNotificationManage],
     });
     await screen.findByRole('list', { name: 'Notifications' });
-    expect(screen.getByRole('link', { name: 'SMS delivery log' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Delivery log' })).toBeInTheDocument();
     const button = screen.getByRole('button', { name: 'Mark all read' });
     await waitFor(() => {
       expect(button).toBeEnabled();
