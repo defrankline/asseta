@@ -7,7 +7,7 @@ import type { CaseSignalDto, CaseSourceType, ExceptionType, RuleCode } from '../
 import { EXCEPTION_TYPES } from '../../api/services/meterSchemas';
 import { formatMoney } from '../../utils/money';
 import { humanize } from '../../utils/text';
-import { formatInstantIn } from '../../utils/time';
+import { formatDuration, formatInstantIn } from '../../utils/time';
 import { EXCEPTION_TYPE_LABELS, explainException } from '../meter/exceptionText';
 
 export const NEUTRAL_SIGNAL_NOTICE =
@@ -85,6 +85,12 @@ class Facts {
     return typeof v === 'string' ? formatInstantIn(v, this.tz) : '—';
   }
 
+  /** Minutes as a readable duration: 1001.3 -> "16 h 41 min". */
+  minutes(key: string): string {
+    const n = Number(this.e[key]);
+    return this.has(key) && Number.isFinite(n) ? formatDuration(n * 60) : '—';
+  }
+
   money(key: string, currencyKey = 'currency'): string {
     const amount = this.e[key];
     const currency = this.e[currencyKey];
@@ -125,9 +131,9 @@ const RULE_EXPLAIN: Readonly<Record<RuleCode, Explainer>> = {
         : 'ignition on';
     const jobs = f.list('running_jobs_nearby').map((j) => f.sub(j).text('job_number'));
     return (
-      `Verified engine activity (${basis}) was recorded for ${f.text('uncovered_minutes')} min, ` +
+      `Verified engine activity (${basis}) was recorded for ${f.minutes('uncovered_minutes')}, ` +
       `from ${f.time('uncovered_from')} to ${f.time('uncovered_until')}, while no job on the machine ` +
-      `was in progress. The policy threshold is ${f.text('threshold_minutes')} min.` +
+      `was in progress. The policy threshold is ${f.minutes('threshold_minutes')}.` +
       (f.raw('still_running_when_observed') === true
         ? ' The engine was still running when observed.'
         : '') +

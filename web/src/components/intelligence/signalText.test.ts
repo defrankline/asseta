@@ -20,11 +20,21 @@ describe('explainRiskSignal', () => {
       TZ,
     );
     expect(text).toContain('ignition on');
-    expect(text).toContain('90 min');
+    expect(text).toContain('recorded for 1 h 30 min,');
     expect(text).toContain('from 20 Oct 2026, 08:00 to 20 Oct 2026, 09:30');
     expect(text).toContain('threshold is 30 min');
     expect(text).toContain('J-1001');
     expect(text).not.toContain('still running');
+  });
+
+  it('UNREPORTED_ENGINE_ACTIVITY: long runs read as hours, not raw minutes', () => {
+    const text = explainRiskSignal(
+      'UNREPORTED_ENGINE_ACTIVITY',
+      { ...RULE_EVIDENCE.UNREPORTED_ENGINE_ACTIVITY, uncovered_minutes: '1001.3' },
+      TZ,
+    );
+    expect(text).toContain('recorded for 16 h 41 min,');
+    expect(text).not.toContain('1001.3');
   });
 
   it('UNREPORTED_ENGINE_ACTIVITY: engine-hours basis and a run still going', () => {
