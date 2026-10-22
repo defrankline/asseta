@@ -183,7 +183,15 @@ def seed_fleet(o: Api, platform: Api, stack: Stack, now: datetime) -> dict[str, 
             f"assign tracker {code}",
         )
         lat, lon = sites[site]
-        fixes = route([(lat - 0.001, lon - 0.001), (lat + 0.001, lon + 0.001)], start, 6.0, 12)[:8]
+        # A short move that ends parked with the engine off: an idle demo fleet must not report engines running.
+        fixes = route(
+            [(lat - 0.001, lon - 0.001), (lat + 0.001, lon + 0.001)],
+            start,
+            6.0,
+            12,
+            dwell_points=1,
+            park_engine_off=True,
+        )
         if send_osmand(traccar, device, fixes) != len(fixes):
             raise RuntimeError(f"Traccar rejected fixes for {code}")
     return machines

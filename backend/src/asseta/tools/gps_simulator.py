@@ -60,8 +60,13 @@ def route(
     interval_s: int,
     dwell_points: int = 0,
     hours_start_ms: int | None = None,
+    park_engine_off: bool = False,
 ) -> list[Fix]:
-    """Constant-speed traversal of (lat, lon) waypoints, sampling every `interval_s`; optional dwell at end."""
+    """Constant-speed traversal of (lat, lon) waypoints, sampling every `interval_s`; optional dwell at end.
+
+    With `park_engine_off` the machine arrives with the engine running and the dwell fixes after arrival report the
+    ignition off (engine hours stop), like a parked machine, so an idle demo fleet does not look like it runs all day.
+    """
     fixes: list[Fix] = []
     t = start
     step_m = speed_kmh / 3.6 * interval_s
@@ -77,10 +82,12 @@ def route(
             t += timedelta(seconds=interval_s)
             hours = hours + interval_s * 1000 if hours is not None else None
     last = waypoints[-1]
-    for _ in range(dwell_points + 1):
-        fixes.append(Fix(t, last[0], last[1], 0.0, 0.0, hours_ms=hours))
+    for i in range(dwell_points + 1):
+        parked = park_engine_off and i > 0
+        fixes.append(Fix(t, last[0], last[1], 0.0, 0.0, ignition=not parked, hours_ms=hours))
         t += timedelta(seconds=interval_s)
-        hours = hours + interval_s * 1000 if hours is not None else None
+        if hours is not None and not parked:
+            hours += interval_s * 1000
     return fixes
 
 
