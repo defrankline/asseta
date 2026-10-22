@@ -209,8 +209,23 @@ export function metricText(value: unknown): string {
 export const shortHash = (value: string | null | undefined): string =>
   value === null || value === undefined || value === '' ? '—' : `${value.slice(0, 12)}…`;
 
+/** 0.25 -> "25th", 0.983 -> "98.3rd": a calibrated score is a fraction of held-out weeks scoring lower. */
+export function ordinalPercentile(fraction: number | string | null): string {
+  const n = Number(fraction);
+  if (fraction === null || !Number.isFinite(n)) return '—';
+  const pct = Math.round(n * 1000) / 10;
+  const whole = Math.trunc(pct);
+  const suffix =
+    whole % 100 >= 11 && whole % 100 <= 13
+      ? 'th'
+      : (({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[whole % 10] ?? 'th');
+  return `${String(pct)}${suffix}`;
+}
+
 /** A score is a calibrated percentile only when calibrated; otherwise a raw, model-specific value. */
 export function scoreText(p: MlPredictionDto): string {
-  if (p.calibrated && p.score !== null) return `Percentile ${p.score} (threshold ${p.threshold})`;
+  if (p.calibrated && p.score !== null) {
+    return `${ordinalPercentile(p.score)} percentile (threshold ${ordinalPercentile(p.threshold)})`;
+  }
   return p.raw_score === null ? '—' : `Uncalibrated raw ${metricText(p.raw_score)}`;
 }
