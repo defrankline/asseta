@@ -4,6 +4,7 @@ import type {
   MlPredictionDto,
   DriftSummaryLevel,
   InferenceOutcome,
+  MlEvaluationDto,
   ModelAction,
   ModelAlgorithm,
   ModelStatus,
@@ -163,6 +164,19 @@ export const DESTRUCTIVE_ACTIONS: ReadonlySet<MlLifecycleAction> = new Set([
   'DISABLE',
   'ROLLBACK',
 ]);
+
+/**
+ * Why Approve is unavailable, or null when the evaluation passed. The server refuses approval
+ * without a passing evaluation (EVALUATION_REQUIRED / EVALUATION_NOT_PASSED); say so up front.
+ */
+export function approvalBlockedReason(evaluation: MlEvaluationDto | null): string | null {
+  if (evaluation === null) return 'No evaluation recorded yet: run training to evaluate it.';
+  if (evaluation.passed) return null;
+  const reasons = evaluation.reasons.map((r) => r.trim()).filter((r) => r !== '');
+  return reasons.length > 0
+    ? `Evaluation did not pass: ${reasons.join(' ')}`
+    : 'Evaluation did not pass.';
+}
 
 /** What each action does, in plain words (shown in its confirmation dialog). */
 export const ACTION_EFFECTS: Readonly<Record<MlLifecycleAction, string>> = {

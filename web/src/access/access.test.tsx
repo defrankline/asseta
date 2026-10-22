@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { NO_MODE, type ConsoleMode } from '../session/permissions';
 import { SessionContext, type SessionContextValue } from '../session/SessionContext';
 import { makeMe, makeSession, TENANT_A } from '../test/fixtures';
@@ -89,6 +89,27 @@ describe('<RequirePermission>', () => {
     guarded(makeSession(platformMe, { kind: 'platform' }, 'loading'), 'platform.system.read');
     expect(screen.getByRole('status')).toBeInTheDocument();
     expect(screen.queryByText('secret content')).not.toBeInTheDocument();
+  });
+
+  it('switches to the platform console (no 403) when a platform page is opened inside a tenant', () => {
+    const setMode = vi.fn(() => Promise.resolve());
+    guarded(
+      { ...makeSession(platformMe, { kind: 'tenant', tenantId: TENANT_A }), setMode },
+      'platform.system.read',
+    );
+    expect(setMode).toHaveBeenCalledWith({ kind: 'platform' });
+    expect(screen.getByRole('status')).toBeInTheDocument();
+    expect(screen.queryByText('forbidden page')).not.toBeInTheDocument();
+  });
+
+  it('does not switch when the platform permissions would not grant the page either', () => {
+    const setMode = vi.fn(() => Promise.resolve());
+    guarded(
+      { ...makeSession(platformMe, { kind: 'tenant', tenantId: TENANT_A }), setMode },
+      'platform.tenant.write',
+    );
+    expect(setMode).not.toHaveBeenCalled();
+    expect(screen.getByText('forbidden page')).toBeInTheDocument();
   });
 
   it('renders content when all permissions are granted', () => {

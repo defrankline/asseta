@@ -7,10 +7,10 @@ import { FORBIDDEN_PATH, RequirePermission } from '../access/RequirePermission';
 import type { MeResponse } from '../api/types';
 import { NotificationProvider } from '../notifications/NotificationProvider';
 import { ROUTES } from '../navigation/routes';
-import { storeMode } from '../session/modeStorage';
+import { loadStoredMode, storeMode } from '../session/modeStorage';
 import { SessionProvider } from '../session/SessionProvider';
 import { useSession } from '../session/useSession';
-import { TENANT_A, TENANT_B } from '../test/fixtures';
+import { makeMe, TENANT_A, TENANT_B } from '../test/fixtures';
 import { makePlatformStaffMe, mandatedTenant } from '../test/mandateFixtures';
 import { MandateBanner } from './MandateBanner';
 import { SWITCHER_SEARCH_THRESHOLD, TenantSwitcher } from './TenantSwitcher';
@@ -98,15 +98,52 @@ describe('Switching console from a console-specific page', () => {
     expect(screen.queryByText('Forbidden')).not.toBeInTheDocument();
   });
 
-  it('"Return to your tenant" from a client page lands home, never on 403', async () => {
+  it('"Return to Asseta platform" from a client page lands home, never on 403', async () => {
     const user = userEvent.setup();
     storeMode({ kind: 'tenant', tenantId: TENANT_B });
     const log = renderConsole(() => Promise.resolve(makePlatformStaffMe()), ROUTES.tenantMachines);
     expect(await screen.findByText('Machines page')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Return to your tenant' }));
+    await user.click(screen.getByRole('button', { name: 'Return to Asseta platform' }));
 
     expect(await screen.findByText('Home · platform')).toBeInTheDocument();
     expect(log).not.toContain(FORBIDDEN_PATH);
+  });
+});
+
+describe('Opening a page of the other console', () => {
+  it('switches to the platform console when a platform page is opened inside a client', async () => {
+    storeMode({ kind: 'tenant', tenantId: TENANT_B });
+    const log = renderConsole(
+      () => Promise.resolve(makePlatformStaffMe()),
+      ROUTES.platformManagedService,
+    );
+
+    expect(await screen.findByText('Managed service page')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Switch tenant (current: Asseta platform)' }),
+    ).toBeInTheDocument();
+    expect(loadStoredMode()).toEqual({ kind: 'platform' });
+    expect(log).not.toContain(FORBIDDEN_PATH);
+    expect(screen.queryByText('Forbidden')).not.toBeInTheDocument();
+  });
+
+  it('still forbids a platform page to a user without platform access', async () => {
+    const log = renderConsole(() => Promise.resolve(makeMe()), ROUTES.platformManagedService);
+
+    expect(await screen.findByText('Forbidden')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(log).toContain(FORBIDDEN_PATH);
+    });
+    expect(screen.queryByText('Managed service page')).not.toBeInTheDocument();
+  });
+
+  it('never enters a client implicitly: a client page opened on the platform console is forbidden', async () => {
+    renderConsole(() => Promise.resolve(makePlatformStaffMe()), ROUTES.tenantMachines);
+
+    expect(await screen.findByText('Forbidden')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Switch tenant (current: Asseta platform)' }),
+    ).toBeInTheDocument();
   });
 });
 

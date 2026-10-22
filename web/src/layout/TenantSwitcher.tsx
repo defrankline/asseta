@@ -26,8 +26,9 @@ function tenantSecondary(t: TenantAccess): string | null {
 }
 
 /**
- * Header "Switch tenant" navigation menu (not a form dropdown). Platform staff see their own context ("Your tenant", the platform
- * console) first, then each client they may act for under an in-force mandate (from /me only).
+ * Header "Switch tenant" navigation menu (not a form dropdown). Platform staff see the platform
+ * console ("Asseta platform", which is not a tenant) first, then each client they may act for
+ * under an in-force mandate (from /me only).
  */
 export function TenantSwitcher() {
   const { me, mode, activeTenant, canUsePlatform, setMode } = useSession();
@@ -41,7 +42,7 @@ export function TenantSwitcher() {
       ? [
           {
             mode: { kind: 'platform' } as const,
-            primary: 'Your tenant',
+            primary: 'Asseta platform',
             secondary: 'Platform console',
           },
         ]
@@ -56,7 +57,7 @@ export function TenantSwitcher() {
 
   const current = mode.kind === 'none' ? '' : serializeMode(mode);
   const label =
-    mode.kind === 'platform' ? 'Your tenant' : (activeTenant?.name ?? 'Select a tenant');
+    mode.kind === 'platform' ? 'Asseta platform' : (activeTenant?.name ?? 'Select a tenant');
 
   const searchable = options.length > SWITCHER_SEARCH_THRESHOLD;
   const needle = search.trim().toLocaleLowerCase();

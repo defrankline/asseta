@@ -60,7 +60,7 @@ afterEach(() => {
 });
 
 describe('Switch tenant menu', () => {
-  it('lists "Your tenant" first, then each mandated client with its reference and scope', async () => {
+  it('lists "Asseta platform" first, then each mandated client with its reference and scope', async () => {
     const user = userEvent.setup();
     renderShell(() => Promise.resolve(twoClients()));
     // Platform staff start in their own context; a mandated client is never entered implicitly.
@@ -68,7 +68,7 @@ describe('Switch tenant menu', () => {
     await user.click(screen.getByRole('button', { name: /Switch tenant/ }));
     const items = within(screen.getByRole('menu')).getAllByRole('menuitem');
     expect(items.map((i) => i.textContent)).toEqual([
-      'Your tenantPlatform console',
+      'Asseta platformPlatform console',
       'Kilimo HaulageMSM-2026-0007 · Full management',
       'Pwani Plant HireMSM-2026-0009 · Operations only',
     ]);
@@ -113,7 +113,7 @@ describe('Switch tenant menu', () => {
 });
 
 describe('Mandate banner', () => {
-  it('shows while acting under a mandate and "Return to your tenant" switches back', async () => {
+  it('shows while acting under a mandate and "Return to Asseta platform" switches back', async () => {
     const user = userEvent.setup();
     storeMode({ kind: 'tenant', tenantId: TENANT_B });
     renderShell(() => Promise.resolve(makePlatformStaffMe()));
@@ -123,7 +123,7 @@ describe('Mandate banner', () => {
       'Acting for Kilimo Haulage under managed-service mandate MSM-2026-0007 (Full management). Everything you do is recorded for the client.',
     );
 
-    await user.click(screen.getByRole('button', { name: 'Return to your tenant' }));
+    await user.click(screen.getByRole('button', { name: 'Return to Asseta platform' }));
     await waitFor(() => {
       expect(screen.getByTestId('mode')).toHaveTextContent('platform');
     });

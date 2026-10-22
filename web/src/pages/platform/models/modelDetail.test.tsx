@@ -117,6 +117,43 @@ describe('ModelDetailPage', () => {
     expect(within(monitoring).getByText('Last run failed: MLflow unavailable')).toBeInTheDocument();
   });
 
+  it('disables Approve with the reasons when the evaluation did not pass', async () => {
+    const base = makeModelDetail({ evaluation_passed: false });
+    const evaluation = base.evaluation;
+    if (evaluation === null) throw new Error('fixture has an evaluation');
+    mocks.getModel.mockResolvedValue({
+      ...base,
+      evaluation: {
+        ...evaluation,
+        passed: false,
+        reasons: ['Recall lift 0.01 is below the 0.05 minimum.', 'Only 3 machines (need 5).'],
+      },
+    });
+    renderPage(MANAGE);
+    const approve = await screen.findByRole('button', { name: 'Approve' });
+    expect(approve).toBeDisabled();
+    expect(approve).toHaveAccessibleDescription(
+      'Approve unavailable. Evaluation did not pass: Recall lift 0.01 is below the 0.05 minimum. Only 3 machines (need 5).',
+    );
+    // The other lifecycle commands stay available; the primary is the first enabled one.
+    expect(screen.getByRole('button', { name: 'Deploy in shadow' })).toBeEnabled();
+  });
+
+  it('disables Approve when no evaluation is recorded', async () => {
+    mocks.getModel.mockResolvedValue(makeModelDetail({}, { evaluation: null }));
+    renderPage(MANAGE);
+    const approve = await screen.findByRole('button', { name: 'Approve' });
+    expect(approve).toBeDisabled();
+    expect(approve).toHaveAccessibleDescription(/No evaluation recorded yet/);
+  });
+
+  it('keeps Approve available when the evaluation passed', async () => {
+    renderPage(MANAGE);
+    const approve = await screen.findByRole('button', { name: 'Approve' });
+    expect(approve).toBeEnabled();
+    expect(screen.queryByText(/Approve unavailable/)).not.toBeInTheDocument();
+  });
+
   it('sends the reason and lock version with an action', async () => {
     const user = userEvent.setup();
     mocks.act.mockResolvedValue(makeModelDetail({ status: 'APPROVED' }));

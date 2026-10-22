@@ -11,6 +11,8 @@ export interface RowAction {
   /** Omitted from the menu (e.g. missing permission or not allowed in the current state). */
   hidden?: boolean;
   disabled?: boolean;
+  /** Why a disabled command is unavailable (tooltip and helper text on details-page buttons). */
+  disabledReason?: string;
 }
 
 export interface StandardActionsInput {

@@ -19,6 +19,7 @@ import {
   ACTION_EFFECTS,
   ACTION_LABELS,
   allowedActions,
+  approvalBlockedReason,
   DESTRUCTIVE_ACTIONS,
   MODEL_ERROR_HINTS,
   MODEL_STATUS_LABELS,
@@ -83,17 +84,22 @@ export function ModelDetailPage() {
   );
   const res = useAsyncResource(load);
   const model = res.data?.model ?? null;
+  const approveBlocked = approvalBlockedReason(res.data?.evaluation ?? null);
   const actions: RowAction[] =
     model === null || !canManage
       ? []
-      : allowedActions(model.status).map((a) => ({
-          key: a,
-          label: ACTION_LABELS[a],
-          destructive: DESTRUCTIVE_ACTIONS.has(a),
-          onClick: () => {
-            setActing(a);
-          },
-        }));
+      : allowedActions(model.status).map((a) => {
+          const blocked = a === 'APPROVE' ? approveBlocked : null;
+          return {
+            key: a,
+            label: ACTION_LABELS[a],
+            destructive: DESTRUCTIVE_ACTIONS.has(a),
+            ...(blocked !== null ? { disabled: true, disabledReason: blocked } : {}),
+            onClick: () => {
+              setActing(a);
+            },
+          };
+        });
   return (
     <>
       <EntityDetailsLayout
@@ -114,7 +120,12 @@ export function ModelDetailPage() {
                   label={MODEL_STATUS_LABELS[model.status]}
                 />
               ),
-              actions: <ActionButtons actions={actions} primaryKey={actions[0]?.key ?? ''} />,
+              actions: (
+                <ActionButtons
+                  actions={actions}
+                  primaryKey={actions.find((a) => a.disabled !== true)?.key ?? ''}
+                />
+              ),
             }
           : {})}
       >

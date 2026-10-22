@@ -31,7 +31,7 @@ export function MandateBanner() {
             );
           }}
         >
-          Return to your tenant
+          Return to Asseta platform
         </Button>
       }
     >
