@@ -14,6 +14,7 @@ import {
   explainException,
   NEUTRAL_REVIEW_NOTICE,
 } from '../../../components/meter/exceptionText';
+import { useAsyncResource } from '../../../hooks/useAsyncResource';
 import { useDisplayTimeZone } from '../../../hooks/useDisplayTimeZone';
 import { useNotify } from '../../../notifications/useNotify';
 import { formatInstantIn } from '../../../utils/time';
@@ -65,6 +66,13 @@ export function ExceptionsPage() {
       (await jobService.list({ page: 1, page_size: 20, q }, signal)).items,
     [],
   );
+  // A job_id deep link (e.g. "Review exceptions" on a job) is shown by its job number, not its id.
+  const loadUrlJob = useCallback(
+    async (signal: AbortSignal) => (await jobService.summary(jobId, signal)).job,
+    [jobId],
+  );
+  const urlJob = useAsyncResource(loadUrlJob, [], jobId !== '' && job === null);
+  const shownJob = job ?? (urlJob.data?.id === jobId ? urlJob.data : null);
   const setJobFilter = (j: JobDto | null) => {
     setJob(j);
     setParams(j === null ? {} : { job_id: j.id }, { replace: true });
@@ -152,16 +160,16 @@ export function ExceptionsPage() {
               <Box className="min-w-64">
                 <AsyncAutocomplete<JobDto>
                   label="Job"
-                  value={job}
+                  value={shownJob}
                   onChange={setJobFilter}
                   fetchOptions={fetchJobs}
                   getOptionLabel={(j) => j.job_number}
                   isOptionEqualToValue={(a, b) => a.id === b.id}
                 />
               </Box>
-              {jobId !== '' && job === null && (
+              {jobId !== '' && shownJob === null && urlJob.error !== null && (
                 <Chip
-                  label={`Job ${jobId.slice(0, 8)}…`}
+                  label="Filtered by one job"
                   onDelete={() => {
                     setJobFilter(null);
                   }}

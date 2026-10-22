@@ -49,6 +49,14 @@ vi.mock('../../../../api/services/customerService', () => ({
 vi.mock('../../../../api/services/jobService', () => ({
   jobService: { list: mocks.jobs, summary: mocks.summary },
 }));
+// The record-payment flow has its own tests; here it only has to report a recorded payment.
+vi.mock('../payments/RecordPaymentDialog', () => ({
+  RecordPaymentDialog: ({ onRecorded }: { onRecorded: () => void }) => (
+    <button type="button" onClick={onRecorded}>
+      Stub: payment recorded
+    </button>
+  ),
+}));
 vi.mock('../../../../api/services/machineService', () => ({
   machineService: {
     list: vi.fn().mockResolvedValue({ items: [], total: 0, page: 1, page_size: 200 }),
@@ -196,6 +204,34 @@ describe('HireInvoiceDetailPage', () => {
         /^DRAFT_STALE: Job charges changed — Job charges changed since drafting/,
       ),
     ).toBeInTheDocument();
+  });
+
+  it('refreshes the allocated payments after a payment is recorded from the invoice', async () => {
+    const user = userEvent.setup();
+    mocks.get.mockResolvedValue(makeInvoice());
+    renderDetail(WRITE);
+    expect(await screen.findByText('No payments allocated')).toBeInTheDocument();
+    mocks.payments.mockResolvedValue(
+      page([
+        makePayment({
+          status: 'CLAIMED',
+          allocations: [
+            {
+              id: 'al-2',
+              invoice_id: 'ffffffff-0000-4000-8000-000000000001',
+              amount: '500000.0000',
+              created_at: '2026-10-22T10:25:00Z',
+              released_at: null,
+              release_reason: null,
+            },
+          ],
+        }),
+      ]),
+    );
+    await user.click(screen.getByRole('button', { name: 'Record payment' }));
+    await user.click(screen.getByRole('button', { name: 'Stub: payment recorded' }));
+    const table = await screen.findByRole('table', { name: 'Payments allocated' });
+    expect(within(table).getByText('TZS 500,000.00')).toBeInTheDocument();
   });
 
   it('shows allocated payments with their status and hides commands while READ_ONLY', async () => {

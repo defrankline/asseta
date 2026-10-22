@@ -41,8 +41,15 @@ import { useInvoiceActions } from './useInvoiceActions';
 import { ENTITY, entityKey } from '../../../../realtime/entities';
 import { useLiveRefresh } from '../../../../realtime/hooks';
 
-function AllocationsSection({ invoice, timeZone }: { invoice: HireInvoiceDto; timeZone: string }) {
-  const res = useInvoiceAllocations(invoice);
+interface InvoiceSectionProps {
+  invoice: HireInvoiceDto;
+  timeZone: string;
+  /** Bumped by the page whenever payments may have changed (recording, invoice actions, live events). */
+  paymentsKey: number;
+}
+
+function AllocationsSection({ invoice, timeZone, paymentsKey }: InvoiceSectionProps) {
+  const res = useInvoiceAllocations(invoice, paymentsKey);
   const cur = invoice.currency;
   const columns: DataColumn<InvoiceAllocation>[] = [
     {
@@ -104,7 +111,7 @@ function AllocationsSection({ invoice, timeZone }: { invoice: HireInvoiceDto; ti
   );
 }
 
-function InvoiceBody({ invoice: i, timeZone }: { invoice: HireInvoiceDto; timeZone: string }) {
+function InvoiceBody({ invoice: i, timeZone, paymentsKey }: InvoiceSectionProps) {
   const customerLabel = useCustomerLabels();
   const machineLabel = useMachineLabels();
   const jobLabel = useInvoiceJobLabels(i.job_ids);
@@ -145,7 +152,9 @@ function InvoiceBody({ invoice: i, timeZone }: { invoice: HireInvoiceDto; timeZo
         <InvoiceLinesTable invoice={i} jobLabel={jobLabel} machineLabel={machineLabel} />
         <InvoiceTotals invoice={i} />
       </DetailSection>
-      {i.status !== 'DRAFT' && <AllocationsSection invoice={i} timeZone={timeZone} />}
+      {i.status !== 'DRAFT' && (
+        <AllocationsSection invoice={i} timeZone={timeZone} paymentsKey={paymentsKey} />
+      )}
     </Box>
   );
 }
@@ -162,10 +171,16 @@ export function HireInvoiceDetailPage() {
     [invoiceId],
   );
   const res = useAsyncResource(load);
+  const [paymentsKey, setPaymentsKey] = useState(0);
+  const reloadInvoice = res.reload;
+  const reload = useCallback(() => {
+    reloadInvoice();
+    setPaymentsKey((k) => k + 1);
+  }, [reloadInvoice]);
   // Issue / void / payments on this invoice are pushed by the server.
-  useLiveRefresh([entityKey(ENTITY.hireInvoice, invoiceId), ENTITY.customerPayment], res.reload);
+  useLiveRefresh([entityKey(ENTITY.hireInvoice, invoiceId), ENTITY.customerPayment], reload);
   const inv = res.data;
-  const { actionsFor, dialogs } = useInvoiceActions({ onChanged: res.reload, onDetails: true });
+  const { actionsFor, dialogs } = useInvoiceActions({ onChanged: reload, onDetails: true });
   const actions = inv === null ? [] : actionsFor(inv);
   if (inv !== null && canPay && inv.status === 'ISSUED' && inv.payment_state !== 'PAID') {
     actions.unshift({
@@ -216,7 +231,7 @@ export function HireInvoiceDetailPage() {
           errorTitle="Could not load the invoice"
           loadingLabel="Loading invoice"
         >
-          {(i) => <InvoiceBody invoice={i} timeZone={timeZone} />}
+          {(i) => <InvoiceBody invoice={i} timeZone={timeZone} paymentsKey={paymentsKey} />}
         </AsyncContent>
         <Box>
           <Button component={RouterLink} to={financeTabPath('payments')} size="small">
@@ -233,7 +248,7 @@ export function HireInvoiceDetailPage() {
           }}
           onRecorded={() => {
             notify.success('Payment recorded as CLAIMED; it counts once verified.');
-            res.reload();
+            reload();
           }}
         />
       )}

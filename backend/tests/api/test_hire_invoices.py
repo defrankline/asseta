@@ -48,6 +48,13 @@ def test_invoice_from_completed_job_equals_billable_summary(api: Api) -> None:
         ("TAX", Decimal("110970")),  # 18% of 616,500
     ]
     assert _d(ch["total"]) == Decimal("727470")
+    assert [line["description"] for line in ch["lines"]] == [
+        "Hire J-100: 7 h @ TZS 85,000.00/h",
+        "Standby J-100: 2 h @ TZS 20,000.00/h",
+        "Mobilization J-100",
+        "Discount 10%",
+        "Tax 18%",
+    ]  # human-readable: no storage padding such as 85000.0000 or 18.0000%
 
     draft = f.accountant.post(
         "/api/v1/tenant/hire-invoices", {"customer_id": f.customer_id, "job_ids": [s["job"]["id"]], "notes": "Nov"}

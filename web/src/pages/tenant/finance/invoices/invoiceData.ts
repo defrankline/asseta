@@ -35,7 +35,7 @@ export const PAYMENTS_PAGE_SIZE = 200;
  * Payments allocated to this invoice (active and released). The payments API filters by customer;
  * allocations are matched to the invoice from those rows.
  */
-export function useInvoiceAllocations(invoice: HireInvoiceDto | null) {
+export function useInvoiceAllocations(invoice: HireInvoiceDto | null, reloadKey = 0) {
   const customerId = invoice?.customer_id ?? '';
   const invoiceId = invoice?.id ?? '';
   const load = useCallback(
@@ -52,7 +52,7 @@ export function useInvoiceAllocations(invoice: HireInvoiceDto | null) {
     },
     [customerId, invoiceId],
   );
-  return useAsyncResource(load, [], invoice !== null && invoice.status !== 'DRAFT');
+  return useAsyncResource(load, [reloadKey], invoice !== null && invoice.status !== 'DRAFT');
 }
 
 /** Invoice number, or a clear "Draft" marker (drafts are not numbered until issued). */

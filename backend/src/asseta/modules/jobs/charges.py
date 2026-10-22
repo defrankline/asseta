@@ -14,6 +14,11 @@ from asseta.modules.jobs.models import Job, StandbyTreatment
 HUNDRED = Decimal(100)
 
 
+def _plain(v: Decimal) -> str:
+    """Hours and percentages without storage padding: 11.500000 -> 11.5, 18.0000 -> 18."""
+    return format(v.normalize(), "f")
+
+
 class ChargeKind(StrEnum):
     HIRE = "HIRE"
     STANDBY = "STANDBY"
@@ -45,10 +50,13 @@ def job_charges(job: Job, billable_hours: Decimal, standby_hours: Decimal, minor
     def q(v: Decimal) -> Decimal:
         return quantize(v, minor_units)
 
+    def money(v: Decimal) -> str:
+        return f"{job.currency} {q(v):,}"
+
     lines = [
         ChargeLine(
             ChargeKind.HIRE,
-            f"Hire {job.job_number}: {billable_hours} h @ {job.hourly_rate}",
+            f"Hire {job.job_number}: {_plain(billable_hours)} h @ {money(job.hourly_rate)}/h",
             billable_hours,
             job.hourly_rate,
             q(billable_hours * job.hourly_rate),
@@ -58,7 +66,7 @@ def job_charges(job: Job, billable_hours: Decimal, standby_hours: Decimal, minor
         lines.append(
             ChargeLine(
                 ChargeKind.STANDBY,
-                f"Standby {job.job_number}: {standby_hours} h @ {job.standby_rate}",
+                f"Standby {job.job_number}: {_plain(standby_hours)} h @ {money(job.standby_rate)}/h",
                 standby_hours,
                 job.standby_rate,
                 q(standby_hours * job.standby_rate),
@@ -78,9 +86,11 @@ def job_charges(job: Job, billable_hours: Decimal, standby_hours: Decimal, minor
     discount = q(subtotal * job.discount_percent / HUNDRED)
     if discount > 0:
         lines.append(
-            ChargeLine(ChargeKind.DISCOUNT, f"Discount {job.discount_percent}%", Decimal(1), -discount, -discount)
+            ChargeLine(
+                ChargeKind.DISCOUNT, f"Discount {_plain(job.discount_percent)}%", Decimal(1), -discount, -discount
+            )
         )
     tax = q((subtotal - discount) * job.tax_rate_percent / HUNDRED)
     if tax > 0:
-        lines.append(ChargeLine(ChargeKind.TAX, f"Tax {job.tax_rate_percent}%", Decimal(1), tax, tax))
+        lines.append(ChargeLine(ChargeKind.TAX, f"Tax {_plain(job.tax_rate_percent)}%", Decimal(1), tax, tax))
     return JobCharges(job.currency, tuple(lines), subtotal, discount, tax, subtotal - discount + tax)

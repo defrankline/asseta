@@ -201,7 +201,7 @@ export function RecordPaymentDialog({
             v.allocations.map((a, i) => (
               <Box key={i} className="flex justify-between gap-2">
                 <span>{a.invoice === null ? '—' : invoiceOptionLabel(a.invoice)}</span>
-                <span>{a.amount}</span>
+                <MoneyText amount={a.amount} currency={v.currency} />
               </Box>
             ))
           )}
