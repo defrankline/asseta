@@ -1,0 +1,28 @@
+{
+  "spec_version": "1",
+  "source": "EXT-05: real dashboard photos supplied by the platform owner on 2026-10-22 for test use",
+  "acceptance": {
+    "wrong_confident_reads_allowed": 0,
+    "note": "Real samples are tracked as fallback_ok until the parser reads them; a confident wrong read is never allowed."
+  },
+  "images": [
+    {
+      "file": "hour_meter_tft__before.jpeg",
+      "style": "tft_hour_meter",
+      "condition": "real_dim_hotspot",
+      "expected_reading": "1814.1",
+      "decimal_places": 1,
+      "category": "fallback_ok",
+      "distractors": ["eco mode digit 2", "hourglass icon", "0.6 hrs secondary counter", "fuel 97%"]
+    },
+    {
+      "file": "hour_meter_tft__after.jpeg",
+      "style": "tft_hour_meter",
+      "condition": "real_glare_reflection",
+      "expected_reading": "1822.3",
+      "decimal_places": 1,
+      "category": "fallback_ok",
+      "distractors": ["0.6 hrs secondary counter", "fuel 10x%", "decimal comma", "photographer reflection"]
+    }
+  ]
+}
