@@ -97,6 +97,7 @@ def _context(
     mandate = mandate_gate(session, request, claims, user.id, tenant_id)
     if mandate is not None:
         group_paths &= mandate.group_paths  # Keycloak membership AND an in-force assignment
+    group_paths -= repo.revoked_role_paths(tenant_id, user.id)  # revoked in Asseta: stale token claims don't count
     roles = frozenset(p.rsplit("/", 1)[-1] for p in group_paths)
     if not roles:
         raise PermissionDenied("No membership in requested tenant", code="TENANT_ACCESS_DENIED")

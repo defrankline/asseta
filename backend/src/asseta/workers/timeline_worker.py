@@ -1,6 +1,12 @@
 """Timeline worker: consumes `asseta.telemetry.position` (keyed by machine -> per-machine ordering) and replays
-the machine timeline from the event time. Offsets are committed only after the replay transaction commits;
-replays are idempotent, so redelivery after a crash is safe."""
+the machine timeline from the event time. Offsets are committed only after the replay transactions commit;
+replays are idempotent, so redelivery after a crash is safe.
+
+Messages are consumed in batches and coalesced to ONE replay per machine from the batch's earliest event time: a
+replay rebuilds the machine's derived timeline from that instant over every stored position, and each event is
+published only after its position committed, so it subsumes the batch's later events for the same machine. One
+replay per message capped the worker at ~7 messages/s in the Gate 7E telemetry load drill (100 machines x 63 fixes
+took 14 min to drain)."""
 
 import json
 import signal
@@ -30,6 +36,20 @@ def handle_position_event(payload: dict[str, Any], correlation_id: str | None = 
         return TimelineProcessor(session, tenant_id).replay(machine_id, since)
 
 
+BATCH_SIZE = 500
+
+
+def coalesce(payloads: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """One payload per (tenant, machine): the one with the earliest event time (replays start there)."""
+    first: dict[tuple[str, str], dict[str, Any]] = {}
+    for p in payloads:
+        key = (p["tenant_id"], p["machine_id"])
+        cur = first.get(key)
+        if cur is None or datetime.fromisoformat(p["event_time"]) < datetime.fromisoformat(cur["event_time"]):
+            first[key] = p
+    return list(first.values())
+
+
 def run() -> None:
     configure_logging()
     consumer = Consumer(
@@ -51,23 +71,33 @@ def run() -> None:
     signal.signal(signal.SIGINT, stop)
     try:
         while not stopping:
-            msg = consumer.poll(1.0)
-            if msg is None:
+            msgs = consumer.consume(num_messages=BATCH_SIZE, timeout=1.0)
+            if not msgs:
                 continue
-            err = msg.error()
-            if err is not None:
-                if err.code() != KafkaError._PARTITION_EOF:
-                    log.error("timeline_consumer_error", error=str(err))
-                continue
-            raw = msg.headers() or []
-            pairs = raw.items() if isinstance(raw, dict) else raw
-            headers = {k: v.decode() if isinstance(v, bytes) else str(v) for k, v in pairs}
-            try:
-                result = handle_position_event(json.loads(msg.value() or b"{}"), headers.get("correlation_id"))
-                log.info("timeline_replayed", positions=result.positions, geofence_events=result.geofence_events)
-            except Exception:  # do not commit: the message is retried after restart/rebalance
-                log.exception("timeline_replay_failed")
-                continue
-            consumer.commit(message=msg, asynchronous=False)
+            payloads: list[dict[str, Any]] = []
+            correlation: str | None = None
+            for msg in msgs:
+                err = msg.error()
+                if err is not None:
+                    if err.code() != KafkaError._PARTITION_EOF:
+                        log.error("timeline_consumer_error", error=str(err))
+                    continue
+                raw = msg.headers() or []
+                pairs = raw.items() if isinstance(raw, dict) else raw
+                headers = {k: v.decode() if isinstance(v, bytes) else str(v) for k, v in pairs}
+                correlation = correlation or headers.get("correlation_id")
+                payloads.append(json.loads(msg.value() or b"{}"))
+            failed = False
+            for payload in coalesce(payloads):
+                try:
+                    result = handle_position_event(payload, correlation)
+                    log.info("timeline_replayed", positions=result.positions, geofence_events=result.geofence_events)
+                except Exception:  # do not commit: the batch is retried after restart/rebalance
+                    log.exception("timeline_replay_failed")
+                    failed = True
+            if payloads:
+                log.info("timeline_batch", messages=len(payloads), replays=len(coalesce(payloads)), failed=failed)
+            if not failed:
+                consumer.commit(asynchronous=False)
     finally:
         consumer.close()

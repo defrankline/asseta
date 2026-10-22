@@ -6,6 +6,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from sqlalchemy.exc import DataError, OperationalError
 
 from asseta.core.correlation import get_correlation_id
 
@@ -90,6 +91,26 @@ def install_error_handlers(app: FastAPI) -> None:
             for err in exc.errors()
         ]
         return _envelope(422, "VALIDATION_FAILED", "Request validation failed", details)
+
+    @app.exception_handler(DataError)
+    async def _bad_data(_: Request, exc: DataError) -> JSONResponse:
+        """Input the database cannot represent (e.g. a NUL byte in text, out-of-range numbers) is a client error,
+        not a 500. The request transaction is rolled back; the driver message is not echoed."""
+        import structlog
+
+        structlog.get_logger().info("rejected_unrepresentable_input", error_type=type(exc.orig).__name__)
+        return _envelope(422, "INVALID_INPUT", "Input contains values that cannot be stored (e.g. NUL bytes)", [])
+
+    @app.exception_handler(OperationalError)
+    async def _db_operational(_: Request, exc: OperationalError) -> JSONResponse:
+        """lock_timeout (55P03) and the server ending an idle transaction are transient: a retryable 503, not 500."""
+        import structlog
+
+        sqlstate = getattr(exc.orig, "sqlstate", None)
+        structlog.get_logger().warning("database_operational_error", sqlstate=sqlstate)
+        if sqlstate == "55P03":
+            return _envelope(503, "DATABASE_BUSY", "The record is busy; retry the request", [])
+        return _envelope(503, "DEPENDENCY_UNAVAILABLE", "Database temporarily unavailable", [])
 
     @app.exception_handler(Exception)
     async def _unhandled(_: Request, exc: Exception) -> JSONResponse:

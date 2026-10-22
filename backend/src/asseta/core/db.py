@@ -54,12 +54,17 @@ class DbScope(StrEnum):
 @lru_cache
 def get_engine() -> Engine:
     # Every session speaks UTC so instants serialize consistently regardless of server timezone.
+    s = get_settings()
+    options = (
+        f"-c timezone=UTC -c lock_timeout={s.db_lock_timeout_ms}"
+        f" -c idle_in_transaction_session_timeout={s.db_idle_in_transaction_timeout_ms}"
+    )
     return create_engine(
-        get_settings().database_url,
+        s.database_url,
         pool_pre_ping=True,
         pool_size=10,
         max_overflow=10,
-        connect_args={"options": "-c timezone=UTC"},
+        connect_args={"options": options},
     )
 
 

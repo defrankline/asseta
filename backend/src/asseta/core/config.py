@@ -12,6 +12,11 @@ class Settings(BaseSettings):
     environment: str = "development"
     database_url: str = "postgresql+psycopg://asseta_app:asseta_app@localhost:5433/asseta"
     migration_database_url: str = "postgresql+psycopg://asseta_owner:asseta_owner@localhost:5433/asseta"
+    # Safety valves for the API/worker role (Gate 7E load drill): a request waiting on a row lock fails fast
+    # (503 DATABASE_BUSY, clients/Traccar retry) instead of pinning a pool connection and a worker thread forever,
+    # and a transaction left idle (e.g. its thread starved) is ended by the server. 0 disables either.
+    db_lock_timeout_ms: int = Field(default=5000, ge=0)
+    db_idle_in_transaction_timeout_ms: int = Field(default=60000, ge=0)
     redis_url: str = "redis://localhost:6379/0"
     kafka_bootstrap: str = "localhost:9092"
     s3_endpoint: str = "http://localhost:9000"

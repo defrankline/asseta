@@ -21,6 +21,7 @@ from asseta.modules.identity.catalog import CATALOG, MenuDef
 from asseta.modules.identity.catalog import PermissionScope as S
 from asseta.modules.identity.dependencies import requires
 from asseta.modules.identity.principal import RequestContext
+from asseta.modules.jobs.models import Job
 from asseta.modules.meter.dto import (
     AttachmentDto,
     CaptureResultDto,
@@ -123,6 +124,8 @@ def submit(
 def captures(
     job_id: uuid.UUID, session: DbSession, _: Annotated[RequestContext, Depends(METER_READ)]
 ) -> list[MeterCaptureDto]:
+    if session.get(Job, job_id) is None:  # RLS-scoped: another tenant's job is "not found", like every by-id read
+        raise NotFound("Job not found")
     rows = session.execute(
         select(MeterCapture).where(MeterCapture.job_id == job_id).order_by(MeterCapture.captured_at)
     ).scalars()

@@ -8,12 +8,12 @@
 import hashlib
 import secrets
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Body, Depends, Header, Request
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import select
+from sqlalchemy import or_, select, update
 from sqlalchemy.orm import Session
 
 from asseta.core.audit import AuditService
@@ -40,6 +40,26 @@ DbSession = Annotated[Session, Depends(get_session)]
 
 def _hash(key: str) -> str:
     return hashlib.sha256(key.encode()).hexdigest()
+
+
+GATEWAY_HEARTBEAT = timedelta(seconds=60)
+
+
+def touch_gateway(session: Session, gateway_id: uuid.UUID, now: datetime) -> None:
+    """Gateway heartbeat without a hot-row lock: written at most once per GATEWAY_HEARTBEAT and skipped while another
+    request holds the row. Updating this single row on every message serialised ALL ingestion behind one row lock held
+    until commit; under load (Gate 7E telemetry drill) the queued requests exhausted the DB pool and threadpool and the
+    API stopped answering, health checks included."""
+    due = (
+        select(TelemetryGateway.id)
+        .where(
+            TelemetryGateway.id == gateway_id,
+            or_(TelemetryGateway.last_seen_at.is_(None), TelemetryGateway.last_seen_at < now - GATEWAY_HEARTBEAT),
+        )
+        .with_for_update(skip_locked=True)
+        .scalar_subquery()
+    )
+    session.execute(update(TelemetryGateway).where(TelemetryGateway.id == due).values(last_seen_at=now))
 
 
 class IngestResultDto(BaseModel):
@@ -112,15 +132,19 @@ def ingest_traccar(
     ).scalar_one_or_none()
     if gateway is None:
         raise NotAuthenticated("Unknown or inactive gateway key")
-    gateway.last_seen_at = now
-    session.flush()  # system-scope write must land before ingestion narrows the transaction to a tenant scope
+    touch_gateway(session, gateway.id, now)  # system-scope write lands before ingestion narrows to a tenant scope
     outcomes = IngestionService(session, TraccarAdapter(), gateway.id, now).ingest(payload)
-    return IngestResultDto(
+    result = IngestResultDto(
         accepted=sum(o.status in (IngestionStatus.ACCEPTED, IngestionStatus.ACCEPTED_NO_FIX) for o in outcomes),
         duplicates=sum(o.status is IngestionStatus.DUPLICATE for o in outcomes),
         quarantined=sum(o.status is IngestionStatus.QUARANTINED for o in outcomes),
         reasons=[o.reason for o in outcomes if o.reason is not None],
     )
+    # Commit here, not in get_session's teardown: FastAPI validates a sync endpoint's response in a second threadpool
+    # hop, and under a gateway burst that hop waited behind requests waiting for DB connections while this request
+    # still held its connection, row locks and transaction (pool <-> threadpool convoy; Gate 7E telemetry drill).
+    session.commit()
+    return result
 
 
 @router.post(

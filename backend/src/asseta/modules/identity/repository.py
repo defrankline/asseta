@@ -4,7 +4,7 @@ import uuid
 from collections.abc import Iterable
 from datetime import datetime
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -65,6 +65,21 @@ class IdentityRepository:
             .join(Role, Role.id == RolePermission.role_id)
             .join(Permission, Permission.code == RolePermission.permission_code)
             .where(Role.keycloak_group_path.in_(paths), Permission.is_active.is_(True))
+        ).scalars()
+        return frozenset(rows)
+
+    def revoked_role_paths(self, tenant_id: uuid.UUID, user_id: uuid.UUID) -> frozenset[str]:
+        """Role groups whose mirrored membership for this user was closed (revoked) with none open again.
+
+        A revoked user's access token keeps the group claim until it expires; this lets the API refuse it at once.
+        Deny-only: a user with no mirrored rows (e.g. added in Keycloak, mirror not refreshed yet) is unaffected.
+        """
+        rows = self._s.execute(
+            select(Role.keycloak_group_path)
+            .join(TenantMembership, TenantMembership.role_id == Role.id)
+            .where(TenantMembership.tenant_id == tenant_id, TenantMembership.user_id == user_id)
+            .group_by(Role.keycloak_group_path)
+            .having(func.bool_and(TenantMembership.effective_to.is_not(None)))
         ).scalars()
         return frozenset(rows)
 

@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from geoalchemy2.functions import ST_DistanceSphere, ST_MakePoint, ST_SetSRID
-from sqlalchemy import and_, func, or_, select, update
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -41,6 +41,7 @@ from asseta.modules.tracker.models import (
 )
 
 TIMELINE_TOPIC = "asseta.telemetry.position"
+CAPABILITY_OBSERVED_EVERY = timedelta(seconds=60)  # last_observed_at resolution
 
 
 @dataclass(frozen=True)
@@ -348,7 +349,16 @@ class IngestionService:
         if caps:
             self._s.execute(
                 update(TrackerCapability)
-                .where(and_(TrackerCapability.tracker_id == tracker.id, TrackerCapability.capability.in_(caps)))
+                .where(
+                    TrackerCapability.tracker_id == tracker.id,
+                    TrackerCapability.capability.in_(caps),
+                    # Throttled: rewriting these rows on every message made them hot locks under load (Gate 7E).
+                    or_(
+                        TrackerCapability.verified_at.is_(None),
+                        TrackerCapability.last_observed_at.is_(None),
+                        TrackerCapability.last_observed_at < self._now - CAPABILITY_OBSERVED_EVERY,
+                    ),
+                )
                 .values(verified_at=func.coalesce(TrackerCapability.verified_at, self._now), last_observed_at=self._now)
             )
 

@@ -17,6 +17,8 @@ x-api-env: &api-env
   ASSETA_KEYCLOAK_API_CLIENT_SECRET: ${ASSETA_API_CLIENT_SECRET}
   ASSETA_CORS_ORIGINS: '["${ASSETA_WEB_URL:-http://localhost:5173}"]'
   ASSETA_MLFLOW_TRACKING_URI: http://mlflow:5000  # optional: training still records runs locally when MLflow is down
+  ASSETA_DB_LOCK_TIMEOUT_MS: ${ASSETA_DB_LOCK_TIMEOUT_MS:-5000}  # Gate 7E drills: fail fast (503) on lock waits
+  ASSETA_DB_IDLE_IN_TRANSACTION_TIMEOUT_MS: ${ASSETA_DB_IDLE_IN_TRANSACTION_TIMEOUT_MS:-60000}
 
 # SMS provider for notification SMS (console = logs only, sends nothing). Credentials only from .env.
 x-sms-env: &sms-env

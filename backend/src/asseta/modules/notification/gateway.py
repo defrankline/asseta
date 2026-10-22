@@ -65,6 +65,7 @@ def authorize(verifier: TokenVerifier, token: str, tenant_id: uuid.UUID | None, 
             grant = mandate_gate_on(session, claims, user.id, tenant_id, today)
             if grant is not None:
                 paths &= grant.group_paths
+            paths -= repo.revoked_role_paths(tenant_id, user.id)  # same rule as REST (identity.dependencies)
             if not paths:
                 raise PermissionDenied("No membership in requested tenant", code="TENANT_ACCESS_DENIED")
             access = repo.tenant_access_state(tenant_id)

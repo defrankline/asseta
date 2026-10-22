@@ -332,6 +332,8 @@ class TrackerService:
         return self.to_dto(tracker)
 
     def assignments_for_machine(self, machine_id: uuid.UUID) -> list[TrackerAssignmentDto]:
+        if self._s.get(Machine, machine_id) is None:  # RLS-scoped: another tenant's machine is "not found"
+            raise NotFound("Machine not found")
         rows = self._s.execute(
             select(TrackerAssignment)
             .where(TrackerAssignment.machine_id == machine_id)

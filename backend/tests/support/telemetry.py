@@ -10,7 +10,7 @@ from asseta.core.db import DbScope, apply_scope, get_sessionmaker, utcnow
 from asseta.core.outbox import OutboxEvent
 from asseta.modules.telemetry.ingestion import TIMELINE_TOPIC
 from asseta.tools.gps_simulator import Fix, traccar_payload
-from asseta.workers.timeline_worker import handle_position_event
+from asseta.workers.timeline_worker import coalesce, handle_position_event
 from tests.support.api import Actor, Api
 
 DAR = (-6.8000, 39.2800)  # Dar es Salaam area — test coordinates (lat, lon)
@@ -81,7 +81,8 @@ class Telemetry:
         return body
 
     def drain_timeline(self) -> int:
-        """Act as the Kafka timeline consumer for pending PositionStored events (in creation order)."""
+        """Act as the Kafka timeline consumer for pending PositionStored events: one batch, coalesced per machine
+        exactly like the worker (so every geospatial test also proves coalesced replays are equivalent)."""
         with get_sessionmaker().begin() as s:
             apply_scope(s, DbScope.SYSTEM, None, None)
             rows = list(
@@ -94,6 +95,6 @@ class Telemetry:
             payloads = [r.payload for r in rows]
             for r in rows:
                 r.published_at = utcnow()
-        for p in payloads:
+        for p in coalesce(payloads):
             handle_position_event(p)
         return len(payloads)

@@ -11,13 +11,13 @@ from sqlalchemy.orm import Session
 from asseta.core.audit import AuditService
 from asseta.core.clock import get_now
 from asseta.core.db import get_session
-from asseta.core.errors import ERROR_RESPONSES
+from asseta.core.errors import ERROR_RESPONSES, BusinessRuleViolation
 from asseta.core.storage import ObjectStore
 from asseta.modules.fleet.photos import get_object_store
 from asseta.modules.identity.catalog import PermissionScope as S
 from asseta.modules.identity.dependencies import requires
 from asseta.modules.identity.principal import RequestContext
-from asseta.modules.sync.blobs import BlobService
+from asseta.modules.sync.blobs import CHUNK_SIZE, BlobService
 from asseta.modules.sync.dto import (
     BlobSessionDto,
     BlobStartIn,
@@ -104,7 +104,17 @@ async def put_chunk(
     device_id: DeviceId = None,
 ) -> BlobSessionDto:
     SyncService(session, ctx, now).active_device(device_id)
-    return BlobService(session, ctx, now).put_chunk(session_id, index, await request.body())
+    return BlobService(session, ctx, now).put_chunk(session_id, index, await _bounded_body(request, CHUNK_SIZE))
+
+
+async def _bounded_body(request: Request, limit: int) -> bytes:
+    """Read at most `limit` bytes: an oversized chunk is refused while streaming, never buffered whole."""
+    buf = bytearray()
+    async for part in request.stream():
+        buf += part
+        if len(buf) > limit:
+            raise BusinessRuleViolation(f"Chunk exceeds {limit} bytes", code="BAD_CHUNK")
+    return bytes(buf)
 
 
 @router.post("/sync/blobs/{session_id}/complete", response_model=BlobSessionDto, operation_id="completeBlobUpload")
