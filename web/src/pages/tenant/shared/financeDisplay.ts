@@ -139,12 +139,6 @@ export const FINANCE_ERROR_HINTS: Readonly<Record<string, string>> = {
 /** First 8 characters of an id, for records without a human label. */
 export const shortId = (value: string): string => `${value.slice(0, 8)}…`;
 
-/** "You" for the signed-in user (segregation of duties), else a short user id. */
-export function actorLabel(userId: string | null, me: string | null): string {
-  if (userId === null) return '—';
-  return userId === me ? 'You' : shortId(userId);
-}
-
 /** Group rows by currency, keeping first-seen order. Amounts in different currencies never mix. */
 export function groupByCurrency<T extends { currency: string }>(
   rows: readonly T[],

@@ -43,6 +43,8 @@ export type TenantAccess = Schemas['TenantAccessDto'];
 
 export type MeResponse = Schemas['MeDto'];
 
+export type PersonDto = Schemas['PersonDto'];
+
 export type HealthStatus = HealthReadyResponse['status'];
 
 export type HealthCheck = Schemas['CheckResult'];

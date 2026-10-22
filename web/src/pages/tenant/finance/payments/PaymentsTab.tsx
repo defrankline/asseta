@@ -23,14 +23,14 @@ import { RowActionsMenu } from '../../../../components/lifecycle/RowActionsMenu'
 import { useNotify } from '../../../../notifications/useNotify';
 import { formatInstantIn } from '../../../../utils/time';
 import {
-  actorLabel,
   PAYMENT_METHOD_LABELS,
   SETTLEMENT_LABELS,
   SETTLEMENT_TONES,
   shortId,
 } from '../../shared/financeDisplay';
+import { PersonName } from '../../shared/PersonName';
 import { CustomerFilter, StaffFilter } from '../../shared/financePickers';
-import { useCustomerLabels, useMyUserId, useStaffLabels } from '../../shared/useFinanceLabels';
+import { useCustomerLabels, useStaffLabels } from '../../shared/useFinanceLabels';
 import { unallocatedOf } from './paymentForm';
 import { RecordPaymentDialog } from './RecordPaymentDialog';
 import { SOD_RECORDER_NOTE, usePaymentActions } from './usePaymentActions';
@@ -62,7 +62,6 @@ function PaymentDrawer({
   mine: boolean;
   onClose: () => void;
 }) {
-  const me = useMyUserId();
   const customerLabel = useCustomerLabels();
   const staffLabel = useStaffLabels();
   return (
@@ -95,9 +94,9 @@ function PaymentDrawer({
           { label: 'Received at', value: formatInstantIn(p.received_at, timeZone) },
           { label: 'Received by', value: staffLabel(p.received_by_staff_id) },
           { label: 'Source', value: p.source },
-          { label: 'Recorded by', value: actorLabel(p.recorded_by, me) },
+          { label: 'Recorded by', value: <PersonName userId={p.recorded_by} /> },
           { label: 'Recorded at', value: formatInstantIn(p.recorded_at, timeZone) },
-          { label: 'Decided by', value: actorLabel(p.verified_by, me) },
+          { label: 'Decided by', value: <PersonName userId={p.verified_by} /> },
           {
             label: 'Decided at',
             value: p.verified_at === null ? '—' : formatInstantIn(p.verified_at, timeZone),

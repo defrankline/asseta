@@ -22,6 +22,7 @@ from asseta.modules.fleet import photos as fleet_photos
 from asseta.modules.fleet import router as fleet_router
 from asseta.modules.geospatial import router as geospatial_router
 from asseta.modules.identity import access as identity_access
+from asseta.modules.identity import directory as identity_directory
 from asseta.modules.identity import router as identity_router
 from asseta.modules.identity.authz_sync import AuthzSyncService
 from asseta.modules.identity.idp import IdentityProviderAdmin
@@ -125,6 +126,7 @@ def create_app(
         geospatial_router.router,
         fleet_photos.router,
         identity_access.router,
+        identity_directory.router,
         jobs_router.router,
         meter_router.router,
         sync_router.router,

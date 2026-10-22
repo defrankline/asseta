@@ -13,12 +13,8 @@ import { RowActionsMenu } from '../../../../components/lifecycle/RowActionsMenu'
 import { useNotify } from '../../../../notifications/useNotify';
 import { formatInstantIn } from '../../../../utils/time';
 import { DecisionDialog } from '../../shared/DecisionDialog';
-import {
-  actorLabel,
-  SETTLEMENT_LABELS,
-  SETTLEMENT_TONES,
-  shortId,
-} from '../../shared/financeDisplay';
+import { SETTLEMENT_LABELS, SETTLEMENT_TONES, shortId } from '../../shared/financeDisplay';
+import { PersonName } from '../../shared/PersonName';
 import { StaffFilter } from '../../shared/financePickers';
 import { useMyUserId, useStaffLabels } from '../../shared/useFinanceLabels';
 import { ENTITY } from '../../../../realtime/entities';
@@ -60,7 +56,7 @@ export function HandoversTab({ timeZone }: { timeZone: string }) {
         />
       ),
     },
-    { id: 'by', header: 'Recorded by', render: (h) => actorLabel(h.recorded_by, me) },
+    { id: 'by', header: 'Recorded by', render: (h) => <PersonName userId={h.recorded_by} /> },
     {
       id: 'amount',
       header: 'Amount',

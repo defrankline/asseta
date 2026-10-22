@@ -19,11 +19,8 @@ import { useSession } from '../../../session/useSession';
 import { formatInstantIn } from '../../../utils/time';
 import { labelOf } from '../shared/display';
 import { DecisionDialog } from '../shared/DecisionDialog';
-import {
-  actorLabel,
-  APPROVAL_STATUS_OPTIONS,
-  APPROVAL_STATUS_TONES,
-} from '../shared/financeDisplay';
+import { APPROVAL_STATUS_OPTIONS, APPROVAL_STATUS_TONES } from '../shared/financeDisplay';
+import { PersonName } from '../shared/PersonName';
 import { useMyUserId } from '../shared/useFinanceLabels';
 import { ExpenseDetailsDrawer } from '../expenses/ExpenseDetailsDrawer';
 import { ENTITY } from '../../../realtime/entities';
@@ -67,7 +64,7 @@ export function ApprovalsPage() {
     },
     { id: 'reason', header: 'Why approval is needed', render: (a) => a.reason },
     { id: 'policy', header: 'Policy', render: (a) => a.policy_version },
-    { id: 'by', header: 'Requested by', render: (a) => actorLabel(a.requested_by, me) },
+    { id: 'by', header: 'Requested by', render: (a) => <PersonName userId={a.requested_by} /> },
     {
       id: 'status',
       header: 'Status',

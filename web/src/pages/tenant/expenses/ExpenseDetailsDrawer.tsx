@@ -10,14 +10,14 @@ import { AttachmentPhoto } from '../../../components/meter/AttachmentPhoto';
 import { jobDetailPath, ROUTES } from '../../../navigation/routes';
 import { formatInstantIn } from '../../../utils/time';
 import {
-  actorLabel,
   EXPENSE_STATUS_OPTIONS,
   EXPENSE_STATUS_TONES,
   PAID_FROM_LABELS,
   shortId,
 } from '../shared/financeDisplay';
+import { PersonName } from '../shared/PersonName';
 import { labelOf } from '../shared/display';
-import { useExpenseCategoryLabels, useMyUserId, useStaffLabels } from '../shared/useFinanceLabels';
+import { useExpenseCategoryLabels, useStaffLabels } from '../shared/useFinanceLabels';
 import { useMachineLabels } from '../shared/useMachineLabels';
 
 interface ExpenseDetailsDrawerProps {
@@ -28,7 +28,6 @@ interface ExpenseDetailsDrawerProps {
 
 /** Expense evidence: receipts (signed URLs on demand), GPS, policy version and approval state. */
 export function ExpenseDetailsDrawer({ expense: e, timeZone, onClose }: ExpenseDetailsDrawerProps) {
-  const me = useMyUserId();
   const categoryLabel = useExpenseCategoryLabels();
   const staffLabel = useStaffLabels();
   const machineLabel = useMachineLabels();
@@ -83,14 +82,19 @@ export function ExpenseDetailsDrawer({ expense: e, timeZone, onClose }: ExpenseD
           { label: 'Policy version', value: e.policy_version },
           { label: 'Receipt required', value: e.receipt_required ? 'Yes' : 'No' },
           { label: 'Source', value: e.source },
-          { label: 'Submitted by', value: actorLabel(e.submitted_by, me) },
+          { label: 'Submitted by', value: <PersonName userId={e.submitted_by} /> },
           { label: 'Submitted at', value: formatInstantIn(e.submitted_at, timeZone) },
           {
             label: 'Decided',
             value:
-              e.decided_at === null
-                ? '—'
-                : `${formatInstantIn(e.decided_at, timeZone)} by ${e.decided_by === null ? 'policy (auto)' : actorLabel(e.decided_by, me)}`,
+              e.decided_at === null ? (
+                '—'
+              ) : (
+                <>
+                  {formatInstantIn(e.decided_at, timeZone)} by{' '}
+                  <PersonName userId={e.decided_by} empty="policy (auto)" />
+                </>
+              ),
           },
           { label: 'Decision note', value: e.decision_note ?? '—' },
         ]}

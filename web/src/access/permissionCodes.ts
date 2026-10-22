@@ -117,4 +117,6 @@ export const PERMISSIONS = {
   tenantNotificationManage: 'tenant.notification.manage',
   /** Record cash collections and handovers (own custody). */
   tenantCollectionRecord: 'tenant.collection.record',
+  /** Colleagues' display names on records (recorded / decided / requested by). */
+  tenantDirectoryRead: 'tenant.directory.read',
 } as const;

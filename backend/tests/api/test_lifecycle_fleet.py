@@ -12,8 +12,13 @@ REASON = {"reason": "No longer used"}
 
 
 def _accountant(api: Api, tid: str) -> Actor:
-    """A tenant role without fleet permissions."""
+    """A tenant role that reads fleet reference data (DEC-023) but may not change it."""
     return Actor(api, "acct-lifecycle", [f"/tenants/{tid}/accountant"], tid, email="acct@lifecycle.example.com")
+
+
+def _operator(api: Api, tid: str) -> Actor:
+    """A tenant role without fleet permissions."""
+    return Actor(api, "op-lifecycle", [f"/tenants/{tid}/operator"], tid, email="op@lifecycle.example.com")
 
 
 def _ids(rows: list[dict[str, Any]]) -> set[str]:
@@ -77,7 +82,8 @@ def test_machine_category_and_area_lifecycle(api: Api) -> None:
     assert stranger.get(f"{T}/machine-categories/{cat['id']}").status_code == 404
     assert stranger.post(f"{T}/operating-areas/{area['id']}/deactivate", REASON).status_code == 404
     acct = _accountant(api, tid)
-    assert acct.get(f"{T}/machine-categories/{cat['id']}").status_code == 403
+    assert acct.get(f"{T}/machine-categories/{cat['id']}").status_code == 200  # read-only reference data
+    assert _operator(api, tid).get(f"{T}/machine-categories/{cat['id']}").status_code == 403
     assert acct.put(f"{T}/operating-areas/{area['id']}", {"code": "X", "name": "Y", "version": 3}).status_code == 403
 
 
