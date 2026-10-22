@@ -22,6 +22,7 @@ export const EXCEPTION_TYPE_LABELS: Readonly<Record<ExceptionType, string>> = {
   DUPLICATE_IMAGE: 'Photo reused',
   TELEMETRY_MISMATCH: 'Differs from tracker engine hours',
   CLOCK_SKEW: 'Device clock ahead of server',
+  POLICY_SNAPSHOT_UNVERIFIED: 'Offline policy not confirmed',
 };
 
 /** Labels (with units) for evidence keys; unknown keys fall back to a humanised key. */
@@ -59,6 +60,11 @@ export const EVIDENCE_KEY_LABELS: Readonly<Record<string, string>> = {
   tolerance: 'Tolerance (h)',
   device_time: 'Device time',
   server_time: 'Server receive time',
+  device_id: 'Device',
+  captured_at: 'Reading time',
+  policy_version_ids: 'Policy versions applied',
+  issued_at: 'Policy issued to device',
+  valid_until: 'Policy valid until',
 };
 
 /** Display any evidence value verbatim (numbers/strings unchanged, never re-computed). */
@@ -105,6 +111,11 @@ const EXPLAIN: Readonly<Record<ExceptionType, Explainer>> = {
     `engine hours; tolerance ${g('tolerance')} h.`,
   CLOCK_SKEW: (g) =>
     `Device time ${g('device_time')} is ahead of server receive time ${g('server_time')} beyond tolerance.`,
+  POLICY_SNAPSHOT_UNVERIFIED: (g) =>
+    g('reason') === 'OUTSIDE_VALIDITY'
+      ? `The offline policy the device applied was valid from ${g('issued_at')} until ${g('valid_until')}; ` +
+        `the reading was taken at ${g('captured_at')}.`
+      : `The offline policy the device applied was not issued to device ${g('device_id')}.`,
 };
 
 /** One-sentence, neutral explanation of an exception from its recorded evidence. */

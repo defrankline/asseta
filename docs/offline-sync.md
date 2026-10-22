@@ -31,6 +31,8 @@ Gate 5 adds expense, collection, cash handover and fuel operations through the s
   device re-sends them after reactivation — never discarded.
 * **Policy snapshots:** captures carry `policy_version_ids` of the snapshot the device enforced offline; the server
   validates against that snapshot and records both stamps. Snapshots expire (`DEVICE_SYNC.snapshot_validity_hours`).
+  The snapshot must have been issued to the sending device and be valid at `captured_at`. If not, the capture is
+  still accepted, but held `PROVISIONAL` with a `POLICY_SNAPSHOT_UNVERIFIED` exception for review (security.md F-8).
 * **Clock:** every push reports `device_now`; the server returns `clock_offset_s` and `clock_skew_alert`; captures
   record device time and server receive time; future-dated captures raise `CLOCK_SKEW`.
 * **Delta pull:** global `sync_revision` sequence bumped by trigger; each pull re-reads a 500-revision lookback so

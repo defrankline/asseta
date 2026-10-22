@@ -79,6 +79,10 @@ class DevicePolicySnapshot(UuidPk, Base):
     """Policy versions handed to a device for offline enforcement (audit of what the field was told)."""
 
     __tablename__ = "device_policy_snapshot"
+    # Capture-time check that a device's offline snapshot was issued to it (meter/service.py, security F-8).
+    __table_args__ = (
+        Index("ix_device_policy_snapshot_device_type_issued", "device_session_id", "policy_type", "issued_at"),
+    )
 
     tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenant.id"), nullable=False, index=True)
     device_session_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("device_session.id"), nullable=False)

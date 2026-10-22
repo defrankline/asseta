@@ -13,6 +13,7 @@ from asseta.core.correlation import CorrelationIdMiddleware
 from asseta.core.db import get_sessionmaker
 from asseta.core.errors import install_error_handlers
 from asseta.core.logging import configure_logging
+from asseta.core.request_limits import RequestSizeLimitMiddleware
 from asseta.core.sms import SmsClient, build_sms_client
 from asseta.core.storage import ObjectStore, S3ObjectStore
 from asseta.modules.audit_log import router as audit_log_router
@@ -111,6 +112,8 @@ def create_app(
     app.state.object_store = object_store or build_object_store(settings)
     app.state.realtime = realtime or RedisBroker(settings.redis_url)  # WebSocket fan-out across API instances
     app.state.sms_client = sms_client or build_sms_client()  # console provider unless ASSETA_SMS_PROVIDER=nextsms
+    # Innermost of the three: the 413 still carries CORS headers and the request's correlation id.
+    app.add_middleware(RequestSizeLimitMiddleware, max_bytes=settings.max_request_bytes)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,

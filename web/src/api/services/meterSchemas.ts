@@ -57,6 +57,7 @@ export const EXCEPTION_TYPES: readonly ExceptionType[] = [
   'DUPLICATE_IMAGE',
   'TELEMETRY_MISMATCH',
   'CLOCK_SKEW',
+  'POLICY_SNAPSHOT_UNVERIFIED',
 ];
 
 export const attachmentSchema: Schema<AttachmentDto> = object({

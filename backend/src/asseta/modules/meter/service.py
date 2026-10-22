@@ -3,8 +3,9 @@
 import uuid
 from datetime import datetime, timedelta
 from decimal import Decimal
+from typing import Any
 
-from sqlalchemy import Select, select, text
+from sqlalchemy import Select, func, select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -37,8 +38,10 @@ from asseta.modules.meter.rules import (
 )
 from asseta.modules.policy.schemas import CaptureMode, MeterCapturePolicy, PolicyType
 from asseta.modules.policy.service import PolicyService
+from asseta.modules.sync.models import DevicePolicySnapshot, DeviceSession
 
 FUTURE_SKEW = timedelta(minutes=5)
+SNAPSHOT_CLOCK_TOLERANCE = FUTURE_SKEW  # device clock vs the server's issued_at / valid_until stamps
 _ACTIVE = (CaptureState.ACCEPTED, CaptureState.PROVISIONAL)
 
 
@@ -81,7 +84,44 @@ class MeterService:
         # The device enforced its offline snapshot; record both so later policy changes never rewrite history.
         return snapshot, f"{server.version_stamp}|device:{len(body.policy_version_ids)}v"
 
-    def submit(self, body: MeterCaptureIn) -> CaptureResultDto:
+    def _snapshot_finding(self, body: MeterCaptureIn, device_session_id: uuid.UUID | None) -> Finding | None:
+        """F-8: the snapshot a device says it enforced must have been issued to that device and valid at capture
+        time (issued_at <= captured_at <= valid_until, within clock tolerance). Otherwise a modified client could
+        apply an older, more lenient version of its own tenant's policy. The capture is still kept (field
+        continuity) but held for review with a blocking exception, never rejected."""
+        ids = sorted({str(v) for v in body.policy_version_ids})
+        snap = DevicePolicySnapshot
+        issued = select(snap.issued_at, snap.valid_until).where(
+            snap.policy_type == PolicyType.METER_CAPTURE.value,
+            snap.version_ids.contains(ids),
+            snap.version_ids.contained_by(ids),  # both ways: the same set of versions
+        )
+        if device_session_id is not None:  # offline push: the device session that sent it
+            issued = issued.where(snap.device_session_id == device_session_id)
+        else:  # online submission: the caller's own registered device with the capture's device id
+            issued = issued.join(DeviceSession, DeviceSession.id == snap.device_session_id).where(
+                DeviceSession.device_id == body.device_id, DeviceSession.user_id == self._ctx.user_id
+            )
+        at = body.captured_at
+        valid = issued.where(
+            snap.issued_at <= at + SNAPSHOT_CLOCK_TOLERANCE, snap.valid_until >= at - SNAPSHOT_CLOCK_TOLERANCE
+        )
+        if self._s.execute(valid.limit(1)).first() is not None:
+            return None
+        nearest = self._s.execute(
+            issued.order_by(func.abs(func.extract("epoch", snap.issued_at - at))).limit(1)
+        ).first()
+        evidence: dict[str, Any] = {
+            "reason": "OUTSIDE_VALIDITY" if nearest else "NOT_ISSUED_TO_DEVICE",
+            "device_id": body.device_id,
+            "captured_at": at.isoformat(),
+            "policy_version_ids": ids,
+        }
+        if nearest is not None:
+            evidence |= {"issued_at": nearest.issued_at.isoformat(), "valid_until": nearest.valid_until.isoformat()}
+        return Finding(ExceptionType.POLICY_SNAPSHOT_UNVERIFIED, "WARNING", True, evidence)
+
+    def submit(self, body: MeterCaptureIn, device_session_id: uuid.UUID | None = None) -> CaptureResultDto:
         existing = self._s.get(MeterCapture, body.id)
         if existing is not None:  # idempotent replay of the same device operation
             if existing.reading != body.reading or existing.job_id != body.job_id or existing.kind != body.kind:
@@ -106,6 +146,8 @@ class MeterService:
         expected = CaptureMode(policy.opening_mode if body.kind is ReadingKind.OPENING else policy.closing_mode)
         gps = GpsEvidence(body.gps.status, body.gps.accuracy_m, body.gps.captured_at)
         findings, reject = gps_findings(policy, gps, body.captured_at)
+        if body.policy_version_ids and (unverified := self._snapshot_finding(body, device_session_id)):
+            findings.append(unverified)
         findings += capture_findings(
             policy, expected, body.capture_mode, photo is not None, body.reading, body.ocr_value, body.ocr_confidence
         )

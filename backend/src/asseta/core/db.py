@@ -58,6 +58,7 @@ def get_engine() -> Engine:
     options = (
         f"-c timezone=UTC -c lock_timeout={s.db_lock_timeout_ms}"
         f" -c idle_in_transaction_session_timeout={s.db_idle_in_transaction_timeout_ms}"
+        f" -c statement_timeout={s.db_statement_timeout_ms}"
     )
     return create_engine(
         s.database_url,

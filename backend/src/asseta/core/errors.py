@@ -64,9 +64,19 @@ class BusinessRuleViolation(AppError):
     code = "BUSINESS_RULE_VIOLATION"
 
 
+class PayloadTooLarge(AppError):
+    status_code = 413
+    code = "PAYLOAD_TOO_LARGE"
+
+
 class DependencyUnavailable(AppError):
     status_code = 503
     code = "DEPENDENCY_UNAVAILABLE"
+
+
+def error_response(status: int, code: str, message: str, details: list[ErrorDetail] | None = None) -> JSONResponse:
+    """The standard envelope for middleware that answers before routing (e.g. the request-size limit)."""
+    return _envelope(status, code, message, details or [])
 
 
 def _envelope(status: int, code: str, message: str, details: list[ErrorDetail]) -> JSONResponse:
@@ -103,13 +113,16 @@ def install_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(OperationalError)
     async def _db_operational(_: Request, exc: OperationalError) -> JSONResponse:
-        """lock_timeout (55P03) and the server ending an idle transaction are transient: a retryable 503, not 500."""
+        """lock_timeout (55P03), statement_timeout (57014) and the server ending an idle transaction are transient:
+        a retryable 503, not 500."""
         import structlog
 
         sqlstate = getattr(exc.orig, "sqlstate", None)
         structlog.get_logger().warning("database_operational_error", sqlstate=sqlstate)
         if sqlstate == "55P03":
             return _envelope(503, "DATABASE_BUSY", "The record is busy; retry the request", [])
+        if sqlstate == "57014":
+            return _envelope(503, "QUERY_TIMEOUT", "The request took too long; narrow the filters or retry", [])
         return _envelope(503, "DEPENDENCY_UNAVAILABLE", "Database temporarily unavailable", [])
 
     @app.exception_handler(Exception)

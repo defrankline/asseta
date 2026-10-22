@@ -165,7 +165,7 @@ class PushService:
             }
             self._store(device, op, digest, OperationStatus.QUARANTINED, result, existing)
             return OperationResultDto(id=op.id, status="QUARANTINED", result=result, error=result["error"])
-        status, result = self._dispatch(op)
+        status, result = self._dispatch(device, op)
         self._store(device, op, digest, status, result, existing)
         return OperationResultDto.model_validate(
             {"id": op.id, "status": status.value, "result": result, "error": result.get("error")}
@@ -199,13 +199,13 @@ class PushService:
             )
         self._s.flush()
 
-    def _dispatch(self, op: OperationIn) -> tuple[OperationStatus, dict[str, Any]]:
+    def _dispatch(self, device: DeviceSession, op: OperationIn) -> tuple[OperationStatus, dict[str, Any]]:
         needed = REQUIRED_PERMISSION[op.op_type]
         if needed not in self._ctx.permissions:
             return OperationStatus.REJECTED, {"error": {"code": "PERMISSION_DENIED", "message": f"Missing {needed}"}}
         handlers: dict[str, Callable[[], BaseModel]] = {
             "METER_CAPTURE": lambda: MeterService(self._s, self._ctx, self._now).submit(
-                MeterCaptureIn.model_validate(op.payload)
+                MeterCaptureIn.model_validate(op.payload), device_session_id=device.id
             ),
             "JOB_ACTIVITY": lambda: JobService(self._s, self._ctx).add_activity(
                 uuid.UUID(str(op.payload["job_id"])), ActivityIn.model_validate(op.payload)

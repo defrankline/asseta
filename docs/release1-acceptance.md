@@ -25,7 +25,7 @@ Test references are `file::test` (backend paths relative to `backend/tests/`, we
 | 8 | Cash reconciliation; tenant invoices separate from platform invoices | PASS | — |
 | 9 | Evidence-backed fraud exceptions, neutral review, shadow/insufficient-data ML | PASS | — |
 | 10 | Fleet map states, timestamps, geofence alerts, drilldown, never claims stale as live | PARTIAL | Console PASS; signed-in live walkthrough of both native Owner apps pending |
-| 11 | Deny at every protected endpoint; wrong tenant, stale policy, role change, device loss, storage URLs | PASS | 301 routes enumerated; open Medium hardening findings F-5..F-8 (security.md) |
+| 11 | Deny at every protected endpoint; wrong tenant, stale policy, role change, device loss, storage URLs | PASS | 301 routes enumerated; Medium hardening findings F-5..F-8 fixed (security.md) |
 | 12 | CI, migrations, backup/restore, telemetry load, Kafka/API/worker restart, backlog, object-store outage, docs | PARTIAL | All 6 drills PASS; hosted CI on the 7E commit pending; no staging environment |
 | HW | Field hardware criterion (real tracker commissioning) | **HARDWARE_VALIDATION_BLOCKED** | Needs customer tracker, SIM, installation (EXT-02/EXT-02a) |
 
@@ -224,13 +224,14 @@ new unclassified route fails the suite). 301 route/method pairs: 198 tenant, 91 
 Defects found and fixed with tests: F-1 role revoked in Asseta stayed usable on a still-valid token (≤ 300 s) — now
 refused on REST and WebSocket; F-2 two list-by-parent routes returned `[]` instead of 404 for another tenant's id (no
 data leaked); F-3 NUL bytes in input caused 500 → 422 `INVALID_INPUT`; F-4 sync chunk body was read before the size
-check → streamed with a cap. Open (documented in [security.md](security.md)): F-5 no HTTP rate limiting (Medium),
-F-6 no global request-size limit / nginx 1 MB default (Medium), F-7 `statement_timeout` unset (Medium; lock and
-idle-transaction timeouts added by the drills), F-8 offline policy snapshot issuance not verified server-side
-(Medium; both stamps are recorded for review). No critical or high finding open.
+check → streamed with a cap. The Medium hardening findings are also fixed ([security.md](security.md)): F-5
+per-IP rate limits at the web proxy (`web/nginx.conf`, 429 `RATE_LIMITED`; verified live); F-6 11 MiB body limit
+in nginx and an ASGI guard in the API (413 `PAYLOAD_TOO_LARGE`; `test_security_limits.py`); F-7 `statement_timeout`
+30 s on the app engine, 300 s for workers (503 `QUERY_TIMEOUT`; `test_security_limits.py`); F-8 the offline policy
+snapshot must be issued to the device and valid at capture time, otherwise the capture is held for review with
+`POLICY_SNAPSHOT_UNVERIFIED` (`test_offline_policy_snapshot_check.py`). No critical, high or medium finding open.
 
-**Status: PASS** (automated; full backend suite green). The open Medium findings above are hardening items, not
-failures of the §10 #11 checks.
+**Status: PASS** (automated; full backend suite green).
 
 ## 12. CI, migrations, drills and documentation — PARTIAL
 

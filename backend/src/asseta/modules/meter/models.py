@@ -68,6 +68,7 @@ class ExceptionType(StrEnum):
     DUPLICATE_IMAGE = "DUPLICATE_IMAGE"
     TELEMETRY_MISMATCH = "TELEMETRY_MISMATCH"
     CLOCK_SKEW = "CLOCK_SKEW"
+    POLICY_SNAPSHOT_UNVERIFIED = "POLICY_SNAPSHOT_UNVERIFIED"  # offline snapshot not issued to the device / not valid
 
 
 class ExceptionStatus(StrEnum):

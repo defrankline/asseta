@@ -4842,7 +4842,8 @@
           "CONTINUITY_GAP",
           "DUPLICATE_IMAGE",
           "TELEMETRY_MISMATCH",
-          "CLOCK_SKEW"
+          "CLOCK_SKEW",
+          "POLICY_SNAPSHOT_UNVERIFIED"
         ],
         "title": "ExceptionType",
         "type": "string"

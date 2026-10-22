@@ -23,7 +23,7 @@ Audience: the platform operator running Asseta with Docker Compose (development 
 | `notification-scheduler` | Reminders (idempotent per tenant-local day), membership mirror refresh | logs |
 | `billing-scheduler` | Subscription renewals + entitlement evaluation (idempotent) | logs; invoices |
 | `mlflow` | Experiment runs/artifacts (optional for the product path) | `http://127.0.0.1:5500` |
-| `web` | nginx serving the console, proxies `/api/` and `/api/v1/ws` to `api` | `http://127.0.0.1:5173` |
+| `web` | nginx serving the console, proxies `/api/` and `/api/v1/ws` to `api`; request rate and size limits (§2) | `http://127.0.0.1:5173` |
 | `traccar` (profile `telemetry`) | Device protocol gateway → `POST /api/v1/telemetry/traccar` | Traccar UI 8082 (local only) |
 | `mailpit` | Dev-only SMTP sink | `http://127.0.0.1:8025` |
 
@@ -50,6 +50,17 @@ curl -s localhost:8000/api/v1/health/ready
   the Keycloak URL; CORS from the web URL) and rebuild `web` (`VITE_KEYCLOAK_URL` is a build arg). Run Keycloak with
   `start` (not `start-dev`) behind the proxy (`KC_PROXY_HEADERS=xforwarded`). Never expose Postgres, Redis, Kafka,
   MinIO console, MLflow, Mailpit or the Traccar UI.
+* **Request limits at the web proxy** (`web/nginx.conf`, [security.md](security.md) F-5/F-6): per client IP,
+  `/api/` 30 r/s with a burst of 150; report exports, ML training, invoice generation and test sends an extra
+  1 r/s, burst 10; the gateway path 50 r/s, burst 200. Excess gets 429 `RATE_LIMITED` (JSON envelope,
+  `Retry-After: 1`; logged by nginx at `warn` as `limiting requests`). Bodies above 11 MiB get 413
+  `PAYLOAD_TOO_LARGE` from nginx, and from the API too (`ASSETA_MAX_REQUEST_BYTES`; keep both in step).
+  Traccar and the workers talk to `api:8000` directly and are never throttled here.
+  **Behind a TLS proxy, set `ASSETA_TRUSTED_PROXY_CIDR`** to the proxy's address (for example `172.18.0.0/16` or
+  the proxy host's `/32`) and have it send `X-Forwarded-For`. Otherwise every client shares the proxy's single
+  bucket and normal use is throttled. Never set it to `0.0.0.0/0`, because clients could then choose their own
+  bucket. If many phones share one carrier NAT address and see 429s, raise the `api` zone rate or burst in
+  `web/nginx.conf` and rebuild `web`.
 * Production Keycloak caches themes: restart it after changing `infra/keycloak/themes/asseta`.
 * An already-imported realm keeps its settings: switch the login theme once (Admin console → Realm settings →
   Themes → `asseta`, or `PUT /admin/realms/asseta {"loginTheme":"asseta"}`).
@@ -229,6 +240,7 @@ Each entry: detect → contain → recover → verify. Client-side behaviour for
 | **API down / crash loop** | `/health/live` fails; container restarting | `docker compose logs api`; typical causes: Keycloak unreachable at startup (catalog sync fail-fast), DB down, bad config. Traccar retries forwards; phones keep queuing | `/health/ready` ok; outbox and Traccar backlogs drain |
 | **Database down** | readiness HTTP 503 | Restore Postgres (or restore from backup §6.2); all services reconnect | Row counts, FORCE RLS check, alembic version |
 | **Keycloak down** | readiness `keycloak: down`; sign-in fails | Existing access tokens remain valid until expiry (≤ 300 s); restore Keycloak (DB + realm) | Sign-in works; API restart succeeds (catalog sync) |
+| **Request flood / 429s** | `limiting requests` warnings in `docker compose logs web`; clients get 429 `RATE_LIMITED` | A single abusive IP: block it at the edge proxy or firewall. Legitimate users throttled behind a TLS proxy: check `ASSETA_TRUSTED_PROXY_CIDR` (§2). A shared carrier NAT: raise the `api` zone in `web/nginx.conf` | 429s stop for normal use; the API stays responsive (`/health/ready`) |
 | **Leaked gateway key** | Unexpected ingestion from unknown sources | Deactivate gateway, rotate key (§3) | 401 for the old key |
 | **Model misbehaviour / drift** | `ML_MODEL_DRIFT` notification, inference audit failures | Hard switch off, then [model-governance.md §6](model-governance.md#6-monitoring-and-drift-response) | No new predictions; deterministic rules continue |
 
@@ -274,13 +286,17 @@ Latest run: 2026-10-22, all **PASS** — full table, defects found and open find
 | Queue backlog | [queue-backlog](evidence/drills/2026-10-22-queue-backlog.md) | notification 2 060 msgs in 12 s; timeline 2 000 late msgs in 145 s |
 
 Operational consequences of the drills:
-* **Database safety valves** (app role, `core/config.py`): `ASSETA_DB_LOCK_TIMEOUT_MS` (default 5000) and
-  `ASSETA_DB_IDLE_IN_TRANSACTION_TIMEOUT_MS` (default 60000). A lock wait beyond the limit returns 503
-  `DATABASE_BUSY` (retryable; Traccar and the apps retry). Watch for these in the API log
-  (`database_operational_error`); persistent ones mean a hot row or a stuck transaction (`pg_stat_activity`,
-  `pg_blocking_pids`).
+* **Database safety valves** (app role, `core/config.py`): `ASSETA_DB_LOCK_TIMEOUT_MS` (default 5000),
+  `ASSETA_DB_IDLE_IN_TRANSACTION_TIMEOUT_MS` (default 60000) and `ASSETA_DB_STATEMENT_TIMEOUT_MS` (default 30000 for
+  the API; workers use `ASSETA_WORKER_DB_STATEMENT_TIMEOUT_MS`, default 300000; migrate/bootstrap run without it;
+  0 disables any of them). A lock wait beyond the limit returns 503 `DATABASE_BUSY` and a cancelled statement 503
+  `QUERY_TIMEOUT`, both retryable (Traccar and the apps retry). Watch for these in the API log
+  (`database_operational_error`, `sqlstate` 55P03 or 57014). Persistent lock errors mean a hot row or a stuck
+  transaction (`pg_stat_activity`, `pg_blocking_pids`). Repeated `QUERY_TIMEOUT` on one report or list means a
+  missing index or too wide a filter: fix the query rather than raising the limit. Raise it only deliberately and
+  for a known long operation. Backup, restore and purge scripts connect directly and are not bound by it.
 * **Capacity:** one API process ingests ≈ 60–110 positions/s. Size API processes/replicas for the expected tracker
-  report rate with headroom, and rate-limit the gateway at the proxy; during an over-capacity burst Traccar queues
+  report rate with headroom. A gateway that reaches the API through the web proxy is limited per IP (§2); during an over-capacity burst Traccar queues
   and readiness probes may time out until it drains.
 * **Kafka partitions:** topics are auto-created with 1 partition. Before running more than one timeline worker,
   create `asseta.telemetry.position` with N partitions (key = machine id keeps per-machine order).

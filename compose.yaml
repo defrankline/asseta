@@ -19,6 +19,11 @@ x-api-env: &api-env
   ASSETA_MLFLOW_TRACKING_URI: http://mlflow:5000  # optional: training still records runs locally when MLflow is down
   ASSETA_DB_LOCK_TIMEOUT_MS: ${ASSETA_DB_LOCK_TIMEOUT_MS:-5000}  # Gate 7E drills: fail fast (503) on lock waits
   ASSETA_DB_IDLE_IN_TRANSACTION_TIMEOUT_MS: ${ASSETA_DB_IDLE_IN_TRANSACTION_TIMEOUT_MS:-60000}
+  ASSETA_DB_STATEMENT_TIMEOUT_MS: ${ASSETA_DB_STATEMENT_TIMEOUT_MS:-30000}  # F-7: API requests; workers override
+  ASSETA_MAX_REQUEST_BYTES: ${ASSETA_MAX_REQUEST_BYTES:-11534336}  # F-6: 11 MiB, as nginx client_max_body_size
+
+# Background workers run sweeps, replays and batch jobs that legitimately outlast an API request: a longer bound.
+x-worker-statement-timeout: &worker-statement-timeout ${ASSETA_WORKER_DB_STATEMENT_TIMEOUT_MS:-300000}
 
 # SMS provider for notification SMS (console = logs only, sends nothing). Credentials only from .env.
 x-sms-env: &sms-env
@@ -158,6 +163,7 @@ services:
     environment:
       <<: *api-env
       ASSETA_TRACCAR_GATEWAY_KEY: ${ASSETA_TRACCAR_GATEWAY_KEY:?set in .env}
+      ASSETA_DB_STATEMENT_TIMEOUT_MS: 0  # bootstrap (alembic uses its own owner engine without limits)
     depends_on: {postgres: {condition: service_healthy}}
 
   api:
@@ -173,7 +179,7 @@ services:
   outbox-relay:
     image: asseta/api:dev
     command: ["asseta-outbox-relay"]
-    environment: *api-env
+    environment: {<<: *api-env, ASSETA_DB_STATEMENT_TIMEOUT_MS: *worker-statement-timeout}
     healthcheck: {disable: true}  # no HTTP endpoint; backlog is monitored via outbox_event (runbook)
     restart: unless-stopped
     depends_on: {migrate: {condition: service_completed_successfully}, kafka: {condition: service_started}}
@@ -181,7 +187,7 @@ services:
   billing-scheduler:
     image: asseta/api:dev
     command: ["asseta-billing-scheduler"]
-    environment: *api-env
+    environment: {<<: *api-env, ASSETA_DB_STATEMENT_TIMEOUT_MS: *worker-statement-timeout}
     healthcheck: {disable: true}
     restart: unless-stopped
     depends_on: {migrate: {condition: service_completed_successfully}}
@@ -189,7 +195,7 @@ services:
   timeline-worker:
     image: asseta/api:dev
     command: ["asseta-timeline-worker"]
-    environment: *api-env
+    environment: {<<: *api-env, ASSETA_DB_STATEMENT_TIMEOUT_MS: *worker-statement-timeout}
     healthcheck: {disable: true}
     restart: unless-stopped
     depends_on: {migrate: {condition: service_completed_successfully}, kafka: {condition: service_started}}
@@ -197,7 +203,7 @@ services:
   connectivity-worker:
     image: asseta/api:dev
     command: ["asseta-connectivity-worker"]
-    environment: *api-env
+    environment: {<<: *api-env, ASSETA_DB_STATEMENT_TIMEOUT_MS: *worker-statement-timeout}
     healthcheck: {disable: true}
     restart: unless-stopped
     depends_on: {migrate: {condition: service_completed_successfully}}
@@ -205,7 +211,7 @@ services:
   intelligence-worker:  # Gate 6 (ADR-007): deterministic risk signals + investigation cases (event-driven + sweep)
     image: asseta/api:dev
     command: ["asseta-intelligence-worker"]
-    environment: *api-env
+    environment: {<<: *api-env, ASSETA_DB_STATEMENT_TIMEOUT_MS: *worker-statement-timeout}
     healthcheck: {disable: true}
     restart: unless-stopped
     depends_on:
@@ -215,7 +221,9 @@ services:
   notification-worker:  # DEC-022: domain events -> rules -> inbox + WebSocket (Redis) + SMS (wallet-metered)
     image: asseta/api:dev
     command: ["asseta-notification-worker"]
-    environment: {<<: [*api-env, *sms-env, *channel-env]}  # + PUSH/EMAIL dispatch (Gate 7)
+    environment:  # + PUSH/EMAIL dispatch (Gate 7)
+      <<: [*api-env, *sms-env, *channel-env]
+      ASSETA_DB_STATEMENT_TIMEOUT_MS: *worker-statement-timeout
     healthcheck: {disable: true}
     restart: unless-stopped
     depends_on:
@@ -226,7 +234,7 @@ services:
   notification-scheduler:  # DEC-022: reminders (idempotent per tenant-local day) + membership mirror refresh
     image: asseta/api:dev
     command: ["asseta-notification-scheduler"]
-    environment: *api-env
+    environment: {<<: *api-env, ASSETA_DB_STATEMENT_TIMEOUT_MS: *worker-statement-timeout}
     healthcheck: {disable: true}
     restart: unless-stopped
     depends_on:
@@ -239,6 +247,8 @@ services:
       context: ./web
       args: {VITE_KEYCLOAK_URL: "${ASSETA_PUBLIC_KEYCLOAK_URL:-http://localhost:8080}"}
     image: asseta/web:dev
+    environment:  # F-5: client IP for rate limits comes from X-Forwarded-For only when sent by this proxy address
+      ASSETA_TRUSTED_PROXY_CIDR: ${ASSETA_TRUSTED_PROXY_CIDR:-127.0.0.1/32}
     ports: ["127.0.0.1:${ASSETA_WEB_PORT:-5173}:8080"]
     depends_on: [api]
 
