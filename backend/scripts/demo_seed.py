@@ -4,11 +4,10 @@ Usage (from backend/): uv run python scripts/demo_seed.py ../.env ../.demo/crede
 
 Creates "Kilimanjaro Earthworks" (verified, ACTIVE subscription at a negotiated TZS rate) with an owner, supervisor
 and accountant (Keycloak users with generated passwords), machine categories, an operating area, job sites with
-geofences, five machines (four with simulated GPS trackers reporting through the real Traccar gateway, one
-deliberately untracked), customers, contracts, approved and draft jobs, and the supervisor assigned to machines.
-A throwaway platform user and Keycloak client do the provisioning and are deleted at the end. Demo passwords are
-written only to the credentials file (mode 600, gitignored), never printed.
-"""
+geofences, expense categories, five machines (four with simulated GPS trackers reporting through the real Traccar
+gateway, one deliberately untracked), customers, contracts, approved and draft jobs, and the supervisor assigned to
+machines. A throwaway platform user and Keycloak client do the provisioning and are deleted at the end. Demo
+passwords are written only to the credentials file (mode 600, gitignored), never printed."""
 
 import sys
 import uuid
@@ -192,6 +191,15 @@ def seed_fleet(o: Api, platform: Api, stack: Stack, now: datetime) -> dict[str, 
 
 def seed_work(o: Api, kc: Keycloak, machines: dict[str, str], now: datetime) -> None:
     today = now.date().isoformat()
+    # Expense categories: without them nothing can be recorded on the Expenses screen or in the field apps.
+    for code, name in (
+        ("SPARES", "Repairs and spares"),
+        ("TYRES", "Tyres"),
+        ("TRANSPORT", "Low-bed transport"),
+        ("ALLOWANCE", "Operator allowances"),
+        ("SITE", "Site sundries"),
+    ):
+        o.post("/tenant/expense-categories", {"code": code, "name": name}, f"expense category {code}")
     customers = {
         code: o.post("/tenant/customers", {"code": code, "name": name}, f"customer {code}")["id"]
         for code, name in (("RBL", "Road Builders Ltd"), ("DMK", "Dam Makers Co"), ("CTY", "City Works Department"))

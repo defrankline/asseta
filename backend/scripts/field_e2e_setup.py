@@ -2,7 +2,7 @@
 
 Usage (from backend/):
   uv run python scripts/field_e2e_setup.py ../.env <outfile>            # create fixture, write outfile (mode 600)
-  uv run python scripts/field_e2e_setup.py --cleanup ../.env <outfile>  # delete the Keycloak throwaways, then outfile
+  uv run python scripts/field_e2e_setup.py --cleanup ../.env <outfile>  # delete the throwaways + tenant, then outfile
 
 Against a running `docker compose` stack: creates a throwaway confidential Keycloak client and platform user (the
 compose_smoke.py pattern), onboards + verifies + activates a tenant through the API, and as the tenant owner creates a
@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+from purge_tenants import purge_database, purge_keycloak
 
 TIMEOUT = 30.0
 
@@ -365,14 +366,25 @@ def write_private(path: str, data: dict[str, Any]) -> None:
 
 def main(argv: list[str]) -> int:
     if argv and argv[0] == "--cleanup":
-        stack, out = Stack(read_env(argv[1])), argv[2]
+        env, out = read_env(argv[1]), argv[2]
+        stack = Stack(env)
         if not Path(out).exists():
             print("FIELD E2E CLEANUP: nothing to clean")
             return 0
-        info = json.loads(Path(out).read_text()).get("keycloak_cleanup", {})
+        fixture = json.loads(Path(out).read_text())
+        info = fixture.get("keycloak_cleanup", {})
         removed = cleanup(stack, info)
+        # The fixture tenant is throwaway too: purge it so runs do not accumulate tenants in the demo stack.
+        purged = 0
+        if fixture.get("tenant_id"):
+            tenant = [uuid.UUID(fixture["tenant_id"])]
+            purged = purge_database(env, tenant, dry_run=False).get("tenant", 0)
+            purge_keycloak(env, tenant)
         Path(out).unlink()
-        print(f"FIELD E2E CLEANUP OK users_removed={removed} client_removed={bool(info.get('client_uuid'))}")
+        print(
+            f"FIELD E2E CLEANUP OK users_removed={removed} client_removed={bool(info.get('client_uuid'))} "
+            f"tenant_purged={bool(purged)}"
+        )
         return 0
     stack, out = Stack(read_env(argv[0])), argv[1]
     kc = Keycloak(stack)
