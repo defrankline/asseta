@@ -32,6 +32,7 @@ from asseta.ml.training import TrainingOutcome, train_and_evaluate
 from asseta.modules.intelligence.feature_store import load_snapshots
 from asseta.modules.intelligence.ml_models import (
     ANOMALY_MODEL_NAME,
+    SOURCE_OBSERVED,
     ModelAction,
     ModelAlgorithm,
     ModelApproval,
@@ -88,6 +89,7 @@ def _record_model(
     name: str,
     criteria: SufficiencyCriteria,
     promotion: PromotionCriteria,
+    source: str,
 ) -> tuple[ModelVersion, ModelEvaluation]:
     assert outcome.model_bytes is not None and outcome.model_sha256 is not None
     assert outcome.manifest is not None and outcome.evaluation is not None
@@ -112,7 +114,7 @@ def _record_model(
         feature_set_hash=outcome.feature_set_hash,
         training_window_start=_iso(splits["train"].start),
         training_window_end=_iso(splits["test"].end) or _iso(splits["train"].end),
-        manifest=clean_json(outcome.manifest.to_dict()),
+        manifest=clean_json(outcome.manifest.to_dict() | {"snapshot_source": source}),
         mlflow_run_id=outcome.run_id,
         tracking_note=None if outcome.run_id else (outcome.tracking_error or NOT_CONFIGURED),
         artifact_sha256=outcome.model_sha256,
@@ -184,10 +186,14 @@ def train_tenant(
     criteria: SufficiencyCriteria | None = None,
     promotion: PromotionCriteria | None = None,
     registry: FeatureRegistry = R1_FEATURES,
+    source: str = SOURCE_OBSERVED,
 ) -> TrainingRunResult:
-    """Train one tenant's model. Governance rows are written in the caller's (platform/system) scope."""
+    """Train one tenant's model. Governance rows are written in the caller's (platform/system) scope.
+
+    `source` is `observed` for every real run; only the development demo trains on `synthetic` snapshots (recorded
+    in the manifest as `snapshot_source`, and such a model can never be approved or activated)."""
     criteria, promotion = criteria or SufficiencyCriteria(), promotion or PromotionCriteria()
-    snaps = load_snapshots(session, tenant_id, now, registry)
+    snaps = load_snapshots(session, tenant_id, now, registry, source=source)
     if any(s.tenant_id != str(tenant_id) for s in snaps):
         raise TenantMixingError("snapshots of another tenant reached this training run")
     outcome = train_and_evaluate(snaps, criteria, tracker, seed, promotion=promotion, registry=registry)
@@ -195,7 +201,7 @@ def train_tenant(
     model, evaluation = None, None
     if outcome.has_model:
         model, evaluation = _record_model(
-            session, tenant_id, outcome, now, store, actor, seed, name, criteria, promotion
+            session, tenant_id, outcome, now, store, actor, seed, name, criteria, promotion, source
         )
     readiness = ModelReadiness(
         id=uuid.uuid4(),

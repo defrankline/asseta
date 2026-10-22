@@ -74,6 +74,11 @@ class InMemoryObjectStore:
     def put_immutable(self, key: str, data: bytes, content_type: str, sha256: str) -> None:
         self.objects.setdefault(key, (data, content_type, sha256))
 
+    def get_bytes(self, key: str) -> bytes:
+        if key not in self.objects:
+            raise KeyError(key)
+        return self.objects[key][0]
+
     def presigned_get(self, key: str, ttl_seconds: int) -> str:
         assert key in self.objects
         return f"https://objects.test/{key}?X-Amz-Expires={ttl_seconds}"

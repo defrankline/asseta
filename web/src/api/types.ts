@@ -29,9 +29,11 @@ export interface ListQuery {
   q?: string;
 }
 
-/** Navigation entry granted via role_menus. */
-/** Navigation entry granted via role_menus. */
+/** Navigation entry granted via role_menus; `group` is the key of its MenuGroupDto. */
 export type MenuDto = Schemas['MenuDto'];
+
+/** Side-navigation section (parent of menus); listed only when it holds a visible menu. */
+export type MenuGroupDto = Schemas['MenuGroupDto'];
 
 /** @deprecated alias kept for readability at call sites. */
 export type TenantMenu = MenuDto;

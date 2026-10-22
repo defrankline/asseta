@@ -427,6 +427,23 @@ def _anomaly(_: Session, e: DomainEvent) -> list[Intent]:
     ]
 
 
+@rule("MlModelDriftDetected")
+def _ml_drift(_: Session, e: DomainEvent) -> list[Intent]:
+    p = e.payload
+    return [
+        Intent(
+            "ML_MODEL_DRIFT",
+            (platform("platform.ml.read"),),
+            f"Feature drift on {p['name']} v{p['version']}",
+            p.get("summary", ""),
+            _key(e),
+            f"/platform/models/{p['model_version_id']}",
+            "model_version",
+            p["model_version_id"],
+        )
+    ]
+
+
 # --- lightweight "entity changed" pushes (open screens refresh) ----------------------------------------------------
 ENTITY_CHANGES: dict[str, tuple[str, str, str]] = {
     # event_type -> (entity, id payload key, action)

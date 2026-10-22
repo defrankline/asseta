@@ -16,7 +16,17 @@ REPORT = requires("tenant.finance.report", S.TENANT, "View machine/job/customer 
 COLLECT = requires("tenant.collection.record", S.TENANT, "Record cash collections and cash handovers (own custody)")
 
 for menu in (
-    MenuDef("tenant.finance", S.TENANT, "Hire finance", "/tenant/finance", 66, "tenant.finance.read"),
-    MenuDef("tenant.profitability", S.TENANT, "Profitability", "/tenant/profitability", 67, "tenant.finance.report"),
+    MenuDef(
+        "tenant.finance", S.TENANT, "Hire finance", "/tenant/finance", 66, "tenant.finance.read", group="tenant.finance"
+    ),
+    MenuDef(
+        "tenant.profitability",
+        S.TENANT,
+        "Profitability",
+        "/tenant/profitability",
+        70,
+        "tenant.finance.report",
+        group="tenant.finance",
+    ),
 ):
     CATALOG.register_menu(menu)

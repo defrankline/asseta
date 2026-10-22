@@ -6,7 +6,9 @@
   loaded **per week end** in the tenant's own RLS scope with both clocks <= as_of (see `facts.py`), and rows are
   inserted append-only (`ON CONFLICT DO NOTHING`): a point that already exists is never rewritten. Week ends in the
   future are skipped — a snapshot for T must be computed at or after T.
-* `load_snapshots` reads back one tenant's snapshots as `asseta.ml.features.FeatureSnapshot` for training.
+* `load_snapshots` reads back one tenant's snapshots as `asseta.ml.features.FeatureSnapshot` for training;
+  `load_snapshot_rows` does the same for an explicit window and keeps the row ids (inference provenance, drift).
+  Both read `source = 'observed'` unless told otherwise: synthetic demo rows never reach real training or insights.
 """
 
 import uuid
@@ -32,7 +34,12 @@ from asseta.ml.features import (
     compute_snapshots,
 )
 from asseta.modules.intelligence.facts import load_tenant_facts, week_ends
-from asseta.modules.intelligence.ml_models import FeatureDefinitionRecord, FeatureEntityType, FeatureSnapshotRecord
+from asseta.modules.intelligence.ml_models import (
+    SOURCE_OBSERVED,
+    FeatureDefinitionRecord,
+    FeatureEntityType,
+    FeatureSnapshotRecord,
+)
 from asseta.modules.tenancy.models import Tenant, TenantSettings
 
 MAX_SNAPSHOT_WEEKS = 26  # bounded backfill per call (API and CLI); run again for older ranges
@@ -129,6 +136,7 @@ def store_snapshots(
     now: datetime,
     run_id: uuid.UUID | None,
     registry: FeatureRegistry = R1_FEATURES,
+    source: str = SOURCE_OBSERVED,
 ) -> int:
     """Append snapshots (call in the tenant's scope); existing points are left untouched. Returns rows inserted."""
     rows = []
@@ -152,6 +160,7 @@ def store_snapshots(
                 "n_inputs": s.n_inputs,
                 "computed_at": now,
                 "run_id": run_id,
+                "source": source,
             }
         )
     inserted = 0
@@ -192,40 +201,54 @@ def snapshot_tenant(
     return SnapshotRunResult(run_id, tenant_id, due, len(machines), written, skipped, len(all_ends) - len(due))
 
 
-def load_snapshots(
+def _to_snapshot(r: FeatureSnapshotRecord, registry: FeatureRegistry) -> FeatureSnapshot:
+    return FeatureSnapshot(
+        tenant_id=str(r.tenant_id),
+        entity=FeatureEntity(r.entity_type.value),
+        entity_id=str(r.entity_id),
+        feature_code=r.feature_code,
+        feature_version=r.feature_version,
+        as_of=r.as_of,
+        window=registry.get(r.feature_code).window_label,
+        value=None if r.value is None else float(r.value),
+        data_cutoff=r.data_cutoff,
+        n_inputs=r.n_inputs,
+    )
+
+
+def load_snapshot_rows(
     session: Session,
     tenant_id: uuid.UUID,
-    now: datetime,
+    after: datetime,
+    until: datetime,
     registry: FeatureRegistry = R1_FEATURES,
-    lookback_weeks: int = TRAINING_LOOKBACK_WEEKS,
-) -> list[FeatureSnapshot]:
-    """One tenant's snapshots for the registry's exact feature versions (read in that tenant's scope)."""
+    source: str = SOURCE_OBSERVED,
+) -> list[tuple[uuid.UUID, FeatureSnapshot]]:
+    """(row id, snapshot) for as_of in (after, until], registry feature versions only, in the tenant's own scope."""
     versions = {d.code: d.version for d in registry.definitions}
     with scoped(session, DbScope.TENANT, tenant_id):
         rows = session.execute(
             select(FeatureSnapshotRecord)
             .where(
                 FeatureSnapshotRecord.tenant_id == tenant_id,
+                FeatureSnapshotRecord.source == source,
                 FeatureSnapshotRecord.feature_code.in_(list(versions)),
-                FeatureSnapshotRecord.as_of > now - timedelta(weeks=lookback_weeks),
-                FeatureSnapshotRecord.as_of <= now,
+                FeatureSnapshotRecord.as_of > after,
+                FeatureSnapshotRecord.as_of <= until,
             )
             .order_by(FeatureSnapshotRecord.as_of, FeatureSnapshotRecord.entity_id, FeatureSnapshotRecord.feature_code)
         ).scalars()
-        out = [
-            FeatureSnapshot(
-                tenant_id=str(r.tenant_id),
-                entity=FeatureEntity(r.entity_type.value),
-                entity_id=str(r.entity_id),
-                feature_code=r.feature_code,
-                feature_version=r.feature_version,
-                as_of=r.as_of,
-                window=registry.get(r.feature_code).window_label,
-                value=None if r.value is None else float(r.value),
-                data_cutoff=r.data_cutoff,
-                n_inputs=r.n_inputs,
-            )
-            for r in rows
-            if versions[r.feature_code] == r.feature_version
-        ]
-    return out
+        return [(r.id, _to_snapshot(r, registry)) for r in rows if versions[r.feature_code] == r.feature_version]
+
+
+def load_snapshots(
+    session: Session,
+    tenant_id: uuid.UUID,
+    now: datetime,
+    registry: FeatureRegistry = R1_FEATURES,
+    lookback_weeks: int = TRAINING_LOOKBACK_WEEKS,
+    source: str = SOURCE_OBSERVED,
+) -> list[FeatureSnapshot]:
+    """One tenant's snapshots for the registry's exact feature versions (read in that tenant's scope)."""
+    after = now - timedelta(weeks=lookback_weeks)
+    return [s for _, s in load_snapshot_rows(session, tenant_id, after, now, registry, source)]

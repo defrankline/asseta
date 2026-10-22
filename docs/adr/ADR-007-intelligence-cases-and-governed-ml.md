@@ -86,3 +86,18 @@ minimum required history when it cannot be computed honestly.
   Compose service and numeric dependencies (numpy, scikit-learn, MLflow client) in the backend image.
 - Existing exception and alert reviews keep working; cases link to them rather than replacing them.
 - Supervised fraud classification, predictive maintenance and pricing optimization remain backlog (BL-001..003).
+- Gate 6D (as built): inference runs in the intelligence worker (hourly: refresh recent snapshots of tenants with a
+  deployed model → score → daily drift) and after `asseta-ml snapshot`; one transaction and a 30 s budget per model,
+  failures recorded in `inference_audit` and never raised. Two decision states were added to the four above:
+  `BELOW_THRESHOLD` (an ACTIVE model scored below its threshold — kept for measurement, not shown) and
+  `INSUFFICIENT_DATA` also covers an uncalibrated score under an ACTIVE model; `MODEL_DISABLED` is reserved because a
+  disabled model never runs. Surfaced predictions join cases with the neutral title "Unusual machine-week pattern
+  compared with this machine's history — needs review"; tenants can read only SURFACED rows (RLS).
+- Drift compares the training split of the manifest with the most recent four weeks of snapshots after it
+  (10 quantile bins + a missing bin, ≥ 30 rows per window); a new DRIFT level publishes `MlModelDriftDetected`
+  (platform notification `ML_MODEL_DRIFT`).
+- `feature_snapshot.source` (`observed` | `synthetic`) separates the development-only `asseta-ml demo` data; real
+  training, inference of real models and insights read `observed` only, the demo model has its own name and a model
+  trained on synthetic data can never be approved or activated.
+- Insights reuse existing permissions (no new role-template grant): fuel/utilisation `tenant.fleet.read`, cash flow
+  `tenant.finance.report`, the OCR override audit `tenant.meter.read`.

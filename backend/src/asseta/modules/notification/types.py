@@ -104,6 +104,7 @@ _TYPES = (
         "SOD_VIOLATION_ATTEMPT", "Segregation-of-duties attempt", Category.ANOMALY, Severity.WARNING, T, True, IN_APP
     ),
     NotificationType("ANOMALY_DETECTED", "Anomaly detected", Category.ANOMALY, Severity.WARNING, T, True),
+    NotificationType("ML_MODEL_DRIFT", "Model feature drift", Category.ANOMALY, Severity.WARNING, P),
     NotificationType("SYSTEM_TEST", "Test notification", Category.INFO, Severity.INFO, P, True),
 )
 TYPES: dict[str, NotificationType] = {t.code: t for t in _TYPES}

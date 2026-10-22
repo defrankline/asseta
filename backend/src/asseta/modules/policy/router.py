@@ -22,7 +22,15 @@ POLICY_READ = requires("tenant.policy.read", PermissionScope.TENANT, "View effec
 POLICY_MANAGE = requires("tenant.policy.manage", PermissionScope.TENANT, "Version tenant/machine/site policies")
 PLATFORM_POLICY = requires("platform.policy.manage", PermissionScope.PLATFORM, "Version platform default policies")
 CATALOG.register_menu(
-    MenuDef("tenant.policies", PermissionScope.TENANT, "Policies", "/tenant/policies", 80, "tenant.policy.read")
+    MenuDef(
+        "tenant.policies",
+        PermissionScope.TENANT,
+        "Policies",
+        "/tenant/policies",
+        80,
+        "tenant.policy.read",
+        group="tenant.admin",
+    )
 )
 
 router = APIRouter(prefix="/api/v1", tags=["policy"], responses=ERROR_RESPONSES)

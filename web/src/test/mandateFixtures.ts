@@ -18,7 +18,16 @@ export function mandatedTenant(overrides: Partial<TenantAccess> = {}): TenantAcc
     status: 'ACTIVE',
     access_state: 'FULL',
     permissions: ['tenant.machine.read'],
-    menus: [{ key: 'machines', label: 'Machines', path: '/tenant/machines', order: 1 }],
+    menus: [
+      {
+        key: 'machines',
+        label: 'Machines',
+        path: '/tenant/machines',
+        order: 1,
+        group: 'tenant.fleet',
+      },
+    ],
+    menu_groups: [{ key: 'tenant.fleet', label: 'Fleet', order: 30 }],
     mandate: BADGE,
     ...overrides,
   };
@@ -34,8 +43,10 @@ export function makePlatformStaffMe(tenants: TenantAccess[] = [mandatedTenant()]
         label: 'Managed service',
         path: '/platform/managed-service',
         order: 25,
+        group: 'platform.tenants',
       },
     ],
+    platform_menu_groups: [{ key: 'platform.tenants', label: 'Tenants', order: 20 }],
     tenants,
   });
 }

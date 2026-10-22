@@ -3,11 +3,13 @@ deployment facts in plain terms only — never a score."""
 
 import uuid
 from datetime import date, datetime
-from typing import Annotated, Any
+from decimal import Decimal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from asseta.modules.intelligence.ml_models import ModelAction, ModelAlgorithm, ModelStatus, ReadinessState
+from asseta.modules.intelligence.ml_monitoring_models import DecisionState, DriftSummaryLevel, InferenceOutcome
 
 Reason = Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=1000)]
 
@@ -72,14 +74,106 @@ class MlManifestSummaryDto(BaseModel):
     content_hash: str | None
 
 
+class MlDriftFeatureDto(BaseModel):
+    feature: str
+    psi: float | None
+    level: str = Field(description="STABLE (< 0.1) | WATCH (0.1-0.25) | DRIFT (>= 0.25) | INSUFFICIENT_DATA")
+    n_expected: int
+    n_actual: int
+
+
+class MlDriftDto(_Dto):
+    id: uuid.UUID
+    model_version_id: uuid.UUID
+    computed_at: datetime
+    train_start: datetime | None
+    train_end: datetime | None
+    recent_start: datetime | None
+    recent_end: datetime | None
+    n_train: int
+    n_recent: int
+    features: list[MlDriftFeatureDto]
+    level: DriftSummaryLevel
+    summary: str
+
+
+class MlMonitoringDto(BaseModel):
+    latency_p50_ms: float | None = Field(description="Median inference latency over recent OK runs")
+    latency_p95_ms: float | None
+    runs_by_outcome: dict[str, int] = Field(description="inference_audit rows per outcome (OK / SKIPPED / ERROR)")
+    predictions_by_state: dict[str, int] = Field(description="prediction rows per decision state")
+    last_inference_at: datetime | None
+    last_error: str | None = Field(description="Reason of the latest run when it failed")
+
+
 class MlModelVersionDetailDto(BaseModel):
     model: MlModelVersionDto
     evaluation: MlEvaluationDto | None
     approvals: list[MlApprovalDto]
     manifest: MlManifestSummaryDto
-    drift: dict[str, Any] | None = Field(
-        default=None, description="Feature drift (PSI per feature) is recorded once inference runs (Gate 6D)"
-    )
+    drift: MlDriftDto | None = Field(default=None, description="Latest PSI drift check (training vs recent 4 weeks)")
+    monitoring: MlMonitoringDto | None = None
+
+
+class MlPredictionDto(_Dto):
+    """Platform-only view of a prediction with its full provenance."""
+
+    id: uuid.UUID
+    tenant_id: uuid.UUID
+    model_version_id: uuid.UUID
+    model_name: str
+    model_version_number: int
+    deployment_mode: str
+    evaluation_id: uuid.UUID | None
+    approval_id: uuid.UUID | None
+    subject_type: str
+    subject_id: uuid.UUID
+    as_of: datetime
+    feature_set_hash: str
+    feature_snapshot_ids: list[uuid.UUID]
+    data_cutoff: datetime | None
+    features_present: int
+    score: Decimal | None = Field(description="Calibrated percentile vs held-out weeks; null unless calibrated")
+    raw_score: float | None = Field(description="Model-specific scale; never a probability")
+    calibrated: bool
+    baseline_score: Decimal | None
+    baseline_raw_score: float | None
+    threshold: Decimal
+    would_surface: bool
+    contributions: list[dict[str, Any]]
+    explanations: list[str]
+    policy_version: str
+    decision_state: DecisionState
+    case_id: uuid.UUID | None
+    inference_run_id: uuid.UUID
+    created_at: datetime
+
+
+class MlInferenceAuditDto(_Dto):
+    id: uuid.UUID
+    tenant_id: uuid.UUID | None
+    model_version_id: uuid.UUID | None
+    inference_run_id: uuid.UUID
+    started_at: datetime
+    latency_ms: int
+    input_rows: int
+    predictions_written: int
+    surfaced: int
+    outcome: InferenceOutcome
+    reason: str | None
+
+
+class TenantPredictionDto(BaseModel):
+    """A surfaced model observation as a tenant sees it: neutral observations and the case to review, no score."""
+
+    id: uuid.UUID
+    machine_id: uuid.UUID
+    week_ending: datetime
+    model_name: str
+    model_version: int
+    observations: list[str]
+    case_id: uuid.UUID | None
+    created_at: datetime
 
 
 class MlModelActionIn(BaseModel):
@@ -142,8 +236,15 @@ class TenantMlDeploymentDto(BaseModel):
     deployed_at: datetime | None
 
 
+TenantMlState = Literal["MODEL_OFF", "NOT_ASSESSED", "NOT_ENOUGH_HISTORY", "EVALUATING", "LEARNING_SHADOW", "ACTIVE"]
+
+
 class TenantMlStatusDto(BaseModel):
     model_name: str
+    state: TenantMlState
+    label: str = Field(
+        description='"Model off" | "Learning (shadow)" | "Not enough history yet: <reasons>" | "Active" | ...'
+    )
     readiness: MlReadinessDto | None
     deployed: TenantMlDeploymentDto | None
     inference_enabled: bool

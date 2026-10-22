@@ -43,8 +43,10 @@ MACHINE_WRITE = requires("tenant.machine.write", S.TENANT, "Register and edit ma
 STAFF_READ = requires("tenant.staff.read", S.TENANT, "View supervisors/operators and assignments")
 STAFF_WRITE = requires("tenant.staff.write", S.TENANT, "Manage supervisors/operators and machine assignments")
 for menu in (
-    MenuDef("tenant.machines", S.TENANT, "Machines", "/tenant/machines", 20, "tenant.machine.read"),
-    MenuDef("tenant.staff", S.TENANT, "Staff", "/tenant/staff", 30, "tenant.staff.read"),
+    MenuDef(
+        "tenant.machines", S.TENANT, "Machines", "/tenant/machines", 20, "tenant.machine.read", group="tenant.fleet"
+    ),
+    MenuDef("tenant.staff", S.TENANT, "Staff", "/tenant/staff", 30, "tenant.staff.read", group="tenant.operations"),
 ):
     CATALOG.register_menu(menu)
 

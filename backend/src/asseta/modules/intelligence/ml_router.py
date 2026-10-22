@@ -9,6 +9,7 @@ training run (the CLI `asseta-ml` runs the same code for cron/backfills)."""
 
 import uuid
 from collections.abc import Callable
+from dataclasses import asdict
 from datetime import UTC, datetime, time, timedelta
 from typing import Annotated, Any
 
@@ -32,11 +33,13 @@ from asseta.modules.identity.principal import RequestContext
 from asseta.modules.intelligence.feature_store import snapshot_tenant, sync_feature_definitions
 from asseta.modules.intelligence.ml_dto import (
     MlApprovalDto,
+    MlDriftDto,
     MlEvaluationDto,
     MlManifestSummaryDto,
     MlModelActionIn,
     MlModelVersionDetailDto,
     MlModelVersionDto,
+    MlMonitoringDto,
     MlReadinessDto,
     MlSettingsDto,
     MlSettingsIn,
@@ -44,7 +47,9 @@ from asseta.modules.intelligence.ml_dto import (
     MlSnapshotRunIn,
     MlTrainingRunDto,
     TenantMlDeploymentDto,
+    TenantMlState,
     TenantMlStatusDto,
+    TenantPredictionDto,
 )
 from asseta.modules.intelligence.ml_lifecycle import MlGovernanceService, current_ml_setting
 from asseta.modules.intelligence.ml_models import (
@@ -58,13 +63,19 @@ from asseta.modules.intelligence.ml_models import (
     ModelVersion,
     ReadinessState,
 )
+from asseta.modules.intelligence.ml_monitoring import monitoring_stats
+from asseta.modules.intelligence.ml_monitoring_models import DecisionState, ModelDrift, Prediction
 from asseta.modules.intelligence.ml_training import tracker_from_settings, train_tenant
-from asseta.modules.intelligence.router import SIGNAL_READ
+from asseta.modules.intelligence.router import CASE_READ, SIGNAL_READ
 from asseta.modules.tenancy.models import Tenant
 
 ML_READ = requires("platform.ml.read", S.PLATFORM, "View ML model versions, evaluations, readiness and settings")
 ML_MANAGE = requires("platform.ml.manage", S.PLATFORM, "Approve, deploy, roll back and disable ML models; run training")
-CATALOG.register_menu(MenuDef("platform.models", S.PLATFORM, "Models", "/platform/models", 80, "platform.ml.read"))
+CATALOG.register_menu(
+    MenuDef(
+        "platform.models", S.PLATFORM, "Models", "/platform/models", 80, "platform.ml.read", "platform.intelligence"
+    )
+)
 
 platform_router = APIRouter(prefix="/api/v1/platform/ml", tags=["ml-governance"], responses=ERROR_RESPONSES)
 tenant_router = APIRouter(prefix="/api/v1/tenant/ml", tags=["ml-governance"], responses=ERROR_RESPONSES)
@@ -128,6 +139,12 @@ def _detail(session: Session, svc: MlGovernanceService, model_id: uuid.UUID) -> 
             select(ModelApproval).where(ModelApproval.model_version_id == model.id).order_by(ModelApproval.seq)
         ).scalars()
     )
+    drift = session.execute(
+        select(ModelDrift)
+        .where(ModelDrift.model_version_id == model.id)
+        .order_by(ModelDrift.computed_at.desc())
+        .limit(1)
+    ).scalar_one_or_none()
     deciders = {a.decided_by for a in approvals if a.decided_by}
     names = (
         dict(session.execute(select(AppUser.id, AppUser.display_name).where(AppUser.id.in_(deciders))).tuples().all())
@@ -144,6 +161,8 @@ def _detail(session: Session, svc: MlGovernanceService, model_id: uuid.UUID) -> 
             for a in approvals
         ],
         manifest=_manifest_summary(model.manifest),
+        drift=MlDriftDto.model_validate(drift) if drift else None,
+        monitoring=MlMonitoringDto(**asdict(monitoring_stats(session, model.id))),
     )
 
 
@@ -355,22 +374,73 @@ def tenant_status(session: DbSession, ctx: Annotated[RequestContext, Depends(SIG
         if deployed
         else None
     )
-    if not enabled:
-        summary = "Anomaly models are switched off platform-wide; deterministic checks keep working."
-    elif readiness is None:
-        summary = "Not assessed yet: anomaly scoring starts once machines accumulate observed weeks."
-    elif readiness.status is ReadinessState.INSUFFICIENT_DATA:
-        summary = "Not enough history yet: " + " ".join(readiness.reasons)
-    elif deployment is None:
-        summary = "Enough history; a model is being evaluated. Deterministic checks keep working meanwhile."
-    elif deployment.mode == "SHADOW":
-        summary = "A model runs in shadow mode: it is observed by the platform and never shown as findings."
-    else:
-        summary = "An approved model is active alongside the deterministic checks."
+    state, label, summary = _plain_state(enabled, readiness, deployment)
     return TenantMlStatusDto(
         model_name=name,
+        state=state,
+        label=label,
         readiness=readiness_dtos(session, [readiness])[0] if readiness else None,
         deployed=deployment,
         inference_enabled=enabled,
         summary=summary,
     )
+
+
+def _plain_state(
+    enabled: bool, readiness: ModelReadiness | None, deployment: TenantMlDeploymentDto | None
+) -> tuple[TenantMlState, str, str]:
+    """(state, short label, one-sentence summary) — plain language, never a score."""
+    if not enabled:
+        off = "Anomaly models are switched off platform-wide; deterministic checks keep working."
+        return "MODEL_OFF", "Model off", off
+    if deployment is not None and deployment.mode == "ACTIVE":
+        return "ACTIVE", "Active", "An approved model is active alongside the deterministic checks."
+    if deployment is not None:
+        shadow = "A model runs in shadow mode: it is observed by the platform and never shown as findings."
+        return "LEARNING_SHADOW", "Learning (shadow)", shadow
+    if readiness is None:
+        return (
+            "NOT_ASSESSED",
+            "Not assessed yet",
+            "Not assessed yet: anomaly scoring starts once machines accumulate observed weeks.",
+        )
+    if readiness.status is ReadinessState.INSUFFICIENT_DATA:
+        text = "Not enough history yet: " + " ".join(readiness.reasons)
+        return "NOT_ENOUGH_HISTORY", text, text
+    return (
+        "EVALUATING",
+        "Being evaluated",
+        "Enough history; a model is being evaluated. Deterministic checks keep working meanwhile.",
+    )
+
+
+@tenant_router.get("/predictions", response_model=Page[TenantPredictionDto], operation_id="listTenantPredictions")
+def tenant_predictions(
+    session: DbSession,
+    _: Annotated[RequestContext, Depends(CASE_READ)],
+    paging: Annotated[PageParams, Depends(page_params)],
+    machine_id: uuid.UUID | None = None,
+) -> Page[TenantPredictionDto]:
+    """Surfaced model observations only (RLS also hides every other state from tenants); no scores."""
+    stmt = (
+        select(Prediction)
+        .where(Prediction.decision_state == DecisionState.SURFACED)
+        .order_by(Prediction.as_of.desc(), Prediction.id)
+    )
+    if machine_id is not None:
+        stmt = stmt.where(Prediction.subject_id == machine_id)
+    rows, total = paginate(session, stmt, paging)
+    items = [
+        TenantPredictionDto(
+            id=p.id,
+            machine_id=p.subject_id,
+            week_ending=p.as_of,
+            model_name=p.model_name,
+            model_version=p.model_version_number,
+            observations=list(p.explanations),
+            case_id=p.case_id,
+            created_at=p.created_at,
+        )
+        for p in rows
+    ]
+    return Page(items=items, total=total, page=paging.page, page_size=paging.page_size)

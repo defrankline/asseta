@@ -54,8 +54,24 @@ CATEGORY_MANAGE = requires("tenant.finance.expense_category", S.TENANT, "Manage 
 APPROVAL_READ = requires("tenant.approval.read", S.TENANT, "View approval requests")
 APPROVE_EXPENSE = requires("tenant.approval.expense", S.TENANT, "Approve or reject expenses above policy limits")
 for menu in (
-    MenuDef("tenant.expenses", S.TENANT, "Expenses & fuel", "/tenant/expenses", 68, "tenant.expense.read"),
-    MenuDef("tenant.approvals", S.TENANT, "Approvals", "/tenant/approvals", 69, "tenant.approval.read"),
+    MenuDef(
+        "tenant.expenses",
+        S.TENANT,
+        "Expenses & fuel",
+        "/tenant/expenses",
+        68,
+        "tenant.expense.read",
+        group="tenant.finance",
+    ),
+    MenuDef(
+        "tenant.approvals",
+        S.TENANT,
+        "Approvals",
+        "/tenant/approvals",
+        69,
+        "tenant.approval.read",
+        group="tenant.finance",
+    ),
 ):
     CATALOG.register_menu(menu)
 

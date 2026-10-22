@@ -18,6 +18,16 @@ class PermissionDef:
 
 
 @dataclass(frozen=True)
+class MenuGroupDef:
+    """A side-navigation section ("parent") of one console; menus are its children."""
+
+    key: str
+    scope: PermissionScope
+    label: str
+    order: int
+
+
+@dataclass(frozen=True)
 class MenuDef:
     key: str
     scope: PermissionScope
@@ -25,12 +35,14 @@ class MenuDef:
     path: str
     order: int
     required_permission: str
+    group: str  # MenuGroupDef.key of the same scope (validated by `PermissionCatalog.register_menu`)
 
 
 class PermissionCatalog:
     def __init__(self) -> None:
         self._permissions: dict[str, PermissionDef] = {}
         self._menus: dict[str, MenuDef] = {}
+        self._groups: dict[str, MenuGroupDef] = {}
 
     def register(self, code: str, scope: PermissionScope, description: str) -> PermissionDef:
         expected_prefix = "platform." if scope is PermissionScope.PLATFORM else "tenant."
@@ -43,9 +55,18 @@ class PermissionCatalog:
         self._permissions[code] = definition
         return definition
 
+    def register_group(self, group: MenuGroupDef) -> None:
+        if not group.key.startswith(f"{group.scope.value.lower()}."):
+            raise ValueError(f"menu group {group.key} must start with {group.scope.value.lower()}.")
+        self._groups[group.key] = group
+
     def register_menu(self, menu: MenuDef) -> None:
+        """Every menu belongs to a registered group of its own scope: an ungrouped menu fails at import time."""
         if menu.required_permission not in self._permissions:
             raise ValueError(f"menu {menu.key} references unknown permission {menu.required_permission}")
+        group = self._groups.get(menu.group)
+        if group is None or group.scope is not menu.scope:
+            raise ValueError(f"menu {menu.key} needs a registered {menu.scope.value} menu group (got {menu.group!r})")
         self._menus[menu.key] = menu
 
     def permissions(self) -> list[PermissionDef]:
@@ -54,8 +75,30 @@ class PermissionCatalog:
     def menus(self) -> list[MenuDef]:
         return sorted(self._menus.values(), key=lambda m: (m.scope, m.order))
 
+    def menu_groups(self) -> list[MenuGroupDef]:
+        return sorted(self._groups.values(), key=lambda g: (g.scope, g.order))
+
+    def menu_group(self, key: str) -> MenuGroupDef | None:
+        return self._groups.get(key)
+
 
 CATALOG = PermissionCatalog()
+
+# Side-navigation sections in daily-workflow order: each console opens on its Overview (the landing page).
+for _group in (
+    MenuGroupDef("tenant.overview", PermissionScope.TENANT, "Overview", 10),
+    MenuGroupDef("tenant.operations", PermissionScope.TENANT, "Operations", 20),
+    MenuGroupDef("tenant.fleet", PermissionScope.TENANT, "Fleet", 30),
+    MenuGroupDef("tenant.finance", PermissionScope.TENANT, "Finance", 40),
+    MenuGroupDef("tenant.risk", PermissionScope.TENANT, "Risk & review", 50),
+    MenuGroupDef("tenant.admin", PermissionScope.TENANT, "Administration", 90),
+    MenuGroupDef("platform.overview", PermissionScope.PLATFORM, "Overview", 10),
+    MenuGroupDef("platform.tenants", PermissionScope.PLATFORM, "Tenants", 20),
+    MenuGroupDef("platform.billing", PermissionScope.PLATFORM, "Billing", 30),
+    MenuGroupDef("platform.intelligence", PermissionScope.PLATFORM, "Intelligence", 40),
+    MenuGroupDef("platform.admin", PermissionScope.PLATFORM, "Administration", 90),
+):
+    CATALOG.register_group(_group)
 
 KEYCLOAK_PERMISSION_ROLE_PREFIX = "perm:"
 PLATFORM_GROUP_ROOT = "platform"

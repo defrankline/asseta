@@ -2151,6 +2151,138 @@
         "title": "CashFloatIn",
         "type": "object"
       },
+      "CashFlowInsightDto": {
+        "properties": {
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "median_weekly_net": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median Weekly Net"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "min_weeks_required": {
+            "title": "Min Weeks Required",
+            "type": "integer"
+          },
+          "missing": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "READY",
+              "INSUFFICIENT_DATA"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "trend": {
+            "anyOf": [
+              {
+                "enum": [
+                  "UP",
+                  "DOWN",
+                  "FLAT"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trend"
+          },
+          "trend_per_week": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Least-squares change in weekly net per week",
+            "title": "Trend Per Week"
+          },
+          "weeks": {
+            "items": {
+              "$ref": "#/components/schemas/CashFlowWeekDto"
+            },
+            "title": "Weeks",
+            "type": "array"
+          },
+          "weeks_observed": {
+            "title": "Weeks Observed",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "status",
+          "currency",
+          "weeks",
+          "weeks_observed",
+          "min_weeks_required",
+          "trend_per_week",
+          "trend",
+          "median_weekly_net",
+          "message",
+          "missing"
+        ],
+        "title": "CashFlowInsightDto",
+        "type": "object"
+      },
+      "CashFlowWeekDto": {
+        "properties": {
+          "expenses": {
+            "description": "Approved expenses incurred in the week",
+            "title": "Expenses",
+            "type": "string"
+          },
+          "net": {
+            "title": "Net",
+            "type": "string"
+          },
+          "receipts": {
+            "description": "Verified customer receipts received in the week",
+            "title": "Receipts",
+            "type": "string"
+          },
+          "week_end": {
+            "format": "date-time",
+            "title": "Week End",
+            "type": "string"
+          },
+          "week_start": {
+            "format": "date-time",
+            "title": "Week Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "week_start",
+          "week_end",
+          "receipts",
+          "expenses",
+          "net"
+        ],
+        "title": "CashFlowWeekDto",
+        "type": "object"
+      },
       "CashHandoverDto": {
         "properties": {
           "amount": {
@@ -3829,6 +3961,17 @@
         "title": "CustomerUpdateIn",
         "type": "object"
       },
+      "DecisionState": {
+        "enum": [
+          "SHADOW",
+          "SURFACED",
+          "BELOW_THRESHOLD",
+          "INSUFFICIENT_DATA",
+          "MODEL_DISABLED"
+        ],
+        "title": "DecisionState",
+        "type": "string"
+      },
       "DeliveryStatus": {
         "enum": [
           "PENDING",
@@ -3966,6 +4109,16 @@
         ],
         "title": "DeviceSessionDto",
         "type": "object"
+      },
+      "DriftSummaryLevel": {
+        "enum": [
+          "STABLE",
+          "WATCH",
+          "DRIFT",
+          "INSUFFICIENT_DATA"
+        ],
+        "title": "DriftSummaryLevel",
+        "type": "string"
       },
       "EffectivePolicyDto": {
         "properties": {
@@ -4939,6 +5092,140 @@
           "evidence"
         ],
         "title": "FindingDto",
+        "type": "object"
+      },
+      "FuelEfficiencyInsightDto": {
+        "properties": {
+          "asset_code": {
+            "title": "Asset Code",
+            "type": "string"
+          },
+          "band_high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Band High"
+          },
+          "band_low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Band Low"
+          },
+          "current_litres_per_hour": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Litres Per Hour"
+          },
+          "machine_id": {
+            "format": "uuid",
+            "title": "Machine Id",
+            "type": "string"
+          },
+          "machine_name": {
+            "title": "Machine Name",
+            "type": "string"
+          },
+          "median_litres_per_hour": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Median of this machine's previous weeks",
+            "title": "Median Litres Per Hour"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "min_weeks_required": {
+            "title": "Min Weeks Required",
+            "type": "integer"
+          },
+          "missing": {
+            "description": "What is missing for an honest comparison (INSUFFICIENT_DATA)",
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing",
+            "type": "array"
+          },
+          "outside_usual_range": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Current week outside the machine's robust band",
+            "title": "Outside Usual Range"
+          },
+          "status": {
+            "enum": [
+              "READY",
+              "INSUFFICIENT_DATA"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "week_ending": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Week the current value belongs to (tenant-local week end)",
+            "title": "Week Ending"
+          },
+          "weeks_observed": {
+            "description": "Previous weeks with both fuel and meter hours",
+            "title": "Weeks Observed",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "machine_id",
+          "asset_code",
+          "machine_name",
+          "status",
+          "week_ending",
+          "current_litres_per_hour",
+          "median_litres_per_hour",
+          "band_low",
+          "band_high",
+          "outside_usual_range",
+          "weeks_observed",
+          "min_weeks_required",
+          "message",
+          "missing"
+        ],
+        "title": "FuelEfficiencyInsightDto",
         "type": "object"
       },
       "FuelEventDto": {
@@ -6326,6 +6613,15 @@
         ],
         "title": "HistoryDto",
         "type": "object"
+      },
+      "InferenceOutcome": {
+        "enum": [
+          "OK",
+          "SKIPPED",
+          "ERROR"
+        ],
+        "title": "InferenceOutcome",
+        "type": "string"
       },
       "IngestResultDto": {
         "properties": {
@@ -9015,6 +9311,263 @@
         "title": "MandateScope",
         "type": "string"
       },
+      "ManualOverrideItemDto": {
+        "properties": {
+          "asset_code": {
+            "title": "Asset Code",
+            "type": "string"
+          },
+          "capture_id": {
+            "format": "uuid",
+            "title": "Capture Id",
+            "type": "string"
+          },
+          "capture_mode": {
+            "title": "Capture Mode",
+            "type": "string"
+          },
+          "captured_at": {
+            "format": "date-time",
+            "title": "Captured At",
+            "type": "string"
+          },
+          "captured_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Captured By Name"
+          },
+          "captured_by_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Captured By User Id"
+          },
+          "difference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "entered - OCR",
+            "title": "Difference"
+          },
+          "entered_value": {
+            "title": "Entered Value",
+            "type": "string"
+          },
+          "exception_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The MANUAL_CORRECTION exception raised for review, if any",
+            "title": "Exception Id"
+          },
+          "exception_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exception Status"
+          },
+          "job_id": {
+            "format": "uuid",
+            "title": "Job Id",
+            "type": "string"
+          },
+          "job_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Number"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "machine_id": {
+            "format": "uuid",
+            "title": "Machine Id",
+            "type": "string"
+          },
+          "machine_name": {
+            "title": "Machine Name",
+            "type": "string"
+          },
+          "manually_corrected": {
+            "title": "Manually Corrected",
+            "type": "boolean"
+          },
+          "ocr_confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ocr Confidence"
+          },
+          "ocr_engine": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ocr Engine"
+          },
+          "ocr_value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ocr Value"
+          },
+          "received_at": {
+            "format": "date-time",
+            "title": "Received At",
+            "type": "string"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "capture_id",
+          "captured_at",
+          "received_at",
+          "machine_id",
+          "asset_code",
+          "machine_name",
+          "job_id",
+          "job_number",
+          "kind",
+          "capture_mode",
+          "manually_corrected",
+          "ocr_value",
+          "entered_value",
+          "difference",
+          "ocr_confidence",
+          "ocr_engine",
+          "captured_by_user_id",
+          "captured_by_name",
+          "state",
+          "exception_id",
+          "exception_status"
+        ],
+        "title": "ManualOverrideItemDto",
+        "type": "object"
+      },
+      "ManualOverrideReportDto": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ManualOverrideItemDto"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/ManualOverrideSummaryDto"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "summary",
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "ManualOverrideReportDto",
+        "type": "object"
+      },
+      "ManualOverrideSummaryDto": {
+        "properties": {
+          "exceptions_open": {
+            "description": "Related MANUAL_CORRECTION exceptions not yet reviewed",
+            "title": "Exceptions Open",
+            "type": "integer"
+          },
+          "manual_corrections": {
+            "description": "OCR value corrected by the supervisor",
+            "title": "Manual Corrections",
+            "type": "integer"
+          },
+          "manual_mode_with_ocr": {
+            "description": "Manual-mode captures where an OCR value also existed",
+            "title": "Manual Mode With Ocr",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "value_differs": {
+            "description": "Entered value differs from the OCR value",
+            "title": "Value Differs",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "manual_corrections",
+          "manual_mode_with_ocr",
+          "value_differs",
+          "exceptions_open"
+        ],
+        "title": "ManualOverrideSummaryDto",
+        "type": "object"
+      },
       "MeDto": {
         "properties": {
           "display_name": {
@@ -9024,6 +9577,13 @@
           "email": {
             "title": "Email",
             "type": "string"
+          },
+          "platform_menu_groups": {
+            "items": {
+              "$ref": "#/components/schemas/MenuGroupDto"
+            },
+            "title": "Platform Menu Groups",
+            "type": "array"
           },
           "platform_menus": {
             "items": {
@@ -9058,6 +9618,7 @@
           "display_name",
           "platform_permissions",
           "platform_menus",
+          "platform_menu_groups",
           "tenants"
         ],
         "title": "MeDto",
@@ -9128,6 +9689,10 @@
       },
       "MenuDto": {
         "properties": {
+          "group": {
+            "title": "Group",
+            "type": "string"
+          },
           "key": {
             "title": "Key",
             "type": "string"
@@ -9149,9 +9714,34 @@
           "key",
           "label",
           "path",
-          "order"
+          "order",
+          "group"
         ],
         "title": "MenuDto",
+        "type": "object"
+      },
+      "MenuGroupDto": {
+        "description": "A side-navigation section; listed only when at least one of its menus is visible, in `order`.",
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "order": {
+            "title": "Order",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "order"
+        ],
+        "title": "MenuGroupDto",
         "type": "object"
       },
       "MeterCaptureDto": {
@@ -9597,6 +10187,152 @@
         "title": "MlApprovalDto",
         "type": "object"
       },
+      "MlDriftDto": {
+        "properties": {
+          "computed_at": {
+            "format": "date-time",
+            "title": "Computed At",
+            "type": "string"
+          },
+          "features": {
+            "items": {
+              "$ref": "#/components/schemas/MlDriftFeatureDto"
+            },
+            "title": "Features",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "level": {
+            "$ref": "#/components/schemas/DriftSummaryLevel"
+          },
+          "model_version_id": {
+            "format": "uuid",
+            "title": "Model Version Id",
+            "type": "string"
+          },
+          "n_recent": {
+            "title": "N Recent",
+            "type": "integer"
+          },
+          "n_train": {
+            "title": "N Train",
+            "type": "integer"
+          },
+          "recent_end": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recent End"
+          },
+          "recent_start": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recent Start"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "train_end": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Train End"
+          },
+          "train_start": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Train Start"
+          }
+        },
+        "required": [
+          "id",
+          "model_version_id",
+          "computed_at",
+          "train_start",
+          "train_end",
+          "recent_start",
+          "recent_end",
+          "n_train",
+          "n_recent",
+          "features",
+          "level",
+          "summary"
+        ],
+        "title": "MlDriftDto",
+        "type": "object"
+      },
+      "MlDriftFeatureDto": {
+        "properties": {
+          "feature": {
+            "title": "Feature",
+            "type": "string"
+          },
+          "level": {
+            "description": "STABLE (< 0.1) | WATCH (0.1-0.25) | DRIFT (>= 0.25) | INSUFFICIENT_DATA",
+            "title": "Level",
+            "type": "string"
+          },
+          "n_actual": {
+            "title": "N Actual",
+            "type": "integer"
+          },
+          "n_expected": {
+            "title": "N Expected",
+            "type": "integer"
+          },
+          "psi": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Psi"
+          }
+        },
+        "required": [
+          "feature",
+          "psi",
+          "level",
+          "n_expected",
+          "n_actual"
+        ],
+        "title": "MlDriftFeatureDto",
+        "type": "object"
+      },
       "MlEvaluationDto": {
         "properties": {
           "criteria": {
@@ -9653,6 +10389,94 @@
           "evaluated_at"
         ],
         "title": "MlEvaluationDto",
+        "type": "object"
+      },
+      "MlInferenceAuditDto": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "inference_run_id": {
+            "format": "uuid",
+            "title": "Inference Run Id",
+            "type": "string"
+          },
+          "input_rows": {
+            "title": "Input Rows",
+            "type": "integer"
+          },
+          "latency_ms": {
+            "title": "Latency Ms",
+            "type": "integer"
+          },
+          "model_version_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Version Id"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/InferenceOutcome"
+          },
+          "predictions_written": {
+            "title": "Predictions Written",
+            "type": "integer"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "surfaced": {
+            "title": "Surfaced",
+            "type": "integer"
+          },
+          "tenant_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tenant Id"
+          }
+        },
+        "required": [
+          "id",
+          "tenant_id",
+          "model_version_id",
+          "inference_run_id",
+          "started_at",
+          "latency_ms",
+          "input_rows",
+          "predictions_written",
+          "surfaced",
+          "outcome",
+          "reason"
+        ],
+        "title": "MlInferenceAuditDto",
         "type": "object"
       },
       "MlManifestSummaryDto": {
@@ -9773,15 +10597,13 @@
           "drift": {
             "anyOf": [
               {
-                "additionalProperties": true,
-                "type": "object"
+                "$ref": "#/components/schemas/MlDriftDto"
               },
               {
                 "type": "null"
               }
             ],
-            "description": "Feature drift (PSI per feature) is recorded once inference runs (Gate 6D)",
-            "title": "Drift"
+            "description": "Latest PSI drift check (training vs recent 4 weeks)"
           },
           "evaluation": {
             "anyOf": [
@@ -9798,6 +10620,16 @@
           },
           "model": {
             "$ref": "#/components/schemas/MlModelVersionDto"
+          },
+          "monitoring": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MlMonitoringDto"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -9961,6 +10793,316 @@
           "lock_version"
         ],
         "title": "MlModelVersionDto",
+        "type": "object"
+      },
+      "MlMonitoringDto": {
+        "properties": {
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Reason of the latest run when it failed",
+            "title": "Last Error"
+          },
+          "last_inference_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Inference At"
+          },
+          "latency_p50_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Median inference latency over recent OK runs",
+            "title": "Latency P50 Ms"
+          },
+          "latency_p95_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency P95 Ms"
+          },
+          "predictions_by_state": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "prediction rows per decision state",
+            "title": "Predictions By State",
+            "type": "object"
+          },
+          "runs_by_outcome": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "inference_audit rows per outcome (OK / SKIPPED / ERROR)",
+            "title": "Runs By Outcome",
+            "type": "object"
+          }
+        },
+        "required": [
+          "latency_p50_ms",
+          "latency_p95_ms",
+          "runs_by_outcome",
+          "predictions_by_state",
+          "last_inference_at",
+          "last_error"
+        ],
+        "title": "MlMonitoringDto",
+        "type": "object"
+      },
+      "MlPredictionDto": {
+        "description": "Platform-only view of a prediction with its full provenance.",
+        "properties": {
+          "approval_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approval Id"
+          },
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "baseline_raw_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Baseline Raw Score"
+          },
+          "baseline_score": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Baseline Score"
+          },
+          "calibrated": {
+            "title": "Calibrated",
+            "type": "boolean"
+          },
+          "case_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Case Id"
+          },
+          "contributions": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Contributions",
+            "type": "array"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "data_cutoff": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Cutoff"
+          },
+          "decision_state": {
+            "$ref": "#/components/schemas/DecisionState"
+          },
+          "deployment_mode": {
+            "title": "Deployment Mode",
+            "type": "string"
+          },
+          "evaluation_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evaluation Id"
+          },
+          "explanations": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Explanations",
+            "type": "array"
+          },
+          "feature_set_hash": {
+            "title": "Feature Set Hash",
+            "type": "string"
+          },
+          "feature_snapshot_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Feature Snapshot Ids",
+            "type": "array"
+          },
+          "features_present": {
+            "title": "Features Present",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "inference_run_id": {
+            "format": "uuid",
+            "title": "Inference Run Id",
+            "type": "string"
+          },
+          "model_name": {
+            "title": "Model Name",
+            "type": "string"
+          },
+          "model_version_id": {
+            "format": "uuid",
+            "title": "Model Version Id",
+            "type": "string"
+          },
+          "model_version_number": {
+            "title": "Model Version Number",
+            "type": "integer"
+          },
+          "policy_version": {
+            "title": "Policy Version",
+            "type": "string"
+          },
+          "raw_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Model-specific scale; never a probability",
+            "title": "Raw Score"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Calibrated percentile vs held-out weeks; null unless calibrated",
+            "title": "Score"
+          },
+          "subject_id": {
+            "format": "uuid",
+            "title": "Subject Id",
+            "type": "string"
+          },
+          "subject_type": {
+            "title": "Subject Type",
+            "type": "string"
+          },
+          "tenant_id": {
+            "format": "uuid",
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "threshold": {
+            "title": "Threshold",
+            "type": "string"
+          },
+          "would_surface": {
+            "title": "Would Surface",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "tenant_id",
+          "model_version_id",
+          "model_name",
+          "model_version_number",
+          "deployment_mode",
+          "evaluation_id",
+          "approval_id",
+          "subject_type",
+          "subject_id",
+          "as_of",
+          "feature_set_hash",
+          "feature_snapshot_ids",
+          "data_cutoff",
+          "features_present",
+          "score",
+          "raw_score",
+          "calibrated",
+          "baseline_score",
+          "baseline_raw_score",
+          "threshold",
+          "would_surface",
+          "contributions",
+          "explanations",
+          "policy_version",
+          "decision_state",
+          "case_id",
+          "inference_run_id",
+          "created_at"
+        ],
+        "title": "MlPredictionDto",
         "type": "object"
       },
       "MlReadinessDto": {
@@ -11449,6 +12591,68 @@
         "title": "Page[MachineDto]",
         "type": "object"
       },
+      "Page_MlDriftDto_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MlDriftDto"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "Page[MlDriftDto]",
+        "type": "object"
+      },
+      "Page_MlInferenceAuditDto_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MlInferenceAuditDto"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "Page[MlInferenceAuditDto]",
+        "type": "object"
+      },
       "Page_MlModelVersionDto_": {
         "properties": {
           "items": {
@@ -11478,6 +12682,37 @@
           "page_size"
         ],
         "title": "Page[MlModelVersionDto]",
+        "type": "object"
+      },
+      "Page_MlPredictionDto_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MlPredictionDto"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "Page[MlPredictionDto]",
         "type": "object"
       },
       "Page_MlReadinessDto_": {
@@ -11757,6 +12992,37 @@
           "page_size"
         ],
         "title": "Page[TenantDto]",
+        "type": "object"
+      },
+      "Page_TenantPredictionDto_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TenantPredictionDto"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "Page[TenantPredictionDto]",
         "type": "object"
       },
       "Page_TrackerDto_": {
@@ -14577,6 +15843,13 @@
               }
             ]
           },
+          "menu_groups": {
+            "items": {
+              "$ref": "#/components/schemas/MenuGroupDto"
+            },
+            "title": "Menu Groups",
+            "type": "array"
+          },
           "menus": {
             "items": {
               "$ref": "#/components/schemas/MenuDto"
@@ -14610,7 +15883,8 @@
           "status",
           "access_state",
           "permissions",
-          "menus"
+          "menus",
+          "menu_groups"
         ],
         "title": "TenantAccessDto",
         "type": "object"
@@ -14718,6 +15992,63 @@
         "title": "TenantDto",
         "type": "object"
       },
+      "TenantInsightsDto": {
+        "properties": {
+          "cash_flow": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CashFlowInsightDto"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Present only with tenant.finance.report"
+          },
+          "fuel_efficiency": {
+            "items": {
+              "$ref": "#/components/schemas/FuelEfficiencyInsightDto"
+            },
+            "title": "Fuel Efficiency",
+            "type": "array"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "history_weeks": {
+            "description": "Weeks of history considered",
+            "title": "History Weeks",
+            "type": "integer"
+          },
+          "method": {
+            "description": "How each insight is computed, in plain words",
+            "items": {
+              "type": "string"
+            },
+            "title": "Method",
+            "type": "array"
+          },
+          "utilisation": {
+            "items": {
+              "$ref": "#/components/schemas/UtilisationInsightDto"
+            },
+            "title": "Utilisation",
+            "type": "array"
+          }
+        },
+        "required": [
+          "generated_at",
+          "history_weeks",
+          "fuel_efficiency",
+          "utilisation",
+          "cash_flow",
+          "method"
+        ],
+        "title": "TenantInsightsDto",
+        "type": "object"
+      },
       "TenantMlDeploymentDto": {
         "properties": {
           "deployed_at": {
@@ -14771,6 +16102,11 @@
             "title": "Inference Enabled",
             "type": "boolean"
           },
+          "label": {
+            "description": "\"Model off\" | \"Learning (shadow)\" | \"Not enough history yet: <reasons>\" | \"Active\" | ...",
+            "title": "Label",
+            "type": "string"
+          },
           "model_name": {
             "title": "Model Name",
             "type": "string"
@@ -14785,6 +16121,18 @@
               }
             ]
           },
+          "state": {
+            "enum": [
+              "MODEL_OFF",
+              "NOT_ASSESSED",
+              "NOT_ENOUGH_HISTORY",
+              "EVALUATING",
+              "LEARNING_SHADOW",
+              "ACTIVE"
+            ],
+            "title": "State",
+            "type": "string"
+          },
           "summary": {
             "description": "Plain-language status for the tenant",
             "title": "Summary",
@@ -14793,6 +16141,8 @@
         },
         "required": [
           "model_name",
+          "state",
+          "label",
           "readiness",
           "deployed",
           "inference_enabled",
@@ -14883,6 +16233,70 @@
           "subscription"
         ],
         "title": "TenantOnboardIn",
+        "type": "object"
+      },
+      "TenantPredictionDto": {
+        "description": "A surfaced model observation as a tenant sees it: neutral observations and the case to review, no score.",
+        "properties": {
+          "case_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Case Id"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "machine_id": {
+            "format": "uuid",
+            "title": "Machine Id",
+            "type": "string"
+          },
+          "model_name": {
+            "title": "Model Name",
+            "type": "string"
+          },
+          "model_version": {
+            "title": "Model Version",
+            "type": "integer"
+          },
+          "observations": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Observations",
+            "type": "array"
+          },
+          "week_ending": {
+            "format": "date-time",
+            "title": "Week Ending",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "machine_id",
+          "week_ending",
+          "model_name",
+          "model_version",
+          "observations",
+          "case_id",
+          "created_at"
+        ],
+        "title": "TenantPredictionDto",
         "type": "object"
       },
       "TenantStatus": {
@@ -15650,6 +17064,118 @@
         "title": "UnassignTrackerIn",
         "type": "object"
       },
+      "UtilisationInsightDto": {
+        "properties": {
+          "asset_code": {
+            "title": "Asset Code",
+            "type": "string"
+          },
+          "available_days": {
+            "description": "Calendar days in the observed weeks while the machine was registered",
+            "title": "Available Days",
+            "type": "integer"
+          },
+          "hours_per_available_day": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours Per Available Day"
+          },
+          "machine_id": {
+            "format": "uuid",
+            "title": "Machine Id",
+            "type": "string"
+          },
+          "machine_name": {
+            "title": "Machine Name",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "min_weeks_required": {
+            "title": "Min Weeks Required",
+            "type": "integer"
+          },
+          "missing": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "READY",
+              "INSUFFICIENT_DATA"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "trend": {
+            "anyOf": [
+              {
+                "enum": [
+                  "UP",
+                  "DOWN",
+                  "FLAT"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trend"
+          },
+          "trend_hours_per_week": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Least-squares change in weekly hours per week",
+            "title": "Trend Hours Per Week"
+          },
+          "weekly": {
+            "items": {
+              "$ref": "#/components/schemas/WeeklyHoursDto"
+            },
+            "title": "Weekly",
+            "type": "array"
+          },
+          "weeks_observed": {
+            "title": "Weeks Observed",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "machine_id",
+          "asset_code",
+          "machine_name",
+          "status",
+          "hours_per_available_day",
+          "available_days",
+          "weeks_observed",
+          "min_weeks_required",
+          "trend_hours_per_week",
+          "trend",
+          "weekly",
+          "message",
+          "missing"
+        ],
+        "title": "UtilisationInsightDto",
+        "type": "object"
+      },
       "VerificationIn": {
         "properties": {
           "note": {
@@ -15691,6 +17217,35 @@
           "reason"
         ],
         "title": "VoidInvoiceIn",
+        "type": "object"
+      },
+      "WeeklyHoursDto": {
+        "properties": {
+          "hours": {
+            "title": "Hours",
+            "type": "number"
+          },
+          "source": {
+            "enum": [
+              "meter",
+              "engine",
+              "none"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "week_ending": {
+            "format": "date-time",
+            "title": "Week Ending",
+            "type": "string"
+          }
+        },
+        "required": [
+          "week_ending",
+          "hours",
+          "source"
+        ],
+        "title": "WeeklyHoursDto",
         "type": "object"
       }
     }
@@ -18079,6 +19634,238 @@
         ]
       }
     },
+    "/api/v1/platform/ml/inference-audit": {
+      "get": {
+        "operationId": "listMlInferenceAudit",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "model_version_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Model Version Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tenant_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "outcome",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/InferenceOutcome"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Outcome"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sort"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_MlInferenceAuditDto_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "List Inference Audit",
+        "tags": [
+          "ml-governance"
+        ]
+      }
+    },
     "/api/v1/platform/ml/models": {
       "get": {
         "operationId": "listMlModelVersions",
@@ -19089,6 +20876,198 @@
         ]
       }
     },
+    "/api/v1/platform/ml/models/{model_id}/drift": {
+      "get": {
+        "operationId": "listMlModelDrift",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "model_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Model Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sort"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_MlDriftDto_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "List Drift",
+        "tags": [
+          "ml-governance"
+        ]
+      }
+    },
     "/api/v1/platform/ml/models/{model_id}/reject": {
       "post": {
         "operationId": "rejectMlModelVersion",
@@ -19567,6 +21546,255 @@
           }
         },
         "summary": "Rollbackmlmodelversion",
+        "tags": [
+          "ml-governance"
+        ]
+      }
+    },
+    "/api/v1/platform/ml/predictions": {
+      "get": {
+        "operationId": "listMlPredictions",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "model_version_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Model Version Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tenant_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "decision_state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/DecisionState"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Decision State"
+            }
+          },
+          {
+            "in": "query",
+            "name": "subject_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Subject Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sort"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_MlPredictionDto_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "List Predictions",
         "tags": [
           "ml-governance"
         ]
@@ -42265,6 +44493,507 @@
         ]
       }
     },
+    "/api/v1/tenant/insights": {
+      "get": {
+        "operationId": "getTenantInsights",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantInsightsDto"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Insights",
+        "tags": [
+          "insights"
+        ]
+      }
+    },
+    "/api/v1/tenant/insights/cash-flow": {
+      "get": {
+        "operationId": "getTenantCashFlowInsight",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashFlowInsightDto"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Cash Flow",
+        "tags": [
+          "insights"
+        ]
+      }
+    },
+    "/api/v1/tenant/insights/manual-overrides": {
+      "get": {
+        "description": "Captures where OCR produced a value but the stored reading was entered by a person.",
+        "operationId": "listManualOverrides",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "captured_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Captured From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "captured_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Captured To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "machine_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Machine Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "user_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "User Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sort"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManualOverrideReportDto"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "List Manual Overrides",
+        "tags": [
+          "insights"
+        ]
+      }
+    },
     "/api/v1/tenant/job-sites": {
       "get": {
         "operationId": "listJobSites",
@@ -48113,6 +50842,206 @@
         "summary": "Decide Reset",
         "tags": [
           "meter"
+        ]
+      }
+    },
+    "/api/v1/tenant/ml/predictions": {
+      "get": {
+        "description": "Surfaced model observations only (RLS also hides every other state from tenants); no scores.",
+        "operationId": "listTenantPredictions",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "machine_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Machine Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sort"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_TenantPredictionDto_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Tenant Predictions",
+        "tags": [
+          "ml-governance"
         ]
       }
     },

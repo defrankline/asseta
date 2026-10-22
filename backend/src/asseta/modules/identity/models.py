@@ -39,6 +39,7 @@ class Menu(UuidPk, Timestamps, Base):
     path: Mapped[str] = mapped_column(String(200), nullable=False)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False)
     required_permission: Mapped[str] = mapped_column(String(128), nullable=False)
+    group_key: Mapped[str] = mapped_column(String(64), nullable=False)  # catalog MenuGroupDef.key
 
 
 class Role(UuidPk, Timestamps, Base):

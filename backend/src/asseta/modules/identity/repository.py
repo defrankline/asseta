@@ -208,6 +208,7 @@ class IdentityRepository:
                     path=m.path,
                     sort_order=m.order,
                     required_permission=m.required_permission,
+                    group_key=m.group,
                     created_at=now,
                     updated_at=now,
                 )
@@ -219,6 +220,7 @@ class IdentityRepository:
                         "path": m.path,
                         "sort_order": m.order,
                         "required_permission": m.required_permission,
+                        "group_key": m.group,
                         "updated_at": now,
                     },
                 )

@@ -6,7 +6,8 @@ from datetime import date
 from sqlalchemy.orm import Session
 
 from asseta.core.db import DbScope, apply_scope
-from asseta.modules.identity.dto import MandateBadgeDto, MeDto, MenuDto, TenantAccessDto
+from asseta.modules.identity.catalog import CATALOG
+from asseta.modules.identity.dto import MandateBadgeDto, MeDto, MenuDto, MenuGroupDto, TenantAccessDto
 from asseta.modules.identity.models import Menu
 from asseta.modules.identity.principal import TokenClaims
 from asseta.modules.identity.repository import IdentityRepository
@@ -14,12 +15,17 @@ from asseta.modules.identity.tokens import parse_group_grants
 from asseta.modules.managed_service.gate import MandateGrant, grants_for_user, has_assignment_history
 
 
-def _menus_for(menus: list[Menu], scope: str, permissions: frozenset[str]) -> list[MenuDto]:
-    return [
-        MenuDto(key=m.key, label=m.label, path=m.path, order=m.sort_order)
-        for m in menus
-        if m.scope == scope and m.required_permission in permissions
-    ]
+def menus_for(menus: list[Menu], scope: str, permissions: frozenset[str]) -> tuple[list[MenuDto], list[MenuGroupDto]]:
+    """Visible menus of one console, plus the groups holding at least one of them (both in display order)."""
+    visible = sorted(
+        (m for m in menus if m.scope == scope and m.required_permission in permissions),
+        key=lambda m: (m.sort_order, m.label),
+    )
+    used = {m.group_key for m in visible}
+    return (
+        [MenuDto(key=m.key, label=m.label, path=m.path, order=m.sort_order, group=m.group_key) for m in visible],
+        [MenuGroupDto(key=g.key, label=g.label, order=g.order) for g in CATALOG.menu_groups() if g.key in used],
+    )
 
 
 class IdentityService:
@@ -50,6 +56,7 @@ class IdentityService:
         for tenant in self._repo.tenants_by_ids(access.keys()):
             paths, grant = access[tenant.id]
             perms = self._repo.permissions_for_groups(paths)
+            tenant_menus, tenant_groups = menus_for(menus, "TENANT", perms)
             tenants.append(
                 TenantAccessDto(
                     tenant_id=tenant.id,
@@ -57,7 +64,8 @@ class IdentityService:
                     status=tenant.status,
                     access_state=tenant.access_state,
                     permissions=sorted(perms),
-                    menus=_menus_for(menus, "TENANT", perms),
+                    menus=tenant_menus,
+                    menu_groups=tenant_groups,
                     mandate=MandateBadgeDto(
                         mandate_id=grant.mandate_id,
                         reference=grant.reference,
@@ -68,11 +76,13 @@ class IdentityService:
                     else None,
                 )
             )
+        platform_menus, platform_menu_groups = menus_for(menus, "PLATFORM", platform_perms)
         return MeDto(
             user_id=user.id,
             email=user.email,
             display_name=user.display_name,
             platform_permissions=sorted(platform_perms),
-            platform_menus=_menus_for(menus, "PLATFORM", platform_perms),
+            platform_menus=platform_menus,
+            platform_menu_groups=platform_menu_groups,
             tenants=sorted(tenants, key=lambda t: t.name),
         )

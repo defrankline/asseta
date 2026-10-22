@@ -38,9 +38,19 @@ ALERT_MANAGE = requires("tenant.fleet.alert_manage", S.TENANT, "Acknowledge and 
 GEOFENCE_READ = requires("tenant.geofence.read", S.TENANT, "View job sites and geofences")
 GEOFENCE_WRITE = requires("tenant.geofence.write", S.TENANT, "Manage job sites and geofences")
 for menu in (
-    MenuDef("tenant.fleet_map", S.TENANT, "Fleet map", "/tenant/fleet", 10, "tenant.fleet.read"),
-    MenuDef("tenant.geofences", S.TENANT, "Sites & geofences", "/tenant/geofences", 50, "tenant.geofence.read"),
-    MenuDef("tenant.alerts", S.TENANT, "Alerts", "/tenant/alerts", 60, "tenant.fleet.read"),
+    MenuDef(
+        "tenant.fleet_map", S.TENANT, "Fleet map", "/tenant/fleet", 10, "tenant.fleet.read", group="tenant.overview"
+    ),
+    MenuDef(
+        "tenant.geofences",
+        S.TENANT,
+        "Sites & geofences",
+        "/tenant/geofences",
+        50,
+        "tenant.geofence.read",
+        group="tenant.fleet",
+    ),
+    MenuDef("tenant.alerts", S.TENANT, "Alerts", "/tenant/alerts", 60, "tenant.fleet.read", group="tenant.fleet"),
 ):
     CATALOG.register_menu(menu)
 

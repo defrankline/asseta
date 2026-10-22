@@ -3,15 +3,18 @@ scope for reads, platform scope for governance rows) with an in-memory object st
 
 import dataclasses
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from asseta.core.audit import AuditActor
 from asseta.core.db import DbScope, apply_scope, get_sessionmaker
 from asseta.ml.evaluation import PromotionCriteria
+from asseta.ml.features import FeatureSnapshot
 from asseta.ml.synthetic import fleet_snapshots, generate_fleet
 from asseta.ml.tracking import ExperimentTracker, NullTracker
 from asseta.modules.intelligence.feature_store import store_snapshots, sync_feature_definitions
+from asseta.modules.intelligence.inference import InferenceCycleResult, run_inference_cycle
 from asseta.modules.intelligence.ml_training import train_tenant
 from tests.support.api import Actor
 from tests.support.idp import InMemoryObjectStore
@@ -63,3 +66,44 @@ def model(platform: Actor, model_id: str) -> dict[str, Any]:
     assert r.status_code == 200, r.text
     out: dict[str, Any] = r.json()
     return out
+
+
+def last_week_end(now: datetime) -> datetime:
+    """Most recent Africa/Dar_es_Salaam Monday 00:00 at or before `now` (the tenants' local week end)."""
+    local = now.astimezone(ZoneInfo("Africa/Dar_es_Salaam"))
+    monday = (local - timedelta(days=local.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+    return monday
+
+
+def fleet_for(
+    tid: str, machine_ids: list[str], end: datetime, weeks: int = 14, seed: int = 3, anomaly_rate: float = 0.04
+) -> list[FeatureSnapshot]:
+    """The synthetic fleet as snapshots of real machines, its last week ending at `end`."""
+    start = end - timedelta(weeks=weeks)
+    fleet = generate_fleet(tid, len(machine_ids), weeks, seed, start=start, anomaly_rate=anomaly_rate)
+    mapping = {f"M{i + 1:03d}": m for i, m in enumerate(machine_ids)}
+    return [dataclasses.replace(s, entity_id=mapping[s.entity_id]) for s in fleet_snapshots(fleet)]
+
+
+def store(tid: str, snaps: list[FeatureSnapshot], now: datetime) -> int:
+    with get_sessionmaker().begin() as s:
+        apply_scope(s, DbScope.TENANT, uuid.UUID(tid), None)
+        return store_snapshots(s, uuid.UUID(tid), snaps, now, None)
+
+
+def shifted_week(snaps: list[FeatureSnapshot], weeks: int = 1, **factors: float) -> list[FeatureSnapshot]:
+    """Copy the latest week `weeks` weeks later, multiplying the given features (to create unusual weeks)."""
+    last = max(s.as_of for s in snaps)
+    return [
+        dataclasses.replace(
+            s,
+            as_of=s.as_of + timedelta(weeks=weeks),
+            value=None if s.value is None else s.value * factors.get(s.feature_code, 1.0),
+        )
+        for s in snaps
+        if s.as_of == last
+    ]
+
+
+def infer(now: datetime, objects: InMemoryObjectStore, tid: str | None = None) -> InferenceCycleResult:
+    return run_inference_cycle(get_sessionmaker(), now, objects, tenant_ids=[uuid.UUID(tid)] if tid else None)

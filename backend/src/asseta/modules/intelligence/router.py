@@ -45,7 +45,9 @@ SIGNAL_READ = requires("tenant.signal.read", S.TENANT, "View deterministic risk 
 CASE_READ = requires("tenant.case.read", S.TENANT, "View investigation cases, linked evidence, notes and outcomes")
 CASE_MANAGE = requires("tenant.case.manage", S.TENANT, "Assign, annotate and reopen investigation cases")
 CASE_RESOLVE = requires("tenant.case.resolve", S.TENANT, "Resolve investigation cases with a recorded outcome")
-CATALOG.register_menu(MenuDef("tenant.cases", S.TENANT, "Investigations", "/tenant/cases", 63, "tenant.case.read"))
+CATALOG.register_menu(
+    MenuDef("tenant.cases", S.TENANT, "Investigations", "/tenant/cases", 63, "tenant.case.read", "tenant.risk")
+)
 
 router = APIRouter(prefix="/api/v1/tenant", tags=["intelligence"], responses=ERROR_RESPONSES)
 DbSession = Annotated[Session, Depends(get_session)]

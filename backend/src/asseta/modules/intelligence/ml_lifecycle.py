@@ -26,6 +26,7 @@ from asseta.modules.intelligence.linking import TOPIC
 from asseta.modules.intelligence.ml_models import (
     DEPLOYED_STATUSES,
     MODEL_TRANSITIONS,
+    SOURCE_SYNTHETIC,
     MlSetting,
     ModelAction,
     ModelApproval,
@@ -83,6 +84,10 @@ def current_ml_setting(session: Session) -> MlSettingView:
     return MlSettingView(row.inference_enabled, row.reason, row.updated_by, row.updated_at, row.lock_version)
 
 
+def is_synthetic(model: ModelVersion) -> bool:
+    return bool(model.manifest.get("snapshot_source") == SOURCE_SYNTHETIC)
+
+
 def inference_enabled(session: Session) -> bool:
     """The hard switch every inference path (Gate 6D) must check first."""
     return current_ml_setting(session).inference_enabled
@@ -137,6 +142,10 @@ class MlGovernanceService:
         return model
 
     def _preconditions(self, model: ModelVersion, action: ModelAction) -> None:
+        if action in (ModelAction.APPROVE, ModelAction.DEPLOY_ACTIVE) and is_synthetic(model):
+            raise BusinessRuleViolation(
+                "A model trained on synthetic demo data can only run in shadow mode", code="SYNTHETIC_MODEL"
+            )
         evaluation = self.evaluation(model.id)
         if action in (ModelAction.DEPLOY_SHADOW, ModelAction.DEPLOY_ACTIVE, ModelAction.APPROVE) and evaluation is None:
             raise BusinessRuleViolation("The model has no evaluation yet", code="EVALUATION_REQUIRED")

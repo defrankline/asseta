@@ -12,6 +12,7 @@ export function makeMe(overrides: Partial<MeResponse> = {}): MeResponse {
     display_name: 'Ops User',
     platform_permissions: [],
     platform_menus: [],
+    platform_menu_groups: [],
     tenants: [
       {
         tenant_id: TENANT_A,
@@ -19,7 +20,16 @@ export function makeMe(overrides: Partial<MeResponse> = {}): MeResponse {
         status: 'ACTIVE',
         access_state: 'FULL',
         permissions: ['tenant.machine.read'],
-        menus: [{ key: 'machines', label: 'Machines', path: '/machines', order: 1 }],
+        menus: [
+          {
+            key: 'machines',
+            label: 'Machines',
+            path: '/machines',
+            order: 1,
+            group: 'tenant.fleet',
+          },
+        ],
+        menu_groups: [{ key: 'tenant.fleet', label: 'Fleet', order: 30 }],
       },
     ],
     ...overrides,

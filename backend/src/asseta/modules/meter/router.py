@@ -46,7 +46,9 @@ METER_READ = requires("tenant.meter.read", S.TENANT, "View meter readings, evide
 REVIEW = requires("tenant.meter.review", S.TENANT, "Review meter/GPS exceptions")
 APPROVE = requires("tenant.meter.approve", S.TENANT, "Approve meter resets and reading corrections")
 CATALOG.register_menu(
-    MenuDef("tenant.exceptions", S.TENANT, "Exceptions", "/tenant/exceptions", 62, "tenant.meter.read")
+    MenuDef(
+        "tenant.exceptions", S.TENANT, "Exceptions", "/tenant/exceptions", 62, "tenant.meter.read", group="tenant.risk"
+    )
 )
 PURPOSES = {"METER_PHOTO", "SIGNATURE", "RESET_EVIDENCE", "EXPENSE_RECEIPT"}
 

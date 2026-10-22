@@ -73,3 +73,32 @@ deliver; delivery is best effort and the inbox is the durable record (re-read it
   `PaymentDto.invoice_id` is nullable; new `allocations`, `unallocated`.
 * SMS wallet: tenant `GET /api/v1/tenant/billing/sms-wallet` and `/sms-wallet/entries`; platform
   `GET /api/v1/platform/tenants/{id}/sms-wallet` (+ `/entries`).
+
+## Intelligence: inference, monitoring and insights (Gate 6D, ADR-007)
+
+* Platform (`platform.ml.read`): `GET /api/v1/platform/ml/models/{id}` now carries `drift` (latest PSI check:
+  per-feature `psi` + `level` STABLE|WATCH|DRIFT|INSUFFICIENT_DATA, summary `level`, training and recent windows) and
+  `monitoring` (`latency_p50_ms`, `latency_p95_ms` over recent OK runs, `runs_by_outcome`, `predictions_by_state`,
+  `last_inference_at`, `last_error`). `GET /models/{id}/drift` (history, paged), `GET /predictions` (filters
+  `model_version_id`, `tenant_id`, `decision_state`, `subject_id`; full provenance: feature snapshot ids, data cut-off,
+  evaluation/approval ids, calibrated `score` or null with `raw_score`, baseline scores, threshold, policy version,
+  contributions, explanations, `decision_state` SHADOW|SURFACED|BELOW_THRESHOLD|INSUFFICIENT_DATA|MODEL_DISABLED,
+  `case_id`), `GET /inference-audit` (filters `model_version_id`, `tenant_id`, `outcome` OK|SKIPPED|ERROR).
+  `POST /models/{id}/approve|deploy-active` refuse a model trained on synthetic demo data (`422 SYNTHETIC_MODEL`).
+* Tenant ML status `GET /api/v1/tenant/ml/status` gained `state` (MODEL_OFF | NOT_ASSESSED | NOT_ENOUGH_HISTORY |
+  EVALUATING | LEARNING_SHADOW | ACTIVE) and `label` ("Model off", "Learning (shadow)", "Not enough history yet: …",
+  "Active", …). Still no scores.
+* `GET /api/v1/tenant/ml/predictions` (`tenant.case.read`, filter `machine_id`): SURFACED predictions only (shadow and
+  other states are platform-only, also enforced by RLS) as neutral `observations` + `case_id`; no score.
+* `GET /api/v1/tenant/insights` (`tenant.fleet.read`): `fuel_efficiency[]` (litres per meter hour vs the machine's
+  own median and robust band, `outside_usual_range`), `utilisation[]` (hours per available day, weekly series,
+  `trend` UP|DOWN|FLAT), `cash_flow` (only with `tenant.finance.report`, else null) and `method` (plain-words
+  explanation). Each item is `READY` or `INSUFFICIENT_DATA` with `min_weeks_required`, `weeks_observed` and
+  `missing` (what is missing). `GET /api/v1/tenant/insights/cash-flow` (`tenant.finance.report`): weekly verified
+  receipts − approved expenses in the tenant currency (money as decimal strings), `trend_per_week`, `trend`.
+* `GET /api/v1/tenant/insights/manual-overrides` (`tenant.meter.read`): OCR manual-override audit — `summary`
+  (`total`, `manual_corrections`, `manual_mode_with_ocr`, `value_differs`, `exceptions_open`) + paged `items`
+  (OCR vs entered value, difference, confidence, engine, who, when, machine, job, related exception); filters
+  `captured_from` (inclusive), `captured_to` (exclusive), `machine_id`, `user_id`. See `docs/ml-ocr-metrics.md`.
+* Menu `tenant.insights` ("Insights", `/tenant/insights`, Risk & review group, `tenant.fleet.read`).
+* Notification type `ML_MODEL_DRIFT` (platform, `platform.ml.read`) from the `MlModelDriftDetected` outbox event.

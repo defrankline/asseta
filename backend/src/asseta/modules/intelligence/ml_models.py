@@ -46,6 +46,9 @@ def _enum(cls: type[StrEnum], length: int = 24) -> Enum:
 
 
 ANOMALY_MODEL_NAME = "machine-week-anomaly"
+SOURCE_OBSERVED = "observed"  # computed from the tenant's own domain facts
+SOURCE_SYNTHETIC = "synthetic"  # `asseta-ml demo` only (development); never used by real training or insights
+SNAPSHOT_SOURCES = (SOURCE_OBSERVED, SOURCE_SYNTHETIC)
 
 
 class FeatureEntityType(StrEnum):
@@ -150,6 +153,7 @@ class FeatureSnapshotRecord(UuidPk, Base):
             name="uq_feature_snapshot_point",
         ),
         Index("ix_feature_snapshot_tenant_asof", "tenant_id", "as_of"),
+        CheckConstraint("source IN ('observed', 'synthetic')", name="ck_feature_snapshot_source"),
     )
 
     tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenant.id"), nullable=False)
@@ -165,6 +169,7 @@ class FeatureSnapshotRecord(UuidPk, Base):
     n_inputs: Mapped[int] = mapped_column(Integer, nullable=False)
     computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     run_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    source: Mapped[str] = mapped_column(String(16), nullable=False, server_default=SOURCE_OBSERVED)
 
 
 class ModelVersion(UuidPk, Base):

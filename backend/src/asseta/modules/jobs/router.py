@@ -55,8 +55,16 @@ JOB_WRITE = requires("tenant.job.write", S.TENANT, "Create jobs and submit them 
 JOB_APPROVE = requires("tenant.job.approve", S.TENANT, "Approve job prices and authorize start/completion")
 JOB_LOG = requires("tenant.job.log", S.TENANT, "Record work logs, start/stop and customer acknowledgements")
 for menu in (
-    MenuDef("tenant.customers", S.TENANT, "Customers", "/tenant/customers", 65, "tenant.customer.read"),
-    MenuDef("tenant.jobs", S.TENANT, "Jobs", "/tenant/jobs", 15, "tenant.job.read"),
+    MenuDef(
+        "tenant.customers",
+        S.TENANT,
+        "Customers",
+        "/tenant/customers",
+        25,
+        "tenant.customer.read",
+        group="tenant.operations",
+    ),
+    MenuDef("tenant.jobs", S.TENANT, "Jobs", "/tenant/jobs", 15, "tenant.job.read", group="tenant.operations"),
 ):
     CATALOG.register_menu(menu)
 

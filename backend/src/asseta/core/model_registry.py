@@ -8,6 +8,7 @@ from asseta.modules.fleet import photos as fleet_photos  # noqa: F401
 from asseta.modules.geospatial import models as geospatial_models  # noqa: F401
 from asseta.modules.identity import models as identity_models  # noqa: F401
 from asseta.modules.intelligence import ml_models as intelligence_ml_models  # noqa: F401
+from asseta.modules.intelligence import ml_monitoring_models as intelligence_ml_monitoring  # noqa: F401
 from asseta.modules.intelligence import models as intelligence_models  # noqa: F401
 from asseta.modules.jobs import models as jobs_models  # noqa: F401
 from asseta.modules.managed_service import models as managed_service_models  # noqa: F401

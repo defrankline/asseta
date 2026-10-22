@@ -27,6 +27,12 @@ class ObjectStore(Protocol):
     def presigned_get(self, key: str, ttl_seconds: int) -> str: ...
 
 
+class ObjectReader(Protocol):
+    """Server-side read of a stored object (model artifacts); never used to serve evidence to clients."""
+
+    def get_bytes(self, key: str) -> bytes: ...
+
+
 def sniff_image(data: bytes) -> str:
     """Validate by magic bytes, never by the client-declared content type."""
     for signature, content_type in IMAGE_SIGNATURES.items():
@@ -100,6 +106,16 @@ class S3ObjectStore:
             raise DependencyUnavailable("Object storage write failed") from exc
         except BotoCoreError as exc:
             raise DependencyUnavailable("Object storage unavailable") from exc
+
+    def get_bytes(self, key: str) -> bytes:
+        from botocore.exceptions import BotoCoreError, ClientError
+
+        try:
+            body = self._client.get_object(Bucket=self._bucket, Key=key)["Body"]
+            data: bytes = body.read()
+            return data
+        except (BotoCoreError, ClientError) as exc:
+            raise DependencyUnavailable("Object storage read failed") from exc
 
     def presigned_get(self, key: str, ttl_seconds: int) -> str:
         url: str = self._signer.generate_presigned_url(

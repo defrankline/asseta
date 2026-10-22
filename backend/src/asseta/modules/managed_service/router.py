@@ -38,6 +38,7 @@ CATALOG.register_menu(
         "/platform/managed-service",
         25,
         "platform.mandate.read",
+        group="platform.tenants",
     )
 )
 CATALOG.register_menu(
@@ -48,6 +49,7 @@ CATALOG.register_menu(
         "/tenant/managed-service",
         95,
         "tenant.managed_service.read",
+        group="tenant.admin",
     )
 )
 

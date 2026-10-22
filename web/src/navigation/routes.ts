@@ -121,54 +121,26 @@ export interface NavItem {
   path: string;
 }
 
-interface StaticNavItem extends NavItem {
-  /** Required permission in platform mode. */
-  permission: string;
+/** A side-navigation section (parent) and its links (children), in display order. */
+export interface NavGroup {
+  key: string;
+  label: string;
+  items: NavItem[];
 }
 
-/** Platform-console items; tenant items come from the active tenant's /me menus. */
-export const PLATFORM_NAV: readonly StaticNavItem[] = [
-  {
-    key: 'platform.telemetry',
-    label: 'Trackers & gateways',
-    path: ROUTES.platformTelemetry,
-    permission: PERMISSIONS.platformTrackerModelRead,
-  },
-  {
-    key: 'platform.catalog',
-    label: 'Product catalog',
-    path: ROUTES.platformCatalog,
-    permission: PERMISSIONS.platformCatalogRead,
-  },
-  {
-    key: 'platform.sms-wallets',
-    label: 'SMS wallets',
-    path: ROUTES.platformSmsWallets,
-    permission: PERMISSIONS.platformSmsWalletRead,
-  },
-  {
-    key: 'platform.system-status',
-    label: 'System status',
-    path: ROUTES.systemStatus,
-    permission: PERMISSIONS.platformSystemRead,
-  },
-];
-
-/** The current console's inbox (shown with `tenant.notification.read` / `platform.notification.read`). */
-export const NOTIFICATIONS_NAV: NavItem = {
-  key: 'account.notifications',
-  label: 'Notifications',
-  path: ROUTES.notifications,
-};
-
+/** Gates the shared inbox pages; the inbox links themselves are server menus of each console. */
 export const NOTIFICATION_READ = [
   PERMISSIONS.tenantNotificationRead,
   PERMISSIONS.platformNotificationRead,
 ] as const;
 
+/** Self-service links every signed-in user has (no feature permission), outside the server catalog. */
 export const ACCOUNT_NAV: readonly NavItem[] = [
   { key: 'account.my-access', label: 'My access', path: ROUTES.myAccess },
 ];
+
+/** Group used for ACCOUNT_NAV when the console's Administration group has no visible server menu. */
+export const ACCOUNT_GROUP = { label: 'Administration' } as const;
 
 /** Paths with a page in this build; used to avoid landing users on not-yet-built menu targets. */
 export const IMPLEMENTED_PATHS: ReadonlySet<string> = new Set([

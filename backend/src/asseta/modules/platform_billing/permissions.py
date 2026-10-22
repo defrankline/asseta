@@ -28,13 +28,23 @@ SYSTEM_READ = requires("platform.system.read", S.PLATFORM, "View system/integrat
 TENANT_BILLING_READ = requires("tenant.billing.read", S.TENANT, "View own subscription and invoices")
 TENANT_BILLING_ENROLL = requires("tenant.billing.enroll", S.TENANT, "Enroll/unenroll machines as billable assets")
 
-for menu in (
-    MenuDef("platform.dashboard", S.PLATFORM, "Dashboard", "/platform", 10, "platform.dashboard.read"),
-    MenuDef("platform.tenants", S.PLATFORM, "Tenants", "/platform/tenants", 20, "platform.tenant.read"),
-    MenuDef("platform.invoices", S.PLATFORM, "Invoices", "/platform/invoices", 30, "platform.invoice.read"),
-    MenuDef("platform.catalog", S.PLATFORM, "Products", "/platform/catalog", 35, "platform.catalog.read"),
-    MenuDef("platform.payments", S.PLATFORM, "Payments", "/platform/payments", 40, "platform.payment.read"),
-    MenuDef("platform.system", S.PLATFORM, "System status", "/platform/system", 90, "platform.system.read"),
-    MenuDef("tenant.billing", S.TENANT, "Subscription", "/tenant/subscription", 90, "tenant.billing.read"),
+# (key, label, path, order, permission, side-nav group)
+for key, label, path, order, permission, group in (
+    ("platform.dashboard", "Dashboard", "/platform", 10, "platform.dashboard.read", "platform.overview"),
+    ("platform.system", "System status", "/platform/system", 90, "platform.system.read", "platform.overview"),
+    ("platform.tenants", "Tenants", "/platform/tenants", 20, "platform.tenant.read", "platform.tenants"),
+    ("platform.invoices", "Invoices", "/platform/invoices", 30, "platform.invoice.read", "platform.billing"),
+    ("platform.catalog", "Products", "/platform/catalog", 35, "platform.catalog.read", "platform.billing"),
+    ("platform.payments", "Payments", "/platform/payments", 40, "platform.payment.read", "platform.billing"),
+    (
+        "platform.sms_wallets",
+        "SMS wallets",
+        "/platform/sms-wallets",
+        45,
+        "platform.sms_wallet.read",
+        "platform.billing",
+    ),
+    ("tenant.billing", "Subscription", "/tenant/subscription", 90, "tenant.billing.read", "tenant.admin"),
 ):
-    CATALOG.register_menu(menu)
+    scope = S.PLATFORM if key.startswith("platform.") else S.TENANT
+    CATALOG.register_menu(MenuDef(key, scope, label, path, order, permission, group))

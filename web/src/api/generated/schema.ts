@@ -284,6 +284,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/platform/ml/inference-audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Inference Audit */
+        get: operations["listMlInferenceAudit"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/platform/ml/models": {
         parameters: {
             query?: never;
@@ -386,6 +403,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/platform/ml/models/{model_id}/drift": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Drift */
+        get: operations["listMlModelDrift"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/platform/ml/models/{model_id}/reject": {
         parameters: {
             query?: never;
@@ -431,6 +465,23 @@ export interface paths {
         put?: never;
         /** Rollbackmlmodelversion */
         post: operations["rollbackMlModelVersion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/platform/ml/predictions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Predictions */
+        get: operations["listMlPredictions"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2593,6 +2644,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenant/insights": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Insights */
+        get: operations["getTenantInsights"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/insights/cash-flow": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Cash Flow */
+        get: operations["getTenantCashFlowInsight"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/insights/manual-overrides": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Manual Overrides
+         * @description Captures where OCR produced a value but the stored reading was entered by a person.
+         */
+        get: operations["listManualOverrides"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenant/job-sites": {
         parameters: {
             query?: never;
@@ -3079,6 +3184,26 @@ export interface paths {
         put?: never;
         /** Decide Reset */
         post: operations["decideMeterReset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/ml/predictions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Tenant Predictions
+         * @description Surfaced model observations only (RLS also hides every other state from tenants); no scores.
+         */
+        get: operations["listTenantPredictions"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -4429,6 +4554,60 @@ export interface components {
              */
             staff_member_id: string;
         };
+        /** CashFlowInsightDto */
+        CashFlowInsightDto: {
+            /** Currency */
+            currency: string;
+            /** Median Weekly Net */
+            median_weekly_net: string | null;
+            /** Message */
+            message: string;
+            /** Min Weeks Required */
+            min_weeks_required: number;
+            /** Missing */
+            missing: string[];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "READY" | "INSUFFICIENT_DATA";
+            /** Trend */
+            trend: ("UP" | "DOWN" | "FLAT") | null;
+            /**
+             * Trend Per Week
+             * @description Least-squares change in weekly net per week
+             */
+            trend_per_week: string | null;
+            /** Weeks */
+            weeks: components["schemas"]["CashFlowWeekDto"][];
+            /** Weeks Observed */
+            weeks_observed: number;
+        };
+        /** CashFlowWeekDto */
+        CashFlowWeekDto: {
+            /**
+             * Expenses
+             * @description Approved expenses incurred in the week
+             */
+            expenses: string;
+            /** Net */
+            net: string;
+            /**
+             * Receipts
+             * @description Verified customer receipts received in the week
+             */
+            receipts: string;
+            /**
+             * Week End
+             * Format: date-time
+             */
+            week_end: string;
+            /**
+             * Week Start
+             * Format: date-time
+             */
+            week_start: string;
+        };
         /** CashHandoverDto */
         CashHandoverDto: {
             /** Amount */
@@ -5009,6 +5188,11 @@ export interface components {
             version: number;
         };
         /**
+         * DecisionState
+         * @enum {string}
+         */
+        DecisionState: "SHADOW" | "SURFACED" | "BELOW_THRESHOLD" | "INSUFFICIENT_DATA" | "MODEL_DISABLED";
+        /**
          * DeliveryStatus
          * @enum {string}
          */
@@ -5059,6 +5243,11 @@ export interface components {
             /** Status */
             status: string;
         };
+        /**
+         * DriftSummaryLevel
+         * @enum {string}
+         */
+        DriftSummaryLevel: "STABLE" | "WATCH" | "DRIFT" | "INSUFFICIENT_DATA";
         /** EffectivePolicyDto */
         EffectivePolicyDto: {
             policy_type: components["schemas"]["PolicyType"];
@@ -5404,6 +5593,58 @@ export interface components {
             /** Severity */
             severity: string;
             type: components["schemas"]["ExceptionType"];
+        };
+        /** FuelEfficiencyInsightDto */
+        FuelEfficiencyInsightDto: {
+            /** Asset Code */
+            asset_code: string;
+            /** Band High */
+            band_high: number | null;
+            /** Band Low */
+            band_low: number | null;
+            /** Current Litres Per Hour */
+            current_litres_per_hour: number | null;
+            /**
+             * Machine Id
+             * Format: uuid
+             */
+            machine_id: string;
+            /** Machine Name */
+            machine_name: string;
+            /**
+             * Median Litres Per Hour
+             * @description Median of this machine's previous weeks
+             */
+            median_litres_per_hour: number | null;
+            /** Message */
+            message: string;
+            /** Min Weeks Required */
+            min_weeks_required: number;
+            /**
+             * Missing
+             * @description What is missing for an honest comparison (INSUFFICIENT_DATA)
+             */
+            missing: string[];
+            /**
+             * Outside Usual Range
+             * @description Current week outside the machine's robust band
+             */
+            outside_usual_range: boolean | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "READY" | "INSUFFICIENT_DATA";
+            /**
+             * Week Ending
+             * @description Week the current value belongs to (tenant-local week end)
+             */
+            week_ending: string | null;
+            /**
+             * Weeks Observed
+             * @description Previous weeks with both fuel and meter hours
+             */
+            weeks_observed: number;
         };
         /** FuelEventDto */
         FuelEventDto: {
@@ -5878,6 +6119,11 @@ export interface components {
             /** Truncated */
             truncated: boolean;
         };
+        /**
+         * InferenceOutcome
+         * @enum {string}
+         */
+        InferenceOutcome: "OK" | "SKIPPED" | "ERROR";
         /** IngestResultDto */
         IngestResultDto: {
             /** Accepted */
@@ -6771,12 +7017,117 @@ export interface components {
          * @enum {string}
          */
         MandateScope: "FULL" | "OPERATIONS";
+        /** ManualOverrideItemDto */
+        ManualOverrideItemDto: {
+            /** Asset Code */
+            asset_code: string;
+            /**
+             * Capture Id
+             * Format: uuid
+             */
+            capture_id: string;
+            /** Capture Mode */
+            capture_mode: string;
+            /**
+             * Captured At
+             * Format: date-time
+             */
+            captured_at: string;
+            /** Captured By Name */
+            captured_by_name: string | null;
+            /** Captured By User Id */
+            captured_by_user_id: string | null;
+            /**
+             * Difference
+             * @description entered - OCR
+             */
+            difference: string | null;
+            /** Entered Value */
+            entered_value: string;
+            /**
+             * Exception Id
+             * @description The MANUAL_CORRECTION exception raised for review, if any
+             */
+            exception_id: string | null;
+            /** Exception Status */
+            exception_status: string | null;
+            /**
+             * Job Id
+             * Format: uuid
+             */
+            job_id: string;
+            /** Job Number */
+            job_number: string | null;
+            /** Kind */
+            kind: string;
+            /**
+             * Machine Id
+             * Format: uuid
+             */
+            machine_id: string;
+            /** Machine Name */
+            machine_name: string;
+            /** Manually Corrected */
+            manually_corrected: boolean;
+            /** Ocr Confidence */
+            ocr_confidence: number | null;
+            /** Ocr Engine */
+            ocr_engine: string | null;
+            /** Ocr Value */
+            ocr_value: string | null;
+            /**
+             * Received At
+             * Format: date-time
+             */
+            received_at: string;
+            /** State */
+            state: string;
+        };
+        /** ManualOverrideReportDto */
+        ManualOverrideReportDto: {
+            /** Items */
+            items: components["schemas"]["ManualOverrideItemDto"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            summary: components["schemas"]["ManualOverrideSummaryDto"];
+            /** Total */
+            total: number;
+        };
+        /** ManualOverrideSummaryDto */
+        ManualOverrideSummaryDto: {
+            /**
+             * Exceptions Open
+             * @description Related MANUAL_CORRECTION exceptions not yet reviewed
+             */
+            exceptions_open: number;
+            /**
+             * Manual Corrections
+             * @description OCR value corrected by the supervisor
+             */
+            manual_corrections: number;
+            /**
+             * Manual Mode With Ocr
+             * @description Manual-mode captures where an OCR value also existed
+             */
+            manual_mode_with_ocr: number;
+            /** Total */
+            total: number;
+            /**
+             * Value Differs
+             * @description Entered value differs from the OCR value
+             */
+            value_differs: number;
+        };
         /** MeDto */
         MeDto: {
             /** Display Name */
             display_name: string;
             /** Email */
             email: string;
+            /** Platform Menu Groups */
+            platform_menu_groups: components["schemas"]["MenuGroupDto"][];
             /** Platform Menus */
             platform_menus: components["schemas"]["MenuDto"][];
             /** Platform Permissions */
@@ -6820,6 +7171,8 @@ export interface components {
         };
         /** MenuDto */
         MenuDto: {
+            /** Group */
+            group: string;
             /** Key */
             key: string;
             /** Label */
@@ -6828,6 +7181,18 @@ export interface components {
             order: number;
             /** Path */
             path: string;
+        };
+        /**
+         * MenuGroupDto
+         * @description A side-navigation section; listed only when at least one of its menus is visible, in `order`.
+         */
+        MenuGroupDto: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Order */
+            order: number;
         };
         /** MeterCaptureDto */
         MeterCaptureDto: {
@@ -6975,6 +7340,57 @@ export interface components {
             related_model_version_id: string | null;
             to_status: components["schemas"]["ModelStatus"];
         };
+        /** MlDriftDto */
+        MlDriftDto: {
+            /**
+             * Computed At
+             * Format: date-time
+             */
+            computed_at: string;
+            /** Features */
+            features: components["schemas"]["MlDriftFeatureDto"][];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            level: components["schemas"]["DriftSummaryLevel"];
+            /**
+             * Model Version Id
+             * Format: uuid
+             */
+            model_version_id: string;
+            /** N Recent */
+            n_recent: number;
+            /** N Train */
+            n_train: number;
+            /** Recent End */
+            recent_end: string | null;
+            /** Recent Start */
+            recent_start: string | null;
+            /** Summary */
+            summary: string;
+            /** Train End */
+            train_end: string | null;
+            /** Train Start */
+            train_start: string | null;
+        };
+        /** MlDriftFeatureDto */
+        MlDriftFeatureDto: {
+            /** Feature */
+            feature: string;
+            /**
+             * Level
+             * @description STABLE (< 0.1) | WATCH (0.1-0.25) | DRIFT (>= 0.25) | INSUFFICIENT_DATA
+             */
+            level: string;
+            /** N Actual */
+            n_actual: number;
+            /** N Expected */
+            n_expected: number;
+            /** Psi */
+            psi: number | null;
+        };
         /** MlEvaluationDto */
         MlEvaluationDto: {
             /** Criteria */
@@ -7012,6 +7428,39 @@ export interface components {
             /** Reasons */
             reasons: string[];
         };
+        /** MlInferenceAuditDto */
+        MlInferenceAuditDto: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Inference Run Id
+             * Format: uuid
+             */
+            inference_run_id: string;
+            /** Input Rows */
+            input_rows: number;
+            /** Latency Ms */
+            latency_ms: number;
+            /** Model Version Id */
+            model_version_id: string | null;
+            outcome: components["schemas"]["InferenceOutcome"];
+            /** Predictions Written */
+            predictions_written: number;
+            /** Reason */
+            reason: string | null;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /** Surfaced */
+            surfaced: number;
+            /** Tenant Id */
+            tenant_id: string | null;
+        };
         /** MlManifestSummaryDto */
         MlManifestSummaryDto: {
             /** Content Hash */
@@ -7048,16 +7497,12 @@ export interface components {
         MlModelVersionDetailDto: {
             /** Approvals */
             approvals: components["schemas"]["MlApprovalDto"][];
-            /**
-             * Drift
-             * @description Feature drift (PSI per feature) is recorded once inference runs (Gate 6D)
-             */
-            drift?: {
-                [key: string]: unknown;
-            } | null;
+            /** @description Latest PSI drift check (training vs recent 4 weeks) */
+            drift?: components["schemas"]["MlDriftDto"] | null;
             evaluation: components["schemas"]["MlEvaluationDto"] | null;
             manifest: components["schemas"]["MlManifestSummaryDto"];
             model: components["schemas"]["MlModelVersionDto"];
+            monitoring?: components["schemas"]["MlMonitoringDto"] | null;
         };
         /** MlModelVersionDto */
         MlModelVersionDto: {
@@ -7108,6 +7553,129 @@ export interface components {
             training_window_start: string | null;
             /** Version */
             version: number;
+        };
+        /** MlMonitoringDto */
+        MlMonitoringDto: {
+            /**
+             * Last Error
+             * @description Reason of the latest run when it failed
+             */
+            last_error: string | null;
+            /** Last Inference At */
+            last_inference_at: string | null;
+            /**
+             * Latency P50 Ms
+             * @description Median inference latency over recent OK runs
+             */
+            latency_p50_ms: number | null;
+            /** Latency P95 Ms */
+            latency_p95_ms: number | null;
+            /**
+             * Predictions By State
+             * @description prediction rows per decision state
+             */
+            predictions_by_state: {
+                [key: string]: number;
+            };
+            /**
+             * Runs By Outcome
+             * @description inference_audit rows per outcome (OK / SKIPPED / ERROR)
+             */
+            runs_by_outcome: {
+                [key: string]: number;
+            };
+        };
+        /**
+         * MlPredictionDto
+         * @description Platform-only view of a prediction with its full provenance.
+         */
+        MlPredictionDto: {
+            /** Approval Id */
+            approval_id: string | null;
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Baseline Raw Score */
+            baseline_raw_score: number | null;
+            /** Baseline Score */
+            baseline_score: string | null;
+            /** Calibrated */
+            calibrated: boolean;
+            /** Case Id */
+            case_id: string | null;
+            /** Contributions */
+            contributions: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Data Cutoff */
+            data_cutoff: string | null;
+            decision_state: components["schemas"]["DecisionState"];
+            /** Deployment Mode */
+            deployment_mode: string;
+            /** Evaluation Id */
+            evaluation_id: string | null;
+            /** Explanations */
+            explanations: string[];
+            /** Feature Set Hash */
+            feature_set_hash: string;
+            /** Feature Snapshot Ids */
+            feature_snapshot_ids: string[];
+            /** Features Present */
+            features_present: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Inference Run Id
+             * Format: uuid
+             */
+            inference_run_id: string;
+            /** Model Name */
+            model_name: string;
+            /**
+             * Model Version Id
+             * Format: uuid
+             */
+            model_version_id: string;
+            /** Model Version Number */
+            model_version_number: number;
+            /** Policy Version */
+            policy_version: string;
+            /**
+             * Raw Score
+             * @description Model-specific scale; never a probability
+             */
+            raw_score: number | null;
+            /**
+             * Score
+             * @description Calibrated percentile vs held-out weeks; null unless calibrated
+             */
+            score: string | null;
+            /**
+             * Subject Id
+             * Format: uuid
+             */
+            subject_id: string;
+            /** Subject Type */
+            subject_type: string;
+            /**
+             * Tenant Id
+             * Format: uuid
+             */
+            tenant_id: string;
+            /** Threshold */
+            threshold: string;
+            /** Would Surface */
+            would_surface: boolean;
         };
         /** MlReadinessDto */
         MlReadinessDto: {
@@ -7690,10 +8258,43 @@ export interface components {
             /** Total */
             total: number;
         };
+        /** Page[MlDriftDto] */
+        Page_MlDriftDto_: {
+            /** Items */
+            items: components["schemas"]["MlDriftDto"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+        };
+        /** Page[MlInferenceAuditDto] */
+        Page_MlInferenceAuditDto_: {
+            /** Items */
+            items: components["schemas"]["MlInferenceAuditDto"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+        };
         /** Page[MlModelVersionDto] */
         Page_MlModelVersionDto_: {
             /** Items */
             items: components["schemas"]["MlModelVersionDto"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+        };
+        /** Page[MlPredictionDto] */
+        Page_MlPredictionDto_: {
+            /** Items */
+            items: components["schemas"]["MlPredictionDto"][];
             /** Page */
             page: number;
             /** Page Size */
@@ -7793,6 +8394,17 @@ export interface components {
         Page_TenantDto_: {
             /** Items */
             items: components["schemas"]["TenantDto"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+        };
+        /** Page[TenantPredictionDto] */
+        Page_TenantPredictionDto_: {
+            /** Items */
+            items: components["schemas"]["TenantPredictionDto"][];
             /** Page */
             page: number;
             /** Page Size */
@@ -8940,6 +9552,8 @@ export interface components {
         TenantAccessDto: {
             access_state: components["schemas"]["TenantAccessState"];
             mandate?: components["schemas"]["MandateBadgeDto"] | null;
+            /** Menu Groups */
+            menu_groups: components["schemas"]["MenuGroupDto"][];
             /** Menus */
             menus: components["schemas"]["MenuDto"][];
             /** Name */
@@ -8994,6 +9608,30 @@ export interface components {
              */
             version: number;
         };
+        /** TenantInsightsDto */
+        TenantInsightsDto: {
+            /** @description Present only with tenant.finance.report */
+            cash_flow: components["schemas"]["CashFlowInsightDto"] | null;
+            /** Fuel Efficiency */
+            fuel_efficiency: components["schemas"]["FuelEfficiencyInsightDto"][];
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /**
+             * History Weeks
+             * @description Weeks of history considered
+             */
+            history_weeks: number;
+            /**
+             * Method
+             * @description How each insight is computed, in plain words
+             */
+            method: string[];
+            /** Utilisation */
+            utilisation: components["schemas"]["UtilisationInsightDto"][];
+        };
         /** TenantMlDeploymentDto */
         TenantMlDeploymentDto: {
             /** Deployed At */
@@ -9013,9 +9651,19 @@ export interface components {
             deployed: components["schemas"]["TenantMlDeploymentDto"] | null;
             /** Inference Enabled */
             inference_enabled: boolean;
+            /**
+             * Label
+             * @description "Model off" | "Learning (shadow)" | "Not enough history yet: <reasons>" | "Active" | ...
+             */
+            label: string;
             /** Model Name */
             model_name: string;
             readiness: components["schemas"]["MlReadinessDto"] | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "MODEL_OFF" | "NOT_ASSESSED" | "NOT_ENOUGH_HISTORY" | "EVALUATING" | "LEARNING_SHADOW" | "ACTIVE";
             /**
              * Summary
              * @description Plain-language status for the tenant
@@ -9050,6 +9698,40 @@ export interface components {
             subscription: components["schemas"]["SubscriptionSetupIn"];
             /** Timezone */
             timezone: string;
+        };
+        /**
+         * TenantPredictionDto
+         * @description A surfaced model observation as a tenant sees it: neutral observations and the case to review, no score.
+         */
+        TenantPredictionDto: {
+            /** Case Id */
+            case_id: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Machine Id
+             * Format: uuid
+             */
+            machine_id: string;
+            /** Model Name */
+            model_name: string;
+            /** Model Version */
+            model_version: number;
+            /** Observations */
+            observations: string[];
+            /**
+             * Week Ending
+             * Format: date-time
+             */
+            week_ending: string;
         };
         /**
          * TenantStatus
@@ -9323,6 +10005,47 @@ export interface components {
             /** Reason */
             reason: string;
         };
+        /** UtilisationInsightDto */
+        UtilisationInsightDto: {
+            /** Asset Code */
+            asset_code: string;
+            /**
+             * Available Days
+             * @description Calendar days in the observed weeks while the machine was registered
+             */
+            available_days: number;
+            /** Hours Per Available Day */
+            hours_per_available_day: number | null;
+            /**
+             * Machine Id
+             * Format: uuid
+             */
+            machine_id: string;
+            /** Machine Name */
+            machine_name: string;
+            /** Message */
+            message: string;
+            /** Min Weeks Required */
+            min_weeks_required: number;
+            /** Missing */
+            missing: string[];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "READY" | "INSUFFICIENT_DATA";
+            /** Trend */
+            trend: ("UP" | "DOWN" | "FLAT") | null;
+            /**
+             * Trend Hours Per Week
+             * @description Least-squares change in weekly hours per week
+             */
+            trend_hours_per_week: number | null;
+            /** Weekly */
+            weekly: components["schemas"]["WeeklyHoursDto"][];
+            /** Weeks Observed */
+            weeks_observed: number;
+        };
         /** VerificationIn */
         VerificationIn: {
             /** Note */
@@ -9338,6 +10061,21 @@ export interface components {
         VoidInvoiceIn: {
             /** Reason */
             reason: string;
+        };
+        /** WeeklyHoursDto */
+        WeeklyHoursDto: {
+            /** Hours */
+            hours: number;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "meter" | "engine" | "none";
+            /**
+             * Week Ending
+             * Format: date-time
+             */
+            week_ending: string;
         };
     };
     responses: never;
@@ -10823,6 +11561,100 @@ export interface operations {
             };
         };
     };
+    listMlInferenceAudit: {
+        parameters: {
+            query?: {
+                model_version_id?: string | null;
+                tenant_id?: string | null;
+                outcome?: components["schemas"]["InferenceOutcome"] | null;
+                page?: number;
+                page_size?: number;
+                q?: string | null;
+                sort?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_MlInferenceAuditDto_"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     listMlModelVersions: {
         parameters: {
             query?: {
@@ -11377,6 +12209,99 @@ export interface operations {
             };
         };
     };
+    listMlModelDrift: {
+        parameters: {
+            query?: {
+                page?: number;
+                page_size?: number;
+                q?: string | null;
+                sort?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                model_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_MlDriftDto_"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     rejectMlModelVersion: {
         parameters: {
             query?: never;
@@ -11589,6 +12514,101 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MlModelVersionDetailDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listMlPredictions: {
+        parameters: {
+            query?: {
+                model_version_id?: string | null;
+                tenant_id?: string | null;
+                decision_state?: components["schemas"]["DecisionState"] | null;
+                subject_id?: string | null;
+                page?: number;
+                page_size?: number;
+                q?: string | null;
+                sort?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_MlPredictionDto_"];
                 };
             };
             /** @description Bad Request */
@@ -25146,6 +26166,273 @@ export interface operations {
             };
         };
     };
+    getTenantInsights: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TenantInsightsDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getTenantCashFlowInsight: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CashFlowInsightDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listManualOverrides: {
+        parameters: {
+            query?: {
+                captured_from?: string | null;
+                captured_to?: string | null;
+                machine_id?: string | null;
+                user_id?: string | null;
+                page?: number;
+                page_size?: number;
+                q?: string | null;
+                sort?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManualOverrideReportDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     listJobSites: {
         parameters: {
             query?: {
@@ -28697,6 +29984,98 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ResetDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listTenantPredictions: {
+        parameters: {
+            query?: {
+                machine_id?: string | null;
+                page?: number;
+                page_size?: number;
+                q?: string | null;
+                sort?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_TenantPredictionDto_"];
                 };
             };
             /** @description Bad Request */

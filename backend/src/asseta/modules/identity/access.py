@@ -25,7 +25,11 @@ from asseta.modules.managed_service.models import ManagedServiceMandate, Mandate
 
 ACCESS_READ = requires("tenant.access.read", S.TENANT, "View tenant users, roles and permissions")
 ACCESS_MANAGE = requires("tenant.access.manage", S.TENANT, "Invite users and grant/revoke tenant roles")
-CATALOG.register_menu(MenuDef("tenant.access", S.TENANT, "Users & roles", "/tenant/access", 85, "tenant.access.read"))
+CATALOG.register_menu(
+    MenuDef(
+        "tenant.access", S.TENANT, "Users & roles", "/tenant/access", 85, "tenant.access.read", group="tenant.admin"
+    )
+)
 OWNER_ROLE = "owner"
 
 router = APIRouter(prefix="/api/v1/tenant/access", tags=["tenant-access"], responses=ERROR_RESPONSES)

@@ -44,6 +44,36 @@ def test_catalog_synced_and_me(api: Api) -> None:
     assert any(m["key"] == "platform.tenants" for m in me["platform_menus"]) and me["tenants"] == []
 
 
+def test_me_returns_menu_groups_in_order_only_when_visible(api: Api) -> None:
+    me = api.platform.get("/api/v1/me").json()
+    groups = [g["key"] for g in me["platform_menu_groups"]]
+    assert groups == [f"platform.{k}" for k in ("overview", "tenants", "billing", "intelligence", "admin")]
+    assert [g["order"] for g in me["platform_menu_groups"]] == sorted(g["order"] for g in me["platform_menu_groups"])
+    assert {m["group"] for m in me["platform_menus"]} == set(groups)
+    assert me["platform_menus"][0]["path"] == "/platform"  # the platform landing page opens the Overview
+
+    a = api.onboard("Grouped Nav Co", price="1")
+    [tenant] = a["owner"].get("/api/v1/me").json()["tenants"]
+    assert [g["label"] for g in tenant["menu_groups"]] == [
+        "Overview",
+        "Operations",
+        "Fleet",
+        "Finance",
+        "Risk & review",
+        "Administration",
+    ]
+    assert tenant["menus"][0]["path"] == "/tenant/fleet"
+    # An operator (self-service only) sees just the Administration group: empty groups are not listed.
+    r = a["owner"].post(
+        "/api/v1/tenant/access/members",
+        {"email": "op@nav.example.com", "first_name": "O", "last_name": "P", "role_key": "operator"},
+    )
+    assert r.status_code == 201
+    [op_tenant] = api.tenant_user("op@nav.example.com", a["tenant"]["id"]).get("/api/v1/me").json()["tenants"]
+    assert [g["key"] for g in op_tenant["menu_groups"]] == ["tenant.admin"]
+    assert [m["label"] for m in op_tenant["menus"]] == ["Notifications"]
+
+
 def test_tenant_isolation_api_and_rls(api: Api) -> None:
     a = api.onboard("Alpha Plant", price="75000")
     b = api.onboard("Bravo Earthmovers", price="50000")

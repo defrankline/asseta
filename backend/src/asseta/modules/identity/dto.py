@@ -13,6 +13,15 @@ class MenuDto(BaseModel):
     label: str
     path: str
     order: int
+    group: str  # MenuGroupDto.key
+
+
+class MenuGroupDto(BaseModel):
+    """A side-navigation section; listed only when at least one of its menus is visible, in `order`."""
+
+    key: str
+    label: str
+    order: int
 
 
 class MandateBadgeDto(BaseModel):
@@ -31,6 +40,7 @@ class TenantAccessDto(BaseModel):
     access_state: TenantAccessState
     permissions: list[str]
     menus: list[MenuDto]
+    menu_groups: list[MenuGroupDto]
     mandate: MandateBadgeDto | None = None
 
 
@@ -40,4 +50,5 @@ class MeDto(BaseModel):
     display_name: str
     platform_permissions: list[str]
     platform_menus: list[MenuDto]
+    platform_menu_groups: list[MenuGroupDto]
     tenants: list[TenantAccessDto]

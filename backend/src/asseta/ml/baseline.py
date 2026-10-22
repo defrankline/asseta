@@ -119,3 +119,23 @@ def cashflow_trend_insight(weekly_net: Sequence[float], min_weeks: int = 6) -> I
         min_weeks,
         len(weekly_net),
     )
+
+
+def robust_band(values: Sequence[float], k: float = 3.0, min_relative: float = 0.15) -> tuple[float, float, float]:
+    """(median, low, high): median +/- max(k x MAD x 1.4826, min_relative x |median|) of a machine's own history.
+
+    The relative floor keeps a very steady machine from being flagged for an ordinary few-percent change."""
+    if not values:
+        raise ValueError("robust_band needs at least one value")
+    med = statistics.median(values)
+    mad = statistics.median(abs(v - med) for v in values)
+    half = max(k * 1.4826 * mad, min_relative * abs(med))
+    return med, med - half, med + half
+
+
+def weekly_trend(values: Sequence[float]) -> float:
+    """Least-squares slope per week (0.0 for fewer than two points)."""
+    if len(values) < 2:
+        return 0.0
+    x = np.arange(len(values), dtype=np.float64)
+    return float(np.polyfit(x, np.asarray(values, dtype=np.float64), 1)[0])

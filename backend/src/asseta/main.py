@@ -28,6 +28,8 @@ from asseta.modules.identity.authz_sync import AuthzSyncService
 from asseta.modules.identity.idp import IdentityProviderAdmin
 from asseta.modules.identity.keycloak_admin import KeycloakAdminClient
 from asseta.modules.identity.tokens import JwksSigningKeyProvider, OidcTokenVerifier, TokenVerifier
+from asseta.modules.intelligence import insights_router as intelligence_insights_router
+from asseta.modules.intelligence import ml_monitoring_router as intelligence_ml_monitoring_router
 from asseta.modules.intelligence import ml_router as intelligence_ml_router
 from asseta.modules.intelligence import router as intelligence_router
 from asseta.modules.jobs import router as jobs_router
@@ -61,7 +63,7 @@ def build_token_verifier(settings: Settings) -> TokenVerifier:
     return OidcTokenVerifier(keys, settings.issuer, settings.keycloak_audience)
 
 
-def build_object_store(settings: Settings) -> ObjectStore:
+def build_object_store(settings: Settings) -> S3ObjectStore:
     return S3ObjectStore(
         settings.s3_endpoint,
         settings.s3_public_endpoint,
@@ -139,6 +141,8 @@ def create_app(
         intelligence_router.router,
         intelligence_ml_router.platform_router,
         intelligence_ml_router.tenant_router,
+        intelligence_ml_monitoring_router.router,
+        intelligence_insights_router.router,
         commerce_router.router,
         commerce_router.tenant_router,
         notification_router.tenant_router,

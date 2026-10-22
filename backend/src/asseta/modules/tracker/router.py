@@ -45,7 +45,19 @@ PLATFORM_MODELS = requires("platform.tracker_model.manage", S.PLATFORM, "Manage 
 PLATFORM_MODELS_READ = requires("platform.tracker_model.read", S.PLATFORM, "View the tracker driver/model catalog")
 TRACKER_READ = requires("tenant.tracker.read", S.TENANT, "View trackers, capabilities and assignments")
 TRACKER_WRITE = requires("tenant.tracker.write", S.TENANT, "Register, assign and retire trackers")
-CATALOG.register_menu(MenuDef("tenant.trackers", S.TENANT, "Trackers", "/tenant/trackers", 40, "tenant.tracker.read"))
+for menu in (
+    MenuDef("tenant.trackers", S.TENANT, "Trackers", "/tenant/trackers", 40, "tenant.tracker.read", "tenant.fleet"),
+    MenuDef(
+        "platform.telemetry",
+        S.PLATFORM,
+        "Trackers & gateways",
+        "/platform/telemetry",
+        85,
+        "platform.tracker_model.read",
+        "platform.admin",
+    ),
+):
+    CATALOG.register_menu(menu)
 
 router = APIRouter(prefix="/api/v1", tags=["trackers"], responses=ERROR_RESPONSES)
 DbSession = Annotated[Session, Depends(get_session)]
