@@ -52,6 +52,21 @@ public enum FleetPresentation {
         return "Never seen"
     }
 
+    /// Connectivity filters offered on the fleet screen (same four as the Android Owner app).
+    public static let filterTones: [MarkerTone] = [.live, .recent, .stale, .offline]
+
+    /// Search (name, asset code, operator, supervisor) and an optional connectivity filter on the *displayed* tone,
+    /// so cached data never matches "Live" (same rule as the Android Owner app).
+    public static func filter(_ machines: [MachineMapDTO], query: String, tone: MarkerTone?, dataIsCached: Bool,
+                              now: Date = Date()) -> [MachineMapDTO] {
+        let q = query.trimmingCharacters(in: .whitespaces).lowercased()
+        return machines.filter { m in
+            if let tone, style(for: m, dataIsCached: dataIsCached, now: now).tone != tone { return false }
+            guard !q.isEmpty else { return true }
+            return [m.assetCode, m.name, m.operator, m.supervisor].contains { $0?.lowercased().contains(q) == true }
+        }
+    }
+
     /// Machines sorted for lists: open alerts first, then most recently seen, then asset code.
     public static func sorted(_ machines: [MachineMapDTO]) -> [MachineMapDTO] {
         machines.sorted { a, b in

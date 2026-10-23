@@ -43,6 +43,18 @@ struct FleetPresentationTests {
         let alarmed = try machine("OFFLINE", lastMessage: "2026-10-01T00:00:00Z", alerts: 2)
         #expect(FleetPresentation.sorted([quiet, alarmed]).first?.openAlerts == 2)
     }
+
+    @Test func connectivityFilterUsesTheDisplayedToneAndSearchMatchesCodeOrName() throws {
+        let live = try machine("LIVE"), offline = try machine("OFFLINE")
+        let fresh = FleetPresentation.filter([live, offline], query: "", tone: .live, dataIsCached: false, now: now)
+        #expect(fresh.map(\.connectivity) == [.live])
+        // Cached data is never "Live", so the Live filter matches nothing offline.
+        #expect(FleetPresentation.filter([live], query: "", tone: .live, dataIsCached: true, now: now).isEmpty)
+        #expect(FleetPresentation.filter([live, offline], query: "", tone: nil, dataIsCached: false, now: now).count == 2)
+        #expect(FleetPresentation.filter([live], query: "ex-0", tone: nil, dataIsCached: false, now: now).count == 1)
+        #expect(FleetPresentation.filter([live], query: "excavator", tone: nil, dataIsCached: false, now: now).count == 1)
+        #expect(FleetPresentation.filter([live], query: "grader", tone: nil, dataIsCached: false, now: now).isEmpty)
+    }
 }
 
 struct FormatTests {

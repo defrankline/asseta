@@ -13,6 +13,7 @@ struct FleetView: View {
     @State private var loader = Loader<[MachineMapDTO]>()
     @State private var mode: Mode = .map
     @State private var search = ""
+    @State private var tone: MarkerTone?
     @State private var selected: UUID?
     @State private var camera: MapCameraPosition = .automatic
 
@@ -24,6 +25,7 @@ struct FleetView: View {
             .pickerStyle(.segmented)
             .padding([.horizontal, .top])
             .padding(.bottom, 8)
+            filters
             if loader.isFromCache {
                 StaleBanner(fetchedAt: loader.snapshot?.fetchedAt, isOnline: model.isOnline).padding(.horizontal)
             }
@@ -31,7 +33,7 @@ struct FleetView: View {
         }
         .navigationTitle("Fleet")
         .navigationBarTitleDisplayMode(.inline)
-        .searchable(text: $search, prompt: "Asset code or name")
+        .searchable(text: $search, prompt: "Search machine, code, operator")
         .refreshable { await reload() }
         .task(id: model.changeTick) { await reload() }
         .navigationDestination(item: $selected) { MachineDetailView(model: model, machineID: $0) }
@@ -40,10 +42,30 @@ struct FleetView: View {
     private func reload() async { await loader.load(model, .fleetMap, OwnerAPI.fleetMap()) }
 
     private var machines: [MachineMapDTO] {
-        let all = FleetPresentation.sorted(loader.value ?? [])
-        let query = search.trimmingCharacters(in: .whitespaces).lowercased()
-        guard !query.isEmpty else { return all }
-        return all.filter { $0.assetCode.lowercased().contains(query) || $0.name.lowercased().contains(query) }
+        FleetPresentation.filter(FleetPresentation.sorted(loader.value ?? []), query: search, tone: tone,
+                                 dataIsCached: loader.isFromCache)
+    }
+
+    /// Live / Recent / Stale / Offline chips and the "N of M machines" count, as in the Android Owner app.
+    private var filters: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                ForEach(FleetPresentation.filterTones, id: \.self) { t in
+                    let on = tone == t
+                    Button(t.rawValue.capitalized) { tone = on ? nil : t }
+                        .font(.footnote)
+                        .buttonStyle(.bordered)
+                        .tint(on ? Brand.amber : .secondary)
+                        .accessibilityAddTraits(on ? .isSelected : [])
+                }
+            }
+            if let all = loader.value {
+                Text("\(machines.count) of \(all.count) machines").font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal)
+        .padding(.bottom, 8)
     }
 
     @ViewBuilder private var content: some View {
