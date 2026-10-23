@@ -81,6 +81,53 @@ class OutboxV2DaoTest {
     }
 
     @Test
+    fun expenseWaitsForEveryReceiptAttachment() = runTest {
+        val evidence = db.evidenceDao()
+        val receipts = (1..10).map { "r$it" }
+        receipts.forEachIndexed { i, id ->
+            evidence.insertAttachment(
+                AttachmentEntity(id, tenant, "EXPENSE_RECEIPT", "f$i", "a".repeat(64), 10, "image/jpeg", AttachmentEntity.PENDING, createdAt = i.toLong()),
+            )
+        }
+        val expense = op(1).copy(opType = "EXPENSE").also { ops.enqueueWithDependencies(it, emptyList(), receipts + "r1") }
+        assertEquals(receipts, ops.attachmentsOf(expense.id))
+        receipts.dropLast(1).forEach { id ->
+            evidence.markAttachmentComplete(id, "server-$id")
+            assertEquals(listOf(expense.id), ops.forAttachment(id).map { it.id })
+            assertEquals(emptyList<String>(), ops.dispatchable(tenant, 10).map { it.id }) // one receipt still uploading
+        }
+        assertEquals(1, evidence.observePendingAttachmentCount(tenant).first())
+        evidence.markAttachmentComplete("r10", "server-r10")
+        assertEquals(listOf(expense.id), ops.dispatchable(tenant, 10).map { it.id })
+    }
+
+    @Test
+    fun refusedUploadWaitsForItsRetryTimeAndFailedUploadIsNeverRetried() = runTest {
+        val evidence = db.evidenceDao()
+        fun attachment(id: String, at: Long) =
+            AttachmentEntity(id, tenant, "METER_PHOTO", id, "a".repeat(64), 10, "image/jpeg", AttachmentEntity.PENDING, createdAt = at)
+        evidence.insertAttachment(attachment("a", 1))
+        evidence.insertAttachment(attachment("b", 2))
+        evidence.insertAttachment(attachment("c", 3))
+        assertEquals(1, evidence.recordAttemptFailure("a", "VALIDATION_ERROR: refused", retryAt = 1_000))
+        assertEquals(1, evidence.markAttachmentFailed("c", "FILE_TOO_LARGE"))
+        assertEquals(listOf("b"), evidence.uploadableAttachments(tenant, now = 999, limit = 10).map { it.id })
+        assertEquals(listOf("a", "b"), evidence.uploadableAttachments(tenant, now = 1_000, limit = 10).map { it.id })
+        val refused = evidence.attachment("a")!!
+        assertEquals(1, refused.attemptCount)
+        assertEquals("VALIDATION_ERROR: refused", refused.lastError)
+        assertEquals(0, evidence.recordAttemptFailure("c", "x", null)) // FAILED is final
+        assertEquals(AttachmentEntity.FAILED, evidence.attachment("c")!!.status)
+        assertEquals(listOf("c"), evidence.observeFailedAttachments(tenant).first().map { it.id })
+        assertEquals(2, evidence.observePendingAttachmentCount(tenant).first())
+        // An operation gated on a file that can never be uploaded is never sent.
+        val gated = op(4).also { ops.enqueueWithDependencies(it, emptyList(), listOf("c")) }
+        assertEquals(emptyList<String>(), ops.dispatchable(tenant, 10).map { it.id }.filter { it == gated.id })
+        evidence.markAttachmentComplete("a", "server-a")
+        assertNull(evidence.attachment("a")!!.nextAttemptAt)
+    }
+
+    @Test
     fun sentOpsRecoverAfterProcessDeathAndPayloadFreezesAfterFirstSend() = runTest {
         val o = op(1).also { ops.enqueue(it) }
         assertEquals(1, ops.patchUnsentPayload(o.id, """{"photo_attachment_id":"x"}"""))

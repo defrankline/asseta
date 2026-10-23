@@ -4,7 +4,7 @@ package com.asseta.core.domain.sync
  * Exponential backoff with "equal jitter": the cap doubles per consecutive failure (bounded by [maxMs]) and the
  * delay is uniformly drawn from [cap/2, cap], so many devices reconnecting together do not retry in lockstep.
  */
-class Backoff(private val baseMs: Long = 15_000, private val maxMs: Long = 30 * 60_000) {
+class Backoff(private val baseMs: Long = 15_000, val maxMs: Long = 30 * 60_000) {
     init {
         require(baseMs > 0 && maxMs >= baseMs)
     }

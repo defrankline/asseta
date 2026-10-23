@@ -1,5 +1,6 @@
 package com.asseta.core.sync
 
+import com.asseta.core.database.AttachmentEntity
 import com.asseta.core.domain.policy.CaptureMode
 import com.asseta.core.domain.policy.ReadingKind
 import com.asseta.core.model.ClientOperationStatus.ACKED
@@ -21,6 +22,7 @@ import kotlinx.serialization.json.putJsonObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -251,5 +253,47 @@ class SyncEngineTest : SyncTestBase() {
         val third = engine(online = false).sync(tenant) as SyncReport.Retry
         assertTrue(first.retryAfterMs < second.retryAfterMs && second.retryAfterMs < third.retryAfterMs)
         assertEquals(3, db.syncStateDao().get(tenant)!!.failureStreak)
+    }
+
+    @Test
+    fun nextAutomaticRetryIsTheBackoffTimeAndClearedBySuccess() = runBlocking {
+        val failed = engine(online = false).sync(tenant) as SyncReport.Retry
+        assertEquals(clock.now + failed.retryAfterMs, db.syncStateDao().get(tenant)!!.nextSyncAt)
+        val again = engine(online = false).sync(tenant) as SyncReport.Retry
+        assertEquals(clock.now + again.retryAfterMs, repository.observeSyncState(tenant).first()!!.nextSyncAt)
+        success(engine().sync(tenant))
+        assertNull(db.syncStateDao().get(tenant)!!.nextSyncAt)
+    }
+
+    @Test
+    fun missingEvidenceIsMarkedFailedForGoodAndItsCaptureIsNeverSent() = runBlocking {
+        success(engine().sync(tenant))
+        val saved = saved(capture(captureRequest()))
+        val attachment = db.evidenceDao().pendingAttachments(tenant, 10).single()
+        files.delete(attachment.fileName)
+        success(engine().sync(tenant)) // the rest of the sync goes on
+        val failed = db.evidenceDao().attachment(attachment.id)!!
+        assertEquals(AttachmentEntity.FAILED, failed.status)
+        assertEquals("LOCAL_EVIDENCE_UNAVAILABLE: file missing", failed.lastError)
+        assertEquals(listOf(attachment.id), repository.observeFailedUploads(tenant).first().map { it.id })
+        assertEquals(0, repository.observePendingUploads(tenant).first())
+        success(engine().sync(tenant))
+        assertEquals(PENDING, status(saved.operationId))
+        assertTrue(fake.pushedBatches.none { saved.operationId in it })
+        assertTrue(fake.requests.none { it == "POST /api/v1/sync/blobs" }) // never retried
+    }
+
+    @Test
+    fun changedEvidenceAndFileTooLargeAreMarkedFailed() = runBlocking {
+        success(engine().sync(tenant))
+        saved(capture(captureRequest()))
+        val changed = db.evidenceDao().pendingAttachments(tenant, 10).single()
+        db.evidenceDao().insertAttachment(changed.copy(id = "copy", fileName = files.write(byteArrayOf(9, 9, 9))))
+        fake.startBlobErrors += 413 to "FILE_TOO_LARGE"
+        success(engine().sync(tenant))
+        assertEquals("FILE_TOO_LARGE", db.evidenceDao().attachment(changed.id)!!.lastError)
+        assertEquals("LOCAL_EVIDENCE_UNAVAILABLE: file changed", db.evidenceDao().attachment("copy")!!.lastError)
+        assertEquals(setOf(AttachmentEntity.FAILED), repository.observeFailedUploads(tenant).first().map { it.status }.toSet())
+        assertEquals(2, repository.observeFailedUploads(tenant).first().size)
     }
 }

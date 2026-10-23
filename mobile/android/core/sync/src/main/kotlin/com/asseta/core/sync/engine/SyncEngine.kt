@@ -52,7 +52,7 @@ class SyncEngine(
 ) {
     private val mutex = Mutex()
     private val writer = ServerDataWriter(db, json)
-    private val uploader = BlobUploader(api, db, files, json)
+    private val uploader = BlobUploader(api, db, files, json, clock::nowMs, backoff.maxMs)
     private val pusher = OutboxPusher(api, db, clock, json)
 
     suspend fun sync(tenantId: String): SyncReport = mutex.withLock {
@@ -63,7 +63,7 @@ class SyncEngine(
             val uploaded = uploader.uploadPending(tenantId)
             val push = pusher.pushAll(tenantId, state(tenantId).maxBatch ?: DEFAULT_BATCH)
             if (push.sent > 0) pages += pull(tenantId)
-            updateState(tenantId) { it.copy(failureStreak = 0, lastError = null, lastSyncAt = clock.nowMs()) }
+            updateState(tenantId) { it.copy(failureStreak = 0, lastError = null, lastSyncAt = clock.nowMs(), nextSyncAt = null) }
             SyncReport.Success(pages, uploaded, push)
         } catch (e: ApiException) {
             handleApiError(tenantId, e)
@@ -71,8 +71,7 @@ class SyncEngine(
             retry(tenantId, "NETWORK", "Offline or server unreachable")
         } catch (e: SerializationException) {
             // Unexpected server payload: keep everything local and retry on the normal schedule.
-            val streak = recordFailure(tenantId, "BAD_SERVER_RESPONSE")
-            SyncReport.Failed("BAD_SERVER_RESPONSE", e.message ?: "Unreadable server response", backoff.delayFor(streak, random()))
+            SyncReport.Failed("BAD_SERVER_RESPONSE", e.message ?: "Unreadable server response", recordFailure(tenantId, "BAD_SERVER_RESPONSE"))
         }
     }
 
@@ -91,20 +90,26 @@ class SyncEngine(
                 SyncErrorCodes.BATCH_TOO_LARGE ->
                     updateState(tenantId) { it.copy(maxBatch = ((it.maxBatch ?: DEFAULT_BATCH) / 2).coerceAtLeast(1)) }
             }
-            val streak = recordFailure(tenantId, e.code)
-            SyncReport.Failed(e.code, e.message, backoff.delayFor(streak, random()))
+            SyncReport.Failed(e.code, e.message, recordFailure(tenantId, e.code))
         }
     }
 
     private suspend fun retry(tenantId: String, code: String, message: String): SyncReport {
-        val streak = recordFailure(tenantId, code)
-        return SyncReport.Retry("$code: $message", backoff.delayFor(streak, random()))
+        return SyncReport.Retry("$code: $message", recordFailure(tenantId, code))
     }
 
-    private suspend fun recordFailure(tenantId: String, code: String): Int {
-        var streak = 0
-        updateState(tenantId) { s -> s.copy(failureStreak = s.failureStreak + 1, lastError = code).also { streak = it.failureStreak } }
-        return streak
+    /**
+     * Counts the failure and returns the backoff delay before the next automatic retry (what the scheduler waits);
+     * its due time is persisted as `next_sync_at` so the sync status screen can show it, and cleared by a success.
+     */
+    private suspend fun recordFailure(tenantId: String, code: String): Long {
+        var delay = 0L
+        updateState(tenantId) { s ->
+            val streak = s.failureStreak + 1
+            delay = backoff.delayFor(streak, random())
+            s.copy(failureStreak = streak, lastError = code, nextSyncAt = clock.nowMs() + delay)
+        }
+        return delay
     }
 
     private suspend fun register(tenantId: String) {

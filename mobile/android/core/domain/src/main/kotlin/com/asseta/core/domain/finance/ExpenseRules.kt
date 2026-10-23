@@ -124,6 +124,9 @@ object ExpenseRules {
     const val MAX_DESCRIPTION = 2000
     const val MAX_SUPPLIER = 200
 
+    /** Receipt photos per expense (the server accepts at most ten `receipt_upload_ids`). */
+    const val MAX_RECEIPTS = 10
+
     fun assess(draft: ExpenseDraft, policy: ExpenseCapturePolicy, baseCurrency: String?): ExpenseAssessment {
         val issues = mutableListOf<ExpenseIssue>()
         fun add(code: ExpenseViolation, message: String) { issues += ExpenseIssue(code, message) }

@@ -30,6 +30,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.asseta.core.domain.capture.GpsOutcome
+import com.asseta.core.domain.finance.ExpenseRules
 import com.asseta.core.sync.usecase.FinanceResult
 import com.asseta.core.ui.theme.palette
 import com.asseta.supervisor.FieldGraph
@@ -110,7 +111,14 @@ fun <T> SegmentedChoice(options: List<T>, selected: T?, label: (T) -> String, on
 
 /** Receipt photo through the in-app camera; the original JPEG goes to the encrypted evidence store on save. */
 @Composable
-fun ReceiptSection(photo: CapturedPhoto?, required: Boolean, onPhoto: (CapturedPhoto?) -> Unit, onError: (String) -> Unit, enabled: Boolean) {
+fun ReceiptSection(
+    photos: List<CapturedPhoto>,
+    required: Boolean,
+    onAdd: (CapturedPhoto) -> Unit,
+    onRemove: (Int) -> Unit,
+    onError: (String) -> Unit,
+    enabled: Boolean,
+) {
     val context = LocalContext.current
     var granted by remember { mutableStateOf(context.hasAllPermissions(arrayOf(Manifest.permission.CAMERA))) }
     var open by remember { mutableStateOf(false) }
@@ -118,13 +126,14 @@ fun ReceiptSection(photo: CapturedPhoto?, required: Boolean, onPhoto: (CapturedP
         if (required) "Receipt (required)" else "Receipt (optional)",
         footer = "Stored encrypted on this phone and uploaded before the expense is sent.",
     ) {
-        photo?.let {
+        photos.forEachIndexed { index, photo ->
             Row(verticalAlignment = Alignment.CenterVertically) {
-                val preview = remember(it) { MeterOcr.decodeForOcr(it.jpeg, it.rotationDegrees)?.asImageBitmap() }
+                val preview = remember(photo) { MeterOcr.decodeForOcr(photo.jpeg, photo.rotationDegrees)?.asImageBitmap() }
                 preview?.let { img ->
-                    Image(img, "Receipt photo", Modifier.weight(1f).heightIn(max = 120.dp), contentScale = ContentScale.Fit, alignment = Alignment.CenterStart)
+                    Image(img, "Receipt photo ${index + 1}", Modifier.weight(1f).heightIn(max = 120.dp), contentScale = ContentScale.Fit,
+                        alignment = Alignment.CenterStart)
                 }
-                if (enabled) TextButton(onClick = { onPhoto(null) }) { Text("Remove", color = palette.offline) }
+                if (enabled) TextButton(onClick = { onRemove(index) }) { Text("Remove", color = palette.offline) }
             }
         }
         when {
@@ -137,11 +146,13 @@ fun ReceiptSection(photo: CapturedPhoto?, required: Boolean, onPhoto: (CapturedP
             )
             open -> CameraCapture(
                 buttonLabel = "Photograph receipt",
-                onCaptured = { onPhoto(it); open = false },
+                onCaptured = { onAdd(it); open = false },
                 onError = { onError(it); open = false },
             )
-            // One receipt photo per expense on Android (the outbox gates an operation on one attachment).
-            photo == null -> OutlinedButton(onClick = { open = true }) { Text("Photograph receipt") }
+            // Up to ten receipt photos per expense (as on iOS); the button is hidden at the limit.
+            photos.size < ExpenseRules.MAX_RECEIPTS -> OutlinedButton(onClick = { open = true }) {
+                Text(if (photos.isEmpty()) "Photograph receipt" else "Add another receipt photo")
+            }
         }
     }
 }

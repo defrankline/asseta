@@ -48,7 +48,7 @@ object FieldOps {
 /**
  * The single place that turns a field action into an outbox operation with its dependency chain
  * (opening capture -> START -> activities/closing -> acknowledgement -> COMPLETE), or a field-finance operation with
- * its explicit dependencies and evidence gate (an expense waits for its receipt upload). Must be called inside the
+ * its explicit dependencies and evidence gate (an expense waits for all of its receipt uploads). Must be called inside the
  * caller's transaction so the domain record and its operation are written atomically.
  */
 class FieldOutbox(private val db: () -> AssetaDatabase, private val json: Json, private val clock: SyncClock) {
@@ -68,12 +68,13 @@ class FieldOutbox(private val db: () -> AssetaDatabase, private val json: Json, 
         attachmentLocalId: String? = null,
     ): String {
         val deps = JobOperationPlanner.dependenciesFor(kind, localJobOps(tenantId, jobId))
-        return enqueueOperation(tenantId, FieldOps.opTypeOf(kind), entityType, entityId, payload, attachmentLocalId, deps, jobId)
+        return enqueueOperation(tenantId, FieldOps.opTypeOf(kind), entityType, entityId, payload, listOfNotNull(attachmentLocalId), deps, jobId)
     }
 
     /**
-     * Enqueues one operation. [attachmentLocalId] gates dispatch until that evidence upload completed (its server ids
-     * are then written into the never-sent payload); [dependsOn] are parent operations that must be ACKED first.
+     * Enqueues one operation. [attachmentLocalIds] gate dispatch until every one of those evidence uploads completed
+     * (their server ids are then written into the never-sent payload; an expense may carry up to ten receipts);
+     * [dependsOn] are parent operations that must be ACKED first.
      */
     suspend fun enqueueOperation(
         tenantId: String,
@@ -81,7 +82,7 @@ class FieldOutbox(private val db: () -> AssetaDatabase, private val json: Json, 
         entityType: String,
         entityId: String,
         payload: JsonObject,
-        attachmentLocalId: String? = null,
+        attachmentLocalIds: List<String> = emptyList(),
         dependsOn: List<String> = emptyList(),
         jobId: String? = null,
     ): String {
@@ -100,9 +101,8 @@ class FieldOutbox(private val db: () -> AssetaDatabase, private val json: Json, 
             lastError = null,
             serverRevision = null,
             jobId = jobId,
-            attachmentLocalId = attachmentLocalId,
         )
-        check(db().clientOperationDao().enqueueWithDependencies(op, dependsOn) != -1L) { "Operation id collision" }
+        check(db().clientOperationDao().enqueueWithDependencies(op, dependsOn, attachmentLocalIds) != -1L) { "Operation id collision" }
         return op.id
     }
 }

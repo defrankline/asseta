@@ -21,7 +21,7 @@ Gate 5 adds offline field finance to the Supervisor app: record expense (receipt
 | `:core:domain` | Pure-Kotlin field rules shared by all screens and the engine (JVM-tested): `MeterReadingParser` (port of the shared OCR spec v1), `GlyphSegmenter`/`GlyphRenderer`/`SevenSegmentDecoder`/`GeometricOcr` (glyph geometry, re-rendering, segment decoder and agreement scoring of the OCR pipeline), `OcrAssessor`/`OcrConsensus`/`PixelRedCellDetector` (text-only fallback + drum handling), `PolicySelector` (machine > tenant snapshot, expiry, offline grant), `CaptureValidator`/`ReadingValidator`/`OcrFlow` (mode, photo, recapture, decimals), `JobStateRules`, `GpsOutcome`, `OutboxTransitions` (state machine), `JobOperationPlanner` (dependency chain), `Backoff`, `ClockCheck`. |
 | `:core:sync` | Data + engine (Android library): `SyncEngine` (register -> bootstrap/changes -> blob upload -> push -> changes), `OutboxPusher`, `BlobUploader`, `ServerDataWriter`, `FieldRepository` (read side), use cases `CaptureMeterReading` and `JobWorkflow`, `FieldOutbox` (single place that enqueues ops with dependencies), `EncryptedEvidenceStore`, `DeviceWipe`, `SyncWorker`/`SyncScheduler` (WorkManager). |
 | `:core:security` | Android Keystore AES-256-GCM key per purpose (`KeystoreSecretCipher`), wrapped-secret file store in `noBackupFilesDir`, SQLCipher passphrase provider (32 random bytes, generated once, never regenerated silently), encrypted token store, evidence data key (`WrappedRandomKey`), device id (`DeviceIdStore`), `wipeLocalSecrets()` (deletes wrapped files and their Keystore keys). |
-| `:core:database` | Room + SQLCipher (`SupportOpenHelperFactory`), schema v4 (v2->v3 AutoMigration: `expense_category`, `cash_custody_balance`, nullable `job.currency`; v3->v4: Owner `read_snapshot` cache; tested in `MigrationTest`). Outbox `client_operation` (+ `client_operation_dependency` for multi-parent deps, attachment gate, server result/error code) with SQL-guarded transitions; `attachment` (resumable upload state), `job`, `machine`, `reference_record`, `policy_snapshot`, `sync_state`, `meter_capture`, `work_log_entry`. `DatabaseHolder` (close + delete for the wipe). Exported schemas in `core/database/schemas/`; v1->v2 is a Room AutoMigration with a post-migrate step copying legacy `depends_on`; **no destructive fallback**. |
+| `:core:database` | Room + SQLCipher (`SupportOpenHelperFactory`), schema v5 (v2->v3 AutoMigration: `expense_category`, `cash_custody_balance`, nullable `job.currency`; v3->v4: Owner `read_snapshot` cache; v4->v5: `client_operation_attachment` link table with a post-migrate step copying legacy `attachment_local_id` gates, `attachment.next_attempt_at`, `sync_state.next_sync_at`; tested in `MigrationTest`). Outbox `client_operation` (+ `client_operation_dependency` for multi-parent deps, `client_operation_attachment` for the multi-file attachment gate, server result/error code) with SQL-guarded transitions; `attachment` (resumable upload state), `job`, `machine`, `reference_record`, `policy_snapshot`, `sync_state`, `meter_capture`, `work_log_entry`. `DatabaseHolder` (close + delete for the wipe). Exported schemas in `core/database/schemas/`; v1->v2 is a Room AutoMigration with a post-migrate step copying legacy `depends_on`; **no destructive fallback**. |
 | `:core:network` | OkHttp/Retrofit client. Interceptors: `Authorization: Bearer`, `X-Tenant-ID`, `X-Correlation-ID` (UUID per request), `Idempotency-Key` on POST/PUT/PATCH/DELETE (an explicit key, e.g. the outbox operation id, is preserved), error envelope → `ApiException`. Base URL from `BuildConfig`. Debug-only cleartext to `10.0.2.2`/`localhost`. |
 | `:core:auth` | AppAuth Authorization Code + PKCE against Keycloak realm `asseta`, public client `asseta-mobile`; the redirect scheme is supplied per app (see Configuration), never defined in core; token refresh; logout (local clear + Keycloak end-session). `SelectedTenantStore`. Keycloak and the API are authoritative; the app never authorizes locally, it only hides UI. |
 | `:core:ui` | Material3 brand theme (Slate `#0F2A3D`, Amber `#F5A300`), launcher adaptive icon (vector conversion of `branding/asseta-mark.svg`), login screen, `/me` + tenant picker, `SessionViewModel` (+ forced sign-out via `SessionNotice`), `AssetaSessionApp(container, home)` (optional per-app home after tenant selection), `AssetaAppContainer` (manual DI, resettable `databaseHolder`). |
@@ -97,20 +97,24 @@ fixture images + the shared parse cases on the device runtime). Emulator note: a
 - **Outbox** (`client_operation`): ops `METER_CAPTURE`, `JOB_ACTIVITY`, `JOB_ACKNOWLEDGEMENT`, `JOB_TRANSITION`
   (`{job_id, action}`) with the chain opening capture -> START -> activities/closing -> acknowledgement -> COMPLETE
   (`JobOperationPlanner`; FAILED/CONFLICT parents are skipped so a re-capture becomes the parent). An op is
-  dispatchable when PENDING/QUARANTINED, every dependency is ACKED locally, and its evidence attachment has a server
-  `attachment_id` (written into the never-sent payload in the same transaction as the upload completion).
+  dispatchable when PENDING/QUARANTINED, every dependency is ACKED locally, and every evidence attachment it links has
+  a server `attachment_id` (written into the never-sent payload in the same transaction as the upload completion).
   Push: bounded batches (25, halved on `BATCH_TOO_LARGE`) with `device_now`; outcomes per `OutboxTransitions`:
   ACKED/DUPLICATE -> ACKED (result stored), DEFERRED -> PENDING, CONFLICT -> CONFLICT (server_state kept, never
   resent), REJECTED -> FAILED (error code shown, not resent), QUARANTINED -> held and resent later. A DUPLICATE
   replays the server's *stored* outcome, so DUPLICATE + `SUBSCRIPTION_READ_ONLY` stays QUARANTINED and DUPLICATE +
   another error maps to CONFLICT (with server_state) / FAILED. Network/5xx/408/429 -> batch back to PENDING, retry
   via WorkManager (network constraint) after exponential backoff with equal jitter (15 s base, 30 min cap, persisted
-  failure streak). SENT rows left by a killed process return to PENDING at the next run (idempotent resend).
+  failure streak); the due time is persisted as `sync_state.next_sync_at` and shown as "Next automatic retry".
+  SENT rows left by a killed process return to PENDING at the next run (idempotent resend).
 - **Evidence**: original JPEG bytes from CameraX (in memory, never written unencrypted) and signature PNGs are
   stored AES-256-GCM encrypted (`EncryptedEvidenceStore`, data key wrapped by a Keystore key) in `noBackupFilesDir`;
   SHA-256 of the original bytes; resumable upload (`POST /sync/blobs` -> missing `PUT chunks` -> `complete`), the
   session, chunk size and confirmed chunks are persisted after each chunk; `CHECKSUM_MISMATCH`/expired/unknown
-  session -> new session; known content completes immediately.
+  session -> new session; known content completes immediately. As on iOS, evidence missing/unreadable/changed on the
+  device (`LOCAL_EVIDENCE_UNAVAILABLE: …`), an unknown purpose and `FILE_TOO_LARGE` mark the file FAILED for good
+  (listed under "Evidence files that cannot be uploaded"; its operation is never sent); any other non-retryable
+  server refusal is recorded and only that file is retried after the backoff cap (30 min) while the others continue.
 - **DEVICE_REVOKED** (any sync call): cancel work, close + delete the database, delete evidence and cache files,
   destroy the DB key, evidence key and tokens (files + Keystore keys), clear the tenant, and show the explanation on
   the login screen (persisted `SessionNotice`, so it also works when the wipe happened in background sync). The
@@ -172,8 +176,8 @@ read correctly at >= 0.92. The fixtures are synthetic; real samples are still re
   synced custody (else the jobs' currency); when unknown the expense is treated as foreign (stricter).
 - **Outbox**: ops `EXPENSE`, `CASH_COLLECTION`, `CASH_HANDOVER`, `FUEL_EVENT` via `FieldOutbox.enqueueOperation`; the
   entity id is the form's `client_id` (generated once per visit; exactly-once checked inside the transaction). An
-  expense with a receipt waits for its `EXPENSE_RECEIPT` upload (attachment gate); on completion the upload id is
-  written into `receipt_upload_ids`. Server `ATTACHMENT_PENDING` is a normal DEFERRED (resent), `RECEIPT_NOT_FOUND`
+  expense carries up to 10 receipt photos and waits for every `EXPENSE_RECEIPT` upload (attachment gate); each
+  completion appends its upload id to `receipt_upload_ids`. Server `ATTACHMENT_PENDING` is a normal DEFERRED (resent), `RECEIPT_NOT_FOUND`
   a rejection; all outcomes go through `OutboxTransitions`. The collection contract has no job field, so a chosen job
   is recorded in the note (`Job J-…`).
 - **My cash**: synced custody (outstanding, handovers awaiting verification, expenses awaiting approval) next to this

@@ -56,7 +56,8 @@ data class ExpenseForm(
     val paidFrom: PaidFrom? = PaidFrom.CASH_CUSTODY,
     val machineId: String? = null,
     val jobId: String? = null,
-    val receipt: CapturedPhoto? = null,
+    /** Receipt photos in the order taken; at most [ExpenseRules.MAX_RECEIPTS]. */
+    val receipts: List<CapturedPhoto> = emptyList(),
 )
 
 data class ExpenseSetup(
@@ -140,7 +141,7 @@ class ExpenseViewModel(private val field: FieldGraph, private val tenantId: Stri
 
     private fun draft(f: ExpenseForm, outcome: GpsOutcome?, jobs: List<JobSummary>) = ExpenseDraft(
         f.categoryId, f.description, f.supplier, f.amount, f.currency, f.paidFrom, f.machineId ?: jobMachine(f.jobId, jobs),
-        f.jobId, jobMachine(f.jobId, jobs), f.receipt != null, outcome,
+        f.jobId, jobMachine(f.jobId, jobs), f.receipts.isNotEmpty(), outcome,
     )
 
     private fun jobMachine(jobId: String?, jobs: List<JobSummary>) = jobs.firstOrNull { it.job.id == jobId }?.job?.machineId
@@ -155,6 +156,16 @@ class ExpenseViewModel(private val field: FieldGraph, private val tenantId: Stri
 
     fun onPhotoError(message: String) = save.update { it.copy(messages = listOf("The receipt photo could not be saved: $message")) }
 
+    fun addReceipt(photo: CapturedPhoto) {
+        if (form.value.receipts.size >= ExpenseRules.MAX_RECEIPTS) {
+            save.update { it.copy(messages = listOf("At most ${ExpenseRules.MAX_RECEIPTS} receipt photos per expense.")) }
+            return
+        }
+        edit { it.copy(receipts = it.receipts + photo) }
+    }
+
+    fun removeReceipt(index: Int) = edit { f -> f.copy(receipts = f.receipts.filterIndexed { i, _ -> i != index }) }
+
     fun save() {
         if (save.value.saving || save.value.saved) return
         viewModelScope.launch {
@@ -164,7 +175,7 @@ class ExpenseViewModel(private val field: FieldGraph, private val tenantId: Stri
             val result = field.finance.expense(
                 ExpenseRequest(
                     tenantId, clientId, f.categoryId, f.description, f.supplier, f.amount, f.currency, f.paidFrom, f.machineId,
-                    f.jobId, f.receipt?.jpeg, gps.state.value.outcome, f.receipt?.takenAtMs ?: field.clock.nowMs(),
+                    f.jobId, f.receipts.map { it.jpeg }, gps.state.value.outcome, f.receipts.firstOrNull()?.takenAtMs ?: field.clock.nowMs(),
                 ),
             )
             save.update { it.after(result) }
@@ -211,7 +222,7 @@ fun ExpenseScreen(vm: ExpenseViewModel, onDone: () -> Unit) {
                     SearchablePickerField("Machine", machines, form.machineId, { id -> vm.edit { it.copy(machineId = id) } },
                         noneLabel = "No machine", enabled = editable && form.jobId == null)
                 }
-                ReceiptSection(form.receipt, assessment?.receiptRequired == true, { p -> vm.edit { it.copy(receipt = p) } }, vm::onPhotoError, editable)
+                ReceiptSection(form.receipts, assessment?.receiptRequired == true, vm::addReceipt, vm::removeReceipt, vm::onPhotoError, editable)
                 GpsSection(gps, policy.gpsRequired, vm.gps::onDecision, vm.gps::attempt, editable)
                 val issues = ExpenseTexts.visibleIssues(assessment, form.amount)
                 if (issues.isNotEmpty()) Section(null) { issues.forEach { Text(it, color = WarningColor) } }

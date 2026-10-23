@@ -27,6 +27,23 @@ object AssetaMigrations {
      * wiped on sign-out). Purely additive AutoMigration; the Supervisor's outbox and cached field data are untouched.
      */
 
+    /**
+     * v4 -> v5 (mobile parity with iOS): several evidence files per operation (an expense carries up to ten receipt
+     * photos) in the new `client_operation_attachment` link table; `attachment.next_attempt_at` (an upload the server
+     * refused is retried later, not in a tight loop) and the FAILED attachment status (evidence that can never be
+     * uploaded, shown on the sync screen); `sync_state.next_sync_at` (the backoff time of the next automatic retry).
+     * Additive AutoMigration; this spec carries every queued operation's legacy single attachment gate into the link
+     * table so operations queued before the update keep waiting for (and are patched by) their upload.
+     */
+    class V4ToV5 : AutoMigrationSpec {
+        override fun onPostMigrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                """INSERT OR IGNORE INTO client_operation_attachment (operation_id, attachment_local_id)
+                   SELECT id, attachment_local_id FROM client_operation WHERE attachment_local_id IS NOT NULL""",
+            )
+        }
+    }
+
     class V1ToV2 : AutoMigrationSpec {
         override fun onPostMigrate(db: SupportSQLiteDatabase) {
             db.execSQL(

@@ -41,7 +41,10 @@ data class ClientOperationEntity(
     @ColumnInfo(name = "error_code") val errorCode: String? = null,
     /** Server per-op `result` (entity on ACK, `server_state` on CONFLICT); kept for audit and display. */
     @ColumnInfo(name = "result_json") val resultJson: String? = null,
-    /** Local evidence attachment that must be uploaded (server attachment id known) before dispatch. */
+    /**
+     * Legacy single evidence gate (v2-v4). Since v5 the gate lives in `client_operation_attachment` (several files per
+     * operation, e.g. up to ten expense receipts); both are honoured, new operations only use the link table.
+     */
     @ColumnInfo(name = "attachment_local_id") val attachmentLocalId: String? = null,
     @ColumnInfo(name = "last_attempt_at") val lastAttemptAt: Long? = null,
 )
@@ -55,4 +58,18 @@ data class ClientOperationEntity(
 data class ClientOperationDependencyEntity(
     @ColumnInfo(name = "operation_id") val operationId: String,
     @ColumnInfo(name = "depends_on_id") val dependsOnId: String,
+)
+
+/**
+ * v5 evidence gate: [operationId] may be dispatched only after every linked local attachment is COMPLETE (its server
+ * ids are then already written into the never-sent payload). An expense links one row per receipt photo.
+ */
+@Entity(
+    tableName = "client_operation_attachment",
+    primaryKeys = ["operation_id", "attachment_local_id"],
+    indices = [Index(value = ["attachment_local_id"])],
+)
+data class ClientOperationAttachmentEntity(
+    @ColumnInfo(name = "operation_id") val operationId: String,
+    @ColumnInfo(name = "attachment_local_id") val attachmentLocalId: String,
 )

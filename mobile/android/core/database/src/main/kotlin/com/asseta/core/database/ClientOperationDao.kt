@@ -24,11 +24,24 @@ abstract class ClientOperationDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     protected abstract suspend fun insertDependencies(edges: List<ClientOperationDependencyEntity>)
 
-    /** Enqueue with v2 multi-parent dependencies, atomically. */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    protected abstract suspend fun insertAttachmentLinks(links: List<ClientOperationAttachmentEntity>)
+
+    /**
+     * Enqueue with v2 multi-parent dependencies and the v5 evidence gate ([attachmentLocalIds]: every file that must be
+     * uploaded before the operation is sent), atomically.
+     */
     @Transaction
-    open suspend fun enqueueWithDependencies(operation: ClientOperationEntity, dependsOn: List<String>): Long {
+    open suspend fun enqueueWithDependencies(
+        operation: ClientOperationEntity,
+        dependsOn: List<String>,
+        attachmentLocalIds: List<String> = emptyList(),
+    ): Long {
         val row = enqueue(operation)
-        if (row != -1L) insertDependencies(dependsOn.distinct().map { ClientOperationDependencyEntity(operation.id, it) })
+        if (row != -1L) {
+            insertDependencies(dependsOn.distinct().map { ClientOperationDependencyEntity(operation.id, it) })
+            insertAttachmentLinks(attachmentLocalIds.distinct().map { ClientOperationAttachmentEntity(operation.id, it) })
+        }
         return row
     }
 
@@ -38,9 +51,20 @@ abstract class ClientOperationDao {
     @Query("SELECT depends_on_id FROM client_operation_dependency WHERE operation_id = :id ORDER BY depends_on_id")
     abstract suspend fun dependenciesOf(id: String): List<String>
 
+    /** Local evidence files gating [id] (link table and the legacy single column), in capture order. */
+    @Query(
+        """
+        SELECT a.id FROM attachment a
+        WHERE a.id IN (SELECT attachment_local_id FROM client_operation_attachment WHERE operation_id = :id)
+           OR a.id = (SELECT attachment_local_id FROM client_operation WHERE id = :id)
+        ORDER BY a.created_at ASC, a.id ASC
+        """,
+    )
+    abstract suspend fun attachmentsOf(id: String): List<String>
+
     /**
      * Operations ready to send for a tenant, oldest first: PENDING or QUARANTINED (resent until applied), every
-     * dependency (legacy column and dependency table) durably ACKED, and any evidence attachment uploaded.
+     * dependency (legacy column and dependency table) durably ACKED, and every evidence attachment uploaded.
      * REJECTED (FAILED) and CONFLICT rows are never resent automatically. Bounded batch size.
      */
     @Query(
@@ -57,6 +81,10 @@ abstract class ClientOperationDao {
           AND (op.attachment_local_id IS NULL OR EXISTS (
                 SELECT 1 FROM attachment a WHERE a.id = op.attachment_local_id AND a.status = 'COMPLETE'
                   AND a.server_attachment_id IS NOT NULL))
+          AND NOT EXISTS (
+                SELECT 1 FROM client_operation_attachment l
+                LEFT JOIN attachment a ON a.id = l.attachment_local_id
+                WHERE l.operation_id = op.id AND (a.status IS NULL OR a.status != 'COMPLETE' OR a.server_attachment_id IS NULL))
         ORDER BY op.created_at_device ASC, op.id ASC
         LIMIT :limit
         """,
@@ -135,7 +163,11 @@ abstract class ClientOperationDao {
     @Query("SELECT * FROM client_operation WHERE tenant_id = :tenantId AND op_type IN (:opTypes) ORDER BY created_at_device DESC")
     abstract fun observeByOpTypes(tenantId: String, opTypes: List<String>): Flow<List<ClientOperationEntity>>
 
-    @Query("SELECT * FROM client_operation WHERE attachment_local_id = :attachmentId")
+    /** Operations gated on [attachmentId] (link table and the legacy single column). */
+    @Query(
+        """SELECT * FROM client_operation WHERE attachment_local_id = :attachmentId
+           OR id IN (SELECT operation_id FROM client_operation_attachment WHERE attachment_local_id = :attachmentId)""",
+    )
     abstract suspend fun forAttachment(attachmentId: String): List<ClientOperationEntity>
 
     @Query("SELECT * FROM client_operation WHERE tenant_id = :tenantId AND job_id = :jobId ORDER BY created_at_device ASC")

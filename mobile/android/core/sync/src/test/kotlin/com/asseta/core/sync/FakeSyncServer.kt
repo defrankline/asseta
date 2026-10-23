@@ -52,6 +52,8 @@ class FakeSyncServer(private val now: () -> Instant) : Dispatcher() {
     var cursor = 10L
     var failChunkOnce: Int? = null
     var checksumMismatchOnce = false
+    /** Errors (HTTP status, error code) returned by the next `POST /sync/blobs` calls, one per call. */
+    val startBlobErrors = ArrayDeque<Pair<Int, String>>()
     var failNextPushAfterApply = false
     val deferOnce = mutableSetOf<String>()
     /** Optional per-op override: returns (status, result) or null for the default behaviour. */
@@ -280,6 +282,7 @@ class FakeSyncServer(private val now: () -> Instant) : Dispatcher() {
     fun err(code: String) = buildJsonObject { put("code", code); put("message", code.lowercase()) }
 
     private fun startBlob(body: JsonObject): MockResponse {
+        startBlobErrors.removeFirstOrNull()?.let { (status, code) -> return error(status, code, code.lowercase()) }
         val sha = body.str("sha256")
         val size = body["size_bytes"]!!.jsonPrimitive.content.toInt()
         val session = BlobSession(UUID.randomUUID().toString(), sha, size, chunkSize)

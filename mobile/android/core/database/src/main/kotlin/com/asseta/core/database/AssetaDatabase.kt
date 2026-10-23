@@ -9,6 +9,7 @@ import androidx.room.TypeConverters
     entities = [
         ClientOperationEntity::class,
         ClientOperationDependencyEntity::class,
+        ClientOperationAttachmentEntity::class,
         AttachmentEntity::class,
         JobEntity::class,
         MachineEntity::class,
@@ -27,6 +28,7 @@ import androidx.room.TypeConverters
         AutoMigration(from = 1, to = 2, spec = AssetaMigrations.V1ToV2::class),
         AutoMigration(from = 2, to = 3),
         AutoMigration(from = 3, to = 4),
+        AutoMigration(from = 4, to = 5, spec = AssetaMigrations.V4ToV5::class),
     ],
 )
 @TypeConverters(Converters::class)
@@ -39,7 +41,7 @@ abstract class AssetaDatabase : RoomDatabase() {
     abstract fun readSnapshotDao(): ReadSnapshotDao
 
     companion object {
-        const val VERSION = 4
+        const val VERSION = 5
         const val FILE_NAME = "asseta.db"
     }
 }

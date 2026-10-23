@@ -148,7 +148,7 @@ class SyncLiveTest {
         assertEquals(1, second.push.acked)
         val acked = db.clientOperationDao().findById(opId)!!
         assertEquals("operation ${acked.errorCode} ${acked.lastError}", ACKED, acked.status)
-        val attachment = db.evidenceDao().attachment(acked.attachmentLocalId!!)!!
+        val attachment = db.evidenceDao().attachment(db.clientOperationDao().attachmentsOf(acked.id).single())!!
         assertEquals(AttachmentEntity.COMPLETE, attachment.status)
         val serverAttachment = attachment.serverAttachmentId!!
         val payload = json.parseToJsonElement(acked.payloadJson).jsonObject
@@ -223,7 +223,7 @@ class SyncLiveTest {
         val expenseClient = UUID.randomUUID().toString()
         val expenseRequest = ExpenseRequest(
             tenant, expenseClient, categoryId, "Hydraulic hose (live E2E)", "Field Spares", "1500.50", financeCurrency,
-            PaidFrom.CASH_CUSTODY, field("machine_id"), null, jpeg(120_000), gps, now,
+            PaidFrom.CASH_CUSTODY, field("machine_id"), null, listOf(jpeg(120_000)), gps, now,
         )
         val outlook = ExpenseRules.assess(
             ExpenseDraft(categoryId, expenseRequest.description, expenseRequest.supplier, expenseRequest.amountText, financeCurrency,
@@ -250,7 +250,7 @@ class SyncLiveTest {
             assertEquals("${op.opType} ${op.errorCode} ${op.lastError}", ACKED, op.status)
         }
         val expenseOp = db.clientOperationDao().findById(expense.operationId)!!
-        val serverAttachment = db.evidenceDao().attachment(expenseOp.attachmentLocalId!!)!!.serverAttachmentId!!
+        val serverAttachment = db.evidenceDao().attachment(db.clientOperationDao().attachmentsOf(expenseOp.id).single())!!.serverAttachmentId!!
         val expensePayload = json.parseToJsonElement(expenseOp.payloadJson).jsonObject
         assertEquals(1, expensePayload["receipt_upload_ids"]!!.jsonArray.size)
         val replay = api.push(

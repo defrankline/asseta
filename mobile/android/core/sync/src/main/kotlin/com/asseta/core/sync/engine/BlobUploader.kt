@@ -3,6 +3,7 @@ package com.asseta.core.sync.engine
 import com.asseta.core.database.AssetaDatabase
 import com.asseta.core.database.AttachmentEntity
 import com.asseta.core.database.inTransaction
+import com.asseta.core.model.sync.BlobPurpose
 import com.asseta.core.model.sync.BlobSessionDto
 import com.asseta.core.model.sync.BlobStartIn
 import com.asseta.core.model.sync.OpTypes
@@ -17,8 +18,12 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.io.FileNotFoundException
+import java.io.IOException
+import javax.crypto.AEADBadTagException
 
 /**
  * Resumable, checksum-verified evidence upload (`POST /sync/blobs` -> `PUT chunks` -> `POST complete`).
@@ -26,39 +31,93 @@ import okhttp3.RequestBody.Companion.toRequestBody
  * resumes with only the missing indexes. CHECKSUM_MISMATCH (server discarded the chunks) or an expired/unknown session
  * restarts from a new session. Known content completes immediately (server dedupe).
  *
- * On completion the server attachment id (or, for an expense receipt, the completed upload id) is written into the
- * waiting operations' payloads in the same transaction, which is what makes those operations dispatchable (a capture
- * is never sent before its photo has an attachment id; an expense never before its receipt upload completed).
+ * On completion the server attachment id (or, for an expense receipt, the completed upload id, appended to the
+ * operation's `receipt_upload_ids`) is written into the waiting operations' payloads in the same transaction; an
+ * operation becomes dispatchable only once every file it waits for is complete (a capture is never sent before its
+ * photo has an attachment id; an expense never before all of its receipt uploads completed).
+ *
+ * Failure rules (as on iOS): evidence that is missing, unreadable or changed on the device, an unknown purpose and a
+ * server FILE_TOO_LARGE mark the file FAILED for good (shown on the sync screen, never retried); any other
+ * non-retryable server refusal is recorded and that file alone is retried after [retryRefusedAfterMs] while the other
+ * files continue. Transport/5xx/401 and device errors propagate (the whole sync backs off).
  */
 class BlobUploader(
     private val api: SyncApi,
     private val db: () -> AssetaDatabase,
     private val files: EvidenceFiles,
     private val json: Json,
+    private val nowMs: () -> Long = System::currentTimeMillis,
+    private val retryRefusedAfterMs: Long = 30 * 60_000,
 ) {
-    /** Uploads pending attachments; returns how many completed. Transport/5xx errors propagate (retry later). */
-    suspend fun uploadPending(tenantId: String, limit: Int = 20): Int =
-        db().evidenceDao().pendingAttachments(tenantId, limit).count { upload(tenantId, it) }
+    /** Uploads the attachments that are due; returns how many completed. Transport/5xx errors propagate (retry later). */
+    suspend fun uploadPending(tenantId: String, limit: Int = 20): Int {
+        val evidence = db().evidenceDao()
+        var done = 0
+        for (attachment in evidence.uploadableAttachments(tenantId, nowMs(), limit)) {
+            try {
+                if (upload(tenantId, attachment)) done++
+            } catch (e: ApiException) {
+                if (propagates(e)) {
+                    evidence.recordAttemptFailure(attachment.id, "${e.code}: ${e.message}", null)
+                    throw e
+                }
+                // A permanent server refusal for this file: record it and move on to the others.
+                evidence.recordAttemptFailure(attachment.id, "${e.code}: ${e.message}", nowMs() + retryRefusedAfterMs)
+            } catch (e: IOException) {
+                evidence.recordAttemptFailure(attachment.id, e.message ?: e.javaClass.simpleName, null)
+                throw e
+            }
+        }
+        return done
+    }
+
+    private fun propagates(e: ApiException) = e.isRetryable || e.isUnauthenticated ||
+        e.code == SyncErrorCodes.DEVICE_REVOKED || e.code == SyncErrorCodes.DEVICE_NOT_REGISTERED ||
+        e.code == SyncErrorCodes.UPLOAD_INCOMPLETE
 
     private suspend fun upload(tenantId: String, attachment: AttachmentEntity): Boolean {
-        val bytes = files.read(attachment.fileName)
-        if (Sha256.hex(bytes) != attachment.sha256 || bytes.size.toLong() != attachment.sizeBytes) {
-            // Never upload altered evidence; keep it visible instead.
-            db().evidenceDao().recordAttachmentError(attachment.id, "LOCAL_EVIDENCE_CORRUPT")
+        val evidence = db().evidenceDao()
+        val bytes = readVerified(attachment) ?: return false
+        if (attachment.purpose !in KNOWN_PURPOSES) {
+            evidence.markAttachmentFailed(attachment.id, UNKNOWN_PURPOSE)
             return false
         }
         var current = attachment
         repeat(MAX_RESTARTS + 1) {
-            when (val result = attempt(tenantId, current, bytes)) {
+            val result = try {
+                attempt(tenantId, current, bytes)
+            } catch (e: ApiException) {
+                if (e.code != FILE_TOO_LARGE) throw e
+                evidence.markAttachmentFailed(current.id, FILE_TOO_LARGE)
+                return false
+            }
+            when (result) {
                 is Attempt.Done -> return true
                 is Attempt.Restart -> {
-                    db().evidenceDao().setSession(current.id, null, null, null)
-                    db().evidenceDao().recordAttachmentError(current.id, result.code)
-                    current = db().evidenceDao().attachment(current.id) ?: return false
+                    evidence.setSession(current.id, null, null, null)
+                    evidence.recordAttachmentError(current.id, result.code)
+                    current = evidence.attachment(current.id) ?: return false
                 }
             }
         }
         return false
+    }
+
+    /** The original bytes, or null after marking the file FAILED when it is missing, unreadable or changed. */
+    private suspend fun readVerified(attachment: AttachmentEntity): ByteArray? {
+        val reason = try {
+            val bytes = files.read(attachment.fileName)
+            if (Sha256.hex(bytes) == attachment.sha256 && bytes.size.toLong() == attachment.sizeBytes) return bytes
+            "file changed" // never upload altered evidence; keep it visible instead
+        } catch (e: FileNotFoundException) {
+            "file missing"
+        } catch (e: AEADBadTagException) {
+            "file unreadable" // authentication tag mismatch: the encrypted file was damaged or replaced
+        } catch (e: IllegalStateException) {
+            "file unreadable"
+        }
+        db().evidenceDao().markAttachmentFailed(attachment.id, "$LOCAL_EVIDENCE_UNAVAILABLE: $reason")
+        return null
     }
 
     private sealed interface Attempt {
@@ -118,8 +177,9 @@ class BlobUploader(
                 val patch: Pair<String, JsonElement> = when (op.opType) {
                     OpTypes.METER_CAPTURE -> "photo_attachment_id" to JsonPrimitive(serverId)
                     OpTypes.JOB_ACKNOWLEDGEMENT -> "signature_attachment_id" to JsonPrimitive(serverId)
-                    // The sync EXPENSE op references receipts by blob upload id (resolved server-side to attachments).
-                    OpTypes.EXPENSE -> "receipt_upload_ids" to JsonArray(listOf(JsonPrimitive(dto.id)))
+                    // The sync EXPENSE op references receipts by blob upload id (resolved server-side to attachments);
+                    // each completed receipt appends its id, so an expense with several receipts carries them all.
+                    OpTypes.EXPENSE -> "receipt_upload_ids" to appendUploadId(op.payloadJson, dto.id)
                     else -> return@forEach
                 }
                 val payload = json.parseToJsonElement(op.payloadJson).jsonObject
@@ -129,12 +189,21 @@ class BlobUploader(
         return Attempt.Done
     }
 
+    private fun appendUploadId(payloadJson: String, uploadId: String): JsonElement {
+        val existing = (json.parseToJsonElement(payloadJson).jsonObject["receipt_upload_ids"] as? JsonArray).orEmpty()
+        return if (existing.any { it.jsonPrimitive.content == uploadId }) JsonArray(existing) else JsonArray(existing + JsonPrimitive(uploadId))
+    }
+
     private fun BlobSessionDto.isComplete() = status == "COMPLETE" && attachmentId != null
 
     private fun Set<Int>.encode() = sorted().joinToString(",")
 
     private companion object {
         const val MAX_RESTARTS = 1
+        const val FILE_TOO_LARGE = "FILE_TOO_LARGE"
+        const val UNKNOWN_PURPOSE = "UNKNOWN_PURPOSE"
+        const val LOCAL_EVIDENCE_UNAVAILABLE = "LOCAL_EVIDENCE_UNAVAILABLE"
+        val KNOWN_PURPOSES = setOf(BlobPurpose.METER_PHOTO, BlobPurpose.SIGNATURE, BlobPurpose.EXPENSE_RECEIPT)
         val OCTET_STREAM = "application/octet-stream".toMediaType()
     }
 }

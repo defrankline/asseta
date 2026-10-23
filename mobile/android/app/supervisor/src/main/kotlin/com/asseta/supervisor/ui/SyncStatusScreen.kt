@@ -23,9 +23,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.asseta.core.ui.theme.palette
+import com.asseta.core.database.AttachmentEntity
 import com.asseta.core.database.ClientOperationEntity
 import com.asseta.core.database.SyncStateEntity
 import com.asseta.core.model.ClientOperationStatus
+import com.asseta.core.model.sync.BlobPurpose
 import com.asseta.core.sync.data.WaitingReason
 import com.asseta.supervisor.FieldGraph
 import kotlinx.coroutines.flow.SharingStarted
@@ -52,6 +54,8 @@ data class SyncStatusUi(
     val counts: Map<ClientOperationStatus, Int> = emptyMap(),
     val state: SyncStateEntity? = null,
     val pendingUploads: Int = 0,
+    /** Evidence files that can never be uploaded (missing or changed on this phone, refused for good). */
+    val failedUploads: List<AttachmentEntity> = emptyList(),
 ) {
     val unsynced: Int get() = counts.filterKeys { it != ClientOperationStatus.ACKED }.values.sum()
 }
@@ -63,9 +67,9 @@ class SyncStatusViewModel(private val field: FieldGraph, private val tenantId: S
         field.repository.observeUnsynced(tenantId),
         field.repository.observeStatusCounts(tenantId),
         field.repository.observeSyncState(tenantId),
-        field.repository.observePendingUploads(tenantId),
+        combine(field.repository.observePendingUploads(tenantId), field.repository.observeFailedUploads(tenantId)) { p, f -> p to f },
         field.repository.observeJobs(tenantId),
-    ) { ops, counts, state, uploads, jobs ->
+    ) { ops, counts, state, (uploads, failed), jobs ->
         val byId = ops.associateBy { it.id }
         val numbers = jobs.associate { it.job.id to it.job.jobNumber }
         val items = ops.map { op ->
@@ -73,7 +77,7 @@ class SyncStatusViewModel(private val field: FieldGraph, private val tenantId: S
             OutboxItem(op, FieldTexts.outboxTitle(op.opType, payload), op.jobId?.let(numbers::get), serverState(op),
                 field.repository.waitingReason(op, byId))
         }
-        SyncStatusUi(items, counts, state, uploads)
+        SyncStatusUi(items, counts, state, uploads, failed)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SyncStatusUi())
 
     /** "Retry" on a rejected item: queued again and sent on the next sync. */
@@ -105,6 +109,9 @@ fun SyncStatusScreen(vm: SyncStatusViewModel, syncing: Boolean, onRefresh: () ->
                     LabeledRow("Not yet synced", "${ui.unsynced}")
                     LabeledRow("Files waiting to upload", "${ui.pendingUploads}")
                     LabeledRow("Last successful sync", ui.state?.lastSyncAt?.let(LocalTime::format) ?: "Never")
+                    ui.state?.nextSyncAt?.takeIf { it > System.currentTimeMillis() }?.let {
+                        LabeledRow("Next automatic retry", LocalTime.formatTimeSeconds(it))
+                    }
                     ui.state?.offlineGrantUntil?.let { LabeledRow("Offline use allowed until", LocalTime.format(it)) }
                 }
             }
@@ -115,6 +122,13 @@ fun SyncStatusScreen(vm: SyncStatusViewModel, syncing: Boolean, onRefresh: () ->
                         Section("$title (${items.size})", footer = footer) {
                             items.forEach { ItemRow(it, onRetry = vm::retry) }
                         }
+                    }
+                }
+            }
+            if (ui.failedUploads.isNotEmpty()) {
+                item(key = "failed-uploads") {
+                    Section("Evidence files that cannot be uploaded") {
+                        ui.failedUploads.forEach { FailedUploadRow(it) }
                     }
                 }
             }
@@ -152,6 +166,20 @@ private fun ItemRow(item: OutboxItem, onRetry: (ClientOperationEntity) -> Unit) 
             TextButton(onClick = { onRetry(op) }, contentPadding = PaddingValues(0.dp)) { Text("Retry") }
         }
     }
+}
+
+@Composable
+private fun FailedUploadRow(file: AttachmentEntity) {
+    Column(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Text(evidenceLabel(file.purpose), style = MaterialTheme.typography.bodyMedium)
+        Text(file.lastError.orEmpty(), style = MaterialTheme.typography.bodySmall, color = palette.offline)
+    }
+}
+
+private fun evidenceLabel(purpose: String) = when (purpose) {
+    BlobPurpose.SIGNATURE -> "Signature"
+    BlobPurpose.EXPENSE_RECEIPT -> "Receipt photo"
+    else -> "Meter photo"
 }
 
 private val GROUPS = listOf(

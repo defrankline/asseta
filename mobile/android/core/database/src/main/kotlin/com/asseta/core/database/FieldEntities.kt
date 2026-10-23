@@ -72,4 +72,6 @@ data class SyncStateEntity(
     @ColumnInfo(name = "clock_offset_s") val clockOffsetS: Double? = null,
     @ColumnInfo(name = "server_clock_alert") val serverClockAlert: Boolean = false,
     @ColumnInfo(name = "max_batch") val maxBatch: Int? = null,
+    /** When the next automatic retry runs after a failed sync (backoff); null after a successful sync. */
+    @ColumnInfo(name = "next_sync_at") val nextSyncAt: Long? = null,
 )

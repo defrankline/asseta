@@ -119,6 +119,7 @@ object LocalTime {
     private val dateTime = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT).withZone(ZoneId.systemDefault())
     private val dateTimeSeconds = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.MEDIUM).withZone(ZoneId.systemDefault())
     private val time = DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.systemDefault())
+    private val timeSeconds = DateTimeFormatter.ofLocalizedTime(FormatStyle.MEDIUM).withZone(ZoneId.systemDefault())
 
     /** Abbreviated date + short time ("Oct 23, 2026, 9:41 AM"). */
     fun format(epochMs: Long): String = dateTime.format(Instant.ofEpochMilli(epochMs))
@@ -127,6 +128,9 @@ object LocalTime {
     fun formatSeconds(epochMs: Long): String = dateTimeSeconds.format(Instant.ofEpochMilli(epochMs))
 
     fun formatTime(epochMs: Long): String = time.format(Instant.ofEpochMilli(epochMs))
+
+    /** Time of day with seconds ("9:41:07 AM"), like iOS `.standard` time (next automatic retry). */
+    fun formatTimeSeconds(epochMs: Long): String = timeSeconds.format(Instant.ofEpochMilli(epochMs))
 
     /** A server ISO-8601 instant (e.g. planned start), or the raw text when it cannot be parsed. */
     fun formatIso(iso: String): String = runCatching { format(Instant.parse(iso).toEpochMilli()) }.getOrDefault(iso)

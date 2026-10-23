@@ -7,7 +7,8 @@ import androidx.room.PrimaryKey
 
 /**
  * Evidence file (meter photo / signature PNG) queued for resumable upload. The bytes live encrypted in app-private
- * storage ([fileName]); [sha256] is of the original, unmodified bytes. [serverAttachmentId] is set on COMPLETE.
+ * storage ([fileName]); [sha256] is of the original, unmodified bytes. [serverAttachmentId] is set on COMPLETE;
+ * [status] FAILED is permanent and keeps [lastError] for the sync status screen.
  */
 @Entity(tableName = "attachment", indices = [Index(value = ["tenant_id", "status"])])
 data class AttachmentEntity(
@@ -27,10 +28,15 @@ data class AttachmentEntity(
     @ColumnInfo(name = "attempt_count") val attemptCount: Int = 0,
     @ColumnInfo(name = "last_error") val lastError: String? = null,
     @ColumnInfo(name = "created_at") val createdAt: Long,
+    /** A PENDING upload is not tried again before this time (set after the server refused it). */
+    @ColumnInfo(name = "next_attempt_at") val nextAttemptAt: Long? = null,
 ) {
     companion object {
         const val PENDING = "PENDING"
         const val COMPLETE = "COMPLETE"
+
+        /** Permanent: the evidence can never be uploaded (file missing or changed, unknown purpose, too large). */
+        const val FAILED = "FAILED"
     }
 }
 

@@ -93,8 +93,9 @@ class FieldRepository(private val db: () -> AssetaDatabase, private val json: Js
             val blocked = parents.any { it.status == ClientOperationStatus.FAILED || it.status == ClientOperationStatus.CONFLICT }
             return if (blocked) WaitingReason.BLOCKED_BY_EARLIER else WaitingReason.EARLIER_ITEM
         }
-        val attachment = op.attachmentLocalId?.let { db().evidenceDao().attachment(it) }
-        return if (attachment != null && attachment.status != AttachmentEntity.COMPLETE) WaitingReason.UPLOAD else null
+        val uploading = db().clientOperationDao().attachmentsOf(op.id)
+            .any { db().evidenceDao().attachment(it)?.status != AttachmentEntity.COMPLETE }
+        return if (uploading) WaitingReason.UPLOAD else null
     }
 
     fun observeJob(jobId: String): Flow<JobEntity?> = db().fieldDataDao().observeJob(jobId)
@@ -120,6 +121,9 @@ class FieldRepository(private val db: () -> AssetaDatabase, private val json: Js
     fun observeSyncState(tenantId: String): Flow<SyncStateEntity?> = db().syncStateDao().observe(tenantId)
 
     fun observePendingUploads(tenantId: String): Flow<Int> = db().evidenceDao().observePendingAttachmentCount(tenantId)
+
+    /** Evidence files that can never be uploaded (missing or changed on the device, refused for good by the server). */
+    fun observeFailedUploads(tenantId: String): Flow<List<AttachmentEntity>> = db().evidenceDao().observeFailedAttachments(tenantId)
 
     fun fieldState(job: JobEntity, ops: List<ClientOperationEntity>): JobFieldState {
         val local = ops.mapNotNull { op -> FieldOps.kindOf(op)?.let { LocalJobOp(op.id, it, op.status, op.createdAtDevice) } }

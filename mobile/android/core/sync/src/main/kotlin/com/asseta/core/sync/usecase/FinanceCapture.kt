@@ -49,8 +49,8 @@ data class ExpenseRequest(
     val paidFrom: PaidFrom?,
     val machineId: String?,
     val jobId: String?,
-    /** Original receipt JPEG bytes from the camera (encrypted at rest, never re-encoded). */
-    val receiptJpeg: ByteArray?,
+    /** Original receipt JPEG bytes from the camera, one per photo (encrypted at rest, never re-encoded); at most ten. */
+    val receiptJpegs: List<ByteArray>,
     val gps: GpsOutcome?,
     val incurredAtMs: Long,
 )
@@ -96,7 +96,8 @@ data class FuelEventRequest(
  * Offline field finance: expenses (receipt + GPS under the synced EXPENSE_CAPTURE snapshot), cash collections, cash
  * handovers and fuel events. Each is validated with the domain rules, then stored and queued atomically as one outbox
  * operation whose entity id is the form's client id (exactly once per visit; the server dedupes by client id too). An
- * expense with a receipt waits for the receipt upload (attachment gate) and is sent with its completed upload id.
+ * expense with receipts (up to [ExpenseRules.MAX_RECEIPTS]) waits for every receipt upload (attachment gate) and is sent
+ * with all their completed upload ids.
  */
 class FinanceCapture(
     private val db: () -> AssetaDatabase,
@@ -112,6 +113,10 @@ class FinanceCapture(
         val decision = finance.expensePolicy(r.tenantId)
         if (decision is ExpensePolicyDecision.Blocked) return FinanceResult.Blocked(decision.message)
         decision as ExpensePolicyDecision.Allowed
+        val receipts = r.receiptJpegs.filter { it.isNotEmpty() }
+        if (receipts.size > ExpenseRules.MAX_RECEIPTS) {
+            return FinanceResult.Invalid(listOf("At most ${ExpenseRules.MAX_RECEIPTS} receipt photos per expense."))
+        }
         if (r.categoryId != null && finance.category(r.categoryId)?.isActive != true) {
             return FinanceResult.Blocked("This category is no longer available. Choose another one.")
         }
@@ -120,15 +125,13 @@ class FinanceCapture(
         if (machineId != null && field.machine(machineId) == null) return FinanceResult.Blocked("This machine is not on this device.")
         val draft = ExpenseDraft(
             r.categoryId, r.description, r.supplier, r.amountText, r.currency, r.paidFrom, machineId, r.jobId, job?.machineId,
-            r.receiptJpeg != null && r.receiptJpeg.isNotEmpty(), r.gps,
+            receipts.isNotEmpty(), r.gps,
         )
         val assessment = ExpenseRules.assess(draft, decision.policy, finance.baseCurrency(r.tenantId))
         if (!assessment.isValid) return FinanceResult.Invalid(assessment.issues.map { it.message })
         if (alreadySaved(r.tenantId, FieldOps.EXPENSE, r.clientId)) return FinanceResult.AlreadySaved // cheap pre-check
 
-        val receipt = r.receiptJpeg?.takeIf { it.isNotEmpty() }
-        val file = receipt?.let { files.write(it) }
-        val attachmentId = file?.let { UUID.randomUUID().toString() }
+        val stored = receipts.map { bytes -> StoredReceipt(UUID.randomUUID().toString(), files.write(bytes), bytes) }
         val payload = ExpensePayload(
             clientId = r.clientId,
             categoryId = r.categoryId!!,
@@ -140,23 +143,25 @@ class FinanceCapture(
             machineId = machineId,
             jobId = r.jobId,
             paidFrom = r.paidFrom!!.name,
-            receiptUploadIds = emptyList(), // filled in when the receipt upload completes, before the op is ever sent
+            receiptUploadIds = emptyList(), // filled in as each receipt upload completes, before the op is ever sent
             gps = r.gps!!.toWire(),
             deviceId = deviceId(),
         )
         val database = db()
         return database.inTransaction {
             if (alreadySaved(r.tenantId, FieldOps.EXPENSE, r.clientId)) { // authoritative check, serialized with writes
-                file?.let(files::delete)
+                stored.forEach { files.delete(it.fileName) }
                 return@inTransaction FinanceResult.AlreadySaved
             }
-            if (receipt != null && file != null && attachmentId != null) {
+            stored.forEach { receipt ->
                 database.evidenceDao().insertAttachment(
-                    AttachmentEntity(attachmentId, r.tenantId, BlobPurpose.EXPENSE_RECEIPT, file, Sha256.hex(receipt),
-                        receipt.size.toLong(), "image/jpeg", AttachmentEntity.PENDING, createdAt = r.incurredAtMs),
+                    AttachmentEntity(receipt.id, r.tenantId, BlobPurpose.EXPENSE_RECEIPT, receipt.fileName, Sha256.hex(receipt.bytes),
+                        receipt.bytes.size.toLong(), "image/jpeg", AttachmentEntity.PENDING, createdAt = r.incurredAtMs),
                 )
             }
-            val opId = enqueue(r.tenantId, OpTypes.EXPENSE, FieldOps.EXPENSE, r.clientId, ExpensePayload.serializer(), payload, attachmentId)
+            val opId = enqueue(
+                r.tenantId, OpTypes.EXPENSE, FieldOps.EXPENSE, r.clientId, ExpensePayload.serializer(), payload, stored.map { it.id },
+            )
             FinanceResult.Saved(r.clientId, opId)
         }.also { if (it is FinanceResult.Saved) onQueued() }
     }
@@ -232,7 +237,7 @@ class FinanceCapture(
         val database = db()
         return database.inTransaction {
             if (alreadySaved(tenantId, entityType, clientId)) return@inTransaction FinanceResult.AlreadySaved
-            FinanceResult.Saved(clientId, enqueue(tenantId, opType, entityType, clientId, serializer, payload, null))
+            FinanceResult.Saved(clientId, enqueue(tenantId, opType, entityType, clientId, serializer, payload, emptyList()))
         }.also { if (it is FinanceResult.Saved) onQueued() }
     }
 
@@ -243,8 +248,10 @@ class FinanceCapture(
         clientId: String,
         serializer: KSerializer<T>,
         payload: T,
-        attachmentId: String?,
+        attachmentIds: List<String>,
     ): String = outbox.enqueueOperation(
-        tenantId, opType, entityType, clientId, json.encodeToJsonElement(serializer, payload).jsonObject, attachmentId,
+        tenantId, opType, entityType, clientId, json.encodeToJsonElement(serializer, payload).jsonObject, attachmentIds,
     )
+
+    private class StoredReceipt(val id: String, val fileName: String, val bytes: ByteArray)
 }
