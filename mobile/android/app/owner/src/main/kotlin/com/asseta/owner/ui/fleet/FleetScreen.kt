@@ -88,10 +88,14 @@ fun FleetScreen(vm: FleetViewModel, now: () -> Long, onMachine: (String) -> Unit
             }
             if (showMap) {
                 val markers = rows.filter { it.machine.hasPosition }.map {
-                    MapMarker(it.machine.machineId.toString(), it.machine.latitude!!, it.machine.longitude!!, OwnerColors.connectivity(it.connectivity), it.machine.name)
+                    MapMarker(
+                        it.machine.machineId.toString(), it.machine.latitude!!, it.machine.longitude!!,
+                        OwnerColors.connectivity(it.connectivity), it.machine.name,
+                        code = it.machine.assetCode, alerts = it.machine.openAlerts, live = it.connectivity == Connectivity.LIVE,
+                    )
                 }
                 val noPosition = rows.size - markers.size
-                if (noPosition > 0) Text("$noPosition machines have no known position (see List).", Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.bodySmall)
+                if (noPosition > 0) Text(if (noPosition == 1) "1 machine has no known position (see List)." else "$noPosition machines have no known position (see List).", Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.bodySmall)
                 OwnerMap(
                     markers, "Fleet map with ${markers.size} machines. Use the List view for details.",
                     Modifier.fillMaxSize(), onMarker = onMachine,

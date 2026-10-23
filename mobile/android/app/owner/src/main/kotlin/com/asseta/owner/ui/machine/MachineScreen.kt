@@ -168,7 +168,7 @@ private fun Track(m: MachineMapDto, state: ScreenState<HistoryDto>, zone: ZoneId
         Text("${h.points.size} positions, ${"%.1f".format(java.util.Locale.ROOT, h.distanceKm)} km" + if (h.truncated) " (truncated)" else "")
         if (h.points.size >= 2) {
             OwnerMap(
-                markers = if (m.hasPosition) listOf(MapMarker(m.machineId.toString(), m.latitude!!, m.longitude!!, OwnerColors.Recent, m.name)) else emptyList(),
+                markers = if (m.hasPosition) listOf(MapMarker(m.machineId.toString(), m.latitude!!, m.longitude!!, OwnerColors.Recent, m.name, code = m.assetCode, live = m.isLive)) else emptyList(),
                 description = "Track of ${m.name} over the last 24 hours. Stops are listed below.",
                 modifier = Modifier.fillMaxWidth().height(240.dp),
                 track = h.points.map { it.latitude to it.longitude },

@@ -34,23 +34,36 @@ import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
 import org.maplibre.android.style.expressions.Expression
-import org.maplibre.android.style.layers.CircleLayer
 import org.maplibre.android.style.layers.LineLayer
+import org.maplibre.android.style.layers.Property
 import org.maplibre.android.style.layers.PropertyFactory
+import org.maplibre.android.style.layers.SymbolLayer
 import org.maplibre.android.style.sources.GeoJsonSource
 import org.maplibre.geojson.Feature
 import org.maplibre.geojson.FeatureCollection
 import org.maplibre.geojson.LineString
 import org.maplibre.geojson.Point
 
-/** A map marker: [color] encodes connectivity (the list view and TalkBack label carry the same information). */
-data class MapMarker(val id: String, val latitude: Double, val longitude: Double, val color: Color, val label: String)
+/**
+ * A map marker: [color] encodes connectivity, [live] solid vs dashed ring, [alerts] the open-alert badge and [code] the
+ * asset code drawn under it (the list view and TalkBack label carry the same information).
+ */
+data class MapMarker(
+    val id: String,
+    val latitude: Double,
+    val longitude: Double,
+    val color: Color,
+    val label: String,
+    val code: String = "",
+    val alerts: Int = 0,
+    val live: Boolean = true,
+)
 
 private const val MARKERS = "markers"
 private const val TRACK = "track"
 
 /**
- * MapLibre map (raster tiles) with circle markers and an optional track polyline. Tapping a marker calls [onMarker].
+ * MapLibre map (raster tiles) with machine markers ([MarkerBitmap]) and an optional track polyline. Tapping a marker calls [onMarker].
  * The map is decorative for TalkBack ([description]); every screen using it also offers an accessible list.
  */
 @Composable
@@ -77,11 +90,13 @@ fun OwnerMap(
                     s.addLayer(LineLayer(TRACK, TRACK).withProperties(PropertyFactory.lineWidth(4f), PropertyFactory.lineColor(Color(0xFF0F2A3D).toArgb())))
                     s.addSource(GeoJsonSource(MARKERS, FeatureCollection.fromFeatures(emptyList())))
                     s.addLayer(
-                        CircleLayer(MARKERS, MARKERS).withProperties(
-                            PropertyFactory.circleRadius(9f),
-                            PropertyFactory.circleColor(Expression.get("color")),
-                            PropertyFactory.circleStrokeColor(android.graphics.Color.WHITE),
-                            PropertyFactory.circleStrokeWidth(2f),
+                        SymbolLayer(MARKERS, MARKERS).withProperties(
+                            PropertyFactory.iconImage(Expression.get("icon")),
+                            PropertyFactory.iconAnchor(Property.ICON_ANCHOR_TOP),
+                            // Anchor at the circle centre, not the bitmap's top edge (badge space sits above it).
+                            PropertyFactory.iconOffset(arrayOf(0f, -MarkerBitmap.CENTER_FROM_TOP_DP)),
+                            PropertyFactory.iconAllowOverlap(true),
+                            PropertyFactory.iconIgnorePlacement(true),
                         ),
                     )
                     style = s
@@ -116,6 +131,10 @@ fun OwnerMap(
         AndroidView(factory = { view }, modifier = Modifier.fillMaxSize().semantics { contentDescription = description }) {
             val s = style ?: return@AndroidView
             val m = map ?: return@AndroidView
+            markers.forEach { mk ->
+                val id = MarkerBitmap.imageId(mk)
+                if (s.getImage(id) == null) s.addImage(id, MarkerBitmap.draw(context, mk))
+            }
             s.getSourceAs<GeoJsonSource>(MARKERS)?.setGeoJson(FeatureCollection.fromFeatures(markers.map { it.toFeature() }))
             s.getSourceAs<GeoJsonSource>(TRACK)?.setGeoJson(
                 if (track.size >= 2) FeatureCollection.fromFeature(Feature.fromGeometry(LineString.fromLngLats(track.map { Point.fromLngLat(it.second, it.first) })))
@@ -124,7 +143,7 @@ fun OwnerMap(
             val key = markers.map { it.id } to track.size
             if (fitted[0] != key) {
                 fitted[0] = key
-                fit(m, markers.map { LatLng(it.latitude, it.longitude) } + track.map { LatLng(it.first, it.second) })
+                fit(m, markers.map { LatLng(it.latitude, it.longitude) } + track.map { LatLng(it.first, it.second) }, context.resources.displayMetrics.density)
             }
         }
         Surface(Modifier.align(Alignment.BottomEnd).padding(4.dp), color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)) {
@@ -136,15 +155,16 @@ fun OwnerMap(
 private fun MapMarker.toFeature(): Feature = Feature.fromGeometry(Point.fromLngLat(longitude, latitude)).apply {
     addStringProperty("id", id)
     addStringProperty("label", label)
-    addStringProperty("color", String.format("#%06X", 0xFFFFFF and color.toArgb()))
+    addStringProperty("icon", MarkerBitmap.imageId(this@toFeature))
 }
 
-private fun fit(map: MapLibreMap, points: List<LatLng>) {
+private fun fit(map: MapLibreMap, points: List<LatLng>, density: Float) {
     when {
         points.isEmpty() -> Unit
         points.size == 1 -> map.moveCamera(CameraUpdateFactory.newLatLngZoom(points.first(), 13.0))
         else -> runCatching {
-            map.moveCamera(CameraUpdateFactory.newLatLngBounds(LatLngBounds.Builder().includes(points).build(), 80))
+            // Padding leaves room for the marker bitmap (circle, badge and asset code) at the edges.
+            map.moveCamera(CameraUpdateFactory.newLatLngBounds(LatLngBounds.Builder().includes(points).build(), (64 * density).toInt()))
         }
     }
 }
