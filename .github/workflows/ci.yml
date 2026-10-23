@@ -8,6 +8,7 @@ concurrency: {group: "${{ github.workflow }}-${{ github.ref }}", cancel-in-progr
 jobs:
   backend:
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     services:
       postgres:
         image: postgis/postgis:18-3.6
@@ -50,6 +51,7 @@ jobs:
 
   web:
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     defaults: {run: {working-directory: web}}
     steps:
       - uses: actions/checkout@v5
@@ -64,6 +66,7 @@ jobs:
 
   android:
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     defaults: {run: {working-directory: mobile/android}}
     steps:
       - uses: actions/checkout@v5
@@ -78,6 +81,7 @@ jobs:
 
   ios:
     runs-on: macos-26
+    timeout-minutes: 45
     defaults: {run: {working-directory: mobile/ios}}
     steps:
       - uses: actions/checkout@v5
