@@ -31,6 +31,12 @@ final class FakeSyncServer: @unchecked Sendable {
     var customers: [[String: Any]] = []
     var expenseCategories: [[String: Any]] = []
     var cashCustody: [[String: Any]] = []
+    /// Advertised protocol capabilities (nil: an older server that sends none).
+    var capabilities: [String]? = ["SUPERVISOR_INBOX_V1", "OP_METER_RESET_REQUEST"]
+    /// Supervisor inbox lists sent with every bootstrap/changes (`my_expenses` → rows); empty: not sent.
+    var inbox: [String: [[String: Any]]] = [:]
+    /// Meter reset requests received (payload by server id), resolved like the server's MeterResetOp.
+    private(set) var resets: [UUID: [String: Any]] = [:]
 
     // Observations.
     private(set) var requests: [URLRequest] = []
@@ -68,11 +74,15 @@ final class FakeSyncServer: @unchecked Sendable {
             registrations.append(body)
             return json(201, deviceSession(body["device_id"] as? String ?? ""))
         case ("GET", "/api/v1/sync/bootstrap"):
-            return json(200, ["server_time": iso(serverTime), "cursor": cursor, "protocol_version": 1,
-                              "device_session": deviceSession("d"), "data": data(), "policy_snapshots": snapshots])
+            var body: [String: Any] = ["server_time": iso(serverTime), "cursor": cursor, "protocol_version": 1,
+                                       "device_session": deviceSession("d"), "data": data(), "policy_snapshots": snapshots]
+            if let capabilities { body["capabilities"] = capabilities }
+            return json(200, body)
         case ("GET", "/api/v1/sync/changes"):
-            return json(200, ["server_time": iso(serverTime), "cursor": cursor, "has_more": false, "data": data(),
-                              "policy_snapshots": snapshots])
+            var body: [String: Any] = ["server_time": iso(serverTime), "cursor": cursor, "has_more": false, "data": data(),
+                                       "policy_snapshots": snapshots]
+            if let capabilities { body["capabilities"] = capabilities }
+            return json(200, body)
         case ("POST", "/api/v1/sync/push"):
             return try push(body)
         case ("POST", "/api/v1/sync/blobs"):
@@ -158,6 +168,23 @@ final class FakeSyncServer: @unchecked Sendable {
                 return ["id": id.uuidString.lowercased(), "status": "REJECTED", "result": ["error": error], "error": error]
             }
         }
+        if op["op_type"] as? String == "METER_RESET_REQUEST" {
+            // Mirrors push.py `_meter_reset`: the evidence upload must be complete; the reset gets a server id.
+            guard let upload = (payload["evidence_upload_id"] as? String).flatMap(UUID.init(uuidString:)),
+                  let attachment = blobs[upload]?.attachmentID else {
+                let error: [String: Any] = ["code": "ATTACHMENT_NOT_FOUND", "message": "Evidence upload not found"]
+                stored[id] = StoredOp(status: "REJECTED", result: ["error": error], error: error)
+                return ["id": id.uuidString.lowercased(), "status": "REJECTED", "result": ["error": error], "error": error]
+            }
+            let reset = UUID()
+            resets[reset] = payload
+            let result: [String: Any] = ["entity": ["id": reset.uuidString.lowercased(), "status": "PENDING",
+                                                    "evidence_attachment_id": attachment.uuidString.lowercased()]]
+            stored[id] = StoredOp(status: "ACKED", result: result, error: nil)
+            appliedPayloads[id] = payload
+            applyOrder.append(id)
+            return ["id": id.uuidString.lowercased(), "status": "ACKED", "result": result, "error": NSNull()]
+        }
         let result: [String: Any] = ["entity": ["id": id.uuidString.lowercased(), "version": 3]]
         stored[id] = StoredOp(status: "ACKED", result: result, error: nil)
         appliedPayloads[id] = payload
@@ -218,8 +245,10 @@ final class FakeSyncServer: @unchecked Sendable {
     // MARK: - Helpers
 
     private func data() -> [String: Any] {
-        ["jobs": jobs, "machines": machines, "sites": [], "customers": customers, "contracts": [], "staff": [],
-         "expense_categories": expenseCategories, "cash_custody": cashCustody]
+        var data: [String: Any] = ["jobs": jobs, "machines": machines, "sites": [], "customers": customers, "contracts": [],
+                                   "staff": [], "expense_categories": expenseCategories, "cash_custody": cashCustody]
+        for (key, rows) in inbox { data[key] = rows }
+        return data
     }
 
     private func deviceSession(_ deviceID: String) -> [String: Any] {

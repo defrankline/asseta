@@ -34,6 +34,8 @@ public enum AttachmentPayloadField: String, Sendable, CaseIterable {
     /// EXPENSE receipts: the upload session id is appended to this array (the server resolves it
     /// to the stored attachment, or answers DEFERRED `ATTACHMENT_PENDING` until it is complete).
     case receiptUploads = "receipt_upload_ids"
+    /// METER_RESET_REQUEST evidence photo: the upload session id is written here (like receipts).
+    case evidenceUpload = "evidence_upload_id"
 }
 
 /// A durable, device-generated mutation waiting to be pushed to the server.

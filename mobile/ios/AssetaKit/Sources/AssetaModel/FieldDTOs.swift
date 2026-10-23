@@ -129,6 +129,8 @@ public enum OperationType: String, Codable, Sendable, CaseIterable {
     case jobAcknowledgement = "JOB_ACKNOWLEDGEMENT", jobTransition = "JOB_TRANSITION"
     case expense = "EXPENSE", cashCollection = "CASH_COLLECTION", cashHandover = "CASH_HANDOVER"
     case fuelEvent = "FUEL_EVENT"
+    /// Needs the server capability ``SyncCapability/meterResetRequest``.
+    case meterResetRequest = "METER_RESET_REQUEST"
 }
 
 public enum GpsStatus: String, Codable, Sendable, CaseIterable {

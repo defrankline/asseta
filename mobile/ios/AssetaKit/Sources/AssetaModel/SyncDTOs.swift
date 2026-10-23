@@ -79,6 +79,9 @@ public struct SyncData: Codable, Hashable, Sendable {
     /// The supervisor's current custody per currency. Not an entity (no `id`) and always complete,
     /// so it replaces the local copy instead of being merged.
     public var cashCustody: [JSONValue]
+    /// Supervisor inbox lists (SUPERVISOR_INBOX_V1), raw as sent; `nil` when the server did not send
+    /// the field (an older server): the stored inbox is then left untouched.
+    public var inbox: [InboxList: [JSONValue]] = [:]
 
     public init(jobs: [JSONValue] = [], machines: [JSONValue] = [], sites: [JSONValue] = [],
                 customers: [JSONValue] = [], contracts: [JSONValue] = [], staff: [JSONValue] = [],
@@ -98,6 +101,31 @@ public struct SyncData: Codable, Hashable, Sendable {
         case expenseCategories = "expense_categories", cashCustody = "cash_custody"
     }
 
+    /// The `my_*` inbox lists of `SyncData`.
+    public enum InboxList: String, CodingKey, CaseIterable, Sendable {
+        case meterCaptures = "my_meter_captures", meterResets = "my_meter_resets"
+        case jobActivities = "my_job_activities", acknowledgements = "my_acknowledgements"
+        case expenses = "my_expenses", fuelEvents = "my_fuel_events"
+        case cashCollections = "my_cash_collections", cashHandovers = "my_cash_handovers"
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(jobs, forKey: .jobs)
+        try c.encode(machines, forKey: .machines)
+        try c.encode(sites, forKey: .sites)
+        try c.encode(customers, forKey: .customers)
+        try c.encode(contracts, forKey: .contracts)
+        try c.encode(staff, forKey: .staff)
+        try c.encode(expenseCategories, forKey: .expenseCategories)
+        try c.encode(cashCustody, forKey: .cashCustody)
+        var lists = encoder.container(keyedBy: InboxList.self)
+        for (key, rows) in inbox { try lists.encode(rows, forKey: key) }
+    }
+
+    /// Whether the server sent any inbox list.
+    public var hasInbox: Bool { !inbox.isEmpty }
+
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         jobs = try c.decodeIfPresent([JSONValue].self, forKey: .jobs) ?? []
@@ -108,6 +136,10 @@ public struct SyncData: Codable, Hashable, Sendable {
         staff = try c.decodeIfPresent([JSONValue].self, forKey: .staff) ?? []
         expenseCategories = try c.decodeIfPresent([JSONValue].self, forKey: .expenseCategories) ?? []
         cashCustody = try c.decodeIfPresent([JSONValue].self, forKey: .cashCustody) ?? []
+        let lists = try decoder.container(keyedBy: InboxList.self)
+        for key in InboxList.allCases {
+            if let rows = try lists.decodeIfPresent([JSONValue].self, forKey: key) { inbox[key] = rows }
+        }
     }
 
     /// Entity type name → objects, in a stable order.
@@ -119,6 +151,8 @@ public struct SyncData: Codable, Hashable, Sendable {
 
 public struct BootstrapDTO: Codable, Hashable, Sendable {
     public let protocolVersion: Int?
+    /// Optional protocol features the server supports (``SyncCapability``); nil from older servers.
+    public let capabilities: [String]?
     public let serverTime: Date
     public let cursor: Int64
     public let deviceSession: DeviceSessionDTO
@@ -126,13 +160,14 @@ public struct BootstrapDTO: Codable, Hashable, Sendable {
     public let policySnapshots: [PolicySnapshotDTO]
 
     enum CodingKeys: String, CodingKey {
-        case protocolVersion = "protocol_version", serverTime = "server_time", cursor
+        case protocolVersion = "protocol_version", capabilities, serverTime = "server_time", cursor
         case deviceSession = "device_session", data, policySnapshots = "policy_snapshots"
     }
 }
 
 public struct ChangesDTO: Codable, Hashable, Sendable {
     public let protocolVersion: Int?
+    public let capabilities: [String]?
     public let serverTime: Date
     public let cursor: Int64
     public let hasMore: Bool
@@ -140,7 +175,7 @@ public struct ChangesDTO: Codable, Hashable, Sendable {
     public let policySnapshots: [PolicySnapshotDTO]
 
     enum CodingKeys: String, CodingKey {
-        case protocolVersion = "protocol_version", serverTime = "server_time", cursor, hasMore = "has_more"
+        case protocolVersion = "protocol_version", capabilities, serverTime = "server_time", cursor, hasMore = "has_more"
         case data, policySnapshots = "policy_snapshots"
     }
 }

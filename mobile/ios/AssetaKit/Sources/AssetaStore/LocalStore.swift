@@ -8,12 +8,14 @@ public struct LocalStore: Sendable {
     public let outbox: any ClientOperationRepository
     public let attachments: AttachmentRepository
     public let syncState: SyncStateStore
+    public let inbox: InboxStore
 
     public init(database: EncryptedDatabase) {
         self.database = database
         self.outbox = SQLiteClientOperationRepository(database: database)
         self.attachments = AttachmentRepository(database: database)
         self.syncState = SyncStateStore(database: database)
+        self.inbox = InboxStore(database: database)
     }
 
     public static func open(at url: URL, keyProvider: DatabaseKeyProvider) throws -> LocalStore {

@@ -157,6 +157,18 @@ public final class AttachmentRepository: Sendable {
     }
 
     /// Permanent failure (e.g. the local evidence file no longer matches its recorded hash).
+    /// The local evidence files an operation carries (photo, signature, receipts, reset evidence), oldest first.
+    public func attachments(operationID: UUID) throws -> [LocalAttachment] {
+        try db.query(
+            """
+            SELECT \(Self.columns) FROM local_attachment WHERE id IN
+                (SELECT attachment_local_id FROM operation_attachment WHERE operation_id = ?)
+            ORDER BY created_at, id
+            """,
+            [.text(operationID.lowercased)], map: Self.decode
+        )
+    }
+
     public func markFailed(id: UUID, error: String) throws {
         try db.execute("UPDATE local_attachment SET status = 'FAILED', last_error = ? WHERE id = ?",
                        [.text(error), .text(id.lowercased)])
@@ -196,6 +208,15 @@ public final class AttachmentRepository: Sendable {
                                           WHERE value = ?)
                         """,
                         [.text(session.lowercased), .text(operationID), .text(session.lowercased)]
+                    )
+                case .evidenceUpload:
+                    guard let session else { throw OutboxError.attachmentMissing(id) }
+                    try db.execute(
+                        """
+                        UPDATE client_operation SET payload_json = json_set(payload_json, '$.evidence_upload_id', ?)
+                        WHERE id = ? AND status = 'PENDING'
+                        """,
+                        [.text(session.lowercased), .text(operationID)]
                     )
                 case .photo, .signature:
                     try db.execute(

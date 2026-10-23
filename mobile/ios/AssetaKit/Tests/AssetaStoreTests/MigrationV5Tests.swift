@@ -35,7 +35,7 @@ struct MigrationV5Tests {
                        [.text(op.lowercased), .text(file.lowercased), .text("photo_attachment_id")])
         try v4.syncState.setValue("53", for: "cursor", tenant: tenant.lowercased)
         try v4.syncState.setValue(#"{"x":1}"#, for: "work_log_running.\(job.lowercased)", tenant: tenant.lowercased)
-        #expect(try Migrator.asseta.migrate(db) == 5)
+        #expect(try Migrator(migrations: Array(AssetaSchema.migrations.prefix(5))).migrate(db) == 5)
         return (db, op, handover, file)
     }
 
@@ -65,6 +65,7 @@ struct MigrationV5Tests {
         let store = LocalStore(database: db)
         try store.adoptLegacyData(owner: nil)
         #expect(try store.attachments.attachment(id: file)?.ownerSubject == AccountIdentity.unknownSubject)
+        try Migrator.asseta.migrate(db) // today's claim also clears the v6 inbox
         // Whoever signs in next gets a fresh start and never sees, uploads or sends the held work.
         #expect(try store.syncState.claim(tenantID: tenant, owner: "next-user"))
         #expect(try store.syncState.value("cursor", tenant: tenant.lowercased) == nil)

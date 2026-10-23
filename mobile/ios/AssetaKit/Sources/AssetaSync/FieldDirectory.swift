@@ -36,6 +36,7 @@ public struct OutboxItem: Sendable, Equatable, Identifiable {
         case .cashCollection: "Cash collection"
         case .cashHandover: "Cash handover"
         case .fuelEvent: "Fuel event"
+        case .meterResetRequest: "Meter reset request"
         case nil: operation.opType
         }
     }

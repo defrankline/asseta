@@ -76,7 +76,7 @@ public final class SyncStateStore: Sendable {
 
     /// Makes `owner` the owner of the tenant's sync state. When it belonged to another user, that
     /// user's cursor, registration, offline grant, backoff and cached server data (entities, policy
-    /// snapshots, cash custody) are deleted so a fresh bootstrap runs: the new user never sees the
+    /// snapshots, cash custody, the supervisor inbox and cached notifications) are deleted so a fresh bootstrap runs: the new user never sees the
     /// previous user's data nor resumes from their cursor. Device-owned work (outbox, evidence,
     /// running work-log entries) is kept for its owner; the device-wide clock reference is kept.
     /// The same user signing in again changes nothing. Returns whether another user's state was reset.
@@ -88,7 +88,7 @@ public final class SyncStateStore: Sendable {
             guard current != owner else { return false }
             let hadState = try db.query("SELECT count(*) FROM sync_kv WHERE tenant_id = ? AND key NOT LIKE 'work_log_running.%'",
                                         [.text(tenant)]) { $0.int(0) }.first ?? 0
-            for table in ["sync_entity", "policy_snapshot", "cash_custody_balance"] {
+            for table in ["sync_entity", "policy_snapshot", "cash_custody_balance", "inbox_record"] {
                 try db.execute("DELETE FROM \(table) WHERE tenant_id = ?", [.text(tenant)])
             }
             try db.execute("DELETE FROM sync_kv WHERE tenant_id = ? AND key NOT LIKE 'work_log_running.%'", [.text(tenant)])

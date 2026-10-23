@@ -150,6 +150,11 @@ public enum AssetaSchema {
             name: "per_user_field_data",
             statements: OwnersV5.statements
         ),
+        Migration(
+            version: 6,
+            name: "supervisor_inbox",
+            statements: InboxV6.statements
+        ),
     ]
 }
 

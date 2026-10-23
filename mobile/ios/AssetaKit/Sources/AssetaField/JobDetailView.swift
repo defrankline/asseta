@@ -199,6 +199,7 @@ struct OperationRow: View {
             return "Fuel \(payload?["event_type"]?.stringValue?.lowercased() ?? ""): \(payload?["litres"]?.stringValue ?? "") L"
         case .cashCollection: return "Cash collection \(payload?["amount"]?.stringValue ?? "")"
         case .cashHandover: return "Cash handover \(payload?["amount"]?.stringValue ?? "")"
+        case .meterResetRequest: return "Meter reset request"
         case nil: return operation.opType
         }
     }

@@ -50,6 +50,10 @@ enum SyncKey {
     static let nextSyncAt = "next_sync_at"
     static let lastSuccessAt = "last_success_at"
     static let clockSkewAlert = "server_clock_skew_alert"
+    /// Optional protocol features the server advertised on the last pull (comma separated).
+    static let capabilities = "capabilities"
+    /// Cached server notifications of the signed-in user (JSON array; cleared with the tenant's state).
+    static let notifications = "notifications_cache"
     /// Device scope.
     static let clockReference = "clock_reference"
 }
@@ -169,6 +173,12 @@ public actor SyncEngine {
         let entities = try Self.entities(response.data, revision: response.cursor)
         try store.database.transaction {
             try store.syncState.replaceAll(entities, tenantID: tenantID)
+            // The bootstrap inbox is the server's full window: start it afresh (later pages arrive as changes).
+            if response.capabilities?.contains(SyncCapability.supervisorInbox) == true {
+                try store.inbox.deleteTenant(tenantID)
+            }
+            try saveInbox(response.data)
+            try setValue((response.capabilities ?? []).joined(separator: ","), SyncKey.capabilities)
             try saveCustody(response.data.cashCustody, asOf: response.serverTime)
             try saveSnapshots(response.policySnapshots, receivedAt: response.serverTime)
             try setValue(String(response.cursor), SyncKey.cursor)
@@ -188,6 +198,8 @@ public actor SyncEngine {
             let entities = try Self.entities(page.data, revision: page.cursor)
             try store.database.transaction {
                 written += try store.syncState.upsert(entities, tenantID: tenantID)
+                try saveInbox(page.data)
+                try setValue((page.capabilities ?? []).joined(separator: ","), SyncKey.capabilities)
                 try saveCustody(page.data.cashCustody, asOf: page.serverTime)
                 try saveSnapshots(page.policySnapshots, receivedAt: page.serverTime)
                 try setValue(String(max(page.cursor, cursor)), SyncKey.cursor)
@@ -262,6 +274,14 @@ public actor SyncEngine {
                                     version: object["version"]?.intValue.map(Int64.init), json: try object.jsonString())
             }
         }
+    }
+
+    /// Supervisor inbox lists, upserted by (kind, id, sync_revision); finished records older than the
+    /// server's 30-day window are dropped. Lists an older server did not send leave the inbox untouched.
+    private func saveInbox(_ data: SyncData) throws {
+        guard data.hasInbox else { return }
+        try store.inbox.upsert(InboxWriter.records(data), tenantID: tenantID)
+        try store.inbox.prune(tenantID: tenantID, before: clock.wallNow.addingTimeInterval(-InboxWriter.window))
     }
 
     /// Custody is a complete, current list (not a delta): it replaces the local copy.
