@@ -6,6 +6,9 @@ import com.asseta.core.database.WorkLogEntryEntity
 import com.asseta.core.database.inTransaction
 import com.asseta.core.domain.capture.JobStateRules
 import com.asseta.core.domain.capture.JobStatus
+import com.asseta.core.domain.finance.AmountInput
+import com.asseta.core.domain.finance.AmountParser
+import com.asseta.core.domain.finance.DecimalLimit
 import com.asseta.core.domain.sync.JobOpKind
 import com.asseta.core.model.sync.AckMethod
 import com.asseta.core.model.sync.AcknowledgementPayload
@@ -44,17 +47,50 @@ class JobWorkflow(
     private val json: Json,
     private val onQueued: () -> Unit = {},
 ) {
-    /** Starts a timed WORK/STANDBY/DOWNTIME/MOBILIZATION entry (local until stopped). One open entry per job. */
-    suspend fun startEntry(tenantId: String, jobId: String, activityType: String, note: String? = null): WorkflowResult {
+    /**
+     * Starts a timed WORK/STANDBY/DOWNTIME/MOBILIZATION entry (local until stopped). One open entry per job.
+     * [startedAtMs] backdates the start (work log entry form); default now.
+     */
+    suspend fun startEntry(
+        tenantId: String,
+        jobId: String,
+        activityType: String,
+        note: String? = null,
+        startedAtMs: Long? = null,
+    ): WorkflowResult {
         require(activityType != ActivityTypes.NOTE) { "Notes are recorded with addNote" }
         refuseUnlessLoggable(tenantId, jobId)?.let { return it }
         val evidence = db().evidenceDao()
         if (evidence.observeWorkLog(jobId).first().any { it.operationId == null }) {
             return WorkflowResult.Refused("Stop the running entry first.")
         }
-        val entry = WorkLogEntryEntity(UUID.randomUUID().toString(), tenantId, jobId, activityType, clock.nowMs(), null, note?.trim()?.take(2000), null)
+        val startedAt = startedAtMs ?: clock.nowMs()
+        val entry = WorkLogEntryEntity(UUID.randomUUID().toString(), tenantId, jobId, activityType, startedAt, null, note.clean(), null)
         evidence.insertWorkLog(entry)
         return WorkflowResult.Done(entry.clientId)
+    }
+
+    /** A finished entry entered after the fact (work log entry form), queued immediately. [billable] null = contract default. */
+    suspend fun addEntry(
+        tenantId: String,
+        jobId: String,
+        activityType: String,
+        startedAtMs: Long,
+        endedAtMs: Long,
+        billable: Boolean?,
+        note: String?,
+    ): WorkflowResult {
+        require(activityType != ActivityTypes.NOTE) { "Notes are recorded with addNote" }
+        if (endedAtMs < startedAtMs) return WorkflowResult.Refused("The end time is before the start time.")
+        refuseUnlessLoggable(tenantId, jobId)?.let { return it }
+        val database = db()
+        val entry = WorkLogEntryEntity(UUID.randomUUID().toString(), tenantId, jobId, activityType, startedAtMs, endedAtMs, note.clean(), null)
+        return database.inTransaction {
+            database.evidenceDao().insertWorkLog(entry)
+            val opId = queueActivity(tenantId, entry, billable)
+            database.evidenceDao().closeWorkLog(entry.clientId, endedAtMs, opId)
+            WorkflowResult.Done(opId)
+        }.also { onQueued() }
     }
 
     /** Stops an open entry and queues exactly one JOB_ACTIVITY operation for it. */
@@ -70,13 +106,13 @@ class JobWorkflow(
         }.also { onQueued() }
     }
 
-    /** A free-text note (activity type NOTE), queued immediately. */
-    suspend fun addNote(tenantId: String, jobId: String, text: String): WorkflowResult {
+    /** A free-text note (activity type NOTE), queued immediately. [atMs] backdates it (work log entry form). */
+    suspend fun addNote(tenantId: String, jobId: String, text: String, atMs: Long? = null): WorkflowResult {
         val note = text.trim()
         if (note.isEmpty()) return WorkflowResult.Refused("Write a note first.")
         refuseUnlessLoggable(tenantId, jobId)?.let { return it }
         val database = db()
-        val entry = WorkLogEntryEntity(UUID.randomUUID().toString(), tenantId, jobId, ActivityTypes.NOTE, clock.nowMs(), null, note.take(2000), null)
+        val entry = WorkLogEntryEntity(UUID.randomUUID().toString(), tenantId, jobId, ActivityTypes.NOTE, atMs ?: clock.nowMs(), null, note.take(2000), null)
         return database.inTransaction {
             database.evidenceDao().insertWorkLog(entry)
             val opId = queueActivity(tenantId, entry)
@@ -93,6 +129,7 @@ class JobWorkflow(
         signerName: String,
         signerPhone: String?,
         signaturePng: ByteArray?,
+        acknowledgedHours: String? = null,
     ): WorkflowResult {
         val job = repository.job(jobId) ?: return WorkflowResult.Refused("Job not found.")
         val state = repository.fieldState(tenantId, job)
@@ -105,13 +142,19 @@ class JobWorkflow(
                 return WorkflowResult.Refused("The customer must sign.")
             method != AckMethod.SIGNATURE && method != AckMethod.NAME_CONFIRMATION -> return WorkflowResult.Refused("Unknown method.")
         }
+        val hours = acknowledgedHours?.trim()?.takeIf { it.isNotEmpty() }?.let {
+            (AmountParser.parse(it, DecimalLimit.METER_READING, allowZero = true) as? AmountInput.Valid)?.value?.toPlainString()
+                ?: return WorkflowResult.Refused("Hours must be a number with at most 2 decimals.")
+        }
         val clientId = UUID.randomUUID().toString()
         val now = clock.nowMs()
         val png = signaturePng.takeIf { method == AckMethod.SIGNATURE }
         val file = png?.let { files.write(it) }
         val attachmentId = file?.let { UUID.randomUUID().toString() }
         val payload = AcknowledgementPayload(
-            jobId, clientId, method, name, signerPhone?.trim()?.takeIf { it.isNotEmpty() }?.take(40), null, IsoTime.format(now),
+            jobId = jobId, clientId = clientId, method = method, signerName = name,
+            signerPhone = signerPhone?.trim()?.takeIf { it.isNotEmpty() }?.take(40), acknowledgedHours = hours,
+            capturedAt = IsoTime.format(now),
         )
         val database = db()
         return database.inTransaction {
@@ -160,11 +203,11 @@ class JobWorkflow(
         }.also { onQueued() }
     }
 
-    private suspend fun queueActivity(tenantId: String, entry: WorkLogEntryEntity): String {
+    private suspend fun queueActivity(tenantId: String, entry: WorkLogEntryEntity, billable: Boolean? = null): String {
         val payload = ActivityPayload(
             jobId = entry.jobId, clientId = entry.clientId, activityType = entry.activityType,
             startedAt = IsoTime.format(entry.startedAt), endedAt = entry.endedAt?.let(IsoTime::format),
-            note = entry.note, deviceId = deviceId(),
+            billable = billable, note = entry.note, deviceId = deviceId(),
         )
         return outbox.enqueue(
             tenantId, entry.jobId, JobOpKind.ACTIVITY, FieldOps.ACTIVITY, entry.clientId,
@@ -178,6 +221,8 @@ class JobWorkflow(
         return if (JobStateRules.canLogWork(state.effectiveStatus)) null
         else WorkflowResult.Refused("Work can only be logged on approved or running jobs.")
     }
+
+    private fun String?.clean(): String? = this?.trim()?.takeIf { it.isNotEmpty() }?.take(2000)
 
     companion object {
         const val START = "START"

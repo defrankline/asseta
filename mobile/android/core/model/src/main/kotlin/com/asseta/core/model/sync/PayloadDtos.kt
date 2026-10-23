@@ -43,6 +43,8 @@ data class ActivityPayload(
     @SerialName("activity_type") val activityType: String,
     @SerialName("started_at") val startedAt: String,
     @SerialName("ended_at") val endedAt: String? = null,
+    /** null = the contract default (ActivityIn.billable). */
+    val billable: Boolean? = null,
     val note: String? = null,
     @SerialName("device_id") val deviceId: String? = null,
 )
@@ -55,6 +57,8 @@ data class AcknowledgementPayload(
     @SerialName("signer_name") val signerName: String,
     @SerialName("signer_phone") val signerPhone: String? = null,
     @SerialName("signature_attachment_id") val signatureAttachmentId: String? = null,
+    /** Hours the customer confirmed (decimal string, at most 2 decimals), optional. */
+    @SerialName("acknowledged_hours") val acknowledgedHours: String? = null,
     @SerialName("captured_at") val capturedAt: String,
 )
 

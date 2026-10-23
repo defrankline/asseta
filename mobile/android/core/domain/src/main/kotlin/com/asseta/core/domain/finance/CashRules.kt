@@ -70,21 +70,21 @@ object CashRules {
         if (type == null) messages += "Choose the kind of fuel event."
         val litres = when (val parsed = AmountParser.parse(litresText, DecimalLimit.LITRES)) {
             is AmountInput.Valid -> parsed.value
-            is AmountInput.Invalid -> null.also { messages += "Litres: ${parsed.error.message}" }
+            is AmountInput.Invalid -> null.also { messages += parsed.error.describe("Litres", DecimalLimit.LITRES) }
         }
-        if (type != null && type != FuelEventType.PURCHASE && machineId.isNullOrBlank()) messages += "Choose the machine."
+        if (type != null && type != FuelEventType.PURCHASE && machineId.isNullOrBlank()) messages += "Choose the machine or job the fuel went to."
         val priced = type == FuelEventType.PURCHASE || type == FuelEventType.ISSUE
         val unitPrice = if (priced) {
             when (val parsed = AmountParser.parse(unitPriceText, DecimalLimit.MONEY, allowZero = true)) {
                 is AmountInput.Valid -> parsed.value
-                is AmountInput.Invalid -> null.also { messages += "Unit price: ${parsed.error.message}" }
+                is AmountInput.Invalid -> null.also { messages += parsed.error.describe("Unit price", DecimalLimit.MONEY) }
             }
         } else null
         val code = if (priced) currency(currency, messages) else null
         val meter = meterText.takeIf { it.isNotBlank() }?.let {
             when (val parsed = AmountParser.parse(it, DecimalLimit.METER_READING, allowZero = true)) {
                 is AmountInput.Valid -> parsed.value
-                is AmountInput.Invalid -> null.also { messages += "Meter reading: ${parsed.error.message}" }
+                is AmountInput.Invalid -> null.also { messages += parsed.error.describe("Meter reading", DecimalLimit.METER_READING) }
             }
         }
         val supplierText = optionalText(supplier, 200, "supplier", messages)
@@ -102,7 +102,7 @@ object CashRules {
     private fun money(text: String, messages: MutableList<String>): BigDecimal? =
         when (val parsed = AmountParser.parse(text, DecimalLimit.MONEY)) {
             is AmountInput.Valid -> parsed.value
-            is AmountInput.Invalid -> null.also { messages += parsed.error.message }
+            is AmountInput.Invalid -> null.also { messages += parsed.error.describe("Amount", DecimalLimit.MONEY) }
         }
 
     private fun currency(text: String, messages: MutableList<String>): String? =

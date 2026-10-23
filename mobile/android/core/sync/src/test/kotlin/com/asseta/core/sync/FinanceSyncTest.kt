@@ -224,8 +224,8 @@ class FinanceSyncTest : SyncTestBase() {
         assertTrue(finance.expense(expense()) is FinanceResult.Blocked) // no rules downloaded yet
         success(engine().sync(tenant))
         val noReceipt = finance.expense(expense(receipt = null)) as FinanceResult.Invalid
-        assertTrue(noReceipt.messages.single().contains("above 100.00 TZS"))
-        assertTrue((finance.expense(expense(gps = GpsOutcome.Timeout)) as FinanceResult.Invalid).messages.single().contains("location fix"))
+        assertTrue(noReceipt.messages.single().contains("above 100 TZS"))
+        assertTrue((finance.expense(expense(gps = GpsOutcome.Timeout)) as FinanceResult.Invalid).messages.single().contains("GPS fix"))
         assertTrue((finance.expense(expense(gps = fix(80.0))) as FinanceResult.Invalid).messages.single().contains("±80 m"))
         assertTrue(finance.expense(expense(gps = null)) is FinanceResult.Invalid)
         assertTrue(finance.expense(expense(amount = "1,250.50")) is FinanceResult.Invalid)
@@ -238,7 +238,7 @@ class FinanceSyncTest : SyncTestBase() {
         val issue = finance.fuelEvent(
             FuelEventRequest(tenant, UUID.randomUUID().toString(), FuelEventType.ISSUE, "10", "2900", "TZS", null, null, "", "", "", clock.now),
         ) as FinanceResult.Invalid
-        assertEquals(listOf("Choose the machine."), issue.messages)
+        assertEquals(listOf("Choose the machine or job the fuel went to."), issue.messages)
         val withJob = saved(finance.cashCollection(collection(jobId = fake.jobId)))
         assertTrue(payload(withJob.operationId)["note"]!!.jsonPrimitive.content.startsWith("Job J-0001"))
 

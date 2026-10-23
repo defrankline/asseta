@@ -17,6 +17,15 @@ enum class AmountError(val message: String) {
     TOO_LARGE("The amount is too large."),
 }
 
+/** Field-specific wording of an [AmountError] (same sentences as the iOS app), e.g. "Enter the litres." */
+fun AmountError.describe(what: String, limit: DecimalLimit): String = when (this) {
+    AmountError.EMPTY -> "Enter the ${what.lowercase()}."
+    AmountError.NOT_A_NUMBER -> "$what must be a number such as 1250.50."
+    AmountError.NOT_POSITIVE -> "$what must be more than zero."
+    AmountError.TOO_MANY_DECIMALS -> "$what may have at most ${limit.scale} decimals."
+    AmountError.TOO_LARGE -> "$what is too large."
+}
+
 sealed interface AmountInput {
     data class Valid(val value: BigDecimal) : AmountInput
     data class Invalid(val error: AmountError) : AmountInput

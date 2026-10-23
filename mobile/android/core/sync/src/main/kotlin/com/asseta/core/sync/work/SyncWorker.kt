@@ -9,9 +9,14 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import androidx.work.WorkQuery
 import androidx.work.WorkerParameters
 import com.asseta.core.sync.engine.SyncReport
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import java.util.concurrent.TimeUnit
 
 /** Implemented by the Application: gives background work access to the process-wide sync graph. */
@@ -65,6 +70,12 @@ class SyncScheduler(context: Context) {
         val request = PeriodicWorkRequestBuilder<SyncWorker>(PERIOD_MIN, TimeUnit.MINUTES).setConstraints(online).build()
         work.enqueueUniquePeriodicWork(PERIODIC, ExistingPeriodicWorkPolicy.KEEP, request)
     }
+
+    /** True while a sync run is executing in the background (drives the "syncing" indicators). */
+    fun observeRunning(): Flow<Boolean> =
+        work.getWorkInfosFlow(WorkQuery.fromUniqueWorkNames(listOf(NOW, RETRY, PERIODIC)))
+            .map { infos -> infos.any { it.state == WorkInfo.State.RUNNING } }
+            .distinctUntilChanged()
 
     fun cancelAll() {
         listOf(NOW, RETRY, PERIODIC).forEach(work::cancelUniqueWork)

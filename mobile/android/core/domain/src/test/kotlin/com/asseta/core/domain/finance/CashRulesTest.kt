@@ -53,7 +53,7 @@ class CashRulesTest {
         assertEquals(BigDecimal("3000"), purchase.value.unitPrice)
         assertEquals(0, CashRules.fuelCost(purchase.value.litres, purchase.value.unitPrice!!).compareTo(BigDecimal("121500")))
         val issueWithoutMachine = CashRules.fuel(FuelEventType.ISSUE, "10", "2900", "TZS", null, "", "", "") as FormCheck.Invalid
-        assertEquals(listOf("Choose the machine."), issueWithoutMachine.messages)
+        assertEquals(listOf("Choose the machine or job the fuel went to."), issueWithoutMachine.messages)
         val usage = CashRules.fuel(FuelEventType.USAGE, "12.125", "", "", "m1", "1234.25", "", "") as FormCheck.Valid
         assertNull(usage.value.unitPrice)
         assertNull(usage.value.currency)

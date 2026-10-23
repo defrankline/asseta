@@ -43,6 +43,8 @@ data class FinanceRecord(
     val errorCode: String?,
     val lastError: String?,
     val createdAtMs: Long,
+    /** How it moves the supervisor's cash (collection in, handover or cash-paid expense out); null when it does not. */
+    val cashKind: PendingCashKind? = null,
 ) {
     /** Not yet acknowledged, but still expected to apply (pending, in flight or held while read-only). */
     val isPending: Boolean get() = status in PENDING_STATES
@@ -126,15 +128,17 @@ class FinanceRepository(
         Instant.ofEpochMilli(row.asOf),
     )
 
+    private fun cashKind(opType: String, payload: JsonObject): PendingCashKind? = when (opType) {
+        OpTypes.CASH_COLLECTION -> PendingCashKind.COLLECTION
+        OpTypes.CASH_HANDOVER -> PendingCashKind.HANDOVER
+        OpTypes.EXPENSE -> PendingCashKind.CASH_EXPENSE.takeIf { payload.text("paid_from") == PaidFrom.CASH_CUSTODY.name }
+        else -> null
+    }
+
     /** Unsynced cash movements: collections (+), handovers (-) and expenses paid from custody (-). */
     private fun pendingCash(op: ClientOperationEntity): PendingCashItem? {
         val payload = payload(op) ?: return null
-        val kind = when (op.opType) {
-            OpTypes.CASH_COLLECTION -> PendingCashKind.COLLECTION
-            OpTypes.CASH_HANDOVER -> PendingCashKind.HANDOVER
-            OpTypes.EXPENSE -> PendingCashKind.CASH_EXPENSE.takeIf { payload.text("paid_from") == PaidFrom.CASH_CUSTODY.name }
-            else -> null
-        } ?: return null
+        val kind = cashKind(op.opType, payload) ?: return null
         val amount = payload.text("amount")?.toBigDecimalOrNull() ?: return null
         val currency = payload.text("currency") ?: return null
         return PendingCashItem(kind, amount, currency)
@@ -154,7 +158,10 @@ class FinanceRepository(
             OpTypes.FUEL_EVENT -> null
             else -> p?.text("amount")?.toBigDecimalOrNull()
         }
-        return FinanceRecord(op.id, op.opType, title, amount, p?.text("currency"), op.status, op.errorCode, op.lastError, op.createdAtDevice)
+        return FinanceRecord(
+            op.id, op.opType, title, amount, p?.text("currency"), op.status, op.errorCode, op.lastError, op.createdAtDevice,
+            p?.let { cashKind(op.opType, it) },
+        )
     }
 
     private fun payload(op: ClientOperationEntity): JsonObject? =

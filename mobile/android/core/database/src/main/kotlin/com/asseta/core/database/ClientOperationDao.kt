@@ -112,6 +112,13 @@ abstract class ClientOperationDao {
     @Query("UPDATE client_operation SET status = 'QUARANTINED', last_error = :error WHERE id = :id AND status != 'ACKED'")
     abstract suspend fun quarantine(id: String, error: String): Int
 
+    /**
+     * User "Retry" on a rejected operation: back to PENDING with the same id and payload (the server replays its stored
+     * outcome for a known id, so this only helps when the cause was on the device). Never touches other states.
+     */
+    @Query("UPDATE client_operation SET status = 'PENDING' WHERE id = :id AND status = 'FAILED'")
+    abstract suspend fun requeueFailed(id: String): Int
+
     /** After process death an in-flight batch has no known outcome; resend it (idempotent by operation id). */
     @Query("UPDATE client_operation SET status = 'PENDING' WHERE status = 'SENT'")
     abstract suspend fun recoverInFlight(): Int

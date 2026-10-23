@@ -14,6 +14,12 @@ interface SessionHooks {
     /** After any sign-out: user, forced (device wipe notice) or an ended session (401). */
     fun onSignedOut() {}
 
+    /**
+     * Text of a "Sign out?" confirmation shown before a user-initiated sign-out (e.g. the Supervisor warns about
+     * unsynced items); null signs out without asking.
+     */
+    suspend fun signOutConfirmation(): String? = null
+
     /** After `/me` loaded; [me] is the server's current view of the user's tenants. */
     fun onProfile(me: MeResponse) {}
 }

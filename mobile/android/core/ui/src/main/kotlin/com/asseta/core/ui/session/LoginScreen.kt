@@ -42,6 +42,8 @@ fun LoginScreen(role: AppRole, state: SessionState.SignedOut, onSignIn: () -> Un
         Spacer(Modifier.height(24.dp))
         Text(stringResource(R.string.asseta_brand), style = MaterialTheme.typography.headlineLarge, color = Color.White)
         Text(stringResource(role.label), style = MaterialTheme.typography.titleMedium, color = AssetaColors.Amber)
+        Spacer(Modifier.height(8.dp))
+        Text(stringResource(role.tagline), style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.8f))
         Spacer(Modifier.height(48.dp))
         if (state.busy) {
             CircularProgressIndicator(color = AssetaColors.Amber)

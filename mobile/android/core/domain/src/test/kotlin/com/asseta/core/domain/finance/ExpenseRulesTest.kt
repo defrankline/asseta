@@ -54,7 +54,7 @@ class ExpenseRulesTest {
         val a = ExpenseRules.assess(draft("500.01", receipt = true), policy, "ZMW")
         assertTrue(a.isValid)
         val outlook = a.approval as ApprovalOutlook.NeedsApproval
-        assertTrue(outlook.reason.contains("500.01 ZMW is above the auto-approval limit of 500 ZMW"))
+        assertTrue(outlook.reason.startsWith("Above the auto-approval limit of 500 ZMW: a manager must approve it."))
         assertEquals(ApprovalOutlook.AutoApproved, ExpenseRules.assess(draft("500", receipt = true), policy, "ZMW").approval)
     }
 
@@ -76,7 +76,7 @@ class ExpenseRulesTest {
         val coarse = GpsOutcome.Fix(-15.4, 28.3, 50.5, now, "fused")
         assertEquals(listOf(ExpenseViolation.GPS_TOO_INACCURATE), codes(ExpenseRules.assess(draft(gps = coarse), policy, "ZMW")))
         val noAccuracy = GpsOutcome.Fix(-15.4, 28.3, null, now, "fused")
-        assertEquals(listOf(ExpenseViolation.GPS_TOO_INACCURATE), codes(ExpenseRules.assess(draft(gps = noAccuracy), policy, "ZMW")))
+        assertEquals(listOf(ExpenseViolation.GPS_REQUIRED), codes(ExpenseRules.assess(draft(gps = noAccuracy), policy, "ZMW")))
         val relaxed = policy.copy(gpsRequired = false)
         assertTrue(ExpenseRules.assess(draft(gps = GpsOutcome.PermissionDenied), relaxed, "ZMW").isValid)
         assertEquals(listOf(ExpenseViolation.GPS_NOT_ATTEMPTED), codes(ExpenseRules.assess(draft(gps = null), relaxed, "ZMW")))

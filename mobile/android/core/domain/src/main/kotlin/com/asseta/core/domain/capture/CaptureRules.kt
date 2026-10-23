@@ -39,7 +39,7 @@ sealed interface ReadingInput {
 
 enum class ReadingError(val message: String) {
     EMPTY("Enter the meter reading."),
-    NOT_A_NUMBER("Use digits and at most one decimal point."),
+    NOT_A_NUMBER("The reading must be a non-negative number."),
     TOO_MANY_DECIMALS("This meter shows fewer decimal places."),
     TOO_LARGE("The reading is too large."),
 }
@@ -90,10 +90,10 @@ data class CaptureDraft(
 enum class CaptureViolation(val message: String) {
     MODE_NOT_ALLOWED("Your company requires a different capture method for this reading."),
     PHOTO_REQUIRED("A photo of the meter is required."),
-    OCR_REQUIRED("Take a photo so the reading can be recognised on the device."),
-    RECAPTURE_REQUIRED("The reading could not be recognised confidently. Retake the photo."),
-    READING_INVALID("Enter a valid reading."),
-    GPS_NOT_ATTEMPTED("A location fix must be attempted for every reading."),
+    OCR_REQUIRED("Take a photo so the reading can be recognized."),
+    RECAPTURE_REQUIRED("The photo could not be read reliably. Take another photo."),
+    READING_INVALID("The reading must be a non-negative number."),
+    GPS_NOT_ATTEMPTED("A location attempt is required for every reading."),
 }
 
 object CaptureValidator {

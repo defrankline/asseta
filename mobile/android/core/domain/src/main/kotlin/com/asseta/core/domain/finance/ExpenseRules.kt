@@ -135,22 +135,22 @@ object ExpenseRules {
         }
         val amount = when (val parsed = AmountParser.parse(draft.amountText, DecimalLimit.MONEY)) {
             is AmountInput.Valid -> parsed.value
-            is AmountInput.Invalid -> null.also { add(ExpenseViolation.AMOUNT_INVALID, parsed.error.message) }
+            is AmountInput.Invalid -> null.also { add(ExpenseViolation.AMOUNT_INVALID, parsed.error.describe("Amount", DecimalLimit.MONEY)) }
         }
         val currency = CurrencyCode.normalize(draft.currency)
         if (currency == null) add(ExpenseViolation.CURRENCY_INVALID, "Enter a 3-letter currency code (e.g. ${baseCurrency ?: "USD"}).")
         if (draft.paidFrom == null) add(ExpenseViolation.PAID_FROM_REQUIRED, "Choose who paid: your cash or the company.")
         if (draft.jobId != null && draft.machineId != null && draft.jobMachineId != null && draft.machineId != draft.jobMachineId) {
-            add(ExpenseViolation.ATTRIBUTION_MISMATCH, "The selected machine is not the machine of the selected job.")
+            add(ExpenseViolation.ATTRIBUTION_MISMATCH, "The machine does not match the selected job's machine.")
         }
 
         val inBase = currency != null && baseCurrency != null && currency == baseCurrency
         val receiptReason = when {
             currency == null || amount == null -> null
-            !inBase -> "A receipt is required for expenses in a currency other than " +
-                (baseCurrency ?: "your company's currency") + "."
+            !inBase -> "A receipt photo is required for an expense in another currency."
+            policy.receiptRequiredAbove.signum() == 0 -> "A receipt photo is required for every expense."
             amount > policy.receiptRequiredAbove ->
-                "A receipt is required for expenses above ${formatMoney(policy.receiptRequiredAbove, currency)}."
+                "A receipt photo is required above ${policy.receiptRequiredAbove.plain()} $currency."
             else -> null
         }
         if (receiptReason != null && !draft.hasReceipt) add(ExpenseViolation.RECEIPT_REQUIRED, receiptReason)
@@ -160,12 +160,14 @@ object ExpenseRules {
         val approval = when {
             currency == null || amount == null -> null
             !inBase -> ApprovalOutlook.NeedsApproval(
-                "Expenses in a currency other than ${baseCurrency ?: "your company's currency"} always need a manager's approval.",
+                "Expenses in another currency always need a manager's approval. It is recorded now and stays pending until approved.",
+            )
+            policy.autoApproveLimit.signum() == 0 -> ApprovalOutlook.NeedsApproval(
+                "Every expense needs a manager's approval. It is recorded now and stays pending until approved.",
             )
             amount > policy.autoApproveLimit -> ApprovalOutlook.NeedsApproval(
-                "${formatMoney(amount, currency)} is above the auto-approval limit of " +
-                    "${formatMoney(policy.autoApproveLimit, currency)}, so a manager must approve it. Until then it is " +
-                    "pending spending and does not reduce your cash custody.",
+                "Above the auto-approval limit of ${policy.autoApproveLimit.plain()} $currency: a manager must " +
+                    "approve it. It is recorded now and stays pending until approved.",
             )
             else -> ApprovalOutlook.AutoApproved
         }
@@ -173,16 +175,18 @@ object ExpenseRules {
     }
 
     private fun gpsIssue(gps: GpsOutcome?, policy: ExpenseCapturePolicy): Pair<ExpenseViolation, String>? {
-        val limit = "${Math.round(policy.gpsMaxAccuracyM)} m"
+        val limit = Math.round(policy.gpsMaxAccuracyM)
         return when {
-            gps == null -> ExpenseViolation.GPS_NOT_ATTEMPTED to "A location fix must be attempted for every expense."
+            gps == null -> ExpenseViolation.GPS_NOT_ATTEMPTED to "Waiting for the location fix…"
             !policy.gpsRequired -> null
-            gps !is GpsOutcome.Fix -> ExpenseViolation.GPS_REQUIRED to
-                "Your company requires a location fix (within $limit) for expenses. Turn on location and try again."
-            gps.accuracyM == null || gps.accuracyM > policy.gpsMaxAccuracyM -> ExpenseViolation.GPS_TOO_INACCURATE to
-                "Location accuracy " + (gps.accuracyM?.let { "±${Math.round(it)} m" } ?: "unknown") +
-                " is not good enough (needs $limit). Move to open sky and try again."
+            gps !is GpsOutcome.Fix || gps.accuracyM == null -> ExpenseViolation.GPS_REQUIRED to
+                "Your company requires a GPS fix for expenses (${gps.status}). Try location again outdoors."
+            gps.accuracyM > policy.gpsMaxAccuracyM -> ExpenseViolation.GPS_TOO_INACCURATE to
+                "The location is accurate to ±${Math.round(gps.accuracyM)} m; your company requires ±$limit m or better. Try location again."
             else -> null
         }
     }
 }
+
+/** "500.00" -> "500" (plain digits, no exponent) for amounts shown in sentences. */
+internal fun BigDecimal.plain(): String = stripTrailingZeros().let { if (it.scale() < 0) it.setScale(0) else it }.toPlainString()
