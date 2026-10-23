@@ -39,6 +39,17 @@ object InboxTexts {
         else -> JobSegment.READY
     }
 
+    /** Second line of a notification row: the body, unless it only repeats the title. */
+    fun notificationDetail(title: String, body: String): String? =
+        body.trim().takeUnless { it.isEmpty() || it.equals(title.trim(), ignoreCase = true) }
+
+    /** The Jobs tab opens on the first non-empty job group (In progress, then Ready to start, then Recently closed). */
+    fun defaultSegment(displayStatuses: List<String>): JobSegment {
+        val present = displayStatuses.map(::segment).toSet()
+        return listOf(JobSegment.IN_PROGRESS, JobSegment.READY, JobSegment.CLOSED).firstOrNull { it in present }
+            ?: JobSegment.IN_PROGRESS
+    }
+
     fun jobsEmpty(segment: JobSegment): Pair<String, String> = when (segment) {
         JobSegment.IN_PROGRESS -> "No jobs in progress" to "Jobs you have started appear here."
         JobSegment.READY -> "No jobs ready to start" to "Approved jobs assigned to you appear here after a sync."

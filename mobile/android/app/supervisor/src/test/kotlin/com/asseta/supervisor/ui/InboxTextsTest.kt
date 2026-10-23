@@ -44,6 +44,16 @@ class InboxTextsTest {
     }
 
     @Test
+    fun `jobs tab opens on the first non-empty group and notification rows skip a repeated title`() {
+        assertEquals(JobSegment.READY, InboxTexts.defaultSegment(listOf("APPROVED", "APPROVED")))
+        assertEquals(JobSegment.IN_PROGRESS, InboxTexts.defaultSegment(listOf("APPROVED", "IN_PROGRESS")))
+        assertEquals(JobSegment.CLOSED, InboxTexts.defaultSegment(listOf("COMPLETED")))
+        assertEquals(JobSegment.IN_PROGRESS, InboxTexts.defaultSegment(emptyList()))
+        assertEquals(null, InboxTexts.notificationDetail("Tracker Stale — EX-01", "tracker stale — EX-01 "))
+        assertEquals("Last fix 2 h ago", InboxTexts.notificationDetail("Tracker Stale", "Last fix 2 h ago"))
+    }
+
+    @Test
     fun `inbox badge and attention rows`() {
         assertEquals(5, InboxTexts.inboxBadge(unread = 3, attention = 2))
         assertEquals("Cash handover", InboxTexts.attentionTitle(AttentionItem.Kind.HANDOVER))

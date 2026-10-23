@@ -23,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -75,6 +76,7 @@ fun JobsScreen(
         }
     }.collectAsStateWithLifecycle(null)
     var segment by rememberSaveable { mutableStateOf(JobSegment.IN_PROGRESS) }
+    var chosen by rememberSaveable { mutableStateOf(false) } // the user picked a segment: stop auto-selecting
     PullToRefreshBox(isRefreshing = syncing, onRefresh = onRefresh, modifier = Modifier.fillMaxSize()) {
         val list = rows
         if (list == null) {
@@ -84,13 +86,14 @@ fun JobsScreen(
             }
             return@PullToRefreshBox
         }
+        LaunchedEffect(list.isEmpty()) { if (!chosen) segment = InboxTexts.defaultSegment(list.map { it.second }) }
         val status = list.toMap()
         val inSegment = list.filter { InboxTexts.segment(it.second) == segment }.map { it.first }
             .let { jobs -> if (segment == JobSegment.CLOSED) jobs.sortedByDescending { it.job.plannedStart } else jobs }
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp)) {
             item(key = "banners") { FieldBanners(field, tenantId) }
             item(key = "segments") {
-                FilterChipRow(JobSegment.entries.map { it to it.label }, segment, { segment = it }, Modifier.padding(bottom = 8.dp))
+                FilterChipRow(JobSegment.entries.map { it to it.label }, segment, { segment = it; chosen = true }, Modifier.padding(bottom = 8.dp))
             }
             if (segment == JobSegment.MACHINES) {
                 val machines = machineRows(snapshot, list.map { it.first }, status)

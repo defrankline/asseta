@@ -66,6 +66,21 @@ public enum InboxTexts {
         }
     }
 
+    /// Second line of a notification row: the body, unless it only repeats the title.
+    public static func notificationDetail(title: String, body: String) -> String? {
+        let detail = body.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !detail.isEmpty,
+              detail.caseInsensitiveCompare(title.trimmingCharacters(in: .whitespacesAndNewlines)) != .orderedSame
+        else { return nil }
+        return detail
+    }
+
+    /// The Jobs tab opens on the first non-empty job group (in progress, then ready to start, then recently closed).
+    public static func defaultSegment(_ displayStatuses: [JobStatus]) -> JobSegment {
+        let present = Set(displayStatuses.map(segment))
+        return [JobSegment.inProgress, .ready, .closed].first { present.contains($0) } ?? .inProgress
+    }
+
     public static func jobsEmpty(_ segment: JobSegment) -> (title: String, message: String) {
         switch segment {
         case .inProgress: ("No jobs in progress", "Jobs you have started appear here.")

@@ -226,11 +226,13 @@ struct JobsTabView: View {
     let model: FieldModel
     let open: (FieldRoute) -> Void
     @State private var segment: JobSegment = .inProgress
+    @State private var chosen = false // the user picked a segment: stop auto-selecting
 
     var body: some View {
         List {
             FieldBanners(model: model)
-            FilterChips(options: JobSegment.allCases.map { ($0, $0.label) }, selection: $segment)
+            FilterChips(options: JobSegment.allCases.map { ($0, $0.label) },
+                        selection: Binding(get: { segment }, set: { segment = $0; chosen = true }))
             if segment == .machines {
                 let rows = machineRows
                 if rows.isEmpty { empty }
@@ -255,6 +257,9 @@ struct JobsTabView: View {
             }
         }
         .refreshable { await model.sync(force: true) }
+        .onChange(of: model.jobs.isEmpty, initial: true) {
+            if !chosen { segment = InboxTexts.defaultSegment(model.jobs.map { model.progress($0).displayStatus }) }
+        }
     }
 
     private var empty: some View {

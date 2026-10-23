@@ -379,7 +379,9 @@ struct NotificationRow: View {
             Circle().fill(notification.isUnread ? Color.accentColor : .clear).frame(width: 8, height: 8).padding(.top, 7)
             VStack(alignment: .leading, spacing: 2) {
                 Text(notification.title).font(.headline).lineLimit(2)
-                Text(notification.body).font(.subheadline).foregroundStyle(.secondary).lineLimit(3)
+                if let detail = InboxTexts.notificationDetail(title: notification.title, body: notification.body) {
+                    Text(detail).font(.subheadline).foregroundStyle(.secondary).lineLimit(3)
+                }
                 Text(notification.createdAt.listText).font(.caption).foregroundStyle(.secondary)
             }
         }

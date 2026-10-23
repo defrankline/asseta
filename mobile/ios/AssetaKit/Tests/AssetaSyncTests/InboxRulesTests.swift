@@ -6,6 +6,15 @@ import Testing
 
 /// Inbox rules and wording, identical to Android `InboxRulesTest` / `InboxTextsTest`.
 struct InboxRulesTests {
+    @Test func jobsTabOpensOnFirstNonEmptyGroupAndNotificationsSkipRepeatedTitle() {
+        #expect(InboxTexts.defaultSegment([.approved, .approved]) == .ready)
+        #expect(InboxTexts.defaultSegment([.approved, .inProgress]) == .inProgress)
+        #expect(InboxTexts.defaultSegment([.completed]) == .closed)
+        #expect(InboxTexts.defaultSegment([]) == .inProgress)
+        #expect(InboxTexts.notificationDetail(title: "Tracker Stale — EX-01", body: "tracker stale — EX-01 ") == nil)
+        #expect(InboxTexts.notificationDetail(title: "Tracker Stale", body: "Last fix 2 h ago") == "Last fix 2 h ago")
+    }
+
     @Test func localOutboxStatesMapToWaitingNotSyncedAndSynced() {
         #expect(InboxStatusRules.local(.pending) == .waiting)
         #expect(InboxStatusRules.local(.sent) == .waiting)

@@ -87,7 +87,9 @@ private fun NotificationRow(n: NotificationDto) {
         Box(Modifier.padding(top = 7.dp).size(8.dp).background(if (n.readAt == null) palette.accent else androidx.compose.ui.graphics.Color.Transparent, CircleShape))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(n.title, style = AssetaType.headline, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Text(n.body, style = AssetaType.subheadline, color = palette.secondaryText, maxLines = 3, overflow = TextOverflow.Ellipsis)
+            InboxTexts.notificationDetail(n.title, n.body)?.let {
+                Text(it, style = AssetaType.subheadline, color = palette.secondaryText, maxLines = 3, overflow = TextOverflow.Ellipsis)
+            }
             Text(LocalTime.formatIso(n.createdAt), style = AssetaType.caption, color = palette.secondaryText)
         }
     }
