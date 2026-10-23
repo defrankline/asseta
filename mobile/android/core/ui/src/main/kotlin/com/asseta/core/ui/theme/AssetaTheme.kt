@@ -1,6 +1,7 @@
 package com.asseta.core.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
@@ -153,6 +154,11 @@ object AssetaType {
 fun AssetaTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
     val p = if (darkTheme) DarkPalette else LightPalette
     CompositionLocalProvider(LocalAssetaPalette provides p) {
-        MaterialTheme(colorScheme = scheme(p), typography = IosTypography, content = content)
+        val colors = scheme(p)
+        MaterialTheme(colorScheme = colors, typography = IosTypography) {
+            // Grouped cells and screens draw their own backgrounds (no Material Surface), so text without an explicit
+            // colour would fall back to black and vanish on dark cells. Default content colour follows the theme.
+            CompositionLocalProvider(LocalContentColor provides colors.onBackground, content = content)
+        }
     }
 }
