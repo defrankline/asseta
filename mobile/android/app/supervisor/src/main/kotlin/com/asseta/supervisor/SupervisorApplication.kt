@@ -26,6 +26,7 @@ class SupervisorApplication : Application(), AssetaContainerOwner, SyncHost {
             override suspend fun beforeHome(me: MeResponse) {
                 val account = container.authManager.account() ?: return
                 withContext(Dispatchers.IO) { field.accounts.claimAll(account) }
+                field.online.reset() // the in-memory notification list belongs to whoever was signed in before
             }
 
             override suspend fun signOutConfirmation(): String {

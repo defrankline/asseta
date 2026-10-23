@@ -16,9 +16,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
@@ -29,19 +29,28 @@ import com.asseta.core.domain.policy.ReadingKind
 import com.asseta.core.model.ClientOperationStatus
 import com.asseta.core.model.sync.ActivityTypes
 import com.asseta.core.ui.theme.AssetaType
+import com.asseta.core.domain.inbox.JobFigures
+import com.asseta.core.sync.data.InboxSnapshot
+import com.asseta.supervisor.FieldGraph
 import com.asseta.core.ui.theme.palette
 import com.asseta.supervisor.R
 import com.asseta.core.ui.R as CoreR
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 
-/** One job: details, the next allowed actions, the work log and the local timeline with sync states. */
+/**
+ * One job: details, a summary (readings, meter hours, work totals, findings), the next allowed actions, my readings,
+ * the work log (server + this phone), the customer acknowledgement, expenses & fuel, and the local timeline.
+ */
 @Composable
 fun JobDetailScreen(
     vm: JobDetailViewModel,
+    snapshot: InboxSnapshot,
     onCapture: (ReadingKind) -> Unit,
     onAcknowledge: () -> Unit,
     onWorkLogEntry: () -> Unit,
+    onRoute: (Route) -> Unit,
+    field: FieldGraph,
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
     val error by vm.error.collectAsStateWithLifecycle()
@@ -68,6 +77,8 @@ fun JobDetailScreen(
             LabeledRow("Planned start", LocalTime.formatIso(job.plannedStart))
         }
 
+        JobSummarySection(snapshot, job.id)
+
         Section("Next steps") {
             val blocked = ui.captureBlocked
             if (blocked != null && actions.showsCapture) {
@@ -84,7 +95,13 @@ fun JobDetailScreen(
             if (actions.isClosed) Text("No further actions on this job.", color = palette.secondaryText)
         }
 
-        if (actions.canLogWork) WorkLogSection(ui, vm, onWorkLogEntry)
+        JobReadingsSection(snapshot, job.id, onRoute)
+
+        WorkLogSection(ui, vm, snapshot, job.id, actions.canLogWork, onWorkLogEntry)
+
+        AcknowledgementSection(field, snapshot, job.id)
+
+        JobMoneySection(snapshot, job.id, onRoute)
 
         if (ui.operations.isNotEmpty()) {
             Section("Recorded on this phone") {
@@ -109,22 +126,39 @@ fun JobDetailScreen(
 }
 
 @Composable
-private fun WorkLogSection(ui: JobDetailUi, vm: JobDetailViewModel, onWorkLogEntry: () -> Unit) {
-    Section("Work log") {
-        ui.workLog.forEach { e ->
-            val span = LocalTime.formatTime(e.startedAt) +
-                (e.endedAt?.let { " → " + LocalTime.formatTime(it) } ?: if (e.operationId == null) " → running" else "")
-            Text("${FieldTexts.activityType(e.activityType)} $span${e.note?.let { " · $it" } ?: ""}", style = AssetaType.subheadline)
+private fun WorkLogSection(
+    ui: JobDetailUi,
+    vm: JobDetailViewModel,
+    snapshot: InboxSnapshot,
+    jobId: String,
+    canLog: Boolean,
+    onWorkLogEntry: () -> Unit,
+) {
+    val entries = snapshot.activities.filter { it.jobId == jobId }
+    if (entries.isEmpty() && !canLog) return
+    Section("Work log", footer = if (entries.isEmpty()) null else "Entries recorded on this phone and those the server has.") {
+        entries.forEach { e ->
+            val span = LocalTime.formatTime(e.startMs) + (e.endMs?.let { " → " + LocalTime.formatTime(it) } ?: if (e.running) " → running" else "")
+            val duration = e.endMs?.let { JobFigures.duration((it - e.startMs) / 60_000) }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "${FieldTexts.activityType(e.activityType)} $span" + (duration?.let { " ($it)" } ?: "") + (e.note?.let { " · $it" } ?: ""),
+                    style = AssetaType.subheadline, modifier = Modifier.weight(1f),
+                )
+                if (!e.running) StatusPill(e.status)
+            }
         }
-        val running = ui.runningEntry
-        if (running != null) {
-            ActionRow("Stop ${running.activityType.lowercase()}", R.drawable.ic_stop_circle) { vm.stopEntry(running.clientId) }
-        } else {
-            ActionRow("Start work", R.drawable.ic_play_circle) { vm.startEntry(ActivityTypes.WORK) }
-            ActionRow("Standby", R.drawable.ic_pause_circle) { vm.startEntry(ActivityTypes.STANDBY) }
-            ActionRow("Downtime", R.drawable.ic_wrench) { vm.startEntry(ActivityTypes.DOWNTIME) }
+        if (canLog) {
+            val running = ui.runningEntry
+            if (running != null) {
+                ActionRow("Stop ${running.activityType.lowercase()}", R.drawable.ic_stop_circle) { vm.stopEntry(running.clientId) }
+            } else {
+                ActionRow("Start work", R.drawable.ic_play_circle) { vm.startEntry(ActivityTypes.WORK) }
+                ActionRow("Standby", R.drawable.ic_pause_circle) { vm.startEntry(ActivityTypes.STANDBY) }
+                ActionRow("Downtime", R.drawable.ic_wrench) { vm.startEntry(ActivityTypes.DOWNTIME) }
+            }
+            ActionRow("Add work log entry", R.drawable.ic_clipboard, onClick = onWorkLogEntry)
         }
-        ActionRow("Add work log entry", R.drawable.ic_clipboard, onClick = onWorkLogEntry)
     }
 }
 

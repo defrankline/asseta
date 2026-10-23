@@ -14,21 +14,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -37,9 +34,13 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.asseta.core.domain.capture.JobStatus
-import com.asseta.core.domain.finance.ExpensePolicyDecision
 import com.asseta.core.domain.sync.ClockStatus
+import com.asseta.core.database.MachineEntity
+import com.asseta.core.sync.data.InboxSnapshot
 import com.asseta.core.sync.data.JobSummary
+import com.asseta.core.sync.data.ReadingItem
+import androidx.compose.runtime.saveable.rememberSaveable
+import com.asseta.core.ui.components.FilterChipRow
 import com.asseta.core.ui.components.GroupedItem
 import com.asseta.core.ui.components.GroupedSection
 import com.asseta.core.ui.components.Pill
@@ -49,18 +50,19 @@ import com.asseta.core.ui.theme.palette
 import com.asseta.supervisor.FieldGraph
 import com.asseta.supervisor.R
 import com.asseta.core.ui.R as CoreR
-import com.asseta.supervisor.ui.finance.CashFormViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.launch
 
-/** Supervisor home: warnings, money & fuel entry points and the assigned jobs (from the offline cache). */
+/**
+ * Jobs tab: warnings, then my jobs by segment (in progress, ready to start, recently closed) from the offline cache,
+ * or my machines with their latest reading and active job.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun JobsScreen(
     field: FieldGraph,
     tenantId: String,
-    permissions: Set<String>,
+    snapshot: InboxSnapshot,
     syncing: Boolean,
     onRefresh: () -> Unit,
     onOpen: (jobId: String, jobNumber: String) -> Unit,
@@ -72,8 +74,7 @@ fun JobsScreen(
             jobs.map { it to field.repository.fieldState(it.job, ops[it.job.id].orEmpty()).effectiveStatus }
         }
     }.collectAsStateWithLifecycle(null)
-    val scope = rememberCoroutineScope()
-    var blockedExpense by remember { mutableStateOf<String?>(null) }
+    var segment by rememberSaveable { mutableStateOf(JobSegment.IN_PROGRESS) }
     PullToRefreshBox(isRefreshing = syncing, onRefresh = onRefresh, modifier = Modifier.fillMaxSize()) {
         val list = rows
         if (list == null) {
@@ -84,33 +85,37 @@ fun JobsScreen(
             return@PullToRefreshBox
         }
         val status = list.toMap()
-        // The iOS home `List`: warnings, "Money & fuel", then the jobs grouped by state, each row opening the job.
+        val inSegment = list.filter { InboxTexts.segment(it.second) == segment }.map { it.first }
+            .let { jobs -> if (segment == JobSegment.CLOSED) jobs.sortedByDescending { it.job.plannedStart } else jobs }
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp)) {
             item(key = "banners") { FieldBanners(field, tenantId) }
-            item(key = "finance") {
-                FinanceSection(
-                    permissions,
-                    onExpense = {
-                        scope.launch {
-                            when (val gate = field.financeRepository.expensePolicy(tenantId)) {
-                                is ExpensePolicyDecision.Blocked -> blockedExpense = gate.message
-                                is ExpensePolicyDecision.Allowed -> onRoute(Route.RecordExpense)
-                            }
+            item(key = "segments") {
+                FilterChipRow(JobSegment.entries.map { it to it.label }, segment, { segment = it }, Modifier.padding(bottom = 8.dp))
+            }
+            if (segment == JobSegment.MACHINES) {
+                val machines = machineRows(snapshot, list.map { it.first }, status)
+                if (machines.isEmpty()) {
+                    item(key = "empty") { InboxTexts.jobsEmpty(segment).let { (t, m) -> EmptyState(t, if (syncing) "Syncing…" else m) } }
+                }
+                groupedSection(
+                    keyPrefix = "machines",
+                    items = machines.map { row ->
+                        GroupedItem(row.machine.id, onClick = { onRoute(Route.MachineDetail(row.machine.id, row.machine.assetCode)) }) {
+                            InboxRow(
+                                InboxTexts.machine(row.machine.assetCode, row.machine.name), null,
+                                row.latest?.let { "Latest reading ${it.reading} · ${LocalTime.format(it.atMs)}" } ?: "No readings yet",
+                                row.activeJob?.let { "Active job ${it.job.jobNumber}" },
+                            )
                         }
                     },
-                    onRoute = onRoute,
                 )
-            }
-            if (list.isEmpty()) {
-                item(key = "empty") {
-                    EmptyState("No assigned jobs", if (syncing) "Syncing…" else "Pull down to sync when you are online.")
+            } else {
+                if (inSegment.isEmpty()) {
+                    item(key = "empty") { InboxTexts.jobsEmpty(segment).let { (t, m) -> EmptyState(t, if (syncing) "Syncing…" else m) } }
                 }
-            }
-            FieldTexts.jobSections(list.map { it.first }) { status[it] ?: it.job.status }.forEach { (title, jobs) ->
                 groupedSection(
-                    keyPrefix = "section-$title",
-                    header = title,
-                    items = jobs.map { summary ->
+                    keyPrefix = "jobs-${segment.name}",
+                    items = inSegment.map { summary ->
                         GroupedItem(summary.job.id, onClick = { onOpen(summary.job.id, summary.job.jobNumber) }) {
                             JobRow(summary, status[summary] ?: summary.job.status)
                         }
@@ -119,14 +124,17 @@ fun JobsScreen(
             }
         }
     }
-    blockedExpense?.let { message ->
-        AlertDialog(
-            onDismissRequest = { blockedExpense = null },
-            title = { Text("Can't record an expense now") },
-            text = { Text(message) },
-            confirmButton = { TextButton(onClick = { blockedExpense = null }) { Text("OK") } },
-        )
-    }
+}
+
+/** A machine of mine: its latest reading from my captures and its active job. */
+data class MachineRow(val machine: MachineEntity, val latest: ReadingItem?, val activeJob: JobSummary?)
+
+fun machineRows(snapshot: InboxSnapshot, jobs: List<JobSummary>, status: Map<JobSummary, String>): List<MachineRow> {
+    val latest = snapshot.latestReadingByMachine()
+    val active = jobs.filter { (status[it] ?: it.job.status) in setOf(JobStatus.IN_PROGRESS, JobStatus.APPROVED) }
+        .sortedBy { if ((status[it] ?: it.job.status) == JobStatus.IN_PROGRESS) 0 else 1 }
+        .groupBy { it.job.machineId }.mapValues { it.value.first() }
+    return snapshot.machines.values.sortedBy { it.assetCode }.map { MachineRow(it, latest[it.id], active[it.id]) }
 }
 
 @Composable
@@ -154,23 +162,6 @@ fun StatusBadge(displayStatus: String, serverStatus: String) {
         else -> p.neutral
     }
     Pill(FieldTexts.statusBadge(displayStatus, serverStatus), color)
-}
-
-/** Entry points shown according to `/me` permissions; the server enforces them on every pushed operation. */
-@Composable
-private fun FinanceSection(permissions: Set<String>, onExpense: () -> Unit, onRoute: (Route) -> Unit) {
-    val expenses = "tenant.expense.write" in permissions
-    val cash = "tenant.collection.record" in permissions
-    if (!expenses && !cash) return
-    GroupedSection(header = "Money & fuel") {
-        if (expenses) ActionRow("Record expense", R.drawable.ic_receipt, onClick = onExpense)
-        if (cash) {
-            ActionRow("Record cash collection", R.drawable.ic_banknote) { onRoute(Route.CashForm(CashFormViewModel.COLLECTION)) }
-            ActionRow("Hand over cash", R.drawable.ic_hand_over) { onRoute(Route.CashForm(CashFormViewModel.HANDOVER)) }
-        }
-        if (expenses) ActionRow("Fuel event", R.drawable.ic_fuel) { onRoute(Route.CashForm(CashFormViewModel.FUEL)) }
-        if (cash) LinkActionRow("My cash", R.drawable.ic_wallet) { onRoute(Route.MyCash) }
-    }
 }
 
 /** Warnings above the job list: clock tamper, server skew, offline state, last sync failure. */

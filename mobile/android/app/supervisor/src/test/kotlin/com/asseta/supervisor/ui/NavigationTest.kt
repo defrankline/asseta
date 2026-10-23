@@ -24,7 +24,25 @@ class NavigationTest {
             Route.Capture("1", ReadingKind.CLOSING), Route.Acknowledge("1"), Route.WorkLogEntry("1"), Route.RecordExpense,
             Route.CashForm(CashFormViewModel.COLLECTION), Route.CashForm(CashFormViewModel.HANDOVER), Route.CashForm(CashFormViewModel.FUEL),
         ).forEach { assertTrue("$it", it.isForm) }
-        listOf(Route.Jobs, Route.JobDetail("1", "J-1"), Route.SyncStatus, Route.MyCash).forEach { assertFalse("$it", it.isForm) }
+        assertTrue(Route.ResetRequest("m", null).isForm)
+        listOf(Route.Jobs, Route.JobDetail("1", "J-1"), Route.SyncStatus, Route.Money, Route.ReadingDetail("r"), Route.ExpenseDetail("e"))
+            .forEach { assertFalse("$it", it.isForm) }
+    }
+
+    @Test
+    fun `five tabs with their own titles and stacks`() {
+        assertEquals(listOf("Jobs", "Readings", "Fuel", "Money", "Inbox"), SupervisorTab.entries.map { it.label })
+        assertEquals("Readings", Route.Readings.title("Acme"))
+        assertEquals("Inbox", SupervisorTab.INBOX.root.title("Acme"))
+        var nav = TabStacks()
+        nav = nav.push(Route.JobDetail("1", "J-1"))
+        nav = nav.select(SupervisorTab.MONEY).push(Route.ExpenseDetail("e"))
+        assertEquals(Route.ExpenseDetail("e"), nav.route)
+        nav = nav.select(SupervisorTab.JOBS)
+        assertEquals(Route.JobDetail("1", "J-1"), nav.route) // each tab keeps its stack
+        nav = nav.select(SupervisorTab.JOBS)
+        assertEquals(Route.Jobs, nav.route) // selecting the current tab again returns to its first screen
+        assertEquals(Route.Jobs, nav.pop().route)
     }
 
     @Test
