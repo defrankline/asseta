@@ -49,11 +49,22 @@ data class SyncData(
     @SerialName("expense_categories") val expenseCategories: List<ExpenseCategoryDto> = emptyList(),
     /** Null when the server did not send the field (older server): the stored custody is then left untouched. */
     @SerialName("cash_custody") val cashCustody: List<CashCustodyBalanceDto>? = null,
+    // Supervisor inbox (SUPERVISOR_INBOX_V1). Null when the server did not send the field (older server): nothing changes.
+    @SerialName("my_meter_captures") val myMeterCaptures: List<SyncMeterCaptureDto>? = null,
+    @SerialName("my_meter_resets") val myMeterResets: List<SyncMeterResetDto>? = null,
+    @SerialName("my_job_activities") val myJobActivities: List<SyncJobActivityDto>? = null,
+    @SerialName("my_acknowledgements") val myAcknowledgements: List<SyncAcknowledgementDto>? = null,
+    @SerialName("my_expenses") val myExpenses: List<SyncExpenseDto>? = null,
+    @SerialName("my_fuel_events") val myFuelEvents: List<SyncFuelEventDto>? = null,
+    @SerialName("my_cash_collections") val myCashCollections: List<SyncCashCollectionDto>? = null,
+    @SerialName("my_cash_handovers") val myCashHandovers: List<SyncCashHandoverDto>? = null,
 )
 
 @Serializable
 data class BootstrapDto(
     @SerialName("protocol_version") val protocolVersion: Int = 1,
+    /** Optional protocol features the server supports (see [SyncCapabilities]); empty from older servers. */
+    val capabilities: List<String> = emptyList(),
     @SerialName("server_time") val serverTime: String,
     val cursor: Long,
     @SerialName("device_session") val deviceSession: DeviceSessionDto,
@@ -64,6 +75,8 @@ data class BootstrapDto(
 @Serializable
 data class ChangesDto(
     @SerialName("protocol_version") val protocolVersion: Int = 1,
+    /** Optional protocol features the server supports (see [SyncCapabilities]); empty from older servers. */
+    val capabilities: List<String> = emptyList(),
     @SerialName("server_time") val serverTime: String,
     val cursor: Long,
     @SerialName("has_more") val hasMore: Boolean,
@@ -97,6 +110,8 @@ data class OperationResultDto(
 @Serializable
 data class PushResultDto(
     @SerialName("protocol_version") val protocolVersion: Int = 1,
+    /** Optional protocol features the server supports (see [SyncCapabilities]); empty from older servers. */
+    val capabilities: List<String> = emptyList(),
     @SerialName("server_time") val serverTime: String,
     @SerialName("clock_offset_s") val clockOffsetS: Double,
     @SerialName("clock_skew_alert") val clockSkewAlert: Boolean,
@@ -130,12 +145,16 @@ object OpTypes {
     const val CASH_COLLECTION = "CASH_COLLECTION"
     const val CASH_HANDOVER = "CASH_HANDOVER"
     const val FUEL_EVENT = "FUEL_EVENT"
+
+    /** Needs the server capability [SyncCapabilities.OP_METER_RESET_REQUEST]. */
+    const val METER_RESET_REQUEST = "METER_RESET_REQUEST"
 }
 
 object BlobPurpose {
     const val METER_PHOTO = "METER_PHOTO"
     const val SIGNATURE = "SIGNATURE"
     const val EXPENSE_RECEIPT = "EXPENSE_RECEIPT"
+    const val RESET_EVIDENCE = "RESET_EVIDENCE"
 }
 
 object SyncErrorCodes {
