@@ -261,3 +261,83 @@ The realm's `asseta-mobile` client already allows the app redirect schemes.
   `Permissions-Policy`, and a CSP for the console that allows MapLibre (blob workers, the origins in
   `NGINX_MAP_CSP_ORIGINS`) and the same-origin Keycloak silent-SSO iframe. Keycloak's own pages keep Keycloak's
   CSP. If you change `VITE_MAP_STYLE_URL` to another tile provider, add its origins to `NGINX_MAP_CSP_ORIGINS`.
+
+## 12. Demo tenant data
+
+`scripts/seed-demo-tenant.sh` fills ONE existing, real tenant with demo data so you can show the product to that
+client, and keeps its simulated fleet live during the demo. It defaults to **Wambura & Sons Ltd** (registration
+number `2026/10/0001`). `--registration-number`, `--tenant-name` and `--slug` select another tenant.
+
+```bash
+cd /home/asseta
+scripts/seed-demo-tenant.sh status --quick          # platform-level check, no change
+scripts/seed-demo-tenant.sh seed                     # once; --region dodoma|arusha|mwanza (default dar-es-salaam)
+scripts/seed-demo-tenant.sh feed --minutes 90        # start ~5 min before the demo; Ctrl-C stops cleanly
+scripts/seed-demo-tenant.sh status                   # counts the tenant's data (short mandate, see below)
+```
+For a feed that outlives your SSH session:
+`nohup scripts/seed-demo-tenant.sh feed --minutes 120 >> .deploy/demo-feed.log 2>&1 &`. Stop it early with
+`pkill -INT -f 'demo_tenant_live.py feed'` (or Ctrl-C in the foreground). The machines are parked with the engine
+off either way. Only one feed per tenant can run (lock file next to the state file).
+
+**How it acts on the tenant.** The script never signs in as, reads or changes any existing user (the owner keeps
+their account and password). It creates a throwaway platform user in `/platform/platform-owner` and a throwaway
+Keycloak client, grants a **managed-service mandate** (DEC-018) for today and tomorrow, assigns that user the
+tenant's `owner` role under it, does the work, then ends the mandate and deletes the user and client in a
+`finally`. The client sees the mandate (consent reference "Platform owner demo setup", or `--consent-reference`)
+and every action under it on its **Managed service** page and in the audit log. `status` (without `--quick`) and
+`retire` open and end such a mandate too. Keycloak admin access uses `KEYCLOAK_ADMIN_USER`/`KEYCLOAK_ADMIN_PASSWORD`
+from `.env.production` (a master-realm admin that signs in with a password, as for `create-platform-owner.sh`). The script refuses if the tenant already has an open mandate, is not
+VERIFIED with an ACTIVE subscription and FULL access, already has machines, or if the demo e-mails already exist.
+
+**What `seed` creates** (refuses on a tenant that already has machines):
+* 7 machines in a Dar es Salaam operating area: excavators EX-01 (CAT 320D2) and EX-02 (Komatsu PC210), wheel
+  loader WL-01 (CAT 950GC), tipper TP-01 (Howo 371), motor grader GR-01 (CAT 140K), roller RL-01 (Bomag BW 213)
+  and tipper TP-02, which is deliberately **untracked** (the map shows it with no position).
+* 3 job sites (road works, quarry, plant yard) with an allowed-area geofence each, bound to that site's machines.
+* 6 simulated trackers (tracker model "Simulated OsmAnd demo simulator", created once on the platform), 4 hours of
+  GPS history (never before today 00:05 UTC), operators on every tracked machine, a supervisor on the working ones.
+* 3 customers, 3 contracts, 6 jobs (4 APPROVED for the working machines, 1 pending approval, 1 draft), 5 expense
+  categories, and two demo accounts: `supervisor.wambura@demo.asseta.co.tz` (field app) and
+  `accountant.wambura@demo.asseta.co.tz`. `demo.asseta.co.tz` has no mail server, so nothing is ever delivered;
+  `--demo-domain` changes it (do not use a domain where real people receive mail).
+* Jobs are approved but not started: starting a job needs an opening meter reading with a photo in the field app,
+  which the script does not fake. Start one live with the supervisor account during the demo.
+
+**Billing.** Telemetry is only accepted for enrolled machines, so all 7 machines are **enrolled from today on the
+tenant's subscription**. They count as billable assets on the client's next platform invoice (the seed prints
+the rate and any pro-rata charge the API reports). Adjust the invoice yourself, or `retire` them (below) before
+the period closes.
+
+**Credentials.** The demo passwords are written only to `.deploy/demo-wambura-credentials.json` (mode 600, owned
+by you; `.deploy/` is not in git or in backups). They are never printed. `.deploy/demo-wambura-state.json` holds
+the created ids and the simulator state the feed continues from (no secrets).
+
+**The feed.** Working machines (EX-01, EX-02, WL-01, TP-01) run on their site with the ignition on in runs shorter
+than the tenant's unreported-engine-activity threshold, with short engine-off breaks. They only travel at
+"moving" speed inside the tenant's operating window. Parked machines (GR-01, RL-01) report a fixed position with
+the ignition off and never switch it on. Engine hours rise only while an engine runs. Fixes go every 30 s. Time
+only moves forward: a lock file allows one feed per tenant, and each fix is later than the last one sent (kept in
+the state file), so feeds never overlap and cause no "Implausible GPS jump" alerts. The seed's history is sent
+paced (about 75 s) for the same reason. Once a feed stops, the trackers age as real ones would (default tracking
+policy): RECENT after 5 min, STALE after 30 min (a "tracker stale" alert, resolved automatically when the feed runs
+again), OFFLINE after 6 h. Run the feed during the demo, not hours before. A feed that was killed hard closes the
+open engine runs when the next one starts.
+
+**Traccar.** Production Traccar refuses unregistered devices (DEC-017). With `TRACCAR_ADMIN_EMAIL=you@...` set (the
+password is asked for), `seed` registers the six simulated devices in Traccar and they report through it like
+real OsmAnd devices. Without it, the fixes go straight to the gateway endpoint (`/api/v1/telemetry/traccar`) with
+the gateway key from `.env.production`: the same ingestion path Traccar forwards to.
+
+**Removing it later.** Nothing is ever deleted (audit and history stay). `scripts/seed-demo-tenant.sh retire --yes`
+soft-removes what `seed` created, using the ids in the state file: it cancels the unstarted jobs, unassigns and
+retires the trackers, ends the enrollments (billing stops from today), deactivates the machines, geofences, sites,
+contracts, customers and staff, revokes the demo users' roles and disables their logins (and removes the Traccar
+devices if `TRACCAR_ADMIN_EMAIL` is set). A step the API refuses is reported; run it again later. Job history,
+positions and audit events remain, as for any retired machine.
+
+**Local rehearsal** against the dev stack (`compose.yaml`, Keycloak without `/auth`):
+```bash
+ENV_FILE=$PWD/.env COMPOSE_FILE=$PWD/compose.yaml STATE_FILE=/nonexistent DEMO_DIR=/tmp/demo \
+  DEMO_KEYCLOAK_URL=http://keycloak:8080 DEMO_WEB_URL=http://localhost:5173 scripts/seed-demo-tenant.sh seed
+```
