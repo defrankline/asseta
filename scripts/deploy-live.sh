@@ -332,7 +332,7 @@ set_deploy_tag() {
 # Infra images are rebuilt only when their inputs change: even a fully cached rebuild gets a new image ID, which
 # would make Compose recreate (restart) Postgres and MLflow on every deploy.
 infra_inputs_hash() {
-  git rev-parse HEAD:infra/postgres HEAD:infra/mlflow 2>/dev/null | tr '\n' ' '
+  git rev-parse HEAD:infra/postgres HEAD:infra/mlflow HEAD:infra/minio 2>/dev/null | tr '\n' ' '
 }
 
 build_images() {
@@ -340,11 +340,12 @@ build_images() {
   marker="$(dirname "$STATE_FILE")/infra-images.sha"
   hash="$(infra_inputs_hash)"
   if [[ -n "$hash" && "$(cat "$marker" 2>/dev/null || true)" == "$hash" ]] &&
-    docker image inspect "$DOCKER_IMAGE_PREFIX/postgis:18-3.6" "$DOCKER_IMAGE_PREFIX/mlflow:3.17.0" >/dev/null 2>&1; then
-    log "Infrastructure images unchanged (infra/postgres, infra/mlflow); not rebuilding"
+    docker image inspect "$DOCKER_IMAGE_PREFIX/postgis:18-3.6" "$DOCKER_IMAGE_PREFIX/mlflow:3.17.0" \
+      "$DOCKER_IMAGE_PREFIX/minio:RELEASE.2024-07-16T23-46-41Z" >/dev/null 2>&1; then
+    log "Infrastructure images unchanged (infra/postgres, infra/mlflow, infra/minio); not rebuilding"
   else
     log "Building infrastructure images (infra/ changed or images missing)"
-    compose build postgres mlflow
+    compose build postgres mlflow minio
     mkdir -p "$(dirname "$marker")"
     [[ -z "$hash" ]] || printf '%s\n' "$hash" >"$marker"
   fi
