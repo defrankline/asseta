@@ -11,7 +11,7 @@ struct FinanceRulesTests {
                                              autoApproveLimit: 200)
     static let fix = GpsPayload.fix(latitude: -6.8, longitude: 39.3, accuracyM: 12, capturedAt: Date())
 
-    static func draft(amount: String, receipts: Int = 0, gps: GpsPayload? = fix, currency: String = "") -> ExpenseDraft {
+    static func draft(amount: String, receipts: Int = 0, gps: GpsPayload? = fix, currency: String = "TZS") -> ExpenseDraft {
         var draft = ExpenseDraft()
         draft.categoryID = UUID()
         draft.amountText = amount
@@ -31,19 +31,19 @@ struct FinanceRulesTests {
         #expect(above.issues == [.receiptRequired(reason: "above 50 TZS")])
         #expect(ExpenseRules.assess(Self.draft(amount: "50.01", receipts: 1), policy: Self.policy, baseCurrency: "TZS").canSave)
         let zero = ExpenseCapturePolicy(receiptRequiredAbove: 0, gpsRequired: false, gpsMaxAccuracyM: 100, autoApproveLimit: 0)
-        #expect(ExpenseRules.assess(Self.draft(amount: "1"), policy: zero, baseCurrency: nil).issues
+        #expect(ExpenseRules.assess(Self.draft(amount: "1"), policy: zero, baseCurrency: "TZS").issues
             == [.receiptRequired(reason: "for every expense")])
     }
 
     @Test func gpsRequiredAndAccuracyEnforced() {
-        #expect(ExpenseRules.assess(Self.draft(amount: "10", gps: nil), policy: Self.policy, baseCurrency: nil).issues == [.gpsPending])
-        #expect(ExpenseRules.assess(Self.draft(amount: "10", gps: .failed(.timeout)), policy: Self.policy, baseCurrency: nil).issues
+        #expect(ExpenseRules.assess(Self.draft(amount: "10", gps: nil), policy: Self.policy, baseCurrency: "TZS").issues == [.gpsPending])
+        #expect(ExpenseRules.assess(Self.draft(amount: "10", gps: .failed(.timeout)), policy: Self.policy, baseCurrency: "TZS").issues
             == [.gpsRequired(status: .timeout)])
         let coarse = GpsPayload.fix(latitude: 1, longitude: 1, accuracyM: 150, capturedAt: Date())
-        #expect(ExpenseRules.assess(Self.draft(amount: "10", gps: coarse), policy: Self.policy, baseCurrency: nil).issues
+        #expect(ExpenseRules.assess(Self.draft(amount: "10", gps: coarse), policy: Self.policy, baseCurrency: "TZS").issues
             == [.gpsTooInaccurate(accuracyM: 150, maxM: 100)])
         let lenient = ExpenseCapturePolicy(receiptRequiredAbove: 50, gpsRequired: false, gpsMaxAccuracyM: 100, autoApproveLimit: 0)
-        #expect(ExpenseRules.assess(Self.draft(amount: "10", gps: .failed(.permissionDenied)), policy: lenient, baseCurrency: nil).canSave)
+        #expect(ExpenseRules.assess(Self.draft(amount: "10", gps: .failed(.permissionDenied)), policy: lenient, baseCurrency: "TZS").canSave)
     }
 
     @Test func approvalNeededAboveAutoApproveLimitOrForeignCurrency() {
@@ -58,7 +58,10 @@ struct FinanceRulesTests {
         #expect(foreign.currency == "USD")
         #expect(ExpenseRules.assess(Self.draft(amount: "5", currency: "TZS"), policy: Self.policy, baseCurrency: "TZS").canSave)
         #expect(ExpenseRules.assess(Self.draft(amount: "5", currency: "US"), policy: Self.policy, baseCurrency: "TZS").issues
-            .contains(.currencyInvalid))
+            .contains(.currencyInvalid(example: "TZS")))
+        // Currency is required (prefilled with the tenant currency on screen), as on Android.
+        #expect(ExpenseRules.assess(Self.draft(amount: "5", currency: ""), policy: Self.policy, baseCurrency: "TZS").issues
+            .contains(.currencyInvalid(example: "TZS")))
     }
 
     @Test func moneyIsParsedStrictlyAsDecimal() {
@@ -111,7 +114,7 @@ struct FinanceRulesTests {
                                          incurredAt: Date())
         }
         #expect(throws: FieldRecorderError.self) {
-            try h.recorder.recordCashCollection(customerID: UUID(), amountText: "12.345", currency: "", reference: nil,
+            try h.recorder.recordCashCollection(customerID: UUID(), amountText: "12.34567", currency: "TZS", reference: nil,
                                                 note: nil, receivedAt: Date())
         }
         #expect(throws: FieldRecorderError.self) {

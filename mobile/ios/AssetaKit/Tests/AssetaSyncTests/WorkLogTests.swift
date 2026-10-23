@@ -89,7 +89,7 @@ struct CashLineTests {
     @Test func collectionForAnotherCustomersJobIsRefused() throws {
         let h = try SyncHarness()
         #expect(throws: FieldRecorderError.invalid("Job J-1001 belongs to another customer.")) {
-            try h.recorder.recordCashCollection(customerID: UUID(), amountText: "10", currency: "", reference: nil,
+            try h.recorder.recordCashCollection(customerID: UUID(), amountText: "10", currency: "TZS", reference: nil,
                                                 note: nil, jobNumber: "J-1001", jobCustomerID: UUID(), receivedAt: Date())
         }
         #expect(try h.store.outbox.statusCounts(tenantID: SyncFixtures.tenant).values.reduce(0, +) == 0)

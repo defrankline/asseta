@@ -51,6 +51,7 @@ extension AssetaSyncLiveTests {
         draft.categoryID = categoryID
         draft.amountText = "120.50"
         draft.description = "Live E2E hydraulic hose"
+        draft.currency = "TZS"
         draft.supplier = "Hose Centre"
         draft.jobID = fixture.jobID
         draft.jobMachineID = fixture.machineID
@@ -63,9 +64,9 @@ extension AssetaSyncLiveTests {
         let expense = try recorder.recordExpense(draft, receipts: [receipt], snapshot: snapshot, baseCurrency: base,
                                                  incurredAt: Date())
         let collection = try recorder.recordCashCollection(
-            customerID: customerID, amountText: "250000", currency: "", reference: "RCPT-\(UUID().uuidString.prefix(8))",
+            customerID: customerID, amountText: "250000", currency: "TZS", reference: "RCPT-\(UUID().uuidString.prefix(8))",
             note: nil, jobNumber: fieldDirectory.job(id: fixture.jobID)?.job.jobNumber, receivedAt: Date())
-        let handover = try recorder.recordCashHandover(amountText: "100000", currency: "", reference: "DEP-E2E",
+        let handover = try recorder.recordCashHandover(amountText: "100000", currency: "TZS", reference: "DEP-E2E",
                                                        note: "Live E2E", handedAt: Date())
         let (offline, _) = engine(URL(string: "http://127.0.0.1:9")!)
         let failed = try await offline.sync(force: true)

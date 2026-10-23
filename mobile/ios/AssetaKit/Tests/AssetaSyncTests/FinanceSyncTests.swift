@@ -52,6 +52,7 @@ extension SyncHarness {
         draft.categoryID = FinanceFixtures.categoryID
         draft.amountText = "120.50"
         draft.description = "Hydraulic hose"
+        draft.currency = directoryView.baseCurrency() ?? "TZS" // the form prefills the tenant currency
         draft.jobID = SyncFixtures.jobID
         draft.jobMachineID = SyncFixtures.machineID
         draft.gps = .fix(latitude: -6.8, longitude: 39.3, accuracyM: 9, capturedAt: clock.wallNow)
@@ -138,7 +139,7 @@ struct FinanceSyncTests {
         let engine = h.engine()
         _ = try await engine.sync()
         let collection = try h.recorder.recordCashCollection(
-            customerID: FinanceFixtures.customerID, amountText: "250", currency: "", reference: "RCPT-9", note: nil,
+            customerID: FinanceFixtures.customerID, amountText: "250", currency: "TZS", reference: "RCPT-9", note: nil,
             jobNumber: "J-1001", receivedAt: h.clock.wallNow)
         h.server.mutate { $0.dropNextPushResponse = true }
         _ = try await engine.sync(force: true)
@@ -178,10 +179,10 @@ struct FinanceSyncTests {
         let h = try SyncHarness().withFinanceData()
         let engine = h.engine()
         _ = try await engine.sync()
-        let handover = try h.recorder.recordCashHandover(amountText: "100", currency: "", reference: "DEP-1",
+        let handover = try h.recorder.recordCashHandover(amountText: "100", currency: "TZS", reference: "DEP-1",
                                                          note: "To office", handedAt: h.clock.wallNow)
         let fuel = try h.recorder.recordFuelEvent(
-            type: .issue, litres: "40.5", unitPrice: "3200", currency: "", machineID: SyncFixtures.machineID, jobID: nil,
+            type: .issue, litres: "40.5", unitPrice: "3200", currency: "TZS", machineID: SyncFixtures.machineID, jobID: nil,
             meterReading: "1500.5", supplier: nil, note: nil, occurredAt: h.clock.wallNow)
         h.server.mutate { $0.readOnly = true }
         _ = try await engine.sync(force: true)

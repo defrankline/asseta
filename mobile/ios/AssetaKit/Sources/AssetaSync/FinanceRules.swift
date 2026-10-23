@@ -87,7 +87,7 @@ public enum DecimalInput {
 public struct ExpenseDraft: Sendable, Equatable {
     public var categoryID: UUID?
     public var amountText = ""
-    /// ISO code typed by the supervisor; empty means the tenant's currency.
+    /// ISO code; prefilled with the tenant currency when known (required, as on Android).
     public var currency = ""
     public var description = ""
     public var supplier = ""
@@ -106,7 +106,8 @@ public struct ExpenseDraft: Sendable, Equatable {
 public enum ExpenseIssue: Sendable, Equatable, CustomStringConvertible {
     case categoryMissing
     case amount(DecimalInput.Failure)
-    case currencyInvalid
+    /// `example`: the tenant currency when known, shown in the message.
+    case currencyInvalid(example: String?)
     case descriptionMissing
     case receiptRequired(reason: String)
     case gpsPending
@@ -118,7 +119,7 @@ public enum ExpenseIssue: Sendable, Equatable, CustomStringConvertible {
         switch self {
         case .categoryMissing: "Choose a category."
         case let .amount(failure): Self.describe(failure, what: "Amount")
-        case .currencyInvalid: "Currency must be a 3-letter code such as TZS, or empty for your company's currency."
+        case let .currencyInvalid(example): "Enter a 3-letter currency code (e.g. \(example ?? "USD"))."
         case .descriptionMissing: "Describe what was paid for."
         case let .receiptRequired(reason): "A receipt photo is required \(reason)."
         case .gpsPending: "Waiting for the location fix…"
@@ -158,7 +159,8 @@ public struct ExpenseAssessment: Sendable, Equatable {
 /// accuracy ≤ `gps_max_accuracy_m` when `gps_required`; auto-approved only when amount ≤
 /// `auto_approve_limit` in the base currency. The server re-checks everything.
 public enum ExpenseRules {
-    public static let moneyDecimals = 2
+    /// Same limit as the server's money columns and the Android app (4 decimals).
+    public static let moneyDecimals = 4
 
     /// `baseCurrency`: the tenant currency when known (from the synced custody balances).
     public static func assess(_ draft: ExpenseDraft, policy: ExpenseCapturePolicy, baseCurrency: String?) -> ExpenseAssessment {
@@ -170,8 +172,8 @@ public enum ExpenseRules {
         case let .failure(failure): issues.append(.amount(failure))
         }
         let code = draft.currency.trimmingCharacters(in: .whitespaces).uppercased()
-        let currency: String? = code.isEmpty ? nil : code
-        if let currency, !CurrencyCode.isValid(currency) { issues.append(.currencyInvalid) }
+        let currency: String? = CurrencyCode.isValid(code) ? code : nil
+        if currency == nil { issues.append(.currencyInvalid(example: baseCurrency)) }
         // Unknown base currency + an explicit code: treat as foreign (stricter; the server decides).
         let foreign = currency.map { $0 != baseCurrency } ?? false
         if draft.description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { issues.append(.descriptionMissing) }
@@ -232,10 +234,10 @@ public enum FinanceRules {
         return String(trimmed.prefix(max))
     }
 
-    public static func currency(_ text: String) throws -> String? {
+    /// Required 3-letter code (cash collection, handover, fuel), as on Android.
+    public static func currency(_ text: String) throws -> String {
         let code = text.trimmingCharacters(in: .whitespaces).uppercased()
-        if code.isEmpty { return nil }
-        guard CurrencyCode.isValid(code) else { throw FieldRecorderError.invalid(ExpenseIssue.currencyInvalid.description) }
+        guard CurrencyCode.isValid(code) else { throw FieldRecorderError.invalid("Enter a 3-letter currency code.") }
         return code
     }
 
