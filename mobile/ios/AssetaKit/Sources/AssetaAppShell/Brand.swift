@@ -12,12 +12,16 @@ public enum Brand {
 public struct AppFlavor: Sendable, Equatable {
     public let appName: String
     public let tagline: String
+    /// Product name under the "Asseta" wordmark on the sign-in screen (as Android's `AppRole` label).
+    public let role: String
 
-    public init(appName: String, tagline: String) {
+    public init(appName: String, tagline: String, role: String) {
         self.appName = appName
         self.tagline = tagline
+        self.role = role
     }
 
-    public static let supervisor = AppFlavor(appName: "Asseta Supervisor", tagline: "Field jobs, meters and evidence")
-    public static let owner = AppFlavor(appName: "Asseta Owner", tagline: "Your fleet at a glance")
+    public static let supervisor = AppFlavor(appName: "Asseta Supervisor", tagline: "Field jobs, meters and evidence",
+                                             role: "Supervisor")
+    public static let owner = AppFlavor(appName: "Asseta Owner", tagline: "Your fleet at a glance", role: "Owner")
 }
