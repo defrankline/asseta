@@ -19,6 +19,12 @@ public final class FieldModel {
     public private(set) var isSyncing = false
     public private(set) var lastOutcome: SyncReport.Outcome?
     public private(set) var isOnline = true
+    /// Every tab's records: server copies merged with this phone's (refreshed with the jobs).
+    public private(set) var inbox = InboxSnapshot()
+    /// Server notifications (fetched online, kept on the phone for offline reading).
+    public private(set) var notifications: [NotificationDTO] = []
+    /// The last notification refresh could not reach the server (the saved list is shown).
+    public private(set) var notificationsOffline = false
 
     let session: SessionModel
     let tenant: TenantMembership
@@ -59,6 +65,7 @@ public final class FieldModel {
             if online { Task { await self?.sync(force: true) } }
         }
         await sync(force: true)
+        await refreshNotifications()
     }
 
     public func stop() {
@@ -100,6 +107,41 @@ public final class FieldModel {
         guard let services else { return }
         jobs = (try? services.directory.jobs()) ?? []
         overview = try? services.directory.overview()
+        inbox = (try? services.inbox.snapshot()) ?? InboxSnapshot()
+        if notifications.isEmpty { notifications = services.online.cachedNotifications()?.items ?? [] }
+    }
+
+    /// Fetches the newest notifications (the saved list when offline).
+    public func refreshNotifications() async {
+        guard let services else { return }
+        let result = await services.online.refreshNotifications()
+        notifications = result.value ?? notifications
+        if case .fresh = result { notificationsOffline = false } else { notificationsOffline = true }
+    }
+
+    func markRead(_ notification: NotificationDTO) async {
+        guard let services, notification.isUnread else { return }
+        await services.online.markRead([notification.id])
+        notifications = services.online.cachedNotifications()?.items ?? notifications
+    }
+
+    func markAllRead() async {
+        guard let services else { return }
+        await services.online.markAllRead()
+        notifications = services.online.cachedNotifications()?.items ?? notifications
+    }
+
+    var online: SupervisorOnline? { services?.online }
+    var unreadNotifications: Int { notifications.filter(\.isUnread).count }
+
+    /// Decrypted local evidence of an attachment (meter photo, signature, reset evidence), or nil.
+    func localEvidence(_ attachment: LocalAttachment) -> Data? {
+        try? services?.evidence.read(attachment.fileName)
+    }
+
+    /// The local evidence files an operation carries.
+    func evidenceFiles(of operation: ClientOperation) -> [LocalAttachment] {
+        (try? services?.store.attachments.attachments(operationID: operation.id)) ?? []
     }
 
     private func deviceRevoked() async {
@@ -108,6 +150,8 @@ public final class FieldModel {
         services = nil
         jobs = []
         overview = nil
+        inbox = InboxSnapshot()
+        notifications = []
         var message = "This device was revoked by your administrator. All Asseta data on it has been erased."
         if !failures.isEmpty { message += " Some files could not be removed; reinstall the app to be sure." }
         await session.endSession(explanation: message)

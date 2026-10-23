@@ -24,6 +24,9 @@ final class FieldServices: Sendable {
     let engine: SyncEngine
     let recorder: FieldRecorder
     let directory: FieldDirectory
+    /// The supervisor's own records (server copies merged with this phone's) behind every tab.
+    let inbox: InboxDirectory
+    let online: SupervisorOnline
 
     /// `launchAccount` is the user signed in when the app launched: owner of data written before
     /// owners were recorded.
@@ -44,6 +47,8 @@ final class FieldServices: Sendable {
                             tenantID: tenantID, configuration: SyncConfiguration(appVersion: appVersion), account: account)
         recorder = FieldRecorder(store: store, tenantID: tenantID, deviceID: deviceID, owner: account)
         directory = FieldDirectory(store: store, tenantID: tenantID, owner: account)
+        inbox = InboxDirectory(store: store, tenantID: tenantID, owner: account)
+        online = SupervisorOnline(client: client, store: store, tenantID: tenantID)
     }
 
     /// `DEVICE_REVOKED`: erase database + key, tokens and evidence files.

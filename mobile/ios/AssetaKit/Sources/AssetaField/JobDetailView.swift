@@ -5,7 +5,9 @@ import AssetaStore
 import AssetaSync
 import SwiftUI
 
-/// One job: details, the next allowed actions and the local timeline with sync states.
+/// One job: details, a summary (readings, meter hours, work totals, findings), the next allowed
+/// actions, my readings, the work log (server + this phone), the customer acknowledgement, expenses &
+/// fuel, and the local timeline with sync states (same sections as Android `JobDetailScreen`).
 struct JobDetailView: View {
     let model: FieldModel
     let jobID: UUID
@@ -20,8 +22,12 @@ struct JobDetailView: View {
             let progress = model.progress(job)
             List {
                 details(job, progress)
+                JobSummarySection(inbox: model.inbox, jobID: jobID)
                 actions(job, progress)
-                if progress.canLogActivity { workLog(job) }
+                JobReadingsSection(inbox: model.inbox, jobID: jobID)
+                workLog(job, canLog: progress.canLogActivity)
+                AcknowledgementSection(model: model, jobID: jobID)
+                JobMoneySection(inbox: model.inbox, jobID: jobID)
                 timeline(job)
             }
             .navigationTitle(job.job.jobNumber)
@@ -93,11 +99,26 @@ struct JobDetailView: View {
     }
 
     /// Work log: timed entries (start/stop on this phone) and the form for earlier or untimed entries.
-    @ViewBuilder private func workLog(_ job: FieldJob) -> some View {
-        Section("Work log") {
-            ForEach(model.workLog(for: job)) { line in
-                Text(Self.describe(line)).font(.subheadline)
+    @ViewBuilder private func workLog(_ job: FieldJob, canLog: Bool) -> some View {
+        let entries = model.inbox.activities.filter { $0.jobID == job.id }
+        if !entries.isEmpty || canLog {
+            Section {
+                ForEach(entries) { entry in
+                    HStack {
+                        Text(Self.describe(entry)).font(.subheadline)
+                        Spacer()
+                        if !entry.running { StatusPill(status: entry.status) }
+                    }
+                }
+                if canLog { workLogActions(job) }
+            } header: { Text("Work log") } footer: {
+                if !entries.isEmpty { Text("Entries recorded on this phone and those the server has.") }
             }
+        }
+    }
+
+    @ViewBuilder private func workLogActions(_ job: FieldJob) -> some View {
+        Group {
             if let running = model.runningEntry(for: job) {
                 actionButton("Stop \(running.activityType.rawValue.lowercased())", "stop.circle") {
                     record { try $0.stopEntry(job: job.job) }
@@ -109,6 +130,17 @@ struct JobDetailView: View {
             }
             actionButton("Add work log entry", "list.bullet.clipboard") { showActivity = true }
         }
+    }
+
+    /// "Work 08:00 → 10:30 (2 h 30 min) · note" (or "→ running" while the entry is open).
+    static func describe(_ entry: ActivityItem) -> String {
+        let time = Date.FormatStyle(date: .omitted, time: .shortened)
+        var text = "\(InboxTexts.activityType(entry.activityType)) \(entry.start.formatted(time))"
+        if let end = entry.end {
+            text += " → \(end.formatted(time)) (\(JobFigures.duration(minutes: Int(end.timeIntervalSince(entry.start)) / 60)))"
+        } else if entry.running { text += " → running" }
+        if let note = entry.note { text += " · \(note)" }
+        return text
     }
 
     private func startEntry(_ job: FieldJob, _ type: ActivityType) {
