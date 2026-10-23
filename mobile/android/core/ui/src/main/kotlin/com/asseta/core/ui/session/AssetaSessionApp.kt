@@ -50,6 +50,11 @@ fun AssetaSessionApp(container: AssetaAppContainer, home: TenantHome? = null) {
         vm.onLoginResult(it.data)
     }
     val logoutLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {}
+    val passwordChange by vm.passwordChange.collectAsStateWithLifecycle()
+    val passwordLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        vm.onPasswordChangeResult(it.data)
+    }
+    PasswordChangeDialog(passwordChange, vm::dismissPasswordChange)
     // A user sign-out asks first when the app's hooks provide a confirmation text (Supervisor: unsynced items).
     val scope = rememberCoroutineScope()
     var signOutQuestion by remember { mutableStateOf<String?>(null) }
@@ -83,6 +88,8 @@ fun AssetaSessionApp(container: AssetaAppContainer, home: TenantHome? = null) {
                 sessionExpired = { vm.endSession() },
                 refreshProfile = vm::loadProfile,
                 selectTenant = vm::selectTenant,
+                changePassword = { vm.startPasswordChange(passwordLauncher::launch) },
+                changingPassword = passwordChange == PasswordChangeState.InProgress,
             )
             CompositionLocalProvider(LocalSessionActions provides actions) { home(s, vm::showTenantPicker, Modifier) }
         } else {
@@ -114,6 +121,22 @@ fun AssetaSessionApp(container: AssetaAppContainer, home: TenantHome? = null) {
             }
         }
     }
+}
+
+/** "Password changed." on success, a short error on failure; a cancel shows nothing (same as iOS). */
+@Composable
+private fun PasswordChangeDialog(state: PasswordChangeState, onDismiss: () -> Unit) {
+    val (title, message) = when (state) {
+        PasswordChangeState.Changed -> PasswordChangeText.CHANGED to null
+        is PasswordChangeState.Failed -> PasswordChangeText.FAILED_TITLE to state.message
+        else -> return
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.ok)) } },
+        title = { Text(title) },
+        text = message?.let { { Text(it) } },
+    )
 }
 
 @Composable

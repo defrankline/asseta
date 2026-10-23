@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.asseta.core.auth.AuthFailure
 import com.asseta.core.auth.AuthManager
+import com.asseta.core.auth.PasswordChange
 import com.asseta.core.auth.SelectedTenantStore
 import com.asseta.core.network.ApiException
 import com.asseta.core.network.AssetaApi
@@ -24,6 +25,9 @@ class SessionViewModel(
 
     private val _state = MutableStateFlow<SessionState>(SessionState.SignedOut())
     val state: StateFlow<SessionState> = _state.asStateFlow()
+
+    private val _passwordChange = MutableStateFlow<PasswordChangeState>(PasswordChangeState.Idle)
+    val passwordChange: StateFlow<PasswordChangeState> = _passwordChange.asStateFlow()
 
     init {
         if (auth.signedIn.value) loadProfile()
@@ -78,6 +82,34 @@ class SessionViewModel(
                     }
                 }
         }
+    }
+
+    /**
+     * "Change password": opens Keycloak's own password page (kc_action=UPDATE_PASSWORD). The app never handles the
+     * password; the user stays signed in whatever the outcome.
+     */
+    fun startPasswordChange(launch: (Intent) -> Unit) {
+        if (_passwordChange.value == PasswordChangeState.InProgress) return
+        _passwordChange.value = PasswordChangeState.InProgress
+        viewModelScope.launch {
+            runCatching { auth.createChangePasswordIntent() }
+                .onSuccess(launch)
+                .onFailure { _passwordChange.value = PasswordChangeState.Failed(PasswordChange.FAILED_MESSAGE) }
+        }
+    }
+
+    fun onPasswordChangeResult(data: Intent?) {
+        viewModelScope.launch {
+            _passwordChange.value = runCatching { auth.completeChangePassword(data) }.fold(
+                onSuccess = SessionRules::passwordChangeState,
+                onFailure = { PasswordChangeState.Failed(PasswordChange.FAILED_MESSAGE) },
+            )
+        }
+    }
+
+    /** The user acknowledged the "Password changed." / failure message. */
+    fun dismissPasswordChange() {
+        _passwordChange.value = PasswordChangeState.Idle
     }
 
     /** Returns to the tenant list (the selection is kept until another tenant is chosen). */

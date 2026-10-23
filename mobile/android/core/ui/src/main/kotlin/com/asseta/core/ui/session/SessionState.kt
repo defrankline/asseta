@@ -1,5 +1,6 @@
 package com.asseta.core.ui.session
 
+import com.asseta.core.auth.PasswordChangeResult
 import com.asseta.core.model.MeResponse
 import com.asseta.core.model.TenantAccess
 import com.asseta.core.network.ApiException
@@ -16,7 +17,31 @@ sealed interface SessionState {
     }
 }
 
+/** "Change password" (Keycloak `UPDATE_PASSWORD` action): in progress, or a result waiting to be acknowledged. */
+sealed interface PasswordChangeState {
+    data object Idle : PasswordChangeState
+    data object InProgress : PasswordChangeState
+    data object Changed : PasswordChangeState
+    data class Failed(val message: String) : PasswordChangeState
+}
+
+/** Shared wording of the "Change password" account action (identical on iOS). */
+object PasswordChangeText {
+    const val ACTION = "Change password"
+    const val FOOTER = "Opens the secure Asseta sign-in page."
+    const val OFFLINE = "Connect to the internet to change your password."
+    const val CHANGED = "Password changed."
+    const val FAILED_TITLE = "Couldn't change password"
+}
+
 internal object SessionRules {
+    /** A cancel shows nothing; the user stays signed in whatever the outcome. */
+    fun passwordChangeState(result: PasswordChangeResult): PasswordChangeState = when (result) {
+        PasswordChangeResult.Changed -> PasswordChangeState.Changed
+        PasswordChangeResult.Cancelled -> PasswordChangeState.Idle
+        is PasswordChangeResult.Failed -> PasswordChangeState.Failed(result.reason)
+    }
+
     /**
      * Keeps a previously chosen tenant only if the server still lists it as enterable; a single enterable
      * tenant is auto-selected. UI convenience only: the server re-checks access on every request.

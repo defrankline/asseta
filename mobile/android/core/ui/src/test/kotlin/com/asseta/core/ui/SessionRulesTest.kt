@@ -1,9 +1,13 @@
 package com.asseta.core.ui
 
+import com.asseta.core.auth.PasswordChange
+import com.asseta.core.auth.PasswordChangeResult
 import com.asseta.core.model.MeResponse
 import com.asseta.core.model.TenantAccess
 import com.asseta.core.model.TenantAccessState
 import com.asseta.core.network.ApiException
+import com.asseta.core.ui.session.PasswordChangeState
+import com.asseta.core.ui.session.PasswordChangeText
 import com.asseta.core.ui.session.SessionRules
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -36,5 +40,16 @@ class SessionRulesTest {
         assertEquals("No access", api.message)
         assertEquals("cid", api.reference)
         assertNull(SessionRules.toUiError(IOException("x")).reference)
+    }
+
+    @Test
+    fun `password change success confirms, cancel shows nothing, failure explains`() {
+        assertEquals(PasswordChangeState.Changed, SessionRules.passwordChangeState(PasswordChangeResult.Changed))
+        assertEquals(PasswordChangeState.Idle, SessionRules.passwordChangeState(PasswordChangeResult.Cancelled))
+        assertEquals(
+            PasswordChangeState.Failed(PasswordChange.FAILED_MESSAGE),
+            SessionRules.passwordChangeState(PasswordChangeResult.Failed(PasswordChange.FAILED_MESSAGE)),
+        )
+        assertEquals("Password changed.", PasswordChangeText.CHANGED)
     }
 }

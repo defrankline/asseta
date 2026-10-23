@@ -43,6 +43,7 @@ import com.asseta.core.domain.owner.OwnerFormat
 import com.asseta.core.ui.components.ButtonRow
 import com.asseta.core.ui.components.GroupedSection
 import com.asseta.core.ui.session.LocalSessionActions
+import com.asseta.core.ui.session.PasswordChangeText
 import com.asseta.core.ui.theme.AssetaType
 import com.asseta.core.ui.theme.palette
 import com.asseta.owner.ui.OwnerSession
@@ -138,10 +139,11 @@ fun SettingsScreen(vm: SettingsViewModel, session: OwnerSession, online: Boolean
         }
         item { SectionCard("Offline data") { FootNote(SettingsText.OFFLINE_DATA) } }
         item {
-            SectionCard("Account") {
+            SectionCard("Account", footer = if (online) PasswordChangeText.FOOTER else PasswordChangeText.OFFLINE) {
                 KeyValue("Company", session.tenantName)
                 if (session.userEmail.isNotEmpty()) KeyValue("Signed in as", session.userEmail)
                 if (session.canSwitchTenant) ButtonRow("Switch company", onClick = actions.switchTenant)
+                ButtonRow(PasswordChangeText.ACTION, enabled = online && !actions.changingPassword, onClick = actions.changePassword)
                 ButtonRow("Sign out", destructive = true) { confirmSignOut = true }
             }
         }

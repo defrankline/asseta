@@ -2,9 +2,12 @@ package com.asseta.owner
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performScrollToNode
 import com.asseta.core.domain.owner.DataSource
 import com.asseta.core.ui.session.UiError
 import com.asseta.core.ui.theme.AssetaTheme
@@ -74,5 +77,8 @@ class OwnerComposeTest {
         compose.onNodeWithText("You're offline. Changes need a connection.").assertIsDisplayed()
         compose.onNodeWithText("Enable push notifications").assertIsNotEnabled()
         compose.onNodeWithText("Save").assertIsNotEnabled()
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Change password"))
+        compose.onNodeWithText("Change password").assertIsNotEnabled()
+        compose.onNodeWithText("Connect to the internet to change your password.").assertExists()
     }
 }

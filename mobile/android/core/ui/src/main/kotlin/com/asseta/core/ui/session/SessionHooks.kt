@@ -36,6 +36,10 @@ data class SessionActions(
     val refreshProfile: () -> Unit = {},
     /** Enter another tenant (e.g. a notification tap for a different company); ignored unless enterable. */
     val selectTenant: (String) -> Unit = {},
+    /** Opens Keycloak's password page; the result is shown by the session shell. */
+    val changePassword: () -> Unit = {},
+    /** True while the password page is open (the action is disabled meanwhile). */
+    val changingPassword: Boolean = false,
 )
 
 val LocalSessionActions = staticCompositionLocalOf { SessionActions() }

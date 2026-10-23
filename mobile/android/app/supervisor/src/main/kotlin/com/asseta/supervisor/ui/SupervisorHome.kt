@@ -40,6 +40,7 @@ import com.asseta.core.ui.components.AssetaTopBar
 import com.asseta.core.ui.components.BarTextButton
 import com.asseta.core.ui.components.NavigationChrome
 import com.asseta.core.ui.session.LocalSessionActions
+import com.asseta.core.ui.session.PasswordChangeText
 import com.asseta.core.ui.theme.palette
 import com.asseta.supervisor.FieldGraph
 import com.asseta.supervisor.R
@@ -206,16 +207,34 @@ fun SupervisorHome(
     }
 }
 
-/** Account menu (leading, like the iOS toolbar): "Switch company" when the user has several, and "Sign out". */
+/**
+ * Account menu (leading, like the iOS toolbar): "Switch company" when the user has several, "Change password"
+ * (Keycloak's page; disabled offline) and "Sign out".
+ */
 @Composable
 private fun AccountMenu(showSwitchCompany: Boolean, onSwitchCompany: () -> Unit) {
     val actions = LocalSessionActions.current
+    val online = rememberOnline()
     var open by remember { mutableStateOf(false) }
     IconButton(onClick = { open = true }) {
         Icon(painterResource(R.drawable.ic_account), contentDescription = "Account", tint = palette.accent)
     }
     DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
         if (showSwitchCompany) DropdownMenuItem(text = { Text("Switch company") }, onClick = { open = false; onSwitchCompany() })
+        DropdownMenuItem(
+            text = {
+                Column {
+                    Text(PasswordChangeText.ACTION)
+                    Text(
+                        if (online) PasswordChangeText.FOOTER else PasswordChangeText.OFFLINE,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = palette.secondaryText,
+                    )
+                }
+            },
+            enabled = online && !actions.changingPassword,
+            onClick = { open = false; actions.changePassword() },
+        )
         DropdownMenuItem(
             text = { Text("Sign out", color = MaterialTheme.colorScheme.error) },
             onClick = { open = false; actions.signOut() },
