@@ -63,6 +63,7 @@ object FieldTexts {
             OpTypes.FUEL_EVENT -> "Fuel ${text("event_type").lowercase()}: ${text("litres")} L"
             OpTypes.CASH_COLLECTION -> "Cash collection ${text("amount")}"
             OpTypes.CASH_HANDOVER -> "Cash handover ${text("amount")}"
+            OpTypes.METER_RESET_REQUEST -> "Meter reset request"
             else -> opType
         }
     }
@@ -78,6 +79,7 @@ object FieldTexts {
         OpTypes.CASH_COLLECTION -> "Cash collection"
         OpTypes.CASH_HANDOVER -> "Cash handover"
         OpTypes.FUEL_EVENT -> "Fuel event"
+        OpTypes.METER_RESET_REQUEST -> "Meter reset request"
         else -> opType
     }
 
