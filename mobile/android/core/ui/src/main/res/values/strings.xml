@@ -10,17 +10,17 @@
     <string name="sign_in">Sign in</string>
     <string name="sign_out">Sign out</string>
     <string name="signing_in">Signing in…</string>
-    <string name="loading_profile">Loading your access…</string>
+    <string name="loading_profile">Loading your account…</string>
+    <string name="profile_unavailable_title">Can\'t load your account</string>
+    <string name="hello_user">Hello, %1$s</string>
+    <string name="no_tenants_title">No company access</string>
     <string name="retry">Retry</string>
     <string name="choose_tenant">Choose a company</string>
-    <string name="no_tenants">Your account has no company access yet. Ask your company administrator to add you.</string>
-    <string name="tenant_status">Status: %1$s</string>
+    <string name="no_tenants">Your account is not a member of any company yet. Ask your administrator.</string>
     <string name="access_full">Full access</string>
     <string name="access_read_only">Read only</string>
-    <string name="access_blocked">Access blocked</string>
+    <string name="access_blocked">Blocked</string>
     <string name="access_unknown">Access unavailable in this app version</string>
-    <string name="selected_tenant">Working in %1$s</string>
-    <string name="later_gates_notice">Field and owner features are not available in this build yet.</string>
     <string name="error_reference">Reference: %1$s</string>
     <string name="logo_description">Asseta logo</string>
 </resources>

@@ -9,13 +9,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -31,7 +28,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.asseta.core.ui.AssetaAppContainer
 import com.asseta.core.ui.R
-import com.asseta.core.ui.theme.AssetaColors
+import com.asseta.core.ui.components.AssetaTopBar
+import com.asseta.core.ui.components.BarTextButton
+import com.asseta.core.ui.components.EmptyState
 import kotlinx.coroutines.launch
 
 /** What an app shows once a tenant is selected; [onSwitchTenant] returns to the tenant list. */
@@ -41,7 +40,6 @@ typealias TenantHome = @Composable (ready: SessionState.Ready, onSwitchTenant: (
  * Shared session shell: login -> `/me` -> tenant selection -> optional app [home] (the Supervisor field app).
  * Without a [home] the tenant picker stays the landing screen. Inside [home], [LocalSessionActions] offers sign-out etc.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AssetaSessionApp(container: AssetaAppContainer, home: TenantHome? = null) {
     val vm: SessionViewModel = viewModel {
@@ -77,44 +75,42 @@ fun AssetaSessionApp(container: AssetaAppContainer, home: TenantHome? = null) {
 
     when (val s = state) {
         is SessionState.SignedOut -> LoginScreen(container.role, s) { vm.startLogin(loginLauncher::launch) }
-        else -> Scaffold(
-            topBar = {
-                TopAppBar(
-                    title = { Text("${stringResource(R.string.asseta_brand)} ${stringResource(container.role.label)}") },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = AssetaColors.Slate, titleContentColor = AssetaColors.Amber,
-                        actionIconContentColor = AssetaColors.Amber,
-                    ),
-                    actions = {
-                        TextButton(onClick = requestSignOut) {
-                            Text(stringResource(R.string.sign_out), color = AssetaColors.Amber)
-                        }
-                    },
-                )
-            },
-        ) { padding ->
-            val modifier = Modifier.padding(padding)
-            when (s) {
-                is SessionState.Ready -> if (home != null && s.selectedTenant != null) {
-                    val actions = SessionActions(
-                        signOut = requestSignOut,
-                        switchTenant = vm::showTenantPicker,
-                        sessionExpired = { vm.endSession() },
-                        refreshProfile = vm::loadProfile,
-                        selectTenant = vm::selectTenant,
-                    )
-                    CompositionLocalProvider(LocalSessionActions provides actions) { home(s, vm::showTenantPicker, modifier) }
-                } else {
-                    TenantPickerScreen(s, vm::selectTenant, modifier)
+        // The app home draws its own navigation bar (company title, account actions), as the iOS apps do.
+        is SessionState.Ready -> if (home != null && s.selectedTenant != null) {
+            val actions = SessionActions(
+                signOut = requestSignOut,
+                switchTenant = vm::showTenantPicker,
+                sessionExpired = { vm.endSession() },
+                refreshProfile = vm::loadProfile,
+                selectTenant = vm::selectTenant,
+            )
+            CompositionLocalProvider(LocalSessionActions provides actions) { home(s, vm::showTenantPicker, Modifier) }
+        } else {
+            Scaffold(topBar = {
+                AssetaTopBar(stringResource(R.string.hello_user, s.me.displayName), large = true, actions = {
+                    BarTextButton(stringResource(R.string.sign_out), onClick = requestSignOut)
+                })
+            }) { padding -> TenantPickerScreen(s, vm::selectTenant, Modifier.padding(padding)) }
+        }
+        // Same as iOS `ProfileUnavailableView`: no navigation bar, retry or sign out.
+        is SessionState.ProfileError -> Scaffold { padding ->
+            Column(Modifier.padding(padding).fillMaxSize(), verticalArrangement = Arrangement.Center) {
+                EmptyState(
+                    stringResource(R.string.profile_unavailable_title),
+                    listOfNotNull(s.error.message, s.error.reference?.let { stringResource(R.string.error_reference, it) }).joinToString("\n"),
+                    icon = R.drawable.ic_cloud_off,
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = vm::loadProfile) { Text(stringResource(R.string.retry)) }
+                        TextButton(onClick = requestSignOut) { Text(stringResource(R.string.sign_out), color = MaterialTheme.colorScheme.error) }
+                    }
                 }
-                is SessionState.ProfileError -> CenteredColumn(modifier) {
-                    ErrorText(s.error)
-                    Button(onClick = vm::loadProfile) { Text(stringResource(R.string.retry)) }
-                }
-                else -> CenteredColumn(modifier) {
-                    CircularProgressIndicator()
-                    Text(stringResource(R.string.loading_profile))
-                }
+            }
+        }
+        else -> Scaffold { padding ->
+            CenteredColumn(Modifier.padding(padding)) {
+                CircularProgressIndicator()
+                Text(stringResource(R.string.loading_profile), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }

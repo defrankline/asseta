@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -21,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.asseta.core.ui.AppRole
@@ -40,10 +42,10 @@ fun LoginScreen(role: AppRole, state: SessionState.SignedOut, onSignIn: () -> Un
             modifier = Modifier.size(112.dp),
         )
         Spacer(Modifier.height(24.dp))
-        Text(stringResource(R.string.asseta_brand), style = MaterialTheme.typography.headlineLarge, color = Color.White)
-        Text(stringResource(role.label), style = MaterialTheme.typography.titleMedium, color = AssetaColors.Amber)
+        Text(stringResource(R.string.asseta_brand), style = MaterialTheme.typography.displaySmall, color = AssetaColors.OffWhite)
+        Text(stringResource(role.label), style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold), color = AssetaColors.Amber)
         Spacer(Modifier.height(8.dp))
-        Text(stringResource(role.tagline), style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.8f))
+        Text(stringResource(role.tagline), style = MaterialTheme.typography.bodyMedium, color = AssetaColors.OffWhite.copy(alpha = 0.8f))
         Spacer(Modifier.height(48.dp))
         if (state.busy) {
             CircularProgressIndicator(color = AssetaColors.Amber)
@@ -52,9 +54,10 @@ fun LoginScreen(role: AppRole, state: SessionState.SignedOut, onSignIn: () -> Un
         } else {
             Button(
                 onClick = onSignIn,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AssetaColors.Amber, contentColor = AssetaColors.OnAmber),
-            ) { Text(stringResource(R.string.sign_in)) }
+                modifier = Modifier.fillMaxWidth().height(50.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = AssetaColors.Amber, contentColor = AssetaColors.Slate),
+            ) { Text(stringResource(R.string.sign_in), style = MaterialTheme.typography.titleMedium) }
         }
         state.error?.let { ErrorText(it, Color(0xFFFFB4AB)) }
     }

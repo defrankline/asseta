@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark window theme (system bars and dialogs follow the system dark mode, like the iOS apps). -->
+    <style name="Theme.Asseta" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/asseta_slate</item>
+        <item name="android:statusBarColor">@color/asseta_slate</item>
+    </style>
+</resources>

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Window theme only; all UI is Compose Material3 (see AssetaTheme). -->
+    <!-- Window theme only (light; values-night has the dark one); all UI is Compose Material3 (see AssetaTheme). -->
     <style name="Theme.Asseta" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@color/asseta_slate</item>
         <item name="android:statusBarColor">@color/asseta_slate</item>
