@@ -22,7 +22,14 @@ from asseta.modules.identity.catalog import PermissionScope as S
 from asseta.modules.identity.dependencies import requires
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.jobs.models import Job
-from asseta.modules.jobs.scope import METER_OVERSIGHT, own_staff, restricted_to_own
+from asseta.modules.jobs.scope import (
+    EXPENSE_OVERSIGHT,
+    METER_OVERSIGHT,
+    assigned_machine_ids,
+    own_staff,
+    restricted_to_own,
+    scoped_job_ids,
+)
 from asseta.modules.meter.dto import (
     AttachmentDto,
     CaptureResultDto,
@@ -117,12 +124,44 @@ def save_attachment(
     return row
 
 
+def attachment_visible(session: Session, ctx: RequestContext, att: CaptureAttachment) -> bool:
+    """Office roles see any tenant attachment; a field user only attachments they uploaded or that belong to their own
+    records (readings and acknowledgements on their jobs, resets on their machines, their expenses). Hidden ones are
+    reported as not found."""
+    if not restricted_to_own(ctx, METER_OVERSIGHT) or not restricted_to_own(ctx, EXPENSE_OVERSIGHT):
+        return True
+    if att.uploaded_by == ctx.user_id:
+        return True
+    from asseta.modules.expenses.models import Expense, ExpenseAttachment  # local: expenses imports meter
+    from asseta.modules.jobs.models import CustomerAcknowledgement
+
+    staff = own_staff(session, ctx)
+    jobs = scoped_job_ids(staff)
+    checks = [
+        select(MeterCapture.id).where(MeterCapture.photo_attachment_id == att.id, MeterCapture.job_id.in_(jobs)),
+        select(CustomerAcknowledgement.id).where(
+            CustomerAcknowledgement.signature_attachment_id == att.id, CustomerAcknowledgement.job_id.in_(jobs)
+        ),
+        select(ExpenseAttachment.id)
+        .join(Expense, Expense.id == ExpenseAttachment.expense_id)
+        .where(ExpenseAttachment.attachment_id == att.id, Expense.submitted_by == ctx.user_id),
+    ]
+    if staff is not None:
+        checks.append(
+            select(MeterResetEvent.id).where(
+                MeterResetEvent.evidence_attachment_id == att.id,
+                MeterResetEvent.machine_id.in_(assigned_machine_ids(staff.id)),
+            )
+        )
+    return any(session.execute(q.limit(1)).first() is not None for q in checks)
+
+
 @router.get("/attachments/{attachment_id}/url", response_model=PhotoUrlDto, operation_id="getAttachmentUrl")
 def attachment_url(
-    attachment_id: uuid.UUID, session: DbSession, store: Store, _: Annotated[RequestContext, Depends(METER_READ)]
+    attachment_id: uuid.UUID, session: DbSession, store: Store, ctx: Annotated[RequestContext, Depends(METER_READ)]
 ) -> PhotoUrlDto:
     row = session.get(CaptureAttachment, attachment_id)
-    if row is None:
+    if row is None or not attachment_visible(session, ctx, row):
         raise NotFound("Attachment not found")
     ttl = get_settings().presigned_url_ttl_seconds
     return PhotoUrlDto(url=store.presigned_get(row.object_key, ttl), expires_in_seconds=ttl)

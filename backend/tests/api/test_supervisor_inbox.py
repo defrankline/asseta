@@ -9,7 +9,7 @@ from typing import Any
 
 from tests.support.api import Actor, Api
 from tests.support.finance import FinCtx, category, expense_policy, gps, role, setup_finance, tenant_sql
-from tests.support.jobs import capture, unique_jpeg
+from tests.support.jobs import capture, photo, unique_jpeg
 
 DEVICE = "android-inbox-0001"
 
@@ -442,3 +442,23 @@ def test_inbox_streams_are_paged_by_revision(api: Api, monkeypatch: Any) -> None
             break
         assert pulls < 10
     assert set(seen) == fuel and len(seen) == 5  # every record exactly once, in revision order
+
+
+def test_attachment_urls_scoped_to_own_records_for_supervisors(api: Api) -> None:
+    f = setup_finance(api)
+    other, _ = _second_supervisor(api, f)
+    pic = photo(api, f.supervisor)
+    r = f.supervisor.post(
+        "/api/v1/tenant/meter-captures",
+        capture(f.c.job_id, "OPENING", "500.0", api.clock.now, photo_id=pic, gps={"status": "PERMISSION_DENIED"}),
+    )
+    assert r.status_code == 201, r.text
+    stray = photo(api, other)  # uploaded by the second supervisor, attached to nothing
+
+    def url(actor: Actor, att: str) -> int:
+        return int(actor.get(f"/api/v1/tenant/attachments/{att}/url").status_code)
+
+    assert url(f.supervisor, pic) == 200  # own upload on own job
+    assert url(other, pic) == 404  # another supervisor's reading photo: hidden, not forbidden
+    assert url(other, stray) == 200 and url(f.supervisor, stray) == 404
+    assert url(f.owner, pic) == 200 and url(f.owner, stray) == 200  # office roles see the tenant
