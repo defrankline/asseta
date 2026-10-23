@@ -55,8 +55,9 @@ if [[ "${RESTORE_ASSUME_YES:-0}" != "1" ]]; then
 fi
 
 started=$SECONDS
-log "Stopping writers: ${WRITER_SERVICES[*]} keycloak mlflow"
-compose stop "${WRITER_SERVICES[@]}" keycloak mlflow
+log "Stopping writers: ${WRITER_SERVICES[*]} keycloak"
+compose stop "${WRITER_SERVICES[@]}" keycloak
+if mlflow_enabled; then compose stop mlflow; fi
 
 [[ "$(service_health postgres)" == "healthy" ]] || {
   compose up -d postgres
@@ -64,9 +65,13 @@ compose stop "${WRITER_SERVICES[@]}" keycloak mlflow
 }
 # Roles: asseta_owner/asseta_app/keycloak exist on any volume initialised by infra/postgres/init; mlflow is created
 # idempotently by the mlflow-db-init one-shot.
-compose run --rm --no-deps mlflow-db-init >/dev/null
+DBS=(asseta keycloak)
+if [[ -f "$DIR/mlflow.dump" ]]; then
+  compose run --rm --no-deps mlflow-db-init >/dev/null
+  DBS+=(mlflow)
+fi
 
-for db in asseta keycloak mlflow; do
+for db in "${DBS[@]}"; do
   log "Recreating database $db (owner ${DB_OWNER[$db]})"
   compose exec -T postgres psql -U postgres -d postgres -v ON_ERROR_STOP=1 -q \
     -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$db' AND pid <> pg_backend_pid()" \
@@ -103,7 +108,8 @@ compose up -d --no-deps keycloak
 wait_healthy keycloak 600
 log "Running migrate (no-op when the schema is at head)"
 compose run --rm --no-deps migrate
-compose up -d --no-deps mlflow "${APP_SERVICES[@]}"
+if mlflow_enabled; then compose up -d --no-deps mlflow; fi
+compose up -d --no-deps "${APP_SERVICES[@]}"
 wait_for_api 300
 compose up -d --no-deps traccar
 log "Restore complete in $((SECONDS - started)) s. Verify: a known user signs in; the fleet map shows last positions;"

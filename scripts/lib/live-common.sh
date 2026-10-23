@@ -97,8 +97,20 @@ compose_args() {
   fi
 }
 
+# MLflow is optional (ENABLE_MLFLOW=1): its services sit in the `mlflow` profile and the API only gets a tracking
+# URI when it is enabled; otherwise training records runs in the database only.
+mlflow_enabled() {
+  [[ "$(cfg ENABLE_MLFLOW 0)" == "1" ]]
+}
+
 compose() {
   compose_args
+  if mlflow_enabled; then
+    export COMPOSE_PROFILES=mlflow ASSETA_MLFLOW_TRACKING_URI=http://mlflow:5000
+  else
+    unset COMPOSE_PROFILES
+    export ASSETA_MLFLOW_TRACKING_URI=
+  fi
   docker compose "${COMPOSE_ARGS[@]}" "$@"
 }
 

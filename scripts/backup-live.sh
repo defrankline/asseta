@@ -49,6 +49,11 @@ started=$SECONDS
 [[ "$(service_health postgres)" == "healthy" ]] || fail "postgres is not healthy"
 
 for db in "${DATABASES[@]}"; do
+  if [[ "$db" == mlflow ]] && [[ "$(compose exec -T postgres psql -U postgres -qAt -c \
+    "SELECT 1 FROM pg_database WHERE datname = 'mlflow'" </dev/null)" != "1" ]]; then
+    log "pg_dump mlflow: skipped (MLflow never enabled)"
+    continue
+  fi
   compose exec -T postgres pg_dump -U postgres -Fc "$db" >"$DIR/$db.dump"
   [[ -s "$DIR/$db.dump" ]] || fail "pg_dump $db produced an empty file"
   log "pg_dump $db: $(du -h "$DIR/$db.dump" | cut -f1)"
@@ -76,7 +81,8 @@ fi
 mirror_cmd='mc alias set src http://minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null'
 for bucket in "${BUCKETS[@]}"; do
   mkdir -p "$DIR/objects/$bucket"
-  mirror_cmd+=" && mc mirror --quiet src/$bucket /backup/$bucket"
+  # A bucket that was never created (asseta-mlflow while MLflow is disabled) is skipped, not an error.
+  mirror_cmd+=" && if mc stat src/$bucket >/dev/null 2>&1; then mc mirror --quiet src/$bucket /backup/$bucket; fi"
 done
 # shellcheck disable=SC2016
 mirror_cmd+='; rc=$?; mc alias rm src >/dev/null 2>&1; exit $rc'

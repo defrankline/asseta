@@ -340,12 +340,13 @@ build_images() {
   marker="$(dirname "$STATE_FILE")/infra-images.sha"
   hash="$(infra_inputs_hash)"
   if [[ -n "$hash" && "$(cat "$marker" 2>/dev/null || true)" == "$hash" ]] &&
-    docker image inspect "$DOCKER_IMAGE_PREFIX/postgis:18-3.6" "$DOCKER_IMAGE_PREFIX/mlflow:3.17.0" \
-      "$DOCKER_IMAGE_PREFIX/minio:RELEASE.2024-07-16T23-46-41Z" >/dev/null 2>&1; then
+    docker image inspect "$DOCKER_IMAGE_PREFIX/postgis:18-3.6" "$DOCKER_IMAGE_PREFIX/minio:RELEASE.2024-07-16T23-46-41Z" \
+      >/dev/null 2>&1 && { ! mlflow_enabled || docker image inspect "$DOCKER_IMAGE_PREFIX/mlflow:3.17.0" >/dev/null 2>&1; }; then
     log "Infrastructure images unchanged (infra/postgres, infra/mlflow, infra/minio); not rebuilding"
   else
     log "Building infrastructure images (infra/ changed or images missing)"
-    compose build postgres mlflow minio
+    compose build postgres minio
+    if mlflow_enabled; then compose build mlflow; fi
     mkdir -p "$(dirname "$marker")"
     [[ -z "$hash" ]] || printf '%s\n' "$hash" >"$marker"
   fi
@@ -441,7 +442,18 @@ start_infra() {
   wait_healthy minio 180
   wait_healthy kafka 300
   wait_healthy keycloak 900  # first start: optimized build + realm import
-  compose up -d mlflow
+  if mlflow_enabled; then
+    compose up -d mlflow
+  else
+    # Disabled: remove the container only (its database and bucket stay; ENABLE_MLFLOW=1 brings it back).
+    local ids
+    mapfile -t ids < <(docker ps -aq --filter "label=com.docker.compose.project=$COMPOSE_PROJECT_NAME" \
+      --filter "label=com.docker.compose.service=mlflow")
+    if ((${#ids[@]})); then
+      log "MLflow disabled (ENABLE_MLFLOW!=1): removing its container; data is kept"
+      docker rm -f "${ids[@]}" >/dev/null
+    fi
+  fi
 }
 
 run_migrations() {

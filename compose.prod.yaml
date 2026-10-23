@@ -25,7 +25,8 @@ x-api-env: &api-env
   ASSETA_KEYCLOAK_PUBLIC_URL: ${ASSETA_PUBLIC_KEYCLOAK_URL:-https://asseta.co.tz/auth}
   ASSETA_KEYCLOAK_API_CLIENT_SECRET: ${ASSETA_API_CLIENT_SECRET:?set in .env.production}
   ASSETA_CORS_ORIGINS: '["${ASSETA_WEB_URL:-https://asseta.co.tz}"]'
-  ASSETA_MLFLOW_TRACKING_URI: http://mlflow:5000
+  # Blank unless ENABLE_MLFLOW=1 (scripts/lib/live-common.sh): training then records runs in the database only.
+  ASSETA_MLFLOW_TRACKING_URI: ${ASSETA_MLFLOW_TRACKING_URI:-}
   ASSETA_DB_LOCK_TIMEOUT_MS: ${ASSETA_DB_LOCK_TIMEOUT_MS:-5000}
   ASSETA_DB_IDLE_IN_TRANSACTION_TIMEOUT_MS: ${ASSETA_DB_IDLE_IN_TRANSACTION_TIMEOUT_MS:-60000}
   ASSETA_DB_STATEMENT_TIMEOUT_MS: ${ASSETA_DB_STATEMENT_TIMEOUT_MS:-30000}
@@ -179,6 +180,7 @@ services:
     healthcheck: {test: ["CMD", "mc", "ready", "local"], interval: 10s, timeout: 5s, retries: 30}
 
   mlflow-db-init:  # one-shot, idempotent: MLflow backend-store role + database
+    profiles: [mlflow]
     image: ${DOCKER_IMAGE_PREFIX:-asseta}/postgis:18-3.6
     entrypoint: ["bash", "/opt/asseta/mlflow-db.sh"]
     environment:
@@ -189,7 +191,8 @@ services:
     restart: "no"
     logging: *logging
 
-  mlflow:
+  mlflow:  # optional (~1.4 GB RAM): ENABLE_MLFLOW=1 in .env.production
+    profiles: [mlflow]
     build: ./infra/mlflow
     image: ${DOCKER_IMAGE_PREFIX:-asseta}/mlflow:3.17.0
     environment:

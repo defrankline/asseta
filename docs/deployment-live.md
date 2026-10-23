@@ -25,7 +25,7 @@ Ports (all `127.0.0.1` only; bnbtracker uses 5010):
 | 5021 | Keycloak (`/auth/`) | host nginx; admin console via SSH tunnel |
 | 5022 | MinIO S3 API (presigned evidence GETs `/asseta-evidence/`) | host nginx |
 | 5023 | Traccar web UI | SSH tunnel only |
-| 5024 | MLflow UI | SSH tunnel only |
+| 5024 | MLflow UI (only with `ENABLE_MLFLOW=1`) | SSH tunnel only |
 | 5055 | Traccar OsmAnd device port | `127.0.0.1` by default; `0.0.0.0` only with `TRACCAR_PUBLIC_DEVICE_PORTS=1` (§8) |
 
 Postgres, Redis, Kafka and the MinIO console are not published at all. Public URLs: console
@@ -193,6 +193,13 @@ Without it the console shows "Timeout when waiting for 3rd party check iframe me
 `KEYCLOAK_ADMIN_USER` / `KEYCLOAK_ADMIN_PASSWORD` from `.env.production`, create a permanent admin in the master
 realm (Users → Create user → Credentials → Role mapping: `admin`), sign in as it, then delete the temporary
 bootstrap admin.
+
+### MLflow (optional)
+
+Off by default (`ENABLE_MLFLOW=0`) to save ~1.4 GB of RAM on the shared server: model training and governance
+keep working and record every run in the database. Set `ENABLE_MLFLOW=1` in `.env.production` and run
+`scripts/deploy-live.sh` to start it (UI through the tunnel on 5024); set it back to 0 to stop it again (its
+database and bucket are kept). Backups include MLflow only once it has been enabled.
 
 ## 8. GPS trackers (when the first device is commissioned)
 
