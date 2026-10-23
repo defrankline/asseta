@@ -58,8 +58,14 @@ enum SyncKey {
 /// push outbox in bounded batches → pull changes. All state is in the encrypted database, so a
 /// cycle interrupted by app termination resumes safely (SENT operations go back to PENDING and are
 /// re-sent with the same ids; the server answers DUPLICATE).
+///
+/// Every cycle belongs to the signed-in `account`: a tenant last synced by another user is reset
+/// first (fresh bootstrap, see ``SyncStateStore/claim(tenantID:owner:)``) and only this user's
+/// evidence and operations are uploaded and pushed under their token. Without an account (tests,
+/// tools) every owner's work is synced.
 public actor SyncEngine {
     public let tenantID: UUID
+    public let account: AccountIdentity?
     let store: LocalStore
     let evidence: EvidenceStore
     let api: SyncAPI
@@ -71,7 +77,9 @@ public actor SyncEngine {
 
     public init(store: LocalStore, evidence: EvidenceStore, api: SyncAPI, tenantID: UUID,
                 configuration: SyncConfiguration, clock: any ClockSource = SystemClockSource(),
-                random: @escaping @Sendable () -> Double = { Double.random(in: 0..<1) }) {
+                random: @escaping @Sendable () -> Double = { Double.random(in: 0..<1) },
+                account: AccountIdentity? = nil) {
+        self.account = account
         self.store = store
         self.evidence = evidence
         self.api = api
@@ -87,6 +95,12 @@ public actor SyncEngine {
     /// `force` ignores the backoff window (user pressed "Sync now", connectivity just returned).
     public func sync(force: Bool = false) async throws -> SyncReport {
         guard !running else { return SyncReport(outcome: .alreadyRunning) }
+        if let account {
+            // Never resume another user's cursor: their state is reset before anything is sent or pulled.
+            do { try store.syncState.claim(tenantID: tenantID, owner: account.subject) } catch {
+                return SyncReport(outcome: .serverUnavailable(String(describing: error)))
+            }
+        }
         let now = clock.wallNow
         if !force, let next = try? date(SyncKey.nextSyncAt), next > now {
             return SyncReport(outcome: .backingOff(until: next))
@@ -187,7 +201,7 @@ public actor SyncEngine {
     private func uploadAttachments() async throws -> Int {
         let uploader = BlobUploader(api: api, attachments: store.attachments, evidence: evidence)
         var done = 0
-        for attachment in try store.attachments.pendingUploads(tenantID: tenantID, now: clock.wallNow) {
+        for attachment in try store.attachments.pendingUploads(tenantID: tenantID, owner: account?.subject, now: clock.wallNow) {
             do {
                 if case .complete = try await uploader.upload(attachment, now: clock.wallNow) { done += 1 }
             } catch let error as SyncError {
@@ -210,7 +224,8 @@ public actor SyncEngine {
         var outcomes: [AppliedOutcome] = []
         var batchSize = max(1, configuration.batchSize)
         for _ in 0..<configuration.maxBatchesPerCycle {
-            let ready = try store.outbox.readyToSend(tenantID: tenantID, now: clock.wallNow, limit: batchSize)
+            let ready = try store.outbox.readyToSend(tenantID: tenantID, owner: account?.subject, now: clock.wallNow,
+                                                     limit: batchSize)
             guard !ready.isEmpty else { break }
             let operations = try ready.map { op in
                 OperationIn(id: op.id, opType: op.opType, createdAtDevice: op.createdAtDevice,

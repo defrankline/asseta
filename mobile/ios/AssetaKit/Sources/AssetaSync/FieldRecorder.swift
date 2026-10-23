@@ -62,19 +62,24 @@ public enum FieldRecorderError: Error, Equatable, Sendable {
 /// Turns supervisor actions into durable outbox operations with the dependency chain
 /// opening capture → START → activities / closing capture → acknowledgement → COMPLETE, and links
 /// evidence files so an operation is never sent before its file has a server `attachment_id`.
+/// Everything is recorded with the signed-in `owner`, and only that user's operations shape a job's
+/// progress (another user's work on this phone is held for them).
 public struct FieldRecorder: Sendable {
     let store: LocalStore
     let tenantID: UUID
     let deviceID: String
+    let owner: AccountIdentity?
 
-    public init(store: LocalStore, tenantID: UUID, deviceID: String) {
+    public init(store: LocalStore, tenantID: UUID, deviceID: String, owner: AccountIdentity? = nil) {
         self.store = store
         self.tenantID = tenantID
         self.deviceID = deviceID
+        self.owner = owner
     }
 
     public func progress(jobID: UUID, serverStatus: JobStatus) throws -> JobProgress {
-        JobProgress(serverStatus: serverStatus, operations: try store.outbox.operations(tenantID: tenantID, jobID: jobID))
+        JobProgress(serverStatus: serverStatus,
+                    operations: try store.outbox.operations(tenantID: tenantID, owner: owner?.subject, jobID: jobID))
     }
 
     /// Records a meter reading. `photo` must already be in the evidence store. `snapshot` is the
@@ -174,7 +179,7 @@ public struct FieldRecorder: Sendable {
     func addAttachment(_ evidence: StoredEvidence, purpose: BlobPurpose) throws -> UUID {
         try store.attachments.add(NewLocalAttachment(
             tenantID: tenantID, purpose: purpose.rawValue, fileName: evidence.fileName, sha256: evidence.sha256,
-            sizeBytes: evidence.sizeBytes, contentType: evidence.contentType)).id
+            sizeBytes: evidence.sizeBytes, contentType: evidence.contentType, ownerSubject: owner?.subject)).id
     }
 
     func enqueue(_ type: OperationType, entityType: String, entityID: UUID, payload: some Encodable,
@@ -183,6 +188,6 @@ public struct FieldRecorder: Sendable {
         let json = try JSONValue.encode(payload).lowercasingUUIDs().jsonString()
         return try store.outbox.enqueue(NewClientOperation(
             tenantID: tenantID, opType: type.rawValue, entityType: entityType, entityID: entityID, payloadJSON: json,
-            dependsOn: dependsOn, attachments: attachments, createdAtDevice: createdAt))
+            dependsOn: dependsOn, attachments: attachments, createdAtDevice: createdAt, owner: owner))
     }
 }

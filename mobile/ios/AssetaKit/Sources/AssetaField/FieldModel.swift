@@ -39,9 +39,13 @@ public final class FieldModel {
             phase = .failed("This build is missing its configuration.")
             return
         }
+        guard let account = session.account else {
+            phase = .failed("Sign in again to open your field work.")
+            return
+        }
         do {
-            services = try FieldServices(tenantID: tenant.tenantID, client: client, secrets: secrets,
-                                         appVersion: FieldServices.appVersion)
+            services = try FieldServices(tenantID: tenant.tenantID, account: account, launchAccount: session.launchAccount,
+                                         client: client, secrets: secrets, appVersion: FieldServices.appVersion)
         } catch {
             phase = .failed("The local data store could not be opened (\(error)).")
             return
@@ -123,7 +127,7 @@ public final class FieldModel {
     }
 
     func operations(for job: FieldJob) -> [ClientOperation] {
-        (try? services?.store.outbox.operations(tenantID: tenant.tenantID, jobID: job.id)) ?? []
+        (try? services?.store.outbox.operations(tenantID: tenant.tenantID, owner: services?.account.subject, jobID: job.id)) ?? []
     }
 
     func workLog(for job: FieldJob) -> [WorkLogLine] { (try? services?.recorder.workLog(jobID: job.id)) ?? [] }

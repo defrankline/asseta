@@ -52,20 +52,26 @@ public struct SyncOverview: Sendable, Equatable {
     public let serverClockSkewAlert: Bool
     public let offlineGrantUntil: Date?
     public let clockStatus: ClockStatus
+    /// Unsynced work other accounts left on this phone: held until that account signs in again.
+    public var heldAccounts: [HeldAccount] = []
 
     public var unsyncedCount: Int { counts.filter { $0.key != .acked }.values.reduce(0, +) }
 }
 
 /// Read side for the UI: cached jobs and entities, policy gate, sync overview.
+/// Device-owned records (operations, evidence) are the signed-in `owner`'s only.
 public struct FieldDirectory: Sendable {
     let store: LocalStore
     let tenantID: UUID
     let clock: any ClockSource
+    let owner: AccountIdentity?
 
-    public init(store: LocalStore, tenantID: UUID, clock: any ClockSource = SystemClockSource()) {
+    public init(store: LocalStore, tenantID: UUID, clock: any ClockSource = SystemClockSource(),
+                owner: AccountIdentity? = nil) {
         self.store = store
         self.tenantID = tenantID
         self.clock = clock
+        self.owner = owner
     }
 
     private var tenantKey: String { tenantID.uuidString.lowercased() }
@@ -119,9 +125,10 @@ public struct FieldDirectory: Sendable {
     public func clockStatus() -> ClockStatus { ClockMonitor.status(clockReference(), source: clock) }
 
     public func overview() throws -> SyncOverview {
-        let all = try store.outbox.operations(tenantID: tenantID, statuses: Set(ClientOperationStatus.allCases))
+        let mine = owner?.subject
+        let all = try store.outbox.operations(tenantID: tenantID, owner: mine, statuses: Set(ClientOperationStatus.allCases))
         let byID = Dictionary(uniqueKeysWithValues: all.map { ($0.id, $0) })
-        let pendingFiles = try store.attachments.attachments(tenantID: tenantID, statuses: [.pending])
+        let pendingFiles = try store.attachments.attachments(tenantID: tenantID, statuses: [.pending], owner: mine)
         let unsynced = all.filter { $0.status != .acked }
         let awaitingUpload = try store.attachments.operationsAwaitingUpload(tenantID: tenantID)
         let items = unsynced.map { op -> OutboxItem in
@@ -143,11 +150,13 @@ public struct FieldDirectory: Sendable {
             ((try? store.syncState.value(key, tenant: tenantKey)) ?? nil).flatMap(Int64.init).map(Date.init(millisecondsSince1970:))
         }
         return SyncOverview(
-            counts: try store.outbox.statusCounts(tenantID: tenantID), items: items, pendingUploads: pendingFiles.count,
-            failedUploads: try store.attachments.attachments(tenantID: tenantID, statuses: [.failed]),
+            counts: try store.outbox.statusCounts(tenantID: tenantID, owner: mine), items: items,
+            pendingUploads: pendingFiles.count,
+            failedUploads: try store.attachments.attachments(tenantID: tenantID, statuses: [.failed], owner: mine),
             lastSuccessAt: date(SyncKey.lastSuccessAt), nextAttemptAt: date(SyncKey.nextSyncAt),
             consecutiveFailures: int(SyncKey.failures), serverClockSkewAlert: int(SyncKey.clockSkewAlert) == 1,
-            offlineGrantUntil: offlineGrantUntil(), clockStatus: clockStatus())
+            offlineGrantUntil: offlineGrantUntil(), clockStatus: clockStatus(),
+            heldAccounts: try mine.map { try store.outbox.heldAccounts(tenantID: tenantID, excluding: $0) } ?? [])
     }
 }
 

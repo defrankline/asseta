@@ -25,6 +25,8 @@ public struct LocalAttachment: Equatable, Sendable, Identifiable {
     public let lastError: String?
     public let nextAttemptAt: Date?
     public let createdAt: Date
+    /// The user who captured it; it is uploaded only under that user's token.
+    public internal(set) var ownerSubject: String? = nil
 }
 
 public struct NewLocalAttachment: Sendable {
@@ -36,9 +38,10 @@ public struct NewLocalAttachment: Sendable {
     public let sizeBytes: Int64
     public let contentType: String
     public let createdAt: Date
+    public let ownerSubject: String?
 
     public init(id: UUID = UUID(), tenantID: UUID, purpose: String, fileName: String, sha256: String,
-                sizeBytes: Int64, contentType: String, createdAt: Date = Date()) {
+                sizeBytes: Int64, contentType: String, createdAt: Date = Date(), ownerSubject: String? = nil) {
         self.id = id
         self.tenantID = tenantID
         self.purpose = purpose
@@ -47,6 +50,7 @@ public struct NewLocalAttachment: Sendable {
         self.sizeBytes = sizeBytes
         self.contentType = contentType
         self.createdAt = createdAt
+        self.ownerSubject = ownerSubject
     }
 }
 
@@ -55,7 +59,8 @@ public final class AttachmentRepository: Sendable {
 
     private static let columns = """
         id, tenant_id, purpose, file_name, sha256, size_bytes, content_type, status, session_id, attachment_id,
-        attempt_count, last_error, next_attempt_at, created_at, session_expires_at, chunk_size, received_chunks
+        attempt_count, last_error, next_attempt_at, created_at, session_expires_at, chunk_size, received_chunks,
+        owner_subject
         """
 
     public init(database: EncryptedDatabase) {
@@ -67,12 +72,12 @@ public final class AttachmentRepository: Sendable {
         try db.execute(
             """
             INSERT INTO local_attachment (id, tenant_id, purpose, file_name, sha256, size_bytes, content_type,
-                status, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'PENDING', ?)
+                status, created_at, owner_subject)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?)
             """,
             [.text(new.id.lowercased), .text(new.tenantID.lowercased), .text(new.purpose), .text(new.fileName),
              .text(new.sha256), .integer(new.sizeBytes), .text(new.contentType),
-             .integer(new.createdAt.millisecondsSince1970)]
+             .integer(new.createdAt.millisecondsSince1970), .optionalText(new.ownerSubject)]
         )
         guard let stored = try attachment(id: new.id) else { throw OutboxError.attachmentMissing(new.id) }
         return stored
@@ -83,29 +88,33 @@ public final class AttachmentRepository: Sendable {
                      map: Self.decode).first
     }
 
-    /// PENDING uploads whose retry time has come, oldest first.
-    public func pendingUploads(tenantID: UUID, now: Date, limit: Int = 20) throws -> [LocalAttachment] {
+    /// PENDING uploads whose retry time has come, oldest first; `owner` limits them to that user's
+    /// files (never another user's evidence under this token), nil means every owner.
+    public func pendingUploads(tenantID: UUID, owner: String? = nil, now: Date, limit: Int = 20) throws -> [LocalAttachment] {
         try db.query(
             """
             SELECT \(Self.columns) FROM local_attachment
-            WHERE tenant_id = ? AND status = 'PENDING' AND (next_attempt_at IS NULL OR next_attempt_at <= ?)
+            WHERE tenant_id = ? AND (? IS NULL OR owner_subject = ?) AND status = 'PENDING'
+              AND (next_attempt_at IS NULL OR next_attempt_at <= ?)
             ORDER BY created_at, id LIMIT ?
             """,
-            [.text(tenantID.lowercased), .integer(now.millisecondsSince1970), .integer(Int64(limit))],
+            [.text(tenantID.lowercased), .optionalText(owner), .optionalText(owner), .integer(now.millisecondsSince1970),
+             .integer(Int64(limit))],
             map: Self.decode
         )
     }
 
-    public func attachments(tenantID: UUID, statuses: Set<LocalAttachmentStatus>) throws -> [LocalAttachment] {
+    public func attachments(tenantID: UUID, statuses: Set<LocalAttachmentStatus>, owner: String? = nil) throws -> [LocalAttachment] {
         let ordered = statuses.map(\.rawValue).sorted()
         guard !ordered.isEmpty else { return [] }
         let placeholders = Array(repeating: "?", count: ordered.count).joined(separator: ", ")
         return try db.query(
             """
-            SELECT \(Self.columns) FROM local_attachment WHERE tenant_id = ? AND status IN (\(placeholders))
+            SELECT \(Self.columns) FROM local_attachment
+            WHERE tenant_id = ? AND (? IS NULL OR owner_subject = ?) AND status IN (\(placeholders))
             ORDER BY created_at, id
             """,
-            [.text(tenantID.lowercased)] + ordered.map(SQLValue.text),
+            [.text(tenantID.lowercased), .optionalText(owner), .optionalText(owner)] + ordered.map(SQLValue.text),
             map: Self.decode
         )
     }
@@ -216,7 +225,8 @@ public final class AttachmentRepository: Sendable {
             attachmentID: uuid(9), attemptCount: Int(row.int(10)),
             lastError: row.string(11),
             nextAttemptAt: row.isNull(12) ? nil : Date(millisecondsSince1970: row.int(12)),
-            createdAt: Date(millisecondsSince1970: row.int(13))
+            createdAt: Date(millisecondsSince1970: row.int(13)),
+            ownerSubject: row.string(17)
         )
     }
 }

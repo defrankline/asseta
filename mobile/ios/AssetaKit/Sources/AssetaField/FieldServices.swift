@@ -9,9 +9,12 @@ import AssetaSync
 import Foundation
 
 /// Non-UI dependency graph of the field app for one signed-in tenant: encrypted store, evidence
-/// files, sync engine, recorder and read-side directory.
+/// files, sync engine, recorder and read-side directory. Everything is scoped to the signed-in
+/// `account`: opening the field resets the tenant's sync state when another user synced it last
+/// (fresh bootstrap), and that user's unsynced work is held for them.
 final class FieldServices: Sendable {
     let tenantID: UUID
+    let account: AccountIdentity
     let deviceID: String
     let databaseURL: URL
     let keyProvider: DatabaseKeyProvider
@@ -22,18 +25,25 @@ final class FieldServices: Sendable {
     let recorder: FieldRecorder
     let directory: FieldDirectory
 
-    init(tenantID: UUID, client: APIClient, secrets: any SecretStore, appVersion: String) throws {
+    /// `launchAccount` is the user signed in when the app launched: owner of data written before
+    /// owners were recorded.
+    init(tenantID: UUID, account: AccountIdentity, launchAccount: AccountIdentity?, client: APIClient,
+         secrets: any SecretStore, appVersion: String) throws {
         self.tenantID = tenantID
+        self.account = account
         deviceID = try DeviceIdentity.loadOrCreate(store: secrets)
         databaseURL = try LocalStore.defaultURL()
         keyProvider = DatabaseKeyProvider(store: secrets)
         tokens = TokenStore(store: secrets)
         store = try LocalStore.open(at: databaseURL, keyProvider: keyProvider)
+        try store.adoptLegacyData(owner: launchAccount)
+        // Before anything is shown: another user's synced data for this tenant is reset.
+        try store.syncState.claim(tenantID: tenantID, owner: account.subject)
         evidence = EvidenceStore(directory: try EvidenceStore.defaultDirectory())
         engine = SyncEngine(store: store, evidence: evidence, api: SyncAPI(client: client, deviceID: deviceID),
-                            tenantID: tenantID, configuration: SyncConfiguration(appVersion: appVersion))
-        recorder = FieldRecorder(store: store, tenantID: tenantID, deviceID: deviceID)
-        directory = FieldDirectory(store: store, tenantID: tenantID)
+                            tenantID: tenantID, configuration: SyncConfiguration(appVersion: appVersion), account: account)
+        recorder = FieldRecorder(store: store, tenantID: tenantID, deviceID: deviceID, owner: account)
+        directory = FieldDirectory(store: store, tenantID: tenantID, owner: account)
     }
 
     /// `DEVICE_REVOKED`: erase database + key, tokens and evidence files.

@@ -125,6 +125,26 @@ struct SyncHarness {
 
     var directoryView: FieldDirectory { FieldDirectory(store: store, tenantID: SyncFixtures.tenant, clock: clock) }
 
+    /// One user's view of this phone: an engine authenticated with `token` and the recorder and
+    /// directory scoped to `account` (several users signing in on the same phone).
+    func engine(account: AccountIdentity, token: String) -> SyncEngine {
+        let server = self.server
+        let session = MockURLProtocol.session { try server.handle($0) }
+        let client = APIClient(baseURL: URL(string: "https://api.test")!, transport: URLSessionTransport(session: session),
+                               tokens: StaticTokenProvider(token: token), tenantID: SyncFixtures.tenant)
+        return SyncEngine(store: store, evidence: evidence, api: SyncAPI(client: client, deviceID: deviceID),
+                          tenantID: SyncFixtures.tenant, configuration: SyncConfiguration(appVersion: "0.1.0 (1)"),
+                          clock: clock, random: { 0 }, account: account)
+    }
+
+    func recorder(_ account: AccountIdentity) -> FieldRecorder {
+        FieldRecorder(store: store, tenantID: SyncFixtures.tenant, deviceID: deviceID, owner: account)
+    }
+
+    func directory(_ account: AccountIdentity) -> FieldDirectory {
+        FieldDirectory(store: store, tenantID: SyncFixtures.tenant, clock: clock, owner: account)
+    }
+
     /// Opening capture with a photo (AUTOMATIC) followed by START.
     @discardableResult
     func recordOpeningAndStart(photoBytes: Int = 2500) throws -> (capture: ClientOperation, start: ClientOperation) {

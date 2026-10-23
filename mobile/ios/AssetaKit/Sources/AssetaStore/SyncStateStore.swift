@@ -42,6 +42,8 @@ public struct StoredPolicySnapshot: Equatable, Sendable {
 /// snapshots. Device-wide values use the empty tenant key.
 public final class SyncStateStore: Sendable {
     public static let deviceScope = ""
+    /// Tenant key holding the Keycloak `sub` of the user the tenant's sync state belongs to.
+    public static let ownerKey = "owner_subject"
     let db: EncryptedDatabase
 
     public init(database: EncryptedDatabase) {
@@ -67,6 +69,31 @@ public final class SyncStateStore: Sendable {
             )
         } else {
             try db.execute("DELETE FROM sync_kv WHERE tenant_id = ? AND key = ?", [.text(tenant), .text(key)])
+        }
+    }
+
+    // MARK: - Owner
+
+    /// Makes `owner` the owner of the tenant's sync state. When it belonged to another user, that
+    /// user's cursor, registration, offline grant, backoff and cached server data (entities, policy
+    /// snapshots, cash custody) are deleted so a fresh bootstrap runs: the new user never sees the
+    /// previous user's data nor resumes from their cursor. Device-owned work (outbox, evidence,
+    /// running work-log entries) is kept for its owner; the device-wide clock reference is kept.
+    /// The same user signing in again changes nothing. Returns whether another user's state was reset.
+    @discardableResult
+    public func claim(tenantID: UUID, owner: String) throws -> Bool {
+        let tenant = tenantID.lowercased
+        return try db.transaction {
+            let current = try value(Self.ownerKey, tenant: tenant)
+            guard current != owner else { return false }
+            let hadState = try db.query("SELECT count(*) FROM sync_kv WHERE tenant_id = ? AND key NOT LIKE 'work_log_running.%'",
+                                        [.text(tenant)]) { $0.int(0) }.first ?? 0
+            for table in ["sync_entity", "policy_snapshot", "cash_custody_balance"] {
+                try db.execute("DELETE FROM \(table) WHERE tenant_id = ?", [.text(tenant)])
+            }
+            try db.execute("DELETE FROM sync_kv WHERE tenant_id = ? AND key NOT LIKE 'work_log_running.%'", [.text(tenant)])
+            try setValue(owner, for: Self.ownerKey, tenant: tenant)
+            return current != nil || hadState > 0
         }
     }
 

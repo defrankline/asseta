@@ -1,3 +1,4 @@
+import AssetaModel
 import Foundation
 
 /// Lifecycle of an outbox operation. An operation is only "synced" once ``acked`` —
@@ -54,6 +55,11 @@ public struct ClientOperation: Equatable, Sendable, Identifiable {
     /// The stored server result (`result`/`error`, including `server_state` for conflicts).
     public let serverResultJSON: String?
     public let nextAttemptAt: Date?
+    /// Keycloak `sub` of the user who queued it: it is only ever pushed under that user's token and
+    /// held (kept, not shown as theirs, not sent) while another user is signed in.
+    public internal(set) var ownerSubject: String? = nil
+    /// Readable name of the owner, for "Waiting for … to sign in again".
+    public internal(set) var ownerLabel: String? = nil
 
     /// First dependency (kept for the original single-parent API).
     public var dependsOn: UUID? { dependencies.first }
@@ -72,6 +78,8 @@ public struct NewClientOperation: Sendable {
     /// Local files whose server `attachment_id` must be known before this operation is sent.
     public let attachments: [(localID: UUID, field: AttachmentPayloadField)]
     public let createdAtDevice: Date
+    /// The signed-in user queueing it (recorded as its owner).
+    public let owner: AccountIdentity?
 
     public init(
         id: UUID = UUID(),
@@ -82,7 +90,8 @@ public struct NewClientOperation: Sendable {
         payloadJSON: String,
         dependsOn: [UUID] = [],
         attachments: [(localID: UUID, field: AttachmentPayloadField)] = [],
-        createdAtDevice: Date = Date()
+        createdAtDevice: Date = Date(),
+        owner: AccountIdentity? = nil
     ) {
         self.id = id
         self.tenantID = tenantID
@@ -94,6 +103,7 @@ public struct NewClientOperation: Sendable {
         self.dependsOn = dependsOn.filter { seen.insert($0).inserted }
         self.attachments = attachments
         self.createdAtDevice = createdAtDevice
+        self.owner = owner
     }
 }
 

@@ -145,6 +145,11 @@ public enum AssetaSchema {
             name: "finance_receipts_cash_custody",
             statements: FinanceV4.statements
         ),
+        Migration(
+            version: 5,
+            name: "per_user_field_data",
+            statements: OwnersV5.statements
+        ),
     ]
 }
 

@@ -27,6 +27,8 @@ public final class SessionModel {
     public private(set) var phase: Phase = .signedOut
     public private(set) var selectedTenant: TenantMembership?
     public private(set) var errorMessage: String?
+    /// The signed-in user (Keycloak `sub`): owner of the field data this phone records and syncs.
+    public private(set) var account: AccountIdentity?
 
     /// Optional offline fallback for `/me` (Owner app): the last profile saved in its encrypted
     /// cache, shown read-only when the server cannot be reached. Nil keeps the strict behaviour.
@@ -60,6 +62,10 @@ public final class SessionModel {
         self.configuration = configuration
         self.secrets = secrets
     }
+
+    /// The user signed in when the app launched: owner of field data written before per-user
+    /// ownership was recorded (see `LocalStore.adoptLegacyData`).
+    public nonisolated var launchAccount: AccountIdentity? { auth.launchAccount }
 
     /// Bearer token source for non-REST channels (the realtime WebSocket).
     public var accessTokens: any AccessTokenProvider { auth }
@@ -98,6 +104,7 @@ public final class SessionModel {
     public func loadProfile() async {
         errorMessage = nil
         phase = .loadingProfile
+        account = await auth.account
         do {
             let me = try await api.me()
             isProfileFromCache = false
@@ -143,6 +150,7 @@ public final class SessionModel {
     public func signOut() async {
         selectedTenant = nil
         phase = .signedOut
+        account = nil
         isProfileFromCache = false
         await onSignOut?()
         await auth.signOut()

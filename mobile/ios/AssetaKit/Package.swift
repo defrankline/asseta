@@ -91,7 +91,9 @@ let package = Package(
         .testTarget(name: "AssetaSecurityTests", dependencies: ["AssetaSecurity"]),
         .testTarget(
             name: "AssetaStoreTests",
-            dependencies: ["AssetaStore", "AssetaSecurity", .product(name: "SQLCipher", package: "SQLCipher.swift")]
+            dependencies: [
+                "AssetaStore", "AssetaSecurity", "AssetaModel", .product(name: "SQLCipher", package: "SQLCipher.swift"),
+            ]
         ),
         .testTarget(name: "AssetaNetworkTests", dependencies: ["AssetaNetwork", "AssetaModel", "AssetaTestSupport"]),
         .testTarget(name: "AssetaAuthTests", dependencies: ["AssetaAuth", "AssetaNetwork", "AssetaSecurity", "AssetaTestSupport"]),

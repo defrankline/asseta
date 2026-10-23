@@ -112,7 +112,8 @@ extension FieldDirectory {
         let open: Set<ClientOperationStatus> = [.pending, .sent, .quarantined]
         let types: Set<String> = [OperationType.cashCollection.rawValue, OperationType.cashHandover.rawValue,
                                   OperationType.expense.rawValue]
-        let items = try store.outbox.operations(tenantID: tenantID, statuses: open.union([.failed, .conflict]))
+        let items = try store.outbox.operations(tenantID: tenantID, owner: owner?.subject,
+                                                statuses: open.union([.failed, .conflict]))
             .filter { types.contains($0.opType) }
             .compactMap(Self.cashItem)
         let pending = items.filter { open.contains($0.status) }

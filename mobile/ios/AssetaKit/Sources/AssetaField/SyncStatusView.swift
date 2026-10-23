@@ -17,6 +17,15 @@ struct SyncStatusView: View {
             group("Held: subscription read-only", .quarantined, footer: "Your company's subscription is read-only. These are kept by the server and re-sent automatically after reactivation.")
             group("Waiting to sync", .pending, footer: nil)
             group("Sending", .sent, footer: nil)
+            ForEach(model.overview?.heldAccounts ?? [], id: \.subject) { held in
+                Section {
+                    Text("\(held.count) item(s) not synced yet").font(.subheadline)
+                } header: {
+                    Text(Self.heldTitle(held.label))
+                } footer: {
+                    Text("Saved on this phone by another account. They stay encrypted here and are sent only when that account signs in again.")
+                }
+            }
             if let failed = model.overview?.failedUploads, !failed.isEmpty {
                 Section("Evidence files that cannot be uploaded") {
                     ForEach(failed) { file in
@@ -44,6 +53,9 @@ struct SyncStatusView: View {
             }
         }
     }
+
+    /// Another account's unsynced work (identical wording on Android); `label` nil when not known.
+    static func heldTitle(_ label: String?) -> String { "Waiting for \(label ?? "a previous account") to sign in again" }
 
     @ViewBuilder private var summary: some View {
         Section {

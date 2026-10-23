@@ -1,3 +1,4 @@
+import AssetaModel
 import AssetaNetwork
 import AssetaSecurity
 import Foundation
@@ -22,6 +23,10 @@ public actor AuthSession: AccessTokenProvider {
     /// Refresh this long before nominal expiry to absorb clock skew and request latency.
     private let refreshMargin: TimeInterval
 
+    /// The user signed in when this session object was created (app launch, before any new
+    /// sign-in): owner of field data written before per-user ownership was recorded.
+    public nonisolated let launchAccount: AccountIdentity?
+
     private var metadata: OIDCProviderMetadata?
     private var tokens: StoredTokens?
     private var refreshTask: Task<StoredTokens, any Error>?
@@ -39,10 +44,20 @@ public actor AuthSession: AccessTokenProvider {
         self.tokenClient = TokenClient(config: config, transport: transport, now: now)
         self.refreshMargin = refreshMargin
         self.now = now
-        self.tokens = try? tokenStore.load()
+        let restored = try? tokenStore.load()
+        self.tokens = restored
+        self.launchAccount = restored.flatMap(Self.account)
     }
 
     public var state: State { tokens == nil ? .signedOut : .signedIn }
+
+    /// The signed-in user (ID token `sub`, falling back to the access token), or nil when signed
+    /// out. Identifies the owner of this phone's local field data; never used for authorization.
+    public var account: AccountIdentity? { tokens.flatMap(Self.account) }
+
+    static func account(_ tokens: StoredTokens) -> AccountIdentity? {
+        AccountIdentity(jwt: tokens.idToken) ?? AccountIdentity(jwt: tokens.accessToken)
+    }
 
     public nonisolated var callbackScheme: String { config.callbackScheme }
 

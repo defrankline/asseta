@@ -22,7 +22,7 @@ struct OutboxTests {
         #expect(try Migrator.asseta.migrate(store.database) == AssetaSchema.migrations.count)
         let applied = try store.database.query("SELECT version, name FROM schema_migration") { $0.string(1) }
         #expect(applied == ["create_client_operation_outbox", "outbox_sync_protocol", "sync_state_entities_policies",
-                           "finance_receipts_cash_custody"])
+                           "finance_receipts_cash_custody", "per_user_field_data"])
     }
 
     @Test func refusesDatabaseNewerThanApp() throws {
