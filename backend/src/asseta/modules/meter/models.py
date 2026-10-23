@@ -24,7 +24,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from asseta.core.db import Base, UuidPk, utcnow
+from asseta.core.db import Base, SyncRevisioned, UuidPk, utcnow
 
 READING = Numeric(14, 2)
 
@@ -91,7 +91,7 @@ class CaptureAttachment(UuidPk, Base):
     uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
 
 
-class MeterCapture(UuidPk, Base):
+class MeterCapture(UuidPk, SyncRevisioned, Base):
     """`id` is the device-generated UUID, so offline retries can never create a second reading."""
 
     __tablename__ = "meter_capture"
@@ -135,7 +135,7 @@ class MeterCapture(UuidPk, Base):
     supersedes_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
 
 
-class MeterResetEvent(UuidPk, Base):
+class MeterResetEvent(UuidPk, SyncRevisioned, Base):
     """Documented meter replacement/rollover; must be approved before a lower reading is accepted."""
 
     __tablename__ = "meter_reset_event"
@@ -154,7 +154,7 @@ class MeterResetEvent(UuidPk, Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
 
 
-class JobException(UuidPk, Base):
+class JobException(UuidPk, SyncRevisioned, Base):
     """Auditable exception — evidence for human review, never an automatic fraud verdict."""
 
     __tablename__ = "job_exception"
@@ -166,7 +166,7 @@ class JobException(UuidPk, Base):
     tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenant.id"), nullable=False)
     job_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("job.id"), index=True)
     machine_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("machine.id"), nullable=False)
-    meter_capture_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("meter_capture.id"))
+    meter_capture_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("meter_capture.id"), index=True)
     exception_type: Mapped[ExceptionType] = mapped_column(_enum(ExceptionType, 32), nullable=False)
     severity: Mapped[str] = mapped_column(String(16), nullable=False)  # INFO | WARNING | CRITICAL
     blocking: Mapped[bool] = mapped_column(Boolean, nullable=False)  # must be reviewed before billing

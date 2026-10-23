@@ -67,7 +67,7 @@ class ExpenseCategory(UuidPk, SyncRevisioned, Deactivatable, Timestamps, Base):
     __mapper_args__ = {"version_id_col": version}  # noqa: RUF012
 
 
-class Expense(UuidPk, Base):
+class Expense(UuidPk, SyncRevisioned, Base):
     __tablename__ = "expense"
     __table_args__ = (
         UniqueConstraint("tenant_id", "client_id", name="uq_expense_client"),
@@ -115,7 +115,7 @@ class ExpenseAttachment(UuidPk, Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
 
 
-class FuelEvent(UuidPk, Base):
+class FuelEvent(UuidPk, SyncRevisioned, Base):
     """Immutable fuel log. `attributed_cost` = litres x unit_price (0 for USAGE)."""
 
     __tablename__ = "fuel_event"

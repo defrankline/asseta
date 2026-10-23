@@ -24,7 +24,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from asseta.core.db import Base, UuidPk, utcnow
+from asseta.core.db import Base, SyncRevisioned, UuidPk, utcnow
 from asseta.modules.jobs.charges import ChargeKind
 
 MONEY = Numeric(18, 4)
@@ -151,7 +151,7 @@ class FinancialAdjustment(UuidPk, Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
 
 
-class CustomerPayment(UuidPk, Base):
+class CustomerPayment(UuidPk, SyncRevisioned, Base):
     """Money received from a customer (cash collection, bank or mobile money). Unallocated verified money is
     customer credit (deposit/advance)."""
 
@@ -218,7 +218,7 @@ class SupervisorCashCustody(UuidPk, Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
 
 
-class CashHandover(UuidPk, Base):
+class CashHandover(UuidPk, SyncRevisioned, Base):
     """Supervisor -> office cash handover: CLAIMED by the supervisor until an accountant verifies receipt."""
 
     __tablename__ = "cash_handover"

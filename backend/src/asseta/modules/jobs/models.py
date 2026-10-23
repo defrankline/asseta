@@ -166,7 +166,7 @@ class Job(UuidPk, SyncRevisioned, Timestamps, Base):
     __mapper_args__ = {"version_id_col": version}  # noqa: RUF012
 
 
-class JobActivity(UuidPk, Base):
+class JobActivity(UuidPk, SyncRevisioned, Base):
     """Supervisor work log (offline-capable: client_id makes retries idempotent)."""
 
     __tablename__ = "job_activity"
@@ -188,7 +188,7 @@ class JobActivity(UuidPk, Base):
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
 
 
-class CustomerAcknowledgement(UuidPk, Base):
+class CustomerAcknowledgement(UuidPk, SyncRevisioned, Base):
     __tablename__ = "customer_acknowledgement"
     __table_args__ = (UniqueConstraint("tenant_id", "client_id", name="uq_ack_client"),)
 
