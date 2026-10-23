@@ -14,3 +14,12 @@ backend/.venv/
 
 # Claude Code agent worktrees (local only)
 .claude/worktrees/
+
+# Production deploy (scripts/deploy-live.sh, docs/deployment-live.md): real secrets, deploy state, the rendered
+# nginx site and server-local compose overrides never enter git.
+.env.*
+!.env.example
+!.env.production.example
+.deploy/
+deploy/nginx/runtime/
+compose.prod.local.yaml

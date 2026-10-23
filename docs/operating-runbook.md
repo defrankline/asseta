@@ -1,7 +1,9 @@
 # Operating runbook (Release 1)
 
 Audience: the platform operator running Asseta with Docker Compose (development and initial deployment, prompt.md
-§2). Related: [architecture](architecture.md), [security](security.md), [offline sync failure matrix](offline-sync.md#failure-matrix),
+§2). The production deployment at https://asseta.co.tz (host nginx, `compose.prod.yaml`, `scripts/*-live.sh`) is
+described in [deployment-live.md](deployment-live.md); the procedures below apply to it with
+`scripts/compose-live.sh` in place of `docker compose`. Related: [architecture](architecture.md), [security](security.md), [offline sync failure matrix](offline-sync.md#failure-matrix),
 [GPS commissioning](gps-hardware.md), [model governance](model-governance.md), [release acceptance](release1-acceptance.md).
 
 ## 1. Services
@@ -43,6 +45,9 @@ curl -s localhost:8000/api/v1/health/ready
   **`down -v` destroys all data — never in production.**
 * All published ports bind to `127.0.0.1` (PG 5433, Keycloak 8080, Kafka 29192, Redis 6380, MinIO 9100/9101,
   API 8000, web 5173, Traccar 8082/5055, MLflow 5500, Mailpit 8025). Change them in `.env` if they collide.
+* **Production at asseta.co.tz:** [deployment-live.md](deployment-live.md) implements everything in this and the
+  next bullets: host nginx site templates (`deploy/nginx/`) with the F-5/F-6 limits, Keycloak in production mode at
+  `/auth`, the console as static releases, all ports on `127.0.0.1`, and `scripts/deploy-live.sh` for every update.
 * **TLS / reverse proxy (production):** put a TLS-terminating reverse proxy (nginx, Caddy, Traefik, or a cloud LB)
   in front of `web` (console + `/api/` + WebSocket upgrade on `/api/v1/ws`) and Keycloak; only 443 is public, plus
   the device protocol ports of approved tracker models on the Traccar host ([gps-hardware.md](gps-hardware.md)).
@@ -167,6 +172,9 @@ Kafka is **not** backed up: every event originates in `outbox_event` (published 
 are idempotent; derived timeline state is rebuilt by replay from PostGIS positions.
 
 ### 6.1 Back up
+Production: `scripts/backup-live.sh` runs exactly these steps against the live stack (plus retention and an optional
+off-host rsync), `scripts/restore-live.sh <dir>` runs §6.2 with confirmation prompts
+([deployment-live.md §6](deployment-live.md#6-backups)).
 ```bash
 set -a; . ./.env; set +a                      # secrets only into the environment, never echoed
 TS=$(date -u +%Y%m%dT%H%M%SZ); mkdir -p backups/$TS

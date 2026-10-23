@@ -1,0 +1,341 @@
+# Asseta production stack for a shared Linux host (docs/deployment-live.md). Driven by scripts/deploy-live.sh:
+#   docker compose -f compose.prod.yaml -p asseta --env-file .env.production --env-file .deploy/state.env ...
+# Host nginx + host certbot own 80/443 and serve the console as static files; this stack publishes nothing
+# publicly except (opt-in) the Traccar device port. Every other port binds to 127.0.0.1 only:
+#   API 5020, Keycloak 5021 (/auth), MinIO S3 5022 (presigned evidence GETs), Traccar UI 5023, MLflow 5024.
+# Data lives in named volumes; the deploy never runs `down` and never removes volumes.
+name: asseta
+
+x-api-env: &api-env
+  ASSETA_ENVIRONMENT: production
+  ASSETA_DATABASE_URL: postgresql+psycopg://asseta_app:${ASSETA_APP_DB_PASSWORD:?set in .env.production}@postgres:5432/asseta
+  ASSETA_MIGRATION_DATABASE_URL: postgresql+psycopg://asseta_owner:${ASSETA_OWNER_DB_PASSWORD:?set in .env.production}@postgres:5432/asseta
+  ASSETA_REDIS_URL: redis://:${REDIS_PASSWORD:?set in .env.production}@redis:6379/0
+  ASSETA_KAFKA_BOOTSTRAP: kafka:9092
+  ASSETA_S3_ENDPOINT: http://minio:9000
+  # Presigned evidence URLs are signed for the public origin; host nginx proxies /<bucket>/ to MinIO with the
+  # client's Host header, so the SigV4 signature still validates.
+  ASSETA_S3_PUBLIC_ENDPOINT: ${ASSETA_S3_PUBLIC_ENDPOINT:-https://asseta.co.tz}
+  ASSETA_S3_BUCKET: ${ASSETA_S3_BUCKET:-asseta-evidence}
+  ASSETA_S3_ACCESS_KEY: ${MINIO_ROOT_USER:?set in .env.production}
+  ASSETA_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?set in .env.production}
+  # Back channel (JWKS, Admin REST) stays inside the network; the issuer is derived from the public URL. Both carry
+  # Keycloak's /auth relative path.
+  ASSETA_KEYCLOAK_URL: http://keycloak:8080/auth
+  ASSETA_KEYCLOAK_PUBLIC_URL: ${ASSETA_PUBLIC_KEYCLOAK_URL:-https://asseta.co.tz/auth}
+  ASSETA_KEYCLOAK_API_CLIENT_SECRET: ${ASSETA_API_CLIENT_SECRET:?set in .env.production}
+  ASSETA_CORS_ORIGINS: '["${ASSETA_WEB_URL:-https://asseta.co.tz}"]'
+  ASSETA_MLFLOW_TRACKING_URI: http://mlflow:5000
+  ASSETA_DB_LOCK_TIMEOUT_MS: ${ASSETA_DB_LOCK_TIMEOUT_MS:-5000}
+  ASSETA_DB_IDLE_IN_TRANSACTION_TIMEOUT_MS: ${ASSETA_DB_IDLE_IN_TRANSACTION_TIMEOUT_MS:-60000}
+  ASSETA_DB_STATEMENT_TIMEOUT_MS: ${ASSETA_DB_STATEMENT_TIMEOUT_MS:-30000}
+  ASSETA_MAX_REQUEST_BYTES: ${ASSETA_MAX_REQUEST_BYTES:-11534336}  # F-6: 11 MiB, as client_max_body_size in deploy/nginx
+
+x-worker-statement-timeout: &worker-statement-timeout ${ASSETA_WORKER_DB_STATEMENT_TIMEOUT_MS:-300000}
+
+x-sms-env: &sms-env
+  ASSETA_SMS_PROVIDER: ${ASSETA_SMS_PROVIDER:-console}
+  ASSETA_SMS_DEFAULT_COUNTRY_CODE: ${ASSETA_SMS_DEFAULT_COUNTRY_CODE:-255}
+  ASSETA_NEXTSMS_URL: ${ASSETA_NEXTSMS_URL:-https://messaging-service.co.tz/api/sms/v1/text/single}
+  ASSETA_NEXTSMS_SENDER_ID: ${ASSETA_NEXTSMS_SENDER_ID:-}
+  ASSETA_NEXTSMS_USERNAME: ${ASSETA_NEXTSMS_USERNAME:-}
+  ASSETA_NEXTSMS_PASSWORD: ${ASSETA_NEXTSMS_PASSWORD:-}
+  ASSETA_NEXTSMS_AUTH_TOKEN: ${ASSETA_NEXTSMS_AUTH_TOKEN:-}
+
+x-channel-env: &channel-env
+  ASSETA_EMAIL_PROVIDER: ${ASSETA_EMAIL_PROVIDER:-console}
+  ASSETA_EMAIL_FROM: ${ASSETA_EMAIL_FROM:-Asseta <no-reply@asseta.co.tz>}
+  ASSETA_EMAIL_SMTP_HOST: ${ASSETA_EMAIL_SMTP_HOST:-}
+  ASSETA_EMAIL_SMTP_PORT: ${ASSETA_EMAIL_SMTP_PORT:-587}
+  ASSETA_EMAIL_SMTP_USERNAME: ${ASSETA_EMAIL_SMTP_USERNAME:-}
+  ASSETA_EMAIL_SMTP_PASSWORD: ${ASSETA_EMAIL_SMTP_PASSWORD:-}
+  ASSETA_EMAIL_SMTP_SECURITY: ${ASSETA_EMAIL_SMTP_SECURITY:-starttls}
+  ASSETA_PUSH_ANDROID_PROVIDER: ${ASSETA_PUSH_ANDROID_PROVIDER:-console}
+  ASSETA_PUSH_IOS_PROVIDER: ${ASSETA_PUSH_IOS_PROVIDER:-console}
+  ASSETA_PUSH_FCM_SERVICE_ACCOUNT_FILE: ${ASSETA_PUSH_FCM_SERVICE_ACCOUNT_FILE:-}
+  ASSETA_PUSH_FCM_PROJECT_ID: ${ASSETA_PUSH_FCM_PROJECT_ID:-}
+  ASSETA_PUSH_APNS_KEY_FILE: ${ASSETA_PUSH_APNS_KEY_FILE:-}
+  ASSETA_PUSH_APNS_KEY_ID: ${ASSETA_PUSH_APNS_KEY_ID:-}
+  ASSETA_PUSH_APNS_TEAM_ID: ${ASSETA_PUSH_APNS_TEAM_ID:-}
+  ASSETA_PUSH_APNS_TOPIC: ${ASSETA_PUSH_APNS_TOPIC:-}
+  ASSETA_PUSH_APNS_ENVIRONMENT: ${ASSETA_PUSH_APNS_ENVIRONMENT:-production}
+  ASSETA_NOTIFY_WEB_BASE_URL: ${ASSETA_WEB_URL:-https://asseta.co.tz}
+
+x-logging: &logging
+  driver: json-file
+  options: {max-size: "20m", max-file: "5"}
+
+services:
+  postgres:
+    build: ./infra/postgres
+    image: ${DOCKER_IMAGE_PREFIX:-asseta}/postgis:18-3.6
+    command: ["postgres", "-c", "max_connections=200", "-c", "shared_buffers=384MB", "-c", "effective_cache_size=1GB"]
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?set in .env.production}
+      ASSETA_OWNER_DB_PASSWORD: ${ASSETA_OWNER_DB_PASSWORD:?set in .env.production}
+      ASSETA_APP_DB_PASSWORD: ${ASSETA_APP_DB_PASSWORD:?set in .env.production}
+      KEYCLOAK_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?set in .env.production}
+    volumes: [pgdata:/var/lib/postgresql]  # PG18+ layout
+    shm_size: 256m
+    mem_limit: 1536m
+    restart: unless-stopped
+    logging: *logging
+    healthcheck: {test: ["CMD-SHELL", "pg_isready -U postgres -d asseta"], interval: 10s, timeout: 5s, retries: 30}
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8.0@sha256:27b3230fbabb8c9ff3c66c864cf09dcd8a41aca82e5100679d109ef0eeb05741
+    command: ["start", "--import-realm"]
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?set in .env.production}
+      # Production mode behind host nginx: TLS ends at nginx, Keycloak speaks plain HTTP on the private side.
+      KC_HTTP_ENABLED: "true"
+      KC_HTTP_RELATIVE_PATH: /auth
+      KC_HOSTNAME: ${ASSETA_PUBLIC_KEYCLOAK_URL:-https://asseta.co.tz/auth}  # fixed public issuer
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"  # API/workers reach http://keycloak:8080/auth internally
+      # Admin console only through an SSH tunnel to 127.0.0.1:5021 (public /auth/admin is blocked at nginx).
+      KC_HOSTNAME_ADMIN: ${KEYCLOAK_ADMIN_URL:-http://localhost:5021/auth}
+      KC_PROXY_HEADERS: xforwarded
+      KC_PROXY_TRUSTED_ADDRESSES: ${ASSETA_PROXY_TRUSTED_IP:-127.0.0.1}  # docker bridge gateway (deploy-live.sh)
+      KC_HEALTH_ENABLED: "true"
+      KC_HTTP_MANAGEMENT_RELATIVE_PATH: /  # health stays at :9000/health/ready (management port, never published)
+      KC_CACHE: local  # single node
+      JAVA_OPTS_KC_HEAP: "-XX:MaxRAMPercentage=65 -XX:InitialRAMPercentage=25"
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER:?set in .env.production}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?set in .env.production}
+      ASSETA_API_CLIENT_SECRET: ${ASSETA_API_CLIENT_SECRET:?set in .env.production}
+      ASSETA_WEB_URL: ${ASSETA_WEB_URL:-https://asseta.co.tz}
+    volumes:
+      - ./infra/keycloak:/opt/keycloak/data/import:ro
+      - ./infra/keycloak/themes/asseta:/opt/keycloak/themes/asseta:ro  # branded login pages
+    ports: ["127.0.0.1:${ASSETA_KEYCLOAK_HOST_PORT:-5021}:8080"]
+    depends_on: {postgres: {condition: service_healthy}}
+    mem_limit: 1024m
+    restart: unless-stopped
+    logging: *logging
+    healthcheck:  # image has no curl: raw HTTP to the management port
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q UP <&3"]
+      interval: 10s
+      timeout: 5s
+      retries: 60
+      start_period: 60s
+
+  kafka:
+    image: apache/kafka:4.3.1@sha256:77e3df9054047a88b520d0cc46e16696d3b22022e1d580aeccd2632df6532837
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: INTERNAL://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_HEAP_OPTS: "-Xms256m -Xmx512m"
+    volumes: [kafkadata:/var/lib/kafka/data]
+    mem_limit: 1024m
+    restart: unless-stopped
+    logging: *logging
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      interval: 30s
+      timeout: 20s
+      retries: 10
+      start_period: 30s
+
+  redis:
+    image: redis:7.4-alpine@sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?set in .env.production}", "--maxmemory", "256mb",
+              "--maxmemory-policy", "allkeys-lru"]
+    environment:
+      REDISCLI_AUTH: ${REDIS_PASSWORD:?set in .env.production}  # healthcheck auth without the password in argv
+    volumes: [redisdata:/data]
+    mem_limit: 384m
+    restart: unless-stopped
+    logging: *logging
+    healthcheck: {test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"], interval: 10s, timeout: 5s, retries: 10}
+
+  minio:
+    image: minio/minio:RELEASE.2024-07-16T23-46-41Z@sha256:77ff9f7e12549d269990b167fa21da010fa8b0beb40d6064569b8887e37c456b
+    command: ["server", "/data", "--console-address", ":9001"]  # console stays inside the network (not published)
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?set in .env.production}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set in .env.production}
+      MINIO_BROWSER_REDIRECT: "off"
+    # S3 API for presigned evidence GETs only, through host nginx (`location /asseta-evidence/`).
+    ports: ["127.0.0.1:${ASSETA_MINIO_HOST_PORT:-5022}:9000"]
+    volumes: [miniodata:/data]
+    mem_limit: 768m
+    restart: unless-stopped
+    logging: *logging
+    healthcheck: {test: ["CMD", "mc", "ready", "local"], interval: 10s, timeout: 5s, retries: 30}
+
+  mlflow-db-init:  # one-shot, idempotent: MLflow backend-store role + database
+    image: ${DOCKER_IMAGE_PREFIX:-asseta}/postgis:18-3.6
+    entrypoint: ["bash", "/opt/asseta/mlflow-db.sh"]
+    environment:
+      PGPASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?set in .env.production}
+      MLFLOW_DB_PASSWORD: ${MLFLOW_DB_PASSWORD:?set in .env.production}
+    volumes: ["./infra/postgres/mlflow-db.sh:/opt/asseta/mlflow-db.sh:ro"]
+    depends_on: {postgres: {condition: service_healthy}}
+    restart: "no"
+    logging: *logging
+
+  mlflow:
+    build: ./infra/mlflow
+    image: ${DOCKER_IMAGE_PREFIX:-asseta}/mlflow:3.17.0
+    environment:
+      MLFLOW_DB_USER: mlflow
+      MLFLOW_DB_PASSWORD: ${MLFLOW_DB_PASSWORD:?set in .env.production}
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+      MLFLOW_ARTIFACT_BUCKET: asseta-mlflow
+      MLFLOW_WORKERS: "1"  # optional service on a shared host: one server worker
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:?set in .env.production}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:?set in .env.production}
+    ports: ["127.0.0.1:${ASSETA_MLFLOW_HOST_PORT:-5024}:5000"]  # operator only, via SSH tunnel
+    depends_on:
+      mlflow-db-init: {condition: service_completed_successfully}
+      minio: {condition: service_healthy}
+    mem_limit: 2048m  # OOM-killed at 1 and 1.5 GB in the rehearsal (start-up peak)
+    restart: unless-stopped
+    logging: *logging
+
+  migrate:  # one-shot: alembic upgrade head + asseta-bootstrap (buckets, Traccar gateway key hash)
+    build: ./backend
+    image: ${DOCKER_IMAGE_PREFIX:-asseta}/api:${DEPLOY_IMAGE_TAG:-current}
+    command: ["sh", "-c", "alembic upgrade head && asseta-bootstrap"]
+    environment:
+      <<: *api-env
+      ASSETA_TRACCAR_GATEWAY_KEY: ${ASSETA_TRACCAR_GATEWAY_KEY:?set in .env.production}
+      ASSETA_DB_STATEMENT_TIMEOUT_MS: 0
+    depends_on: {postgres: {condition: service_healthy}, minio: {condition: service_healthy}}
+    restart: "no"
+    logging: *logging
+
+  api:
+    image: ${DOCKER_IMAGE_PREFIX:-asseta}/api:${DEPLOY_IMAGE_TAG:-current}
+    environment:
+      <<: [*api-env, *sms-env]
+      # Trust X-Forwarded-For/-Proto only from the host proxy, which reaches the container through the bridge
+      # gateway of this project's network (detected by deploy-live.sh). Read by uvicorn's --proxy-headers.
+      FORWARDED_ALLOW_IPS: ${ASSETA_PROXY_TRUSTED_IP:-127.0.0.1}
+    ports: ["127.0.0.1:${ASSETA_API_HOST_PORT:-5020}:8000"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      keycloak: {condition: service_healthy}
+      kafka: {condition: service_started}
+      redis: {condition: service_healthy}
+    mem_limit: 1536m
+    restart: unless-stopped
+    logging: *logging
+
+  outbox-relay:
+    image: ${DOCKER_IMAGE_PREFIX:-asseta}/api:${DEPLOY_IMAGE_TAG:-current}
+    command: ["asseta-outbox-relay"]
+    environment: {<<: *api-env, ASSETA_DB_STATEMENT_TIMEOUT_MS: *worker-statement-timeout}
+    healthcheck: {disable: true}
+    depends_on: {migrate: {condition: service_completed_successfully}, kafka: {condition: service_started}}
+    mem_limit: 512m
+    restart: unless-stopped
+    logging: *logging
+
+  billing-scheduler:
+    image: ${DOCKER_IMAGE_PREFIX:-asseta}/api:${DEPLOY_IMAGE_TAG:-current}
+    command: ["asseta-billing-scheduler"]
+    environment: {<<: *api-env, ASSETA_DB_STATEMENT_TIMEOUT_MS: *worker-statement-timeout}
+    healthcheck: {disable: true}
+    depends_on: {migrate: {condition: service_completed_successfully}}
+    mem_limit: 512m
+    restart: unless-stopped
+    logging: *logging
+
+  timeline-worker:
+    image: ${DOCKER_IMAGE_PREFIX:-asseta}/api:${DEPLOY_IMAGE_TAG:-current}
+    command: ["asseta-timeline-worker"]
+    environment: {<<: *api-env, ASSETA_DB_STATEMENT_TIMEOUT_MS: *worker-statement-timeout}
+    healthcheck: {disable: true}
+    depends_on: {migrate: {condition: service_completed_successfully}, kafka: {condition: service_started}}
+    mem_limit: 512m
+    restart: unless-stopped
+    logging: *logging
+
+  connectivity-worker:
+    image: ${DOCKER_IMAGE_PREFIX:-asseta}/api:${DEPLOY_IMAGE_TAG:-current}
+    command: ["asseta-connectivity-worker"]
+    environment: {<<: *api-env, ASSETA_DB_STATEMENT_TIMEOUT_MS: *worker-statement-timeout}
+    healthcheck: {disable: true}
+    depends_on: {migrate: {condition: service_completed_successfully}}
+    mem_limit: 512m
+    restart: unless-stopped
+    logging: *logging
+
+  intelligence-worker:
+    image: ${DOCKER_IMAGE_PREFIX:-asseta}/api:${DEPLOY_IMAGE_TAG:-current}
+    command: ["asseta-intelligence-worker"]
+    environment: {<<: *api-env, ASSETA_DB_STATEMENT_TIMEOUT_MS: *worker-statement-timeout}
+    healthcheck: {disable: true}
+    depends_on: {migrate: {condition: service_completed_successfully}, kafka: {condition: service_started}}
+    mem_limit: 1024m
+    restart: unless-stopped
+    logging: *logging
+
+  notification-worker:
+    image: ${DOCKER_IMAGE_PREFIX:-asseta}/api:${DEPLOY_IMAGE_TAG:-current}
+    command: ["asseta-notification-worker"]
+    environment:
+      <<: [*api-env, *sms-env, *channel-env]
+      ASSETA_DB_STATEMENT_TIMEOUT_MS: *worker-statement-timeout
+    healthcheck: {disable: true}
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      kafka: {condition: service_started}
+      redis: {condition: service_healthy}
+    mem_limit: 512m
+    restart: unless-stopped
+    logging: *logging
+
+  notification-scheduler:
+    image: ${DOCKER_IMAGE_PREFIX:-asseta}/api:${DEPLOY_IMAGE_TAG:-current}
+    command: ["asseta-notification-scheduler"]
+    environment: {<<: *api-env, ASSETA_DB_STATEMENT_TIMEOUT_MS: *worker-statement-timeout}
+    healthcheck: {disable: true}
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+      keycloak: {condition: service_healthy}
+    mem_limit: 512m
+    restart: unless-stopped
+    logging: *logging
+
+  traccar:  # device protocol gateway -> POST /api/v1/telemetry/traccar on the internal network
+    image: traccar/traccar:6.10.0@sha256:bff38968f98f4c1739fa2da7b586f9eb03de7968cb8e86c55f31b69d5fbc9a0c
+    environment:
+      CONFIG_USE_ENVIRONMENT_VARIABLES: "true"
+      FORWARD_TYPE: json
+      FORWARD_JSON: "true"
+      FORWARD_URL: http://api:8000/api/v1/telemetry/traccar
+      FORWARD_HEADER: "X-Asseta-Gateway-Key: ${ASSETA_TRACCAR_GATEWAY_KEY:?set in .env.production}"
+      FORWARD_RETRY_ENABLE: "true"
+      # DEC-017: production registers each device explicitly in Traccar (identifier = IMEI); unknown devices are
+      # refused by the gateway itself. Asseta still quarantines devices not registered to a tenant.
+      DATABASE_REGISTER_UNKNOWN: ${TRACCAR_REGISTER_UNKNOWN:-false}
+      LOGGER_LEVEL: info
+    ports:
+      - "127.0.0.1:${ASSETA_TRACCAR_UI_HOST_PORT:-5023}:8082"  # web UI: operator only, via SSH tunnel, never public
+      # OsmAnd device port: 127.0.0.1 unless TRACCAR_PUBLIC_DEVICE_PORTS=1 (deploy-live.sh sets 0.0.0.0; open the
+      # firewall for it). Other protocol ports: compose.prod.local.yaml (docs/deployment-live.md).
+      - "${ASSETA_TRACCAR_DEVICE_BIND:-127.0.0.1}:${ASSETA_TRACCAR_OSMAND_PORT:-5055}:5055"
+    volumes: [traccardata:/opt/traccar/data]
+    depends_on: {api: {condition: service_started}}
+    mem_limit: 768m
+    restart: unless-stopped
+    logging: *logging
+
+volumes: {pgdata: {}, kafkadata: {}, miniodata: {}, traccardata: {}, redisdata: {}}

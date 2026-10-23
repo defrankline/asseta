@@ -1,0 +1,227 @@
+# Asseta site for the HOST nginx (HTTPS). Rendered by scripts/deploy-live.sh into
+# deploy/nginx/runtime/__DOMAIN__.conf and installed as its own site file; never edit the installed copy.
+# This file shares the host's http{} context with other sites: every zone, map and named location is prefixed
+# `asseta_`, and http-level directives that would change other sites (limit_req_status, ...) are set per server.
+# Host nginx is the edge, so $binary_remote_addr is the real client (docs/security.md F-5/F-6).
+
+# --- Request limits (F-5) --------------------------------------------------------------------------------------
+# Sizing: a console page load fans out to ~20 API calls, a phone uploads a 10 MB photo as ~40 sync chunks, and phones
+# behind one carrier NAT share an address. Traccar and the workers reach the API on the Docker network, never here.
+limit_req_zone $binary_remote_addr zone=asseta_api:10m rate=30r/s;
+# Expensive calls (report exports, ML training, invoice generation, test notifications): seconds of work each.
+limit_req_zone $binary_remote_addr zone=asseta_api_heavy:10m rate=1r/s;
+# Gateway ingest, only for a Traccar host outside this machine (100 trackers every 10-30 s is ~10 r/s).
+limit_req_zone $binary_remote_addr zone=asseta_gateway:1m rate=50r/s;
+# Keycloak sign-in pages and token endpoint (on top of Keycloak's own brute-force protection).
+limit_req_zone $binary_remote_addr zone=asseta_auth:10m rate=10r/s;
+# Presigned evidence downloads (a machine page shows a few dozen photos).
+limit_req_zone $binary_remote_addr zone=asseta_evidence:10m rate=20r/s;
+
+map $http_upgrade $asseta_connection_upgrade {
+    default upgrade;
+    '' close;
+}
+
+# CSP for the console (SPA, MapLibre with blob workers, MUI/emotion inline styles, keycloak-js silent SSO iframe on
+# the same origin). Keycloak's own pages under /auth/ send Keycloak's CSP instead (empty value = header omitted).
+map $uri $asseta_csp {
+    ~^/auth/ "";
+    default "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: __MAP_CSP_ORIGINS__; font-src 'self' data: __MAP_CSP_ORIGINS__; connect-src 'self' wss://__DOMAIN__ __MAP_CSP_ORIGINS__; worker-src 'self' blob:; child-src 'self' blob:; frame-src 'self'; frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; manifest-src 'self'; upgrade-insecure-requests";
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name __DOMAIN__;
+    server_tokens off;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root __CERTBOT_WEBROOT__;
+        default_type "text/plain";
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name __DOMAIN__;
+    server_tokens off;
+
+    ssl_certificate /etc/letsencrypt/live/__DOMAIN__/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/__DOMAIN__/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache shared:asseta_ssl:10m;
+    ssl_session_timeout 1d;
+    ssl_session_tickets off;
+
+    root __WEB_ROOT__;
+    index index.html;
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Content-Type-Options nosniff always;
+    add_header X-Frame-Options SAMEORIGIN always;  # keycloak-js silent check-sso uses a same-origin iframe
+    add_header Referrer-Policy strict-origin-when-cross-origin always;
+    add_header Permissions-Policy "camera=(), microphone=(), payment=(), usb=()" always;
+    add_header Content-Security-Policy $asseta_csp always;
+
+    # Largest image (10 MiB) plus multipart framing; the API enforces the same bound (ASSETA_MAX_REQUEST_BYTES).
+    client_max_body_size 11m;
+    limit_req_status 429;
+    limit_req_log_level warn;
+    error_page 413 = @asseta_payload_too_large;
+    error_page 429 = @asseta_rate_limited;
+
+    proxy_http_version 1.1;
+    # The edge: overwrite (not append) X-Forwarded-For so a client cannot inject addresses. The API trusts these
+    # headers only from the Docker bridge gateway (FORWARDED_ALLOW_IPS), i.e. from this proxy.
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Proto $scheme;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root __CERTBOT_WEBROOT__;
+        default_type "text/plain";
+    }
+
+    # Real-time notifications (DEC-022): WebSocket upgrade, read timeout longer than the server heartbeat.
+    location = /api/v1/ws {
+        limit_req zone=asseta_api burst=150 nodelay;  # reconnect storms after an API restart stay within the burst
+        proxy_pass http://__UPSTREAM_HOST__:__API_PORT__;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $asseta_connection_upgrade;
+        proxy_read_timeout 120s;
+        proxy_send_timeout 120s;
+    }
+
+    location ~ ^/api/v1/(?:(?:tenant|platform)/reports/[^/]+\.(?:csv|pdf)|platform/ml/tenants/[^/]+/train|platform/notifications/test-send|platform/subscriptions/[^/]+/invoices/generate)$ {
+        limit_req zone=asseta_api burst=150 nodelay;
+        limit_req zone=asseta_api_heavy burst=10 nodelay;
+        proxy_pass http://__UPSTREAM_HOST__:__API_PORT__;
+        proxy_read_timeout 300s;
+    }
+
+    location = /api/v1/telemetry/traccar {
+        limit_req zone=asseta_gateway burst=200 nodelay;
+        proxy_pass http://__UPSTREAM_HOST__:__API_PORT__;
+    }
+
+    location /api/ {
+        limit_req zone=asseta_api burst=150 nodelay;
+        proxy_pass http://__UPSTREAM_HOST__:__API_PORT__;
+    }
+
+    # Keycloak (production mode, KC_HTTP_RELATIVE_PATH=/auth). The admin console and the master realm are not
+    # public: use an SSH tunnel to 127.0.0.1:__KEYCLOAK_PORT__ (docs/deployment-live.md).
+    location ^~ /auth/admin/ {
+        __KEYCLOAK_ADMIN_RULES__
+        limit_req zone=asseta_auth burst=40 nodelay;
+        proxy_pass http://__UPSTREAM_HOST__:__KEYCLOAK_PORT__;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $http_host;  # with any non-default port, for Keycloak's backchannel URLs
+        proxy_buffer_size 128k;  # Keycloak sets large cookies/headers
+        proxy_buffers 4 256k;
+        proxy_busy_buffers_size 256k;
+        # Keycloak sends its own copies of these; the server-level ones apply instead (no duplicates).
+        proxy_hide_header X-Frame-Options;
+        proxy_hide_header X-Content-Type-Options;
+        proxy_hide_header Referrer-Policy;
+        proxy_hide_header Strict-Transport-Security;
+    }
+
+    location ^~ /auth/realms/master/ {
+        __KEYCLOAK_ADMIN_RULES__
+        limit_req zone=asseta_auth burst=40 nodelay;
+        proxy_pass http://__UPSTREAM_HOST__:__KEYCLOAK_PORT__;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $http_host;  # with any non-default port, for Keycloak's backchannel URLs
+        proxy_buffer_size 128k;  # Keycloak sets large cookies/headers
+        proxy_buffers 4 256k;
+        proxy_busy_buffers_size 256k;
+        # Keycloak sends its own copies of these; the server-level ones apply instead (no duplicates).
+        proxy_hide_header X-Frame-Options;
+        proxy_hide_header X-Content-Type-Options;
+        proxy_hide_header Referrer-Policy;
+        proxy_hide_header Strict-Transport-Security;
+    }
+
+    location ^~ /auth/ {
+        limit_req zone=asseta_auth burst=40 nodelay;
+        proxy_pass http://__UPSTREAM_HOST__:__KEYCLOAK_PORT__;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $http_host;  # with any non-default port, for Keycloak's backchannel URLs
+        proxy_buffer_size 128k;  # Keycloak sets large cookies/headers
+        proxy_buffers 4 256k;
+        proxy_busy_buffers_size 256k;
+        # Keycloak sends its own copies of these; the server-level ones apply instead (no duplicates).
+        proxy_hide_header X-Frame-Options;
+        proxy_hide_header X-Content-Type-Options;
+        proxy_hide_header Referrer-Policy;
+        proxy_hide_header Strict-Transport-Security;
+    }
+
+    location = /auth {
+        return 301 /auth/;
+    }
+
+    # Presigned evidence GETs (ASSETA_S3_PUBLIC_ENDPOINT = this origin, path-style /<bucket>/<key>?X-Amz-...).
+    # The Host header is passed exactly as the client sent it: it is part of the SigV4 signature. Read-only.
+    location ^~ /__EVIDENCE_BUCKET__/ {
+        limit_except GET HEAD {
+            deny all;
+        }
+        limit_req zone=asseta_evidence burst=100 nodelay;
+        proxy_pass http://__UPSTREAM_HOST__:__MINIO_PORT__;
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_buffering off;
+        proxy_request_buffering off;
+    }
+
+    # Proxy-generated refusals in the API's error envelope (core/errors.py); nginx's request id is the correlation id.
+    location @asseta_rate_limited {
+        default_type application/json;
+        add_header X-Content-Type-Options nosniff always;
+        add_header X-Correlation-ID $request_id always;
+        add_header Retry-After 1 always;
+        return 429 '{"error":{"code":"RATE_LIMITED","message":"Too many requests; retry shortly","correlation_id":"$request_id","details":[]}}';
+    }
+
+    location @asseta_payload_too_large {
+        default_type application/json;
+        add_header X-Content-Type-Options nosniff always;
+        add_header X-Correlation-ID $request_id always;
+        return 413 '{"error":{"code":"PAYLOAD_TOO_LARGE","message":"Request body exceeds the 11 MiB limit","correlation_id":"$request_id","details":[]}}';
+    }
+
+    # Hashed bundles are immutable; the HTML shell must revalidate so a deploy is picked up at once.
+    # `expires` (not add_header) keeps the server-level security headers inherited.
+    location /assets/ {
+        expires 1y;
+        try_files $uri =404;
+    }
+
+    location / {
+        expires -1;
+        try_files $uri /index.html;
+    }
+}

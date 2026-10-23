@@ -97,7 +97,9 @@ def run() -> None:
                     failed = True
             if payloads:
                 log.info("timeline_batch", messages=len(payloads), replays=len(coalesce(payloads)), failed=failed)
-            if not failed:
+            # A batch of only errors/EOFs (e.g. the topic does not exist yet on a fresh broker) stored no offset:
+            # committing it raises _NO_OFFSET and crash-looped the worker until the first position arrived.
+            if payloads and not failed:
                 consumer.commit(asynchronous=False)
     finally:
         consumer.close()

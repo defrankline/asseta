@@ -39,7 +39,19 @@ Optional demo tenant: `cd backend && uv run python scripts/demo_seed.py ../.env 
 
 Users are created in Keycloak (authoritative for authentication **and** authorization). To bootstrap the first
 platform owner, create a user in realm `asseta` and add it to group `/platform/platform-owner`
-([docs/security.md](docs/security.md)).
+([docs/security.md](docs/security.md)); in production use `scripts/create-platform-owner.sh`.
+
+## Production (https://asseta.co.tz)
+
+Shared-server deployment behind host nginx + certbot: `compose.prod.yaml`, `deploy/` (nginx site templates, console
+build) and `scripts/*-live.sh`. Step by step, including secrets, the first platform owner, backups, rollback and
+tracker ports: [docs/deployment-live.md](docs/deployment-live.md).
+
+```bash
+scripts/generate-production-secrets.sh && $EDITOR .env.production   # fill LETSENCRYPT_EMAIL (+ SMTP/SMS/push later)
+scripts/deploy-live.sh                                              # every update: same command
+scripts/create-platform-owner.sh you@example.com "First" "Last"
+```
 
 ## Developing and testing
 
@@ -64,5 +76,5 @@ After changing API DTOs: `cd backend && uv run python scripts/export_openapi.py 
 [Architecture](docs/architecture.md) · [ADRs](docs/adr/) · [API conventions](docs/api.md) ·
 [Offline sync](docs/offline-sync.md) · [GPS hardware commissioning](docs/gps-hardware.md) ·
 [Security](docs/security.md) · [Operating runbook](docs/operating-runbook.md) (deployment, backup/restore,
-incidents, drills) · [Model governance](docs/model-governance.md) · [OCR metrics](docs/ml-ocr-metrics.md) ·
+incidents, drills) · [Live deployment](docs/deployment-live.md) · [Model governance](docs/model-governance.md) · [OCR metrics](docs/ml-ocr-metrics.md) ·
 [Release 1 acceptance](docs/release1-acceptance.md)
