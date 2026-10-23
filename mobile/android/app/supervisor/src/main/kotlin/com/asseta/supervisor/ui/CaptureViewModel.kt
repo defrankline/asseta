@@ -2,11 +2,13 @@ package com.asseta.supervisor.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.asseta.core.domain.capture.CaptureViolation
 import com.asseta.core.domain.capture.GpsOutcome
 import com.asseta.core.domain.capture.JobStateRules
 import com.asseta.core.domain.capture.OcrFlow
 import com.asseta.core.domain.capture.OcrStep
+import com.asseta.core.domain.capture.ReadingError
+import com.asseta.core.domain.capture.ReadingInput
+import com.asseta.core.domain.capture.ReadingValidator
 import com.asseta.core.domain.ocr.OcrReading
 import com.asseta.core.domain.policy.CaptureMode
 import com.asseta.core.domain.policy.CapturePolicyDecision
@@ -46,18 +48,55 @@ data class CaptureUi(
     val gpsBusy: Boolean = false,
     val gpsAttemptAtMs: Long? = null,
     val locationDecided: Boolean = false,
-    val violations: List<CaptureViolation> = emptyList(),
     val saving: Boolean = false,
-    val message: String? = null,
+    /** A refusal or failure to show in the "Not saved" alert. */
+    val error: String? = null,
     val saved: Boolean = false,
 ) {
-    /** The reading field is editable for MANUAL, after a confident OCR read (correction) or after recaptures ran out. */
+    /** The reading field is shown for MANUAL, after a confident OCR read (correction) or after recaptures ran out. */
     val readingEditable: Boolean
         get() = mode == CaptureMode.MANUAL || ocrStep == OcrStep.CONFIRM || ocrStep == OcrStep.MANUAL_FALLBACK
 
-    val isManualCorrection: Boolean get() = ocr?.value != null && readingText.isNotBlank() && readingText != ocr.value
+    /** The supervisor changed the recognized value (sent as a manual correction; OCR value and raw text are kept). */
+    val isManualCorrection: Boolean
+        get() {
+            val value = ocr?.value ?: return false
+            val reading = ReadingValidator.validate(readingText, decimals) as? ReadingInput.Valid ?: return false
+            return reading.normalized != value
+        }
 
     val photoRequired: Boolean get() = mode == CaptureMode.AUTOMATIC || policy?.manualPhotoRequired == true
+
+    /** Recaptures left after the current one (shown with the recapture request). */
+    val recapturesLeft: Int get() = ((policy?.maxRecaptureAttempts ?: 0) - attempts).coerceAtLeast(0)
+
+    /** Everything that still blocks saving, worded like the iOS app (shown once a photo or reading exists). */
+    val issues: List<String>
+        get() = CaptureIssues.of(this)
+}
+
+object CaptureIssues {
+    fun of(ui: CaptureUi): List<String> = buildList {
+        when (val r = ReadingValidator.validate(ui.readingText, ui.decimals)) {
+            is ReadingInput.Valid -> Unit
+            is ReadingInput.Invalid -> add(reading(r.error, ui.decimals))
+        }
+        if (ui.photoRequired && ui.photo == null) add("A photo of the meter is required.")
+        if (ui.mode == CaptureMode.AUTOMATIC) {
+            when {
+                ui.ocrStep == OcrStep.RECAPTURE -> add("The photo could not be read reliably. Take another photo.")
+                ui.photo != null && ui.ocr == null && !ui.ocrBusy -> add("Take a photo so the reading can be recognized.")
+            }
+        }
+        if (ui.gps == null) add("A location attempt is required for every reading.")
+    }
+
+    fun reading(error: ReadingError, decimals: Int): String = when (error) {
+        ReadingError.EMPTY -> "Enter the meter reading."
+        ReadingError.NOT_A_NUMBER, ReadingError.TOO_LARGE -> "The reading must be a non-negative number."
+        ReadingError.TOO_MANY_DECIMALS ->
+            if (decimals == 0) "This meter shows whole hours only." else "This meter shows at most $decimals decimal place${if (decimals == 1) "" else "s"}."
+    }
 }
 
 /**
@@ -80,12 +119,13 @@ class CaptureViewModel(
     }
 
     private suspend fun load() {
-        val job = field.repository.job(jobId) ?: return _ui.update { it.copy(loading = false, blocked = "Job not found.") }
+        val job = field.repository.job(jobId) ?: return _ui.update { it.copy(loading = false, blocked = "It is no longer assigned to you on this device.") }
         val machine = field.repository.machine(job.machineId)
             ?: return _ui.update { it.copy(loading = false, blocked = "Machine details missing. Connect to refresh rules.") }
         val state = field.repository.fieldState(tenantId, job)
         if (!JobStateRules.readingAllowed(_ui.value.kind, state.effectiveStatus)) {
-            return _ui.update { it.copy(loading = false, blocked = "This reading is not allowed while the job is ${state.effectiveStatus}.") }
+            val which = if (_ui.value.kind == ReadingKind.OPENING) "Opening" else "Closing"
+            return _ui.update { it.copy(loading = false, blocked = "$which reading is not allowed now.") }
         }
         when (val decision = field.repository.capturePolicy(tenantId, machine.id)) {
             is CapturePolicyDecision.Blocked -> _ui.update { it.copy(loading = false, blocked = decision.message) }
@@ -111,7 +151,7 @@ class CaptureViewModel(
     fun attemptGps() {
         if (gpsJob?.isActive == true) return
         gpsJob = viewModelScope.launch {
-            _ui.update { it.copy(gpsBusy = true) }
+            _ui.update { it.copy(gpsBusy = true, gps = null) }
             val startedAt = field.clock.nowMs()
             val outcome = field.gps.attempt()
             _ui.update { it.copy(gpsBusy = false, gps = outcome, gpsAttemptAtMs = startedAt) }
@@ -121,7 +161,7 @@ class CaptureViewModel(
     fun onPhoto(photo: CapturedPhoto) {
         val current = _ui.value
         val attempts = current.attempts + 1
-        _ui.update { it.copy(photo = photo, attempts = attempts, message = null, violations = emptyList()) }
+        _ui.update { it.copy(photo = photo, attempts = attempts, error = null, ocr = null, ocrStep = null) }
         refreshGpsIfStale(photo.takenAtMs)
         if (current.mode != CaptureMode.AUTOMATIC) return
         val policy = current.policy ?: return
@@ -141,15 +181,17 @@ class CaptureViewModel(
         }
     }
 
-    fun onPhotoError(message: String) = _ui.update { it.copy(message = message) }
+    fun onPhotoError(message: String) = _ui.update { it.copy(error = "The photo could not be saved: $message") }
 
-    fun onReadingChanged(text: String) = _ui.update { it.copy(readingText = text.filter { c -> c.isDigit() || c == '.' || c == ',' }, violations = emptyList()) }
+    fun clearError() = _ui.update { it.copy(error = null) }
+
+    fun onReadingChanged(text: String) = _ui.update { it.copy(readingText = text.filter { c -> c.isDigit() || c == '.' || c == ',' }) }
 
     fun save() {
         val state = _ui.value
-        if (state.saving || state.saved || state.mode == null) return
+        if (state.saving || state.saved || state.mode == null || state.issues.isNotEmpty()) return
         viewModelScope.launch {
-            _ui.update { it.copy(saving = true, message = null) }
+            _ui.update { it.copy(saving = true, error = null) }
             val capturedAt = state.photo?.takenAtMs ?: field.clock.nowMs()
             refreshGpsIfStale(capturedAt)
             gpsJob?.join()
@@ -164,10 +206,9 @@ class CaptureViewModel(
             )
             _ui.update {
                 when (result) {
-                    is CaptureResult.Saved, CaptureResult.AlreadySaved -> it.copy(saving = false, saved = true,
-                        message = "Reading saved on this device. It will be sent when you are online.")
-                    is CaptureResult.Blocked -> it.copy(saving = false, message = result.message)
-                    is CaptureResult.Invalid -> it.copy(saving = false, violations = result.violations)
+                    is CaptureResult.Saved, CaptureResult.AlreadySaved -> it.copy(saving = false, saved = true)
+                    is CaptureResult.Blocked -> it.copy(saving = false, error = result.message)
+                    is CaptureResult.Invalid -> it.copy(saving = false, error = result.violations.joinToString("\n") { v -> v.message })
                 }
             }
         }

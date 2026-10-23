@@ -3,25 +3,27 @@ package com.asseta.supervisor.ui.finance
 import android.Manifest
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -37,7 +39,8 @@ import com.asseta.supervisor.capture.GpsLocator
 import com.asseta.supervisor.capture.MeterOcr
 import com.asseta.supervisor.capture.PermissionRationale
 import com.asseta.supervisor.capture.hasAllPermissions
-import com.asseta.supervisor.ui.NoticeCard
+import com.asseta.supervisor.ui.GpsResult
+import com.asseta.supervisor.ui.Section
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -49,25 +52,19 @@ import kotlinx.coroutines.launch
 /** Save state shared by every finance form. */
 data class SaveState(val saving: Boolean = false, val saved: Boolean = false, val messages: List<String> = emptyList())
 
-fun SaveState.after(result: FinanceResult, savedText: String): SaveState = when (result) {
-    is FinanceResult.Saved, FinanceResult.AlreadySaved -> SaveState(saved = true, messages = listOf(savedText))
+fun SaveState.after(result: FinanceResult): SaveState = when (result) {
+    is FinanceResult.Saved, FinanceResult.AlreadySaved -> SaveState(saved = true)
     is FinanceResult.Blocked -> copy(saving = false, messages = listOf(result.message))
     is FinanceResult.Invalid -> copy(saving = false, messages = result.messages)
 }
 
-const val NOT_VERIFIED_NOTE = "Saved on this device and queued for sync. It is not verified by the office until it is synced and confirmed."
-
-/** Messages + the save button (or "Done" once saved). */
+/** Refusal messages + the Save button; a saved form closes (like the iOS sheets). */
 @Composable
-fun SaveSection(state: SaveState, saveLabel: String, onSave: () -> Unit, onDone: () -> Unit, enabled: Boolean = true) {
-    if (state.saved) {
-        NoticeCard("Saved", state.messages.joinToString("\n"))
-        Button(onClick = onDone, modifier = Modifier.fillMaxWidth()) { Text("Done") }
-    } else {
-        state.messages.forEach { Text(it, color = MaterialTheme.colorScheme.error) }
-        Button(onClick = onSave, enabled = enabled && !state.saving, modifier = Modifier.fillMaxWidth()) {
-            Text(if (state.saving) "Saving…" else saveLabel)
-        }
+fun SaveSection(state: SaveState, onSave: () -> Unit, onDone: () -> Unit, enabled: Boolean = true) {
+    LaunchedEffect(state.saved) { if (state.saved) onDone() }
+    state.messages.forEach { Text(it, color = MaterialTheme.colorScheme.error) }
+    Button(onClick = onSave, enabled = enabled && !state.saving && !state.saved, modifier = Modifier.fillMaxWidth()) {
+        Text(if (state.saving) "Saving…" else "Save")
     }
 }
 
@@ -92,42 +89,60 @@ fun TextInput(label: String, value: String, onChange: (String) -> Unit, enabled:
 /** Exclusive choice among a few fixed (non-backend) values. */
 @Composable
 fun <T> ChoiceChips(options: List<T>, selected: T?, label: (T) -> String, onSelect: (T) -> Unit, enabled: Boolean) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         options.forEach { option ->
             FilterChip(selected = option == selected, onClick = { onSelect(option) }, enabled = enabled, label = { Text(label(option)) })
         }
     }
 }
 
+/** Two or three fixed values side by side (the iOS segmented picker). */
+@Composable
+fun <T> SegmentedChoice(options: List<T>, selected: T?, label: (T) -> String, onSelect: (T) -> Unit, enabled: Boolean) {
+    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+        options.forEachIndexed { index, option ->
+            SegmentedButton(
+                selected = option == selected, onClick = { onSelect(option) }, enabled = enabled,
+                shape = SegmentedButtonDefaults.itemShape(index, options.size),
+            ) { Text(label(option)) }
+        }
+    }
+}
+
 /** Receipt photo through the in-app camera; the original JPEG goes to the encrypted evidence store on save. */
 @Composable
-fun ReceiptSection(photo: CapturedPhoto?, required: Boolean, reason: String?, onPhoto: (CapturedPhoto) -> Unit, onError: (String) -> Unit, enabled: Boolean) {
+fun ReceiptSection(photo: CapturedPhoto?, required: Boolean, onPhoto: (CapturedPhoto?) -> Unit, onError: (String) -> Unit, enabled: Boolean) {
     val context = LocalContext.current
     var granted by remember { mutableStateOf(context.hasAllPermissions(arrayOf(Manifest.permission.CAMERA))) }
     var open by remember { mutableStateOf(false) }
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Receipt" + if (required) " (required)" else " (optional)", style = MaterialTheme.typography.titleSmall)
-            reason?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-            photo?.let {
+    Section(
+        if (required) "Receipt (required)" else "Receipt (optional)",
+        footer = "Stored encrypted on this phone and uploaded before the expense is sent.",
+    ) {
+        photo?.let {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 val preview = remember(it) { MeterOcr.decodeForOcr(it.jpeg, it.rotationDegrees)?.asImageBitmap() }
-                preview?.let { img -> Image(img, "Receipt photo", Modifier.fillMaxWidth().heightIn(max = 220.dp), contentScale = ContentScale.Fit) }
+                preview?.let { img ->
+                    Image(img, "Receipt photo", Modifier.weight(1f).heightIn(max = 120.dp), contentScale = ContentScale.Fit, alignment = Alignment.CenterStart)
+                }
+                if (enabled) TextButton(onClick = { onPhoto(null) }) { Text("Remove", color = MaterialTheme.colorScheme.error) }
             }
-            when {
-                !enabled -> Unit
-                open && !granted -> PermissionRationale(
-                    title = "Camera",
-                    rationale = "A photo of the receipt is kept as evidence for the office. It stays encrypted on this phone until uploaded.",
-                    permissions = arrayOf(Manifest.permission.CAMERA),
-                    onResult = { granted = it; if (!it) open = false },
-                )
-                open -> CameraCapture(
-                    buttonLabel = "Take receipt photo",
-                    onCaptured = { onPhoto(it); open = false },
-                    onError = { onError(it); open = false },
-                )
-                else -> OutlinedButton(onClick = { open = true }) { Text(if (photo == null) "Photograph receipt" else "Retake receipt") }
-            }
+        }
+        when {
+            !enabled -> Unit
+            open && !granted -> PermissionRationale(
+                title = "Camera",
+                rationale = "A photo of the receipt is kept as evidence for the office. It stays encrypted on this phone until uploaded.",
+                permissions = arrayOf(Manifest.permission.CAMERA),
+                onResult = { granted = it; if (!it) open = false },
+            )
+            open -> CameraCapture(
+                buttonLabel = "Photograph receipt",
+                onCaptured = { onPhoto(it); open = false },
+                onError = { onError(it); open = false },
+            )
+            // One receipt photo per expense on Android (the outbox gates an operation on one attachment).
+            photo == null -> OutlinedButton(onClick = { open = true }) { Text("Photograph receipt") }
         }
     }
 }
@@ -148,7 +163,7 @@ class GpsAttempt(private val field: FieldGraph, private val scope: CoroutineScop
     fun attempt() {
         if (job?.isActive == true) return
         job = scope.launch {
-            _state.update { it.copy(busy = true) }
+            _state.update { it.copy(busy = true, outcome = null) }
             val outcome = field.gps.attempt()
             _state.update { it.copy(busy = false, outcome = outcome) }
         }
@@ -158,32 +173,20 @@ class GpsAttempt(private val field: FieldGraph, private val scope: CoroutineScop
 }
 
 @Composable
-fun GpsCard(state: GpsAttempt.State, requirement: String?, onDecision: (Boolean) -> Unit, onRetry: () -> Unit, enabled: Boolean) {
+fun GpsSection(state: GpsAttempt.State, required: Boolean, onDecision: (Boolean) -> Unit, onRetry: () -> Unit, enabled: Boolean) {
     if (!state.decided) {
         PermissionRationale(
             title = "Location for this expense",
             rationale = "Each expense records a fresh location fix while you use the app (never in the background)." +
-                (requirement?.let { " $it" } ?: ""),
+                if (required) " Your company requires a GPS fix for expenses." else "",
             permissions = GpsLocator.PERMISSIONS,
             onResult = onDecision,
             declineLabel = "Continue without location",
         )
         return
     }
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("Location", style = MaterialTheme.typography.titleSmall)
-            requirement?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-            when (val gps = state.outcome) {
-                null -> if (state.busy) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    CircularProgressIndicator(Modifier.heightIn(max = 20.dp)); Text("Getting a fresh fix (up to 20 s)…")
-                }
-                is GpsOutcome.Fix -> Text("Location fixed (±${gps.accuracyM?.let { Math.round(it).toString() } ?: "?"} m)")
-                else -> Text("No location: ${gps.status.lowercase().replace('_', ' ')}", color = MaterialTheme.colorScheme.error)
-            }
-            if (enabled && !state.busy && state.outcome != GpsOutcome.PermissionDenied) {
-                OutlinedButton(onClick = onRetry) { Text(if (state.outcome == null) "Get location" else "Try location again") }
-            }
-        }
+    Section(if (required) "GPS (required)" else "GPS") {
+        GpsResult(state.outcome, state.busy, savableNote = false)
+        if (enabled && !state.busy) OutlinedButton(onClick = onRetry) { Text("Try location again") }
     }
 }

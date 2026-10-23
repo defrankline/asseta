@@ -9,11 +9,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -25,6 +25,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -41,8 +42,12 @@ import com.asseta.supervisor.capture.MeterOcr
 import com.asseta.supervisor.capture.PermissionRationale
 import com.asseta.supervisor.capture.hasAllPermissions
 import com.asseta.supervisor.capture.hasAnyPermission
+import java.util.Locale
 
-/** Hour-meter capture: required mode from the policy snapshot, camera + on-device OCR or manual entry, fresh GPS. */
+/**
+ * Meter reading capture. The mode (AUTOMATIC camera + on-device OCR, or MANUAL entry) is set by the policy snapshot and
+ * cannot be changed here; a fresh GPS attempt is made for every capture.
+ */
 @Composable
 fun CaptureScreen(vm: CaptureViewModel, onDone: () -> Unit, modifier: Modifier = Modifier) {
     val ui by vm.ui.collectAsStateWithLifecycle()
@@ -52,82 +57,95 @@ fun CaptureScreen(vm: CaptureViewModel, onDone: () -> Unit, modifier: Modifier =
     LaunchedEffect(Unit) {
         if (context.hasAnyPermission(GpsLocator.PERMISSIONS)) vm.onLocationDecision(true)
     }
+    LaunchedEffect(ui.saved) { if (ui.saved) onDone() }
     Column(
         modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text("${ui.kind.name.lowercase().replaceFirstChar { it.uppercase() }} reading", style = MaterialTheme.typography.headlineSmall)
         when {
             ui.loading -> CircularProgressIndicator()
-            ui.blocked != null -> NoticeCard("Capture blocked", ui.blocked!!, isError = true)
+            ui.blocked != null -> NoticeCard("Not available", ui.blocked!!, isError = true)
             else -> {
-                Text(ui.machineLabel, style = MaterialTheme.typography.titleMedium)
-                Text(modeLine(ui), style = MaterialTheme.typography.bodyMedium)
-
+                Section(null, footer = "Set by your company's capture rules (${ui.policyStamp}).") {
+                    LabeledRow("Machine", ui.machineLabel)
+                    LabeledRow("Method", if (ui.mode == CaptureMode.AUTOMATIC) "Camera + automatic reading" else "Manual entry")
+                }
+                val openCamera = { cameraOpen = true }
+                if (ui.photoRequired || ui.mode == CaptureMode.MANUAL) {
+                    Section(if (ui.photoRequired) "Meter photo (required)" else "Meter photo (optional)") {
+                        ui.photo?.let { photo ->
+                            val preview = remember(photo) { MeterOcr.decodeForOcr(photo.jpeg, photo.rotationDegrees)?.asImageBitmap() }
+                            preview?.let { Image(it, "Meter photo", Modifier.fillMaxWidth().heightIn(max = 220.dp), contentScale = ContentScale.Fit) }
+                        }
+                        val final = ui.mode == CaptureMode.AUTOMATIC && (ui.ocrStep == OcrStep.CONFIRM || ui.ocrStep == OcrStep.MANUAL_FALLBACK)
+                        when {
+                            ui.ocrBusy -> Busy("Reading the meter on this phone…")
+                            cameraOpen && !cameraGranted -> PermissionRationale(
+                                title = "Camera",
+                                rationale = "A photo of the hour meter is kept as evidence" +
+                                    (if (ui.mode == CaptureMode.AUTOMATIC) " and the reading is recognized on this phone." else ".") +
+                                    " Photos stay encrypted on this phone until uploaded.",
+                                permissions = arrayOf(Manifest.permission.CAMERA),
+                                onResult = { cameraGranted = it; if (!it) cameraOpen = false },
+                            )
+                            cameraOpen -> CameraCapture(
+                                buttonLabel = if (ui.photo == null) "Take photo" else "Retake photo",
+                                onCaptured = { vm.onPhoto(it); cameraOpen = false },
+                                onError = { vm.onPhotoError(it); cameraOpen = false },
+                            )
+                            !final -> OutlinedButton(onClick = openCamera) { Text(if (ui.photo == null) "Take photo" else "Retake photo") }
+                        }
+                        if (ui.ocrStep == OcrStep.RECAPTURE && !ui.ocrBusy) {
+                            Text("The reading could not be recognized reliably. Retake the photo (${ui.recapturesLeft} more after this).",
+                                color = WarningColor)
+                        }
+                    }
+                }
+                if (ui.readingEditable) ReadingSection(ui, vm, onRetake = openCamera, cameraOpen = cameraOpen)
                 GpsSection(ui, onDecision = vm::onLocationDecision, onRetry = vm::attemptGps)
-
-                if (!ui.photoRequired && ui.photo == null && !cameraOpen && !ui.saved) {
-                    OutlinedButton(onClick = { cameraOpen = true }) { Text("Add a photo (optional)") }
+                val issues = ui.issues
+                if (issues.isNotEmpty() && (ui.photo != null || ui.readingText.isNotEmpty())) {
+                    Section(null) { issues.forEach { Text(it, color = WarningColor) } }
                 }
-                if (ui.photoRequired || cameraOpen || ui.photo != null) {
-                    if (!cameraGranted) {
-                        PermissionRationale(
-                            title = "Camera",
-                            rationale = "A photo of the hour meter is kept as evidence" +
-                                (if (ui.mode == CaptureMode.AUTOMATIC) " and the reading is recognised on this device." else ".") +
-                                " Photos stay encrypted on this phone until uploaded.",
-                            permissions = arrayOf(Manifest.permission.CAMERA),
-                            onResult = { cameraGranted = it },
-                        )
-                    } else if (cameraOpen || (ui.photo == null && ui.photoRequired)) {
-                        CameraCapture(
-                            buttonLabel = if (ui.attempts == 0) "Take photo" else "Retake photo",
-                            onCaptured = { vm.onPhoto(it); cameraOpen = false },
-                            onError = vm::onPhotoError,
-                        )
-                    }
-                    ui.photo?.let { photo ->
-                        val preview = remember(photo) { MeterOcr.decodeForOcr(photo.jpeg, photo.rotationDegrees)?.asImageBitmap() }
-                        preview?.let { Image(it, "Meter photo", Modifier.fillMaxWidth().heightIn(max = 220.dp), contentScale = ContentScale.Fit) }
-                        if (!cameraOpen && !ui.saved) OutlinedButton(onClick = { cameraOpen = true }) { Text("Retake photo") }
-                    }
-                }
-                OcrSection(ui)
-                if (ui.readingEditable) {
-                    OutlinedTextField(
-                        value = ui.readingText,
-                        onValueChange = vm::onReadingChanged,
-                        label = { Text("Reading (${ui.decimals} decimal place${if (ui.decimals == 1) "" else "s"})") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        singleLine = true,
-                        enabled = !ui.saved,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    if (ui.isManualCorrection) {
-                        Text("You changed the recognised value. The photo and recognised text are kept and the change is flagged for review.",
-                            style = MaterialTheme.typography.bodySmall)
-                    }
-                }
-                ui.violations.forEach { Text(it.message, color = MaterialTheme.colorScheme.error) }
-                ui.message?.let { NoticeCard(if (ui.saved) "Saved" else "Note", it, isError = !ui.saved) }
-                if (ui.saved) {
-                    Button(onClick = onDone, modifier = Modifier.fillMaxWidth()) { Text("Back to job") }
-                } else {
-                    Button(onClick = vm::save, enabled = !ui.saving && !ui.ocrBusy && ui.readingEditable && ui.locationDecided,
-                        modifier = Modifier.fillMaxWidth()) {
-                        Text(if (ui.saving) "Saving…" else "Save reading")
-                    }
+                Button(onClick = vm::save, enabled = !ui.saving && !ui.ocrBusy && issues.isEmpty(), modifier = Modifier.fillMaxWidth()) {
+                    Text(if (ui.saving) "Saving…" else "Save")
                 }
             }
         }
     }
+    NotSavedAlert(ui.error, vm::clearError)
 }
 
-private fun modeLine(ui: CaptureUi): String = when (ui.mode) {
-    CaptureMode.AUTOMATIC -> "Required by your company: photo + automatic recognition (rules ${ui.policyStamp})."
-    CaptureMode.MANUAL -> "Required by your company: manual entry" +
-        (if (ui.policy?.manualPhotoRequired == true) " with a photo" else "") + " (rules ${ui.policyStamp})."
-    null -> ""
+@Composable
+private fun ReadingSection(ui: CaptureUi, vm: CaptureViewModel, onRetake: () -> Unit, cameraOpen: Boolean) {
+    Section("Reading (hours)") {
+        val ocr = ui.ocr
+        if (ui.ocrStep == OcrStep.CONFIRM && ocr?.value != null) {
+            LabeledRow("Recognized", ocr.value!!)
+            LabeledRow("Confidence", "${Math.round(ocr.confidence * 100)}%")
+            Text("Check the value against the meter. Correct it if it is wrong.", style = MaterialTheme.typography.bodySmall)
+        }
+        if (ui.ocrStep == OcrStep.MANUAL_FALLBACK) {
+            Text("Automatic reading was not reliable after several photos. Type the reading; the photo is kept as evidence.",
+                style = MaterialTheme.typography.bodySmall, color = WarningColor)
+        }
+        OutlinedTextField(
+            value = ui.readingText,
+            onValueChange = vm::onReadingChanged,
+            placeholder = { Text(if (ui.decimals == 0) "e.g. 4521" else "e.g. 4521." + "0".repeat(ui.decimals)) },
+            keyboardOptions = KeyboardOptions(keyboardType = if (ui.decimals == 0) KeyboardType.Number else KeyboardType.Decimal),
+            textStyle = MaterialTheme.typography.titleLarge,
+            singleLine = true,
+            enabled = !ui.saving,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        if (ui.isManualCorrection) {
+            Text("You changed the recognized value. It will be sent as a manual correction.", style = MaterialTheme.typography.bodySmall)
+        }
+        if (ui.mode == CaptureMode.AUTOMATIC && ui.ocrStep == OcrStep.CONFIRM && !cameraOpen) {
+            OutlinedButton(onClick = onRetake) { Text("Retake photo") }
+        }
+    }
 }
 
 @Composable
@@ -143,60 +161,34 @@ private fun GpsSection(ui: CaptureUi, onDecision: (Boolean) -> Unit, onRetry: ()
         )
         return
     }
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("Location", style = MaterialTheme.typography.titleSmall)
-            when {
-                ui.gpsBusy -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    CircularProgressIndicator(Modifier.heightIn(max = 20.dp)); Text("Getting a fresh fix (up to 20 s)…")
-                }
-                ui.gps is GpsOutcome.Fix -> {
-                    val fix = ui.gps
-                    Text(GpsOutcome.describe(fix))
-                    Text("%.5f, %.5f · %s".format(java.util.Locale.ROOT, fix.latitude, fix.longitude, fix.provider ?: "fused"),
-                        style = MaterialTheme.typography.bodySmall)
-                }
-                ui.gps != null -> Text(GpsOutcome.describe(ui.gps), color = MaterialTheme.colorScheme.error)
-            }
-            if (!ui.gpsBusy && ui.gps !is GpsOutcome.Fix && ui.gps != GpsOutcome.PermissionDenied && !ui.saved) {
-                OutlinedButton(onClick = onRetry) { Text("Try location again") }
+    Section("GPS") {
+        GpsResult(ui.gps, ui.gpsBusy, savableNote = true)
+        if (!ui.gpsBusy && !ui.saving) OutlinedButton(onClick = onRetry) { Text("Try location again") }
+    }
+}
+
+/** Fresh-fix progress, the fix (coordinates + accuracy) or the honest failure (shared with the expense form). */
+@Composable
+fun GpsResult(gps: GpsOutcome?, busy: Boolean, savableNote: Boolean) {
+    when {
+        busy || gps == null -> Busy("Getting a fresh location fix…")
+        gps is GpsOutcome.Fix -> {
+            LabeledRow("Location", String.format(Locale.ROOT, "%.5f, %.5f", gps.latitude, gps.longitude))
+            LabeledRow("Accuracy", String.format(Locale.ROOT, "± %.0f m", gps.accuracyM ?: 0.0))
+        }
+        else -> {
+            Text(FieldTexts.gpsFailure(gps), color = WarningColor)
+            if (savableNote) {
+                Text("The reading can still be saved; it is recorded with this location result for review.", style = MaterialTheme.typography.bodySmall)
             }
         }
     }
 }
 
 @Composable
-private fun OcrSection(ui: CaptureUi) {
-    if (ui.mode != CaptureMode.AUTOMATIC) return
-    if (ui.ocrBusy) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { CircularProgressIndicator(); Text("Recognising the reading…") }
-        return
-    }
-    val ocr = ui.ocr ?: return
-    val confidence = "${Math.round(ocr.confidence * 100)}%"
-    val policy = ui.policy ?: return
-    when (ui.ocrStep) {
-        OcrStep.CONFIRM -> NoticeCard("Recognised ${ocr.value}", "Confidence $confidence. Check it against the meter and confirm, or correct it.")
-        OcrStep.RECAPTURE -> NoticeCard(
-            "Could not read the meter confidently",
-            "Result: ${ocr.value ?: "none"} (confidence $confidence). Retake the photo: fill the frame with the meter and avoid glare. " +
-                "Attempt ${ui.attempts} of ${policy.maxRecaptureAttempts + 1}.",
-            isError = true,
-        )
-        OcrStep.MANUAL_FALLBACK -> NoticeCard(
-            "Enter the reading manually",
-            "Recognition stayed below the required confidence after ${ui.attempts} photos. The last photo and recognised text are kept as evidence.",
-        )
-        null -> Unit
-    }
-}
-
-@Composable
-fun NoticeCard(title: String, body: String, isError: Boolean = false) {
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(title, style = MaterialTheme.typography.titleSmall, color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
-            Text(body, style = MaterialTheme.typography.bodyMedium)
-        }
+fun Busy(text: String) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+        Text(text)
     }
 }

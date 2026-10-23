@@ -17,7 +17,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.asseta.core.domain.finance.AmountParser
 import com.asseta.core.domain.finance.CashRules
+import com.asseta.core.domain.finance.CustodyLine
 import com.asseta.core.domain.finance.DecimalLimit
+import com.asseta.core.domain.finance.FormCheck
 import com.asseta.core.domain.finance.FuelEventType
 import com.asseta.core.domain.finance.formatMoney
 import com.asseta.core.sync.data.JobSummary
@@ -26,6 +28,10 @@ import com.asseta.core.sync.usecase.CashHandoverRequest
 import com.asseta.core.sync.usecase.FinanceResult
 import com.asseta.core.sync.usecase.FuelEventRequest
 import com.asseta.supervisor.FieldGraph
+import com.asseta.supervisor.ui.DateTimeField
+import com.asseta.supervisor.ui.LabeledRow
+import com.asseta.supervisor.ui.Section
+import com.asseta.supervisor.ui.WarningColor
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -33,6 +39,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.math.BigDecimal
 import java.util.UUID
 
 /** Plain text fields of a cash/fuel form (validated by `CashRules` in the use case). */
@@ -41,7 +48,7 @@ data class CashForm(
     val customerId: String? = null,
     val jobId: String? = null,
     val machineId: String? = null,
-    val fuelType: FuelEventType? = null,
+    val fuelType: FuelEventType? = FuelEventType.ISSUE,
     val amount: String = "",
     val unitPrice: String = "",
     val meter: String = "",
@@ -49,12 +56,37 @@ data class CashForm(
     val reference: String = "",
     val supplier: String = "",
     val note: String = "",
+    /** When the cash was received / handed over or the fuel event happened (device time, not in the future). */
+    val atMs: Long = 0,
 )
+
+/** Wording of the cash and fuel forms shared with iOS. */
+object CashTexts {
+    fun fuelType(type: FuelEventType): String = when (type) {
+        FuelEventType.PURCHASE -> "Purchase"
+        FuelEventType.ISSUE -> "Issue"
+        FuelEventType.USAGE -> "Usage"
+    }
+
+    fun fuelExplanation(type: FuelEventType?): String = when (type) {
+        FuelEventType.PURCHASE -> "Fuel bought into stock. Record the money spent as an expense too."
+        FuelEventType.ISSUE -> "Fuel given to a machine from stock."
+        FuelEventType.USAGE, null -> "Fuel a machine consumed (no price)."
+    }
+
+    /** "Cost: X CUR" for priced fuel events when litres, price and currency are all valid; else null. */
+    fun fuelCost(type: FuelEventType?, litres: String, unitPrice: String, currency: String): String? {
+        if (type == FuelEventType.USAGE || type == null || currency.length != 3) return null
+        val l = AmountParser.valueOrNull(litres, DecimalLimit.LITRES) ?: return null
+        val p = AmountParser.valueOrNull(unitPrice, DecimalLimit.MONEY, allowZero = true) ?: return null
+        return "Cost: ${formatMoney(CashRules.fuelCost(l, p).stripTrailingZeros().let { if (it.scale() < 0) it.setScale(0) else it }, currency)}"
+    }
+}
 
 /** Collection, handover and fuel forms share one view model; the client id is generated once per visit. */
 class CashFormViewModel(private val field: FieldGraph, private val tenantId: String, kind: String) : ViewModel() {
     private val clientId = UUID.randomUUID().toString()
-    val form = MutableStateFlow(CashForm(kind = kind))
+    val form = MutableStateFlow(CashForm(kind = kind, atMs = field.clock.nowMs()))
     val save = MutableStateFlow(SaveState())
     private val repo = field.financeRepository
 
@@ -64,7 +96,11 @@ class CashFormViewModel(private val field: FieldGraph, private val tenantId: Str
     val jobs: StateFlow<List<JobSummary>> = repo.observeJobs(tenantId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val machines: StateFlow<List<PickerOption>> = repo.observeMachines(tenantId)
-        .map { list -> list.map { PickerOption(it.id, "${it.assetCode} · ${it.name}") } }
+        .map { list -> list.map { PickerOption(it.id, it.assetCode, it.name) } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** "Your cash" on the handover form: the estimated cash in hand per currency. */
+    val custody: StateFlow<List<CustodyLine>> = repo.observeCashView(tenantId).map { it.lines }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     init {
@@ -88,18 +124,18 @@ class CashFormViewModel(private val field: FieldGraph, private val tenantId: Str
         viewModelScope.launch {
             save.update { it.copy(saving = true, messages = emptyList()) }
             val f = form.value
-            val now = field.clock.nowMs()
+            val at = f.atMs.coerceAtMost(field.clock.nowMs())
             val result: FinanceResult = when (f.kind) {
                 COLLECTION -> field.finance.cashCollection(
-                    CashCollectionRequest(tenantId, clientId, f.customerId, f.jobId, f.amount, f.currency, f.reference, f.note, now),
+                    CashCollectionRequest(tenantId, clientId, f.customerId, f.jobId, f.amount, f.currency, f.reference, f.note, at),
                 )
-                HANDOVER -> field.finance.cashHandover(CashHandoverRequest(tenantId, clientId, f.amount, f.currency, f.reference, f.note, now))
+                HANDOVER -> field.finance.cashHandover(CashHandoverRequest(tenantId, clientId, f.amount, f.currency, f.reference, f.note, at))
                 else -> field.finance.fuelEvent(
                     FuelEventRequest(tenantId, clientId, f.fuelType, f.amount, f.unitPrice, f.currency, f.machineId, f.jobId,
-                        f.meter, f.supplier, f.note, now),
+                        f.meter, if (f.fuelType == FuelEventType.PURCHASE) f.supplier else "", f.note, at),
                 )
             }
-            save.update { it.after(result, NOT_VERIFIED_NOTE) }
+            save.update { it.after(result) }
         }
     }
 
@@ -117,34 +153,42 @@ fun CashFormScreen(vm: CashFormViewModel, onDone: () -> Unit) {
     val customers by vm.customers.collectAsStateWithLifecycle()
     val jobs by vm.jobs.collectAsStateWithLifecycle()
     val machines by vm.machines.collectAsStateWithLifecycle()
+    val custody by vm.custody.collectAsStateWithLifecycle()
     val editable = !save.saved && !save.saving
-    val jobOptions = jobs.map { PickerOption(it.job.id, it.job.jobNumber, it.machine?.let { m -> "${m.assetCode} · ${m.name}" }) }
+    val now = System.currentTimeMillis()
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         when (form.kind) {
             CashFormViewModel.COLLECTION -> {
-                Text("Record cash collection", style = MaterialTheme.typography.headlineSmall)
-                Text("Cash a customer paid you. It enters your custody and stays unverified until the office confirms it.",
-                    style = MaterialTheme.typography.bodySmall)
-                SearchablePickerField("Job (optional)", jobOptions, form.jobId, { vm.selectJob(it) }, noneLabel = "No job", enabled = editable)
-                SearchablePickerField("Customer", customers, form.customerId, { id -> vm.edit { it.copy(customerId = id) } },
-                    emptyText = "No customers synced yet. Customers of your jobs download automatically.", enabled = editable)
-                DecimalField("Amount received", form.amount, { v -> vm.edit { it.copy(amount = v) } }, editable)
-                TextInput("Currency", form.currency, { v -> vm.edit { it.copy(currency = v.uppercase().take(3)) } }, editable)
-                TextInput("Reference / receipt number (optional)", form.reference, { v -> vm.edit { it.copy(reference = v) } }, editable)
-                TextInput("Note (optional)", form.note, { v -> vm.edit { it.copy(note = v) } }, editable, singleLine = false)
-                SaveSection(save, "Save collection", vm::save, onDone)
+                Section(null) {
+                    SearchablePickerField("Job (optional)", jobOptions(jobs), form.jobId, { vm.selectJob(it) }, noneLabel = "No job", enabled = editable)
+                    SearchablePickerField("Customer", customers, form.customerId, { id -> vm.edit { it.copy(customerId = id) } },
+                        emptyText = "Customers of your jobs appear here after a sync.", enabled = editable)
+                }
+                Section(null, footer = "The cash is added to your custody once the server accepts it. The office verifies it later.") {
+                    DecimalField("Amount", form.amount, { v -> vm.edit { it.copy(amount = v) } }, editable)
+                    TextInput("Currency", form.currency, { v -> vm.edit { it.copy(currency = v.uppercase().take(3)) } }, editable)
+                    TextInput("Receipt / reference number (optional)", form.reference, { v -> vm.edit { it.copy(reference = v) } }, editable)
+                    DateTimeField("Received", form.atMs, { v -> vm.edit { it.copy(atMs = v) } }, editable, notAfter = now)
+                    TextInput("Note (optional)", form.note, { v -> vm.edit { it.copy(note = v) } }, editable, singleLine = false)
+                }
+                SaveSection(save, vm::save, onDone, enabled = form.customerId != null && form.amount.isNotEmpty())
             }
             CashFormViewModel.HANDOVER -> {
-                Text("Hand over cash", style = MaterialTheme.typography.headlineSmall)
-                Text("Cash you give to the office. It is a claim until the office verifies it; until then it still counts as yours.",
-                    style = MaterialTheme.typography.bodySmall)
-                DecimalField("Amount handed over", form.amount, { v -> vm.edit { it.copy(amount = v) } }, editable)
-                TextInput("Currency", form.currency, { v -> vm.edit { it.copy(currency = v.uppercase().take(3)) } }, editable)
-                TextInput("Reference (optional)", form.reference, { v -> vm.edit { it.copy(reference = v) } }, editable)
-                TextInput("Note (e.g. who received it)", form.note, { v -> vm.edit { it.copy(note = v) } }, editable, singleLine = false)
-                SaveSection(save, "Save handover", vm::save, onDone)
+                if (custody.isNotEmpty()) {
+                    Section("Your cash") {
+                        custody.forEach { LabeledRow(it.currency, it.estimatedInHand.plainText()) }
+                    }
+                }
+                Section(null, footer = "Your custody goes down only when finance verifies the handover.") {
+                    DecimalField("Amount handed over", form.amount, { v -> vm.edit { it.copy(amount = v) } }, editable)
+                    TextInput("Currency", form.currency, { v -> vm.edit { it.copy(currency = v.uppercase().take(3)) } }, editable)
+                    TextInput("Reference (deposit slip, receipt no.)", form.reference, { v -> vm.edit { it.copy(reference = v) } }, editable)
+                    DateTimeField("Handed over", form.atMs, { v -> vm.edit { it.copy(atMs = v) } }, editable, notAfter = now)
+                    TextInput("Note (who received it…)", form.note, { v -> vm.edit { it.copy(note = v) } }, editable, singleLine = false)
+                }
+                SaveSection(save, vm::save, onDone, enabled = form.amount.isNotEmpty())
             }
-            else -> FuelFields(vm, form, save, jobOptions, machines, editable, onDone)
+            else -> FuelFields(vm, form, save, jobOptions(jobs), machines, editable, now, onDone)
         }
     }
 }
@@ -157,30 +201,38 @@ private fun FuelFields(
     jobOptions: List<PickerOption>,
     machines: List<PickerOption>,
     editable: Boolean,
+    now: Long,
     onDone: () -> Unit,
 ) {
-    Text("Fuel event", style = MaterialTheme.typography.headlineSmall)
-    ChoiceChips(FuelEventType.entries, form.fuelType, { it.label }, { t -> vm.edit { it.copy(fuelType = t) } }, editable)
-    SearchablePickerField("Job (optional)", jobOptions, form.jobId, { vm.selectJob(it) }, noneLabel = "No job", enabled = editable)
-    SearchablePickerField(
-        if (form.fuelType == FuelEventType.PURCHASE) "Machine (optional: none = into stock)" else "Machine",
-        machines, form.machineId, { id -> vm.edit { it.copy(machineId = id) } },
-        noneLabel = if (form.fuelType == FuelEventType.PURCHASE) "No machine (stock)" else null, enabled = editable,
-    )
-    DecimalField("Litres", form.amount, { v -> vm.edit { it.copy(amount = v) } }, editable)
-    if (form.fuelType != FuelEventType.USAGE) {
-        DecimalField("Unit price per litre", form.unitPrice, { v -> vm.edit { it.copy(unitPrice = v) } }, editable)
-        TextInput("Currency", form.currency, { v -> vm.edit { it.copy(currency = v.uppercase().take(3)) } }, editable)
-        val litres = AmountParser.valueOrNull(form.amount, DecimalLimit.LITRES)
-        val price = AmountParser.valueOrNull(form.unitPrice, DecimalLimit.MONEY, allowZero = true)
-        if (litres != null && price != null && form.currency.length == 3) {
-            Text("Cost: ${formatMoney(CashRules.fuelCost(litres, price), form.currency)}", style = MaterialTheme.typography.bodyMedium)
+    SegmentedChoice(FuelEventType.entries, form.fuelType, CashTexts::fuelType, { t -> vm.edit { it.copy(fuelType = t) } }, editable)
+    Section(null, footer = CashTexts.fuelExplanation(form.fuelType)) {
+        DecimalField("Litres", form.amount, { v -> vm.edit { it.copy(amount = v) } }, editable)
+        if (form.fuelType != FuelEventType.USAGE) {
+            DecimalField("Price per litre", form.unitPrice, { v -> vm.edit { it.copy(unitPrice = v) } }, editable)
+            TextInput("Currency", form.currency, { v -> vm.edit { it.copy(currency = v.uppercase().take(3)) } }, editable)
+            CashTexts.fuelCost(form.fuelType, form.amount, form.unitPrice, form.currency)?.let {
+                Text(it, style = MaterialTheme.typography.bodyMedium)
+            }
         }
+        if (form.fuelType == FuelEventType.PURCHASE) {
+            TextInput("Supplier (optional)", form.supplier, { v -> vm.edit { it.copy(supplier = v) } }, editable)
+        }
+        DateTimeField("When", form.atMs, { v -> vm.edit { it.copy(atMs = v) } }, editable, notAfter = now)
     }
-    DecimalField("Hour-meter reading (optional)", form.meter, { v -> vm.edit { it.copy(meter = v) } }, editable)
-    if (form.fuelType == FuelEventType.PURCHASE) {
-        TextInput("Supplier (optional)", form.supplier, { v -> vm.edit { it.copy(supplier = v) } }, editable)
+    Section("Machine") {
+        SearchablePickerField("Job", jobOptions, form.jobId, { vm.selectJob(it) }, noneLabel = "No job", enabled = editable)
+        SearchablePickerField(
+            "Machine", machines, form.machineId, { id -> vm.edit { it.copy(machineId = id) } },
+            noneLabel = if (form.fuelType == FuelEventType.PURCHASE) "No machine (stock)" else null, enabled = editable && form.jobId == null,
+        )
+        DecimalField("Meter reading (optional)", form.meter, { v -> vm.edit { it.copy(meter = v) } }, editable)
     }
-    TextInput("Note (optional)", form.note, { v -> vm.edit { it.copy(note = v) } }, editable, singleLine = false)
-    SaveSection(save, "Save fuel event", vm::save, onDone)
+    Section(null) { TextInput("Note (optional)", form.note, { v -> vm.edit { it.copy(note = v) } }, editable, singleLine = false) }
+    val issues = CashRules.fuel(form.fuelType, form.amount, form.unitPrice, form.currency, form.machineId, form.meter, form.supplier, form.note)
+    val visible = (issues as? FormCheck.Invalid)?.messages.orEmpty().filterNot { it.startsWith("Enter the") }
+    if (visible.isNotEmpty() && save.messages.isEmpty()) Section(null) { visible.forEach { Text(it, color = WarningColor) } }
+    SaveSection(save, vm::save, onDone, enabled = issues is FormCheck.Valid)
 }
+
+/** Plain digits for amounts (never localized grouping, which could be misread). */
+fun BigDecimal.plainText(): String = stripTrailingZeros().let { if (it.scale() < 0) it.setScale(0) else it }.toPlainString()

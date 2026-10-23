@@ -10,9 +10,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -29,53 +31,57 @@ import com.asseta.core.sync.usecase.WorkflowResult
 import com.asseta.supervisor.FieldGraph
 import kotlinx.coroutines.launch
 
-/** Customer acknowledgement on the supervisor's phone: name confirmation or a drawn signature (no customer app). */
+/**
+ * Customer acknowledgement on the supervisor's phone: typed name confirmation, or a signature drawn on the phone (PNG
+ * stored as evidence and uploaded with purpose SIGNATURE). No external customer app.
+ */
 @Composable
 fun AcknowledgementScreen(field: FieldGraph, tenantId: String, jobId: String, onDone: () -> Unit) {
     var method by remember { mutableStateOf(AckMethod.SIGNATURE) }
     var name by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
-    var message by remember { mutableStateOf<String?>(null) }
+    var hours by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
     var saving by remember { mutableStateOf(false) }
-    var saved by remember { mutableStateOf(false) }
     val signature = rememberSignatureState()
     val scope = rememberCoroutineScope()
+    val canSave = name.isNotBlank() && (method != AckMethod.SIGNATURE || !signature.isEmpty) && !saving
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text("Customer acknowledgement", style = MaterialTheme.typography.headlineSmall)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(method == AckMethod.SIGNATURE, { method = AckMethod.SIGNATURE }, { Text("Signature") })
-            FilterChip(method == AckMethod.NAME_CONFIRMATION, { method = AckMethod.NAME_CONFIRMATION }, { Text("Name confirmation") })
+        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+            listOf(AckMethod.SIGNATURE to "Signature", AckMethod.NAME_CONFIRMATION to "Name confirmation").forEachIndexed { i, (value, label) ->
+                SegmentedButton(method == value, { method = value }, SegmentedButtonDefaults.itemShape(i, 2)) { Text(label) }
+            }
         }
-        OutlinedTextField(name, { name = it.take(200) }, label = { Text("Customer name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(name, { name = it.take(200) }, label = { Text("Customer representative's name") }, singleLine = true,
+            modifier = Modifier.fillMaxWidth())
         OutlinedTextField(phone, { phone = it.take(40) }, label = { Text("Phone (optional)") }, singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone), modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(hours, { hours = it.filter { c -> c.isDigit() || c == '.' || c == ',' } }, label = { Text("Hours acknowledged (optional)") },
+            singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth())
         if (method == AckMethod.SIGNATURE) {
-            Text("Ask the customer to sign below.")
-            SignaturePad(signature)
-            TextButton(onClick = signature::clear) { Text("Clear signature") }
+            Section("Signature", footer = "Ask the customer to sign with a finger.") {
+                SignaturePad(signature)
+                Row { TextButton(onClick = signature::clear) { Text("Clear", color = MaterialTheme.colorScheme.error) } }
+            }
         }
-        message?.let { NoticeCard(if (saved) "Saved" else "Check", it, isError = !saved) }
-        if (saved) {
-            Button(onClick = onDone, modifier = Modifier.fillMaxWidth()) { Text("Back to job") }
-        } else {
-            Button(
-                enabled = !saving,
-                modifier = Modifier.fillMaxWidth(),
-                onClick = {
-                    saving = true
-                    val png = if (method == AckMethod.SIGNATURE) signature.toPng() else null
-                    scope.launch {
-                        when (val r = field.workflow.acknowledge(tenantId, jobId, method, name, phone, png)) {
-                            is WorkflowResult.Done -> { saved = true; message = "Acknowledgement saved on this device." }
-                            is WorkflowResult.Refused -> message = r.message
-                        }
-                        saving = false
+        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        Button(
+            enabled = canSave,
+            modifier = Modifier.fillMaxWidth(),
+            onClick = {
+                saving = true
+                val png = if (method == AckMethod.SIGNATURE) signature.toPng() else null
+                scope.launch {
+                    when (val r = field.workflow.acknowledge(tenantId, jobId, method, name, phone, png, hours)) {
+                        is WorkflowResult.Done -> onDone()
+                        is WorkflowResult.Refused -> error = r.message
                     }
-                },
-            ) { Text("Save acknowledgement") }
-        }
+                    saving = false
+                }
+            },
+        ) { Text("Save") }
     }
 }

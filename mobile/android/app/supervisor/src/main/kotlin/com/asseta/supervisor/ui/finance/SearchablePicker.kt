@@ -42,7 +42,7 @@ fun SearchablePickerField(
     onSelect: (String?) -> Unit,
     modifier: Modifier = Modifier,
     noneLabel: String? = null,
-    emptyText: String = "Nothing synced yet. Connect to download.",
+    emptyText: String = "Nothing has been synced to this phone yet. Pull down on the home screen to sync.",
     enabled: Boolean = true,
 ) {
     var open by rememberSaveable { mutableStateOf(false) }
@@ -50,7 +50,7 @@ fun SearchablePickerField(
     OutlinedCard(modifier.fillMaxWidth().clickable(enabled = enabled) { open = true }) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(label, style = MaterialTheme.typography.labelMedium)
-            Text(selected?.title ?: noneLabel ?: "Tap to search and choose", style = MaterialTheme.typography.bodyLarge)
+            Text(selected?.title ?: noneLabel ?: "Choose…", style = MaterialTheme.typography.bodyLarge)
             selected?.subtitle?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
         }
     }
@@ -75,7 +75,7 @@ fun SearchablePickerField(
                     item { PickerRow(PickerOption("", noneLabel)) { onSelect(null); open = false } }
                 }
                 if (matches.isEmpty()) {
-                    item { Text(if (options.isEmpty()) emptyText else "No match for \"$query\".", Modifier.padding(vertical = 16.dp)) }
+                    item { Text(if (options.isEmpty()) emptyText else "No results for \"$query\".", Modifier.padding(vertical = 16.dp)) }
                 }
                 items(matches, key = { it.id }) { option -> PickerRow(option) { onSelect(option.id); open = false } }
             }
