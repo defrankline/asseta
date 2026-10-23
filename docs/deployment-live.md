@@ -182,6 +182,18 @@ uncheck *Registration*).
 Keycloak e-mails (password reset, verify e-mail) are configured in the admin console (realm `asseta` → Realm
 settings → Email), separately from the app's SMTP variables.
 
+### Keycloak admin console (through an SSH tunnel)
+
+The admin console and the `master` realm are blocked publicly. Run once after the first deploy:
+```bash
+scripts/keycloak-admin-tunnel.sh          # serves the master realm at http://localhost:5021/auth
+```
+then from your computer `ssh -L 5021:127.0.0.1:5021 root@<server>` and open http://localhost:5021/auth/admin/.
+Without it the console shows "Timeout when waiting for 3rd party check iframe message". Sign in with
+`KEYCLOAK_ADMIN_USER` / `KEYCLOAK_ADMIN_PASSWORD` from `.env.production`, create a permanent admin in the master
+realm (Users → Create user → Credentials → Role mapping: `admin`), sign in as it, then delete the temporary
+bootstrap admin.
+
 ## 8. GPS trackers (when the first device is commissioned)
 
 Traccar's OsmAnd port 5055 is bound to `127.0.0.1` by default. To accept devices from the internet:
