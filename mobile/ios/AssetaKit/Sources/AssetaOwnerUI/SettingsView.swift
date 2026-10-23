@@ -57,14 +57,19 @@ struct SettingsView: View {
             } header: {
                 Text("Offline data")
             }
-            Section("Account") {
+            Section {
                 LabeledContent("Company", value: model.tenant.name)
                 LabeledContent("Signed in as", value: model.me.email)
                 if model.me.tenants.filter({ $0.accessState.allowsEntry }).count > 1 {
                     Button("Switch company") { model.leaveTenant() }
                 }
+                ChangePasswordButton(session: model.session, isOnline: model.isOnline)
                 Button("Sign out", role: .destructive) { confirmSignOut = true }
                     .accessibilityIdentifier("settings.signOut")
+            } header: {
+                Text("Account")
+            } footer: {
+                changePasswordFooter(isOnline: model.isOnline)
             }
         }
         .navigationTitle("Settings")

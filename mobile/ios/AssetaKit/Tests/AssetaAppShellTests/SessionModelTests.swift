@@ -80,6 +80,51 @@ struct SessionModelTests {
         #expect(try TokenStore(store: secrets).load() == nil)
     }
 
+    /// Runs "Change password" with a fake browser that answers with `query` (plus the request's state).
+    func changePassword(_ model: SessionModel, answering query: String?) async -> URL? {
+        var opened: URL?
+        await model.changePassword { url, scheme in
+            opened = url
+            #expect(scheme == "com.asseta.owner")
+            guard let query else { throw AuthError.userCancelled }
+            let state = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?.first { $0.name == "state" }?.value ?? ""
+            return URL(string: "com.asseta.owner:/oauth2redirect?state=\(state)&\(query)")!
+        }
+        return opened
+    }
+
+    @Test func passwordChangeOpensKeycloakActionAndConfirmsSuccess() async throws {
+        let model = try makeModel { _ in (200, Fixtures.json(Fixtures.meJSON)) }
+        await model.start()
+        let opened = await changePassword(model, answering: "kc_action_status=success")
+        let items = URLComponents(url: try #require(opened), resolvingAgainstBaseURL: false)?.queryItems ?? []
+        #expect(items.first { $0.name == "kc_action" }?.value == "UPDATE_PASSWORD")
+        #expect(items.first { $0.name == "redirect_uri" }?.value == "com.asseta.owner:/oauth2redirect")
+        #expect(model.passwordChange == .changed)
+        #expect(PasswordChangeText.changed == "Password changed.")
+        model.dismissPasswordChange()
+        #expect(model.passwordChange == .idle)
+        #expect(try TokenStore(store: secrets).load() != nil)
+    }
+
+    @Test func passwordChangeCancelShowsNothingAndErrorExplains() async throws {
+        let model = try makeModel { _ in (200, Fixtures.json(Fixtures.meJSON)) }
+        await model.start()
+        _ = await changePassword(model, answering: "kc_action_status=cancelled")
+        #expect(model.passwordChange == .idle)
+        _ = await changePassword(model, answering: nil) // browser closed
+        #expect(model.passwordChange == .idle)
+        _ = await changePassword(model, answering: "kc_action_status=error")
+        #expect(model.passwordChange == .failed(PasswordChangeText.failed))
+        model.dismissPasswordChange()
+        _ = await changePassword(model, answering: "error=temporarily_unavailable")
+        #expect(model.passwordChange == .failed(PasswordChangeText.failed))
+        // The user stays signed in whatever the outcome.
+        #expect(try TokenStore(store: secrets).load() != nil)
+        guard case .ready = model.phase else { Issue.record("not ready: \(model.phase)"); return }
+    }
+
     @Test func configurationLoadsFromInfoDictionary() throws {
         let config = try AppConfiguration.load(from: [
             "CFBundleIdentifier": "com.asseta.supervisor",

@@ -59,6 +59,27 @@ public actor AuthSession: AccessTokenProvider {
         tokens = fresh
     }
 
+    // MARK: - Change password
+
+    /// The sign-in request plus `kc_action=UPDATE_PASSWORD`: Keycloak shows its own password page
+    /// (re-authenticating if needed), so the app never sees the password.
+    public func beginPasswordChange() async throws -> PendingAuthorization {
+        try PendingAuthorization.make(config: config, metadata: try await providerMetadata(),
+                                      kcAction: KeycloakAction.updatePassword)
+    }
+
+    /// Exchanges a returned code exactly like sign-in (replacing the stored tokens) and reports
+    /// Keycloak's `kc_action_status`. The current session is kept whatever the outcome.
+    public func completePasswordChange(callbackURL: URL, pending: PendingAuthorization) async throws -> PasswordChangeOutcome {
+        let callback = try pending.actionCallback(from: callbackURL, config: config)
+        if let code = callback.code {
+            let fresh = try await tokenClient.exchange(code: code, pending: pending)
+            try tokenStore.save(fresh)
+            tokens = fresh
+        }
+        return PasswordChangeOutcome(status: callback.status)
+    }
+
     // MARK: - AccessTokenProvider
 
     public func validAccessToken() async throws -> String {

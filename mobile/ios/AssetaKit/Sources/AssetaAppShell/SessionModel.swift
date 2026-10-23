@@ -159,6 +159,50 @@ public final class SessionModel {
         errorMessage = nil
     }
 
+    // MARK: - Change password
+
+    /// "Change password" (Keycloak `UPDATE_PASSWORD` action): in progress, or a result waiting
+    /// to be acknowledged.
+    public enum PasswordChangeState: Equatable {
+        case idle
+        case inProgress
+        case changed
+        case failed(String)
+    }
+
+    public private(set) var passwordChange: PasswordChangeState = .idle
+
+    /// Opens Keycloak's own password page. The app never handles the password and the user stays
+    /// signed in whatever the outcome; a cancel shows nothing.
+    public func changePassword(using authenticate: BrowserAuthenticator) async {
+        guard passwordChange != .inProgress else { return }
+        passwordChange = .inProgress
+        do {
+            let pending = try await auth.beginPasswordChange()
+            let callback = try await authenticate(pending.url, auth.callbackScheme)
+            passwordChange = Self.passwordChangeState(
+                try await auth.completePasswordChange(callbackURL: callback, pending: pending))
+        } catch AuthError.userCancelled {
+            passwordChange = .idle
+        } catch {
+            Self.log.error("password change failed: \(String(describing: error), privacy: .public)")
+            passwordChange = .failed(PasswordChangeText.failed)
+        }
+    }
+
+    /// The user acknowledged the "Password changed." / failure message.
+    public func dismissPasswordChange() {
+        passwordChange = .idle
+    }
+
+    static func passwordChangeState(_ outcome: PasswordChangeOutcome) -> PasswordChangeState {
+        switch outcome {
+        case .changed: .changed
+        case .cancelled: .idle
+        case .failed: .failed(PasswordChangeText.failed)
+        }
+    }
+
     private static let log = Logger(subsystem: "com.asseta", category: "session")
 
     static func message(for error: any Error) -> String? {

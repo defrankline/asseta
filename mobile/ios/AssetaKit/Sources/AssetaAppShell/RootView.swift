@@ -40,6 +40,7 @@ public struct RootView: View {
             }
         }
         .tint(Brand.amber)
+        .modifier(PasswordChangeAlerts(session: model))
         .task { await model.start() }
     }
 }
@@ -96,18 +97,8 @@ struct LoginView: View {
         .background(Brand.slate.ignoresSafeArea())
     }
 
-    /// Ephemeral browser session: no shared Safari cookies, so signing out of the app also
-    /// leaves no reusable Keycloak SSO cookie on the device.
     private func authenticate(url: URL, callbackScheme: String) async throws -> URL {
-        do {
-            return try await webAuthenticationSession.authenticate(
-                using: url,
-                callbackURLScheme: callbackScheme,
-                preferredBrowserSession: .ephemeral
-            )
-        } catch let error as ASWebAuthenticationSessionError where error.code == .canceledLogin {
-            throw AuthError.userCancelled
-        }
+        try await webAuthenticationSession.ephemeralAuthenticate(url: url, callbackScheme: callbackScheme)
     }
 }
 

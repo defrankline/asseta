@@ -62,6 +62,53 @@ struct AuthorizationRequestTests {
         }
     }
 
+    @Test func changePasswordRequestAddsKcActionAndKeepsSignInParameters() async throws {
+        let metadata = try await OIDCProviderMetadata.discover(keycloak.config, transport: keycloak.transport)
+        func items(_ pending: PendingAuthorization) throws -> [String: String] {
+            let components = try #require(URLComponents(url: pending.url, resolvingAgainstBaseURL: false))
+            return Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value ?? "") })
+        }
+        let login = try items(PendingAuthorization.make(config: keycloak.config, metadata: metadata))
+        let pending = try PendingAuthorization.make(config: keycloak.config, metadata: metadata,
+                                                    kcAction: KeycloakAction.updatePassword)
+        let change = try items(pending)
+        #expect(change["kc_action"] == "UPDATE_PASSWORD")
+        #expect(login["kc_action"] == nil)
+        #expect(change["client_id"] == "asseta-mobile")
+        #expect(change["redirect_uri"] == "com.asseta.supervisor:/oauth2redirect")
+        #expect(change["response_type"] == "code")
+        #expect(change["code_challenge_method"] == "S256")
+        #expect(change["code_challenge"] == pending.pkce.challenge)
+        #expect(change["state"] == pending.state)
+        #expect(change["scope"] == login["scope"])
+        // Exactly the sign-in parameters plus kc_action.
+        #expect(Set(change.keys) == Set(login.keys).union(["kc_action"]))
+    }
+
+    @Test func passwordChangeCallbackStatus() async throws {
+        let metadata = try await OIDCProviderMetadata.discover(keycloak.config, transport: keycloak.transport)
+        let pending = try PendingAuthorization.make(config: keycloak.config, metadata: metadata,
+                                                    kcAction: KeycloakAction.updatePassword)
+        let base = "\(FakeKeycloak.redirect)?state=\(pending.state)"
+        func status(_ query: String) throws -> PasswordChangeOutcome {
+            PasswordChangeOutcome(status: try pending.actionCallback(from: URL(string: "\(base)&\(query)")!,
+                                                                     config: keycloak.config).status)
+        }
+        #expect(try status("code=abc&kc_action_status=success") == .changed)
+        #expect(try status("code=abc&kc_action_status=cancelled") == .cancelled)
+        #expect(try status("code=abc&kc_action_status=error") == .failed)
+        #expect(try status("code=abc") == .failed)
+        #expect(try pending.actionCallback(from: URL(string: "\(base)&code=abc&kc_action_status=success")!,
+                                           config: keycloak.config).code == "abc")
+        #expect(throws: AuthError.stateMismatch) {
+            try pending.actionCallback(from: URL(string: "\(FakeKeycloak.redirect)?state=forged&kc_action_status=success")!,
+                                       config: keycloak.config)
+        }
+        #expect(throws: AuthError.authorizationDenied(code: "access_denied", description: nil)) {
+            try pending.actionCallback(from: URL(string: "\(base)&error=access_denied")!, config: keycloak.config)
+        }
+    }
+
     @Test func discoveryRejectsIssuerMismatch() async {
         let other = OIDCConfiguration(issuer: URL(string: "https://id.example.test/realms/other")!,
                                       redirectURI: keycloak.config.redirectURI,
@@ -208,6 +255,46 @@ struct AuthSessionTests {
         #expect(keycloak.endSessionCalls.first?["refresh_token"] == "refresh-1")
         #expect(keycloak.endSessionCalls.first?["client_id"] == "asseta-mobile")
         await #expect(throws: APIError.notAuthenticated) { try await session.validAccessToken() }
+    }
+
+    @Test func passwordChangeExchangesCodeAndReplacesTokens() async throws {
+        let session = makeSession()
+        try await signIn(session)
+        let pending = try await session.beginPasswordChange()
+        keycloak.remember(pending)
+        let outcome = try await session.completePasswordChange(
+            callbackURL: URL(string: "\(FakeKeycloak.redirect)?code=good-code&state=\(pending.state)&kc_action_status=success")!,
+            pending: pending)
+        #expect(outcome == .changed)
+        #expect(await session.state == .signedIn)
+        #expect(try await session.validAccessToken() == "access-2")
+        #expect(try TokenStore(store: secrets).load()?.refreshToken == "refresh-2")
+    }
+
+    @Test func cancelledPasswordChangeKeepsSession() async throws {
+        let session = makeSession()
+        try await signIn(session)
+        let pending = try await session.beginPasswordChange()
+        keycloak.remember(pending)
+        let outcome = try await session.completePasswordChange(
+            callbackURL: URL(string: "\(FakeKeycloak.redirect)?code=good-code&state=\(pending.state)&kc_action_status=cancelled")!,
+            pending: pending)
+        #expect(outcome == .cancelled)
+        #expect(await session.state == .signedIn)
+    }
+
+    @Test func failedPasswordChangeCodeExchangeKeepsOldTokens() async throws {
+        let session = makeSession()
+        try await signIn(session)
+        let pending = try await session.beginPasswordChange()
+        keycloak.remember(pending)
+        await #expect(throws: AuthError.self) {
+            try await session.completePasswordChange(
+                callbackURL: URL(string: "\(FakeKeycloak.redirect)?code=bad&state=\(pending.state)&kc_action_status=success")!,
+                pending: pending)
+        }
+        #expect(await session.state == .signedIn)
+        #expect(try await session.validAccessToken() == "access-1")
     }
 
     @Test func signOutOfflineStillClearsLocalTokens() async throws {

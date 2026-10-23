@@ -92,6 +92,7 @@ public struct FieldRootView: View {
         ToolbarItem(placement: .topBarLeading) {
             Menu {
                 if showsSwitchCompany { Button("Switch company") { model.stop(); model.session.clearTenantSelection() } }
+                ChangePasswordButton(session: model.session, isOnline: model.isOnline, showsFooter: true)
                 Button("Sign out", role: .destructive) { confirmSignOut = true }
             } label: { Image(systemName: "person.crop.circle") }
         }
