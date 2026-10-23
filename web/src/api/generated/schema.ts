@@ -2045,6 +2045,67 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenant/cash/custody/me/collections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My Collections
+         * @description The caller's own cash collections (latest first) with their verification status.
+         */
+        get: operations["listMyCashCollections"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/cash/custody/me/handovers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My Handovers
+         * @description The caller's own handovers (latest first): CLAIMED until the office verifies or rejects (decision note).
+         */
+        get: operations["listMyCashHandovers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/cash/custody/me/reconciliation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My Reconciliation
+         * @description The caller's daily reconciliation per currency: opening + floats + collections - approved spending -
+         *     verified handovers = outstanding (claims, pending spending and unverified collections shown separately).
+         */
+        get: operations["getMyCashReconciliation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenant/cash/floats": {
         parameters: {
             query?: never;
@@ -3350,7 +3411,8 @@ export interface paths {
         };
         /**
          * List Captures
-         * @description Meter readings across jobs, latest captured first (`captured_to` exclusive).
+         * @description Meter readings across jobs, latest captured first (`captured_to` exclusive). Field users see only their own
+         *     readings and those on jobs they supervise.
          */
         get: operations["listMeterCaptures"];
         put?: never;
@@ -4930,6 +4992,8 @@ export interface components {
         };
         /** BootstrapDto */
         BootstrapDto: {
+            /** Capabilities */
+            capabilities?: string[];
             /** Cursor */
             cursor: number;
             data: components["schemas"]["SyncData"];
@@ -5475,6 +5539,8 @@ export interface components {
         };
         /** ChangesDto */
         ChangesDto: {
+            /** Capabilities */
+            capabilities?: string[];
             /** Cursor */
             cursor: number;
             data: components["schemas"]["SyncData"];
@@ -8870,7 +8936,7 @@ export interface components {
              * Op Type
              * @enum {string}
              */
-            op_type: "METER_CAPTURE" | "JOB_ACTIVITY" | "JOB_ACKNOWLEDGEMENT" | "JOB_TRANSITION" | "EXPENSE" | "CASH_COLLECTION" | "CASH_HANDOVER" | "FUEL_EVENT";
+            op_type: "METER_CAPTURE" | "JOB_ACTIVITY" | "JOB_ACKNOWLEDGEMENT" | "JOB_TRANSITION" | "EXPENSE" | "CASH_COLLECTION" | "CASH_HANDOVER" | "FUEL_EVENT" | "METER_RESET_REQUEST";
             /** Payload */
             payload: {
                 [key: string]: unknown;
@@ -10628,6 +10694,148 @@ export interface components {
          * @enum {string}
          */
         SubscriptionStatus: "DRAFT" | "PENDING_ACTIVATION" | "ACTIVE" | "PAST_DUE" | "SUSPENDED" | "CANCELLED" | "EXPIRED";
+        /** SyncAcknowledgementDto */
+        SyncAcknowledgementDto: {
+            /** Acknowledged Hours */
+            acknowledged_hours: string | null;
+            /**
+             * Captured At
+             * Format: date-time
+             */
+            captured_at: string;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Job Id
+             * Format: uuid
+             */
+            job_id: string;
+            /** Method */
+            method: string;
+            /**
+             * Received At
+             * Format: date-time
+             */
+            received_at: string;
+            /** Recorded By */
+            recorded_by: string | null;
+            /** Signature Attachment Id */
+            signature_attachment_id: string | null;
+            /** Signer Name */
+            signer_name: string;
+            /** Signer Phone */
+            signer_phone: string | null;
+            /** Sync Revision */
+            sync_revision: number;
+        };
+        /** SyncCashCollectionDto */
+        SyncCashCollectionDto: {
+            /**
+             * Allocations
+             * @default []
+             */
+            allocations: components["schemas"]["HireAllocationDto"][];
+            /** Amount */
+            amount: string;
+            /** Client Id */
+            client_id: string | null;
+            /** Currency */
+            currency: string;
+            /**
+             * Customer Id
+             * Format: uuid
+             */
+            customer_id: string;
+            /** Decision Note */
+            decision_note: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            method: components["schemas"]["HirePaymentMethod"];
+            /** Note */
+            note: string | null;
+            /**
+             * Received At
+             * Format: date-time
+             */
+            received_at: string;
+            /** Received By Staff Id */
+            received_by_staff_id: string | null;
+            /**
+             * Recorded At
+             * Format: date-time
+             */
+            recorded_at: string;
+            /** Recorded By */
+            recorded_by: string | null;
+            /** Reference */
+            reference: string | null;
+            /** Source */
+            source: string;
+            status: components["schemas"]["SettlementStatus"];
+            /** Sync Revision */
+            sync_revision: number;
+            /** Verified At */
+            verified_at: string | null;
+            /** Verified By */
+            verified_by: string | null;
+        };
+        /** SyncCashHandoverDto */
+        SyncCashHandoverDto: {
+            /** Amount */
+            amount: string;
+            /** Client Id */
+            client_id: string | null;
+            /** Currency */
+            currency: string;
+            /** Decision Note */
+            decision_note: string | null;
+            /**
+             * Handed At
+             * Format: date-time
+             */
+            handed_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Note */
+            note: string | null;
+            /**
+             * Recorded At
+             * Format: date-time
+             */
+            recorded_at: string;
+            /** Recorded By */
+            recorded_by: string | null;
+            /** Reference */
+            reference: string | null;
+            /** Source */
+            source: string;
+            /**
+             * Staff Member Id
+             * Format: uuid
+             */
+            staff_member_id: string;
+            status: components["schemas"]["SettlementStatus"];
+            /** Sync Revision */
+            sync_revision: number;
+            /** Verified At */
+            verified_at: string | null;
+            /** Verified By */
+            verified_by: string | null;
+        };
         /** SyncData */
         SyncData: {
             /**
@@ -10661,6 +10869,46 @@ export interface components {
              */
             machines: components["schemas"]["MachineDto"][];
             /**
+             * My Acknowledgements
+             * @default []
+             */
+            my_acknowledgements: components["schemas"]["SyncAcknowledgementDto"][];
+            /**
+             * My Cash Collections
+             * @default []
+             */
+            my_cash_collections: components["schemas"]["SyncCashCollectionDto"][];
+            /**
+             * My Cash Handovers
+             * @default []
+             */
+            my_cash_handovers: components["schemas"]["SyncCashHandoverDto"][];
+            /**
+             * My Expenses
+             * @default []
+             */
+            my_expenses: components["schemas"]["SyncExpenseDto"][];
+            /**
+             * My Fuel Events
+             * @default []
+             */
+            my_fuel_events: components["schemas"]["SyncFuelEventDto"][];
+            /**
+             * My Job Activities
+             * @default []
+             */
+            my_job_activities: components["schemas"]["SyncJobActivityDto"][];
+            /**
+             * My Meter Captures
+             * @default []
+             */
+            my_meter_captures: components["schemas"]["SyncMeterCaptureDto"][];
+            /**
+             * My Meter Resets
+             * @default []
+             */
+            my_meter_resets: components["schemas"]["SyncMeterResetDto"][];
+            /**
              * Sites
              * @default []
              */
@@ -10670,6 +10918,280 @@ export interface components {
              * @default []
              */
             staff: components["schemas"]["StaffDto"][];
+        };
+        /** SyncExpenseDto */
+        SyncExpenseDto: {
+            /** Amount */
+            amount: string;
+            /** Approval Request Id */
+            approval_request_id?: string | null;
+            /**
+             * Category Id
+             * Format: uuid
+             */
+            category_id: string;
+            /** Client Id */
+            client_id: string | null;
+            /** Currency */
+            currency: string;
+            /** Custodian Staff Id */
+            custodian_staff_id: string | null;
+            /** Decided At */
+            decided_at: string | null;
+            /** Decided By */
+            decided_by: string | null;
+            /** Decision Note */
+            decision_note: string | null;
+            /** Description */
+            description: string;
+            /** Gps Accuracy M */
+            gps_accuracy_m: number | null;
+            /** Gps Status */
+            gps_status: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Incurred At
+             * Format: date-time
+             */
+            incurred_at: string;
+            /** Job Id */
+            job_id: string | null;
+            /** Latitude */
+            latitude: number | null;
+            /** Longitude */
+            longitude: number | null;
+            /** Machine Id */
+            machine_id: string | null;
+            paid_from: components["schemas"]["ExpensePaidFrom"];
+            /** Policy Version */
+            policy_version: string;
+            /**
+             * Receipt Attachment Ids
+             * @default []
+             */
+            receipt_attachment_ids: string[];
+            /** Receipt Required */
+            receipt_required: boolean;
+            /** Source */
+            source: string;
+            status: components["schemas"]["ExpenseStatus"];
+            /**
+             * Submitted At
+             * Format: date-time
+             */
+            submitted_at: string;
+            /** Submitted By */
+            submitted_by: string | null;
+            /** Supplier */
+            supplier: string | null;
+            /** Sync Revision */
+            sync_revision: number;
+        };
+        /** SyncFuelEventDto */
+        SyncFuelEventDto: {
+            /** Attributed Cost */
+            attributed_cost: string;
+            /** Client Id */
+            client_id: string | null;
+            /** Currency */
+            currency: string;
+            event_type: components["schemas"]["FuelEventType"];
+            /** Expense Id */
+            expense_id: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Job Id */
+            job_id: string | null;
+            /** Litres */
+            litres: string;
+            /** Machine Id */
+            machine_id: string | null;
+            /** Meter Reading */
+            meter_reading: string | null;
+            /** Note */
+            note: string | null;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Recorded By */
+            recorded_by: string | null;
+            /** Source */
+            source: string;
+            /** Supplier */
+            supplier: string | null;
+            /** Sync Revision */
+            sync_revision: number;
+            /** Unit Price */
+            unit_price: string | null;
+        };
+        /** SyncJobActivityDto */
+        SyncJobActivityDto: {
+            activity_type: components["schemas"]["ActivityType"];
+            /** Billable */
+            billable: boolean;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /**
+             * Duration Minutes
+             * @description ended_at - started_at; null while open
+             */
+            duration_minutes?: number | null;
+            /** Ended At */
+            ended_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Job Id
+             * Format: uuid
+             */
+            job_id: string;
+            /** Note */
+            note: string | null;
+            /**
+             * Received At
+             * Format: date-time
+             */
+            received_at: string;
+            /** Recorded By */
+            recorded_by: string | null;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /** Sync Revision */
+            sync_revision: number;
+        };
+        /**
+         * SyncMeterCaptureDto
+         * @description The caller's reading with the server's findings and their review state. `sync_revision` is the highest
+         *     revision of the capture and its findings, so a reviewer's decision re-delivers the capture.
+         */
+        SyncMeterCaptureDto: {
+            /** Accuracy M */
+            accuracy_m: number | null;
+            /** Capture Mode */
+            capture_mode: string;
+            /**
+             * Captured At
+             * Format: date-time
+             */
+            captured_at: string;
+            /** Findings */
+            findings?: components["schemas"]["ExceptionDto"][];
+            gps_status: components["schemas"]["GpsStatus"];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Job Id
+             * Format: uuid
+             */
+            job_id: string;
+            kind: components["schemas"]["ReadingKind"];
+            /** Latitude */
+            latitude: number | null;
+            /** Location Captured At */
+            location_captured_at: string | null;
+            /** Longitude */
+            longitude: number | null;
+            /**
+             * Machine Id
+             * Format: uuid
+             */
+            machine_id: string;
+            /** Manually Corrected */
+            manually_corrected: boolean;
+            /** Ocr Confidence */
+            ocr_confidence: number | null;
+            /** Ocr Value */
+            ocr_value: string | null;
+            /** Photo Attachment Id */
+            photo_attachment_id: string | null;
+            /** Photo Sha256 */
+            photo_sha256: string | null;
+            /** Policy Version */
+            policy_version: string;
+            /** Reading */
+            reading: string;
+            /**
+             * Received At
+             * Format: date-time
+             */
+            received_at: string;
+            /**
+             * Review Status
+             * @default NONE
+             * @enum {string}
+             */
+            review_status: "NONE" | "PENDING_REVIEW" | "REVIEWED";
+            state: components["schemas"]["CaptureState"];
+            /** Supersedes Id */
+            supersedes_id: string | null;
+            /** Sync Revision */
+            sync_revision: number;
+            /** Tracker Comparison */
+            tracker_comparison: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** SyncMeterResetDto */
+        SyncMeterResetDto: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Decided At */
+            decided_at: string | null;
+            /** Decided By */
+            decided_by: string | null;
+            /**
+             * Effective At
+             * Format: date-time
+             */
+            effective_at: string;
+            /** Evidence Attachment Id */
+            evidence_attachment_id: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Machine Id
+             * Format: uuid
+             */
+            machine_id: string;
+            /** New Reading */
+            new_reading: string;
+            /** Old Reading */
+            old_reading: string;
+            /** Reason */
+            reason: string;
+            /** Requested By */
+            requested_by: string | null;
+            /** Status */
+            status: string;
+            /** Sync Revision */
+            sync_revision: number;
         };
         /**
          * TelemetryAdapterKind
@@ -23146,6 +23668,280 @@ export interface operations {
             };
         };
     };
+    listMyCashCollections: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["SettlementStatus"] | null;
+                page?: number;
+                page_size?: number;
+                q?: string | null;
+                sort?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_CustomerPaymentDto_"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listMyCashHandovers: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["SettlementStatus"] | null;
+                page?: number;
+                page_size?: number;
+                q?: string | null;
+                sort?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_CashHandoverDto_"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getMyCashReconciliation: {
+        parameters: {
+            query?: {
+                /** @description Tenant-local day; defaults to today */
+                date?: string | null;
+                currency?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CashReconciliationDto"][];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     issueCashFloat: {
         parameters: {
             query?: never;
@@ -25525,6 +26321,8 @@ export interface operations {
                 status?: components["schemas"]["ExceptionStatus"] | null;
                 exception_type?: components["schemas"]["ExceptionType"] | null;
                 job_id?: string | null;
+                /** @description Only the caller's own records (or their jobs/machines). Always applied for callers without meter review/approval or job management permission. */
+                mine?: boolean;
                 page?: number;
                 page_size?: number;
                 q?: string | null;
@@ -26346,6 +27144,8 @@ export interface operations {
                 machine_id?: string | null;
                 job_id?: string | null;
                 custodian_staff_id?: string | null;
+                /** @description Only the caller's own records. Always applied for callers without approval or finance oversight permission (field supervisors). */
+                mine?: boolean;
                 page?: number;
                 page_size?: number;
                 q?: string | null;
@@ -27156,6 +27956,8 @@ export interface operations {
             query?: {
                 event_type?: components["schemas"]["FuelEventType"] | null;
                 machine_id?: string | null;
+                /** @description Only the caller's own records. Always applied for callers without approval or finance oversight permission (field supervisors). */
+                mine?: boolean;
                 page?: number;
                 page_size?: number;
                 q?: string | null;
@@ -29963,7 +30765,10 @@ export interface operations {
     };
     listJobCaptures: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Only the caller's own records (or their jobs/machines). Always applied for callers without meter review/approval or job management permission. */
+                mine?: boolean;
+            };
             header?: {
                 "x-tenant-id"?: string | null;
                 authorization?: string | null;
@@ -31959,6 +32764,8 @@ export interface operations {
                 state?: components["schemas"]["CaptureState"] | null;
                 captured_from?: string | null;
                 captured_to?: string | null;
+                /** @description Only the caller's own records (or their jobs/machines). Always applied for callers without meter review/approval or job management permission. */
+                mine?: boolean;
                 page?: number;
                 page_size?: number;
                 q?: string | null;
@@ -32142,6 +32949,8 @@ export interface operations {
             query?: {
                 machine_id?: string | null;
                 status?: string | null;
+                /** @description Only the caller's own records (or their jobs/machines). Always applied for callers without meter review/approval or job management permission. */
+                mine?: boolean;
             };
             header?: {
                 "x-tenant-id"?: string | null;

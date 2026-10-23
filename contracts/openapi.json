@@ -1605,6 +1605,13 @@
       },
       "BootstrapDto": {
         "properties": {
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Capabilities",
+            "type": "array"
+          },
           "cursor": {
             "title": "Cursor",
             "type": "integer"
@@ -3010,6 +3017,13 @@
       },
       "ChangesDto": {
         "properties": {
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Capabilities",
+            "type": "array"
+          },
           "cursor": {
             "title": "Cursor",
             "type": "integer"
@@ -12535,7 +12549,8 @@
               "EXPENSE",
               "CASH_COLLECTION",
               "CASH_HANDOVER",
-              "FUEL_EVENT"
+              "FUEL_EVENT",
+              "METER_RESET_REQUEST"
             ],
             "title": "Op Type",
             "type": "string"
@@ -16972,6 +16987,422 @@
         "title": "SubscriptionStatus",
         "type": "string"
       },
+      "SyncAcknowledgementDto": {
+        "properties": {
+          "acknowledged_hours": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acknowledged Hours"
+          },
+          "captured_at": {
+            "format": "date-time",
+            "title": "Captured At",
+            "type": "string"
+          },
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "job_id": {
+            "format": "uuid",
+            "title": "Job Id",
+            "type": "string"
+          },
+          "method": {
+            "title": "Method",
+            "type": "string"
+          },
+          "received_at": {
+            "format": "date-time",
+            "title": "Received At",
+            "type": "string"
+          },
+          "recorded_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recorded By"
+          },
+          "signature_attachment_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signature Attachment Id"
+          },
+          "signer_name": {
+            "title": "Signer Name",
+            "type": "string"
+          },
+          "signer_phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signer Phone"
+          },
+          "sync_revision": {
+            "title": "Sync Revision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "method",
+          "signer_name",
+          "signer_phone",
+          "signature_attachment_id",
+          "acknowledged_hours",
+          "captured_at",
+          "job_id",
+          "client_id",
+          "recorded_by",
+          "received_at",
+          "sync_revision"
+        ],
+        "title": "SyncAcknowledgementDto",
+        "type": "object"
+      },
+      "SyncCashCollectionDto": {
+        "properties": {
+          "allocations": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/HireAllocationDto"
+            },
+            "title": "Allocations",
+            "type": "array"
+          },
+          "amount": {
+            "title": "Amount",
+            "type": "string"
+          },
+          "client_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "customer_id": {
+            "format": "uuid",
+            "title": "Customer Id",
+            "type": "string"
+          },
+          "decision_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Note"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "method": {
+            "$ref": "#/components/schemas/HirePaymentMethod"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "received_at": {
+            "format": "date-time",
+            "title": "Received At",
+            "type": "string"
+          },
+          "received_by_staff_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Received By Staff Id"
+          },
+          "recorded_at": {
+            "format": "date-time",
+            "title": "Recorded At",
+            "type": "string"
+          },
+          "recorded_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recorded By"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/SettlementStatus"
+          },
+          "sync_revision": {
+            "title": "Sync Revision",
+            "type": "integer"
+          },
+          "verified_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified At"
+          },
+          "verified_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified By"
+          }
+        },
+        "required": [
+          "id",
+          "customer_id",
+          "client_id",
+          "amount",
+          "currency",
+          "method",
+          "reference",
+          "received_at",
+          "received_by_staff_id",
+          "status",
+          "note",
+          "source",
+          "recorded_by",
+          "recorded_at",
+          "verified_by",
+          "verified_at",
+          "decision_note",
+          "sync_revision"
+        ],
+        "title": "SyncCashCollectionDto",
+        "type": "object"
+      },
+      "SyncCashHandoverDto": {
+        "properties": {
+          "amount": {
+            "title": "Amount",
+            "type": "string"
+          },
+          "client_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "decision_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Note"
+          },
+          "handed_at": {
+            "format": "date-time",
+            "title": "Handed At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "recorded_at": {
+            "format": "date-time",
+            "title": "Recorded At",
+            "type": "string"
+          },
+          "recorded_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recorded By"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "staff_member_id": {
+            "format": "uuid",
+            "title": "Staff Member Id",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/SettlementStatus"
+          },
+          "sync_revision": {
+            "title": "Sync Revision",
+            "type": "integer"
+          },
+          "verified_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified At"
+          },
+          "verified_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified By"
+          }
+        },
+        "required": [
+          "id",
+          "client_id",
+          "staff_member_id",
+          "amount",
+          "currency",
+          "handed_at",
+          "reference",
+          "note",
+          "status",
+          "source",
+          "recorded_by",
+          "recorded_at",
+          "verified_by",
+          "verified_at",
+          "decision_note",
+          "sync_revision"
+        ],
+        "title": "SyncCashHandoverDto",
+        "type": "object"
+      },
       "SyncData": {
         "properties": {
           "cash_custody": {
@@ -17022,6 +17453,70 @@
             "title": "Machines",
             "type": "array"
           },
+          "my_acknowledgements": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/SyncAcknowledgementDto"
+            },
+            "title": "My Acknowledgements",
+            "type": "array"
+          },
+          "my_cash_collections": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/SyncCashCollectionDto"
+            },
+            "title": "My Cash Collections",
+            "type": "array"
+          },
+          "my_cash_handovers": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/SyncCashHandoverDto"
+            },
+            "title": "My Cash Handovers",
+            "type": "array"
+          },
+          "my_expenses": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/SyncExpenseDto"
+            },
+            "title": "My Expenses",
+            "type": "array"
+          },
+          "my_fuel_events": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/SyncFuelEventDto"
+            },
+            "title": "My Fuel Events",
+            "type": "array"
+          },
+          "my_job_activities": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/SyncJobActivityDto"
+            },
+            "title": "My Job Activities",
+            "type": "array"
+          },
+          "my_meter_captures": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/SyncMeterCaptureDto"
+            },
+            "title": "My Meter Captures",
+            "type": "array"
+          },
+          "my_meter_resets": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/SyncMeterResetDto"
+            },
+            "title": "My Meter Resets",
+            "type": "array"
+          },
           "sites": {
             "default": [],
             "items": {
@@ -17040,6 +17535,855 @@
           }
         },
         "title": "SyncData",
+        "type": "object"
+      },
+      "SyncExpenseDto": {
+        "properties": {
+          "amount": {
+            "title": "Amount",
+            "type": "string"
+          },
+          "approval_request_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approval Request Id"
+          },
+          "category_id": {
+            "format": "uuid",
+            "title": "Category Id",
+            "type": "string"
+          },
+          "client_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "custodian_staff_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custodian Staff Id"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "decided_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided By"
+          },
+          "decision_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Note"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "gps_accuracy_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gps Accuracy M"
+          },
+          "gps_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gps Status"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "incurred_at": {
+            "format": "date-time",
+            "title": "Incurred At",
+            "type": "string"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "latitude": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latitude"
+          },
+          "longitude": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Longitude"
+          },
+          "machine_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Id"
+          },
+          "paid_from": {
+            "$ref": "#/components/schemas/ExpensePaidFrom"
+          },
+          "policy_version": {
+            "title": "Policy Version",
+            "type": "string"
+          },
+          "receipt_attachment_ids": {
+            "default": [],
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Receipt Attachment Ids",
+            "type": "array"
+          },
+          "receipt_required": {
+            "title": "Receipt Required",
+            "type": "boolean"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ExpenseStatus"
+          },
+          "submitted_at": {
+            "format": "date-time",
+            "title": "Submitted At",
+            "type": "string"
+          },
+          "submitted_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submitted By"
+          },
+          "supplier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supplier"
+          },
+          "sync_revision": {
+            "title": "Sync Revision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "client_id",
+          "category_id",
+          "supplier",
+          "description",
+          "amount",
+          "currency",
+          "incurred_at",
+          "machine_id",
+          "job_id",
+          "paid_from",
+          "custodian_staff_id",
+          "status",
+          "policy_version",
+          "receipt_required",
+          "gps_status",
+          "latitude",
+          "longitude",
+          "gps_accuracy_m",
+          "source",
+          "submitted_by",
+          "submitted_at",
+          "decided_by",
+          "decided_at",
+          "decision_note",
+          "sync_revision"
+        ],
+        "title": "SyncExpenseDto",
+        "type": "object"
+      },
+      "SyncFuelEventDto": {
+        "properties": {
+          "attributed_cost": {
+            "title": "Attributed Cost",
+            "type": "string"
+          },
+          "client_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "event_type": {
+            "$ref": "#/components/schemas/FuelEventType"
+          },
+          "expense_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expense Id"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "litres": {
+            "title": "Litres",
+            "type": "string"
+          },
+          "machine_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Id"
+          },
+          "meter_reading": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meter Reading"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "recorded_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recorded By"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "supplier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supplier"
+          },
+          "sync_revision": {
+            "title": "Sync Revision",
+            "type": "integer"
+          },
+          "unit_price": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Price"
+          }
+        },
+        "required": [
+          "id",
+          "client_id",
+          "event_type",
+          "litres",
+          "unit_price",
+          "attributed_cost",
+          "currency",
+          "machine_id",
+          "job_id",
+          "expense_id",
+          "meter_reading",
+          "supplier",
+          "occurred_at",
+          "note",
+          "source",
+          "recorded_by",
+          "sync_revision"
+        ],
+        "title": "SyncFuelEventDto",
+        "type": "object"
+      },
+      "SyncJobActivityDto": {
+        "properties": {
+          "activity_type": {
+            "$ref": "#/components/schemas/ActivityType"
+          },
+          "billable": {
+            "title": "Billable",
+            "type": "boolean"
+          },
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "duration_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ended_at - started_at; null while open",
+            "title": "Duration Minutes"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "job_id": {
+            "format": "uuid",
+            "title": "Job Id",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "received_at": {
+            "format": "date-time",
+            "title": "Received At",
+            "type": "string"
+          },
+          "recorded_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recorded By"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "sync_revision": {
+            "title": "Sync Revision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "client_id",
+          "activity_type",
+          "started_at",
+          "ended_at",
+          "billable",
+          "note",
+          "job_id",
+          "recorded_by",
+          "received_at",
+          "sync_revision"
+        ],
+        "title": "SyncJobActivityDto",
+        "type": "object"
+      },
+      "SyncMeterCaptureDto": {
+        "description": "The caller's reading with the server's findings and their review state. `sync_revision` is the highest\nrevision of the capture and its findings, so a reviewer's decision re-delivers the capture.",
+        "properties": {
+          "accuracy_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accuracy M"
+          },
+          "capture_mode": {
+            "title": "Capture Mode",
+            "type": "string"
+          },
+          "captured_at": {
+            "format": "date-time",
+            "title": "Captured At",
+            "type": "string"
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/components/schemas/ExceptionDto"
+            },
+            "title": "Findings",
+            "type": "array"
+          },
+          "gps_status": {
+            "$ref": "#/components/schemas/GpsStatus"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "job_id": {
+            "format": "uuid",
+            "title": "Job Id",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ReadingKind"
+          },
+          "latitude": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latitude"
+          },
+          "location_captured_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Captured At"
+          },
+          "longitude": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Longitude"
+          },
+          "machine_id": {
+            "format": "uuid",
+            "title": "Machine Id",
+            "type": "string"
+          },
+          "manually_corrected": {
+            "title": "Manually Corrected",
+            "type": "boolean"
+          },
+          "ocr_confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ocr Confidence"
+          },
+          "ocr_value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ocr Value"
+          },
+          "photo_attachment_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo Attachment Id"
+          },
+          "photo_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo Sha256"
+          },
+          "policy_version": {
+            "title": "Policy Version",
+            "type": "string"
+          },
+          "reading": {
+            "title": "Reading",
+            "type": "string"
+          },
+          "received_at": {
+            "format": "date-time",
+            "title": "Received At",
+            "type": "string"
+          },
+          "review_status": {
+            "default": "NONE",
+            "enum": [
+              "NONE",
+              "PENDING_REVIEW",
+              "REVIEWED"
+            ],
+            "title": "Review Status",
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/CaptureState"
+          },
+          "supersedes_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supersedes Id"
+          },
+          "sync_revision": {
+            "title": "Sync Revision",
+            "type": "integer"
+          },
+          "tracker_comparison": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tracker Comparison"
+          }
+        },
+        "required": [
+          "id",
+          "job_id",
+          "machine_id",
+          "kind",
+          "capture_mode",
+          "reading",
+          "ocr_value",
+          "ocr_confidence",
+          "manually_corrected",
+          "photo_attachment_id",
+          "photo_sha256",
+          "gps_status",
+          "latitude",
+          "longitude",
+          "accuracy_m",
+          "location_captured_at",
+          "captured_at",
+          "received_at",
+          "policy_version",
+          "state",
+          "tracker_comparison",
+          "supersedes_id",
+          "sync_revision"
+        ],
+        "title": "SyncMeterCaptureDto",
+        "type": "object"
+      },
+      "SyncMeterResetDto": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "decided_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided By"
+          },
+          "effective_at": {
+            "format": "date-time",
+            "title": "Effective At",
+            "type": "string"
+          },
+          "evidence_attachment_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Attachment Id"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "machine_id": {
+            "format": "uuid",
+            "title": "Machine Id",
+            "type": "string"
+          },
+          "new_reading": {
+            "title": "New Reading",
+            "type": "string"
+          },
+          "old_reading": {
+            "title": "Old Reading",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "requested_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requested By"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "sync_revision": {
+            "title": "Sync Revision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "machine_id",
+          "old_reading",
+          "new_reading",
+          "effective_at",
+          "reason",
+          "evidence_attachment_id",
+          "status",
+          "requested_by",
+          "decided_at",
+          "decided_by",
+          "created_at",
+          "sync_revision"
+        ],
+        "title": "SyncMeterResetDto",
         "type": "object"
       },
       "TelemetryAdapterKind": {
@@ -38960,6 +40304,570 @@
         ]
       }
     },
+    "/api/v1/tenant/cash/custody/me/collections": {
+      "get": {
+        "description": "The caller's own cash collections (latest first) with their verification status.",
+        "operationId": "listMyCashCollections",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/SettlementStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sort"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_CustomerPaymentDto_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "My Collections",
+        "tags": [
+          "finance"
+        ]
+      }
+    },
+    "/api/v1/tenant/cash/custody/me/handovers": {
+      "get": {
+        "description": "The caller's own handovers (latest first): CLAIMED until the office verifies or rejects (decision note).",
+        "operationId": "listMyCashHandovers",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/SettlementStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sort"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_CashHandoverDto_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "My Handovers",
+        "tags": [
+          "finance"
+        ]
+      }
+    },
+    "/api/v1/tenant/cash/custody/me/reconciliation": {
+      "get": {
+        "description": "The caller's daily reconciliation per currency: opening + floats + collections - approved spending -\nverified handovers = outstanding (claims, pending spending and unverified collections shown separately).",
+        "operationId": "getMyCashReconciliation",
+        "parameters": [
+          {
+            "description": "Tenant-local day; defaults to today",
+            "in": "query",
+            "name": "date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Tenant-local day; defaults to today",
+              "title": "Date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "currency",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z]{3}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Currency"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CashReconciliationDto"
+                  },
+                  "title": "Response Getmycashreconciliation",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "My Reconciliation",
+        "tags": [
+          "finance"
+        ]
+      }
+    },
     "/api/v1/tenant/cash/floats": {
       "post": {
         "operationId": "issueCashFloat",
@@ -43130,6 +45038,18 @@
             }
           },
           {
+            "description": "Only the caller's own records (or their jobs/machines). Always applied for callers without meter review/approval or job management permission.",
+            "in": "query",
+            "name": "mine",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Only the caller's own records (or their jobs/machines). Always applied for callers without meter review/approval or job management permission.",
+              "title": "Mine",
+              "type": "boolean"
+            }
+          },
+          {
             "in": "query",
             "name": "page",
             "required": false,
@@ -44516,6 +46436,18 @@
                 }
               ],
               "title": "Custodian Staff Id"
+            }
+          },
+          {
+            "description": "Only the caller's own records. Always applied for callers without approval or finance oversight permission (field supervisors).",
+            "in": "query",
+            "name": "mine",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Only the caller's own records. Always applied for callers without approval or finance oversight permission (field supervisors).",
+              "title": "Mine",
+              "type": "boolean"
             }
           },
           {
@@ -45950,6 +47882,18 @@
                 }
               ],
               "title": "Machine Id"
+            }
+          },
+          {
+            "description": "Only the caller's own records. Always applied for callers without approval or finance oversight permission (field supervisors).",
+            "in": "query",
+            "name": "mine",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Only the caller's own records. Always applied for callers without approval or finance oversight permission (field supervisors).",
+              "title": "Mine",
+              "type": "boolean"
             }
           },
           {
@@ -50672,6 +52616,18 @@
             }
           },
           {
+            "description": "Only the caller's own records (or their jobs/machines). Always applied for callers without meter review/approval or job management permission.",
+            "in": "query",
+            "name": "mine",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Only the caller's own records (or their jobs/machines). Always applied for callers without meter review/approval or job management permission.",
+              "title": "Mine",
+              "type": "boolean"
+            }
+          },
+          {
             "in": "header",
             "name": "x-tenant-id",
             "required": false,
@@ -53868,7 +55824,7 @@
     },
     "/api/v1/tenant/meter-captures": {
       "get": {
-        "description": "Meter readings across jobs, latest captured first (`captured_to` exclusive).",
+        "description": "Meter readings across jobs, latest captured first (`captured_to` exclusive). Field users see only their own\nreadings and those on jobs they supervise.",
         "operationId": "listMeterCaptures",
         "parameters": [
           {
@@ -53969,6 +55925,18 @@
                 }
               ],
               "title": "Captured To"
+            }
+          },
+          {
+            "description": "Only the caller's own records (or their jobs/machines). Always applied for callers without meter review/approval or job management permission.",
+            "in": "query",
+            "name": "mine",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Only the caller's own records (or their jobs/machines). Always applied for callers without meter review/approval or job management permission.",
+              "title": "Mine",
+              "type": "boolean"
             }
           },
           {
@@ -54317,6 +56285,18 @@
                 }
               ],
               "title": "Status"
+            }
+          },
+          {
+            "description": "Only the caller's own records (or their jobs/machines). Always applied for callers without meter review/approval or job management permission.",
+            "in": "query",
+            "name": "mine",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Only the caller's own records (or their jobs/machines). Always applied for callers without meter review/approval or job management permission.",
+              "title": "Mine",
+              "type": "boolean"
             }
           },
           {

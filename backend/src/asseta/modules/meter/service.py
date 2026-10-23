@@ -5,16 +5,18 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import Select, func, select, text
+from sqlalchemy import Select, false, func, or_, select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from asseta.core.audit import AuditService
 from asseta.core.errors import BusinessRuleViolation, Conflict, NotFound
 from asseta.core.outbox import OutboxWriter
+from asseta.modules.fleet.models import Machine, StaffMember
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.jobs.models import Job, JobStatus
-from asseta.modules.meter.dto import CaptureResultDto, FindingDto, MeterCaptureDto, MeterCaptureIn
+from asseta.modules.jobs.scope import assigned_machine_ids, scoped_job_ids
+from asseta.modules.meter.dto import CaptureResultDto, FindingDto, MeterCaptureDto, MeterCaptureIn, ResetDto, ResetIn
 from asseta.modules.meter.models import (
     CaptureAttachment,
     CaptureState,
@@ -68,6 +70,23 @@ def capture_list_query(
     if captured_to is not None:
         stmt = stmt.where(MeterCapture.captured_at < captured_to)
     return stmt
+
+
+def own_capture_filter(ctx: RequestContext, staff: StaffMember | None) -> Any:
+    """A field user's readings: captured by them, or on a job they supervise."""
+    return or_(MeterCapture.supervisor_user_id == ctx.user_id, MeterCapture.job_id.in_(scoped_job_ids(staff)))
+
+
+def own_exception_filter(ctx: RequestContext, staff: StaffMember | None) -> Any:
+    """Findings on the caller's readings or on jobs they supervise."""
+    own = select(MeterCapture.id).where(own_capture_filter(ctx, staff))
+    return or_(JobException.meter_capture_id.in_(own), JobException.job_id.in_(scoped_job_ids(staff)))
+
+
+def own_reset_filter(ctx: RequestContext, staff: StaffMember | None) -> Any:
+    """Resets the caller requested, or on machines currently assigned to them."""
+    assigned = MeterResetEvent.machine_id.in_(assigned_machine_ids(staff.id)) if staff is not None else false()
+    return or_(MeterResetEvent.requested_by == ctx.user_id, assigned)
 
 
 class MeterService:
@@ -274,6 +293,26 @@ class MeterService:
                 for r in rows
             ],
         )
+
+    def request_reset(self, body: ResetIn) -> ResetDto:
+        """Documented meter replacement/rollover, PENDING until a different user with approval permission decides
+        (online API and the offline METER_RESET_REQUEST operation share this path)."""
+        if self._s.get(Machine, body.machine_id) is None:
+            raise NotFound("Machine not found", code="MACHINE_NOT_FOUND")
+        evidence = body.evidence_attachment_id
+        if evidence is not None and self._s.get(CaptureAttachment, evidence) is None:
+            raise NotFound("Evidence attachment not found", code="ATTACHMENT_NOT_FOUND")
+        row = MeterResetEvent(
+            id=uuid.uuid4(),
+            tenant_id=self._tid,
+            status="PENDING",
+            requested_by=self._ctx.user_id,
+            created_at=self._now,
+            **body.model_dump(),
+        )
+        self._s.add(row)
+        self._s.flush()
+        return ResetDto.model_validate(row)
 
     def _supersede(self, capture_id: uuid.UUID, job: Job) -> None:
         if "tenant.meter.approve" not in self._ctx.permissions:

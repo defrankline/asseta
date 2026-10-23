@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Form, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -22,6 +22,7 @@ from asseta.modules.identity.catalog import PermissionScope as S
 from asseta.modules.identity.dependencies import requires
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.jobs.models import Job
+from asseta.modules.jobs.scope import METER_OVERSIGHT, own_staff, restricted_to_own
 from asseta.modules.meter.dto import (
     AttachmentDto,
     CaptureResultDto,
@@ -42,7 +43,13 @@ from asseta.modules.meter.models import (
     MeterResetEvent,
     ReadingKind,
 )
-from asseta.modules.meter.service import MeterService, capture_list_query
+from asseta.modules.meter.service import (
+    MeterService,
+    capture_list_query,
+    own_capture_filter,
+    own_exception_filter,
+    own_reset_filter,
+)
 
 CAPTURE = requires("tenant.meter.capture", S.TENANT, "Capture hour-meter readings and evidence")
 METER_READ = requires("tenant.meter.read", S.TENANT, "View meter readings, evidence and exceptions")
@@ -58,6 +65,17 @@ PURPOSES = {"METER_PHOTO", "SIGNATURE", "RESET_EVIDENCE", "EXPENSE_RECEIPT"}
 router = APIRouter(prefix="/api/v1/tenant", tags=["meter"], responses=ERROR_RESPONSES)
 DbSession = Annotated[Session, Depends(get_session)]
 Store = Annotated[ObjectStore, Depends(get_object_store)]
+Mine = Annotated[
+    bool,
+    Query(
+        description="Only the caller's own records (or their jobs/machines). Always applied for callers without "
+        "meter review/approval or job management permission."
+    ),
+]
+
+
+def _own(ctx: RequestContext, mine: bool) -> bool:
+    return restricted_to_own(ctx, METER_OVERSIGHT, mine)
 
 
 @router.post("/attachments", response_model=AttachmentDto, status_code=201, operation_id="uploadAttachment")
@@ -122,20 +140,20 @@ def submit(
 
 @router.get("/jobs/{job_id}/meter-captures", response_model=list[MeterCaptureDto], operation_id="listJobCaptures")
 def captures(
-    job_id: uuid.UUID, session: DbSession, _: Annotated[RequestContext, Depends(METER_READ)]
+    job_id: uuid.UUID, session: DbSession, ctx: Annotated[RequestContext, Depends(METER_READ)], mine: Mine = False
 ) -> list[MeterCaptureDto]:
     if session.get(Job, job_id) is None:  # RLS-scoped: another tenant's job is "not found", like every by-id read
         raise NotFound("Job not found")
-    rows = session.execute(
-        select(MeterCapture).where(MeterCapture.job_id == job_id).order_by(MeterCapture.captured_at)
-    ).scalars()
-    return [MeterCaptureDto.model_validate(c) for c in rows]
+    stmt = select(MeterCapture).where(MeterCapture.job_id == job_id).order_by(MeterCapture.captured_at)
+    if _own(ctx, mine):
+        stmt = stmt.where(own_capture_filter(ctx, own_staff(session, ctx)))
+    return [MeterCaptureDto.model_validate(c) for c in session.execute(stmt).scalars()]
 
 
 @router.get("/meter-captures", response_model=Page[MeterCaptureDto], operation_id="listMeterCaptures")
 def list_captures(
     session: DbSession,
-    _: Annotated[RequestContext, Depends(METER_READ)],
+    ctx: Annotated[RequestContext, Depends(METER_READ)],
     paging: Annotated[PageParams, Depends(page_params)],
     job_id: uuid.UUID | None = None,
     machine_id: uuid.UUID | None = None,
@@ -143,9 +161,13 @@ def list_captures(
     state: CaptureState | None = None,
     captured_from: datetime | None = None,
     captured_to: datetime | None = None,
+    mine: Mine = False,
 ) -> Page[MeterCaptureDto]:
-    """Meter readings across jobs, latest captured first (`captured_to` exclusive)."""
+    """Meter readings across jobs, latest captured first (`captured_to` exclusive). Field users see only their own
+    readings and those on jobs they supervise."""
     stmt = capture_list_query(job_id, machine_id, kind, state, captured_from, captured_to)
+    if _own(ctx, mine):
+        stmt = stmt.where(own_capture_filter(ctx, own_staff(session, ctx)))
     rows, total = paginate(session, stmt, paging)
     return Page(
         items=[MeterCaptureDto.model_validate(c) for c in rows],
@@ -156,13 +178,13 @@ def list_captures(
 
 
 @router.post("/meter-resets", response_model=ResetDto, status_code=201, operation_id="requestMeterReset")
-def request_reset(body: ResetIn, session: DbSession, ctx: Annotated[RequestContext, Depends(CAPTURE)]) -> ResetDto:
-    row = MeterResetEvent(
-        id=uuid.uuid4(), tenant_id=ctx.tenant_id, status="PENDING", requested_by=ctx.user_id, **body.model_dump()
-    )
-    session.add(row)
-    session.flush()
-    return ResetDto.model_validate(row)
+def request_reset(
+    body: ResetIn,
+    session: DbSession,
+    ctx: Annotated[RequestContext, Depends(CAPTURE)],
+    now: Annotated[datetime, Depends(get_now)],
+) -> ResetDto:
+    return MeterService(session, ctx, now).request_reset(body)
 
 
 @router.post("/meter-resets/{reset_id}/decision", response_model=ResetDto, operation_id="decideMeterReset")
@@ -198,13 +220,16 @@ def decide_reset(
 @router.get("/exceptions", response_model=Page[ExceptionDto], operation_id="listJobExceptions")
 def exceptions(
     session: DbSession,
-    _: Annotated[RequestContext, Depends(METER_READ)],
+    ctx: Annotated[RequestContext, Depends(METER_READ)],
     paging: Annotated[PageParams, Depends(page_params)],
     status: ExceptionStatus | None = None,
     exception_type: ExceptionType | None = None,
     job_id: uuid.UUID | None = None,
+    mine: Mine = False,
 ) -> Page[ExceptionDto]:
     stmt = select(JobException).order_by(JobException.created_at.desc())
+    if _own(ctx, mine):
+        stmt = stmt.where(own_exception_filter(ctx, own_staff(session, ctx)))
     if status:
         stmt = stmt.where(JobException.status == status)
     if exception_type:
@@ -247,11 +272,14 @@ def review(
 @router.get("/meter-resets", response_model=list[ResetDto], operation_id="listMeterResets")
 def resets(
     session: DbSession,
-    _: Annotated[RequestContext, Depends(METER_READ)],
+    ctx: Annotated[RequestContext, Depends(METER_READ)],
     machine_id: uuid.UUID | None = None,
     status: str | None = None,
+    mine: Mine = False,
 ) -> list[ResetDto]:
     stmt = select(MeterResetEvent).order_by(MeterResetEvent.created_at.desc())
+    if _own(ctx, mine):
+        stmt = stmt.where(own_reset_filter(ctx, own_staff(session, ctx)))
     if machine_id:
         stmt = stmt.where(MeterResetEvent.machine_id == machine_id)
     if status:

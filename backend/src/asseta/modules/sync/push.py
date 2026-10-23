@@ -13,7 +13,7 @@ from collections.abc import Callable
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, model_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -27,7 +27,7 @@ from asseta.modules.identity.principal import RequestContext
 from asseta.modules.jobs.dto import AcknowledgementIn, ActivityIn
 from asseta.modules.jobs.models import Job
 from asseta.modules.jobs.service import JobService
-from asseta.modules.meter.dto import MeterCaptureIn
+from asseta.modules.meter.dto import MeterCaptureIn, ResetIn
 from asseta.modules.meter.service import MeterService
 from asseta.modules.policy.service import PolicyService
 from asseta.modules.sync.dto import OperationIn, OperationResultDto, PushIn, PushResultDto
@@ -52,7 +52,10 @@ REQUIRED_PERMISSION = {
     "FUEL_EVENT": "tenant.expense.write",
     "CASH_COLLECTION": "tenant.collection.record",
     "CASH_HANDOVER": "tenant.collection.record",
+    "METER_RESET_REQUEST": "tenant.meter.capture",
 }
+# Ops whose payload names resumable blob uploads: the op is DEFERRED (not rejected) until they complete.
+UPLOAD_FIELDS = {"EXPENSE": "receipt_upload_ids", "METER_RESET_REQUEST": "evidence_upload_id"}
 
 
 class JobTransitionOp(BaseModel):
@@ -77,6 +80,19 @@ class CashHandoverOp(CashHandoverIn):
 
 class FuelEventOp(FuelEventIn):
     client_id: uuid.UUID
+
+
+class MeterResetOp(ResetIn):
+    """Offline meter reset request: evidence photo by resumable blob upload (purpose RESET_EVIDENCE) or by an
+    attachment id uploaded online. The device-generated operation id is the idempotency key."""
+
+    evidence_upload_id: uuid.UUID | None = None
+
+    @model_validator(mode="after")
+    def _one_evidence(self) -> "MeterResetOp":
+        if self.evidence_upload_id is not None and self.evidence_attachment_id is not None:
+            raise ValueError("give evidence_upload_id or evidence_attachment_id, not both")
+        return self
 
 
 def _hash(payload: dict[str, Any]) -> str:
@@ -224,6 +240,7 @@ class PushService:
             "CASH_HANDOVER": lambda: CashCustodyService(self._s, self._ctx, self._now).record_handover(
                 CashHandoverOp.model_validate(op.payload), "SYNC"
             ),
+            "METER_RESET_REQUEST": lambda: self._meter_reset(MeterResetOp.model_validate(op.payload)),
         }
         try:
             with self._s.begin_nested():
@@ -241,7 +258,10 @@ class PushService:
 
     def _pending_uploads(self, op: OperationIn) -> list[str]:
         """Receipt uploads the op refers to that have not completed yet: defer (device retries), never reject."""
-        raw = op.payload.get("receipt_upload_ids") if op.op_type == "EXPENSE" else None
+        key = UPLOAD_FIELDS.get(op.op_type)
+        raw = op.payload.get(key) if key else None
+        if isinstance(raw, str):
+            raw = [raw]
         if not isinstance(raw, list):
             return []
         pending = []
@@ -265,6 +285,18 @@ class PushService:
             {**body.model_dump(exclude={"receipt_upload_ids"}), "receipt_attachment_ids": attachments}
         )
         return ExpenseService(self._s, self._ctx, self._now).submit(expense, "SYNC")
+
+    def _meter_reset(self, body: MeterResetOp) -> BaseModel:
+        evidence = body.evidence_attachment_id
+        if body.evidence_upload_id is not None:
+            upload = self._s.get(BlobUploadSession, body.evidence_upload_id)
+            if upload is None or upload.attachment_id is None:
+                raise NotFound("Evidence upload not found", code="ATTACHMENT_NOT_FOUND")
+            evidence = upload.attachment_id
+        reset = ResetIn.model_validate(
+            {**body.model_dump(exclude={"evidence_upload_id"}), "evidence_attachment_id": evidence}
+        )
+        return MeterService(self._s, self._ctx, self._now).request_reset(reset)
 
     def _transition(self, body: JobTransitionOp) -> BaseModel:
         if body.action not in ("START", "COMPLETE"):

@@ -11,7 +11,7 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import Select, select
 from sqlalchemy.orm import Session
 
 from asseta.core.audit import AuditService
@@ -331,6 +331,32 @@ class CashCustodyService:
                 )
             )
         return out
+
+    # --- the caller's own custody (field supervisor, COLLECT permission) -------------------------------------
+    def my_collections(self, status: SettlementStatus | None) -> Select[CustomerPayment]:
+        staff = resolve_staff(self._s, self._ctx, None, require_active=False)
+        stmt = (
+            select(CustomerPayment)
+            .where(CustomerPayment.received_by_staff_id == staff.id, CustomerPayment.method == HirePaymentMethod.CASH)
+            .order_by(CustomerPayment.received_at.desc(), CustomerPayment.id)
+        )
+        return stmt.where(CustomerPayment.status == status) if status else stmt
+
+    def my_handovers(self, status: SettlementStatus | None) -> Select[CashHandover]:
+        staff = resolve_staff(self._s, self._ctx, None, require_active=False)
+        stmt = (
+            select(CashHandover)
+            .where(CashHandover.staff_member_id == staff.id)
+            .order_by(CashHandover.handed_at.desc(), CashHandover.id)
+        )
+        return stmt.where(CashHandover.status == status) if status else stmt
+
+    def my_reconciliation(self, day: date | None, currency: str | None) -> list[CashReconciliationDto]:
+        """The caller's reconciliation for one tenant-local day (default today), one entry per currency held."""
+        staff = resolve_staff(self._s, self._ctx, None, require_active=False)
+        day = day or local_date(tenant_settings(self._s, self._tid).timezone, self._now)
+        currencies = [currency] if currency else [b.currency for b in self.balances(staff.id)]
+        return [self.reconciliation(staff.id, cur, day, day) for cur in currencies]
 
     # --- tenant-wide views (overview, cash report) ----------------------------------------------------------
     def custodians(self, staff_id: uuid.UUID | None = None) -> list[StaffMember]:

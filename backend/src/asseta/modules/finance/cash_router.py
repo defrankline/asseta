@@ -27,6 +27,7 @@ from asseta.modules.finance.dto import (
     SettlementDecisionIn,
 )
 from asseta.modules.finance.models import CashHandover, SettlementStatus
+from asseta.modules.finance.payment_service import payment_dto
 from asseta.modules.finance.permissions import CASH_OFFICE, COLLECT, FINANCE_READ, VERIFY
 from asseta.modules.identity.principal import RequestContext
 
@@ -161,3 +162,51 @@ def my_custody(
     session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(COLLECT)]
 ) -> list[CashCustodyBalanceDto]:
     return CashCustodyService(session, ctx, now).balances(None)
+
+
+@router.get("/custody/me/collections", response_model=Page[CustomerPaymentDto], operation_id="listMyCashCollections")
+def my_collections(
+    session: DbSession,
+    now: Now,
+    ctx: Annotated[RequestContext, Depends(COLLECT)],
+    paging: Annotated[PageParams, Depends(page_params)],
+    status: SettlementStatus | None = None,
+) -> Page[CustomerPaymentDto]:
+    """The caller's own cash collections (latest first) with their verification status."""
+    rows, total = paginate(session, CashCustodyService(session, ctx, now).my_collections(status), paging)
+    return Page(
+        items=[payment_dto(session, p) for p in rows], total=total, page=paging.page, page_size=paging.page_size
+    )
+
+
+@router.get("/custody/me/handovers", response_model=Page[CashHandoverDto], operation_id="listMyCashHandovers")
+def my_handovers(
+    session: DbSession,
+    now: Now,
+    ctx: Annotated[RequestContext, Depends(COLLECT)],
+    paging: Annotated[PageParams, Depends(page_params)],
+    status: SettlementStatus | None = None,
+) -> Page[CashHandoverDto]:
+    """The caller's own handovers (latest first): CLAIMED until the office verifies or rejects (decision note)."""
+    rows, total = paginate(session, CashCustodyService(session, ctx, now).my_handovers(status), paging)
+    return Page(
+        items=[CashHandoverDto.model_validate(h) for h in rows],
+        total=total,
+        page=paging.page,
+        page_size=paging.page_size,
+    )
+
+
+@router.get(
+    "/custody/me/reconciliation", response_model=list[CashReconciliationDto], operation_id="getMyCashReconciliation"
+)
+def my_reconciliation(
+    session: DbSession,
+    now: Now,
+    ctx: Annotated[RequestContext, Depends(COLLECT)],
+    day: Annotated[date | None, Query(alias="date", description="Tenant-local day; defaults to today")] = None,
+    currency: Annotated[str | None, Query(pattern=r"^[A-Z]{3}$")] = None,
+) -> list[CashReconciliationDto]:
+    """The caller's daily reconciliation per currency: opening + floats + collections - approved spending -
+    verified handovers = outstanding (claims, pending spending and unverified collections shown separately)."""
+    return CashCustodyService(session, ctx, now).my_reconciliation(day, currency)

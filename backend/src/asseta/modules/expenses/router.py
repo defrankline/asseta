@@ -38,12 +38,19 @@ from asseta.modules.expenses.models import (
     FuelEvent,
     FuelEventType,
 )
-from asseta.modules.expenses.service import ExpenseService, expense_dto, expense_list_query
+from asseta.modules.expenses.service import (
+    ExpenseService,
+    expense_dto,
+    expense_list_query,
+    own_expense_filter,
+    own_fuel_filter,
+)
 from asseta.modules.fleet.photos import PhotoUrlDto, get_object_store
 from asseta.modules.identity.catalog import CATALOG, MenuDef
 from asseta.modules.identity.catalog import PermissionScope as S
 from asseta.modules.identity.dependencies import requires
 from asseta.modules.identity.principal import RequestContext
+from asseta.modules.jobs.scope import EXPENSE_OVERSIGHT, own_staff, restricted_to_own
 from asseta.modules.meter.dto import AttachmentDto
 from asseta.modules.meter.models import CaptureAttachment
 from asseta.modules.meter.router import save_attachment
@@ -80,6 +87,23 @@ DbSession = Annotated[Session, Depends(get_session)]
 Now = Annotated[datetime, Depends(get_now)]
 IdemKey = Annotated[str | None, Header()]
 Store = Annotated[ObjectStore, Depends(get_object_store)]
+Mine = Annotated[
+    bool,
+    Query(
+        description="Only the caller's own records. Always applied for callers without approval or finance "
+        "oversight permission (field supervisors)."
+    ),
+]
+
+
+def _visible_expense(session: Session, ctx: RequestContext, expense_id: uuid.UUID) -> Expense:
+    stmt = select(Expense).where(Expense.id == expense_id)
+    if restricted_to_own(ctx, EXPENSE_OVERSIGHT):
+        stmt = stmt.where(own_expense_filter(ctx, own_staff(session, ctx)))
+    row = session.execute(stmt).scalar_one_or_none()
+    if row is None:  # another supervisor's expense is "not found", like another tenant's
+        raise NotFound("Expense not found")
+    return row
 
 
 @router.post(
@@ -176,14 +200,17 @@ def submit_expense(
 @router.get("/expenses", response_model=Page[ExpenseDto], operation_id="listExpenses")
 def list_expenses(
     session: DbSession,
-    _: Annotated[RequestContext, Depends(EXPENSE_READ)],
+    ctx: Annotated[RequestContext, Depends(EXPENSE_READ)],
     paging: Annotated[PageParams, Depends(page_params)],
     status: ExpenseStatus | None = None,
     machine_id: uuid.UUID | None = None,
     job_id: uuid.UUID | None = None,
     custodian_staff_id: uuid.UUID | None = None,
+    mine: Mine = False,
 ) -> Page[ExpenseDto]:
     stmt = expense_list_query(status, machine_id, job_id, custodian_staff_id)
+    if restricted_to_own(ctx, EXPENSE_OVERSIGHT, mine):
+        stmt = stmt.where(own_expense_filter(ctx, own_staff(session, ctx)))
     rows, total = paginate(session, stmt, paging)
     return Page(
         items=[expense_dto(session, e) for e in rows], total=total, page=paging.page, page_size=paging.page_size
@@ -192,12 +219,9 @@ def list_expenses(
 
 @router.get("/expenses/{expense_id}", response_model=ExpenseDto, operation_id="getExpense")
 def get_expense(
-    expense_id: uuid.UUID, session: DbSession, _: Annotated[RequestContext, Depends(EXPENSE_READ)]
+    expense_id: uuid.UUID, session: DbSession, ctx: Annotated[RequestContext, Depends(EXPENSE_READ)]
 ) -> ExpenseDto:
-    row = session.get(Expense, expense_id)
-    if row is None:
-        raise NotFound("Expense not found")
-    return expense_dto(session, row)
+    return expense_dto(session, _visible_expense(session, ctx, expense_id))
 
 
 @router.post("/fuel-events", response_model=FuelEventDto, status_code=201, operation_id="recordFuelEvent")
@@ -219,12 +243,15 @@ def record_fuel(
 @router.get("/fuel-events", response_model=Page[FuelEventDto], operation_id="listFuelEvents")
 def list_fuel(
     session: DbSession,
-    _: Annotated[RequestContext, Depends(EXPENSE_READ)],
+    ctx: Annotated[RequestContext, Depends(EXPENSE_READ)],
     paging: Annotated[PageParams, Depends(page_params)],
     event_type: FuelEventType | None = None,
     machine_id: uuid.UUID | None = None,
+    mine: Mine = False,
 ) -> Page[FuelEventDto]:
     stmt = select(FuelEvent).order_by(FuelEvent.occurred_at.desc())
+    if restricted_to_own(ctx, EXPENSE_OVERSIGHT, mine):
+        stmt = stmt.where(own_fuel_filter(ctx))
     if event_type:
         stmt = stmt.where(FuelEvent.event_type == event_type)
     if machine_id:
@@ -288,8 +315,9 @@ def receipt_url(
     attachment_id: uuid.UUID,
     session: DbSession,
     store: Store,
-    _: Annotated[RequestContext, Depends(EXPENSE_READ)],
+    ctx: Annotated[RequestContext, Depends(EXPENSE_READ)],
 ) -> PhotoUrlDto:
+    _visible_expense(session, ctx, expense_id)
     linked = session.execute(
         select(ExpenseAttachment.id).where(
             ExpenseAttachment.expense_id == expense_id, ExpenseAttachment.attachment_id == attachment_id

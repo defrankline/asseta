@@ -5,8 +5,9 @@ stamped on every expense so later policy changes never rewrite accepted history.
 import uuid
 from datetime import datetime
 from decimal import Decimal
+from typing import Any
 
-from sqlalchemy import Select, select
+from sqlalchemy import Select, false, or_, select
 from sqlalchemy.orm import Session
 
 from asseta.core.audit import AuditService
@@ -38,7 +39,7 @@ from asseta.modules.expenses.models import (
     FuelEventType,
 )
 from asseta.modules.finance.common import currency_or_default, insert, resolve_custodian, tenant_settings
-from asseta.modules.fleet.models import Machine
+from asseta.modules.fleet.models import Machine, StaffMember
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.jobs.models import Job
 from asseta.modules.meter.models import CaptureAttachment, GpsStatus
@@ -62,6 +63,16 @@ def expense_dto(session: Session, e: Expense) -> ExpenseDto:
         select(ApprovalRequest.id).where(ApprovalRequest.subject_type == SUBJECT, ApprovalRequest.subject_id == e.id)
     ).scalar_one_or_none()
     return dto
+
+
+def own_expense_filter(ctx: RequestContext, staff: StaffMember | None) -> Any:
+    """A field user's expenses: submitted by them, or paid from their cash custody."""
+    custody = Expense.custodian_staff_id == staff.id if staff is not None else false()
+    return or_(Expense.submitted_by == ctx.user_id, custody)
+
+
+def own_fuel_filter(ctx: RequestContext) -> Any:
+    return FuelEvent.recorded_by == ctx.user_id
 
 
 def expense_list_query(

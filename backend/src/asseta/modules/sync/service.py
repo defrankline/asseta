@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Any
 
-from sqlalchemy import or_, select, text
+from sqlalchemy import and_, or_, select, text
 from sqlalchemy.orm import Session
 
 from asseta.core.errors import AppError, ErrorDetail, NotFound, PermissionDenied
@@ -24,6 +24,7 @@ from asseta.modules.geospatial.sites_service import SiteService
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.jobs.dto import ContractDto, CustomerDto, JobDto
 from asseta.modules.jobs.models import Customer, Job, JobStatus, RentalContract
+from asseta.modules.jobs.scope import job_filter, own_staff
 from asseta.modules.policy.schemas import PolicyType
 from asseta.modules.policy.service import PolicyService
 from asseta.modules.sync.dto import (
@@ -34,11 +35,13 @@ from asseta.modules.sync.dto import (
     PolicySnapshotDto,
     SyncData,
 )
+from asseta.modules.sync.inbox import OPEN_JOB_STATES, InboxReader
 from asseta.modules.sync.models import DevicePolicySnapshot, DeviceSession, DeviceStatus
 
 LOOKBACK = 500
 PAGE = 500
-OPEN_JOB_STATES = (JobStatus.APPROVED, JobStatus.IN_PROGRESS)
+CLOSED_JOB_STATES = (JobStatus.COMPLETED, JobStatus.CANCELLED)
+CLOSED_JOB_WINDOW = timedelta(days=14)  # bootstrap ships recently closed jobs so the device shows history
 
 
 class DeviceRevoked(AppError):
@@ -117,47 +120,40 @@ class SyncService:
         self._s.flush()
 
     # --- scope: what a supervisor device receives -----------------------------------------------------
-    def _staff(self) -> StaffMember | None:
-        return self._s.execute(
-            select(StaffMember).where(
-                StaffMember.keycloak_subject == self._ctx.subject, StaffMember.is_active.is_(True)
-            )
-        ).scalar_one_or_none()
-
-    def _job_filter(self) -> Any:
-        staff = self._staff()
-        if staff is None:
-            return Job.id.is_(None)  # no linked staff record: nothing assigned
-        assigned_machines = select(MachineAssignment.machine_id).where(
-            MachineAssignment.staff_member_id == staff.id, MachineAssignment.effective_to.is_(None)
-        )
-        return or_(Job.supervisor_id == staff.id, Job.machine_id.in_(assigned_machines))
-
     def _data(self, min_revision: int | None) -> tuple[SyncData, int, bool]:
         watermark = self._watermark()
-        jobs_stmt = select(Job).where(self._job_filter())
-        if min_revision is None:
-            jobs_stmt = jobs_stmt.where(Job.status.in_(OPEN_JOB_STATES))
+        staff = own_staff(self._s, self._ctx)
+        scope = job_filter(staff)
+        jobs_stmt = select(Job).where(scope)
+        if min_revision is None:  # open jobs plus recently closed ones (history on the device)
+            recent = and_(Job.status.in_(CLOSED_JOB_STATES), Job.updated_at >= self._now - CLOSED_JOB_WINDOW)
+            jobs_stmt = jobs_stmt.where(or_(Job.status.in_(OPEN_JOB_STATES), recent))
         else:
             jobs_stmt = jobs_stmt.where(Job.sync_revision > min_revision)
         jobs = list(self._s.execute(jobs_stmt.order_by(Job.sync_revision).limit(PAGE + 1)).scalars())
-        has_more = len(jobs) > PAGE
+        jobs_more = len(jobs) > PAGE
         jobs = jobs[:PAGE]
-        scope_jobs = list(
-            self._s.execute(select(Job).where(self._job_filter(), Job.status.in_(OPEN_JOB_STATES))).scalars()
-        )
-        machine_ids = {j.machine_id for j in [*jobs, *scope_jobs]}
+        scope_jobs = list(self._s.execute(select(Job).where(scope, Job.status.in_(OPEN_JOB_STATES))).scalars())
+        assignments: list[tuple[uuid.UUID, int]] = []
+        if staff is not None:
+            open_assignments = select(MachineAssignment.machine_id, MachineAssignment.sync_revision).where(
+                MachineAssignment.staff_member_id == staff.id, MachineAssignment.effective_to.is_(None)
+            )
+            assignments = [(m, rev) for m, rev in self._s.execute(open_assignments).all()]
+        # A machine newly assigned to the supervisor ships even when the machine row itself did not change.
+        fresh_assigned = {m for m, rev in assignments if min_revision is None or rev > min_revision}
+        machine_ids = {j.machine_id for j in [*jobs, *scope_jobs]} | {m for m, _ in assignments}
         site_ids = {j.job_site_id for j in [*jobs, *scope_jobs] if j.job_site_id}
         contract_ids = {j.contract_id for j in [*jobs, *scope_jobs]}
 
-        def changed(model: Any, ids: set[uuid.UUID]) -> list[Any]:
+        def changed(model: Any, ids: set[uuid.UUID], force: set[uuid.UUID] | None = None) -> list[Any]:
             """Bootstrap ships only active reference data; deltas also carry deactivations (is_active=false) so
             devices drop them from pickers."""
             if not ids:
                 return []
             stmt = select(model).where(model.id.in_(ids))
             if min_revision is not None:
-                stmt = stmt.where(model.sync_revision > min_revision)
+                stmt = stmt.where(or_(model.sync_revision > min_revision, model.id.in_(force or set())))
             elif hasattr(model, "is_active"):
                 stmt = stmt.where(model.is_active.is_(True))
             return list(self._s.execute(stmt).scalars())
@@ -172,16 +168,16 @@ class SyncService:
             if contract_ids
             else set(),
         )
-        staff = self._staff()
         categories = select(ExpenseCategory).order_by(ExpenseCategory.code)
         if min_revision is None:
             categories = categories.where(ExpenseCategory.is_active.is_(True))
         else:
             categories = categories.where(ExpenseCategory.sync_revision > min_revision)
         sites_svc = SiteService(self._s, self._tid, self._ctx.audit_actor())
+        inbox = InboxReader(self._s, self._ctx, self._now, staff, PAGE).read(min_revision)
         data = SyncData(
             jobs=[JobDto.model_validate(j) for j in jobs],
-            machines=[MachineDto.model_validate(m) for m in changed(Machine, machine_ids)],
+            machines=[MachineDto.model_validate(m) for m in changed(Machine, machine_ids, fresh_assigned)],
             sites=[sites_svc.site_dto(s) for s in changed(JobSite, site_ids)],
             customers=[CustomerDto.model_validate(c) for c in customers],
             contracts=[ContractDto.model_validate(c) for c in contracts],
@@ -190,9 +186,22 @@ class SyncService:
             else [],
             expense_categories=[ExpenseCategoryDto.model_validate(c) for c in self._s.execute(categories).scalars()],
             cash_custody=self._custody(staff),
+            my_meter_captures=inbox.meter_captures.items,
+            my_meter_resets=inbox.meter_resets.items,
+            my_job_activities=inbox.job_activities.items,
+            my_acknowledgements=inbox.acknowledgements.items,
+            my_expenses=inbox.expenses.items,
+            my_fuel_events=inbox.fuel_events.items,
+            my_cash_collections=inbox.cash_collections.items,
+            my_cash_handovers=inbox.cash_handovers.items,
         )
-        cursor = max(j.sync_revision for j in jobs) if has_more else watermark
-        return data, cursor, has_more
+        # Every stream is ordered by revision: a truncated stream holds back the cursor to its last delivered row;
+        # complete streams were delivered up to the watermark (re-delivery above the cursor is a harmless upsert).
+        truncated = [s.last_revision for s in inbox.streams() if s.has_more]
+        if jobs_more:
+            truncated.append(max(j.sync_revision for j in jobs))
+        cursor = min(truncated) if truncated else watermark
+        return data, cursor, bool(truncated)
 
     def _custody(self, staff: StaffMember | None) -> list[CashCustodyBalanceDto]:
         """Server-owned custody balance for a cash-collecting supervisor (always current, not a delta)."""

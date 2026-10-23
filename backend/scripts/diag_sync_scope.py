@@ -18,6 +18,7 @@ from asseta.core.db import DbScope, apply_scope, get_sessionmaker
 from asseta.modules.fleet.models import StaffMember
 from asseta.modules.identity.models import AppUser
 from asseta.modules.identity.principal import RequestContext
+from asseta.modules.jobs.scope import own_staff
 from asseta.modules.sync.service import SyncService
 
 
@@ -50,7 +51,7 @@ def main(email: str) -> int:
                 frozenset({"tenant.sync.read", "tenant.collection.record"}),
             )
             svc = SyncService(s, ctx, datetime.now(UTC))
-            staff = svc._staff()
+            staff = own_staff(s, ctx)
             print(f"tenant {tid}: staff={getattr(staff, 'full_name', None)} ({getattr(staff, 'id', None)})")
             data, cursor, more = svc._data(None)
             print(f"  cursor={cursor} has_more={more}")

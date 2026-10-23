@@ -6,13 +6,16 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from asseta.modules.expenses.dto import ExpenseCategoryDto
-from asseta.modules.finance.dto import CashCustodyBalanceDto
+from asseta.modules.expenses.dto import ExpenseCategoryDto, ExpenseDto, FuelEventDto
+from asseta.modules.finance.dto import CashCustodyBalanceDto, CashHandoverDto, CustomerPaymentDto
 from asseta.modules.fleet.dto import MachineDto, StaffDto
 from asseta.modules.geospatial.dto import JobSiteDto
-from asseta.modules.jobs.dto import ContractDto, CustomerDto, JobDto
+from asseta.modules.jobs.dto import AcknowledgementDto, ActivityDto, ContractDto, CustomerDto, JobDto
+from asseta.modules.meter.dto import ExceptionDto, MeterCaptureDto, ResetDto
 
 PROTOCOL_VERSION = 1
+# Additive, optional features of protocol 1 (old clients ignore unknown fields; new clients check before relying).
+CAPABILITIES = ["SUPERVISOR_INBOX_V1", "OP_METER_RESET_REQUEST"]
 
 
 class DeviceRegisterIn(BaseModel):
@@ -46,6 +49,53 @@ class PolicySnapshotDto(BaseModel):
     valid_until: datetime
 
 
+class SyncMeterCaptureDto(MeterCaptureDto):
+    """The caller's reading with the server's findings and their review state. `sync_revision` is the highest
+    revision of the capture and its findings, so a reviewer's decision re-delivers the capture."""
+
+    sync_revision: int
+    review_status: Literal["NONE", "PENDING_REVIEW", "REVIEWED"] = "NONE"
+    findings: list[ExceptionDto] = Field(default_factory=list)
+
+
+class SyncJobActivityDto(ActivityDto):
+    job_id: uuid.UUID
+    duration_minutes: int | None = Field(default=None, description="ended_at - started_at; null while open")
+    recorded_by: uuid.UUID | None
+    received_at: datetime
+    sync_revision: int
+
+
+class SyncAcknowledgementDto(AcknowledgementDto):
+    job_id: uuid.UUID
+    client_id: uuid.UUID
+    recorded_by: uuid.UUID | None
+    received_at: datetime
+    sync_revision: int
+
+
+class SyncExpenseDto(ExpenseDto):
+    sync_revision: int
+
+
+class SyncFuelEventDto(FuelEventDto):
+    sync_revision: int
+
+
+class SyncCashCollectionDto(CustomerPaymentDto):
+    sync_revision: int
+
+
+class SyncCashHandoverDto(CashHandoverDto):
+    sync_revision: int
+
+
+class SyncMeterResetDto(ResetDto):
+    decided_by: uuid.UUID | None
+    created_at: datetime
+    sync_revision: int
+
+
 class SyncData(BaseModel):
     jobs: list[JobDto] = []
     machines: list[MachineDto] = []
@@ -55,10 +105,21 @@ class SyncData(BaseModel):
     staff: list[StaffDto] = []
     expense_categories: list[ExpenseCategoryDto] = []
     cash_custody: list[CashCustodyBalanceDto] = []  # the signed-in supervisor's current custody (server-owned)
+    # Supervisor inbox (SUPERVISOR_INBOX_V1): the caller's own field records, upsert by (id, sync_revision).
+    # Bootstrap: last 30 days + everything still open; deltas: anything changed since the cursor.
+    my_meter_captures: list[SyncMeterCaptureDto] = []
+    my_meter_resets: list[SyncMeterResetDto] = []
+    my_job_activities: list[SyncJobActivityDto] = []
+    my_acknowledgements: list[SyncAcknowledgementDto] = []
+    my_expenses: list[SyncExpenseDto] = []
+    my_fuel_events: list[SyncFuelEventDto] = []
+    my_cash_collections: list[SyncCashCollectionDto] = []
+    my_cash_handovers: list[SyncCashHandoverDto] = []
 
 
 class BootstrapDto(BaseModel):
     protocol_version: int = PROTOCOL_VERSION
+    capabilities: list[str] = Field(default_factory=lambda: list(CAPABILITIES))
     server_time: datetime
     cursor: int
     device_session: DeviceSessionDto
@@ -68,6 +129,7 @@ class BootstrapDto(BaseModel):
 
 class ChangesDto(BaseModel):
     protocol_version: int = PROTOCOL_VERSION
+    capabilities: list[str] = Field(default_factory=lambda: list(CAPABILITIES))
     server_time: datetime
     cursor: int
     has_more: bool
@@ -84,6 +146,7 @@ OpType = Literal[
     "CASH_COLLECTION",
     "CASH_HANDOVER",
     "FUEL_EVENT",
+    "METER_RESET_REQUEST",
 ]
 
 
