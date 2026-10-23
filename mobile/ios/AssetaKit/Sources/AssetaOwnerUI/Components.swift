@@ -50,8 +50,14 @@ struct StaleBanner: View {
 
     var body: some View {
         if let fetchedAt {
-            Label(OwnerFormat.staleBanner(fetchedAt: fetchedAt, isOnline: isOnline), systemImage: "icloud.slash")
-                .font(.footnote.weight(.semibold))
+            Label {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(OwnerFormat.staleBanner(fetchedAt: fetchedAt, isOnline: isOnline)).font(.footnote.weight(.semibold))
+                    Text("Saved on this device. Actions are disabled until you are back online.").font(.caption)
+                }
+            } icon: {
+                Image(systemName: "icloud.slash")
+            }
                 .foregroundStyle(Brand.slate)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.vertical, 8).padding(.horizontal, 12)
@@ -114,6 +120,61 @@ extension AlertSeverity {
     var label: String { humanized }
 }
 
+/// Empty list or record: title and a short explanation (same wording as Android's `EmptyState`).
+struct EmptyState: View {
+    let title: String
+    var message: String?
+    var systemImage = "tray"
+
+    var body: some View {
+        ContentUnavailableView {
+            Label(title, systemImage: systemImage)
+        } description: {
+            if let message { Text(message) }
+        }
+    }
+}
+
+/// Grey explanatory line (Android `FootNote`).
+struct FootNote: View {
+    let text: String
+
+    init(_ text: String) { self.text = text }
+
+    var body: some View { Text(text).font(.footnote).foregroundStyle(.secondary) }
+}
+
+extension KPITone {
+    var color: Color {
+        switch self {
+        case .good: .green
+        case .warning: .orange
+        case .critical: .red
+        case .muted: .secondary
+        case .normal: .primary
+        }
+    }
+}
+
+/// Notification bell with the unread count, on every tab's first screen (as the Android top bar).
+struct NotificationBell: ViewModifier {
+    let model: OwnerModel
+    let open: () -> Void
+
+    func body(content: Content) -> some View {
+        content.toolbar {
+            if model.features.notifications {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(action: open) {
+                        Image(systemName: model.unreadCount > 0 ? "bell.badge" : "bell")
+                    }
+                    .accessibilityLabel(model.unreadCount > 0 ? "Notifications, \(model.unreadCount) unread" : "Notifications")
+                }
+            }
+        }
+    }
+}
+
 /// Coloured capsule label.
 struct Pill: View {
     let text: String
@@ -132,6 +193,7 @@ struct Pill: View {
 struct KPITile: View {
     let title: String
     let value: String
+    var detail: String?
     var tint: Color = .primary
     var systemImage: String?
 
@@ -143,6 +205,7 @@ struct KPITile: View {
             }
             Text(value).font(.title3.bold()).foregroundStyle(tint == .primary ? Color.primary : tint)
                 .minimumScaleFactor(0.6).lineLimit(1)
+            if let detail { Text(detail).font(.caption2).foregroundStyle(.secondary) }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
@@ -162,24 +225,15 @@ struct BlockedNote: View {
 }
 
 extension JobStatus {
-    var label: String {
-        switch self {
-        case .approved: "Approved"
-        case .inProgress: "In progress"
-        case .completed: "Completed"
-        case .cancelled: "Cancelled"
-        case .draft: "Draft"
-        case .pendingApproval: "Pending approval"
-        }
-    }
+    var label: String { OwnerFormat.humanize(rawValue) }
 
     var color: Color {
         switch self {
-        case .inProgress: .blue
+        case .inProgress: .teal
         case .approved: .green
         case .cancelled: .red
         case .pendingApproval: .orange
-        default: .secondary
+        default: .gray
         }
     }
 }

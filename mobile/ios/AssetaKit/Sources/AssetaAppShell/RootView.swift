@@ -52,13 +52,16 @@ struct LoginView: View {
     var body: some View {
         VStack(spacing: 24) {
             Spacer()
-            AssetaMark()
+            // Same brand mark and wordmark as the Android sign-in screen.
+            BrandMark()
                 .frame(width: 112, height: 112)
             VStack(spacing: 8) {
                 Text("Asseta").font(.largeTitle.bold()).foregroundStyle(Brand.offWhite)
                 Text(flavor.roleName).font(.title3.weight(.semibold)).foregroundStyle(Brand.amber)
                 Text(flavor.tagline).font(.subheadline).foregroundStyle(Brand.offWhite.opacity(0.8))
             }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(flavor.appName)
             Spacer()
             if let message = model.errorMessage {
                 Text(message)

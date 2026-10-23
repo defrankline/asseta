@@ -11,7 +11,7 @@ public struct RoutingMatrix: Equatable, Sendable {
     }
 
     /// Server category order (unknown future categories are appended alphabetically).
-    public static let knownCategories = ["ACTION", "REMINDER", "ANOMALY", "BILLING", "INFO"]
+    public static let knownCategories = ["ACTION", "ANOMALY", "REMINDER", "BILLING", "INFO"] // as on Android
     public static let severities: [AlertSeverity] = [.critical, .warning, .info]
 
     public private(set) var rows: [Cell: NotificationRoutingDTO]
@@ -58,6 +58,11 @@ public struct RoutingMatrix: Equatable, Sendable {
                                                email: row.email)
         }
         .sorted { ($0.category, -$0.severity.rank) < ($1.category, -$1.severity.rank) }
+    }
+
+    /// "Critical (required)" for a locked cell, as on Android.
+    public func severityLabel(_ category: String, _ severity: AlertSeverity) -> String {
+        severity.humanized + (isPushLocked(category, severity) ? " (required)" : "")
     }
 
     /// Human label for a category.

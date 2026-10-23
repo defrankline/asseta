@@ -38,7 +38,7 @@ fun EvidencePhoto(label: String, online: Boolean, fetchUrl: suspend () -> Action
                         busy = false
                     }
                 },
-            ) { Text(if (online) "View $label" else "$label (online only)") }
+            ) { Text(if (online) "View $label" else "${label.replaceFirstChar { it.uppercase() }} (online only)") }
         }
         error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
     }

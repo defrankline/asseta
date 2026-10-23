@@ -9,6 +9,7 @@ import com.asseta.core.domain.owner.DataSource
 import com.asseta.core.ui.session.UiError
 import com.asseta.core.ui.theme.AssetaTheme
 import com.asseta.owner.data.Snapshot
+import com.asseta.owner.ui.OwnerSession
 import com.asseta.owner.ui.approvals.DecisionError
 import com.asseta.owner.ui.approvals.SegregationNotice
 import com.asseta.owner.ui.common.STALE_BANNER_TAG
@@ -68,8 +69,9 @@ class OwnerComposeTest {
             override val providerName = "Test"
             override suspend fun register() = null
         })
-        compose.setContent { AssetaTheme { SettingsScreen(vm, online = false, tenantName = "Acme") } }
-        compose.onNodeWithText("Connect to change these settings.").assertIsDisplayed()
+        val session = OwnerSession(TENANT, "Acme", setOf("tenant.notification.read"), readOnly = false)
+        compose.setContent { AssetaTheme { SettingsScreen(vm, session, online = false) } }
+        compose.onNodeWithText("You're offline. Changes need a connection.").assertIsDisplayed()
         compose.onNodeWithText("Enable push notifications").assertIsNotEnabled()
         compose.onNodeWithText("Save").assertIsNotEnabled()
     }

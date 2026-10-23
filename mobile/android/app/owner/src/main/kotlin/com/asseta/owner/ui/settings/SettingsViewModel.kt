@@ -19,6 +19,8 @@ import kotlinx.coroutines.launch
 interface PushControl {
     val available: Boolean
     val providerName: String
+    /** This installation has a server registration (for the status line). */
+    val registered: Boolean get() = false
     suspend fun register(): PushDeviceDto?
 }
 
@@ -42,6 +44,7 @@ class SettingsViewModel(private val data: OwnerData, private val push: PushContr
 
     val pushAvailable: Boolean get() = push.available
     val pushProvider: String get() = push.providerName
+    val pushRegistered: Boolean get() = push.registered
 
     init { load() }
 
@@ -73,7 +76,7 @@ class SettingsViewModel(private val data: OwnerData, private val push: PushContr
         viewModelScope.launch {
             val body = changes.map { NotificationRoutingChangeIn(it.category, it.severity, it.push, emailByCell[it.category to it.severity] ?: it.email) }
             when (val r = data.updateRouting(body)) {
-                is ActionResult.Done -> { apply(r.value); _ui.update { it.copy(saving = false, message = "Notification settings saved.") } }
+                is ActionResult.Done -> { apply(r.value); _ui.update { it.copy(saving = false, message = SettingsText.SAVED) } }
                 is ActionResult.Refused -> _ui.update { it.copy(saving = false, error = r.error.message) }
             }
         }

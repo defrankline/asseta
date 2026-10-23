@@ -21,9 +21,31 @@ data class OwnerSession(
     val tenantName: String,
     val permissions: Set<String>,
     val readOnly: Boolean,
+    val userEmail: String = "",
+    /** More than one enterable company, so "Switch company" is offered. */
+    val canSwitchTenant: Boolean = false,
 ) {
+    val features: OwnerFeatures get() = OwnerFeatures(permissions)
+
     fun can(action: OwnerAction, online: Boolean, source: DataSource?): MutationCheck =
         MutationGate.check(action, online, source ?: DataSource.CACHE, permissions, readOnly)
+}
+
+/**
+ * What the Owner app shows for a membership, from the `/me` permission hints (same rules as the iOS `OwnerFeatures`).
+ * Only hides UI; the server re-authorizes every call.
+ */
+data class OwnerFeatures(val permissions: Set<String>) {
+    val fleet get() = "tenant.fleet.read" in permissions
+    val manageAlerts get() = "tenant.fleet.alert_manage" in permissions
+    val jobs get() = "tenant.job.read" in permissions
+    val finance get() = "tenant.finance.read" in permissions
+    val overview get() = fleet || jobs || finance
+    val approvals get() = "tenant.approval.read" in permissions
+    val decideApprovals get() = "tenant.approval.expense" in permissions
+    val cases get() = "tenant.case.read" in permissions
+    val meterEvidence get() = "tenant.meter.read" in permissions
+    val notifications get() = "tenant.notification.read" in permissions
 }
 
 /**

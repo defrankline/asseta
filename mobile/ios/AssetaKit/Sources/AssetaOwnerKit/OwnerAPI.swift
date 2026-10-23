@@ -34,6 +34,27 @@ public enum OwnerAPI {
 
     public static func jobSummary(_ id: UUID) -> APIRequest<JobSummaryDTO> { .get("\(tenant)/jobs/\(id.lowercased)") }
 
+    /// The job's meter readings (opening/closing, with evidence photo ids).
+    public static func jobCaptures(_ id: UUID) -> APIRequest<[MeterCaptureDTO]> {
+        .get("\(tenant)/jobs/\(id.lowercased)/meter-captures")
+    }
+
+    /// The customer's sign-off of the job's hours.
+    public static func jobAcknowledgements(_ id: UUID) -> APIRequest<[AcknowledgementDTO]> {
+        .get("\(tenant)/jobs/\(id.lowercased)/acknowledgements")
+    }
+
+    /// The machine register entry (make, model, ownership).
+    public static func machineInfo(_ id: UUID) -> APIRequest<OwnerMachineDTO> { .get("\(tenant)/machines/\(id.lowercased)") }
+
+    /// The expense behind an expense approval (online only, never cached).
+    public static func expense(_ id: UUID) -> APIRequest<ExpenseDTO> { .get("\(tenant)/expenses/\(id.lowercased)") }
+
+    /// Presigned receipt photo URL of an expense, fetched on demand only.
+    public static func receiptURL(expenseID: UUID, attachmentID: UUID) -> APIRequest<PhotoURLDTO> {
+        .get("\(tenant)/expenses/\(expenseID.lowercased)/receipts/\(attachmentID.lowercased)/url")
+    }
+
     public static func alerts(status: AlertStatus? = nil, machineID: UUID? = nil,
                               page: Int = 1, pageSize: Int = 50) -> APIRequest<Page<AlertDTO>> {
         .get("\(tenant)/alerts", query: paging(page, pageSize) + compact([
@@ -96,6 +117,10 @@ public enum OwnerAPI {
 
     public static func markRead(_ ids: [UUID], idempotencyKey: UUID) throws -> APIRequest<MarkReadResultDTO> {
         try .mutation(.post, "\(tenant)/notifications/read", body: MarkReadIn(ids: ids), idempotencyKey: idempotencyKey)
+    }
+
+    public static func markAllRead(idempotencyKey: UUID) throws -> APIRequest<MarkReadResultDTO> {
+        try .mutation(.post, "\(tenant)/notifications/read-all", body: EmptyBody(), idempotencyKey: idempotencyKey)
     }
 
     public static func routing() -> APIRequest<[NotificationRoutingDTO]> { .get("\(tenant)/notification-routing") }

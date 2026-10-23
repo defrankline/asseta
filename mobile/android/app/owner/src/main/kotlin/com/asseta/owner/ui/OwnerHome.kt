@@ -6,7 +6,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -17,6 +19,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -39,6 +42,7 @@ import com.asseta.owner.OwnerGraph
 import com.asseta.owner.R
 import com.asseta.owner.SessionSignal
 import com.asseta.owner.data.ActionResult
+import com.asseta.owner.ui.common.LocalOnline
 
 /**
  * Owner app shell for the selected tenant: bottom tabs, a back stack, live updates while started, deep links from
@@ -48,7 +52,10 @@ import com.asseta.owner.data.ActionResult
 fun OwnerHome(graph: OwnerGraph, session: OwnerSession, modifier: Modifier = Modifier) {
     val tenantId = session.tenantId
     val data = remember(tenantId) { graph.data(tenantId) }
-    var stack by remember(tenantId) { mutableStateOf(listOf<OwnerDestination>(OwnerDestination.Home)) }
+    val features = session.features
+    val tabs = remember(session.permissions) { OwnerNavigation.tabs(features) }
+    var stack by remember(tenantId) { mutableStateOf(listOf(OwnerNavigation.start(features))) }
+    var accessLost by remember(tenantId) { mutableStateOf(false) }
     val open: (OwnerDestination) -> Unit = { stack = OwnerNavigation.navigate(stack, it) }
     val online by graph.network.online.collectAsStateWithLifecycle()
     val unread by graph.liveUpdates.unread.collectAsStateWithLifecycle()
@@ -65,7 +72,8 @@ fun OwnerHome(graph: OwnerGraph, session: OwnerSession, modifier: Modifier = Mod
     LaunchedEffect(Unit) {
         graph.signals.collect {
             when (it) {
-                SessionSignal.TENANT_REVOKED -> actions.refreshProfile()
+                // Explained first (as on iOS); OK re-reads `/me`, which returns to the company list.
+                SessionSignal.TENANT_REVOKED -> accessLost = true
                 SessionSignal.SESSION_ENDED -> actions.sessionExpired()
             }
         }
@@ -93,11 +101,17 @@ fun OwnerHome(graph: OwnerGraph, session: OwnerSession, modifier: Modifier = Mod
         modifier = modifier,
         bottomBar = {
             NavigationBar {
-                OwnerTab.entries.forEach { t ->
+                tabs.forEach { t ->
                     NavigationBarItem(
                         selected = t == tab,
                         onClick = { open(t.root) },
-                        icon = { Icon(painterResource(t.icon()), contentDescription = null) },
+                        icon = {
+                            // The More tab carries the unread count, as on iOS.
+                            val badge = unread?.takeIf { t == OwnerTab.MORE && features.notifications && it > 0 }
+                            BadgedBox(badge = { badge?.let { Badge { Text(if (it > 99) "99+" else "$it") } } }) {
+                                Icon(painterResource(t.icon()), contentDescription = null)
+                            }
+                        },
                         label = { Text(t.label) },
                     )
                 }
@@ -108,18 +122,28 @@ fun OwnerHome(graph: OwnerGraph, session: OwnerSession, modifier: Modifier = Mod
             Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (stack.size > 1) TextButton(onClick = { stack = OwnerNavigation.back(stack) }) { Text("‹ Back") }
                 Text(
-                    OwnerNavigation.title(route),
+                    OwnerNavigation.title(route, session.tenantName),
                     Modifier.weight(1f).padding(horizontal = 12.dp).semantics { heading() },
                     style = MaterialTheme.typography.titleLarge,
                 )
-                IconButton(onClick = { open(OwnerDestination.Notifications()) }) {
-                    BadgedBox(badge = { unread?.takeIf { it > 0 }?.let { Badge { Text(if (it > 99) "99+" else "$it") } } }) {
-                        Icon(painterResource(R.drawable.ic_bell), contentDescription = "Notifications" + (unread?.takeIf { it > 0 }?.let { ", $it unread" } ?: ""))
+                if (features.notifications) {
+                    IconButton(onClick = { open(OwnerDestination.Notifications()) }) {
+                        BadgedBox(badge = { unread?.takeIf { it > 0 }?.let { Badge { Text(if (it > 99) "99+" else "$it") } } }) {
+                            Icon(painterResource(R.drawable.ic_bell), contentDescription = "Notifications" + (unread?.takeIf { it > 0 }?.let { ", $it unread" } ?: ""))
+                        }
                     }
                 }
             }
-            OwnerRoutes(graph, data, session, route, online, unread, open)
+            CompositionLocalProvider(LocalOnline provides online) { OwnerRoutes(graph, data, session, route, online, unread, open) }
         }
+    }
+    if (accessLost) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text("Access changed") },
+            text = { Text("You no longer have access to ${session.tenantName}. Its saved data was removed from this phone.") },
+            confirmButton = { TextButton(onClick = { accessLost = false; actions.refreshProfile() }) { Text("OK") } },
+        )
     }
 }
 

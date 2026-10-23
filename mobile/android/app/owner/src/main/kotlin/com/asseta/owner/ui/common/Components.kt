@@ -15,6 +15,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -35,9 +36,15 @@ import java.time.ZoneId
 /** Test tag of the stale banner (Compose UI tests). */
 const val STALE_BANNER_TAG = "stale_banner"
 
-/** Prominent offline banner for cached data: "Offline — data from <time> (stale)". Announced by TalkBack. */
+/** Device connectivity for the open company's screens (provided by the owner shell). */
+val LocalOnline = staticCompositionLocalOf { false }
+
+/**
+ * Prominent banner for cached data: "Offline — data from <time> (stale)", or "Can't reach Asseta — …" when the device
+ * is online but the server is not. Announced by TalkBack.
+ */
 @Composable
-fun StaleBanner(snapshot: Snapshot<*>?, zone: ZoneId = ZoneId.systemDefault()) {
+fun StaleBanner(snapshot: Snapshot<*>?, zone: ZoneId = ZoneId.systemDefault(), online: Boolean = LocalOnline.current) {
     if (snapshot == null || !snapshot.stale) return
     Surface(
         color = MaterialTheme.colorScheme.errorContainer,
@@ -45,7 +52,7 @@ fun StaleBanner(snapshot: Snapshot<*>?, zone: ZoneId = ZoneId.systemDefault()) {
         modifier = Modifier.fillMaxWidth().testTag(STALE_BANNER_TAG).semantics { liveRegion = LiveRegionMode.Polite },
     ) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
-            Text(OwnerFormat.staleBanner(snapshot.fetchedAtMs, zone), style = MaterialTheme.typography.titleSmall)
+            Text(OwnerFormat.staleBanner(snapshot.fetchedAtMs, zone, online), style = MaterialTheme.typography.titleSmall)
             Text("Saved on this device. Actions are disabled until you are back online.", style = MaterialTheme.typography.bodySmall)
         }
     }
@@ -66,16 +73,44 @@ fun <T> SnapshotScaffold(state: ScreenState<T>, onRetry: () -> Unit, modifier: M
             state.loading -> Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
                 CircularProgressIndicator(Modifier.semantics { contentDescription = "Loading" })
             }
-            else -> Column(
-                Modifier.fillMaxSize().padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                state.error?.let { ErrorLine(it) }
-                Button(onClick = onRetry) { Text("Retry") }
-            }
+            else -> LoadFailure(state.error, onRetry)
         }
     }
+}
+
+/** Nothing (not even cache) can be shown: "Can't load this", the reason and "Try again" (same as iOS). */
+@Composable
+fun LoadFailure(error: UiError?, onRetry: () -> Unit) {
+    Column(
+        Modifier.fillMaxSize().padding(24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text("Can't load this", style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
+        error?.let { ErrorLine(it) }
+        Button(onClick = onRetry) { Text("Try again") }
+    }
+}
+
+/** Empty list: a title and a short explanation (iOS `ContentUnavailableView` wording). */
+@Composable
+fun EmptyState(title: String, message: String? = null) {
+    Column(
+        Modifier.fillMaxWidth().padding(vertical = 24.dp).semantics(mergeDescendants = true) {},
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(title, style = MaterialTheme.typography.titleMedium)
+        message?.let {
+            Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+        }
+    }
+}
+
+/** Grey explanatory text under a section (iOS section footer). */
+@Composable
+fun FootNote(text: String) {
+    Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 @Composable

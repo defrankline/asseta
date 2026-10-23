@@ -56,25 +56,33 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
 
     /** Jobs list; only the unfiltered first page per status filter is cached. */
     suspend fun jobs(status: String?): Load<PageDto<JobDto>> =
-        repo.load(tenantId, "jobs:${status ?: "ALL"}", PageDto.serializer(JobDto.serializer())) { jobs(status = status) }
+        repo.load(tenantId, "jobs:${status ?: "ALL"}", PageDto.serializer(JobDto.serializer())) { jobs(status = status, pageSize = LIST_PAGE) }
 
     suspend fun job(id: String): Load<JobDetail> = repo.load(tenantId, "job:$id", JobDetail.serializer()) {
         JobDetail(jobSummary(id), jobCaptures(id), jobAcknowledgements(id))
     }
 
     suspend fun alerts(status: String?): Load<PageDto<AlertDto>> =
-        repo.load(tenantId, "alerts:${status ?: "ALL"}", PageDto.serializer(AlertDto.serializer())) { alerts(status = status) }
+        repo.load(tenantId, "alerts:${status ?: "ALL"}", PageDto.serializer(AlertDto.serializer())) { alerts(status = status, pageSize = LIST_PAGE) }
+
+    /** The latest 200 alerts of any status; there is no single-alert endpoint, so the detail screen looks here. */
+    suspend fun recentAlerts(): Load<PageDto<AlertDto>> =
+        repo.load(tenantId, "alerts_recent", PageDto.serializer(AlertDto.serializer())) { alerts(status = null, pageSize = DETAIL_PAGE) }
 
     suspend fun approvals(status: String?): Load<PageDto<ApprovalRequestDto>> =
-        repo.load(tenantId, "approvals:${status ?: "ALL"}", PageDto.serializer(ApprovalRequestDto.serializer())) { approvals(status = status) }
+        repo.load(tenantId, "approvals:${status ?: "ALL"}", PageDto.serializer(ApprovalRequestDto.serializer())) { approvals(status = status, pageSize = LIST_PAGE) }
+
+    /** The latest 200 requests of any status (no single-request endpoint). */
+    suspend fun recentApprovals(): Load<PageDto<ApprovalRequestDto>> =
+        repo.load(tenantId, "approvals_recent", PageDto.serializer(ApprovalRequestDto.serializer())) { approvals(status = null, pageSize = DETAIL_PAGE) }
 
     suspend fun cases(status: String?): Load<PageDto<AnomalyCaseDto>> =
-        repo.load(tenantId, "cases:${status ?: "ALL"}", PageDto.serializer(AnomalyCaseDto.serializer())) { cases(status = status) }
+        repo.load(tenantId, "cases:${status ?: "ALL"}", PageDto.serializer(AnomalyCaseDto.serializer())) { cases(status = status, pageSize = LIST_PAGE) }
 
     suspend fun case(id: String): Load<AnomalyCaseDetailDto> = repo.load(tenantId, "case:$id", AnomalyCaseDetailDto.serializer()) { case(id) }
 
     suspend fun notifications(): Load<PageDto<NotificationDto>> =
-        repo.load(tenantId, "notifications", PageDto.serializer(NotificationDto.serializer())) { notifications() }
+        repo.load(tenantId, "notifications", PageDto.serializer(NotificationDto.serializer())) { notifications(pageSize = LIST_PAGE) }
 
     // --- the only owner mutations (online only) ---------------------------------------------------------------
     suspend fun acknowledgeAlert(id: String) = repo.act { alertAction(id, AlertActionIn(AlertActionIn.ACKNOWLEDGE)) }
@@ -99,4 +107,10 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
         repo.act { updateNotificationRouting(com.asseta.core.model.owner.NotificationRoutingIn(changes)) }
     suspend fun pushDevices() = repo.act { pushDevices().items }
     suspend fun deactivatePushDevice(id: String) = repo.act { deactivatePushDevice(id) }
+
+    private companion object {
+        /** List page size (same as iOS). */
+        const val LIST_PAGE = 100
+        const val DETAIL_PAGE = 200
+    }
 }

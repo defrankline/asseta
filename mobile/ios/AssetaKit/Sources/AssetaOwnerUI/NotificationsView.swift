@@ -15,9 +15,11 @@ struct NotificationsView: View {
         List {
             Toggle("Unread only", isOn: $unreadOnly)
             if let page = loader.value {
-                let items = unreadOnly ? page.items.filter(\.isUnread) : page.items
+                Button("Mark all read") { Task { await markAllRead() } }
+                    .disabled(!model.isOnline || loader.isFromCache || !page.items.contains(where: \.isUnread))
+                let items = InboxText.visible(page.items, unreadOnly: unreadOnly)
                 if items.isEmpty {
-                    ContentUnavailableView("No notifications", systemImage: "bell.slash")
+                    EmptyState(title: InboxText.emptyTitle, systemImage: "bell.slash")
                 }
                 ForEach(items) { note in
                     NavigationLink(value: DeepLinkParser.route(for: note) == .notifications
@@ -42,6 +44,17 @@ struct NotificationsView: View {
         await loader.load(model, .notifications, OwnerAPI.notifications(pageSize: 100))
     }
 
+    private func markAllRead() async {
+        guard let repository = model.repository, let request = try? OwnerAPI.markAllRead(idempotencyKey: UUID()) else { return }
+        do {
+            let result = try await repository.send(request)
+            model.noteRead(remaining: result.unread)
+            await reload()
+        } catch {
+            model.handle(error)
+        }
+    }
+
     private func markRead(_ note: NotificationDTO) async {
         await NotificationResolverView.markRead(note, model: model)
     }
@@ -58,7 +71,9 @@ struct NotificationRow: View {
                 HStack {
                     Text(note.title).font(note.isUnread ? .headline : .body)
                     Spacer()
+                    // INFO carries no pill; high priority is called out (as on Android).
                     if note.severity != .info { Pill(text: note.severity.label, color: note.severity.color) }
+                    if note.priority == "HIGH" { Pill(text: "High priority", color: .red) }
                 }
                 Text(note.body).font(.subheadline).foregroundStyle(.secondary).lineLimit(3)
                 Text(note.createdAt.shortStamp).font(.caption).foregroundStyle(.secondary)
@@ -83,7 +98,7 @@ struct NotificationResolverView: View {
                 if route == .notifications || route == .notification(notificationID) {
                     List {
                         Section { NotificationRow(note: note) }
-                        Section { Text("Open the web console for details.").foregroundStyle(.secondary) }
+                        Section { Text(InboxText.noTarget).foregroundStyle(.secondary) }
                     }
                     .navigationTitle("Notification")
                 } else {

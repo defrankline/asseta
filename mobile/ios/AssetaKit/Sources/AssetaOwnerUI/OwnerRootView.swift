@@ -28,18 +28,20 @@ public struct OwnerRootView: View {
                     .tabItem { Label("Overview", systemImage: "gauge.with.dots.needle.33percent") }.tag(OwnerTab.overview)
             }
             if model.features.fleet {
-                stack(.fleet) { FleetView(model: model) }
+                stack(.fleet) { FleetView(model: model).modifier(NotificationBell(model: model) { open(.notifications) }) }
                     .tabItem { Label("Fleet", systemImage: "map") }.tag(OwnerTab.fleet)
             }
             if model.features.jobs {
-                stack(.jobs) { JobsView(model: model) }
+                stack(.jobs) { JobsView(model: model).modifier(NotificationBell(model: model) { open(.notifications) }) }
                     .tabItem { Label("Jobs", systemImage: "list.clipboard") }.tag(OwnerTab.jobs)
             }
             if model.features.fleet {
-                stack(.alerts) { AlertsView(model: model, machineID: nil) }
+                stack(.alerts) {
+                    AlertsView(model: model, machineID: nil).modifier(NotificationBell(model: model) { open(.notifications) })
+                }
                     .tabItem { Label("Alerts", systemImage: "exclamationmark.triangle") }.tag(OwnerTab.alerts)
             }
-            stack(.more) { MoreView(model: model) }
+            stack(.more) { MoreView(model: model).modifier(NotificationBell(model: model) { open(.notifications) }) }
                 .tabItem { Label("More", systemImage: "ellipsis.circle") }.tag(OwnerTab.more)
                 .badge(model.unreadCount)
         }
@@ -94,6 +96,10 @@ public struct OwnerRootView: View {
         var path = NavigationPath()
         let target: OwnerTab
         switch route {
+        case .fleet where model.features.fleet: target = .fleet
+        case .jobs where model.features.jobs: target = .jobs
+        case .investigations:
+            target = .more; path.append(MoreItem.investigations)
         case .machine where model.features.fleet: target = .fleet; path.append(route)
         case .alert where model.features.fleet: target = .alerts; path.append(route)
         case .alerts where model.features.fleet: target = .alerts
@@ -130,6 +136,9 @@ struct RouteView: View {
         case let .job(id): JobDetailView(model: model, jobID: id)
         case let .notification(id): NotificationResolverView(model: model, notificationID: id)
         case .notifications: NotificationsView(model: model)
+        case .fleet: FleetView(model: model)
+        case .jobs: JobsView(model: model)
+        case .investigations: CasesView(model: model)
         }
     }
 }

@@ -11,12 +11,16 @@ import UserNotifications
 /// Push is behind a capability check: unless the build sets `AssetaPushEnabled` (and carries the
 /// `aps-environment` entitlement from a provisioning profile), the app never asks for notification
 /// permission or registers with APNs; in-app notifications and the realtime feed still work.
+///
+/// As on Android, the permission prompt only appears when the user taps "Enable push notifications" in
+/// Settings; opening a company merely re-binds an existing registration.
 @MainActor
 @Observable
 public final class PushCenter {
     public static let shared = PushCenter()
 
     public let isEnabled = PushRegistration.isEnabled(info: Bundle.main.infoDictionary ?? [:])
+    let providerName = "Apple Push Notification service"
     private(set) var deviceToken: Data?
     private(set) var statusText: String
     private(set) var registeredDeviceID: UUID?
@@ -27,23 +31,33 @@ public final class PushCenter {
     private var lastRegistered: (Data, UUID)?
 
     private init() {
-        statusText = isEnabled ? "Not registered yet" : "Push is not enabled in this build"
+        statusText = isEnabled ? "Not registered yet" : "Not available in this build"
     }
 
-    /// The open tenant's model; registers this device for it once a token exists.
+    /// The open tenant's model. If the user already allowed notifications, this device is (re-)registered for
+    /// it; it never prompts (that is `enable()`, from Settings).
     func attach(_ model: OwnerModel) {
         self.model = model
         guard isEnabled else { return }
         Task {
-            let center = UNUserNotificationCenter.current()
-            let granted = (try? await center.requestAuthorization(options: [.alert, .badge, .sound])) ?? false
-            guard granted else {
-                statusText = "Notifications are turned off for Asseta Owner in iOS Settings"
-                return
-            }
+            let settings = await UNUserNotificationCenter.current().notificationSettings()
+            guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else { return }
             UIApplication.shared.registerForRemoteNotifications()
             await registerIfNeeded()
         }
+    }
+
+    /// "Enable push notifications" in Settings: asks for permission, then registers this device.
+    func enable() async {
+        guard isEnabled else { return }
+        let center = UNUserNotificationCenter.current()
+        let granted = (try? await center.requestAuthorization(options: [.alert, .badge, .sound])) ?? false
+        guard granted else {
+            statusText = "Notifications are turned off for Asseta Owner in iOS Settings"
+            return
+        }
+        UIApplication.shared.registerForRemoteNotifications()
+        await registerIfNeeded()
     }
 
     func didRegister(token: Data) {

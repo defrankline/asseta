@@ -13,18 +13,12 @@ struct CasesView: View {
 
     var body: some View {
         List {
-            Picker("Status", selection: $status) {
-                Text("All").tag(CaseStatus?.none)
-                Text("Open").tag(CaseStatus?.some(.open))
-                Text("In review").tag(CaseStatus?.some(.inReview))
-                Text("Resolved").tag(CaseStatus?.some(.resolved))
-            }
-            .pickerStyle(.segmented)
-            .listRowBackground(Color.clear)
+            FilterChips(options: CaseText.filters, selection: $status)
+                .listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
             if let page = loader.value {
+                FootNote(CaseText.intro)
                 if page.items.isEmpty {
-                    ContentUnavailableView("No investigations", systemImage: "doc.text.magnifyingglass",
-                                           description: Text("Nothing needs review."))
+                    EmptyState(title: CaseText.emptyTitle, message: CaseText.emptyMessage, systemImage: "doc.text.magnifyingglass")
                 }
                 ForEach(page.items) { item in
                     NavigationLink(value: OwnerRoute.investigation(item.id)) { CaseRow(item: item) }
@@ -58,7 +52,10 @@ struct CaseRow: View {
                 Text(item.status.humanized).font(.caption).foregroundStyle(.secondary)
             }
             Text(item.title).font(.subheadline)
-            Text("Last signal \(item.lastSignalAt.shortStamp)").font(.caption).foregroundStyle(.secondary)
+            Text(CaseText.summary(item)).font(.caption).foregroundStyle(.secondary)
+            if let outcome = item.latestOutcome {
+                Text("Outcome: \(OwnerFormat.humanize(outcome))").font(.caption).foregroundStyle(.secondary)
+            }
         }
         .accessibilityElement(children: .combine)
     }
@@ -74,9 +71,10 @@ struct CaseDetailView: View {
             if let detail = loader.value {
                 let item = detail.case
                 Section {
+                    LabeledContent("Case", value: item.caseNumber)
                     LabeledContent("Status", value: item.status.humanized)
                     LabeledContent("Severity") { Pill(text: item.severity.label, color: item.severity.color) }
-                    LabeledContent("Subject", value: item.subjectType.capitalized)
+                    LabeledContent("Subject", value: OwnerFormat.humanize(item.subjectType))
                     LabeledContent("Opened", value: item.openedAt.shortStamp)
                     LabeledContent("Assigned to", value: item.assigneeName ?? "Unassigned")
                     if let machine = item.machineID, model.features.fleet {
@@ -88,27 +86,33 @@ struct CaseDetailView: View {
                 } header: {
                     Text(item.title)
                 } footer: {
-                    Text("Signals are indicators that need review; they are not conclusions. Review and outcomes are recorded in the web console.")
+                    Text(CaseText.detailFooter)
                 }
                 Section("Signals (\(detail.signals.count))") {
                     ForEach(detail.signals) { signal in
                         VStack(alignment: .leading, spacing: 2) {
                             HStack {
-                                Text(signal.code.split(separator: "_").joined(separator: " ").lowercased().capitalizedFirst)
+                                Text(OwnerFormat.humanize(signal.code))
                                     .font(.subheadline.bold())
                                 Spacer()
                                 Pill(text: signal.severity.label, color: signal.severity.color)
                             }
                             Text("Observed \(signal.observedAt.shortStamp)").font(.caption).foregroundStyle(.secondary)
+                            if case let .object(fields) = signal.evidence {
+                                ForEach(fields.keys.sorted(), id: \.self) { key in
+                                    Text("\(OwnerFormat.humanize(key)): \(AlertText.evidence(fields[key] ?? .null))")
+                                        .font(.caption).foregroundStyle(.secondary)
+                                }
+                            }
                         }
                         .accessibilityElement(children: .combine)
                     }
                 }
                 if !detail.outcomes.isEmpty {
                     Section("Outcomes") {
-                        ForEach(detail.outcomes) { outcome in
+                        ForEach(detail.outcomes.sorted { $0.sequence < $1.sequence }) { outcome in
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(outcome.outcome.split(separator: "_").joined(separator: " ").lowercased().capitalizedFirst)
+                                Text(OwnerFormat.humanize(outcome.outcome))
                                     .font(.subheadline.bold())
                                 Text(outcome.explanation).font(.subheadline)
                                 Text("\(outcome.decidedByName ?? "Reviewer") · \(outcome.decidedAt.shortStamp)")
@@ -135,7 +139,7 @@ struct CaseDetailView: View {
             }
         }
         .staleBanner(loader, model: model)
-        .navigationTitle(loader.value?.case.caseNumber ?? "Investigation")
+        .navigationTitle("Investigation")
         .refreshable { await reload() }
         .task(id: model.changeTick) { await reload() }
     }
