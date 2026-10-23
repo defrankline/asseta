@@ -11,3 +11,6 @@ backend/.venv/
 
 # Hardening drill state: throwaway tenant credentials (scripts/drills, never commit)
 .drills/
+
+# Claude Code agent worktrees (local only)
+.claude/worktrees/
