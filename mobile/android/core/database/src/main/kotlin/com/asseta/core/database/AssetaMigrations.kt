@@ -3,6 +3,7 @@ package com.asseta.core.database
 import androidx.room.migration.AutoMigrationSpec
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.asseta.core.model.SyncAccount
 
 /**
  * Every schema change bumps [AssetaDatabase.VERSION], commits the exported schema JSON under
@@ -10,7 +11,27 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * Destructive fallback is never enabled: the outbox may hold unsynced field evidence.
  */
 object AssetaMigrations {
-    val ALL: Array<Migration> = emptyArray()
+    /** Explicit migrations; [legacyOwner] is the user signed in when the app started (see [V5ToV6]). */
+    fun all(legacyOwner: SyncAccount?): Array<Migration> = arrayOf(V5ToV6(legacyOwner))
+
+    /**
+     * v5 -> v6 (per-user field data): `owner_sub` on `sync_state`, `client_operation` (plus `owner_label`),
+     * `attachment` and `work_log_entry`. Rows written before the update belong to [legacyOwner] -- the user signed in
+     * when the app first starts after the update -- or, when nobody was signed in, to [SyncAccount.UNKNOWN_SUBJECT]
+     * ("a previous account"): their work is held until that user signs in, never sent under someone else's token, and
+     * a different user's sign-in resets the tenant's cursor and cached server data so a fresh bootstrap runs.
+     */
+    class V5ToV6(private val legacyOwner: SyncAccount?) : Migration(5, 6) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            val owner = legacyOwner?.subject ?: SyncAccount.UNKNOWN_SUBJECT
+            listOf("sync_state", "client_operation", "attachment", "work_log_entry").forEach { table ->
+                db.execSQL("ALTER TABLE `$table` ADD COLUMN `owner_sub` TEXT")
+                db.execSQL("UPDATE `$table` SET `owner_sub` = ?", arrayOf<Any?>(owner))
+            }
+            db.execSQL("ALTER TABLE `client_operation` ADD COLUMN `owner_label` TEXT")
+            db.execSQL("UPDATE `client_operation` SET `owner_label` = ?", arrayOf<Any?>(legacyOwner?.label))
+        }
+    }
 
     /**
      * v1 -> v2 (Gate 4): outbox columns (job, error code, server result, attachment gate, last attempt), multi-parent

@@ -93,7 +93,7 @@ class FinanceSyncTest : SyncTestBase() {
         assertTrue(financeRepository.observeCategories(tenant).first().isEmpty())
         assertTrue(finance.expense(expense()) is FinanceResult.Blocked)
         assertTrue(finance.cashCollection(collection()) is FinanceResult.Blocked)
-        assertTrue(db.clientOperationDao().observeUnsynced(tenant).first().isEmpty())
+        assertTrue(db.clientOperationDao().observeUnsynced(tenant, USER_A.subject).first().isEmpty())
     }
 
     @Test
@@ -121,7 +121,7 @@ class FinanceSyncTest : SyncTestBase() {
         assertEquals("[\"${session.attachmentId}\"]", entity["receipt_attachment_ids"].toString())
         assertEquals("250", entity["amount"]!!.jsonPrimitive.content) // decimal string, never a float
         assertEquals(1, fake.applied.count { it == saved.operationId })
-        assertEquals(1, db.clientOperationDao().observeByOpTypes(tenant, listOf("EXPENSE")).first().size)
+        assertEquals(1, db.clientOperationDao().observeByOpTypes(tenant, USER_A.subject, listOf("EXPENSE")).first().size)
     }
 
     private fun receipt(n: Int) = ByteArray(10) { (it * 7 + n).toByte() } // distinct content: no server dedupe
@@ -158,7 +158,7 @@ class FinanceSyncTest : SyncTestBase() {
         success(engine().sync(tenant))
         val tooMany = finance.expense(expense(receipts = (1..11).map(::receipt))) as FinanceResult.Invalid
         assertEquals(listOf("At most 10 receipt photos per expense."), tooMany.messages)
-        assertTrue(db.clientOperationDao().observeUnsynced(tenant).first().isEmpty())
+        assertTrue(db.clientOperationDao().observeUnsynced(tenant, USER_A.subject).first().isEmpty())
         assertTrue(db.evidenceDao().pendingAttachments(tenant, 20).isEmpty())
 
         val ten = saved(finance.expense(expense(receipts = (1..10).map(::receipt))))
@@ -298,7 +298,7 @@ class FinanceSyncTest : SyncTestBase() {
         assertTrue((finance.expense(expense(gps = fix(80.0))) as FinanceResult.Invalid).messages.single().contains("±80 m"))
         assertTrue(finance.expense(expense(gps = null)) is FinanceResult.Invalid)
         assertTrue(finance.expense(expense(amount = "1,250.50")) is FinanceResult.Invalid)
-        assertTrue(db.clientOperationDao().observeUnsynced(tenant).first().isEmpty())
+        assertTrue(db.clientOperationDao().observeUnsynced(tenant, USER_A.subject).first().isEmpty())
 
         val small = saved(finance.expense(expense(amount = "80", receipts = emptyList(), jobId = fake.jobId, machineId = null)))
         assertTrue(db.clientOperationDao().attachmentsOf(small.operationId).isEmpty()) // no receipt: nothing to wait for

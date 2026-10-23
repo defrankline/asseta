@@ -49,11 +49,14 @@ class BlobUploader(
     private val nowMs: () -> Long = System::currentTimeMillis,
     private val retryRefusedAfterMs: Long = 30 * 60_000,
 ) {
-    /** Uploads the attachments that are due; returns how many completed. Transport/5xx errors propagate (retry later). */
-    suspend fun uploadPending(tenantId: String, limit: Int = 20): Int {
+    /**
+     * Uploads [ownerSub]'s attachments that are due (never another user's evidence under this token); returns how many
+     * completed. Transport/5xx errors propagate (retry later).
+     */
+    suspend fun uploadPending(tenantId: String, ownerSub: String, limit: Int = 20): Int {
         val evidence = db().evidenceDao()
         var done = 0
-        for (attachment in evidence.uploadableAttachments(tenantId, nowMs(), limit)) {
+        for (attachment in evidence.uploadableAttachments(tenantId, ownerSub, nowMs(), limit)) {
             try {
                 if (upload(tenantId, attachment)) done++
             } catch (e: ApiException) {

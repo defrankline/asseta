@@ -30,6 +30,8 @@ data class AttachmentEntity(
     @ColumnInfo(name = "created_at") val createdAt: Long,
     /** A PENDING upload is not tried again before this time (set after the server refused it). */
     @ColumnInfo(name = "next_attempt_at") val nextAttemptAt: Long? = null,
+    /** v6: the user who captured this file; it is uploaded only under that user's token. */
+    @ColumnInfo(name = "owner_sub") val ownerSub: String? = null,
 ) {
     companion object {
         const val PENDING = "PENDING"
@@ -75,4 +77,6 @@ data class WorkLogEntryEntity(
     @ColumnInfo(name = "ended_at") val endedAt: Long?,
     @ColumnInfo(name = "note") val note: String?,
     @ColumnInfo(name = "operation_id") val operationId: String?,
+    /** v6: the user who logged this entry (a running entry is only shown to, and stopped by, that user). */
+    @ColumnInfo(name = "owner_sub") val ownerSub: String? = null,
 )

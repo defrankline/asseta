@@ -6,6 +6,7 @@ import com.asseta.core.sync.SystemSyncClock
 import com.asseta.core.sync.data.FieldOutbox
 import com.asseta.core.sync.data.FieldRepository
 import com.asseta.core.sync.data.FinanceRepository
+import com.asseta.core.sync.engine.AccountSwitch
 import com.asseta.core.sync.engine.DeviceWipe
 import com.asseta.core.sync.engine.SyncEngine
 import com.asseta.core.sync.evidence.EncryptedEvidenceStore
@@ -37,6 +38,12 @@ class FieldGraph(context: Context, val container: AssetaAppContainer) {
 
     val scheduler = SyncScheduler(appContext)
 
+    /** The signed-in user: owner of the field data this phone records and syncs (null when signed out). */
+    private val account = { container.authManager.account() }
+
+    /** Resets field data another user synced on this phone when a different user signs in (see [AccountSwitch]). */
+    val accounts = AccountSwitch(db)
+
     private val syncApi by lazy {
         val client = NetworkFactory.okHttpClient(container.authManager, container.tenantStore, device = { deviceId })
         NetworkFactory.defaultSyncApi(client)
@@ -56,11 +63,11 @@ class FieldGraph(context: Context, val container: AssetaAppContainer) {
     )
 
     val engine: SyncEngine by lazy {
-        SyncEngine(syncApi, db, evidence, { deviceId }, BuildConfig.VERSION_NAME, wiper, clock, json)
+        SyncEngine(syncApi, db, evidence, { deviceId }, BuildConfig.VERSION_NAME, wiper, clock, json, account)
     }
 
-    val repository = FieldRepository(db, json, clock)
-    private val outbox = FieldOutbox(db, json, clock)
+    val repository = FieldRepository(db, json, clock, account)
+    private val outbox = FieldOutbox(db, json, clock, account)
 
     val captureReading = CaptureMeterReading(db, repository, outbox, evidence, { deviceId }, json) { scheduler.syncNow() }
     val workflow = JobWorkflow(db, repository, outbox, evidence, { deviceId }, clock, json) { scheduler.syncNow() }

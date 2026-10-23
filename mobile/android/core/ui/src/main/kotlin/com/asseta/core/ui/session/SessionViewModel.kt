@@ -71,6 +71,7 @@ class SessionViewModel(
                 .onSuccess { me ->
                     val selected = SessionRules.resolveSelection(me, tenants.tenantId())
                     if (selected == null) tenants.clear() else tenants.select(selected)
+                    withTimeoutOrNull(BEFORE_HOME_TIMEOUT_MS) { runCatching { hooks.beforeHome(me) } }
                     hooks.onProfile(me)
                     _state.value = SessionState.Ready(me, selected)
                 }
@@ -153,6 +154,7 @@ class SessionViewModel(
 
     private companion object {
         const val SIGN_OUT_HOOK_TIMEOUT_MS = 5_000L
+        const val BEFORE_HOME_TIMEOUT_MS = 10_000L
     }
 
     private fun Throwable.unwrapAuth(): Throwable =

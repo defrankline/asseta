@@ -90,7 +90,7 @@ class CaptureMeterReading(
         val gps = request.gps!!
 
         val database = db()
-        if (database.clientOperationDao().forJob(request.tenantId, request.jobId).any { it.entityId == request.captureId }) {
+        if (database.clientOperationDao().forJob(request.tenantId, repository.ownerSubject(), request.jobId).any { it.entityId == request.captureId }) {
             return CaptureResult.AlreadySaved
         }
         val photoFile = request.photoJpeg?.let { files.write(it) }

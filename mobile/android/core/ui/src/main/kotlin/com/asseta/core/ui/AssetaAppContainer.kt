@@ -31,6 +31,12 @@ class AssetaAppContainer(context: Context, val role: AppRole, private val oidcRe
         AuthManager(appContext, AuthConfig.fromBuildConfig(oidcRedirectScheme), security.tokenStore)
     }
 
+    /**
+     * The user signed in when this process started (before any new sign-in): owner of field data written before
+     * per-user ownership was recorded (database v6), so an update never hands a previous user's work to the next one.
+     */
+    private val launchAccount = runCatching { authManager.account() }.getOrNull()
+
     /** App-specific session reactions (set once in Application.onCreate; default: none). */
     @Volatile var sessionHooks: SessionHooks = NoSessionHooks
 
@@ -42,7 +48,7 @@ class AssetaAppContainer(context: Context, val role: AppRole, private val oidcRe
 
     /** Encrypted local database holder; can be closed and deleted by the device-revocation wipe. */
     val databaseHolder: DatabaseHolder by lazy {
-        DatabaseHolder(appContext, { security.databasePassphraseProvider.getOrCreatePassphrase() })
+        DatabaseHolder(appContext, { security.databasePassphraseProvider.getOrCreatePassphrase() }, legacyOwner = { launchAccount })
     }
 
     /** Encrypted local database; opened on first use (off the main thread). Fetch it per use, never cache it. */

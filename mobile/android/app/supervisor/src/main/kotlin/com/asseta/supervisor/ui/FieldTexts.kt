@@ -94,6 +94,14 @@ object FieldTexts {
         if (unsynced == 0) "You can sign in again at any time."
         else "$unsynced item(s) are not synced yet. They stay encrypted on this phone and sync after you sign in again."
 
+    /** Another account's unsynced work on this phone (sync status); [label] null when that account is not known. */
+    fun heldTitle(label: String?): String = "Waiting for ${label ?: "a previous account"} to sign in again"
+
+    fun heldCount(count: Int): String = "$count item(s) not synced yet"
+
+    const val HELD_FOOTER = "Saved on this phone by another account. They stay encrypted here and are sent only " +
+        "when that account signs in again."
+
     /** Local clock check banner; [skewSeconds] > 0 means the phone is ahead of the server. */
     fun clockTamper(skewSeconds: Long): String =
         "This phone's clock is ${describeSkew(skewSeconds)} compared with Asseta's server. Set the date and time to " +

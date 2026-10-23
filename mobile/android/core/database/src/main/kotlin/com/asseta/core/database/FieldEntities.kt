@@ -74,4 +74,9 @@ data class SyncStateEntity(
     @ColumnInfo(name = "max_batch") val maxBatch: Int? = null,
     /** When the next automatic retry runs after a failed sync (backoff); null after a successful sync. */
     @ColumnInfo(name = "next_sync_at") val nextSyncAt: Long? = null,
+    /**
+     * v6: Keycloak `sub` of the user this tenant's cursor, device session and cached server data belong to. When another
+     * user signs in they are reset (fresh bootstrap); null only before the first sync of a tenant.
+     */
+    @ColumnInfo(name = "owner_sub") val ownerSub: String? = null,
 )

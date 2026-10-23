@@ -3,6 +3,7 @@ package com.asseta.core.sync.engine
 import com.asseta.core.database.AssetaDatabase
 import com.asseta.core.database.SyncStateEntity
 import com.asseta.core.domain.sync.Backoff
+import com.asseta.core.model.SyncAccount
 import com.asseta.core.model.sync.DeviceRegisterIn
 import com.asseta.core.model.sync.SyncErrorCodes
 import com.asseta.core.network.ApiException
@@ -37,6 +38,9 @@ sealed interface SyncReport {
  * One sync run for a tenant: register device (refreshes the offline grant) -> bootstrap (first time) or delta pull by
  * persisted cursor -> evidence upload -> outbox push -> delta pull (server state after our operations).
  * Runs are serialized per process. SENT rows left by a killed process are first returned to PENDING.
+ *
+ * Every run belongs to the signed-in [account]: a tenant last synced by another user is reset first (fresh bootstrap,
+ * see [AccountSwitch]), and only this user's evidence and operations are uploaded and pushed under their token.
  */
 class SyncEngine(
     private val api: SyncApi,
@@ -47,6 +51,7 @@ class SyncEngine(
     private val wiper: LocalDataWiper,
     private val clock: SyncClock,
     private val json: Json,
+    private val account: () -> SyncAccount?,
     private val backoff: Backoff = Backoff(),
     private val random: () -> Double = { Random.nextDouble() },
 ) {
@@ -54,14 +59,17 @@ class SyncEngine(
     private val writer = ServerDataWriter(db, json)
     private val uploader = BlobUploader(api, db, files, json, clock::nowMs, backoff.maxMs)
     private val pusher = OutboxPusher(api, db, clock, json)
+    private val accounts = AccountSwitch(db)
 
     suspend fun sync(tenantId: String): SyncReport = mutex.withLock {
+        val user = account() ?: return@withLock SyncReport.AuthRequired
         try {
+            accounts.claim(tenantId, user)
             db().clientOperationDao().recoverInFlight()
             register(tenantId)
             var pages = pull(tenantId)
-            val uploaded = uploader.uploadPending(tenantId)
-            val push = pusher.pushAll(tenantId, state(tenantId).maxBatch ?: DEFAULT_BATCH)
+            val uploaded = uploader.uploadPending(tenantId, user.subject)
+            val push = pusher.pushAll(tenantId, user.subject, state(tenantId).maxBatch ?: DEFAULT_BATCH)
             if (push.sent > 0) pages += pull(tenantId)
             updateState(tenantId) { it.copy(failureStreak = 0, lastError = null, lastSyncAt = clock.nowMs(), nextSyncAt = null) }
             SyncReport.Success(pages, uploaded, push)

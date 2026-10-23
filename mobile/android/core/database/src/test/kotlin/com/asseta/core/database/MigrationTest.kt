@@ -3,8 +3,11 @@ package com.asseta.core.database
 import androidx.room.Room
 import androidx.room.testing.MigrationTestHelper
 import androidx.test.platform.app.InstrumentationRegistry
+import com.asseta.core.model.SyncAccount
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -15,6 +18,7 @@ import org.robolectric.RobolectricTestRunner
  * v2 -> v3 adds the field-finance tables without touching the outbox, attachments or cached server data.
  * v3 -> v4 adds the Owner app's `read_snapshot` cache table.
  * v4 -> v5 moves queued single-attachment gates into `client_operation_attachment` (several receipts per expense).
+ * v5 -> v6 records the owning user of sync state, outbox operations, attachments and work-log entries.
  */
 @RunWith(RobolectricTestRunner::class)
 class MigrationTest {
@@ -160,15 +164,92 @@ class MigrationTest {
         }
         // The migrated outbox keeps working through Room: the expense still waits for its receipt, then is sent.
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val room = Room.databaseBuilder(context, AssetaDatabase::class.java, DB).allowMainThreadQueries().build()
+        val room = Room.databaseBuilder(context, AssetaDatabase::class.java, DB).allowMainThreadQueries()
+            .addMigrations(*AssetaMigrations.all(LEGACY)).build()
         try {
             runBlocking {
                 val ops = room.clientOperationDao()
-                assertEquals(listOf("h"), ops.dispatchable("t", 10).map { it.id })
+                assertEquals(listOf("h"), ops.dispatchable("t", LEGACY.subject, 10).map { it.id })
                 assertEquals(listOf("a1"), ops.attachmentsOf("e"))
                 assertEquals(listOf("e"), ops.forAttachment("a1").map { it.id })
                 room.evidenceDao().markAttachmentComplete("a1", "srv-1")
-                assertEquals(listOf("e", "h"), ops.dispatchable("t", 10).map { it.id })
+                assertEquals(listOf("e", "h"), ops.dispatchable("t", LEGACY.subject, 10).map { it.id })
+            }
+        } finally {
+            room.close()
+        }
+    }
+
+    private fun seedV5(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+        db.execSQL(
+            """INSERT INTO attachment (id, tenant_id, purpose, file_name, sha256, size_bytes, content_type, status,
+               attempt_count, created_at) VALUES ('a1', 't', 'METER_PHOTO', 'f.bin', 'abc', 10, 'image/jpeg', 'PENDING', 0, 1)""",
+        )
+        db.execSQL(
+            """INSERT INTO client_operation (id, tenant_id, op_type, entity_type, entity_id, payload_json, depends_on,
+               created_at_device, status, attempt_count, last_error, server_revision, job_id) VALUES
+               ('p', 't', 'METER_CAPTURE', 'meter_capture.OPENING', 'x', '{}', NULL, 1, 'PENDING', 0, NULL, NULL, 'j'),
+               ('h', 't', 'CASH_HANDOVER', 'cash_handover', 'z', '{}', NULL, 2, 'PENDING', 0, NULL, NULL, NULL)""",
+        )
+        db.execSQL("INSERT INTO client_operation_attachment (operation_id, attachment_local_id) VALUES ('p', 'a1')")
+        db.execSQL(
+            """INSERT INTO work_log_entry (client_id, tenant_id, job_id, activity_type, started_at, ended_at, note, operation_id)
+               VALUES ('w', 't', 'j', 'WORK', 1, NULL, NULL, NULL)""",
+        )
+        db.execSQL("INSERT INTO sync_state (tenant_id, cursor, failure_streak, server_clock_alert) VALUES ('t', 53, 0, 0)")
+    }
+
+    @Test
+    fun migrate5To6GivesExistingFieldDataToTheUserSignedInAtUpgrade() {
+        helper.createDatabase(DB, 5).use(::seedV5)
+        helper.runMigrationsAndValidate(DB, 6, true, AssetaMigrations.V5ToV6(LEGACY)).use { db ->
+            fun count(sql: String) = db.query(sql).use { c -> c.moveToFirst(); c.getInt(0) }
+            val owner = LEGACY.subject
+            assertEquals(2, count("SELECT COUNT(*) FROM client_operation WHERE owner_sub = '$owner' AND owner_label = '${LEGACY.label}'"))
+            assertEquals(1, count("SELECT COUNT(*) FROM attachment WHERE owner_sub = '$owner'"))
+            assertEquals(1, count("SELECT COUNT(*) FROM work_log_entry WHERE owner_sub = '$owner'"))
+            assertEquals(1, count("SELECT COUNT(*) FROM sync_state WHERE owner_sub = '$owner' AND cursor = 53"))
+        }
+        // Through Room: the same user keeps working on (and syncing) everything; another user gets none of it.
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val room = Room.databaseBuilder(context, AssetaDatabase::class.java, DB).allowMainThreadQueries()
+            .addMigrations(*AssetaMigrations.all(LEGACY)).build()
+        try {
+            runBlocking {
+                val ops = room.clientOperationDao()
+                assertEquals(listOf("h"), ops.dispatchable("t", LEGACY.subject, 10).map { it.id })
+                assertEquals(emptyList<String>(), ops.dispatchable("t", "someone-else", 10).map { it.id })
+                assertEquals(listOf("a1"), room.evidenceDao().uploadableAttachments("t", LEGACY.subject, 10, 10).map { it.id })
+                assertEquals(emptyList<String>(), room.syncStateDao().tenantsNotOwnedBy(LEGACY.subject))
+                assertEquals(listOf("t"), room.syncStateDao().tenantsNotOwnedBy("someone-else"))
+            }
+        } finally {
+            room.close()
+        }
+    }
+
+    @Test
+    fun migrate5To6WithNobodySignedInHoldsExistingWorkForAnUnknownPreviousUser() {
+        helper.createDatabase(DB, 5).use(::seedV5)
+        helper.runMigrationsAndValidate(DB, 6, true, AssetaMigrations.V5ToV6(null)).use { db ->
+            fun count(sql: String) = db.query(sql).use { c -> c.moveToFirst(); c.getInt(0) }
+            val unknown = SyncAccount.UNKNOWN_SUBJECT
+            assertEquals(2, count("SELECT COUNT(*) FROM client_operation WHERE owner_sub = '$unknown' AND owner_label IS NULL"))
+            assertEquals(1, count("SELECT COUNT(*) FROM attachment WHERE owner_sub = '$unknown'"))
+            assertEquals(1, count("SELECT COUNT(*) FROM sync_state WHERE owner_sub = '$unknown'"))
+        }
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val room = Room.databaseBuilder(context, AssetaDatabase::class.java, DB).allowMainThreadQueries()
+            .addMigrations(*AssetaMigrations.all(null)).build()
+        try {
+            runBlocking {
+                val ops = room.clientOperationDao()
+                // Whoever signs in next resets the tenant's sync state and never sends or sees the held work.
+                assertEquals(listOf("t"), room.syncStateDao().tenantsNotOwnedBy("next-user"))
+                assertEquals(emptyList<String>(), ops.dispatchable("t", "next-user", 10).map { it.id })
+                val held = ops.observeHeld("t", "next-user").first().single()
+                assertEquals(SyncAccount.UNKNOWN_SUBJECT to 2, held.ownerSub to held.count)
+                assertNull(held.ownerLabel)
             }
         } finally {
             room.close()
@@ -177,5 +258,6 @@ class MigrationTest {
 
     private companion object {
         const val DB = "migration-test.db"
+        val LEGACY = SyncAccount("legacy-user-sub", "sam@example.com")
     }
 }

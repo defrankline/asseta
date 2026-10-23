@@ -162,13 +162,13 @@ class FieldUseCaseTest : SyncTestBase() {
         assertEquals("Road Builders Ltd", repository.observeJobs(tenant).first().single().customerName)
         val saved = saved(capture(captureRequest()))
         val start = workflow.transition(tenant, fake.jobId, JobWorkflow.START) as WorkflowResult.Done
-        val unsynced = db.clientOperationDao().observeUnsynced(tenant).first().associateBy { it.id }
+        val unsynced = db.clientOperationDao().observeUnsynced(tenant, USER_A.subject).first().associateBy { it.id }
         assertEquals(WaitingReason.EARLIER_ITEM, repository.waitingReason(op(start.id), unsynced))
         assertEquals(WaitingReason.UPLOAD, repository.waitingReason(op(saved.operationId), unsynced))
         assertFalse(repository.requeue(saved.operationId)) // only rejected (FAILED) items go back to the queue
         db.clientOperationDao().markSent(saved.operationId)
         db.clientOperationDao().markRejected(saved.operationId, "VALIDATION_FAILED", "bad", null)
-        val blocked = db.clientOperationDao().observeUnsynced(tenant).first().associateBy { it.id }
+        val blocked = db.clientOperationDao().observeUnsynced(tenant, USER_A.subject).first().associateBy { it.id }
         assertEquals(WaitingReason.BLOCKED_BY_EARLIER, repository.waitingReason(op(start.id), blocked))
         assertTrue(repository.requeue(saved.operationId))
         assertEquals(ClientOperationStatus.PENDING, status(saved.operationId))

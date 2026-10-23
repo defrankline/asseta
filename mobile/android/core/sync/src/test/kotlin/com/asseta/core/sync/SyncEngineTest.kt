@@ -143,7 +143,7 @@ class SyncEngineTest : SyncTestBase() {
         success(engine().sync(tenant))
         assertEquals(FAILED, status(saved.operationId))
         assertEquals("VALIDATION_FAILED", op(saved.operationId).errorCode)
-        val problems = db.clientOperationDao().observeProblems(tenant).first()
+        val problems = db.clientOperationDao().observeProblems(tenant, USER_A.subject).first()
         assertEquals(listOf(saved.operationId), problems.map { it.id })
     }
 

@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.core.net.toUri
 import android.os.Looper
+import com.asseta.core.model.SyncAccount
 import com.asseta.core.network.AccessTokenProvider
 import com.asseta.core.security.SecureTokenStore
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -48,6 +49,16 @@ class AuthManager(
 
     /** True while a refreshable session exists. Server responses (401/403) remain authoritative. */
     val signedIn: StateFlow<Boolean> = _signedIn.asStateFlow()
+
+    /**
+     * The signed-in user (ID token `sub`, falling back to the access token), or null when signed out. Identifies the
+     * owner of this phone's local field data; never used for authorization.
+     */
+    fun account(): SyncAccount? {
+        val current = synchronized(lock) { state }
+        if (!current.isAuthorized) return null
+        return AccountClaims.fromJwt(current.idToken) ?: AccountClaims.fromJwt(current.accessToken)
+    }
 
     private fun restore(): AuthState =
         tokenStore.read()?.let { runCatching { AuthState.jsonDeserialize(it) }.getOrNull() } ?: AuthState()

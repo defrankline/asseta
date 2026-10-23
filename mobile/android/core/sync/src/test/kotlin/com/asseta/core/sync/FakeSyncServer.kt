@@ -59,6 +59,12 @@ class FakeSyncServer(private val now: () -> Instant) : Dispatcher() {
     /** Optional per-op override: returns (status, result) or null for the default behaviour. */
     var handler: (op: JsonObject) -> Pair<String, JsonObject>? = { null }
     var changesJobs: List<JsonObject> = emptyList()
+
+    /** Jobs of the next bootstrap (null: the default approved job); e.g. another user's own assignments. */
+    @Volatile var bootstrapJobs: List<JsonObject>? = null
+
+    /** `Authorization` header of every push, in order (whose token sent which batch). */
+    val pushAuthorizations = mutableListOf<String?>()
     var changesCategories: List<JsonObject> = emptyList()
     var changesCustomers: List<JsonObject> = emptyList()
     @Volatile var custodyOutstanding = "500000.0000"
@@ -92,7 +98,7 @@ class FakeSyncServer(private val now: () -> Instant) : Dispatcher() {
             request.method == "POST" && path == "/api/v1/sync/devices" -> register(Json.parseToJsonElement(body.decodeToString()).jsonObject)
             path == "/api/v1/sync/bootstrap" -> ok(bootstrap())
             path == "/api/v1/sync/changes" -> ok(changes())
-            path == "/api/v1/sync/push" -> push(Json.parseToJsonElement(body.decodeToString()).jsonObject)
+            path == "/api/v1/sync/push" -> pushAuthorizations.add(request.headers["Authorization"]).let { push(Json.parseToJsonElement(body.decodeToString()).jsonObject) }
             request.method == "POST" && path == "/api/v1/sync/blobs" -> startBlob(Json.parseToJsonElement(body.decodeToString()).jsonObject)
             request.method == "PUT" && path.contains("/chunks/") -> putChunk(path, body)
             request.method == "POST" && path.endsWith("/complete") -> complete(path)
@@ -124,8 +130,8 @@ class FakeSyncServer(private val now: () -> Instant) : Dispatcher() {
         put("last_clock_offset_s", JsonNull); put("revoked_at", JsonNull); put("revoke_reason", JsonNull)
     }
 
-    fun job(status: String, version: Long) = buildJsonObject {
-        put("id", jobId); put("job_number", "J-0001"); put("contract_id", "55555555-5555-4555-8555-555555555555")
+    fun job(status: String, version: Long, id: String = jobId) = buildJsonObject {
+        put("id", id); put("job_number", "J-0001"); put("contract_id", "55555555-5555-4555-8555-555555555555")
         put("machine_id", machineId); put("job_site_id", JsonNull); put("supervisor_id", JsonNull); put("status", status)
         put("version", version); put("planned_start", "2026-10-21T06:00:00Z"); put("hourly_rate", "120.00")
         put("standby_treatment", "EXCLUDED"); put("currency", "TZS")
@@ -187,7 +193,7 @@ class FakeSyncServer(private val now: () -> Instant) : Dispatcher() {
 
     private fun bootstrap() = buildJsonObject {
         put("protocol_version", 1); put("server_time", now().toString()); put("cursor", cursor)
-        put("device_session", deviceSession()); put("data", data(listOf(job("APPROVED", 1)), listOf(category("Fuel & oil", true, 5)), listOf(customer(true))))
+        put("device_session", deviceSession()); put("data", data(bootstrapJobs ?: listOf(job("APPROVED", 1)), listOf(category("Fuel & oil", true, 5)), listOf(customer(true))))
         put("policy_snapshots", snapshots())
     }
 

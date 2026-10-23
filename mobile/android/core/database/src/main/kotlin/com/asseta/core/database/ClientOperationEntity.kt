@@ -47,6 +47,13 @@ data class ClientOperationEntity(
      */
     @ColumnInfo(name = "attachment_local_id") val attachmentLocalId: String? = null,
     @ColumnInfo(name = "last_attempt_at") val lastAttemptAt: Long? = null,
+    /**
+     * v6: Keycloak `sub` of the user who queued this operation. It is only ever pushed under that user's token; while
+     * another user is signed in it is held (kept, not shown as theirs, not sent). See [com.asseta.core.model.SyncAccount].
+     */
+    @ColumnInfo(name = "owner_sub") val ownerSub: String? = null,
+    /** v6: readable name of [ownerSub] (email/username) for "Waiting for ... to sign in again". */
+    @ColumnInfo(name = "owner_label") val ownerLabel: String? = null,
 )
 
 /** v2 multi-parent dependency edge: [operationId] may be dispatched only after [dependsOnId] is ACKED. */

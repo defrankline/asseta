@@ -41,7 +41,7 @@ abstract class AssetaDatabase : RoomDatabase() {
     abstract fun readSnapshotDao(): ReadSnapshotDao
 
     companion object {
-        const val VERSION = 5
+        const val VERSION = 6
         const val FILE_NAME = "asseta.db"
     }
 }

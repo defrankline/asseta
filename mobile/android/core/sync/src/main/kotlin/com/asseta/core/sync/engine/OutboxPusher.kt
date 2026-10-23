@@ -34,11 +34,12 @@ class OutboxPusher(
     private val clock: SyncClock,
     private val json: Json,
 ) {
-    suspend fun pushAll(tenantId: String, maxBatch: Int): PushSummary {
+    /** Pushes [ownerSub]'s operations only (the token in use is theirs); other users' operations stay held. */
+    suspend fun pushAll(tenantId: String, ownerSub: String, maxBatch: Int): PushSummary {
         var summary = PushSummary()
         repeat(MAX_ROUNDS) {
             val ops = db().clientOperationDao()
-            val batch = ops.dispatchable(tenantId, maxBatch.coerceIn(1, MAX_BATCH))
+            val batch = ops.dispatchable(tenantId, ownerSub, maxBatch.coerceIn(1, MAX_BATCH))
             if (batch.isEmpty()) return summary
             val round = pushBatch(tenantId, batch)
             summary = PushSummary(

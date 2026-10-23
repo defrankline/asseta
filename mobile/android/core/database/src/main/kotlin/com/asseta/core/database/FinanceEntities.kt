@@ -69,7 +69,7 @@ abstract class FinanceDataDao {
     abstract suspend fun category(id: String): ExpenseCategoryEntity?
 
     @Query("DELETE FROM cash_custody_balance WHERE tenant_id = :tenantId")
-    protected abstract suspend fun clearCustody(tenantId: String)
+    abstract suspend fun clearCustody(tenantId: String)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     protected abstract suspend fun insertCustody(rows: List<CashCustodyBalanceEntity>)

@@ -61,11 +61,12 @@ class JobWorkflow(
         require(activityType != ActivityTypes.NOTE) { "Notes are recorded with addNote" }
         refuseUnlessLoggable(tenantId, jobId)?.let { return it }
         val evidence = db().evidenceDao()
-        if (evidence.observeWorkLog(jobId).first().any { it.operationId == null }) {
+        if (evidence.observeWorkLog(jobId, repository.ownerSubject()).first().any { it.operationId == null }) {
             return WorkflowResult.Refused("Stop the running entry first.")
         }
         val startedAt = startedAtMs ?: clock.nowMs()
-        val entry = WorkLogEntryEntity(UUID.randomUUID().toString(), tenantId, jobId, activityType, startedAt, null, note.clean(), null)
+        val entry = WorkLogEntryEntity(UUID.randomUUID().toString(), tenantId, jobId, activityType, startedAt, null, note.clean(),
+            null, ownerSub = repository.ownerSubject())
         evidence.insertWorkLog(entry)
         return WorkflowResult.Done(entry.clientId)
     }
@@ -84,7 +85,8 @@ class JobWorkflow(
         if (endedAtMs < startedAtMs) return WorkflowResult.Refused("The end time is before the start time.")
         refuseUnlessLoggable(tenantId, jobId)?.let { return it }
         val database = db()
-        val entry = WorkLogEntryEntity(UUID.randomUUID().toString(), tenantId, jobId, activityType, startedAtMs, endedAtMs, note.clean(), null)
+        val entry = WorkLogEntryEntity(UUID.randomUUID().toString(), tenantId, jobId, activityType, startedAtMs, endedAtMs, note.clean(),
+            null, ownerSub = repository.ownerSubject())
         return database.inTransaction {
             database.evidenceDao().insertWorkLog(entry)
             val opId = queueActivity(tenantId, entry, billable)
@@ -96,7 +98,8 @@ class JobWorkflow(
     /** Stops an open entry and queues exactly one JOB_ACTIVITY operation for it. */
     suspend fun stopEntry(tenantId: String, clientId: String): WorkflowResult {
         val database = db()
-        val entry = database.evidenceDao().workLog(clientId) ?: return WorkflowResult.Refused("Entry not found.")
+        val entry = database.evidenceDao().workLog(clientId)?.takeIf { it.ownerSub == repository.ownerSubject() }
+            ?: return WorkflowResult.Refused("Entry not found.")
         if (entry.operationId != null) return WorkflowResult.Refused("This entry is already stopped.")
         val endedAt = maxOf(clock.nowMs(), entry.startedAt)
         return database.inTransaction {
@@ -112,7 +115,8 @@ class JobWorkflow(
         if (note.isEmpty()) return WorkflowResult.Refused("Write a note first.")
         refuseUnlessLoggable(tenantId, jobId)?.let { return it }
         val database = db()
-        val entry = WorkLogEntryEntity(UUID.randomUUID().toString(), tenantId, jobId, ActivityTypes.NOTE, atMs ?: clock.nowMs(), null, note.take(2000), null)
+        val entry = WorkLogEntryEntity(UUID.randomUUID().toString(), tenantId, jobId, ActivityTypes.NOTE, atMs ?: clock.nowMs(), null, note.take(2000),
+            null, ownerSub = repository.ownerSubject())
         return database.inTransaction {
             database.evidenceDao().insertWorkLog(entry)
             val opId = queueActivity(tenantId, entry)
@@ -186,7 +190,7 @@ class JobWorkflow(
                 if (state.effectiveStatus != JobStatus.IN_PROGRESS) return WorkflowResult.Refused("Only a running job can be completed.")
                 if (!state.hasClosing) return WorkflowResult.Refused("Capture the closing reading first.")
                 if (!state.hasAcknowledgement) return WorkflowResult.Refused("Get the customer acknowledgement first.")
-                if (db().evidenceDao().observeWorkLog(jobId).first().any { it.operationId == null }) {
+                if (db().evidenceDao().observeWorkLog(jobId, repository.ownerSubject()).first().any { it.operationId == null }) {
                     return WorkflowResult.Refused("Stop the running work-log entry first.")
                 }
                 JobOpKind.COMPLETE

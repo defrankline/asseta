@@ -109,7 +109,7 @@ class FinanceRepository(
 
     fun observeRecords(tenantId: String): Flow<List<FinanceRecord>> =
         combine(
-            db().clientOperationDao().observeByOpTypes(tenantId, FieldOps.FINANCE_OP_TYPES),
+            db().clientOperationDao().observeByOpTypes(tenantId, field.ownerSubject(), FieldOps.FINANCE_OP_TYPES),
             observeCustomers(tenantId),
         ) { ops, customers ->
             val names = customers.associate { it.id to it.name }
@@ -117,7 +117,7 @@ class FinanceRepository(
         }
 
     fun observeCashView(tenantId: String): Flow<CashView> =
-        combine(db().financeDataDao().observeCustody(tenantId), db().clientOperationDao().observeByOpTypes(tenantId, FieldOps.FINANCE_OP_TYPES)) { custody, ops ->
+        combine(db().financeDataDao().observeCustody(tenantId), db().clientOperationDao().observeByOpTypes(tenantId, field.ownerSubject(), FieldOps.FINANCE_OP_TYPES)) { custody, ops ->
             val records = ops.map { record(it, emptyMap()) }
             val pending = ops.filter { it.status in FinanceRecord.PENDING_STATES }.mapNotNull(::pendingCash)
             CashView(CustodySummary.lines(custody.map(::balance), pending), records, custody.maxOfOrNull { it.asOf })

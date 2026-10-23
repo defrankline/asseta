@@ -1,5 +1,6 @@
 package com.asseta.core.database
 
+import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
@@ -9,6 +10,13 @@ import com.asseta.core.model.ClientOperationStatus
 import kotlinx.coroutines.flow.Flow
 
 data class StatusCount(val status: ClientOperationStatus, val count: Int)
+
+/** Unsynced operations of another account on this phone (held until that account signs in again). */
+data class HeldOwner(
+    @ColumnInfo(name = "owner_sub") val ownerSub: String,
+    @ColumnInfo(name = "owner_label") val ownerLabel: String?,
+    @ColumnInfo(name = "count") val count: Int,
+)
 
 /**
  * Outbox persistence. Status changes are guarded in SQL so the state machine (domain `OutboxTransitions`) cannot be
@@ -63,14 +71,15 @@ abstract class ClientOperationDao {
     abstract suspend fun attachmentsOf(id: String): List<String>
 
     /**
-     * Operations ready to send for a tenant, oldest first: PENDING or QUARANTINED (resent until applied), every
+     * Operations of [ownerSub] (the signed-in user; another user's operations are never sent under this token) ready
+     * to send for a tenant, oldest first: PENDING or QUARANTINED (resent until applied), every
      * dependency (legacy column and dependency table) durably ACKED, and every evidence attachment uploaded.
      * REJECTED (FAILED) and CONFLICT rows are never resent automatically. Bounded batch size.
      */
     @Query(
         """
         SELECT op.* FROM client_operation op
-        WHERE op.tenant_id = :tenantId
+        WHERE op.tenant_id = :tenantId AND op.owner_sub = :ownerSub
           AND op.status IN ('PENDING', 'QUARANTINED')
           AND (op.depends_on IS NULL OR EXISTS (
                 SELECT 1 FROM client_operation dep WHERE dep.id = op.depends_on AND dep.status = 'ACKED'))
@@ -89,7 +98,7 @@ abstract class ClientOperationDao {
         LIMIT :limit
         """,
     )
-    abstract suspend fun dispatchable(tenantId: String, limit: Int): List<ClientOperationEntity>
+    abstract suspend fun dispatchable(tenantId: String, ownerSub: String, limit: Int): List<ClientOperationEntity>
 
     @Query(
         """UPDATE client_operation SET status = 'SENT', attempt_count = attempt_count + 1, last_attempt_at = :now
@@ -159,9 +168,12 @@ abstract class ClientOperationDao {
     @Query("SELECT * FROM client_operation WHERE tenant_id = :tenantId AND entity_type = :entityType AND entity_id = :entityId LIMIT 1")
     abstract suspend fun findByEntity(tenantId: String, entityType: String, entityId: String): ClientOperationEntity?
 
-    /** All operations of the given types (any status), newest first: the field-finance records of this device. */
-    @Query("SELECT * FROM client_operation WHERE tenant_id = :tenantId AND op_type IN (:opTypes) ORDER BY created_at_device DESC")
-    abstract fun observeByOpTypes(tenantId: String, opTypes: List<String>): Flow<List<ClientOperationEntity>>
+    /** [ownerSub]'s operations of the given types (any status), newest first: their field-finance records. */
+    @Query(
+        """SELECT * FROM client_operation WHERE tenant_id = :tenantId AND owner_sub = :ownerSub AND op_type IN (:opTypes)
+           ORDER BY created_at_device DESC""",
+    )
+    abstract fun observeByOpTypes(tenantId: String, ownerSub: String, opTypes: List<String>): Flow<List<ClientOperationEntity>>
 
     /** Operations gated on [attachmentId] (link table and the legacy single column). */
     @Query(
@@ -170,22 +182,46 @@ abstract class ClientOperationDao {
     )
     abstract suspend fun forAttachment(attachmentId: String): List<ClientOperationEntity>
 
-    @Query("SELECT * FROM client_operation WHERE tenant_id = :tenantId AND job_id = :jobId ORDER BY created_at_device ASC")
-    abstract suspend fun forJob(tenantId: String, jobId: String): List<ClientOperationEntity>
-
-    @Query("SELECT * FROM client_operation WHERE tenant_id = :tenantId AND job_id = :jobId ORDER BY created_at_device ASC")
-    abstract fun observeForJob(tenantId: String, jobId: String): Flow<List<ClientOperationEntity>>
-
-    @Query("SELECT status, COUNT(*) AS count FROM client_operation WHERE tenant_id = :tenantId GROUP BY status")
-    abstract fun observeStatusCounts(tenantId: String): Flow<List<StatusCount>>
-
+    /** [ownerSub]'s operations of a job (another user's never shape this user's job workflow). */
     @Query(
-        """SELECT * FROM client_operation WHERE tenant_id = :tenantId AND status IN ('FAILED', 'QUARANTINED', 'CONFLICT')
+        """SELECT * FROM client_operation WHERE tenant_id = :tenantId AND owner_sub = :ownerSub AND job_id = :jobId
            ORDER BY created_at_device ASC""",
     )
-    abstract fun observeProblems(tenantId: String): Flow<List<ClientOperationEntity>>
+    abstract suspend fun forJob(tenantId: String, ownerSub: String, jobId: String): List<ClientOperationEntity>
 
-    /** Everything not yet durably acknowledged (pending, in flight, failed, conflict, quarantined). */
-    @Query("SELECT * FROM client_operation WHERE tenant_id = :tenantId AND status != 'ACKED' ORDER BY created_at_device ASC")
-    abstract fun observeUnsynced(tenantId: String): Flow<List<ClientOperationEntity>>
+    @Query(
+        """SELECT * FROM client_operation WHERE tenant_id = :tenantId AND owner_sub = :ownerSub AND job_id = :jobId
+           ORDER BY created_at_device ASC""",
+    )
+    abstract fun observeForJob(tenantId: String, ownerSub: String, jobId: String): Flow<List<ClientOperationEntity>>
+
+    @Query(
+        """SELECT status, COUNT(*) AS count FROM client_operation WHERE tenant_id = :tenantId AND owner_sub = :ownerSub
+           GROUP BY status""",
+    )
+    abstract fun observeStatusCounts(tenantId: String, ownerSub: String): Flow<List<StatusCount>>
+
+    @Query(
+        """SELECT * FROM client_operation WHERE tenant_id = :tenantId AND owner_sub = :ownerSub
+           AND status IN ('FAILED', 'QUARANTINED', 'CONFLICT') ORDER BY created_at_device ASC""",
+    )
+    abstract fun observeProblems(tenantId: String, ownerSub: String): Flow<List<ClientOperationEntity>>
+
+    /** [ownerSub]'s operations not yet durably acknowledged (pending, in flight, failed, conflict, quarantined). */
+    @Query(
+        """SELECT * FROM client_operation WHERE tenant_id = :tenantId AND owner_sub = :ownerSub AND status != 'ACKED'
+           ORDER BY created_at_device ASC""",
+    )
+    abstract fun observeUnsynced(tenantId: String, ownerSub: String): Flow<List<ClientOperationEntity>>
+
+    /**
+     * Unsynced operations queued on this phone by other accounts than [ownerSub], per account: held (kept encrypted,
+     * never sent under this user's token) until their owner signs in again.
+     */
+    @Query(
+        """SELECT owner_sub, MAX(owner_label) AS owner_label, COUNT(*) AS count FROM client_operation
+           WHERE tenant_id = :tenantId AND owner_sub IS NOT NULL AND owner_sub != :ownerSub AND status != 'ACKED'
+           GROUP BY owner_sub ORDER BY MIN(created_at_device)""",
+    )
+    abstract fun observeHeld(tenantId: String, ownerSub: String): Flow<List<HeldOwner>>
 }

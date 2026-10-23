@@ -2,6 +2,7 @@ package com.asseta.core.database
 
 import android.content.Context
 import androidx.room.withTransaction
+import com.asseta.core.model.SyncAccount
 
 /**
  * Opens the encrypted database lazily and can close and delete it (device revocation wipe). Callers must fetch DAOs
@@ -11,13 +12,15 @@ class DatabaseHolder(
     context: Context,
     private val passphrase: () -> ByteArray,
     private val fileName: String = AssetaDatabase.FILE_NAME,
+    /** The user signed in when the app started: owner of field data written before v6 (AssetaMigrations.V5ToV6). */
+    private val legacyOwner: () -> SyncAccount? = { null },
 ) {
     private val appContext = context.applicationContext
 
     @Volatile private var db: AssetaDatabase? = null
 
     fun get(): AssetaDatabase = db ?: synchronized(this) {
-        db ?: AssetaDatabaseFactory.create(appContext, passphrase(), fileName).also { db = it }
+        db ?: AssetaDatabaseFactory.create(appContext, passphrase(), fileName, legacyOwner()).also { db = it }
     }
 
     /** Closes and deletes the database file (and its WAL/SHM journals). */

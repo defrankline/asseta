@@ -122,12 +122,14 @@ fun SupervisorHome(
     modifier: Modifier = Modifier,
 ) {
     val tenantId = tenant.tenantId.toString()
+    // View models outlive a sign-out (activity scope): key them by user too, so the next user never sees these flows.
+    val scope = remember(tenantId) { "$tenantId-${field.repository.ownerSubject()}" }
     var stack by remember(tenantId) { mutableStateOf(listOf<Route>(Route.Jobs)) }
     val route = stack.last()
     fun push(r: Route) { stack = stack + r }
     fun pop() { if (stack.size > 1) stack = stack.dropLast(1) }
     BackHandler(enabled = stack.size > 1) { pop() }
-    val sync: FieldSyncViewModel = viewModel(key = "sync-$tenantId") { FieldSyncViewModel(field, tenantId) }
+    val sync: FieldSyncViewModel = viewModel(key = "sync-$scope") { FieldSyncViewModel(field, tenantId) }
     val syncing by sync.syncing.collectAsStateWithLifecycle()
 
     LaunchedEffect(tenantId) {
@@ -170,7 +172,7 @@ fun SupervisorHome(
                 onOpen = { id, number -> push(Route.JobDetail(id, number)) }, onRoute = ::push,
             )
             is Route.JobDetail -> {
-                val vm: JobDetailViewModel = viewModel(key = "job-$tenantId-${route.jobId}") { JobDetailViewModel(field, tenantId, route.jobId) }
+                val vm: JobDetailViewModel = viewModel(key = "job-$scope-${route.jobId}") { JobDetailViewModel(field, tenantId, route.jobId) }
                 JobDetailScreen(
                     vm,
                     onCapture = { push(Route.Capture(route.jobId, it)) },
@@ -199,7 +201,7 @@ fun SupervisorHome(
                 CashFormScreen(vm, onDone = ::pop)
             }
             Route.SyncStatus -> {
-                val vm: SyncStatusViewModel = viewModel(key = "sync-status-$tenantId") { SyncStatusViewModel(field, tenantId) }
+                val vm: SyncStatusViewModel = viewModel(key = "sync-status-$scope") { SyncStatusViewModel(field, tenantId) }
                 SyncStatusScreen(vm, syncing, onRefresh = sync::syncNow)
             }
         }

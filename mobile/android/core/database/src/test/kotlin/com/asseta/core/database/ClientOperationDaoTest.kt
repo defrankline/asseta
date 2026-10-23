@@ -43,6 +43,7 @@ class ClientOperationDaoTest {
         id = UUID.randomUUID().toString(), tenantId = tenantId, opType = "CREATE", entityType = "test_entity",
         entityId = UUID.randomUUID().toString(), payloadJson = "{}", dependsOn = dependsOn,
         createdAtDevice = createdAt, status = PENDING, attemptCount = 0, lastError = null, serverRevision = null,
+        ownerSub = OWNER,
     )
 
     @Test
@@ -57,13 +58,13 @@ class ClientOperationDaoTest {
     fun dependencyBlocksUntilAcked() = runTest {
         val parent = op(1).also { dao.enqueue(it) }
         val child = op(2, dependsOn = parent.id).also { dao.enqueue(it) }
-        assertEquals(listOf(parent.id), dao.dispatchable(tenant, 10).map { it.id })
+        assertEquals(listOf(parent.id), dao.dispatchable(tenant, OWNER, 10).map { it.id })
 
         assertEquals(1, dao.markSent(parent.id))
-        assertEquals(emptyList<String>(), dao.dispatchable(tenant, 10).map { it.id })
+        assertEquals(emptyList<String>(), dao.dispatchable(tenant, OWNER, 10).map { it.id })
         assertEquals(1, dao.markAcked(parent.id, serverRevision = 42))
 
-        assertEquals(listOf(child.id), dao.dispatchable(tenant, 10).map { it.id })
+        assertEquals(listOf(child.id), dao.dispatchable(tenant, OWNER, 10).map { it.id })
         assertEquals(42L, dao.findById(parent.id)!!.serverRevision)
     }
 
@@ -83,17 +84,17 @@ class ClientOperationDaoTest {
         dao.markSent(o.id)
         dao.markFailed(o.id, "VALIDATION_FAILED")
         assertEquals(FAILED, dao.findById(o.id)!!.status)
-        assertEquals(emptyList<String>(), dao.dispatchable(tenant, 10).map { it.id }) // REJECTED is not resent
+        assertEquals(emptyList<String>(), dao.dispatchable(tenant, OWNER, 10).map { it.id }) // REJECTED is not resent
 
         val q = op(2).also { dao.enqueue(it) }
         dao.markSent(q.id)
         dao.markQuarantined(q.id, "SUBSCRIPTION_READ_ONLY", "read-only", "{}")
-        assertEquals(listOf(q.id), dao.dispatchable(tenant, 10).map { it.id }) // held, resent later
+        assertEquals(listOf(q.id), dao.dispatchable(tenant, OWNER, 10).map { it.id }) // held, resent later
         dao.markSent(q.id)
         assertEquals(2, dao.findById(q.id)!!.attemptCount)
         dao.returnToPending(q.id, null, "network")
         dao.quarantine(q.id, "CONFLICT")
-        val problems = dao.observeProblems(tenant).first()
+        val problems = dao.observeProblems(tenant, OWNER).first()
         assertEquals(listOf(FAILED, QUARANTINED), problems.map { it.status })
         assertEquals("CONFLICT", problems.last().lastError)
     }
@@ -102,10 +103,12 @@ class ClientOperationDaoTest {
     fun batchIsBoundedOrderedAndTenantScoped() = runTest {
         val ops = (5 downTo 1).map { op(it.toLong()).also { o -> dao.enqueue(o) } }
         dao.enqueue(op(0, tenantId = UUID.randomUUID().toString()))
-        val batch = dao.dispatchable(tenant, 3)
+        val batch = dao.dispatchable(tenant, OWNER, 3)
         assertEquals(ops.sortedBy { it.createdAtDevice }.take(3).map { it.id }, batch.map { it.id })
-        val counts = dao.observeStatusCounts(tenant).first().associate { it.status to it.count }
+        val counts = dao.observeStatusCounts(tenant, OWNER).first().associate { it.status to it.count }
         assertEquals(mapOf<ClientOperationStatus, Int>(PENDING to 5), counts)
         assertNull(dao.findById("missing"))
     }
 }
+
+private const val OWNER = "user-a"

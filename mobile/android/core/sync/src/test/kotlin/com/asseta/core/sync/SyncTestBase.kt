@@ -10,6 +10,7 @@ import com.asseta.core.domain.ocr.OcrReading
 import com.asseta.core.domain.policy.CaptureMode
 import com.asseta.core.domain.policy.ReadingKind
 import com.asseta.core.model.ClientOperationStatus
+import com.asseta.core.model.SyncAccount
 import com.asseta.core.network.NetworkFactory
 import com.asseta.core.sync.data.FieldOutbox
 import com.asseta.core.sync.data.FieldRepository
@@ -50,6 +51,9 @@ abstract class SyncTestBase {
     protected lateinit var db: AssetaDatabase
     protected lateinit var files: EncryptedEvidenceStore
     protected val wipes = mutableListOf<String>()
+
+    /** The signed-in user (owner of local field data); tests switch it to simulate another user on the same phone. */
+    protected var account: SyncAccount? = USER_A
     protected lateinit var repository: FieldRepository
     protected lateinit var capture: CaptureMeterReading
     protected lateinit var workflow: JobWorkflow
@@ -65,8 +69,8 @@ abstract class SyncTestBase {
         val context = ApplicationProvider.getApplicationContext<Context>()
         db = Room.inMemoryDatabaseBuilder(context, AssetaDatabase::class.java).allowMainThreadQueries().build()
         files = EncryptedEvidenceStore(tmp.newFolder("evidence"), { key })
-        repository = FieldRepository({ db }, json, clock)
-        val outbox = FieldOutbox({ db }, json, clock)
+        repository = FieldRepository({ db }, json, clock, { account })
+        val outbox = FieldOutbox({ db }, json, clock, { account })
         capture = CaptureMeterReading({ db }, repository, outbox, files, { DEVICE }, json)
         workflow = JobWorkflow({ db }, repository, outbox, files, { DEVICE }, clock, json)
         financeRepository = FinanceRepository({ db }, repository, json, clock)
@@ -80,12 +84,12 @@ abstract class SyncTestBase {
     }
 
     protected fun engine(online: Boolean = true): SyncEngine {
-        val client = NetworkFactory.okHttpClient({ "token" }, { null }, device = { DEVICE })
+        val client = NetworkFactory.okHttpClient({ account?.let { "token-${it.subject}" } ?: "token" }, { null }, device = { DEVICE })
         val base = if (online) server.url("/").toString() else "http://127.0.0.1:1/"
         return SyncEngine(
             api = NetworkFactory.syncApi(base, client, allowCleartext = true),
             db = { db }, files = files, deviceId = { DEVICE }, appVersion = "0.1.0-test",
-            wiper = LocalDataWiper { wipes += it }, clock = clock, json = json, random = { 0.5 },
+            wiper = LocalDataWiper { wipes += it }, clock = clock, json = json, account = { account }, random = { 0.5 },
         )
     }
 
@@ -111,5 +115,7 @@ abstract class SyncTestBase {
 
     protected companion object {
         const val DEVICE = "0f6a3b4c-5d6e-4f70-8a9b-0c1d2e3f4a5b"
+        val USER_A = SyncAccount("7f1e0c2a-aaaa-4aaa-8aaa-000000000001", "owner@example.com")
+        val USER_B = SyncAccount("7f1e0c2a-bbbb-4bbb-8bbb-000000000002", "supervisor@example.com")
     }
 }

@@ -25,6 +25,7 @@ import androidx.lifecycle.viewModelScope
 import com.asseta.core.ui.theme.palette
 import com.asseta.core.database.AttachmentEntity
 import com.asseta.core.database.ClientOperationEntity
+import com.asseta.core.database.HeldOwner
 import com.asseta.core.database.SyncStateEntity
 import com.asseta.core.model.ClientOperationStatus
 import com.asseta.core.model.sync.BlobPurpose
@@ -56,6 +57,8 @@ data class SyncStatusUi(
     val pendingUploads: Int = 0,
     /** Evidence files that can never be uploaded (missing or changed on this phone, refused for good). */
     val failedUploads: List<AttachmentEntity> = emptyList(),
+    /** Unsynced work of other accounts on this phone, held until they sign in again (never sent under this user). */
+    val held: List<HeldOwner> = emptyList(),
 ) {
     val unsynced: Int get() = counts.filterKeys { it != ClientOperationStatus.ACKED }.values.sum()
 }
@@ -64,12 +67,12 @@ class SyncStatusViewModel(private val field: FieldGraph, private val tenantId: S
     val deviceId: String by lazy { field.deviceId }
 
     val ui: StateFlow<SyncStatusUi> = combine(
-        field.repository.observeUnsynced(tenantId),
+        combine(field.repository.observeUnsynced(tenantId), field.repository.observeHeld(tenantId)) { o, h -> o to h },
         field.repository.observeStatusCounts(tenantId),
         field.repository.observeSyncState(tenantId),
         combine(field.repository.observePendingUploads(tenantId), field.repository.observeFailedUploads(tenantId)) { p, f -> p to f },
         field.repository.observeJobs(tenantId),
-    ) { ops, counts, state, (uploads, failed), jobs ->
+    ) { (ops, held), counts, state, (uploads, failed), jobs ->
         val byId = ops.associateBy { it.id }
         val numbers = jobs.associate { it.job.id to it.job.jobNumber }
         val items = ops.map { op ->
@@ -77,7 +80,7 @@ class SyncStatusViewModel(private val field: FieldGraph, private val tenantId: S
             OutboxItem(op, FieldTexts.outboxTitle(op.opType, payload), op.jobId?.let(numbers::get), serverState(op),
                 field.repository.waitingReason(op, byId))
         }
-        SyncStatusUi(items, counts, state, uploads, failed)
+        SyncStatusUi(items, counts, state, uploads, failed, held)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SyncStatusUi())
 
     /** "Retry" on a rejected item: queued again and sent on the next sync. */
@@ -122,6 +125,13 @@ fun SyncStatusScreen(vm: SyncStatusViewModel, syncing: Boolean, onRefresh: () ->
                         Section("$title (${items.size})", footer = footer) {
                             items.forEach { ItemRow(it, onRetry = vm::retry) }
                         }
+                    }
+                }
+            }
+            ui.held.forEach { held ->
+                item(key = "held-${held.ownerSub}") {
+                    Section(FieldTexts.heldTitle(held.ownerLabel), footer = FieldTexts.HELD_FOOTER) {
+                        Text(FieldTexts.heldCount(held.count), style = MaterialTheme.typography.bodyMedium)
                     }
                 }
             }

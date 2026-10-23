@@ -1,6 +1,7 @@
 package com.asseta.supervisor
 
 import android.app.Application
+import com.asseta.core.model.MeResponse
 import com.asseta.core.sync.engine.SyncReport
 import com.asseta.core.sync.work.SyncHost
 import com.asseta.core.ui.AppRole
@@ -21,6 +22,12 @@ class SupervisorApplication : Application(), AssetaContainerOwner, SyncHost {
         super.onCreate()
         // Sign-out keeps unsynced work encrypted on the phone; the confirmation says how much is waiting.
         container.sessionHooks = object : SessionHooks {
+            // Another user's synced field data is reset before this user's home shows (their unsynced work is held).
+            override suspend fun beforeHome(me: MeResponse) {
+                val account = container.authManager.account() ?: return
+                withContext(Dispatchers.IO) { field.accounts.claimAll(account) }
+            }
+
             override suspend fun signOutConfirmation(): String {
                 val tenantId = container.tenantStore.tenantId()
                 val unsynced = tenantId?.let {

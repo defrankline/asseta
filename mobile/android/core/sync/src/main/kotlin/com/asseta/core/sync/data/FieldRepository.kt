@@ -3,6 +3,7 @@ package com.asseta.core.sync.data
 import com.asseta.core.database.AssetaDatabase
 import com.asseta.core.database.AttachmentEntity
 import com.asseta.core.database.ClientOperationEntity
+import com.asseta.core.database.HeldOwner
 import com.asseta.core.database.JobEntity
 import com.asseta.core.database.MachineEntity
 import com.asseta.core.database.MeterCaptureEntity
@@ -19,6 +20,7 @@ import com.asseta.core.domain.sync.JobOpKind
 import com.asseta.core.domain.sync.JobOperationPlanner
 import com.asseta.core.domain.sync.LocalJobOp
 import com.asseta.core.model.ClientOperationStatus
+import com.asseta.core.model.SyncAccount
 import com.asseta.core.model.sync.ContractDto
 import com.asseta.core.model.sync.OpTypes
 import com.asseta.core.sync.SyncClock
@@ -51,8 +53,18 @@ data class JobFieldState(
     val completeQueued: Boolean,
 )
 
-/** Read side for the UI (Flows over the encrypted DB). All derivations reuse the domain rules. */
-class FieldRepository(private val db: () -> AssetaDatabase, private val json: Json, private val clock: SyncClock) {
+/**
+ * Read side for the UI (Flows over the encrypted DB). All derivations reuse the domain rules. Device-owned records
+ * (operations, evidence, work log) are the signed-in [account]'s only; another user's are held, see [observeHeld].
+ */
+class FieldRepository(
+    private val db: () -> AssetaDatabase,
+    private val json: Json,
+    private val clock: SyncClock,
+    private val account: () -> SyncAccount?,
+) {
+    /** The signed-in user's subject (local records are filtered by it; matches nothing when signed out). */
+    fun ownerSubject(): String = ownerSubject(account)
 
     fun observeJobs(tenantId: String): Flow<List<JobSummary>> {
         val field = db().fieldDataDao()
@@ -76,9 +88,9 @@ class FieldRepository(private val db: () -> AssetaDatabase, private val json: Js
     private fun contractCustomerId(contractJson: String): String? =
         runCatching { json.decodeFromString(ContractDto.serializer(), contractJson).customerId }.getOrNull()
 
-    /** Status counts of the tenant's whole outbox (the sync status summary). */
+    /** Status counts of the signed-in user's outbox for the tenant (the sync status summary). */
     fun observeStatusCounts(tenantId: String): Flow<Map<ClientOperationStatus, Int>> =
-        db().clientOperationDao().observeStatusCounts(tenantId).map { rows -> rows.associate { it.status to it.count } }
+        db().clientOperationDao().observeStatusCounts(tenantId, ownerSubject()).map { rows -> rows.associate { it.status to it.count } }
 
     /** "Retry" on a rejected operation (same id and payload; see `ClientOperationDao.requeueFailed`). */
     suspend fun requeue(operationId: String): Boolean = db().clientOperationDao().requeueFailed(operationId) > 0
@@ -105,25 +117,30 @@ class FieldRepository(private val db: () -> AssetaDatabase, private val json: Js
     suspend fun job(jobId: String): JobEntity? = db().fieldDataDao().job(jobId)
 
     fun observeJobOperations(tenantId: String, jobId: String): Flow<List<ClientOperationEntity>> =
-        db().clientOperationDao().observeForJob(tenantId, jobId)
+        db().clientOperationDao().observeForJob(tenantId, ownerSubject(), jobId)
 
     /** The tenant's job operations grouped by job (the job list derives each job's status on this device). */
     fun observeOperationsByJob(tenantId: String): Flow<Map<String, List<ClientOperationEntity>>> =
-        db().clientOperationDao().observeByOpTypes(tenantId, JOB_OP_TYPES)
+        db().clientOperationDao().observeByOpTypes(tenantId, ownerSubject(), JOB_OP_TYPES)
             .map { ops -> ops.filter { it.jobId != null }.sortedBy { it.createdAtDevice }.groupBy { it.jobId!! } }
 
-    fun observeCaptures(jobId: String): Flow<List<MeterCaptureEntity>> = db().evidenceDao().observeCaptures(jobId)
+    fun observeCaptures(jobId: String): Flow<List<MeterCaptureEntity>> = db().evidenceDao().observeCaptures(jobId, ownerSubject())
 
-    fun observeWorkLog(jobId: String): Flow<List<WorkLogEntryEntity>> = db().evidenceDao().observeWorkLog(jobId)
+    fun observeWorkLog(jobId: String): Flow<List<WorkLogEntryEntity>> = db().evidenceDao().observeWorkLog(jobId, ownerSubject())
 
-    fun observeUnsynced(tenantId: String): Flow<List<ClientOperationEntity>> = db().clientOperationDao().observeUnsynced(tenantId)
+    fun observeUnsynced(tenantId: String): Flow<List<ClientOperationEntity>> =
+        db().clientOperationDao().observeUnsynced(tenantId, ownerSubject())
+
+    /** Unsynced work other accounts left on this phone, per account: held until that account signs in again. */
+    fun observeHeld(tenantId: String): Flow<List<HeldOwner>> = db().clientOperationDao().observeHeld(tenantId, ownerSubject())
 
     fun observeSyncState(tenantId: String): Flow<SyncStateEntity?> = db().syncStateDao().observe(tenantId)
 
-    fun observePendingUploads(tenantId: String): Flow<Int> = db().evidenceDao().observePendingAttachmentCount(tenantId)
+    fun observePendingUploads(tenantId: String): Flow<Int> =
+        db().evidenceDao().observePendingAttachmentCount(tenantId, ownerSubject())
 
     /** Evidence files that can never be uploaded (missing or changed on the device, refused for good by the server). */
-    fun observeFailedUploads(tenantId: String): Flow<List<AttachmentEntity>> = db().evidenceDao().observeFailedAttachments(tenantId)
+    fun observeFailedUploads(tenantId: String): Flow<List<AttachmentEntity>> = db().evidenceDao().observeFailedAttachments(tenantId, ownerSubject())
 
     fun fieldState(job: JobEntity, ops: List<ClientOperationEntity>): JobFieldState {
         val local = ops.mapNotNull { op -> FieldOps.kindOf(op)?.let { LocalJobOp(op.id, it, op.status, op.createdAtDevice) } }
@@ -140,7 +157,7 @@ class FieldRepository(private val db: () -> AssetaDatabase, private val json: Js
     }
 
     suspend fun fieldState(tenantId: String, job: JobEntity): JobFieldState =
-        fieldState(job, db().clientOperationDao().forJob(tenantId, job.id))
+        fieldState(job, db().clientOperationDao().forJob(tenantId, ownerSubject(), job.id))
 
     /** Machine snapshot, else tenant snapshot; blocked when expired or past the offline grant. */
     suspend fun capturePolicy(tenantId: String, machineId: String): CapturePolicyDecision =

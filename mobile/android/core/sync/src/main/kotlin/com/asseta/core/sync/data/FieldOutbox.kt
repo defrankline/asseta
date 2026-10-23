@@ -7,6 +7,7 @@ import com.asseta.core.domain.sync.JobOpKind
 import com.asseta.core.domain.sync.JobOperationPlanner
 import com.asseta.core.domain.sync.LocalJobOp
 import com.asseta.core.model.ClientOperationStatus
+import com.asseta.core.model.SyncAccount
 import com.asseta.core.model.sync.OpTypes
 import com.asseta.core.sync.SyncClock
 import kotlinx.serialization.json.Json
@@ -50,11 +51,19 @@ object FieldOps {
  * (opening capture -> START -> activities/closing -> acknowledgement -> COMPLETE), or a field-finance operation with
  * its explicit dependencies and evidence gate (an expense waits for all of its receipt uploads). Must be called inside the
  * caller's transaction so the domain record and its operation are written atomically.
+ *
+ * Every operation and its evidence files are recorded with the signed-in [account] (their owner): they are only ever
+ * pushed under that user's token, and only that user's operations shape a job's dependency chain.
  */
-class FieldOutbox(private val db: () -> AssetaDatabase, private val json: Json, private val clock: SyncClock) {
+class FieldOutbox(
+    private val db: () -> AssetaDatabase,
+    private val json: Json,
+    private val clock: SyncClock,
+    private val account: () -> SyncAccount?,
+) {
 
     suspend fun localJobOps(tenantId: String, jobId: String): List<LocalJobOp> =
-        db().clientOperationDao().forJob(tenantId, jobId).mapNotNull { op ->
+        db().clientOperationDao().forJob(tenantId, ownerSubject(account), jobId).mapNotNull { op ->
             FieldOps.kindOf(op)?.let { LocalJobOp(op.id, it, op.status, op.createdAtDevice) }
         }
 
@@ -87,6 +96,7 @@ class FieldOutbox(private val db: () -> AssetaDatabase, private val json: Json, 
         jobId: String? = null,
     ): String {
         require(dependsOn.size <= JobOperationPlanner.MAX_DEPENDENCIES) { "Too many dependencies" }
+        val owner = checkNotNull(account()) { "Sign in to record field work" }
         val op = ClientOperationEntity(
             id = UUID.randomUUID().toString(),
             tenantId = tenantId,
@@ -101,8 +111,16 @@ class FieldOutbox(private val db: () -> AssetaDatabase, private val json: Json, 
             lastError = null,
             serverRevision = null,
             jobId = jobId,
+            ownerSub = owner.subject,
+            ownerLabel = owner.label,
         )
         check(db().clientOperationDao().enqueueWithDependencies(op, dependsOn, attachmentLocalIds) != -1L) { "Operation id collision" }
+        if (attachmentLocalIds.isNotEmpty()) db().evidenceDao().assignOwner(attachmentLocalIds.distinct(), owner.subject)
         return op.id
     }
 }
+
+/** Owner filter for local reads: the signed-in user's subject, or a value no row has when nobody is signed in. */
+internal fun ownerSubject(account: () -> SyncAccount?): String = account()?.subject ?: NO_OWNER
+
+private const val NO_OWNER = ""

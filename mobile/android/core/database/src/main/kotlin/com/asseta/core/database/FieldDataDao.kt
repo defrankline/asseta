@@ -48,6 +48,15 @@ abstract class FieldDataDao {
     @Query("DELETE FROM job WHERE tenant_id = :tenantId")
     abstract suspend fun deleteAllJobs(tenantId: String): Int
 
+    @Query("DELETE FROM machine WHERE tenant_id = :tenantId")
+    abstract suspend fun deleteAllMachines(tenantId: String): Int
+
+    @Query("DELETE FROM reference_record WHERE tenant_id = :tenantId")
+    abstract suspend fun deleteAllReferences(tenantId: String): Int
+
+    @Query("DELETE FROM policy_snapshot WHERE tenant_id = :tenantId")
+    abstract suspend fun deleteAllSnapshots(tenantId: String): Int
+
     @Query("SELECT * FROM job WHERE tenant_id = :tenantId ORDER BY planned_start ASC, job_number ASC")
     abstract fun observeJobs(tenantId: String): Flow<List<JobEntity>>
 
@@ -86,4 +95,8 @@ interface SyncStateDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun put(state: SyncStateEntity)
+
+    /** Tenants whose sync state (cursor, device session, cached server data) belongs to another user than [ownerSub]. */
+    @Query("SELECT tenant_id FROM sync_state WHERE owner_sub IS NULL OR owner_sub != :ownerSub")
+    suspend fun tenantsNotOwnedBy(ownerSub: String): List<String>
 }

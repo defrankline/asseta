@@ -20,6 +20,12 @@ interface SessionHooks {
      */
     suspend fun signOutConfirmation(): String? = null
 
+    /**
+     * After `/me` loaded, before the signed-in home is shown (bounded by a timeout): e.g. the Supervisor resets field
+     * data synced by another user on this phone so the new user never sees it.
+     */
+    suspend fun beforeHome(me: MeResponse) {}
+
     /** After `/me` loaded; [me] is the server's current view of the user's tenants. */
     fun onProfile(me: MeResponse) {}
 }

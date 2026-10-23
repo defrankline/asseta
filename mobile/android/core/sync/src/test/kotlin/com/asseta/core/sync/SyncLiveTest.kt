@@ -14,6 +14,7 @@ import com.asseta.core.model.ClientOperationStatus.ACKED
 import com.asseta.core.model.ClientOperationStatus.PENDING
 import com.asseta.core.model.sync.OperationIn
 import com.asseta.core.model.sync.PushIn
+import com.asseta.core.model.SyncAccount
 import com.asseta.core.network.AssetaHeaders
 import com.asseta.core.network.NetworkFactory
 import com.asseta.core.sync.data.FieldOutbox
@@ -69,6 +70,9 @@ import java.util.UUID
  */
 @RunWith(RobolectricTestRunner::class)
 class SyncLiveTest {
+    /** The live run's signed-in user (owner of the field data it records). */
+    private val liveAccount = SyncAccount("live-e2e-supervisor")
+
     @get:Rule val tmp = TemporaryFolder()
 
     private val json = NetworkFactory.json
@@ -113,10 +117,10 @@ class SyncLiveTest {
         val wipes = mutableListOf<String>()
         val engine = SyncEngine(
             api = api, db = { db }, files = files, deviceId = { device }, appVersion = "live-e2e (android)",
-            wiper = LocalDataWiper { wipes += it }, clock = clock, json = json,
+            wiper = LocalDataWiper { wipes += it }, clock = clock, json = json, account = { liveAccount },
         )
-        val repository = FieldRepository({ db }, json, clock)
-        val capture = CaptureMeterReading({ db }, repository, FieldOutbox({ db }, json, clock), files, { device }, json)
+        val repository = FieldRepository({ db }, json, clock, { liveAccount })
+        val capture = CaptureMeterReading({ db }, repository, FieldOutbox({ db }, json, clock, { liveAccount }), files, { device }, json)
 
         // 1. First sync: registers the device and bootstraps the supervisor's jobs + capture policy.
         success(engine.sync(tenant))
@@ -193,10 +197,10 @@ class SyncLiveTest {
         val files = EncryptedEvidenceStore(tmp.newFolder("evidence-finance"), { key })
         val client = NetworkFactory.okHttpClient({ token }, { tenant }, device = { device })
         val api = NetworkFactory.syncApi(field("api_base"), client, allowCleartext = true)
-        val engine = SyncEngine(api, { db }, files, { device }, "live-e2e (android)", LocalDataWiper { }, clock, json)
-        val repository = FieldRepository({ db }, json, clock)
+        val engine = SyncEngine(api, { db }, files, { device }, "live-e2e (android)", LocalDataWiper { }, clock, json, { liveAccount })
+        val repository = FieldRepository({ db }, json, clock, { liveAccount })
         val financeRepo = FinanceRepository({ db }, repository, json, clock)
-        val outbox = FieldOutbox({ db }, json, clock)
+        val outbox = FieldOutbox({ db }, json, clock, { liveAccount })
         val finance = FinanceCapture({ db }, repository, financeRepo, outbox, files, { device }, json)
         fun get(path: String): String {
             val request = Request.Builder().url("${field("api_base").trimEnd('/')}/api/v1/tenant/$path")
