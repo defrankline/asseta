@@ -77,8 +77,12 @@ class MutationGateTest {
     @Test
     fun `permission and read only tenant block mutations`() {
         val noPerm = MutationGate.check(OwnerAction.DECIDE_APPROVAL, true, DataSource.LIVE, perms, false)
-        assertEquals("You do not have permission to do this.", (noPerm as MutationCheck.Blocked).reason)
+        assertEquals("Your role can view this but not change it.", (noPerm as MutationCheck.Blocked).reason)
         assertTrue(MutationGate.check(OwnerAction.RESOLVE_ALERT, true, DataSource.LIVE, perms, true) is MutationCheck.Blocked)
+        // Same precedence as iOS: offline before saved data before read-only before permission.
+        assertEquals(MutationCheck.Blocked(MutationGate.OFFLINE), MutationGate.check(false, DataSource.CACHE, false, true))
+        assertEquals(MutationCheck.Blocked(MutationGate.SHOWING_SAVED_DATA), MutationGate.check(true, DataSource.CACHE, false, true))
+        assertEquals(MutationCheck.Blocked(MutationGate.READ_ONLY_TENANT), MutationGate.check(true, DataSource.LIVE, false, true))
         assertFalse(MutationGate.resolveNoteValid("   "))
     }
 }

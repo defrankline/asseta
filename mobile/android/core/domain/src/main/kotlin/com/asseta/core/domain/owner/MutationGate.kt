@@ -17,12 +17,22 @@ sealed interface MutationCheck {
  * cached data, without the permission from `/me`, or when the tenant is read-only.
  */
 object MutationGate {
-    fun check(action: OwnerAction, online: Boolean, source: DataSource, permissions: Collection<String>, tenantReadOnly: Boolean): MutationCheck = when {
-        !online || source == DataSource.CACHE -> MutationCheck.Blocked("Offline: actions are disabled while showing saved data.")
-        action.permission !in permissions -> MutationCheck.Blocked("You do not have permission to do this.")
-        tenantReadOnly -> MutationCheck.Blocked("This company is read-only. Actions are disabled.")
+    fun check(action: OwnerAction, online: Boolean, source: DataSource, permissions: Collection<String>, tenantReadOnly: Boolean): MutationCheck =
+        check(online, source, action.permission in permissions, tenantReadOnly)
+
+    /** Same order and wording as the iOS `MutationGuard`: offline, saved data, read-only company, then permission. */
+    fun check(online: Boolean, source: DataSource, permitted: Boolean, tenantReadOnly: Boolean): MutationCheck = when {
+        !online -> MutationCheck.Blocked(OFFLINE)
+        source == DataSource.CACHE -> MutationCheck.Blocked(SHOWING_SAVED_DATA)
+        tenantReadOnly -> MutationCheck.Blocked(READ_ONLY_TENANT)
+        !permitted -> MutationCheck.Blocked(NOT_PERMITTED)
         else -> MutationCheck.Allowed
     }
+
+    const val OFFLINE = "You're offline. Changes need a connection."
+    const val SHOWING_SAVED_DATA = "Showing saved data. Refresh while online before making changes."
+    const val READ_ONLY_TENANT = "This company is read-only. Changes are disabled."
+    const val NOT_PERMITTED = "Your role can view this but not change it."
 
     /** Resolving an alert needs a note (the server answers `422 NOTE_REQUIRED` otherwise). */
     fun resolveNoteValid(note: String): Boolean = note.isNotBlank()

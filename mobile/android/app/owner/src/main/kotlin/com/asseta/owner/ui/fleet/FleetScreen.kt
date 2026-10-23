@@ -36,6 +36,7 @@ import com.asseta.core.domain.owner.OwnerFormat
 import com.asseta.core.domain.finance.SearchMatch
 import com.asseta.core.model.owner.MachineMapDto
 import com.asseta.owner.data.OwnerData
+import com.asseta.owner.ui.common.EmptyState
 import com.asseta.owner.ui.common.OwnerColors
 import com.asseta.owner.ui.common.SnapshotScaffold
 import com.asseta.owner.ui.common.SnapshotViewModel
@@ -61,6 +62,36 @@ object FleetRows {
         (connectivity == null || it.connectivity == connectivity) &&
             SearchMatch.matches(query, it.machine.name, it.machine.assetCode, it.machine.operator, it.machine.supervisor)
     }
+
+    /** List order (same as iOS): machines with open alerts first, then most recently seen, then asset code. */
+    fun sorted(rows: List<FleetRow>): List<FleetRow> = rows.sortedWith(
+        compareByDescending<FleetRow> { it.machine.openAlerts > 0 }
+            .thenByDescending { OwnerFormat.parseInstant(it.machine.lastMessageAt)?.toEpochMilli() ?: Long.MIN_VALUE }
+            .thenBy { it.machine.assetCode },
+    )
+
+    fun title(m: MachineMapDto): String = "${m.assetCode} · ${m.name}"
+
+    /** "Last seen 5 min ago · engine on · moving" ("Never seen · …" without any message). */
+    fun detailLine(row: FleetRow): String {
+        val seen = if (row.machine.lastSeenAgeSeconds == null && row.machine.lastMessageAt == null) "Never seen" else "Last seen ${row.lastSeen}"
+        return "$seen · engine ${OwnerFormat.humanize(row.machine.observedEngine).lowercase()} · ${OwnerFormat.humanize(row.machine.observedMotion).lowercase()}"
+    }
+
+    /** "Reported: Working · operator Ali" */
+    fun reportedLine(m: MachineMapDto): String = "Reported: ${OwnerFormat.humanize(m.reportedWorkStatus)}" + (m.operator?.let { " · operator $it" } ?: "")
+
+    fun alertsLine(count: Int): String = if (count == 1) "1 open alert" else "$count open alerts"
+
+    /** Shown over the map when filtered machines have no fix. */
+    fun unplacedNote(count: Int): String? = when {
+        count <= 0 -> null
+        count == 1 -> "1 machine has no known position (see List)."
+        else -> "$count machines have no known position (see List)."
+    }
+
+    const val EMPTY_TITLE = "No machines"
+    const val EMPTY_MESSAGE = "Nothing matches this search or filter."
 }
 
 @Composable
@@ -71,7 +102,7 @@ fun FleetScreen(vm: FleetViewModel, now: () -> Long, onMachine: (String) -> Unit
     var filter by rememberSaveable { mutableStateOf<String?>(null) }
     SnapshotScaffold(state, vm::refresh) { machines ->
         val snap = state.snapshot!!
-        val rows = FleetRows.filter(FleetRows.build(machines, snap.source, snap.fetchedAtMs, now()), query, filter?.let { Connectivity.from(it) })
+        val rows = FleetRows.sorted(FleetRows.filter(FleetRows.build(machines, snap.source, snap.fetchedAtMs, now()), query, filter?.let { Connectivity.from(it) }))
         Column(Modifier.fillMaxSize()) {
             Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
@@ -94,14 +125,14 @@ fun FleetScreen(vm: FleetViewModel, now: () -> Long, onMachine: (String) -> Unit
                         code = it.machine.assetCode, alerts = it.machine.openAlerts, live = it.connectivity == Connectivity.LIVE,
                     )
                 }
-                val noPosition = rows.size - markers.size
-                if (noPosition > 0) Text(if (noPosition == 1) "1 machine has no known position (see List)." else "$noPosition machines have no known position (see List).", Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.bodySmall)
+                FleetRows.unplacedNote(rows.size - markers.size)?.let { Text(it, Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.bodySmall) }
                 OwnerMap(
                     markers, "Fleet map with ${markers.size} machines. Use the List view for details.",
                     Modifier.fillMaxSize(), onMarker = onMachine,
                 )
             } else {
                 LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (rows.isEmpty()) item { EmptyState(FleetRows.EMPTY_TITLE, FleetRows.EMPTY_MESSAGE) }
                     items(rows, key = { it.machine.machineId.toString() }) { row -> MachineRow(row) { onMachine(row.machine.machineId.toString()) } }
                 }
             }
@@ -114,16 +145,17 @@ private fun MachineRow(row: FleetRow, onClick: () -> Unit) {
     val m = row.machine
     Card(
         Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onClick)
-            .semantics { stateDescription = "${row.connectivity.label}, last seen ${row.lastSeen}" },
+            .semantics { stateDescription = "${row.connectivity.label}, ${FleetRows.detailLine(row)}" },
     ) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("${m.name} · ${m.assetCode}", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                Text(FleetRows.title(m), style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
                 StatusPill(row.connectivity.label, OwnerColors.connectivity(row.connectivity))
             }
-            Text("Last seen ${row.lastSeen} · engine ${OwnerFormat.humanize(m.observedEngine).lowercase()} · ${OwnerFormat.humanize(m.observedMotion).lowercase()}", style = MaterialTheme.typography.bodySmall)
-            Text("Reported: ${OwnerFormat.humanize(m.reportedWorkStatus)}" + (m.operator?.let { " · operator $it" } ?: ""), style = MaterialTheme.typography.bodySmall)
-            if (m.openAlerts > 0) Text("${m.openAlerts} open alerts", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            Text(FleetRows.detailLine(row), style = MaterialTheme.typography.bodySmall)
+            Text(FleetRows.reportedLine(m), style = MaterialTheme.typography.bodySmall)
+            m.supervisor?.let { Text("Supervisor: $it", style = MaterialTheme.typography.bodySmall) }
+            if (m.openAlerts > 0) Text(FleetRows.alertsLine(m.openAlerts), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
         }
     }
 }

@@ -16,6 +16,16 @@ object NotificationMatrix {
             .thenBy { SEVERITIES.indexOf(it.severity).let { i -> if (i < 0) Int.MAX_VALUE else i } },
     )
 
+    /** Category headings, worded as on iOS (`RoutingMatrix.label`). */
+    fun label(category: String): String = when (category) {
+        "ACTION" -> "Needs your action"
+        "REMINDER" -> "Reminders"
+        "ANOMALY" -> "Anomalies & alerts"
+        "BILLING" -> "Billing"
+        "INFO" -> "Information"
+        else -> category.lowercase().replace('_', ' ').replaceFirstChar { it.uppercase() }
+    }
+
     fun toggle(cells: List<PushCell>, category: String, severity: String, push: Boolean): List<PushCell> =
         cells.map { if (it.category == category && it.severity == severity && !it.locked) it.copy(push = push) else it }
 

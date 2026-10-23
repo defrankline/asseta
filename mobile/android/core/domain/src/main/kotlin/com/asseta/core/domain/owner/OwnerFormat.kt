@@ -46,9 +46,14 @@ object OwnerFormat {
 
     fun time(instant: Instant, zone: ZoneId): String = time.format(instant.atZone(zone))
 
-    /** "Offline — data from 21 Oct 2026, 14:05 (stale)" style label for cached snapshots. */
-    fun staleBanner(fetchedAtMs: Long, zone: ZoneId): String =
-        "Offline — data from ${dateTime(Instant.ofEpochMilli(fetchedAtMs), zone)} (stale)"
+    /**
+     * "Offline — data from 21 Oct 2026, 14:05 (stale)" style label for cached snapshots; when the device is online
+     * but the server could not be reached it reads "Can't reach Asseta — …" (same wording as iOS).
+     */
+    fun staleBanner(fetchedAtMs: Long, zone: ZoneId, online: Boolean = false): String {
+        val at = dateTime(Instant.ofEpochMilli(fetchedAtMs), zone)
+        return if (online) "Can't reach Asseta — data from $at (stale)" else "Offline — data from $at (stale)"
+    }
 
     /** Server enum values ("TRACKER_OFFLINE") as readable words ("Tracker offline"). */
     fun humanize(raw: String): String = raw.lowercase().replace('_', ' ').replaceFirstChar { it.uppercase() }

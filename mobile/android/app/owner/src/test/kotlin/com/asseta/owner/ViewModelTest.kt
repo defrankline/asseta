@@ -2,8 +2,9 @@ package com.asseta.owner
 
 import com.asseta.core.domain.owner.OwnerDestination
 import com.asseta.core.model.owner.PushDeviceDto
+import com.asseta.owner.ui.alerts.AlertDetailViewModel
 import com.asseta.owner.ui.alerts.AlertsViewModel
-import com.asseta.owner.ui.approvals.ApprovalsViewModel
+import com.asseta.owner.ui.approvals.ApprovalDetailViewModel
 import com.asseta.owner.ui.common.ScreenState
 import com.asseta.owner.ui.home.HomeViewModel
 import com.asseta.owner.ui.notifications.NotificationsViewModel
@@ -60,7 +61,7 @@ class ViewModelTest {
         val trigger = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
         h.ok(Samples.page(Samples.alert()))
         h.ok(Samples.page(Samples.alert(), Samples.alert(ID2)))
-        val vm = AlertsViewModel(h.data, null, trigger)
+        val vm = AlertsViewModel(h.data, trigger)
         assertEquals(1, vm.state.settled().data!!.items.size)
         trigger.tryEmit(Unit)
         assertEquals(2, vm.state.await { it.data?.items?.size == 2 }.data!!.items.size)
@@ -69,44 +70,51 @@ class ViewModelTest {
     @Test
     fun `acknowledging an alert updates the row in place`() {
         h.ok(Samples.page(Samples.alert()))
-        val vm = AlertsViewModel(h.data, null, emptyFlow())
+        val vm = AlertDetailViewModel(h.data, ID1, emptyFlow())
         vm.state.settled()
         h.ok(Samples.alert(status = "ACKNOWLEDGED"))
-        vm.acknowledge(ID1)
+        vm.acknowledge()
         val s = vm.state.await { it.data?.items?.first()?.status == "ACKNOWLEDGED" }
-        assertEquals("ACKNOWLEDGED", s.data!!.items.first().status)
+        assertEquals("ACKNOWLEDGED", vm.alert(s.data!!)!!.status)
         assertEquals("Alert acknowledged.", vm.message.await { it != null })
+    }
+
+    @Test
+    fun `alert detail reports a missing alert`() {
+        h.ok(Samples.page(Samples.alert()))
+        val vm = AlertDetailViewModel(h.data, ID2, emptyFlow())
+        assertNull(vm.alert(vm.state.settled().data!!))
     }
 
     @Test
     fun `resolve without note is refused locally`() {
         h.ok(Samples.page(Samples.alert()))
-        val vm = AlertsViewModel(h.data, null, emptyFlow())
+        val vm = AlertDetailViewModel(h.data, ID1, emptyFlow())
         vm.state.settled()
-        vm.resolve(ID1, "  ")
-        assertEquals("Add a note explaining how the alert was resolved.", vm.message.value)
+        vm.resolve("  ")
+        assertEquals("Add a note explaining how the alert was resolved.", vm.error.value)
         assertEquals(1, h.server.requestCount) // only the list load
     }
 
     @Test
     fun `alert closed elsewhere reloads the list`() {
         h.ok(Samples.page(Samples.alert()))
-        val vm = AlertsViewModel(h.data, null, emptyFlow())
+        val vm = AlertDetailViewModel(h.data, ID1, emptyFlow())
         vm.state.settled()
         h.error(409, "ALERT_CLOSED")
         h.ok(Samples.page(Samples.alert(status = "RESOLVED")))
-        vm.acknowledge(ID1)
+        vm.acknowledge()
         vm.state.await { it.data?.items?.first()?.status == "RESOLVED" }
-        assertTrue(vm.message.value!!.contains("already closed"))
+        assertTrue(vm.error.value!!.contains("already closed"))
     }
 
     @Test
     fun `segregation of duties error is attached to the request`() {
         h.ok(Samples.page(Samples.approval()))
-        val vm = ApprovalsViewModel(h.data, null, emptyFlow())
+        val vm = ApprovalDetailViewModel(h.data, ID1, emptyFlow())
         vm.state.settled()
         h.error(422, "SEGREGATION_OF_DUTIES")
-        vm.decide(ID1, approve = true, note = null)
+        vm.decide(approve = true, note = null)
         val e = vm.error.await { it != null }!!
         assertEquals(ID1, e.approvalId)
         assertTrue(e.segregationOfDuties)
@@ -116,12 +124,22 @@ class ViewModelTest {
     @Test
     fun `approval decision replaces the request`() {
         h.ok(Samples.page(Samples.approval()))
-        val vm = ApprovalsViewModel(h.data, null, emptyFlow())
+        val vm = ApprovalDetailViewModel(h.data, ID1, emptyFlow())
         vm.state.settled()
         h.ok(Samples.approval(status = "REJECTED"))
-        vm.decide(ID1, approve = false, note = "No receipt")
+        vm.decide(approve = false, note = "No receipt")
         vm.state.await { it.data?.items?.first()?.status == "REJECTED" }
         assertEquals("Rejected.", vm.message.await { it != null })
+    }
+
+    @Test
+    fun `rejection without a reason is not sent`() {
+        h.ok(Samples.page(Samples.approval()))
+        val vm = ApprovalDetailViewModel(h.data, ID1, emptyFlow())
+        vm.state.settled()
+        vm.decide(approve = false, note = " ")
+        assertEquals(1, h.server.requestCount) // only the list load
+        assertNull(vm.message.value)
     }
 
     @Test
