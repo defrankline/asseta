@@ -65,6 +65,14 @@ class FakeSyncServer(private val now: () -> Instant) : Dispatcher() {
 
     /** `Authorization` header of every push, in order (whose token sent which batch). */
     val pushAuthorizations = mutableListOf<String?>()
+    /** Advertised protocol capabilities (null: an older server that sends none). */
+    @Volatile var capabilities: List<String>? = listOf("SUPERVISOR_INBOX_V1", "OP_METER_RESET_REQUEST")
+
+    /** Supervisor inbox lists sent with the next bootstrap/changes (`my_expenses` -> rows); empty: not sent. */
+    var inbox: Map<String, List<JsonObject>> = emptyMap()
+
+    /** Meter reset requests received (payload by server id), resolved like the server's MeterResetOp. */
+    val resets = linkedMapOf<String, JsonObject>()
     var changesCategories: List<JsonObject> = emptyList()
     var changesCustomers: List<JsonObject> = emptyList()
     @Volatile var custodyOutstanding = "500000.0000"
@@ -169,6 +177,7 @@ class FakeSyncServer(private val now: () -> Instant) : Dispatcher() {
         putJsonArray("sites") {}; put("customers", JsonArray(customers)); putJsonArray("staff") {}
         put("contracts", JsonArray(if (customers.isEmpty()) emptyList() else listOf(contract())))
         put("expense_categories", JsonArray(categories)); put("cash_custody", custody())
+        inbox.forEach { (key, rows) -> put(key, JsonArray(rows)) }
     }
 
     private fun snapshots() = buildJsonArray {
@@ -193,12 +202,14 @@ class FakeSyncServer(private val now: () -> Instant) : Dispatcher() {
 
     private fun bootstrap() = buildJsonObject {
         put("protocol_version", 1); put("server_time", now().toString()); put("cursor", cursor)
+        capabilities?.let { c -> put("capabilities", JsonArray(c.map { JsonPrimitive(it) })) }
         put("device_session", deviceSession()); put("data", data(bootstrapJobs ?: listOf(job("APPROVED", 1)), listOf(category("Fuel & oil", true, 5)), listOf(customer(true))))
         put("policy_snapshots", snapshots())
     }
 
     private fun changes() = buildJsonObject {
         put("protocol_version", 1); put("server_time", now().toString()); put("cursor", cursor); put("has_more", false)
+        capabilities?.let { c -> put("capabilities", JsonArray(c.map { JsonPrimitive(it) })) }
         put("data", data(changesJobs, changesCategories, changesCustomers)); put("policy_snapshots", snapshots())
     }
 
@@ -274,6 +285,15 @@ class FakeSyncServer(private val now: () -> Instant) : Dispatcher() {
     private fun default(op: JsonObject): Pair<String, JsonObject> {
         val payload = op["payload"]!!.jsonObject
         if (op.str("op_type") in setOf("EXPENSE", "CASH_COLLECTION", "CASH_HANDOVER", "FUEL_EVENT")) return finance(op)
+        if (op.str("op_type") == "METER_RESET_REQUEST") {
+            val evidence = payload["evidence_upload_id"]?.jsonPrimitive?.content?.let { blobs[it]?.attachmentId }
+                ?: return "REJECTED" to buildJsonObject { put("error", err("ATTACHMENT_NOT_FOUND")) }
+            val id = UUID.randomUUID().toString()
+            resets[id] = payload
+            return "ACKED" to buildJsonObject {
+                putJsonObject("entity") { put("id", id); put("status", "PENDING"); put("evidence_attachment_id", evidence) }
+            }
+        }
         if (op.str("op_type") == "METER_CAPTURE" && payload.str("capture_mode") == "AUTOMATIC" &&
             payload["photo_attachment_id"] == null
         ) {

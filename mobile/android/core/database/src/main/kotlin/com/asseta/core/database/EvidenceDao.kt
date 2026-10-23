@@ -92,4 +92,15 @@ interface EvidenceDao {
 
     @Query("SELECT * FROM work_log_entry WHERE job_id = :jobId AND owner_sub = :ownerSub ORDER BY started_at ASC")
     fun observeWorkLog(jobId: String, ownerSub: String): Flow<List<WorkLogEntryEntity>>
+
+    /** [ownerSub]'s captures in the tenant (every job), newest first: the Readings tab. */
+    @Query(
+        """SELECT * FROM meter_capture WHERE tenant_id = :tenantId
+           AND operation_id IN (SELECT id FROM client_operation WHERE owner_sub = :ownerSub) ORDER BY captured_at DESC""",
+    )
+    fun observeAllCaptures(tenantId: String, ownerSub: String): Flow<List<MeterCaptureEntity>>
+
+    /** [ownerSub]'s work-log entries in the tenant (every job). */
+    @Query("SELECT * FROM work_log_entry WHERE tenant_id = :tenantId AND owner_sub = :ownerSub ORDER BY started_at ASC")
+    fun observeAllWorkLog(tenantId: String, ownerSub: String): Flow<List<WorkLogEntryEntity>>
 }

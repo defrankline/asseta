@@ -183,6 +183,8 @@ class BlobUploader(
                     // The sync EXPENSE op references receipts by blob upload id (resolved server-side to attachments);
                     // each completed receipt appends its id, so an expense with several receipts carries them all.
                     OpTypes.EXPENSE -> "receipt_upload_ids" to appendUploadId(op.payloadJson, dto.id)
+                    // A meter reset request names its evidence photo by upload id, like expense receipts.
+                    OpTypes.METER_RESET_REQUEST -> "evidence_upload_id" to JsonPrimitive(dto.id)
                     else -> return@forEach
                 }
                 val payload = json.parseToJsonElement(op.payloadJson).jsonObject
@@ -206,7 +208,7 @@ class BlobUploader(
         const val FILE_TOO_LARGE = "FILE_TOO_LARGE"
         const val UNKNOWN_PURPOSE = "UNKNOWN_PURPOSE"
         const val LOCAL_EVIDENCE_UNAVAILABLE = "LOCAL_EVIDENCE_UNAVAILABLE"
-        val KNOWN_PURPOSES = setOf(BlobPurpose.METER_PHOTO, BlobPurpose.SIGNATURE, BlobPurpose.EXPENSE_RECEIPT)
+        val KNOWN_PURPOSES = setOf(BlobPurpose.METER_PHOTO, BlobPurpose.SIGNATURE, BlobPurpose.EXPENSE_RECEIPT, BlobPurpose.RESET_EVIDENCE)
         val OCTET_STREAM = "application/octet-stream".toMediaType()
     }
 }

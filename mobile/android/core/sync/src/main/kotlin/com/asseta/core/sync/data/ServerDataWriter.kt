@@ -13,6 +13,7 @@ import com.asseta.core.model.sync.BootstrapDto
 import com.asseta.core.model.sync.ChangesDto
 import com.asseta.core.model.sync.DeviceSessionDto
 import com.asseta.core.model.sync.PolicySnapshotDto
+import com.asseta.core.model.sync.SyncCapabilities
 import com.asseta.core.model.sync.SyncData
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
@@ -59,12 +60,15 @@ class ServerDataWriter(private val db: () -> AssetaDatabase, private val json: J
             val categories = dto.data.expenseCategories.map { it.id }
             val finance = database.financeDataDao()
             if (categories.isEmpty()) finance.deleteAllCategories(tenantId) else finance.deleteCategoriesNotIn(tenantId, categories)
+            // The bootstrap inbox is the server's full window: start it afresh (later pages arrive as changes).
+            if (SyncCapabilities.SUPERVISOR_INBOX_V1 in dto.capabilities) database.inboxDao().deleteTenant(tenantId)
             applyData(database, tenantId, dto.data)
             applySnapshots(database, tenantId, dto.policySnapshots)
             val states = database.syncStateDao()
             val current = states.get(tenantId) ?: SyncStateEntity(tenantId)
             states.put(
                 current.copy(
+                    capabilities = dto.capabilities.joinToString(","),
                     deviceSessionId = dto.deviceSession.id,
                     offlineGrantUntil = IsoTime.parse(dto.deviceSession.offlineGrantUntil).toEpochMilli(),
                     cursor = dto.cursor,
@@ -84,6 +88,7 @@ class ServerDataWriter(private val db: () -> AssetaDatabase, private val json: J
             val current = states.get(tenantId) ?: SyncStateEntity(tenantId)
             states.put(
                 current.copy(
+                    capabilities = dto.capabilities.joinToString(","),
                     cursor = maxOf(dto.cursor, current.cursor ?: 0),
                     serverTime = IsoTime.parse(dto.serverTime).toEpochMilli(),
                     serverTimeElapsed = receivedElapsedMs,
@@ -109,6 +114,7 @@ class ServerDataWriter(private val db: () -> AssetaDatabase, private val json: J
             data.staff.map { ref(KIND_STAFF, it.id, tenantId, it.fullName, json.encodeToString(it)) }
         if (refs.isNotEmpty()) field.upsertReferences(refs)
         applyFinance(database, tenantId, data)
+        InboxWriter(json).apply(database, tenantId, data)
     }
 
     /** Expense categories upsert by sync revision (deactivations arrive as is_active=false); custody is replaced. */

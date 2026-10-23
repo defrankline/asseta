@@ -25,6 +25,7 @@ import com.asseta.core.model.owner.PhotoUrlDto
 import com.asseta.core.model.owner.PushDeviceDto
 import com.asseta.core.model.owner.PushDeviceIn
 import com.asseta.core.model.owner.TenantOverviewDto
+import com.asseta.core.model.sync.CashReconciliationDto
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
@@ -169,4 +170,8 @@ interface TenantApi {
     /** deactivatePushDevice */
     @DELETE("api/v1/me/push-devices/{id}")
     suspend fun deactivatePushDevice(@Path("id") deviceId: String): PushDeviceDto
+
+    /** getMyCashReconciliation: the signed-in supervisor's day-by-day custody (Supervisor app, online only). */
+    @GET("api/v1/tenant/cash/custody/me/reconciliation")
+    suspend fun myCashReconciliation(@Query("date") date: String? = null, @Query("currency") currency: String? = null): List<CashReconciliationDto>
 }

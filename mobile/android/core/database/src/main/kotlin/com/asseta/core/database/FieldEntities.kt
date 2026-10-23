@@ -79,4 +79,8 @@ data class SyncStateEntity(
      * user signs in they are reset (fresh bootstrap); null only before the first sync of a tenant.
      */
     @ColumnInfo(name = "owner_sub") val ownerSub: String? = null,
-)
+    /** v7: optional protocol features the server advertised on the last pull (comma separated), e.g. SUPERVISOR_INBOX_V1. */
+    @ColumnInfo(name = "capabilities") val capabilities: String? = null,
+) {
+    fun supports(capability: String): Boolean = capabilities?.split(',')?.contains(capability) == true
+}

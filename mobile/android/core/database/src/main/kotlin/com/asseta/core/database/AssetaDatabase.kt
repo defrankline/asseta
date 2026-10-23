@@ -21,6 +21,7 @@ import androidx.room.TypeConverters
         ExpenseCategoryEntity::class,
         CashCustodyBalanceEntity::class,
         ReadSnapshotEntity::class,
+        InboxRecordEntity::class,
     ],
     version = AssetaDatabase.VERSION,
     exportSchema = true,
@@ -29,6 +30,7 @@ import androidx.room.TypeConverters
         AutoMigration(from = 2, to = 3),
         AutoMigration(from = 3, to = 4),
         AutoMigration(from = 4, to = 5, spec = AssetaMigrations.V4ToV5::class),
+        AutoMigration(from = 6, to = 7),
     ],
 )
 @TypeConverters(Converters::class)
@@ -39,9 +41,10 @@ abstract class AssetaDatabase : RoomDatabase() {
     abstract fun evidenceDao(): EvidenceDao
     abstract fun financeDataDao(): FinanceDataDao
     abstract fun readSnapshotDao(): ReadSnapshotDao
+    abstract fun inboxDao(): InboxDao
 
     companion object {
-        const val VERSION = 6
+        const val VERSION = 7
         const val FILE_NAME = "asseta.db"
     }
 }

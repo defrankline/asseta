@@ -33,6 +33,12 @@ object AssetaMigrations {
         }
     }
 
+    /*
+     * v6 -> v7 (supervisor inbox): new table `inbox_record` and the nullable `sync_state.capabilities` column, holding the supervisor's own records as the server knows them
+     * (SUPERVISOR_INBOX_V1). Purely additive AutoMigration: outbox, evidence and cached server data are untouched; the
+     * table fills on the next pull.
+     */
+
     /**
      * v1 -> v2 (Gate 4): outbox columns (job, error code, server result, attachment gate, last attempt), multi-parent
      * dependency table, cached server data, policy snapshots, sync state and local evidence tables. Room generates the

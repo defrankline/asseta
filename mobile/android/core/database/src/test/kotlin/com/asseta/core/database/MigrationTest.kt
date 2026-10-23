@@ -19,6 +19,7 @@ import org.robolectric.RobolectricTestRunner
  * v3 -> v4 adds the Owner app's `read_snapshot` cache table.
  * v4 -> v5 moves queued single-attachment gates into `client_operation_attachment` (several receipts per expense).
  * v5 -> v6 records the owning user of sync state, outbox operations, attachments and work-log entries.
+ * v6 -> v7 adds the supervisor inbox table `inbox_record` (server copies of the supervisor's own records).
  */
 @RunWith(RobolectricTestRunner::class)
 class MigrationTest {
@@ -250,6 +251,42 @@ class MigrationTest {
                 val held = ops.observeHeld("t", "next-user").first().single()
                 assertEquals(SyncAccount.UNKNOWN_SUBJECT to 2, held.ownerSub to held.count)
                 assertNull(held.ownerLabel)
+            }
+        } finally {
+            room.close()
+        }
+    }
+
+    @Test
+    fun migrate6To7KeepsEverythingAndAddsTheInbox() {
+        helper.createDatabase(DB, 5).use(::seedV5)
+        helper.runMigrationsAndValidate(DB, 6, true, AssetaMigrations.V5ToV6(LEGACY)).close()
+        helper.runMigrationsAndValidate(DB, 7, true, AssetaMigrations.V5ToV6(LEGACY)).use { db ->
+            fun count(sql: String) = db.query(sql).use { c -> c.moveToFirst(); c.getInt(0) }
+            assertEquals(2, count("SELECT COUNT(*) FROM client_operation WHERE owner_sub = '${LEGACY.subject}'"))
+            assertEquals(1, count("SELECT COUNT(*) FROM work_log_entry"))
+            assertEquals(1, count("SELECT COUNT(*) FROM sync_state WHERE cursor = 53 AND capabilities IS NULL"))
+            assertEquals(0, count("SELECT COUNT(*) FROM inbox_record"))
+        }
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val room = Room.databaseBuilder(context, AssetaDatabase::class.java, DB).allowMainThreadQueries()
+            .addMigrations(*AssetaMigrations.all(LEGACY)).build()
+        try {
+            runBlocking {
+                val inbox = room.inboxDao()
+                fun rec(rev: Long, status: String, at: Long) =
+                    InboxRecordEntity(InboxRecordEntity.EXPENSE, "e1", "t", "c1", null, null, status, at, rev, "{\"rev\":$rev}")
+                assertEquals(1, inbox.upsert(listOf(rec(5, "PENDING_APPROVAL", 10))))
+                // An older (replayed) revision never overwrites a newer one; a newer one does.
+                assertEquals(0, inbox.upsert(listOf(rec(4, "APPROVED", 10))))
+                assertEquals("PENDING_APPROVAL", inbox.kind("t", InboxRecordEntity.EXPENSE).single().status)
+                assertEquals(1, inbox.upsert(listOf(rec(6, "REJECTED", 10))))
+                assertEquals("REJECTED", inbox.observeKind("t", InboxRecordEntity.EXPENSE).first().single().status)
+                // Pruning keeps records still waiting for the office.
+                inbox.upsert(listOf(rec(7, "PENDING_APPROVAL", 10).copy(id = "e2")))
+                assertEquals(1, inbox.prune("t", 100, InboxRecordEntity.OPEN_STATUSES))
+                assertEquals(listOf("e2"), inbox.kind("t", InboxRecordEntity.EXPENSE).map { it.id })
+                assertEquals(1, inbox.deleteTenant("t"))
             }
         } finally {
             room.close()

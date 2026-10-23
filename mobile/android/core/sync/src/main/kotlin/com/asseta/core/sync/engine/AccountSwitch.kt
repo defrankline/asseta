@@ -7,7 +7,8 @@ import com.asseta.core.model.SyncAccount
 
 /**
  * Field data on a phone shared by several users. A tenant's sync state (cursor, device session, offline grant) and the
- * server data cached with it (jobs, machines, reference data, expense categories, cash custody, policy snapshots)
+ * server data cached with it (jobs, machines, reference data, expense categories, cash custody, policy snapshots,
+ * the supervisor inbox and cached notifications)
  * belong to the user who synced them. When another user signs in, that tenant is reset so the new user gets a fresh
  * bootstrap of their own data, never the previous user's cache or a cursor past their own bootstrap.
  *
@@ -52,5 +53,7 @@ class AccountSwitch(private val db: () -> AssetaDatabase) {
         val finance = database.financeDataDao()
         finance.deleteAllCategories(tenantId)
         finance.clearCustody(tenantId)
+        database.inboxDao().deleteTenant(tenantId)
+        database.readSnapshotDao().deleteTenant(tenantId) // cached notifications of the previous user
     }
 }
