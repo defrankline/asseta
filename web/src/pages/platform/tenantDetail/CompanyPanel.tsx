@@ -31,7 +31,7 @@ export function CompanyPanel({ tenant: t, onChanged }: CompanyPanelProps) {
               setVerifying(true);
             }}
           >
-            Verify company
+            {t.verification_status === 'VERIFIED' ? 'Change verification' : 'Verify company'}
           </Button>
         </Can>
       </Stack>
