@@ -4,18 +4,21 @@ import android.Manifest
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -26,8 +29,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.asseta.core.domain.owner.DataSource
@@ -35,10 +40,16 @@ import com.asseta.core.domain.owner.MutationCheck
 import com.asseta.core.domain.owner.MutationGate
 import com.asseta.core.domain.owner.NotificationMatrix
 import com.asseta.core.domain.owner.OwnerFormat
+import com.asseta.core.ui.components.ButtonRow
+import com.asseta.core.ui.components.GroupedSection
 import com.asseta.core.ui.session.LocalSessionActions
+import com.asseta.core.ui.theme.AssetaType
+import com.asseta.core.ui.theme.palette
 import com.asseta.owner.ui.OwnerSession
+import com.asseta.owner.ui.common.BlockedNote
 import com.asseta.owner.ui.common.FootNote
 import com.asseta.owner.ui.common.KeyValue
+import com.asseta.owner.ui.common.OwnerColors
 import com.asseta.owner.ui.common.SectionCard
 
 /** Settings wording shared with iOS (`SettingsView`). */
@@ -72,54 +83,57 @@ fun SettingsScreen(vm: SettingsViewModel, session: OwnerSession, online: Boolean
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> if (granted) vm.enablePush() }
     // Routing is read live (never cached), so only connectivity and a read-only company block changes.
     val gate = MutationGate.check(online, DataSource.LIVE, permitted = true, tenantReadOnly = session.readOnly)
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        ui.error?.let { item { Text(it, color = MaterialTheme.colorScheme.error) } }
+    val p = palette
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 16.dp, bottom = 16.dp)) {
+        ui.error?.let { item { GroupedSection { Text(it, color = MaterialTheme.colorScheme.error) } } }
         if (session.features.notifications) item {
-            SectionCard(SettingsText.MATRIX_TITLE) {
-                if (ui.loading) Text("Loading…")
+            SectionCard(SettingsText.MATRIX_TITLE, footer = SettingsText.MATRIX_FOOTER) {
+                if (ui.loading) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
                 ui.cells.groupBy { it.category }.forEach { (category, cells) ->
-                    Text(NotificationMatrix.label(category), style = MaterialTheme.typography.titleSmall)
-                    cells.forEach { c ->
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(SettingsText.severityLabel(c.severity, c.locked), Modifier.weight(1f))
-                            Switch(
-                                checked = c.push,
-                                onCheckedChange = { vm.toggle(c.category, c.severity, it) },
-                                enabled = gate is MutationCheck.Allowed && !c.locked,
-                                modifier = Modifier.semantics { contentDescription = "Push for ${NotificationMatrix.label(category)}, ${OwnerFormat.humanize(c.severity)}" },
-                            )
+                    // One row per category, as on iOS: bold category name, then a switch per severity.
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(NotificationMatrix.label(category), style = AssetaType.subheadline, fontWeight = FontWeight.Bold)
+                        cells.forEach { c ->
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Box(Modifier.size(8.dp).clip(CircleShape).background(OwnerColors.severity(c.severity)))
+                                Text(SettingsText.severityLabel(c.severity, c.locked), Modifier.weight(1f).padding(start = 8.dp), style = MaterialTheme.typography.bodyLarge)
+                                Switch(
+                                    checked = c.push,
+                                    onCheckedChange = { vm.toggle(c.category, c.severity, it) },
+                                    enabled = gate is MutationCheck.Allowed && !c.locked,
+                                    modifier = Modifier.semantics { contentDescription = "Push for ${NotificationMatrix.label(category)}, ${OwnerFormat.humanize(c.severity)}" },
+                                )
+                            }
                         }
                     }
                 }
-                (gate as? MutationCheck.Blocked)?.let { FootNote(it.reason) }
-                Button(onClick = vm::save, enabled = gate is MutationCheck.Allowed && ui.dirty && !ui.saving) { Text(if (ui.saving) "Saving…" else "Save") }
-                ui.message?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary) }
-                FootNote(SettingsText.MATRIX_FOOTER)
+                (gate as? MutationCheck.Blocked)?.let { BlockedNote(it.reason) }
+                ButtonRow(if (ui.saving) "Saving…" else "Save", enabled = gate is MutationCheck.Allowed && ui.dirty && !ui.saving, onClick = vm::save)
+                ui.message?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = p.secondaryText) }
             }
         }
         item {
-            SectionCard("Push devices") {
+            SectionCard("Push devices", footer = SettingsText.DEVICES_FOOTER) {
                 KeyValue("This phone", SettingsText.pushStatus(vm.pushAvailable, vm.pushRegistered, session.tenantName))
                 KeyValue("Provider", vm.pushProvider)
                 if (vm.pushAvailable) {
-                    OutlinedButton(enabled = online, onClick = {
+                    ButtonRow("Enable push notifications", enabled = online) {
                         if (Build.VERSION.SDK_INT >= 33) permission.launch(Manifest.permission.POST_NOTIFICATIONS) else vm.enablePush()
-                    }) { Text("Enable push notifications") }
+                    }
                 } else {
                     FootNote(SettingsText.PUSH_UNAVAILABLE)
                 }
-                if (ui.devices.isEmpty()) Text("No devices registered for push.", style = MaterialTheme.typography.bodySmall)
+                if (ui.devices.isEmpty()) FootNote("No devices registered for push.")
                 ui.devices.forEach { d ->
-                    Column {
-                        Text("${d.deviceLabel ?: d.platform} · ${OwnerFormat.humanize(d.app)} · …${d.tokenHint}", style = MaterialTheme.typography.bodyMedium)
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("${d.deviceLabel ?: d.platform} · ${OwnerFormat.humanize(d.app)} · …${d.tokenHint}", style = AssetaType.subheadline)
                         Text(
                             (if (d.active) "Active" else "Inactive") + " · registered ${OwnerFormat.dateTime(d.lastRegisteredAt, java.time.ZoneId.systemDefault())}",
-                            style = MaterialTheme.typography.bodySmall,
+                            style = AssetaType.caption, color = p.secondaryText,
                         )
-                        if (d.active) TextButton(onClick = { vm.deactivate(d.id.toString()) }, enabled = online) { Text("Stop push to this device") }
+                        if (d.active) ButtonRow("Stop push to this device", enabled = online) { vm.deactivate(d.id.toString()) }
                     }
                 }
-                FootNote(SettingsText.DEVICES_FOOTER)
             }
         }
         item { SectionCard("Offline data") { FootNote(SettingsText.OFFLINE_DATA) } }
@@ -127,11 +141,8 @@ fun SettingsScreen(vm: SettingsViewModel, session: OwnerSession, online: Boolean
             SectionCard("Account") {
                 KeyValue("Company", session.tenantName)
                 if (session.userEmail.isNotEmpty()) KeyValue("Signed in as", session.userEmail)
-                if (session.canSwitchTenant) OutlinedButton(onClick = actions.switchTenant) { Text("Switch company") }
-                Button(
-                    onClick = { confirmSignOut = true },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError),
-                ) { Text("Sign out") }
+                if (session.canSwitchTenant) ButtonRow("Switch company", onClick = actions.switchTenant)
+                ButtonRow("Sign out", destructive = true) { confirmSignOut = true }
             }
         }
     }

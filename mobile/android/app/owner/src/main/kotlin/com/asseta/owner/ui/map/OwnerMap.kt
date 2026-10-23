@@ -26,6 +26,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.asseta.core.ui.theme.AssetaColors
 import com.asseta.owner.BuildConfig
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
@@ -87,7 +88,7 @@ fun OwnerMap(
                 m.uiSettings.isRotateGesturesEnabled = false
                 m.setStyle(Style.Builder().fromJson(MapSetup.styleJson())) { s ->
                     s.addSource(GeoJsonSource(TRACK, FeatureCollection.fromFeatures(emptyList())))
-                    s.addLayer(LineLayer(TRACK, TRACK).withProperties(PropertyFactory.lineWidth(4f), PropertyFactory.lineColor(Color(0xFF0F2A3D).toArgb())))
+                    s.addLayer(LineLayer(TRACK, TRACK).withProperties(PropertyFactory.lineWidth(4f), PropertyFactory.lineColor(AssetaColors.Amber.toArgb())))
                     s.addSource(GeoJsonSource(MARKERS, FeatureCollection.fromFeatures(emptyList())))
                     s.addLayer(
                         SymbolLayer(MARKERS, MARKERS).withProperties(

@@ -1,19 +1,21 @@
 package com.asseta.owner.ui.fleet
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Card
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -23,7 +25,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -35,6 +39,10 @@ import com.asseta.core.domain.owner.Freshness
 import com.asseta.core.domain.owner.OwnerFormat
 import com.asseta.core.domain.finance.SearchMatch
 import com.asseta.core.model.owner.MachineMapDto
+import com.asseta.core.ui.components.FilterChipButton
+import com.asseta.core.ui.components.SearchField
+import com.asseta.core.ui.theme.AssetaType
+import com.asseta.core.ui.theme.palette
 import com.asseta.owner.data.OwnerData
 import com.asseta.owner.ui.common.EmptyState
 import com.asseta.owner.ui.common.OwnerColors
@@ -44,6 +52,7 @@ import com.asseta.owner.ui.common.StatusPill
 import com.asseta.owner.ui.map.MapMarker
 import com.asseta.owner.ui.map.OwnerMap
 import kotlinx.coroutines.flow.Flow
+import com.asseta.core.ui.R as CoreR
 
 class FleetViewModel(data: OwnerData, refreshOn: Flow<Unit>) : SnapshotViewModel<List<MachineMapDto>>({ data.fleet() }, refreshOn)
 
@@ -100,23 +109,29 @@ fun FleetScreen(vm: FleetViewModel, now: () -> Long, onMachine: (String) -> Unit
     var showMap by rememberSaveable { mutableStateOf(true) }
     var query by rememberSaveable { mutableStateOf("") }
     var filter by rememberSaveable { mutableStateOf<String?>(null) }
-    SnapshotScaffold(state, vm::refresh) { machines ->
-        val snap = state.snapshot!!
-        val rows = FleetRows.sorted(FleetRows.filter(FleetRows.build(machines, snap.source, snap.fetchedAtMs, now()), query, filter?.let { Connectivity.from(it) }))
-        Column(Modifier.fillMaxSize()) {
-            Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                    SegmentedButton(showMap, { showMap = true }, SegmentedButtonDefaults.itemShape(0, 2)) { Text("Map") }
-                    SegmentedButton(!showMap, { showMap = false }, SegmentedButtonDefaults.itemShape(1, 2)) { Text("List") }
+    val machines = state.data
+    val snap = state.snapshot
+    val rows = if (machines != null && snap != null) {
+        FleetRows.sorted(FleetRows.filter(FleetRows.build(machines, snap.source, snap.fetchedAtMs, now()), query, filter?.let { Connectivity.from(it) }))
+    } else {
+        emptyList()
+    }
+    // Same order as iOS: search field, Map/List control, status filters with the count, then the map or list.
+    Column(Modifier.fillMaxSize()) {
+        SearchField(query, { query = it }, "Search machine, code, operator")
+        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 8.dp)) {
+            SegmentedButton(showMap, { showMap = true }, SegmentedButtonDefaults.itemShape(0, 2)) { Text("Map") }
+            SegmentedButton(!showMap, { showMap = false }, SegmentedButtonDefaults.itemShape(1, 2)) { Text("List") }
+        }
+        Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf(Connectivity.LIVE, Connectivity.RECENT, Connectivity.STALE, Connectivity.OFFLINE).forEach { c ->
+                    FilterChipButton(c.label, filter == c.wire) { filter = if (filter == c.wire) null else c.wire }
                 }
-                OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth(), label = { Text("Search machine, code, operator") }, singleLine = true)
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf(Connectivity.LIVE, Connectivity.RECENT, Connectivity.STALE, Connectivity.OFFLINE).forEach { c ->
-                        FilterChip(filter == c.wire, { filter = if (filter == c.wire) null else c.wire }, label = { Text(c.label) })
-                    }
-                }
-                Text("${rows.size} of ${machines.size} machines", style = MaterialTheme.typography.bodySmall)
             }
+            machines?.let { Text("${rows.size} of ${it.size} machines", style = AssetaType.caption, color = palette.secondaryText) }
+        }
+        SnapshotScaffold(state, vm::refresh) {
             if (showMap) {
                 val markers = rows.filter { it.machine.hasPosition }.map {
                     MapMarker(
@@ -125,15 +140,28 @@ fun FleetScreen(vm: FleetViewModel, now: () -> Long, onMachine: (String) -> Unit
                         code = it.machine.assetCode, alerts = it.machine.openAlerts, live = it.connectivity == Connectivity.LIVE,
                     )
                 }
-                FleetRows.unplacedNote(rows.size - markers.size)?.let { Text(it, Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.bodySmall) }
-                OwnerMap(
-                    markers, "Fleet map with ${markers.size} machines. Use the List view for details.",
-                    Modifier.fillMaxSize(), onMarker = onMachine,
-                )
+                Box(Modifier.fillMaxSize()) {
+                    OwnerMap(
+                        markers, "Fleet map with ${markers.size} machines. Use the List view for details.",
+                        Modifier.fillMaxSize(), onMarker = onMachine,
+                    )
+                    FleetRows.unplacedNote(rows.size - markers.size)?.let {
+                        Text(
+                            it, style = AssetaType.caption,
+                            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp)
+                                .background(palette.cell.copy(alpha = 0.92f), RoundedCornerShape(50)).padding(8.dp),
+                        )
+                    }
+                }
+            } else if (rows.isEmpty()) {
+                EmptyState(FleetRows.EMPTY_TITLE, FleetRows.EMPTY_MESSAGE, CoreR.drawable.ic_search)
             } else {
-                LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (rows.isEmpty()) item { EmptyState(FleetRows.EMPTY_TITLE, FleetRows.EMPTY_MESSAGE) }
-                    items(rows, key = { it.machine.machineId.toString() }) { row -> MachineRow(row) { onMachine(row.machine.machineId.toString()) } }
+                // Plain list (iOS `.listStyle(.plain)`): full-width rows with inset separators.
+                LazyColumn(Modifier.fillMaxSize().background(palette.cell)) {
+                    itemsIndexed(rows, key = { _, r -> r.machine.machineId.toString() }) { i, row ->
+                        if (i > 0) HorizontalDivider(Modifier.padding(start = 56.dp), thickness = 0.5.dp, color = palette.separator)
+                        MachineRow(row) { onMachine(row.machine.machineId.toString()) }
+                    }
                 }
             }
         }
@@ -143,19 +171,36 @@ fun FleetScreen(vm: FleetViewModel, now: () -> Long, onMachine: (String) -> Unit
 @Composable
 private fun MachineRow(row: FleetRow, onClick: () -> Unit) {
     val m = row.machine
-    Card(
-        Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onClick)
-            .semantics { stateDescription = "${row.connectivity.label}, ${FleetRows.detailLine(row)}" },
+    val secondary = palette.secondaryText
+    val tone = OwnerColors.connectivity(row.connectivity)
+    // Same layout as the iOS `MachineRow`: a connectivity symbol on the left, then the lines.
+    Row(
+        Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onClick).padding(horizontal = 16.dp, vertical = 10.dp)
+            .semantics(mergeDescendants = true) { stateDescription = "${row.connectivity.label}, ${FleetRows.detailLine(row)}" },
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(FleetRows.title(m), style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
-                StatusPill(row.connectivity.label, OwnerColors.connectivity(row.connectivity))
+        Box(Modifier.width(28.dp).padding(top = 1.dp), contentAlignment = Alignment.TopCenter) {
+            Icon(painterResource(connectivityIcon(row.connectivity)), contentDescription = null, tint = tone, modifier = Modifier.size(22.dp))
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(FleetRows.title(m), style = AssetaType.headline, modifier = Modifier.weight(1f))
+                StatusPill(row.connectivity.label, tone)
             }
-            Text(FleetRows.detailLine(row), style = MaterialTheme.typography.bodySmall)
-            Text(FleetRows.reportedLine(m), style = MaterialTheme.typography.bodySmall)
-            m.supervisor?.let { Text("Supervisor: $it", style = MaterialTheme.typography.bodySmall) }
-            if (m.openAlerts > 0) Text(FleetRows.alertsLine(m.openAlerts), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            Text(FleetRows.detailLine(row), style = AssetaType.caption, color = secondary)
+            Text(FleetRows.reportedLine(m), style = AssetaType.caption, color = secondary)
+            m.supervisor?.let { Text("Supervisor: $it", style = AssetaType.caption, color = secondary) }
+            if (m.openAlerts > 0) Text(FleetRows.alertsLine(m.openAlerts), color = OwnerColors.Critical, style = AssetaType.caption)
         }
     }
+}
+
+/** Same symbol concept per connectivity as iOS `FleetPresentation.style` (radio waves, clock, clock with alert, …). */
+private fun connectivityIcon(c: Connectivity): Int = when (c) {
+    Connectivity.LIVE -> CoreR.drawable.ic_live
+    Connectivity.RECENT -> CoreR.drawable.ic_clock
+    Connectivity.STALE -> CoreR.drawable.ic_clock_alert
+    Connectivity.OFFLINE -> CoreR.drawable.ic_wifi_off
+    Connectivity.NO_TRACKER -> CoreR.drawable.ic_no_tracker
+    else -> CoreR.drawable.ic_help
 }

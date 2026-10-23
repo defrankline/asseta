@@ -2,7 +2,6 @@ package com.asseta.owner.ui.common
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -11,6 +10,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import com.asseta.core.model.owner.PhotoUrlDto
+import com.asseta.core.ui.components.ButtonRow
+import com.asseta.owner.R
 import com.asseta.owner.data.ActionResult
 import kotlinx.coroutines.launch
 
@@ -26,8 +27,11 @@ fun EvidencePhoto(label: String, online: Boolean, fetchUrl: suspend () -> Action
         if (shown != null) {
             RemoteImage(shown, label)
         } else {
-            OutlinedButton(
+            // Borderless "photo" button as on iOS (`PhotoButton`).
+            ButtonRow(
+                if (online) "View $label" else "${label.replaceFirstChar { it.uppercase() }} (online only)",
                 enabled = online && !busy,
+                icon = R.drawable.ic_photo,
                 onClick = {
                     busy = true
                     scope.launch {
@@ -38,7 +42,7 @@ fun EvidencePhoto(label: String, online: Boolean, fetchUrl: suspend () -> Action
                         busy = false
                     }
                 },
-            ) { Text(if (online) "View $label" else "${label.replaceFirstChar { it.uppercase() }} (online only)") }
+            )
         }
         error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
     }

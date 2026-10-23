@@ -1,32 +1,33 @@
 package com.asseta.owner.ui.machine
 
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
+import com.asseta.core.domain.owner.Connectivity
 import com.asseta.core.domain.owner.OwnerDestination
 import com.asseta.core.domain.owner.OwnerFormat
 import com.asseta.core.model.owner.AlertDto
 import com.asseta.core.model.owner.HistoryDto
 import com.asseta.core.model.owner.JobDto
 import com.asseta.core.model.owner.MachineDto
-import com.asseta.core.model.owner.MachineMapDto
 import com.asseta.core.model.owner.MeterCaptureDto
 import com.asseta.core.model.owner.PageDto
+import com.asseta.core.ui.components.LabeledValue
+import com.asseta.core.ui.components.LinkRow
+import com.asseta.core.ui.components.fullBleed
+import com.asseta.core.ui.theme.AssetaType
+import com.asseta.core.ui.theme.palette
 import com.asseta.owner.data.OwnerData
 import com.asseta.owner.ui.OwnerFeatures
 import com.asseta.owner.ui.alerts.AlertRow
@@ -115,9 +116,9 @@ fun MachineScreen(vm: MachineViewModel, features: OwnerFeatures, online: Boolean
     SnapshotScaffold(status, vm::refresh) { m ->
         val snap = status.snapshot!!
         val row = FleetRows.build(listOf(m), snap.source, snap.fetchedAtMs, now()).first()
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 16.dp, bottom = 16.dp)) {
             item { StatusCard(row, info.data, zone) }
-            item { Track(m, track, zone) }
+            item { Track(row, track, zone) }
             if (features.jobs) item { CurrentJob(jobs, zone, onOpen) }
             item { RecentAlerts(alerts, zone, onOpen) }
             if (features.meterEvidence) item { Readings(vm.data, readings, online, zone) }
@@ -127,10 +128,9 @@ fun MachineScreen(vm: MachineViewModel, features: OwnerFeatures, online: Boolean
 
 @Composable
 private fun StatusCard(row: FleetRow, info: MachineDto?, zone: ZoneId) {
-    SectionCard("Status") {
-        StatusPill(row.connectivity.label, OwnerColors.connectivity(row.connectivity))
+    SectionCard("Status", footer = MachineText.STATUS_FOOTER) {
+        LabeledValue("Connectivity") { StatusPill(row.connectivity.label, OwnerColors.connectivity(row.connectivity)) }
         MachineText.statusRows(row, info, zone).forEach { (k, v) -> KeyValue(k, v) }
-        FootNote(MachineText.STATUS_FOOTER)
     }
 }
 
@@ -140,10 +140,10 @@ private fun CurrentJob(state: ScreenState<PageDto<JobDto>>, zone: ZoneId, onOpen
         StaleBanner(state.snapshot)
         val job = state.data?.items?.firstOrNull()
         when {
-            job != null -> JobRow(job, zone, Modifier.fillMaxWidth().clickable(role = Role.Button) { onOpen(OwnerDestination.Job(job.id.toString())) })
-            state.loading -> Text("Loading…")
+            job != null -> LinkRow({ onOpen(OwnerDestination.Job(job.id.toString())) }) { JobRow(job, zone) }
+            state.loading -> SecondaryText("Loading…")
             state.error != null -> Text(state.error!!.message, color = MaterialTheme.colorScheme.error)
-            else -> Text("No job in progress.")
+            else -> SecondaryText("No job in progress.")
         }
     }
 }
@@ -153,41 +153,42 @@ private fun RecentAlerts(state: ScreenState<PageDto<AlertDto>>, zone: ZoneId, on
     SectionCard("Recent alerts") {
         StaleBanner(state.snapshot)
         val items = state.data?.items.orEmpty()
-        if (items.isEmpty()) Text(state.error?.message ?: if (state.loading) "Loading…" else "No alerts.")
-        items.forEachIndexed { i, a ->
-            if (i > 0) HorizontalDivider()
-            AlertRow(a, zone, Modifier.fillMaxWidth().clickable(role = Role.Button) { onOpen(OwnerDestination.Alerts(a.id.toString())) })
-        }
+        if (items.isEmpty()) SecondaryText(state.error?.message ?: if (state.loading) "Loading…" else "No alerts.")
+        items.forEach { a -> LinkRow({ onOpen(OwnerDestination.Alerts(a.id.toString())) }) { AlertRow(a, zone) } }
     }
 }
 
 @Composable
 private fun Readings(data: OwnerData, state: ScreenState<PageDto<MeterCaptureDto>>, online: Boolean, zone: ZoneId) {
-    SectionCard("Recent meter readings") {
+    SectionCard("Recent meter readings", footer = ReadingText.PHOTO_FOOTER) {
         StaleBanner(state.snapshot)
         val items = state.data?.items.orEmpty()
-        if (items.isEmpty()) Text(state.error?.message ?: if (state.loading) "Loading…" else "No readings yet.")
+        if (items.isEmpty()) SecondaryText(state.error?.message ?: if (state.loading) "Loading…" else "No readings yet.")
         items.forEach { c -> ReadingRow(c, zone, online && !state.stale) { data.attachmentUrl(it) } }
-        FootNote(ReadingText.PHOTO_FOOTER)
     }
 }
 
 @Composable
-private fun Track(m: MachineMapDto, state: ScreenState<HistoryDto>, zone: ZoneId) {
+private fun Track(row: FleetRow, state: ScreenState<HistoryDto>, zone: ZoneId) {
+    val m = row.machine
     SectionCard("Last 24 hours") {
         StaleBanner(state.snapshot)
         val h = state.data
         if (h == null) {
-            Text(state.error?.message ?: "Loading track…")
+            state.error?.let { Text(it.message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) } ?: SecondaryText("Loading track…")
             return@SectionCard
         }
         if (h.points.isEmpty() && !m.hasPosition) {
-            Text(MachineText.NO_TRACK)
+            SecondaryText(MachineText.NO_TRACK)
         } else {
             OwnerMap(
-                markers = if (m.hasPosition) listOf(MapMarker(m.machineId.toString(), m.latitude!!, m.longitude!!, OwnerColors.Recent, m.name, code = m.assetCode, live = m.isLive)) else emptyList(),
+                markers = if (m.hasPosition) {
+                    listOf(MapMarker(m.machineId.toString(), m.latitude!!, m.longitude!!, OwnerColors.connectivity(row.connectivity), m.name, code = m.assetCode, live = row.connectivity == Connectivity.LIVE))
+                } else {
+                    emptyList()
+                },
                 description = "Map of the last 24 hours: ${h.points.size} positions",
-                modifier = Modifier.fillMaxWidth().height(240.dp),
+                modifier = Modifier.fillMaxWidth().height(240.dp).fullBleed(),
                 track = h.points.map { it.latitude to it.longitude },
             )
         }
@@ -195,9 +196,12 @@ private fun Track(m: MachineMapDto, state: ScreenState<HistoryDto>, zone: ZoneId
         KeyValue("Distance (24 h)", MachineText.distance(h.distanceKm))
         KeyValue("Stops", "${h.stops.size}")
         if (h.truncated) FootNote(MachineText.TRUNCATED)
-        h.stops.takeLast(10).forEach { s -> Text(MachineText.stopLine(OwnerFormat.dateTime(s.start, zone), s.durationSeconds), style = MaterialTheme.typography.bodySmall) }
+        h.stops.takeLast(10).forEach { s -> Text(MachineText.stopLine(OwnerFormat.dateTime(s.start, zone), s.durationSeconds), style = AssetaType.caption) }
         h.siteVisits.takeLast(10).forEach { v ->
-            Text(MachineText.visitLine(v.geofenceName, OwnerFormat.dateTime(v.enteredAt, zone), OwnerFormat.dateTime(v.exitedAt, zone)), style = MaterialTheme.typography.bodySmall)
+            Text(MachineText.visitLine(v.geofenceName, OwnerFormat.dateTime(v.enteredAt, zone), OwnerFormat.dateTime(v.exitedAt, zone)), style = AssetaType.caption)
         }
     }
 }
+
+@Composable
+private fun SecondaryText(text: String) = Text(text, style = MaterialTheme.typography.bodyLarge, color = palette.secondaryText)

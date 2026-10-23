@@ -111,6 +111,14 @@ class ParityPresentationTest {
     }
 
     @Test
+    fun `large titles only on tab roots, Fleet inline as on iOS`() {
+        assertEquals(true, OwnerNavigation.largeTitle(listOf(OwnerDestination.Home)))
+        assertEquals(true, OwnerNavigation.largeTitle(listOf(OwnerDestination.More)))
+        assertEquals(false, OwnerNavigation.largeTitle(listOf(OwnerDestination.Fleet)))
+        assertEquals(false, OwnerNavigation.largeTitle(listOf(OwnerDestination.Jobs, OwnerDestination.Job(ID1))))
+    }
+
+    @Test
     fun `list filters, ordering and decision rules`() {
         assertEquals(listOf("In progress", "Approved", "Pending approval", "Completed", "Cancelled", "All"), JobsPresentation.FILTERS.map { it.second })
         assertEquals("IN_PROGRESS", JobsPresentation.DEFAULT_FILTER)

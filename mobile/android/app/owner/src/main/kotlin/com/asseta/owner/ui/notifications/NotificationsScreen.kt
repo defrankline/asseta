@@ -1,7 +1,8 @@
 package com.asseta.owner.ui.notifications
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -9,13 +10,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -23,7 +24,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
@@ -37,13 +39,19 @@ import com.asseta.core.domain.owner.OwnerFormat
 import com.asseta.core.model.owner.NotificationDto
 import com.asseta.core.model.owner.PageDto
 import com.asseta.core.network.RealtimeEvent
+import com.asseta.core.ui.components.ButtonRow
+import com.asseta.core.ui.components.GroupedItem
+import com.asseta.core.ui.components.GroupedSection
+import com.asseta.core.ui.components.groupedSection
+import com.asseta.core.ui.theme.AssetaType
+import com.asseta.core.ui.theme.palette
+import com.asseta.owner.R
 import com.asseta.owner.data.ActionResult
 import com.asseta.owner.data.LiveUpdates
 import com.asseta.owner.data.Load
 import com.asseta.owner.data.OwnerData
 import com.asseta.owner.data.Snapshot
 import com.asseta.owner.ui.common.EmptyState
-import com.asseta.owner.ui.common.FootNote
 import com.asseta.owner.ui.common.OwnerColors
 import com.asseta.owner.ui.common.SnapshotScaffold
 import com.asseta.owner.ui.common.SnapshotViewModel
@@ -115,38 +123,45 @@ fun NotificationsScreen(vm: NotificationsViewModel, online: Boolean, onOpen: (Ow
     SnapshotScaffold(state, vm::refresh) { page ->
         val zone = ZoneId.systemDefault()
         val items = InboxText.visible(page.items, unreadOnly)
-        Column(Modifier.fillMaxSize()) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("Unread only", Modifier.weight(1f))
-                Switch(unreadOnly, { unreadOnly = it })
-                TextButton(onClick = vm::markAllRead, enabled = online && !state.stale && page.items.any { it.readAt == null }) { Text("Mark all read") }
-            }
-            LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (items.isEmpty()) item { EmptyState(InboxText.EMPTY_TITLE) }
-                items(items, key = { it.id.toString() }) { n ->
-                    val unread = n.readAt == null
-                    Card(
-                        Modifier.fillMaxWidth().clickable(role = Role.Button) { onOpen(vm.open(n)) }
-                            .semantics { stateDescription = if (unread) "Unread" else "Read" },
-                        colors = if (unread) CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer) else CardDefaults.cardColors(),
-                    ) { NotificationRow(n, zone, Modifier.padding(12.dp)) }
+        // One grouped list as on iOS: the "Unread only" switch, "Mark all read", then the notifications.
+        val rows = buildList {
+            add(GroupedItem("unread-only") {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Unread only", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                    Switch(unreadOnly, { unreadOnly = it })
                 }
+            })
+            add(GroupedItem("mark-all") {
+                ButtonRow("Mark all read", enabled = online && !state.stale && page.items.any { it.readAt == null }, onClick = vm::markAllRead)
+            })
+            if (items.isEmpty()) add(GroupedItem("empty") { EmptyState(InboxText.EMPTY_TITLE, icon = R.drawable.ic_bell) })
+            items.forEach { n ->
+                add(GroupedItem(n.id.toString(), onClick = { onOpen(vm.open(n)) }) {
+                    NotificationRow(n, zone, Modifier.semantics { stateDescription = if (n.readAt == null) "Unread" else "Read" })
+                })
             }
         }
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 16.dp, bottom = 16.dp)) { groupedSection("inbox", rows) }
     }
 }
 
+/** Amber dot when unread, title (bold when unread) with severity / priority pills, body, time (same as iOS). */
 @Composable
 fun NotificationRow(n: NotificationDto, zone: ZoneId, modifier: Modifier = Modifier) {
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            // INFO is the default and carries no pill (same as iOS); priority is called out when high.
-            if (n.severity != "INFO") StatusPill(OwnerFormat.humanize(n.severity), OwnerColors.severity(n.severity))
-            if (n.priority == "HIGH") StatusPill("High priority", OwnerColors.Critical)
+    val p = palette
+    val unread = n.readAt == null
+    Row(modifier.fillMaxWidth().semantics(mergeDescendants = true) {}, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Box(Modifier.padding(top = 7.dp).size(8.dp).clip(CircleShape).background(if (unread) p.accent else Color.Transparent))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(n.title, style = if (unread) AssetaType.headline else MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                // INFO is the default and carries no pill (same as iOS); priority is called out when high.
+                if (n.severity != "INFO") StatusPill(OwnerFormat.humanize(n.severity), OwnerColors.severity(n.severity))
+                if (n.priority == "HIGH") StatusPill("High priority", OwnerColors.Critical)
+            }
+            Text(n.body, style = AssetaType.subheadline, color = p.secondaryText, maxLines = 3)
+            Text(OwnerFormat.dateTime(n.createdAt, zone), style = AssetaType.caption, color = p.secondaryText)
         }
-        Text(n.title, style = if (n.readAt == null) MaterialTheme.typography.titleSmall else MaterialTheme.typography.bodyLarge)
-        Text(n.body, style = MaterialTheme.typography.bodySmall, maxLines = 3)
-        Text(OwnerFormat.dateTime(n.createdAt, zone), style = MaterialTheme.typography.labelSmall)
     }
 }
 
@@ -154,9 +169,9 @@ fun NotificationRow(n: NotificationDto, zone: ZoneId, modifier: Modifier = Modif
 fun NotificationDetailScreen(vm: NotificationDetailViewModel) {
     val state by vm.state.collectAsStateWithLifecycle()
     SnapshotScaffold(state, vm::refresh) { n ->
-        Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Card(Modifier.fillMaxWidth()) { NotificationRow(n, ZoneId.systemDefault(), Modifier.padding(12.dp)) }
-            FootNote(InboxText.NO_TARGET)
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 16.dp)) {
+            GroupedSection { NotificationRow(n, ZoneId.systemDefault()) }
+            GroupedSection { Text(InboxText.NO_TARGET, style = MaterialTheme.typography.bodyLarge, color = palette.secondaryText) }
         }
     }
 }

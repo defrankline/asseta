@@ -1,23 +1,19 @@
 package com.asseta.owner.ui.cases
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Card
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -27,6 +23,14 @@ import com.asseta.core.domain.owner.OwnerFormat
 import com.asseta.core.model.owner.AnomalyCaseDetailDto
 import com.asseta.core.model.owner.AnomalyCaseDto
 import com.asseta.core.model.owner.PageDto
+import com.asseta.core.ui.components.FilterChipRow
+import com.asseta.core.ui.components.GroupedItem
+import com.asseta.core.ui.components.LabeledValue
+import com.asseta.core.ui.components.NavigationRow
+import com.asseta.core.ui.components.groupedSection
+import com.asseta.core.ui.theme.AssetaType
+import com.asseta.core.ui.theme.palette
+import com.asseta.owner.R
 import com.asseta.owner.data.OwnerData
 import com.asseta.owner.ui.OwnerFeatures
 import com.asseta.owner.ui.alerts.AlertText
@@ -81,30 +85,31 @@ fun CasesScreen(vm: CasesViewModel, onCase: (String) -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
     val status by vm.status.collectAsStateWithLifecycle()
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            CaseText.FILTERS.forEach { (s, label) -> FilterChip(status == s, { vm.filter(s) }, label = { Text(label) }) }
-        }
+        FilterChipRow(CaseText.FILTERS, status, vm::filter)
         SnapshotScaffold(state, vm::refresh) { page ->
             val zone = ZoneId.systemDefault()
-            LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                item { FootNote(CaseText.INTRO) }
-                if (page.items.isEmpty()) item { EmptyState(CaseText.EMPTY_TITLE, CaseText.EMPTY_MESSAGE) }
-                items(page.items, key = { it.id.toString() }) { c ->
-                    Card(Modifier.fillMaxWidth().clickable(role = Role.Button) { onCase(c.id.toString()) }) {
-                        Column(Modifier.padding(12.dp).semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text(c.caseNumber, style = MaterialTheme.typography.titleSmall)
-                                StatusPill(OwnerFormat.humanize(c.severity), OwnerColors.severity(c.severity))
-                                Text(OwnerFormat.humanize(c.status), style = MaterialTheme.typography.labelMedium, modifier = Modifier.weight(1f))
-                            }
-                            Text(c.title, style = MaterialTheme.typography.bodyMedium)
-                            Text(CaseText.summary(c, zone), style = MaterialTheme.typography.bodySmall)
-                            c.latestOutcome?.let { Text("Outcome: ${OwnerFormat.humanize(it)}", style = MaterialTheme.typography.bodySmall) }
-                        }
-                    }
-                }
+            val rows = buildList {
+                add(GroupedItem("intro") { FootNote(CaseText.INTRO) })
+                if (page.items.isEmpty()) add(GroupedItem("empty") { EmptyState(CaseText.EMPTY_TITLE, CaseText.EMPTY_MESSAGE, R.drawable.ic_investigation) })
+                page.items.forEach { c -> add(GroupedItem(c.id.toString(), onClick = { onCase(c.id.toString()) }) { CaseRow(c, zone) }) }
             }
+            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp)) { groupedSection("cases", rows) }
         }
+    }
+}
+
+@Composable
+private fun CaseRow(c: AnomalyCaseDto, zone: ZoneId) {
+    Column(Modifier.semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(c.caseNumber, style = AssetaType.headline)
+            StatusPill(OwnerFormat.humanize(c.severity), OwnerColors.severity(c.severity))
+            Spacer(Modifier.weight(1f))
+            Text(OwnerFormat.humanize(c.status), style = AssetaType.caption, color = palette.secondaryText)
+        }
+        Text(c.title, style = AssetaType.subheadline)
+        Text(CaseText.summary(c, zone), style = AssetaType.caption, color = palette.secondaryText)
+        c.latestOutcome?.let { Text("Outcome: ${OwnerFormat.humanize(it)}", style = AssetaType.caption, color = palette.secondaryText) }
     }
 }
 
@@ -114,33 +119,30 @@ fun CaseDetailScreen(vm: CaseDetailViewModel, features: OwnerFeatures, onOpen: (
     SnapshotScaffold(state, vm::refresh) { d ->
         val c = d.case
         val zone = ZoneId.systemDefault()
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        val secondary = palette.secondaryText
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 16.dp, bottom = 16.dp)) {
             item {
-                SectionCard(c.title) {
+                SectionCard(c.title, footer = CaseText.DETAIL_FOOTER) {
                     KeyValue("Case", c.caseNumber)
                     KeyValue("Status", OwnerFormat.humanize(c.status))
-                    Row(Modifier.fillMaxWidth()) {
-                        Text("Severity", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                        StatusPill(OwnerFormat.humanize(c.severity), OwnerColors.severity(c.severity))
-                    }
+                    LabeledValue("Severity") { StatusPill(OwnerFormat.humanize(c.severity), OwnerColors.severity(c.severity)) }
                     KeyValue("Subject", OwnerFormat.humanize(c.subjectType))
                     KeyValue("Opened", OwnerFormat.dateTime(c.openedAt, zone))
                     KeyValue("Assigned to", c.assigneeName ?: "Unassigned")
-                    if (features.fleet) c.machineId?.let { id -> Text("Open machine", Modifier.clickable(role = Role.Button) { onOpen(OwnerDestination.Machine(id.toString())) }, color = MaterialTheme.colorScheme.primary) }
-                    if (features.jobs) c.jobId?.let { id -> Text("Open job", Modifier.clickable(role = Role.Button) { onOpen(OwnerDestination.Job(id.toString())) }, color = MaterialTheme.colorScheme.primary) }
-                    FootNote(CaseText.DETAIL_FOOTER)
+                    if (features.fleet) c.machineId?.let { id -> NavigationRow("Open machine") { onOpen(OwnerDestination.Machine(id.toString())) } }
+                    if (features.jobs) c.jobId?.let { id -> NavigationRow("Open job") { onOpen(OwnerDestination.Job(id.toString())) } }
                 }
             }
             item {
                 SectionCard("Signals (${d.signals.size})") {
                     d.signals.forEach { s ->
-                        Column(Modifier.semantics(mergeDescendants = true) {}) {
-                            Row(Modifier.fillMaxWidth()) {
-                                Text(OwnerFormat.humanize(s.code), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                        Column(Modifier.semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Text(OwnerFormat.humanize(s.code), style = AssetaType.subheadline, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                                 StatusPill(OwnerFormat.humanize(s.severity), OwnerColors.severity(s.severity))
                             }
-                            Text("Observed ${OwnerFormat.dateTime(s.observedAt, zone)}", style = MaterialTheme.typography.bodySmall)
-                            s.evidence.toSortedMap().forEach { (k, v) -> Text("${OwnerFormat.humanize(k)}: ${AlertText.evidence(v)}", style = MaterialTheme.typography.bodySmall) }
+                            Text("Observed ${OwnerFormat.dateTime(s.observedAt, zone)}", style = AssetaType.caption, color = secondary)
+                            s.evidence.toSortedMap().forEach { (k, v) -> Text("${OwnerFormat.humanize(k)}: ${AlertText.evidence(v)}", style = AssetaType.caption, color = secondary) }
                         }
                     }
                 }
@@ -148,17 +150,21 @@ fun CaseDetailScreen(vm: CaseDetailViewModel, features: OwnerFeatures, onOpen: (
             if (d.outcomes.isNotEmpty()) item {
                 SectionCard("Outcomes") {
                     d.outcomes.sortedBy { it.sequence }.forEach { o ->
-                        Text(OwnerFormat.humanize(o.outcome), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
-                        Text(o.explanation, style = MaterialTheme.typography.bodyMedium)
-                        Text("${o.decidedByName ?: "Reviewer"} · ${OwnerFormat.dateTime(o.decidedAt, zone)}", style = MaterialTheme.typography.bodySmall)
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(OwnerFormat.humanize(o.outcome), style = AssetaType.subheadline, fontWeight = FontWeight.Bold)
+                            Text(o.explanation, style = AssetaType.subheadline)
+                            Text("${o.decidedByName ?: "Reviewer"} · ${OwnerFormat.dateTime(o.decidedAt, zone)}", style = AssetaType.caption, color = secondary)
+                        }
                     }
                 }
             }
             if (d.notes.isNotEmpty()) item {
                 SectionCard("Notes") {
                     d.notes.forEach { n ->
-                        Text(n.body, style = MaterialTheme.typography.bodyMedium)
-                        Text("${n.authorName ?: "Team"} · ${OwnerFormat.dateTime(n.createdAt, zone)}", style = MaterialTheme.typography.bodySmall)
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(n.body, style = MaterialTheme.typography.bodyLarge)
+                            Text("${n.authorName ?: "Team"} · ${OwnerFormat.dateTime(n.createdAt, zone)}", style = AssetaType.caption, color = secondary)
+                        }
                     }
                 }
             }

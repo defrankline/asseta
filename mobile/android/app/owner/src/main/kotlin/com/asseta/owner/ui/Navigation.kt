@@ -45,6 +45,12 @@ object OwnerNavigation {
     /** The tab highlighted for the current stack (its root). */
     fun currentTab(stack: List<OwnerDestination>): OwnerTab = stack.firstNotNullOfOrNull { tabOf(it) } ?: OwnerTab.MORE
 
+    /**
+     * Large (iOS) title only on a tab's first screen; the Fleet tab keeps an inline title to leave room for its map,
+     * as on iOS. Pushed screens always use the inline title.
+     */
+    fun largeTitle(stack: List<OwnerDestination>): Boolean = stack.size == 1 && stack.first() != OwnerDestination.Fleet
+
     /** Screen titles, worded as on iOS; the Overview is titled with the company name. */
     fun title(d: OwnerDestination, tenantName: String = "Overview"): String = when (d) {
         OwnerDestination.Home -> tenantName

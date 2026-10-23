@@ -12,6 +12,8 @@ import androidx.compose.ui.unit.dp
 import com.asseta.core.domain.owner.OwnerFormat
 import com.asseta.core.model.owner.MeterCaptureDto
 import com.asseta.core.model.owner.PhotoUrlDto
+import com.asseta.core.ui.theme.AssetaType
+import com.asseta.core.ui.theme.palette
 import com.asseta.owner.data.ActionResult
 import java.time.ZoneId
 
@@ -36,10 +38,10 @@ object ReadingText {
 fun ReadingRow(c: MeterCaptureDto, zone: ZoneId, photoOnline: Boolean, fetchPhoto: suspend (String) -> ActionResult<PhotoUrlDto>) {
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(ReadingText.title(c), style = MaterialTheme.typography.titleSmall)
+            Text(ReadingText.title(c), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
             StatusPill(OwnerFormat.humanize(c.state), if (c.state == "ACCEPTED") OwnerColors.Live else OwnerColors.Warning)
         }
-        Text(ReadingText.detail(c, zone), style = MaterialTheme.typography.bodySmall)
+        Text(ReadingText.detail(c, zone), style = AssetaType.caption, color = palette.secondaryText)
         c.photoAttachmentId?.let { id -> EvidencePhoto("evidence photo", photoOnline) { fetchPhoto(id.toString()) } }
     }
 }

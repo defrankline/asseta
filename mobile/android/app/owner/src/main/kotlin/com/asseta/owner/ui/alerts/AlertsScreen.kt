@@ -1,22 +1,13 @@
 package com.asseta.owner.ui.alerts
 
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -25,10 +16,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -41,11 +32,20 @@ import com.asseta.core.domain.owner.OwnerDestination
 import com.asseta.core.domain.owner.OwnerFormat
 import com.asseta.core.model.owner.AlertDto
 import com.asseta.core.model.owner.PageDto
+import com.asseta.core.ui.components.ButtonRow
+import com.asseta.core.ui.components.FilterChipRow
+import com.asseta.core.ui.components.GroupedItem
+import com.asseta.core.ui.components.GroupedSection
+import com.asseta.core.ui.components.LabeledValue
+import com.asseta.core.ui.components.NavigationRow
+import com.asseta.core.ui.components.groupedSection
+import com.asseta.core.ui.theme.AssetaType
+import com.asseta.core.ui.theme.palette
 import com.asseta.owner.data.ActionResult
 import com.asseta.owner.data.OwnerData
 import com.asseta.owner.ui.OwnerSession
+import com.asseta.owner.ui.common.BlockedNote
 import com.asseta.owner.ui.common.EmptyState
-import com.asseta.owner.ui.common.FootNote
 import com.asseta.owner.ui.common.KeyValue
 import com.asseta.owner.ui.common.OwnerColors
 import com.asseta.owner.ui.common.SectionCard
@@ -62,6 +62,7 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import java.time.ZoneId
+import com.asseta.core.ui.R as CoreR
 
 /** Alert wording and ordering shared with iOS (`AlertsView` / `AlertDetailView`). */
 object AlertText {
@@ -160,19 +161,16 @@ fun AlertsScreen(vm: AlertsViewModel, onOpen: (OwnerDestination) -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
     val status by vm.status.collectAsStateWithLifecycle()
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            AlertText.FILTERS.forEach { (s, label) -> FilterChip(status == s, { vm.filter(s) }, label = { Text(label) }) }
-        }
+        FilterChipRow(AlertText.FILTERS, status, vm::filter)
         SnapshotScaffold(state, vm::refresh) { page ->
             val zone = ZoneId.systemDefault()
-            LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (page.items.isEmpty()) item { EmptyState(AlertText.EMPTY_TITLE, AlertText.EMPTY_MESSAGE) }
-                items(AlertText.sorted(page.items), key = { it.id.toString() }) { a ->
-                    Card(Modifier.fillMaxWidth().clickable(role = Role.Button) { onOpen(OwnerDestination.Alerts(a.id.toString())) }) {
-                        AlertRow(a, zone, Modifier.padding(12.dp))
-                    }
+            val rows = buildList {
+                if (page.items.isEmpty()) add(GroupedItem("empty") { EmptyState(AlertText.EMPTY_TITLE, AlertText.EMPTY_MESSAGE, CoreR.drawable.ic_check_shield) })
+                AlertText.sorted(page.items).forEach { a ->
+                    add(GroupedItem(a.id.toString(), onClick = { onOpen(OwnerDestination.Alerts(a.id.toString())) }) { AlertRow(a, zone) })
                 }
             }
+            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp)) { groupedSection("alerts", rows) }
         }
     }
 }
@@ -181,13 +179,13 @@ fun AlertsScreen(vm: AlertsViewModel, onOpen: (OwnerDestination) -> Unit) {
 @Composable
 fun AlertRow(a: AlertDto, zone: ZoneId, modifier: Modifier = Modifier) {
     Column(modifier.semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             StatusPill(OwnerFormat.humanize(a.severity), OwnerColors.severity(a.severity))
-            Text(OwnerFormat.humanize(a.status), style = MaterialTheme.typography.labelMedium, modifier = Modifier.weight(1f))
-            Text(OwnerFormat.dateTime(a.eventTime, zone), style = MaterialTheme.typography.labelMedium)
+            Text(OwnerFormat.humanize(a.status), style = AssetaType.caption, color = palette.secondaryText, modifier = Modifier.weight(1f))
+            Text(OwnerFormat.dateTime(a.eventTime, zone), style = AssetaType.caption, color = palette.secondaryText)
         }
-        Text(a.title, style = MaterialTheme.typography.titleSmall)
-        Text(OwnerFormat.humanize(a.alertType), style = MaterialTheme.typography.bodySmall)
+        Text(a.title, style = AssetaType.headline)
+        Text(OwnerFormat.humanize(a.alertType), style = AssetaType.subheadline, color = palette.secondaryText)
     }
 }
 
@@ -202,17 +200,14 @@ fun AlertDetailScreen(vm: AlertDetailViewModel, session: OwnerSession, online: B
     SnapshotScaffold(state, vm::refresh) { page ->
         val a = vm.alert(page)
         val zone = ZoneId.systemDefault()
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 16.dp, bottom = 16.dp)) {
             if (a == null) {
-                item { EmptyState(AlertText.NOT_FOUND_TITLE, AlertText.NOT_FOUND_MESSAGE) }
+                item { EmptyState(AlertText.NOT_FOUND_TITLE, AlertText.NOT_FOUND_MESSAGE, CoreR.drawable.ic_help) }
                 return@LazyColumn
             }
             item {
                 SectionCard(a.title) {
-                    Row(Modifier.fillMaxWidth()) {
-                        Text("Severity", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                        StatusPill(OwnerFormat.humanize(a.severity), OwnerColors.severity(a.severity))
-                    }
+                    LabeledValue("Severity") { StatusPill(OwnerFormat.humanize(a.severity), OwnerColors.severity(a.severity)) }
                     KeyValue("Status", OwnerFormat.humanize(a.status))
                     KeyValue("Type", OwnerFormat.humanize(a.alertType))
                     KeyValue("Happened", OwnerFormat.dateTime(a.eventTime, zone))
@@ -220,7 +215,7 @@ fun AlertDetailScreen(vm: AlertDetailViewModel, session: OwnerSession, online: B
                     a.resolvedAt?.let { KeyValue("Resolved", OwnerFormat.dateTime(it, zone)) }
                     a.resolutionNote?.let { KeyValue("Resolution", it) }
                     if (a.machineId != null && session.features.fleet) {
-                        Text("Open machine", Modifier.clickable(role = Role.Button) { onOpen(OwnerDestination.Machine(a.machineId.toString())) }, color = MaterialTheme.colorScheme.primary)
+                        NavigationRow("Open machine") { onOpen(OwnerDestination.Machine(a.machineId.toString())) }
                     }
                 }
             }
@@ -231,20 +226,24 @@ fun AlertDetailScreen(vm: AlertDetailViewModel, session: OwnerSession, online: B
                 SectionCard("Action") {
                     val gate = session.can(OwnerAction.RESOLVE_ALERT, online, state.snapshot?.source)
                     if (gate is MutationCheck.Blocked) {
-                        FootNote(gate.reason)
+                        BlockedNote(gate.reason)
                     } else {
                         OutlinedTextField(note, { note = it.take(1000) }, Modifier.fillMaxWidth(), label = { Text(AlertText.NOTE_LABEL) }, minLines = 2)
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            if (a.status == "OPEN") {
-                                OutlinedButton({ vm.acknowledge() }, enabled = !busy, modifier = Modifier.testTag("ack-${a.id}")) { Text("Acknowledge") }
-                            }
-                            Button({ vm.resolve(note) }, enabled = !busy && MutationGate.resolveNoteValid(note), modifier = Modifier.testTag("resolve-${a.id}")) { Text("Resolve") }
+                        if (a.status == "OPEN") {
+                            ButtonRow("Acknowledge", enabled = !busy, modifier = Modifier.testTag("ack-${a.id}")) { vm.acknowledge() }
                         }
+                        ButtonRow("Resolve", enabled = !busy && MutationGate.resolveNoteValid(note), modifier = Modifier.testTag("resolve-${a.id}")) { vm.resolve(note) }
                         error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) }
                     }
                 }
             }
-            message?.let { item { Text(it, color = MaterialTheme.colorScheme.primary, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) } }
+            message?.let {
+                item {
+                    GroupedSection {
+                        Text(it, color = palette.accent, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+                    }
+                }
+            }
         }
     }
 }

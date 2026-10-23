@@ -1,31 +1,29 @@
 package com.asseta.owner.ui.jobs
 
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.material3.Card
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.asseta.core.domain.owner.OwnerFormat
 import com.asseta.core.model.owner.JobDto
 import com.asseta.core.model.owner.PageDto
+import com.asseta.core.ui.components.FilterChipRow
+import com.asseta.core.ui.components.GroupedItem
+import com.asseta.core.ui.components.groupedSection
+import com.asseta.core.ui.theme.AssetaType
+import com.asseta.core.ui.theme.palette
+import com.asseta.owner.R
 import com.asseta.owner.data.OwnerData
 import com.asseta.owner.ui.common.EmptyState
 import com.asseta.owner.ui.common.FootNote
@@ -75,6 +73,7 @@ object JobsPresentation {
     const val EMPTY_TITLE = "No jobs"
     const val EMPTY_MESSAGE = "Nothing matches this filter."
 
+    @Composable
     fun statusColor(status: String): Color = when (status) {
         "IN_PROGRESS" -> OwnerColors.Recent
         "APPROVED" -> OwnerColors.Live
@@ -89,21 +88,17 @@ fun JobsScreen(vm: JobsViewModel, onJob: (String) -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
     val status by vm.status.collectAsStateWithLifecycle()
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            JobsPresentation.FILTERS.forEach { (s, label) -> FilterChip(status == s, { vm.filter(s) }, label = { Text(label) }) }
-        }
+        FilterChipRow(JobsPresentation.FILTERS, status, vm::filter)
         SnapshotScaffold(state, vm::refresh) { page ->
             val zone = ZoneId.systemDefault()
-            LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                item { Text(JobsPresentation.countLine(page.items.size, page.total), style = MaterialTheme.typography.bodySmall) }
-                if (page.items.isEmpty()) item { EmptyState(JobsPresentation.EMPTY_TITLE, JobsPresentation.EMPTY_MESSAGE) }
-                items(page.items, key = { it.id.toString() }) { job ->
-                    Card(Modifier.fillMaxWidth().clickable(role = Role.Button) { onJob(job.id.toString()) }) {
-                        JobRow(job, zone, Modifier.padding(12.dp))
-                    }
-                }
-                if (page.total > page.items.size) item { FootNote(JobsPresentation.MORE_IN_CONSOLE) }
+            // One inset-grouped list as on iOS: count line, empty state or job rows (with chevrons), console note.
+            val rows = buildList {
+                add(GroupedItem("count") { Text(JobsPresentation.countLine(page.items.size, page.total), style = AssetaType.caption, color = palette.secondaryText) })
+                if (page.items.isEmpty()) add(GroupedItem("empty") { EmptyState(JobsPresentation.EMPTY_TITLE, JobsPresentation.EMPTY_MESSAGE, R.drawable.ic_nav_jobs) })
+                page.items.forEach { job -> add(GroupedItem(job.id.toString(), onClick = { onJob(job.id.toString()) }) { JobRow(job, zone) }) }
+                if (page.total > page.items.size) add(GroupedItem("more") { FootNote(JobsPresentation.MORE_IN_CONSOLE) })
             }
+            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp)) { groupedSection("jobs", rows) }
         }
     }
 }
@@ -111,12 +106,12 @@ fun JobsScreen(vm: JobsViewModel, onJob: (String) -> Unit) {
 /** Job number with status pill, the most relevant date and the hourly rate (also used on the machine screen). */
 @Composable
 fun JobRow(job: JobDto, zone: ZoneId, modifier: Modifier = Modifier) {
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(modifier.semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(job.jobNumber, style = MaterialTheme.typography.titleSmall)
+            Text(job.jobNumber, style = AssetaType.headline, modifier = Modifier.weight(1f))
             StatusPill(OwnerFormat.humanize(job.status), JobsPresentation.statusColor(job.status))
         }
-        Text(JobsPresentation.datesLine(job, zone), style = MaterialTheme.typography.bodySmall)
-        Text("Rate ${OwnerFormat.money(job.hourlyRate.value, job.currency)} / h", style = MaterialTheme.typography.bodySmall)
+        Text(JobsPresentation.datesLine(job, zone), style = AssetaType.subheadline, color = palette.secondaryText)
+        Text("Rate ${OwnerFormat.money(job.hourlyRate.value, job.currency)} / h", style = AssetaType.caption, color = palette.secondaryText)
     }
 }
