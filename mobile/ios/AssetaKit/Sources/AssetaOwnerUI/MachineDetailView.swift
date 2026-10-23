@@ -7,11 +7,13 @@ import MapKit
 import SwiftUI
 
 /// Machine drilldown: status dimensions, last seen, current job, recent alerts and readings (with
-/// evidence photos on demand) and the last 24 h track as a polyline.
+/// evidence photos on demand) and the last 24 h track as a polyline. Rows and wording follow `MachineText`,
+/// shared with the Android Owner app.
 struct MachineDetailView: View {
     let model: OwnerModel
     let machineID: UUID
     @State private var status = Loader<MachineMapDTO>()
+    @State private var info = Loader<OwnerMachineDTO>()
     @State private var track = Loader<HistoryDTO>()
     @State private var alerts = Loader<Page<AlertDTO>>()
     @State private var readings = Loader<Page<MeterCaptureDTO>>()
@@ -35,7 +37,7 @@ struct MachineDetailView: View {
             alertSection
             if model.features.meterEvidence { readingSection }
         }
-        .navigationTitle(status.value.map { $0.assetCode } ?? "Machine")
+        .navigationTitle("Machine")
         .refreshable { await reload() }
         .task(id: model.changeTick) { await reload() }
     }
@@ -45,42 +47,33 @@ struct MachineDetailView: View {
         async let a: Void = status.load(model, .machine(machineID), OwnerAPI.machine(machineID))
         async let b: Void = track.load(model, .machineTrack(machineID),
                                        OwnerAPI.history(machineID, from: now.addingTimeInterval(-86_400), to: now))
-        async let c: Void = alerts.load(model, .machineAlerts(machineID), OwnerAPI.alerts(machineID: machineID, pageSize: 10))
-        _ = await (a, b, c)
+        async let c: Void = alerts.load(model, .machineAlerts(machineID), OwnerAPI.alerts(machineID: machineID, pageSize: 5))
+        async let d: Void = info.load(model, .machineInfo(machineID), OwnerAPI.machineInfo(machineID))
+        _ = await (a, b, c, d)
         if model.features.jobs {
             await jobs.load(model, .machineJobs(machineID),
                             OwnerAPI.jobs(status: .inProgress, machineID: machineID, pageSize: 5))
         }
         if model.features.meterEvidence {
-            await readings.load(model, .machineReadings(machineID), OwnerAPI.meterCaptures(machineID: machineID))
+            await readings.load(model, .machineReadings(machineID), OwnerAPI.meterCaptures(machineID: machineID, pageSize: 5))
         }
     }
 
     @ViewBuilder private func statusSection(_ machine: MachineMapDTO) -> some View {
         let style = FleetPresentation.style(for: machine, dataIsCached: status.isFromCache)
         Section {
-            LabeledContent("Name", value: machine.name)
             LabeledContent("Connectivity") {
-                Label(style.label, systemImage: style.systemImage).foregroundStyle(style.tone.color)
+                Pill(text: FleetPresentation.statusLabel(machine, dataIsCached: status.isFromCache), color: style.tone.color)
             }
             .accessibilityElement(children: .combine)
-            LabeledContent("Reported work", value: humanize(machine.reportedWorkStatus))
-            LabeledContent("Engine (observed)", value: machine.observedEngine.humanized)
-            LabeledContent("Motion (observed)", value: machine.observedMotion.humanized)
-            LabeledContent("Location", value: machine.locationCompliance.humanized)
-            if let time = machine.positionTime {
-                LabeledContent("Position time", value: time.shortStamp)
+            ForEach(Array(MachineText.statusRows(machine, info: info.value, dataIsCached: status.isFromCache).enumerated()),
+                    id: \.offset) { _, row in
+                LabeledContent(row.0, value: row.1)
             }
-            if let accuracy = machine.accuracyM {
-                LabeledContent("Accuracy", value: "± \(Int(accuracy.rounded())) m")
-            }
-            if let supervisor = machine.supervisor { LabeledContent("Supervisor", value: supervisor) }
-            if let op = machine.operator { LabeledContent("Operator", value: op) }
-            LabeledContent("Machine status", value: humanize(machine.machineStatus))
         } header: {
             Text("Status")
         } footer: {
-            Text("Engine and motion are observed from tracker telemetry; reported work comes from the field team.")
+            Text(MachineText.statusFooter)
         }
     }
 
@@ -90,7 +83,7 @@ struct MachineDetailView: View {
                 CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude)
             }
             if points.isEmpty && !machine.hasPosition {
-                Text("No positions in the last 24 hours.").foregroundStyle(.secondary)
+                Text(MachineText.noTrack).foregroundStyle(.secondary)
             } else {
                 Map(initialPosition: .automatic) {
                     if points.count > 1 { MapPolyline(coordinates: points).stroke(Brand.amber, lineWidth: 4) }
@@ -106,12 +99,18 @@ struct MachineDetailView: View {
                 .accessibilityLabel("Map of the last 24 hours: \(points.count) positions")
             }
             if let history = track.value {
-                LabeledContent("Distance (24 h)", value: OwnerFormat.kilometres(history.distanceKm))
+                LabeledContent("Positions", value: "\(history.points.count)")
+                LabeledContent("Distance (24 h)", value: MachineText.distance(history.distanceKm))
                 LabeledContent("Stops", value: "\(history.stops.count)")
-                if history.truncated {
-                    Text("Track shortened by the server; some points are not shown.").font(.footnote)
-                        .foregroundStyle(.secondary)
+                if history.truncated { FootNote(MachineText.truncated) }
+                ForEach(Array(history.stops.suffix(10).enumerated()), id: \.offset) { _, stop in
+                    Text(MachineText.stopLine(stop.start, durationSeconds: stop.durationSeconds)).font(.caption)
                 }
+                ForEach(Array(history.siteVisits.suffix(10).enumerated()), id: \.offset) { _, visit in
+                    Text(MachineText.visitLine(visit)).font(.caption)
+                }
+            } else if let error = track.error {
+                Text(error).font(.footnote).foregroundStyle(.red)
             }
         } header: {
             Text("Last 24 hours")
@@ -123,7 +122,7 @@ struct MachineDetailView: View {
             if let job = jobs.value?.items.first {
                 NavigationLink(value: OwnerRoute.job(job.id)) { JobRow(job: job) }
             } else {
-                Text(jobs.value == nil ? "—" : "No job in progress.").foregroundStyle(.secondary)
+                Text(jobs.value == nil ? (jobs.error ?? "Loading…") : "No job in progress.").foregroundStyle(.secondary)
             }
         }
     }
@@ -132,7 +131,7 @@ struct MachineDetailView: View {
         Section("Recent alerts") {
             let items = alerts.value?.items ?? []
             if items.isEmpty {
-                Text(alerts.value == nil ? "—" : "No alerts.").foregroundStyle(.secondary)
+                Text(alerts.value == nil ? (alerts.error ?? "Loading…") : "No alerts.").foregroundStyle(.secondary)
             }
             ForEach(items) { alert in
                 NavigationLink(value: OwnerRoute.alert(alert.id)) { AlertRow(alert: alert) }
@@ -144,21 +143,18 @@ struct MachineDetailView: View {
         Section {
             let items = readings.value?.items ?? []
             if items.isEmpty {
-                Text(readings.value == nil ? "—" : "No readings yet.").foregroundStyle(.secondary)
+                Text(readings.value == nil ? (readings.error ?? "Loading…") : "No readings yet.").foregroundStyle(.secondary)
             }
             ForEach(items) { capture in ReadingRow(model: model, capture: capture) }
         } header: {
             Text("Recent meter readings")
         } footer: {
-            Text("Evidence photos are downloaded only when you open them and are never saved on this phone.")
+            Text(ReadingText.photoFooter)
         }
-    }
-
-    private func humanize(_ raw: String) -> String {
-        raw.split(separator: "_").map { $0.lowercased() }.joined(separator: " ").capitalizedFirst
     }
 }
 
+/// One meter reading with its state and an on-demand evidence photo (same lines as Android's `ReadingRow`).
 struct ReadingRow: View {
     let model: OwnerModel
     let capture: MeterCaptureDTO
@@ -167,26 +163,39 @@ struct ReadingRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
-                Text("\(capture.kind == .opening ? "Opening" : "Closing") · \(capture.reading.description)")
-                    .font(.headline)
+                Text(ReadingText.title(capture)).font(.headline)
                 Spacer()
-                Pill(text: capture.state.capitalized, color: capture.state == "ACCEPTED" ? .green : .orange)
+                Pill(text: OwnerFormat.humanize(capture.state), color: capture.state == "ACCEPTED" ? .green : .orange)
             }
-            Text("\(capture.capturedAt.shortStamp) · \(capture.captureMode.capitalized)"
-                + (capture.manuallyCorrected ? " · corrected by hand" : "") + " · GPS \(capture.gpsStatus.rawValue)")
-                .font(.caption).foregroundStyle(.secondary)
+            Text(ReadingText.detail(capture)).font(.caption).foregroundStyle(.secondary)
             if capture.photoAttachmentID != nil {
-                Button { showPhoto = true } label: { Label("View evidence photo", systemImage: "photo") }
-                    .font(.subheadline)
-                    .disabled(!model.isOnline)
-                    .accessibilityHint(model.isOnline ? "Downloads the photo" : "Needs a connection")
+                PhotoButton(label: "evidence photo", isOnline: model.isOnline) { showPhoto = true }
             }
         }
         .sheet(isPresented: $showPhoto) {
             if let id = capture.photoAttachmentID {
-                EvidencePhotoView(model: model, attachmentID: id, title: "\(capture.kind.rawValue.capitalized) reading")
+                EvidencePhotoView(model: model, title: "\(OwnerFormat.humanize(capture.kind.rawValue)) reading",
+                                  request: OwnerAPI.attachmentURL(id))
             }
         }
+    }
+}
+
+/// "View evidence photo", or "Evidence photo (online only)" while offline (Android `EvidencePhoto` wording).
+struct PhotoButton: View {
+    let label: String
+    let isOnline: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label(isOnline ? "View \(label)" : "\(label.prefix(1).uppercased() + label.dropFirst()) (online only)",
+                  systemImage: "photo")
+        }
+        .font(.subheadline)
+        .buttonStyle(.borderless)
+        .disabled(!isOnline)
+        .accessibilityHint(isOnline ? "Downloads the photo" : "Needs a connection")
     }
 }
 
@@ -194,8 +203,8 @@ struct ReadingRow: View {
 /// no URL cache, nothing written to disk).
 struct EvidencePhotoView: View {
     let model: OwnerModel
-    let attachmentID: UUID
     let title: String
+    let request: APIRequest<PhotoURLDTO>
     @State private var image: UIImage?
     @State private var error: String?
     @Environment(\.dismiss) private var dismiss
@@ -206,7 +215,7 @@ struct EvidencePhotoView: View {
                 if let image {
                     ScrollView([.horizontal, .vertical]) {
                         Image(uiImage: image).resizable().scaledToFit()
-                            .accessibilityLabel("Evidence photo of the meter reading")
+                            .accessibilityLabel(title)
                     }
                 } else if let error {
                     ContentUnavailableView("Photo unavailable", systemImage: "photo", description: Text(error))
@@ -224,7 +233,7 @@ struct EvidencePhotoView: View {
     private func load() async {
         guard let repository = model.repository else { return }
         do {
-            let link = try await repository.send(OwnerAPI.attachmentURL(attachmentID))
+            let link = try await repository.send(request)
             let (data, response) = try await URLSessionTransport.makeDefaultSession().data(from: link.url)
             guard (response as? HTTPURLResponse)?.statusCode == 200, let picture = UIImage(data: data) else {
                 error = "The photo could not be read."

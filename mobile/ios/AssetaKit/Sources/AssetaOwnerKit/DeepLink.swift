@@ -3,6 +3,9 @@ import Foundation
 
 /// A screen of the Owner app that a notification can open.
 public enum OwnerRoute: Hashable, Sendable {
+    case fleet
+    case jobs
+    case investigations
     case machine(UUID)
     case alert(UUID)
     case alerts
@@ -56,7 +59,9 @@ public enum DeepLinkParser {
         let id = parts.count >= 3 ? UUID(uuidString: parts[2]) : nil
         switch (parts[1], id) {
         case let ("cases", id?): return .investigation(id)
+        case ("cases", nil): return .investigations
         case let ("jobs", id?): return .job(id)
+        case ("jobs", nil): return .jobs
         case let ("alerts", id?): return .alert(id)
         case ("alerts", nil): return .alerts
         case let ("approvals", id?): return .approval(id)
@@ -65,8 +70,11 @@ public enum DeepLinkParser {
             if parts.count >= 4, parts[2] == "machines", let machine = UUID(uuidString: parts[3]) {
                 return .machine(machine)
             }
-            return nil
+            return .fleet
         case let ("machines", id?): return .machine(id)
+        case ("machines", nil): return .fleet
+        case let ("notifications", id?): return .notification(id)
+        case ("notifications", nil): return .notifications
         default: return nil
         }
     }
@@ -102,7 +110,7 @@ extension OwnerRoute {
     public var identifiesRecord: Bool {
         switch self {
         case .machine, .alert, .approval, .investigation, .job, .notification: true
-        case .alerts, .approvals, .notifications: false
+        case .fleet, .jobs, .investigations, .alerts, .approvals, .notifications: false
         }
     }
 }

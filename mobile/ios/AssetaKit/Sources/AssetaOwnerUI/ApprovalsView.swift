@@ -1,6 +1,7 @@
 #if os(iOS)
 import AssetaAppShell
 import AssetaModel
+import AssetaNetwork
 import AssetaOwnerKit
 import SwiftUI
 
@@ -8,22 +9,16 @@ import SwiftUI
 /// of duties (the submitter can't approve) and the app explains that refusal plainly.
 struct ApprovalsView: View {
     let model: OwnerModel
-    @State private var status: ApprovalStatus? = .pending
+    @State private var status: ApprovalStatus = .pending
     @State private var loader = Loader<Page<ApprovalRequestDTO>>()
 
     var body: some View {
         List {
-            Picker("Status", selection: $status) {
-                Text("Pending").tag(ApprovalStatus?.some(.pending))
-                Text("Approved").tag(ApprovalStatus?.some(.approved))
-                Text("Rejected").tag(ApprovalStatus?.some(.rejected))
-            }
-            .pickerStyle(.segmented)
-            .listRowBackground(Color.clear)
+            FilterChips(options: ApprovalText.filters, selection: $status)
+                .listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
             if let page = loader.value {
                 if page.items.isEmpty {
-                    ContentUnavailableView("Nothing here", systemImage: "checkmark.seal",
-                                           description: Text("No requests with this status."))
+                    EmptyState(title: ApprovalText.emptyTitle, message: ApprovalText.emptyMessage, systemImage: "checkmark.seal")
                 }
                 ForEach(page.items) { request in
                     NavigationLink(value: OwnerRoute.approval(request.id)) { ApprovalRow(request: request) }
@@ -37,7 +32,7 @@ struct ApprovalsView: View {
         .staleBanner(loader, model: model)
         .navigationTitle("Approvals")
         .refreshable { await reload() }
-        .task(id: ReloadKey(tick: model.changeTick, filter: status?.rawValue)) { await reload() }
+        .task(id: ReloadKey(tick: model.changeTick, filter: status.rawValue)) { await reload() }
     }
 
     private func reload() async {
@@ -53,16 +48,18 @@ struct ApprovalRow: View {
             HStack {
                 Text(OwnerFormat.money(request.amount, currency: request.currency)).font(.headline)
                 Spacer()
-                Pill(text: request.status.humanized, color: color)
+                Pill(text: request.status.humanized, color: request.status.color)
             }
-            Text("\(request.subjectType.capitalized) · \(request.reason)").font(.subheadline).foregroundStyle(.secondary)
+            Text(ApprovalText.summary(request)).font(.subheadline).foregroundStyle(.secondary)
             Text("Requested \(request.requestedAt.shortStamp)").font(.caption).foregroundStyle(.secondary)
         }
         .accessibilityElement(children: .combine)
     }
+}
 
-    private var color: Color {
-        switch request.status {
+extension ApprovalStatus {
+    var color: Color {
+        switch self {
         case .approved: .green
         case .rejected: .red
         default: .orange
@@ -70,7 +67,7 @@ struct ApprovalRow: View {
     }
 }
 
-/// One request (found in the latest list; there is no single-request endpoint).
+/// One request (found in the latest 200; there is no single-request endpoint).
 struct ApprovalDetailView: View {
     let model: OwnerModel
     let approvalID: UUID
@@ -78,7 +75,8 @@ struct ApprovalDetailView: View {
     @State private var decided: ApprovalRequestDTO?
     @State private var note = ""
     @State private var working = false
-    @State private var decisionError: String?
+    @State private var decisionError: (message: String, segregation: Bool)?
+    @State private var message: String?
     @State private var confirmReject = false
 
     private var request: ApprovalRequestDTO? { decided ?? loader.value?.items.first { $0.id == approvalID } }
@@ -88,7 +86,7 @@ struct ApprovalDetailView: View {
             if let request {
                 Section("Request") {
                     LabeledContent("Amount", value: OwnerFormat.money(request.amount, currency: request.currency))
-                    LabeledContent("Type", value: request.subjectType.capitalized)
+                    LabeledContent("Type", value: OwnerFormat.humanize(request.subjectType))
                     LabeledContent("Reason", value: request.reason)
                     LabeledContent("Requested", value: request.requestedAt.shortStamp)
                     LabeledContent("Status", value: request.status.humanized)
@@ -96,12 +94,15 @@ struct ApprovalDetailView: View {
                     if let decisionNote = request.decisionNote { LabeledContent("Decision note", value: decisionNote) }
                     LabeledContent("Policy", value: request.policyVersion)
                 }
+                if request.subjectType == "EXPENSE" {
+                    ExpenseSection(model: model, expenseID: request.subjectID, isOnline: model.isOnline && !loader.isFromCache)
+                }
                 if request.status == .pending { decision }
+                if let message { Text(message).foregroundStyle(Brand.amber).accessibilityIdentifier("approval.message") }
             } else if let error = loader.error {
                 LoadFailure(message: error) { await reload() }
             } else if loader.value != nil {
-                ContentUnavailableView("Request not found", systemImage: "questionmark",
-                                       description: Text("It may be older than the latest 200 requests."))
+                EmptyState(title: ApprovalText.notFoundTitle, message: ApprovalText.notFoundMessage, systemImage: "questionmark")
             } else {
                 ProgressView()
             }
@@ -110,7 +111,7 @@ struct ApprovalDetailView: View {
         .navigationTitle("Approval")
         .refreshable { await reload() }
         .task(id: model.changeTick) { await reload() }
-        .confirmationDialog("Reject this request?", isPresented: $confirmReject, titleVisibility: .visible) {
+        .confirmationDialog(ApprovalText.confirmReject, isPresented: $confirmReject, titleVisibility: .visible) {
             Button("Reject", role: .destructive) { Task { await decide(approve: false) } }
         }
     }
@@ -121,7 +122,7 @@ struct ApprovalDetailView: View {
             if let block {
                 BlockedNote(block: block)
             } else {
-                TextField("Note (optional for approval, recommended for rejection)", text: $note, axis: .vertical)
+                TextField(ApprovalText.noteLabel, text: $note, axis: .vertical)
                     .lineLimit(2...5)
                 HStack {
                     Button("Approve") { Task { await decide(approve: true) } }
@@ -129,38 +130,94 @@ struct ApprovalDetailView: View {
                     Spacer()
                     Button("Reject", role: .destructive) { confirmReject = true }
                         .buttonStyle(.bordered)
+                        .disabled(!ApprovalText.canDecide(approve: false, note: note))
                 }
                 .disabled(working)
                 if let decisionError {
-                    Label(decisionError, systemImage: "hand.raised")
-                        .foregroundStyle(.red).font(.footnote)
-                        .accessibilityIdentifier("approval.error")
+                    VStack(alignment: .leading, spacing: 2) {
+                        if decisionError.segregation { Text(ApprovalText.sodTitle).font(.subheadline.bold()) }
+                        Text(decisionError.message).font(.footnote)
+                    }
+                    .foregroundStyle(.red)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("approval.error")
                 }
             }
         } header: {
             Text("Decision")
         } footer: {
-            Text("The person who submitted a request can't decide it (segregation of duties).")
+            Text(ApprovalText.sodFooter)
         }
     }
 
     private func decide(approve: Bool) async {
-        guard let repository = model.repository else { return }
+        guard let repository = model.repository, ApprovalText.canDecide(approve: approve, note: note) else { return }
         working = true
         defer { working = false }
         do {
             let request = try OwnerAPI.decideApproval(approvalID, approve: approve, note: note, idempotencyKey: UUID())
             decided = try await repository.send(request)
             decisionError = nil
-            UIAccessibility.post(notification: .announcement, argument: approve ? "Approved" : "Rejected")
+            note = ""
+            message = approve ? "Approved." : "Rejected."
+            UIAccessibility.post(notification: .announcement, argument: message)
         } catch {
-            decisionError = DecisionErrorText.message(for: error)
+            decisionError = (DecisionErrorText.message(for: error), (error as? APIError)?.code == "SEGREGATION_OF_DUTIES")
             model.handle(error)
+            if DecisionErrorText.needsReload(error) {
+                decided = nil
+                await reload()
+            }
         }
     }
 
     private func reload() async {
-        await loader.load(model, .approvals(nil), OwnerAPI.approvals(status: nil, pageSize: 200))
+        await loader.load(model, .recentApprovals, OwnerAPI.approvals(status: nil, pageSize: 200))
+    }
+}
+
+/// The expense behind an approval: fetched on demand (online only, never cached), with receipt photos.
+struct ExpenseSection: View {
+    let model: OwnerModel
+    let expenseID: UUID
+    let isOnline: Bool
+    @State private var expense: ExpenseDTO?
+    @State private var error: String?
+    @State private var receipt: Receipt?
+
+    private struct Receipt: Identifiable { let id: UUID }
+
+    var body: some View {
+        Section("Expense") {
+            if let expense {
+                LabeledContent("Description", value: expense.description)
+                if let supplier = expense.supplier { LabeledContent("Supplier", value: supplier) }
+                LabeledContent("Paid from", value: OwnerFormat.humanize(expense.paidFrom))
+                LabeledContent("Incurred", value: expense.incurredAt.shortStamp)
+                ForEach(expense.receiptAttachmentIDs, id: \.self) { id in
+                    PhotoButton(label: "receipt", isOnline: isOnline) { receipt = Receipt(id: id) }
+                }
+            } else {
+                Button(isOnline ? "Expense details" : "Expense details (online only)") { Task { await load() } }
+                    .disabled(!isOnline)
+            }
+            if let error { Text(error).font(.footnote).foregroundStyle(.red) }
+        }
+        .sheet(item: $receipt) { receipt in
+            EvidencePhotoView(model: model, title: "Receipt",
+                              request: OwnerAPI.receiptURL(expenseID: expenseID, attachmentID: receipt.id))
+        }
+    }
+
+    private func load() async {
+        guard let repository = model.repository else { return }
+        do {
+            expense = try await repository.send(OwnerAPI.expense(expenseID))
+            error = nil
+        } catch {
+            self.error = DecisionErrorText.message(for: error)
+            model.handle(error)
+        }
     }
 }
 #endif

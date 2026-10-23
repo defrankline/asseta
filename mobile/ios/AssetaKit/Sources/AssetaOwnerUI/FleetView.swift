@@ -95,9 +95,8 @@ struct FleetView: View {
         }
         .mapControls { MapCompass(); MapScaleView() } // no user location: the Owner app never asks for it
         .overlay(alignment: .bottom) {
-            let unplaced = machines.count - placed.count
-            if unplaced > 0 {
-                Text("\(unplaced) machine\(unplaced == 1 ? " has" : "s have") no position — see List")
+            if let note = FleetPresentation.unplacedNote(machines.count - placed.count) {
+                Text(note)
                     .font(.caption).padding(8)
                     .background(.regularMaterial, in: Capsule()).padding(.bottom, 8)
             }
@@ -113,7 +112,9 @@ struct FleetView: View {
         }
         .listStyle(.plain)
         .overlay {
-            if machines.isEmpty { ContentUnavailableView.search(text: search) }
+            if machines.isEmpty {
+                EmptyState(title: FleetPresentation.emptyTitle, message: FleetPresentation.emptyMessage, systemImage: "magnifyingglass")
+            }
         }
     }
 }
@@ -146,20 +147,28 @@ struct MachineRow: View {
     let machine: MachineMapDTO
     let dataIsCached: Bool
 
+    /// Same lines as the Android fleet list: title + status pill, last seen and tracker state, reported work and
+    /// operator, supervisor, open alerts.
     var body: some View {
         let style = FleetPresentation.style(for: machine, dataIsCached: dataIsCached)
-        HStack(spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
             Image(systemName: style.systemImage).foregroundStyle(style.tone.color).frame(width: 28)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
-                Text("\(machine.assetCode) · \(machine.name)").font(.headline)
-                Text(style.label).font(.subheadline).foregroundStyle(.secondary)
+                HStack {
+                    Text(FleetPresentation.title(machine)).font(.headline)
+                    Spacer()
+                    Pill(text: FleetPresentation.statusLabel(machine, dataIsCached: dataIsCached), color: style.tone.color)
+                }
+                Text(FleetPresentation.detailLine(machine, dataIsCached: dataIsCached)).font(.caption).foregroundStyle(.secondary)
+                Text(FleetPresentation.reportedLine(machine)).font(.caption).foregroundStyle(.secondary)
                 if let supervisor = machine.supervisor {
                     Text("Supervisor: \(supervisor)").font(.caption).foregroundStyle(.secondary)
                 }
+                if machine.openAlerts > 0 {
+                    Text(FleetPresentation.alertsLine(machine.openAlerts)).font(.caption).foregroundStyle(.red)
+                }
             }
-            Spacer()
-            if machine.openAlerts > 0 { Pill(text: "\(machine.openAlerts) alert\(machine.openAlerts == 1 ? "" : "s")", color: .red) }
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(style.accessibilityLabel)

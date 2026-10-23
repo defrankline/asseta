@@ -4,7 +4,8 @@ import AssetaModel
 import AssetaOwnerKit
 import SwiftUI
 
-/// Push priority matrix (category × severity), push devices, offline data and sign-out.
+/// Push priority matrix (category × severity), push devices, offline data and account (same sections and
+/// wording as the Android Owner app, from `SettingsText`).
 struct SettingsView: View {
     let model: OwnerModel
     @State private var routing = Loader<[NotificationRoutingDTO]>()
@@ -13,6 +14,7 @@ struct SettingsView: View {
     @State private var original: RoutingMatrix?
     @State private var saving = false
     @State private var message: String?
+    @State private var deviceError: String?
     @State private var confirmSignOut = false
     @State private var push = PushCenter.shared
 
@@ -21,25 +23,46 @@ struct SettingsView: View {
             if model.features.notifications { pushMatrix }
             Section {
                 LabeledContent("This phone", value: push.statusText)
-                ForEach(devices.value?.items ?? []) { device in
-                    LabeledContent("\(device.deviceLabel ?? device.platform) · \(device.app.capitalized)",
-                                   value: device.active ? "Active · \(device.tokenHint)" : "Inactive")
-                        .font(.subheadline)
+                LabeledContent("Provider", value: push.providerName)
+                if push.isEnabled {
+                    Button("Enable push notifications") { Task { await push.enable(); await reloadDevices() } }
+                        .disabled(!model.isOnline)
+                } else {
+                    FootNote(SettingsText.pushUnavailable)
                 }
+                if (devices.value?.items ?? []).isEmpty {
+                    Text("No devices registered for push.").font(.footnote).foregroundStyle(.secondary)
+                }
+                ForEach(devices.value?.items ?? []) { device in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(device.deviceLabel ?? device.platform) · \(OwnerFormat.humanize(device.app)) · …\(device.tokenHint)")
+                            .font(.subheadline)
+                        Text("\(device.active ? "Active" : "Inactive") · registered \(device.lastRegisteredAt.shortStamp)")
+                            .font(.caption).foregroundStyle(.secondary)
+                        if device.active {
+                            Button("Stop push to this device") { Task { await deactivate(device) } }
+                                .font(.subheadline).buttonStyle(.borderless)
+                                .disabled(!model.isOnline)
+                        }
+                    }
+                }
+                if let deviceError { Text(deviceError).font(.footnote).foregroundStyle(.red) }
             } header: {
                 Text("Push devices")
             } footer: {
-                Text("Push notifications go to this phone for the company that is open. Signing out unregisters it.")
+                Text(SettingsText.devicesFooter)
             }
             Section {
-                Text("Screens you have opened are kept encrypted on this phone for up to 7 days so you can look at "
-                    + "them offline. Saved data is clearly marked stale and can't be changed. Signing out erases it.")
-                    .font(.footnote).foregroundStyle(.secondary)
+                Text(SettingsText.offlineData).font(.footnote).foregroundStyle(.secondary)
             } header: {
                 Text("Offline data")
             }
-            Section {
+            Section("Account") {
+                LabeledContent("Company", value: model.tenant.name)
                 LabeledContent("Signed in as", value: model.me.email)
+                if model.me.tenants.filter({ $0.accessState.allowsEntry }).count > 1 {
+                    Button("Switch company") { model.leaveTenant() }
+                }
                 Button("Sign out", role: .destructive) { confirmSignOut = true }
                     .accessibilityIdentifier("settings.signOut")
             }
@@ -47,8 +70,8 @@ struct SettingsView: View {
         .navigationTitle("Settings")
         .task { await reload() }
         .refreshable { await reload() }
-        .confirmationDialog("Sign out?", isPresented: $confirmSignOut, titleVisibility: .visible) {
-            Button("Sign out and erase saved data", role: .destructive) { Task { await model.signOut() } }
+        .confirmationDialog(SettingsText.signOutConfirm, isPresented: $confirmSignOut, titleVisibility: .visible) {
+            Button(SettingsText.signOutAction, role: .destructive) { Task { await model.signOut() } }
         }
     }
 
@@ -62,7 +85,7 @@ struct SettingsView: View {
                         ForEach(RoutingMatrix.severities, id: \.self) { severity in
                             if matrix.row(category, severity) != nil {
                                 Toggle(isOn: binding(category, severity)) {
-                                    Label(severity.label, systemImage: "circle.fill")
+                                    Label(matrix.severityLabel(category, severity), systemImage: "circle.fill")
                                         .labelStyle(SeverityLabelStyle(color: severity.color))
                                 }
                                 .disabled(block != nil || matrix.isPushLocked(category, severity))
@@ -82,10 +105,9 @@ struct SettingsView: View {
                 ProgressView()
             }
         } header: {
-            Text("Push priorities")
+            Text(SettingsText.matrixTitle)
         } footer: {
-            Text("Choose which notifications reach this phone as push. Locked switches are required by Asseta. "
-                + "Every notification stays in the in-app inbox.")
+            Text(SettingsText.matrixFooter)
         }
     }
 
@@ -105,9 +127,26 @@ struct SettingsView: View {
             matrix = RoutingMatrix(rows)
             original = matrix
         }
+        await reloadDevices()
+    }
+
+    private func reloadDevices() async {
         if let repository = model.repository, model.isOnline,
            let page = try? await repository.send(OwnerAPI.pushDevices()) {
             devices.replace(page)
+        }
+    }
+
+    private func deactivate(_ device: PushDeviceDTO) async {
+        guard let repository = model.repository,
+              let request = try? OwnerAPI.deactivatePushDevice(device.id, idempotencyKey: UUID()) else { return }
+        do {
+            _ = try await repository.send(request)
+            deviceError = nil
+            await reloadDevices()
+        } catch {
+            deviceError = DecisionErrorText.message(for: error)
+            model.handle(error)
         }
     }
 
@@ -120,7 +159,7 @@ struct SettingsView: View {
             routing.replace(rows)
             matrix = RoutingMatrix(rows)
             original = matrix
-            message = "Saved."
+            message = SettingsText.saved
         } catch {
             message = DecisionErrorText.message(for: error)
             model.handle(error)

@@ -65,25 +65,35 @@ public enum MutationGuard {
 
 /// Maps decision errors to wording an owner can act on.
 public enum DecisionErrorText {
+    /// Same wording as the Android Owner app (`OwnerErrors`).
     public static func message(for error: any Error) -> String {
-        guard let api = error as? APIError else { return "Something went wrong. Please try again." }
+        guard let api = error as? APIError else { return "Unexpected response from the server. Please try again." }
+        if case .transport = api { return "Cannot reach Asseta. Check your connection and try again." }
         switch api.code {
         case "SEGREGATION_OF_DUTIES":
-            return "Segregation of duties: you can't decide on a request you submitted or recorded yourself. "
-                + "Another approver must decide it."
-        case "APPROVAL_ALREADY_DECIDED":
-            return "Someone has already decided this request. Pull to refresh to see the outcome."
-        case "ALERT_CLOSED":
-            return "This alert is already closed. Pull to refresh."
+            return "Segregation of duties: you cannot decide on a request you submitted or recorded yourself. "
+                + "Another authorised person must approve or reject it."
         case "NOTE_REQUIRED":
-            return "A note is required to resolve an alert."
+            return "Add a note explaining how the alert was resolved."
+        case "ALERT_CLOSED":
+            return "This alert was already closed by someone else. The list has been refreshed."
+        case "APPROVAL_ALREADY_DECIDED":
+            return "This request was already decided by someone else. The list has been refreshed."
         case "SUBSCRIPTION_READ_ONLY":
-            return "The company's subscription is read-only, so changes are disabled."
+            return "This company's subscription is read-only, so changes are not accepted right now."
         case "PERMISSION_DENIED":
-            return "Your role isn't allowed to do this."
+            return "You do not have permission to do this."
+        case "TENANT_ACCESS_DENIED", "TENANT_ACCESS_BLOCKED", "MANDATE_ENDED", "MANDATE_REQUIRED":
+            return "Your access to this company has ended. Its saved data was removed from this device."
         default:
             let text = api.localizedDescription
             return api.correlationID.map { "\(text) (ref \($0.prefix(8)))" } ?? text
         }
+    }
+
+    /// Codes after which the shown record is out of date and must be reloaded (as on Android).
+    public static func needsReload(_ error: any Error) -> Bool {
+        guard let api = error as? APIError else { return false }
+        return api.code == "ALERT_CLOSED" || api.code == "APPROVAL_ALREADY_DECIDED"
     }
 }

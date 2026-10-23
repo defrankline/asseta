@@ -85,7 +85,7 @@ struct FormatTests {
         let sameDay = AssetaJSON.parseInstant("2026-10-22T18:00:00Z")!
         let banner = OwnerFormat.staleBanner(fetchedAt: fetched, isOnline: false, now: sameDay, calendar: utc,
                                              locale: Locale(identifier: "en_GB"))
-        #expect(banner == "Offline — data from 14:05 (stale)")
+        #expect(banner == "Offline — data from 22 Oct 2026, 14:05 (stale)")
         let later = AssetaJSON.parseInstant("2026-10-30T09:00:00Z")!
         let old = OwnerFormat.staleBanner(fetchedAt: fetched, isOnline: true, now: later, calendar: utc,
                                           locale: Locale(identifier: "en_GB"))
@@ -94,7 +94,7 @@ struct FormatTests {
 
     @Test func sectionFreshness() {
         let now = Date(timeIntervalSince1970: 10_000)
-        #expect(OwnerFormat.sourceFreshness(nil, now: now) == "No data yet")
-        #expect(OwnerFormat.sourceFreshness(now - 300, now: now) == "Latest data 5 min ago")
+        #expect(OwnerFormat.sourceFreshness(nil, now: now) == "No source data yet")
+        #expect(OwnerFormat.sourceFreshness(now - 300, now: now) == "Source data updated 5 min ago")
     }
 }

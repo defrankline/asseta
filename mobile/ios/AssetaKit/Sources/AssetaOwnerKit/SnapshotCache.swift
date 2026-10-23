@@ -27,6 +27,12 @@ public struct SnapshotKey: Hashable, Sendable, CustomStringConvertible {
     }
     public static func cases(_ status: CaseStatus?) -> SnapshotKey { SnapshotKey("cases.\(status?.rawValue ?? "ALL")") }
     public static func caseDetail(_ id: UUID) -> SnapshotKey { SnapshotKey("case.\(id.lowercased)") }
+    public static func machineInfo(_ id: UUID) -> SnapshotKey { SnapshotKey("machine.\(id.lowercased).info") }
+    public static func jobCaptures(_ id: UUID) -> SnapshotKey { SnapshotKey("job.\(id.lowercased).captures") }
+    public static func jobAcknowledgements(_ id: UUID) -> SnapshotKey { SnapshotKey("job.\(id.lowercased).acknowledgements") }
+    /// The latest 200 alerts / requests of any status (detail screens look a record up here).
+    public static let recentAlerts = SnapshotKey("alerts.recent")
+    public static let recentApprovals = SnapshotKey("approvals.recent")
 }
 
 /// A cached value with the time it was fetched from the server.

@@ -40,18 +40,26 @@ public enum OwnerFormat {
         age(seconds: Int(now.timeIntervalSince(date)))
     }
 
-    /// `14:05` today, `Mon 14:05` within the week, `3 Oct 14:05` otherwise.
+    /// `22 Oct 2026, 14:05` in `calendar`'s time zone: the same absolute stamp the Android Owner app shows, so a
+    /// figure reads identically on both phones. (`now` and `locale` are kept for call-site compatibility.)
     public static func timestamp(_ date: Date, now: Date = Date(), calendar: Calendar = .current,
                                  locale: Locale = .current) -> String {
-        var cal = calendar
-        cal.locale = locale
-        let time = date.formatted(Date.FormatStyle(locale: locale, calendar: cal, timeZone: cal.timeZone)
-            .hour(.twoDigits(amPM: .abbreviated)).minute(.twoDigits))
-        if cal.isDate(date, inSameDayAs: now) { return time }
-        let days = cal.dateComponents([.day], from: cal.startOfDay(for: date), to: cal.startOfDay(for: now)).day ?? 99
-        let style = Date.FormatStyle(locale: locale, calendar: cal, timeZone: cal.timeZone)
-        if days > 0 && days < 7 { return "\(date.formatted(style.weekday(.abbreviated))) \(time)" }
-        return "\(date.formatted(style.day().month(.abbreviated))) \(time)"
+        stamp(date, timeZone: calendar.timeZone)
+    }
+
+    /// `22 Oct 2026, 14:05` in `timeZone` (English month, 24 h clock), as `OwnerFormat.dateTime` on Android.
+    public static func stamp(_ date: Date, timeZone: TimeZone = .current) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = timeZone
+        f.dateFormat = "d MMM yyyy, HH:mm"
+        return f.string(from: date)
+    }
+
+    /// Server enum values (`TRACKER_OFFLINE`) as words (`Tracker offline`), as `OwnerFormat.humanize` on Android.
+    public static func humanize(_ raw: String) -> String {
+        let text = raw.lowercased().replacingOccurrences(of: "_", with: " ")
+        return text.prefix(1).uppercased() + text.dropFirst()
     }
 
     /// The offline banner: `Offline — data from 14:05 (stale)`.
@@ -61,9 +69,9 @@ public enum OwnerFormat {
         return isOnline ? "Can't reach Asseta — data from \(when) (stale)" : "Offline — data from \(when) (stale)"
     }
 
-    /// Freshness caption for a KPI section: `Updated 3 min ago` or `No data yet`.
+    /// Freshness caption for a KPI section: `Source data updated 3 min ago` or `No source data yet` (Android wording).
     public static func sourceFreshness(_ latestSourceAt: Date?, now: Date = Date()) -> String {
-        guard let latestSourceAt else { return "No data yet" }
-        return "Latest data \(age(since: latestSourceAt, now: now))"
+        guard let latestSourceAt else { return "No source data yet" }
+        return "Source data updated \(age(since: latestSourceAt, now: now))"
     }
 }
