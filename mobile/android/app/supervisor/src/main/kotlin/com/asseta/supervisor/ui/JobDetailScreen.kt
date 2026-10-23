@@ -6,9 +6,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -19,12 +21,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.asseta.core.database.ClientOperationEntity
 import com.asseta.core.domain.policy.ReadingKind
 import com.asseta.core.model.ClientOperationStatus
 import com.asseta.core.model.sync.ActivityTypes
+import com.asseta.core.ui.theme.AssetaType
+import com.asseta.core.ui.theme.palette
+import com.asseta.supervisor.R
+import com.asseta.core.ui.R as CoreR
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 
@@ -64,14 +71,17 @@ fun JobDetailScreen(
         Section("Next steps") {
             val blocked = ui.captureBlocked
             if (blocked != null && actions.showsCapture) {
-                Text(blocked, color = WarningColor, style = MaterialTheme.typography.bodySmall)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(painterResource(R.drawable.ic_lock_warning), contentDescription = null, tint = WarningColor, modifier = Modifier.size(18.dp))
+                    Text(blocked, color = WarningColor, style = AssetaType.footnote)
+                }
             }
-            if (actions.canOpening) ActionRow("Capture opening reading", enabled = blocked == null) { onCapture(ReadingKind.OPENING) }
-            if (actions.canStart) ActionRow("Start job") { confirm = START }
-            if (actions.canClosing) ActionRow("Capture closing reading", enabled = blocked == null) { onCapture(ReadingKind.CLOSING) }
-            if (actions.canAcknowledge) ActionRow("Customer acknowledgement", onClick = onAcknowledge)
-            if (actions.canComplete) ActionRow("Complete job") { confirm = COMPLETE }
-            if (actions.isClosed) Text("No further actions on this job.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (actions.canOpening) ActionRow("Capture opening reading", R.drawable.ic_gauge, enabled = blocked == null) { onCapture(ReadingKind.OPENING) }
+            if (actions.canStart) ActionRow("Start job", R.drawable.ic_play) { confirm = START }
+            if (actions.canClosing) ActionRow("Capture closing reading", R.drawable.ic_gauge, enabled = blocked == null) { onCapture(ReadingKind.CLOSING) }
+            if (actions.canAcknowledge) ActionRow("Customer acknowledgement", R.drawable.ic_signature, onClick = onAcknowledge)
+            if (actions.canComplete) ActionRow("Complete job", R.drawable.ic_check_seal) { confirm = COMPLETE }
+            if (actions.isClosed) Text("No further actions on this job.", color = palette.secondaryText)
         }
 
         if (actions.canLogWork) WorkLogSection(ui, vm, onWorkLogEntry)
@@ -104,17 +114,17 @@ private fun WorkLogSection(ui: JobDetailUi, vm: JobDetailViewModel, onWorkLogEnt
         ui.workLog.forEach { e ->
             val span = LocalTime.formatTime(e.startedAt) +
                 (e.endedAt?.let { " → " + LocalTime.formatTime(it) } ?: if (e.operationId == null) " → running" else "")
-            Text("${FieldTexts.activityType(e.activityType)} $span${e.note?.let { " · $it" } ?: ""}", style = MaterialTheme.typography.bodyMedium)
+            Text("${FieldTexts.activityType(e.activityType)} $span${e.note?.let { " · $it" } ?: ""}", style = AssetaType.subheadline)
         }
         val running = ui.runningEntry
         if (running != null) {
-            ActionRow("Stop ${running.activityType.lowercase()}") { vm.stopEntry(running.clientId) }
+            ActionRow("Stop ${running.activityType.lowercase()}", R.drawable.ic_stop_circle) { vm.stopEntry(running.clientId) }
         } else {
-            ActionRow("Start work") { vm.startEntry(ActivityTypes.WORK) }
-            ActionRow("Standby") { vm.startEntry(ActivityTypes.STANDBY) }
-            ActionRow("Downtime") { vm.startEntry(ActivityTypes.DOWNTIME) }
+            ActionRow("Start work", R.drawable.ic_play_circle) { vm.startEntry(ActivityTypes.WORK) }
+            ActionRow("Standby", R.drawable.ic_pause_circle) { vm.startEntry(ActivityTypes.STANDBY) }
+            ActionRow("Downtime", R.drawable.ic_wrench) { vm.startEntry(ActivityTypes.DOWNTIME) }
         }
-        ActionRow("Add work log entry", onClick = onWorkLogEntry)
+        ActionRow("Add work log entry", R.drawable.ic_clipboard, onClick = onWorkLogEntry)
     }
 }
 
@@ -122,28 +132,40 @@ private fun WorkLogSection(ui: JobDetailUi, vm: JobDetailViewModel, onWorkLogEnt
 @Composable
 private fun OperationRow(op: ClientOperationEntity) {
     val payload = remember(op.payloadJson) { runCatching { Json.parseToJsonElement(op.payloadJson).jsonObject }.getOrNull() }
-    Column(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(FieldTexts.operationTitle(op.opType, payload), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+            Text(FieldTexts.operationTitle(op.opType, payload), style = AssetaType.subheadline, modifier = Modifier.weight(1f))
             SyncStateLabel(op.status)
         }
-        Text(LocalTime.formatSeconds(op.createdAtDevice), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(LocalTime.formatSeconds(op.createdAtDevice), style = AssetaType.caption, color = palette.secondaryText)
         val code = op.errorCode
         if (code != null && op.status != ClientOperationStatus.PENDING) {
-            Text("$code: ${op.lastError.orEmpty()}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            Text("$code: ${op.lastError.orEmpty()}", style = AssetaType.caption, color = palette.offline)
         }
     }
 }
 
+/** Sync state of a local record: symbol and text in the state's colour (the iOS `SyncStateLabel`). */
 @Composable
 fun SyncStateLabel(status: ClientOperationStatus) {
+    val p = palette
     val color = when (status) {
-        ClientOperationStatus.ACKED -> androidx.compose.ui.graphics.Color(0xFF2E7D32)
-        ClientOperationStatus.FAILED, ClientOperationStatus.CONFLICT -> MaterialTheme.colorScheme.error
-        ClientOperationStatus.QUARANTINED -> WarningColor
-        else -> MaterialTheme.colorScheme.onSurfaceVariant
+        ClientOperationStatus.ACKED -> p.live
+        ClientOperationStatus.FAILED, ClientOperationStatus.CONFLICT -> p.offline
+        ClientOperationStatus.QUARANTINED -> p.warning
+        else -> p.secondaryText
     }
-    Text(FieldTexts.syncState(status), style = MaterialTheme.typography.labelMedium, color = color)
+    val icon = when (status) {
+        ClientOperationStatus.ACKED -> R.drawable.ic_check_circle
+        ClientOperationStatus.FAILED -> R.drawable.ic_rejected
+        ClientOperationStatus.CONFLICT -> R.drawable.ic_warning
+        ClientOperationStatus.QUARANTINED -> R.drawable.ic_pause_circle
+        else -> CoreR.drawable.ic_clock
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(painterResource(icon), contentDescription = null, tint = color, modifier = Modifier.size(14.dp))
+        Text(FieldTexts.syncState(status), style = MaterialTheme.typography.labelMedium, color = color)
+    }
 }
 
 private const val START = "START"

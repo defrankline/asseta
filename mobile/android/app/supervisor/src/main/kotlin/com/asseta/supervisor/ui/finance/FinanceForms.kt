@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -32,6 +31,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.asseta.core.domain.capture.GpsOutcome
 import com.asseta.core.sync.usecase.FinanceResult
+import com.asseta.core.ui.theme.palette
 import com.asseta.supervisor.FieldGraph
 import com.asseta.supervisor.capture.CameraCapture
 import com.asseta.supervisor.capture.CapturedPhoto
@@ -39,6 +39,7 @@ import com.asseta.supervisor.capture.GpsLocator
 import com.asseta.supervisor.capture.MeterOcr
 import com.asseta.supervisor.capture.PermissionRationale
 import com.asseta.supervisor.capture.hasAllPermissions
+import com.asseta.supervisor.ui.FormSaveAction
 import com.asseta.supervisor.ui.GpsResult
 import com.asseta.supervisor.ui.Section
 import kotlinx.coroutines.CoroutineScope
@@ -62,10 +63,8 @@ fun SaveState.after(result: FinanceResult): SaveState = when (result) {
 @Composable
 fun SaveSection(state: SaveState, onSave: () -> Unit, onDone: () -> Unit, enabled: Boolean = true) {
     LaunchedEffect(state.saved) { if (state.saved) onDone() }
-    state.messages.forEach { Text(it, color = MaterialTheme.colorScheme.error) }
-    Button(onClick = onSave, enabled = enabled && !state.saving && !state.saved, modifier = Modifier.fillMaxWidth()) {
-        Text(if (state.saving) "Saving…" else "Save")
-    }
+    state.messages.forEach { Text(it, color = palette.offline) }
+    FormSaveAction(enabled = enabled, saving = state.saving || state.saved, onSave = onSave)
 }
 
 @Composable
@@ -125,7 +124,7 @@ fun ReceiptSection(photo: CapturedPhoto?, required: Boolean, onPhoto: (CapturedP
                 preview?.let { img ->
                     Image(img, "Receipt photo", Modifier.weight(1f).heightIn(max = 120.dp), contentScale = ContentScale.Fit, alignment = Alignment.CenterStart)
                 }
-                if (enabled) TextButton(onClick = { onPhoto(null) }) { Text("Remove", color = MaterialTheme.colorScheme.error) }
+                if (enabled) TextButton(onClick = { onPhoto(null) }) { Text("Remove", color = palette.offline) }
             }
         }
         when {

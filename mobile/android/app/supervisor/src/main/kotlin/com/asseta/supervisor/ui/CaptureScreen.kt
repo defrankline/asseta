@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -107,9 +106,7 @@ fun CaptureScreen(vm: CaptureViewModel, onDone: () -> Unit, modifier: Modifier =
                 if (issues.isNotEmpty() && (ui.photo != null || ui.readingText.isNotEmpty())) {
                     Section(null) { issues.forEach { Text(it, color = WarningColor) } }
                 }
-                Button(onClick = vm::save, enabled = !ui.saving && !ui.ocrBusy && issues.isEmpty(), modifier = Modifier.fillMaxWidth()) {
-                    Text(if (ui.saving) "Saving…" else "Save")
-                }
+                FormSaveAction(enabled = !ui.ocrBusy && issues.isEmpty(), saving = ui.saving, onSave = vm::save)
             }
         }
     }

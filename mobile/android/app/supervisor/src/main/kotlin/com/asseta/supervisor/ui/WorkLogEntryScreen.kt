@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
@@ -26,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.asseta.core.model.sync.ActivityTypes
 import com.asseta.core.sync.usecase.WorkflowResult
+import com.asseta.core.ui.theme.palette
 import com.asseta.supervisor.FieldGraph
 import com.asseta.supervisor.ui.finance.ChoiceChips
 import kotlinx.coroutines.launch
@@ -92,11 +92,11 @@ fun WorkLogEntryScreen(field: FieldGraph, tenantId: String, jobId: String, onDon
             note, { note = it.take(2000); error = null }, label = { Text("Note (downtime reason, issue…)") },
             modifier = Modifier.fillMaxWidth().heightIn(min = 100.dp), enabled = !saving,
         )
-        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        Button(
-            enabled = !saving,
-            modifier = Modifier.fillMaxWidth(),
-            onClick = {
+        error?.let { Text(it, color = palette.offline) }
+        FormSaveAction(
+            enabled = true,
+            saving = saving,
+            onSave = {
                 saving = true
                 scope.launch {
                     val result = when (kind) {
@@ -111,6 +111,6 @@ fun WorkLogEntryScreen(field: FieldGraph, tenantId: String, jobId: String, onDon
                     }
                 }
             },
-        ) { Text("Save") }
+        )
     }
 }

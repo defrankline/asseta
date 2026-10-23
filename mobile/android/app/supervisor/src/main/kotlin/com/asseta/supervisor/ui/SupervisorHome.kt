@@ -1,12 +1,11 @@
 package com.asseta.supervisor.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -17,6 +16,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -27,7 +27,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -37,7 +36,11 @@ import com.asseta.core.domain.policy.ReadingKind
 import com.asseta.core.model.ClientOperationStatus
 import com.asseta.core.model.TenantAccess
 import com.asseta.core.sync.engine.SyncReport
+import com.asseta.core.ui.components.AssetaTopBar
+import com.asseta.core.ui.components.BarTextButton
+import com.asseta.core.ui.components.NavigationChrome
 import com.asseta.core.ui.session.LocalSessionActions
+import com.asseta.core.ui.theme.palette
 import com.asseta.supervisor.FieldGraph
 import com.asseta.supervisor.R
 import com.asseta.supervisor.ui.finance.CashFormScreen
@@ -81,6 +84,11 @@ fun Route.title(companyName: String): String = when (this) {
         else -> "Fuel event"
     }
 }
+
+/** Routes the iOS app presents as sheets (Cancel / Save in the navigation bar). */
+val Route.isForm: Boolean
+    get() = this is Route.Capture || this is Route.Acknowledge || this is Route.WorkLogEntry || this == Route.RecordExpense ||
+        this is Route.CashForm
 
 /** Foreground sync shared by the home list (pull to refresh) and the sync status screen ("Sync now"). */
 class FieldSyncViewModel(private val field: FieldGraph, private val tenantId: String) : ViewModel() {
@@ -127,23 +135,34 @@ fun SupervisorHome(
         field.scheduler.syncNow()
     }
 
-    Column(modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (stack.size > 1) {
-                TextButton(onClick = ::pop) { Text("‹ Back") }
-            } else {
-                AccountMenu(showSwitchCompany = companyCount > 1, onSwitchCompany = onSwitchTenant)
-            }
-            Text(
-                route.title(tenant.name), style = MaterialTheme.typography.titleLarge, maxLines = 1,
-                overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+    val formBar = remember(route) { FormBarState() }
+    // iOS navigation bar: the home list has the company as large title, the account menu and the sync badge; pushed
+    // screens have "‹ <previous title>" back and a centred title; forms (iOS sheets) have Cancel and Save.
+    Column(modifier.fillMaxSize().background(palette.groupedBackground)) {
+        val title = route.title(tenant.name)
+        when {
+            route.isForm -> AssetaTopBar(
+                title, large = false,
+                leading = { BarTextButton("Cancel", onClick = ::pop) },
+                actions = {
+                    val save = formBar.save
+                    BarTextButton("Save", enabled = save?.enabled == true) { save?.onSave?.invoke() }
+                },
             )
-            when (route) {
-                Route.Jobs -> SyncBadge(field, tenantId, syncing) { push(Route.SyncStatus) }
-                Route.SyncStatus -> TextButton(onClick = sync::syncNow, enabled = !syncing) { Text("Sync now") }
-                else -> Unit
-            }
+            stack.size > 1 -> AssetaTopBar(
+                title, large = false, onBack = ::pop,
+                backLabel = NavigationChrome.backLabel(stack.getOrNull(stack.size - 2)?.title(tenant.name)),
+                actions = {
+                    if (route == Route.SyncStatus) BarTextButton("Sync now", enabled = !syncing, onClick = sync::syncNow)
+                },
+            )
+            else -> AssetaTopBar(
+                title, large = true,
+                leading = { AccountMenu(showSwitchCompany = companyCount > 1, onSwitchCompany = onSwitchTenant) },
+                actions = { SyncBadge(field, tenantId, syncing) { push(Route.SyncStatus) } },
+            )
         }
+        CompositionLocalProvider(LocalFormBar provides formBar) {
         when (route) {
             Route.Jobs -> JobsScreen(
                 field, tenantId, tenant.permissions.toSet(), syncing, onRefresh = sync::syncNow,
@@ -183,6 +202,7 @@ fun SupervisorHome(
                 SyncStatusScreen(vm, syncing, onRefresh = sync::syncNow)
             }
         }
+        }
     }
 }
 
@@ -192,7 +212,7 @@ private fun AccountMenu(showSwitchCompany: Boolean, onSwitchCompany: () -> Unit)
     val actions = LocalSessionActions.current
     var open by remember { mutableStateOf(false) }
     IconButton(onClick = { open = true }) {
-        Icon(painterResource(R.drawable.ic_account), contentDescription = "Account")
+        Icon(painterResource(R.drawable.ic_account), contentDescription = "Account", tint = palette.accent)
     }
     DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
         if (showSwitchCompany) DropdownMenuItem(text = { Text("Switch company") }, onClick = { open = false; onSwitchCompany() })
@@ -208,12 +228,12 @@ private fun AccountMenu(showSwitchCompany: Boolean, onSwitchCompany: () -> Unit)
 private fun SyncBadge(field: FieldGraph, tenantId: String, syncing: Boolean, onClick: () -> Unit) {
     val unsynced by remember(tenantId) { field.repository.observeUnsynced(tenantId) }.collectAsStateWithLifecycle(emptyList())
     val attention = unsynced.count { it.status == ClientOperationStatus.FAILED || it.status == ClientOperationStatus.CONFLICT }
-    val tint = if (attention > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+    val tint = if (attention > 0) palette.offline else palette.accent
     val label = if (unsynced.isEmpty()) "All synced" else "${unsynced.size} items not synced"
     TextButton(onClick = onClick, modifier = Modifier.semantics { contentDescription = label }) {
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
             if (syncing) {
-                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                CircularProgressIndicator(Modifier.size(18.dp), color = palette.secondaryText, strokeWidth = 2.dp)
             } else {
                 val icon = when {
                     attention > 0 -> R.drawable.ic_sync_problem
@@ -222,7 +242,7 @@ private fun SyncBadge(field: FieldGraph, tenantId: String, syncing: Boolean, onC
                 }
                 Icon(painterResource(icon), contentDescription = null, tint = tint)
             }
-            if (unsynced.isNotEmpty()) Text("${unsynced.size}", color = tint, style = MaterialTheme.typography.labelLarge)
+            if (unsynced.isNotEmpty()) Text("${unsynced.size}", color = tint, style = MaterialTheme.typography.labelMedium)
         }
     }
 }

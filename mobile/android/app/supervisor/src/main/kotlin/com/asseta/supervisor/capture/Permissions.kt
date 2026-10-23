@@ -4,13 +4,18 @@ import android.content.Context
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import com.asseta.core.ui.theme.AssetaType
+import com.asseta.core.ui.theme.palette
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -42,10 +47,11 @@ fun PermissionRationale(
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
         onResult(result.values.any { it })
     }
-    Card(modifier.fillMaxWidth()) {
+    // A grouped-list cell (as the iOS forms), so it sits on the grouped background like the sections around it.
+    Box(modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(palette.cell)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium)
-            Text(rationale, style = MaterialTheme.typography.bodyMedium)
+            Text(title, style = AssetaType.headline)
+            Text(rationale, style = MaterialTheme.typography.bodyMedium, color = palette.secondaryText)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = { launcher.launch(permissions) }) { Text("Allow") }
                 if (declineLabel != null) TextButton(onClick = { onResult(false) }) { Text(declineLabel) }

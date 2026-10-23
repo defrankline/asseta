@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.asseta.core.ui.theme.palette
 import com.asseta.core.domain.finance.CustodyLine
 import com.asseta.core.domain.finance.PendingCashKind
 import com.asseta.core.model.ClientOperationStatus
@@ -137,9 +138,9 @@ private fun RecordRow(record: FinanceRecord) {
         }
         Row {
             Text(LocalTime.format(record.createdAtMs), style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+                color = palette.secondaryText, modifier = Modifier.weight(1f))
             Text(MyCashTexts.status(record), style = MaterialTheme.typography.bodySmall,
-                color = if (record.isRefused) MaterialTheme.colorScheme.error else WarningColor)
+                color = if (record.isRefused) palette.offline else WarningColor)
         }
     }
 }

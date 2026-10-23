@@ -4,24 +4,20 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -37,13 +33,22 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.asseta.core.domain.capture.JobStatus
 import com.asseta.core.domain.finance.ExpensePolicyDecision
 import com.asseta.core.domain.sync.ClockStatus
 import com.asseta.core.sync.data.JobSummary
+import com.asseta.core.ui.components.GroupedItem
+import com.asseta.core.ui.components.GroupedSection
+import com.asseta.core.ui.components.Pill
+import com.asseta.core.ui.components.groupedSection
+import com.asseta.core.ui.theme.AssetaType
+import com.asseta.core.ui.theme.palette
 import com.asseta.supervisor.FieldGraph
+import com.asseta.supervisor.R
+import com.asseta.core.ui.R as CoreR
 import com.asseta.supervisor.ui.finance.CashFormViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
@@ -79,9 +84,10 @@ fun JobsScreen(
             return@PullToRefreshBox
         }
         val status = list.toMap()
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            item { FieldBanners(field, tenantId) }
-            item {
+        // The iOS home `List`: warnings, "Money & fuel", then the jobs grouped by state, each row opening the job.
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp)) {
+            item(key = "banners") { FieldBanners(field, tenantId) }
+            item(key = "finance") {
                 FinanceSection(
                     permissions,
                     onExpense = {
@@ -96,15 +102,20 @@ fun JobsScreen(
                 )
             }
             if (list.isEmpty()) {
-                item {
+                item(key = "empty") {
                     EmptyState("No assigned jobs", if (syncing) "Syncing…" else "Pull down to sync when you are online.")
                 }
             }
             FieldTexts.jobSections(list.map { it.first }) { status[it] ?: it.job.status }.forEach { (title, jobs) ->
-                item(key = "section-$title") { Text(title, style = MaterialTheme.typography.titleMedium) }
-                items(jobs, key = { it.job.id }) { summary ->
-                    JobRow(summary, status[summary] ?: summary.job.status) { onOpen(summary.job.id, summary.job.jobNumber) }
-                }
+                groupedSection(
+                    keyPrefix = "section-$title",
+                    header = title,
+                    items = jobs.map { summary ->
+                        GroupedItem(summary.job.id, onClick = { onOpen(summary.job.id, summary.job.jobNumber) }) {
+                            JobRow(summary, status[summary] ?: summary.job.status)
+                        }
+                    },
+                )
             }
         }
     }
@@ -119,17 +130,15 @@ fun JobsScreen(
 }
 
 @Composable
-private fun JobRow(summary: JobSummary, displayStatus: String, onClick: () -> Unit) {
-    Card(Modifier.fillMaxWidth().clickable(onClick = onClick)) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(summary.job.jobNumber, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                StatusBadge(displayStatus, summary.job.status)
-            }
-            val lines = listOfNotNull(FieldTexts.machine(summary), summary.siteName, summary.customerName)
-            if (lines.isNotEmpty()) {
-                Text(lines.joinToString("\n"), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+private fun JobRow(summary: JobSummary, displayStatus: String) {
+    Column(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(summary.job.jobNumber, style = AssetaType.headline, modifier = Modifier.weight(1f))
+            StatusBadge(displayStatus, summary.job.status)
+        }
+        val lines = listOfNotNull(FieldTexts.machine(summary), summary.siteName, summary.customerName)
+        if (lines.isNotEmpty()) {
+            Text(lines.joinToString("\n"), style = AssetaType.subheadline, color = palette.secondaryText)
         }
     }
 }
@@ -137,18 +146,14 @@ private fun JobRow(summary: JobSummary, displayStatus: String, onClick: () -> Un
 /** Status capsule (same colours as iOS: in progress blue, approved green, cancelled red, others grey). */
 @Composable
 fun StatusBadge(displayStatus: String, serverStatus: String) {
+    val p = palette
     val color = when (displayStatus) {
-        JobStatus.IN_PROGRESS -> Color(0xFF1E6FD9)
-        JobStatus.APPROVED -> Color(0xFF2E7D32)
-        JobStatus.CANCELLED -> MaterialTheme.colorScheme.error
-        else -> MaterialTheme.colorScheme.onSurfaceVariant
+        JobStatus.IN_PROGRESS -> p.recent
+        JobStatus.APPROVED -> p.live
+        JobStatus.CANCELLED -> p.offline
+        else -> p.neutral
     }
-    Text(
-        FieldTexts.statusBadge(displayStatus, serverStatus),
-        style = MaterialTheme.typography.labelMedium,
-        color = color,
-        modifier = Modifier.background(color.copy(alpha = 0.15f), RoundedCornerShape(50)).padding(horizontal = 8.dp, vertical = 3.dp),
-    )
+    Pill(FieldTexts.statusBadge(displayStatus, serverStatus), color)
 }
 
 /** Entry points shown according to `/me` permissions; the server enforces them on every pushed operation. */
@@ -157,14 +162,14 @@ private fun FinanceSection(permissions: Set<String>, onExpense: () -> Unit, onRo
     val expenses = "tenant.expense.write" in permissions
     val cash = "tenant.collection.record" in permissions
     if (!expenses && !cash) return
-    Section("Money & fuel") {
-        if (expenses) ActionRow("Record expense", onClick = onExpense)
+    GroupedSection(header = "Money & fuel") {
+        if (expenses) ActionRow("Record expense", R.drawable.ic_receipt, onClick = onExpense)
         if (cash) {
-            ActionRow("Record cash collection") { onRoute(Route.CashForm(CashFormViewModel.COLLECTION)) }
-            ActionRow("Hand over cash") { onRoute(Route.CashForm(CashFormViewModel.HANDOVER)) }
+            ActionRow("Record cash collection", R.drawable.ic_banknote) { onRoute(Route.CashForm(CashFormViewModel.COLLECTION)) }
+            ActionRow("Hand over cash", R.drawable.ic_hand_over) { onRoute(Route.CashForm(CashFormViewModel.HANDOVER)) }
         }
-        if (expenses) ActionRow("Fuel event") { onRoute(Route.CashForm(CashFormViewModel.FUEL)) }
-        if (cash) ActionRow("My cash") { onRoute(Route.MyCash) }
+        if (expenses) ActionRow("Fuel event", R.drawable.ic_fuel) { onRoute(Route.CashForm(CashFormViewModel.FUEL)) }
+        if (cash) LinkActionRow("My cash", R.drawable.ic_wallet) { onRoute(Route.MyCash) }
     }
 }
 
@@ -179,24 +184,27 @@ private fun FieldBanners(field: FieldGraph, tenantId: String) {
         }
     }
     val online = rememberOnline()
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        val local = clock as? ClockStatus.Checked
-        when {
-            local?.alert == true -> Banner(FieldTexts.clockTamper(local.skewSeconds), warning = true)
-            state?.serverClockAlert == true -> Banner(FieldTexts.SERVER_CLOCK, warning = true)
-        }
-        if (!online) Banner(FieldTexts.OFFLINE) else FieldTexts.lastSyncProblem(state?.lastError)?.let { Banner(it) }
+    val local = clock as? ClockStatus.Checked
+    val clockText = when {
+        local?.alert == true -> FieldTexts.clockTamper(local.skewSeconds)
+        state?.serverClockAlert == true -> FieldTexts.SERVER_CLOCK
+        else -> null
+    }
+    val syncProblem = if (online) FieldTexts.lastSyncProblem(state?.lastError) else null
+    if (clockText == null && online && syncProblem == null) return
+    // The iOS `FieldBanners` rows: a symbol and a footnote, warnings in amber.
+    GroupedSection {
+        clockText?.let { Banner(CoreR.drawable.ic_clock_alert, it, WarningColor) }
+        if (!online) Banner(CoreR.drawable.ic_wifi_off, FieldTexts.OFFLINE) else syncProblem?.let { Banner(R.drawable.ic_cloud_alert, it) }
     }
 }
 
 @Composable
-private fun Banner(text: String, warning: Boolean = false) {
-    Text(
-        text,
-        style = MaterialTheme.typography.bodySmall,
-        color = if (warning) Color(0xFFB25E00) else MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.fillMaxWidth(),
-    )
+private fun Banner(@DrawableRes icon: Int, text: String, tint: Color = palette.secondaryText) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(painterResource(icon), contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
+        Text(text, style = AssetaType.footnote)
+    }
 }
 
 /** Whether the phone currently has a validated internet connection (updates live). */
@@ -216,14 +224,4 @@ fun rememberOnline(): Boolean {
         onDispose { manager.unregisterNetworkCallback(callback) }
     }
     return online
-}
-
-@Composable
-fun EmptyState(title: String, message: String) {
-    Box(Modifier.fillMaxWidth().padding(vertical = 32.dp), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium)
-            Text(message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
 }

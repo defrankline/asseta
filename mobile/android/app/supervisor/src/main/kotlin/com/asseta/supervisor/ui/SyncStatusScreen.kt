@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
+import com.asseta.core.ui.theme.palette
 import com.asseta.core.database.ClientOperationEntity
 import com.asseta.core.database.SyncStateEntity
 import com.asseta.core.model.ClientOperationStatus
@@ -122,7 +123,7 @@ fun SyncStatusScreen(vm: SyncStatusViewModel, syncing: Boolean, onRefresh: () ->
                     Text(
                         "Asseta syncs when the app is open and when the connection comes back. Android also syncs in the " +
                             "background about every 15 minutes while a network is available.",
-                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall, color = palette.secondaryText,
                     )
                     LabeledRow("Device ID", vm.deviceId.take(8))
                 }
@@ -140,13 +141,13 @@ private fun ItemRow(item: OutboxItem, onRetry: (ClientOperationEntity) -> Unit) 
             SyncStateLabel(op.status)
         }
         item.jobNumber?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-        Text(LocalTime.formatSeconds(op.createdAtDevice), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(LocalTime.formatSeconds(op.createdAtDevice), style = MaterialTheme.typography.bodySmall, color = palette.secondaryText)
         val code = op.errorCode
         if (code != null && op.status != ClientOperationStatus.PENDING) {
-            Text("$code: ${op.lastError.orEmpty()}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            Text("$code: ${op.lastError.orEmpty()}", style = MaterialTheme.typography.bodySmall, color = palette.offline)
         }
         item.serverState?.let { Text("Server state: $it", style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace)) }
-        item.waiting?.let { Text(FieldTexts.waiting(it), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        item.waiting?.let { Text(FieldTexts.waiting(it), style = MaterialTheme.typography.bodySmall, color = palette.secondaryText) }
         if (op.status == ClientOperationStatus.FAILED) {
             TextButton(onClick = { onRetry(op) }, contentPadding = PaddingValues(0.dp)) { Text("Retry") }
         }

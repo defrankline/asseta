@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
@@ -28,6 +27,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.asseta.core.model.sync.AckMethod
 import com.asseta.core.sync.usecase.WorkflowResult
+import com.asseta.core.ui.theme.palette
 import com.asseta.supervisor.FieldGraph
 import kotlinx.coroutines.launch
 
@@ -64,14 +64,14 @@ fun AcknowledgementScreen(field: FieldGraph, tenantId: String, jobId: String, on
         if (method == AckMethod.SIGNATURE) {
             Section("Signature", footer = "Ask the customer to sign with a finger.") {
                 SignaturePad(signature)
-                Row { TextButton(onClick = signature::clear) { Text("Clear", color = MaterialTheme.colorScheme.error) } }
+                Row { TextButton(onClick = signature::clear) { Text("Clear", color = palette.offline) } }
             }
         }
-        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        Button(
+        error?.let { Text(it, color = palette.offline) }
+        FormSaveAction(
             enabled = canSave,
-            modifier = Modifier.fillMaxWidth(),
-            onClick = {
+            saving = saving,
+            onSave = {
                 saving = true
                 val png = if (method == AckMethod.SIGNATURE) signature.toPng() else null
                 scope.launch {
@@ -82,6 +82,6 @@ fun AcknowledgementScreen(field: FieldGraph, tenantId: String, jobId: String, on
                     saving = false
                 }
             },
-        ) { Text("Save") }
+        )
     }
 }
