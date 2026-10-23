@@ -128,7 +128,7 @@ struct AlertDetailView: View {
                 Button("Resolve") { Task { await act(.resolve) } }
                     .disabled(working || note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 if let actionError {
-                    Text(actionError).foregroundStyle(.red).font(.footnote).accessibilityIdentifier("alert.error")
+                    Text(actionError).foregroundStyle(Palette.offline).font(.footnote).accessibilityIdentifier("alert.error")
                 }
             }
         } header: {

@@ -110,7 +110,7 @@ struct MachineDetailView: View {
                     Text(MachineText.visitLine(visit)).font(.caption)
                 }
             } else if let error = track.error {
-                Text(error).font(.footnote).foregroundStyle(.red)
+                Text(error).font(.footnote).foregroundStyle(Palette.offline)
             }
         } header: {
             Text("Last 24 hours")
@@ -165,7 +165,7 @@ struct ReadingRow: View {
             HStack {
                 Text(ReadingText.title(capture)).font(.headline)
                 Spacer()
-                Pill(text: OwnerFormat.humanize(capture.state), color: capture.state == "ACCEPTED" ? .green : .orange)
+                Pill(text: OwnerFormat.humanize(capture.state), color: capture.state == "ACCEPTED" ? Palette.live : Palette.warning)
             }
             Text(ReadingText.detail(capture)).font(.caption).foregroundStyle(.secondary)
             if capture.photoAttachmentID != nil {

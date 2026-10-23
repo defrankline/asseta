@@ -1,4 +1,5 @@
 #if os(iOS)
+import AssetaAppShell
 import AssetaModel
 import AssetaStore
 import AssetaSync
@@ -67,7 +68,7 @@ struct JobDetailView: View {
             let gate = model.gate(job)
             if case let .blocked(reason) = gate, progress.canCaptureOpening || progress.canCaptureClosing {
                 Label(reason.message, systemImage: "lock.trianglebadge.exclamationmark")
-                    .foregroundStyle(.orange).font(.footnote)
+                    .foregroundStyle(Palette.warning).font(.footnote)
                     .accessibilityIdentifier("capture.blocked")
             }
             if progress.canCaptureOpening {
@@ -179,7 +180,7 @@ struct OperationRow: View {
             Text(operation.createdAtDevice.formatted(date: .abbreviated, time: .standard))
                 .font(.caption).foregroundStyle(.secondary)
             if let code = operation.errorCode, operation.status != .pending {
-                Text("\(code): \(operation.lastError ?? "")").font(.caption).foregroundStyle(.red)
+                Text("\(code): \(operation.lastError ?? "")").font(.caption).foregroundStyle(Palette.offline)
             }
         }
     }
@@ -233,9 +234,9 @@ struct SyncStateLabel: View {
 
     private var color: Color {
         switch status {
-        case .acked: .green
-        case .failed, .conflict: .red
-        case .quarantined: .orange
+        case .acked: Palette.live
+        case .failed, .conflict: Palette.offline
+        case .quarantined: Palette.warning
         default: .secondary
         }
     }

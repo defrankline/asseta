@@ -21,6 +21,16 @@ struct ParityPresentationTests {
         """.utf8))
     }
 
+    /// Android `NavigationChromeTest`: same badge text for the same unread counts.
+    @Test func unreadBadgeHidesZeroAndCapsAt99() {
+        #expect(OwnerFormat.badge(nil) == nil)
+        #expect(OwnerFormat.badge(0) == nil)
+        #expect(OwnerFormat.badge(-3) == nil)
+        #expect(OwnerFormat.badge(7) == "7")
+        #expect(OwnerFormat.badge(99) == "99")
+        #expect(OwnerFormat.badge(100) == "99+")
+    }
+
     @Test func overviewSectionsLabelsAndLinks() throws {
         let o = try overview()
         let sections = OverviewPresentation.sections(o, cached: false, now: now)

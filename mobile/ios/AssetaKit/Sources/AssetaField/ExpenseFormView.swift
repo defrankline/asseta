@@ -1,4 +1,5 @@
 #if os(iOS)
+import AssetaAppShell
 import AssetaCapture
 import AssetaModel
 import AssetaSync
@@ -126,7 +127,7 @@ struct ExpenseFormView: View {
                     LabeledContent("Location", value: String(format: "%.5f, %.5f", lat, lon))
                     LabeledContent("Accuracy", value: String(format: "± %.0f m", result.accuracyM ?? 0))
                 } else {
-                    Label(MeterCaptureView.describe(result.status), systemImage: "location.slash").foregroundStyle(.orange)
+                    Label(MeterCaptureView.describe(result.status), systemImage: "location.slash").foregroundStyle(Palette.warning)
                 }
                 Button("Try location again", systemImage: "location") { Task { await form.locate(using: model.locator) } }
             }
@@ -143,7 +144,7 @@ struct ExpenseFormView: View {
             }
         }
         if !visible.isEmpty {
-            Section { ForEach(visible, id: \.description) { Text($0.description).foregroundStyle(.orange) } }
+            Section { ForEach(visible, id: \.description) { Text($0.description).foregroundStyle(Palette.warning) } }
         }
         if assessment.amount != nil {
             Section {

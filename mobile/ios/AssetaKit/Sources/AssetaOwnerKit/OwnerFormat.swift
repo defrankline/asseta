@@ -56,6 +56,13 @@ public enum OwnerFormat {
         return f.string(from: date)
     }
 
+    /// Unread count on the bell, the More tab and the Notifications row: nil when nothing is unread, capped at
+    /// `99+` (as `NavigationChrome.badge` on Android).
+    public static func badge(_ count: Int?) -> String? {
+        guard let count, count > 0 else { return nil }
+        return count > 99 ? "99+" : "\(count)"
+    }
+
     /// Server enum values (`TRACKER_OFFLINE`) as words (`Tracker offline`), as `OwnerFormat.humanize` on Android.
     public static func humanize(_ raw: String) -> String {
         let text = raw.lowercased().replacingOccurrences(of: "_", with: " ")

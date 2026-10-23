@@ -43,7 +43,7 @@ public struct OwnerRootView: View {
             }
             stack(.more) { MoreView(model: model).modifier(NotificationBell(model: model) { open(.notifications) }) }
                 .tabItem { Label("More", systemImage: "ellipsis.circle") }.tag(OwnerTab.more)
-                .badge(model.unreadCount)
+                .badge(OwnerFormat.badge(model.unreadCount).map { Text($0) })
         }
         .tint(Brand.amber)
         .task {
@@ -67,8 +67,13 @@ public struct OwnerRootView: View {
     private func stack(_ tab: OwnerTab, @ViewBuilder root: () -> some View) -> some View {
         NavigationStack(path: Binding(get: { paths[tab] ?? NavigationPath() }, set: { paths[tab] = $0 })) {
             root()
-                .navigationDestination(for: OwnerRoute.self) { RouteView(model: model, route: $0) }
-                .navigationDestination(for: MoreItem.self) { MoreDestination(model: model, item: $0) }
+                // Only a tab's first screen has a large title (as on Android); pushed screens use the inline title.
+                .navigationDestination(for: OwnerRoute.self) {
+                    RouteView(model: model, route: $0).navigationBarTitleDisplayMode(.inline)
+                }
+                .navigationDestination(for: MoreItem.self) {
+                    MoreDestination(model: model, item: $0).navigationBarTitleDisplayMode(.inline)
+                }
         }
     }
 
@@ -174,7 +179,7 @@ struct MoreView: View {
                 if model.features.notifications {
                     NavigationLink(value: MoreItem.notifications) {
                         Label("Notifications", systemImage: "bell")
-                            .badge(model.unreadCount)
+                            .badge(OwnerFormat.badge(model.unreadCount).map { Text($0) })
                     }
                 }
             }

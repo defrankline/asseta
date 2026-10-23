@@ -73,7 +73,7 @@ struct NotificationRow: View {
                     Spacer()
                     // INFO carries no pill; high priority is called out (as on Android).
                     if note.severity != .info { Pill(text: note.severity.label, color: note.severity.color) }
-                    if note.priority == "HIGH" { Pill(text: "High priority", color: .red) }
+                    if note.priority == "HIGH" { Pill(text: "High priority", color: Palette.offline) }
                 }
                 Text(note.body).font(.subheadline).foregroundStyle(.secondary).lineLimit(3)
                 Text(note.createdAt.shortStamp).font(.caption).foregroundStyle(.secondary)

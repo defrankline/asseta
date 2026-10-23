@@ -1,4 +1,5 @@
 #if os(iOS)
+import AssetaAppShell
 import AssetaModel
 import AssetaSync
 import SwiftUI
@@ -41,7 +42,7 @@ struct CashCollectionFormView: View {
                 } footer: {
                     Text("The cash is added to your custody once the server accepts it. The office verifies it later.")
                 }
-                if let error { Text(error).foregroundStyle(.red) }
+                if let error { Text(error).foregroundStyle(Palette.offline) }
             }
             .navigationTitle("Cash collection")
             .navigationBarTitleDisplayMode(.inline)
@@ -111,7 +112,7 @@ struct CashHandoverFormView: View {
                 } footer: {
                     Text("Your custody goes down only when finance verifies the handover.")
                 }
-                if let error { Text(error).foregroundStyle(.red) }
+                if let error { Text(error).foregroundStyle(Palette.offline) }
             }
             .navigationTitle("Hand over cash")
             .navigationBarTitleDisplayMode(.inline)
@@ -195,9 +196,9 @@ struct FuelFormView: View {
                 Section { TextField("Note (optional)", text: $note, axis: .vertical) }
                 let visible = issues.filter { !$0.hasPrefix("Enter the") }
                 if !visible.isEmpty {
-                    Section { ForEach(visible, id: \.self) { Text($0).foregroundStyle(.orange) } }
+                    Section { ForEach(visible, id: \.self) { Text($0).foregroundStyle(Palette.warning) } }
                 }
-                if let error { Text(error).foregroundStyle(.red) }
+                if let error { Text(error).foregroundStyle(Palette.offline) }
             }
             .navigationTitle("Fuel event")
             .navigationBarTitleDisplayMode(.inline)

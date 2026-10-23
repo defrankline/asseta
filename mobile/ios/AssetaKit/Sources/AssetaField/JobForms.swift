@@ -1,4 +1,5 @@
 #if os(iOS)
+import AssetaAppShell
 import AssetaCapture
 import AssetaModel
 import AssetaSync
@@ -45,7 +46,7 @@ struct ActivityFormView: View {
                 Section("Note (downtime reason, issue…)") {
                     TextEditor(text: $note).frame(minHeight: 100)
                 }
-                if let error { Text(error).foregroundStyle(.red) }
+                if let error { Text(error).foregroundStyle(Palette.offline) }
             }
             .navigationTitle("Work log entry")
             .navigationBarTitleDisplayMode(.inline)
@@ -106,7 +107,7 @@ struct AcknowledgementFormView: View {
                         Button("Clear", role: .destructive) { canvas.drawing = PKDrawing(); hasInk = false }
                     } header: { Text("Signature") } footer: { Text("Ask the customer to sign with a finger.") }
                 }
-                if let error { Text(error).foregroundStyle(.red) }
+                if let error { Text(error).foregroundStyle(Palette.offline) }
             }
             .navigationTitle("Customer acknowledgement")
             .navigationBarTitleDisplayMode(.inline)

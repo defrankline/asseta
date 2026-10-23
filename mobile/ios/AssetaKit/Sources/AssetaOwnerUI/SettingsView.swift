@@ -46,7 +46,7 @@ struct SettingsView: View {
                         }
                     }
                 }
-                if let deviceError { Text(deviceError).font(.footnote).foregroundStyle(.red) }
+                if let deviceError { Text(deviceError).font(.footnote).foregroundStyle(Palette.offline) }
             } header: {
                 Text("Push devices")
             } footer: {
@@ -100,7 +100,7 @@ struct SettingsView: View {
                     .disabled(block != nil || saving || changes.isEmpty)
                 if let message { Text(message).font(.footnote).foregroundStyle(.secondary) }
             } else if let error = routing.error {
-                Text(error).foregroundStyle(.red)
+                Text(error).foregroundStyle(Palette.offline)
             } else {
                 ProgressView()
             }

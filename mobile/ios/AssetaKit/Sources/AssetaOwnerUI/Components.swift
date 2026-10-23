@@ -99,11 +99,11 @@ struct LoadFailure: View {
 extension MarkerTone {
     var color: Color {
         switch self {
-        case .live: .green
-        case .recent: .teal
-        case .stale: Brand.amber
-        case .offline: .red
-        case .unknown: .gray
+        case .live: Palette.live
+        case .recent: Palette.recent
+        case .stale: Palette.stale
+        case .offline: Palette.offline
+        case .unknown: Palette.neutral
         }
     }
 }
@@ -111,9 +111,9 @@ extension MarkerTone {
 extension AlertSeverity {
     var color: Color {
         switch self {
-        case .critical: .red
-        case .info: .blue
-        default: .orange
+        case .critical: Palette.offline
+        case .info: Palette.recent
+        default: Palette.warning
         }
     }
 
@@ -147,9 +147,9 @@ struct FootNote: View {
 extension KPITone {
     var color: Color {
         switch self {
-        case .good: .green
-        case .warning: .orange
-        case .critical: .red
+        case .good: Palette.live
+        case .warning: Palette.warning
+        case .critical: Palette.offline
         case .muted: .secondary
         case .normal: .primary
         }
@@ -166,7 +166,20 @@ struct NotificationBell: ViewModifier {
             if model.features.notifications {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(action: open) {
-                        Image(systemName: model.unreadCount > 0 ? "bell.badge" : "bell")
+                        Image(systemName: "bell")
+                            .overlay(alignment: .topTrailing) {
+                                if let badge = OwnerFormat.badge(model.unreadCount) {
+                                    Text(badge)
+                                        .font(.caption2.bold()).monospacedDigit()
+                                        .foregroundStyle(.white)
+                                        .padding(.horizontal, 5).padding(.vertical, 1)
+                                        .frame(minWidth: 18)
+                                        .background(Palette.offline, in: Capsule())
+                                        .fixedSize()
+                                        .offset(x: 10, y: -8)
+                                        .accessibilityHidden(true)
+                                }
+                            }
                     }
                     .accessibilityLabel(model.unreadCount > 0 ? "Notifications, \(model.unreadCount) unread" : "Notifications")
                 }
@@ -229,11 +242,11 @@ extension JobStatus {
 
     var color: Color {
         switch self {
-        case .inProgress: .teal
-        case .approved: .green
-        case .cancelled: .red
-        case .pendingApproval: .orange
-        default: .gray
+        case .inProgress: Palette.recent
+        case .approved: Palette.live
+        case .cancelled: Palette.offline
+        case .pendingApproval: Palette.warning
+        default: Palette.neutral
         }
     }
 }

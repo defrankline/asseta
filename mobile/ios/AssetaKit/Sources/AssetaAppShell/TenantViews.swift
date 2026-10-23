@@ -25,7 +25,7 @@ struct TenantPickerView: View {
                     }
                 }
                 if let message = model.errorMessage {
-                    Section { Text(message).foregroundStyle(.red) }
+                    Section { Text(message).foregroundStyle(Palette.offline) }
                 }
             }
             .navigationTitle("Hello, \(me.displayName)")
@@ -78,9 +78,9 @@ struct AccessBadge: View {
 
     private var color: Color {
         switch state {
-        case .full: .green
-        case .readOnly: Brand.amber
-        default: .red
+        case .full: Palette.live
+        case .readOnly: Palette.stale
+        default: Palette.offline
         }
     }
 }

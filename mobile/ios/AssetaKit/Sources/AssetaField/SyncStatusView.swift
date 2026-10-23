@@ -1,4 +1,5 @@
 #if os(iOS)
+import AssetaAppShell
 import AssetaStore
 import AssetaSync
 import SwiftUI
@@ -21,7 +22,7 @@ struct SyncStatusView: View {
                     ForEach(failed) { file in
                         VStack(alignment: .leading) {
                             Text(file.purpose == "SIGNATURE" ? "Signature" : file.purpose == "EXPENSE_RECEIPT" ? "Receipt photo" : "Meter photo")
-                            Text(file.lastError ?? "").font(.caption).foregroundStyle(.red)
+                            Text(file.lastError ?? "").font(.caption).foregroundStyle(Palette.offline)
                         }
                     }
                 }
@@ -80,7 +81,7 @@ struct SyncStatusView: View {
                         Text(item.operation.createdAtDevice.formatted(date: .abbreviated, time: .standard))
                             .font(.caption).foregroundStyle(.secondary)
                         if let code = item.operation.errorCode, status != .pending {
-                            Text("\(code): \(item.operation.lastError ?? "")").font(.caption).foregroundStyle(.red)
+                            Text("\(code): \(item.operation.lastError ?? "")").font(.caption).foregroundStyle(Palette.offline)
                         }
                         if let state = item.serverState { Text("Server state: \(state)").font(.caption.monospaced()) }
                         if let waiting = item.waitingFor { Text(waiting).font(.caption).foregroundStyle(.secondary) }

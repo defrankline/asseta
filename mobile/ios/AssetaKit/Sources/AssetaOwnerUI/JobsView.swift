@@ -138,7 +138,7 @@ struct JobDetailView: View {
                         Text(JobDetailText.noCharges).foregroundStyle(.secondary)
                     }
                     if let exceptions = JobDetailText.exceptions(summary.openExceptions) {
-                        Text(exceptions).font(.footnote).foregroundStyle(.red)
+                        Text(exceptions).font(.footnote).foregroundStyle(Palette.offline)
                     }
                 } header: {
                     Text("Charges")

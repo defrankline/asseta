@@ -25,7 +25,10 @@ public struct FieldRootView: View {
                 .navigationTitle(model.tenant.name)
                 .toolbar { toolbar }
                 .refreshable { await model.sync(force: true) }
-                .navigationDestination(for: UUID.self) { id in JobDetailView(model: model, jobID: id) }
+                // Pushed screens use the inline title, as on Android; only the home list has the large company title.
+                .navigationDestination(for: UUID.self) { id in
+                    JobDetailView(model: model, jobID: id).navigationBarTitleDisplayMode(.inline)
+                }
         }
         .task { await model.start() }
         .onChange(of: scenePhase) { _, phase in
@@ -83,7 +86,7 @@ public struct FieldRootView: View {
 
     @ToolbarContentBuilder private var toolbar: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
-            NavigationLink { SyncStatusView(model: model) } label: { SyncBadge(model: model) }
+            NavigationLink { SyncStatusView(model: model).navigationBarTitleDisplayMode(.inline) } label: { SyncBadge(model: model) }
                 .accessibilityIdentifier("sync.status")
         }
         ToolbarItem(placement: .topBarLeading) {
@@ -139,10 +142,10 @@ struct StatusBadge: View {
 
     private var color: Color {
         switch status {
-        case .inProgress: .blue
-        case .approved: .green
-        case .cancelled: .red
-        default: .secondary
+        case .inProgress: Palette.recent
+        case .approved: Palette.live
+        case .cancelled: Palette.offline
+        default: Palette.neutral
         }
     }
 }
@@ -162,7 +165,7 @@ struct SyncBadge: View {
             }
             if unsynced > 0 { Text("\(unsynced)").font(.caption.bold()) }
         }
-        .foregroundStyle(attention > 0 ? Color.red : Color.accentColor)
+        .foregroundStyle(attention > 0 ? Palette.offline : Color.accentColor)
         .accessibilityLabel(unsynced == 0 ? "All synced" : "\(unsynced) items not synced")
     }
 }
@@ -173,11 +176,11 @@ struct FieldBanners: View {
 
     var body: some View {
         if case let .tamperSuspected(deviation) = model.clockStatus {
-            Banner(icon: "clock.badge.exclamationmark", color: .orange,
+            Banner(icon: "clock.badge.exclamationmark", color: Palette.warning,
                    text: "This phone's clock is \(Self.describe(deviation)) compared with Asseta's server. Set the date and time to automatic. Readings still record the phone's own time.")
                 .accessibilityIdentifier("banner.clock")
         } else if model.overview?.serverClockSkewAlert == true {
-            Banner(icon: "clock.badge.exclamationmark", color: .orange,
+            Banner(icon: "clock.badge.exclamationmark", color: Palette.warning,
                    text: "The server reported that this phone's clock is wrong. Set the date and time to automatic.")
         }
         if !model.isOnline {

@@ -1,4 +1,5 @@
 #if os(iOS)
+import AssetaAppShell
 import AssetaCapture
 import AssetaModel
 import AssetaSync
@@ -35,7 +36,7 @@ struct MeterCaptureView: View {
                 gpsSection
                 if !capture.issues.isEmpty && (capture.draft.hasPhoto || !capture.draft.readingText.isEmpty) {
                     Section {
-                        ForEach(capture.issues, id: \.description) { Text($0.description).foregroundStyle(.orange) }
+                        ForEach(capture.issues, id: \.description) { Text($0.description).foregroundStyle(Palette.warning) }
                     }
                 }
             }
@@ -85,7 +86,7 @@ struct MeterCaptureView: View {
                 }
                 if case let .recapture(remaining)? = capture.decision {
                     Text("The reading could not be recognized reliably. Retake the photo (\(remaining) more after this).")
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(Palette.warning)
                 }
             } header: {
                 Text(capture.requirements.photoRequired ? "Meter photo (required)" : "Meter photo (optional)")
@@ -108,7 +109,7 @@ struct MeterCaptureView: View {
                 }
                 if case .manualEntry? = capture.decision {
                     Text("Automatic reading was not reliable after several photos. Type the reading; the photo is kept as evidence.")
-                        .font(.footnote).foregroundStyle(.orange)
+                        .font(.footnote).foregroundStyle(Palette.warning)
                 }
                 TextField(placeholder, text: $capture.draft.readingText)
                     .keyboardType(capture.requirements.decimalPlaces == 0 ? .numberPad : .decimalPad)
@@ -138,7 +139,7 @@ struct MeterCaptureView: View {
                     LabeledContent("Location", value: String(format: "%.5f, %.5f", lat, lon))
                     LabeledContent("Accuracy", value: String(format: "± %.0f m", result.accuracyM ?? 0))
                 } else {
-                    Label(Self.describe(result.status), systemImage: "location.slash").foregroundStyle(.orange)
+                    Label(Self.describe(result.status), systemImage: "location.slash").foregroundStyle(Palette.warning)
                     Text("The reading can still be saved; it is recorded with this location result for review.")
                         .font(.footnote)
                 }

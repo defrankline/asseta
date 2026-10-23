@@ -1,4 +1,5 @@
 #if os(iOS)
+import AssetaAppShell
 import AssetaModel
 import AssetaStore
 import AssetaSync
@@ -59,7 +60,7 @@ struct MyCashView: View {
             unsyncedRow("Handovers not yet synced", "−", line.pendingHandovers, line.currency)
             unsyncedRow("Cash expenses not yet synced", "−", line.pendingCashExpenses, line.currency)
             LabeledContent("Estimated cash in hand (unverified)") {
-                Text(Self.money(line.estimatedInHand, line.currency)).foregroundStyle(.orange).monospacedDigit()
+                Text(Self.money(line.estimatedInHand, line.currency)).foregroundStyle(Palette.warning).monospacedDigit()
             }
             .accessibilityIdentifier("cash.estimated.\(line.currency)")
         } header: {
@@ -75,7 +76,7 @@ struct MyCashView: View {
     @ViewBuilder private func unsyncedRow(_ title: String, _ sign: String, _ amount: Decimal, _ currency: String) -> some View {
         if amount != 0 {
             LabeledContent(title) {
-                Text(sign + Self.money(amount, currency)).foregroundStyle(.orange).monospacedDigit()
+                Text(sign + Self.money(amount, currency)).foregroundStyle(Palette.warning).monospacedDigit()
             }
         }
     }
@@ -100,7 +101,7 @@ struct MyCashView: View {
                 HStack {
                     Text(item.at.formatted(date: .abbreviated, time: .shortened))
                     Spacer()
-                    Text(Self.label(item)).foregroundStyle(item.status == .failed || item.status == .conflict ? .red : .orange)
+                    Text(Self.label(item)).foregroundStyle(item.status == .failed || item.status == .conflict ? Palette.offline : Palette.warning)
                 }
                 .font(.caption).foregroundStyle(.secondary)
             }
@@ -146,7 +147,7 @@ struct FinanceSection: View {
                         .accessibilityIdentifier("finance.fuel")
                 }
                 if model.canRecordCash {
-                    NavigationLink { MyCashView(model: model) } label: { Label("My cash", systemImage: "wallet.pass") }
+                    NavigationLink { MyCashView(model: model).navigationBarTitleDisplayMode(.inline) } label: { Label("My cash", systemImage: "wallet.pass") }
                         .accessibilityIdentifier("finance.mycash")
                 }
             }

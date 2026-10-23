@@ -60,9 +60,9 @@ struct ApprovalRow: View {
 extension ApprovalStatus {
     var color: Color {
         switch self {
-        case .approved: .green
-        case .rejected: .red
-        default: .orange
+        case .approved: Palette.live
+        case .rejected: Palette.offline
+        default: Palette.warning
         }
     }
 }
@@ -126,7 +126,7 @@ struct ApprovalDetailView: View {
                     .lineLimit(2...5)
                 HStack {
                     Button("Approve") { Task { await decide(approve: true) } }
-                        .buttonStyle(.borderedProminent).tint(.green)
+                        .buttonStyle(.borderedProminent).tint(Palette.live)
                     Spacer()
                     Button("Reject", role: .destructive) { confirmReject = true }
                         .buttonStyle(.bordered)
@@ -138,7 +138,7 @@ struct ApprovalDetailView: View {
                         if decisionError.segregation { Text(ApprovalText.sodTitle).font(.subheadline.bold()) }
                         Text(decisionError.message).font(.footnote)
                     }
-                    .foregroundStyle(.red)
+                    .foregroundStyle(Palette.offline)
                     .accessibilityElement(children: .combine)
                     .accessibilityIdentifier("approval.error")
                 }
@@ -201,7 +201,7 @@ struct ExpenseSection: View {
                 Button(isOnline ? "Expense details" : "Expense details (online only)") { Task { await load() } }
                     .disabled(!isOnline)
             }
-            if let error { Text(error).font(.footnote).foregroundStyle(.red) }
+            if let error { Text(error).font(.footnote).foregroundStyle(Palette.offline) }
         }
         .sheet(item: $receipt) { receipt in
             EvidencePhotoView(model: model, title: "Receipt",

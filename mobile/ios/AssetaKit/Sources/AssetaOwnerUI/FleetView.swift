@@ -36,7 +36,9 @@ struct FleetView: View {
         .searchable(text: $search, prompt: "Search machine, code, operator")
         .refreshable { await reload() }
         .task(id: model.changeTick) { await reload() }
-        .navigationDestination(item: $selected) { MachineDetailView(model: model, machineID: $0) }
+        .navigationDestination(item: $selected) {
+            MachineDetailView(model: model, machineID: $0).navigationBarTitleDisplayMode(.inline)
+        }
     }
 
     private func reload() async { await loader.load(model, .fleetMap, OwnerAPI.fleetMap()) }
@@ -136,7 +138,7 @@ struct MachineMarker: View {
                     .foregroundStyle(Brand.slate.opacity(0.6)))
             if alerts > 0 {
                 Text("\(alerts)").font(.caption2.bold()).foregroundStyle(.white)
-                    .padding(4).background(.red, in: Circle()).offset(x: 6, y: -6)
+                    .padding(4).background(Palette.offline, in: Circle()).offset(x: 6, y: -6)
             }
         }
         .frame(minWidth: 44, minHeight: 44)
@@ -166,7 +168,7 @@ struct MachineRow: View {
                     Text("Supervisor: \(supervisor)").font(.caption).foregroundStyle(.secondary)
                 }
                 if machine.openAlerts > 0 {
-                    Text(FleetPresentation.alertsLine(machine.openAlerts)).font(.caption).foregroundStyle(.red)
+                    Text(FleetPresentation.alertsLine(machine.openAlerts)).font(.caption).foregroundStyle(Palette.offline)
                 }
             }
         }
