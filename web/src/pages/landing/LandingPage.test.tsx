@@ -15,6 +15,9 @@ function renderLanding(login = vi.fn()) {
     logout: vi.fn(),
     getAccessToken: () => Promise.resolve(null),
     refreshToken: () => Promise.resolve(),
+    changePassword: () => undefined,
+    passwordChange: null,
+    clearPasswordChange: () => undefined,
     subscribeTokenRefresh: () => () => undefined,
   };
   render(

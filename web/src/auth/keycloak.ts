@@ -10,8 +10,11 @@ export interface AuthClient {
   onAuthRefreshError?: (() => void) | undefined;
   /** keycloak-js calls this after every successful `updateToken` refresh. */
   onAuthRefreshSuccess?: (() => void) | undefined;
+  /** keycloak-js reports the outcome of an application-initiated action (`kc_action`) after the redirect back. */
+  onActionUpdate?:
+    ((status: 'success' | 'cancelled' | 'error', action?: string) => void) | undefined;
   init(options: KeycloakInitOptions): Promise<boolean>;
-  login(options?: { redirectUri?: string }): Promise<void>;
+  login(options?: { redirectUri?: string; action?: string }): Promise<void>;
   logout(options?: { redirectUri?: string }): Promise<void>;
   updateToken(minValidity: number): Promise<boolean>;
 }

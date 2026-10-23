@@ -1,7 +1,10 @@
-import { Box, Chip, Paper, Stack, Typography } from '@mui/material';
+import { Box, Button, Chip, Paper, Stack, Typography } from '@mui/material';
+import { useEffect } from 'react';
 import type { MenuDto, TenantAccess } from '../api/types';
+import { useAuth } from '../auth/useAuth';
 import { EmptyState } from '../components/feedback/EmptyState';
 import { PageHeader } from '../components/feedback/PageHeader';
+import { useNotify } from '../notifications/useNotify';
 import { useSession } from '../session/useSession';
 
 function formatMenus(menus: readonly MenuDto[]): string {
@@ -67,6 +70,30 @@ function TenantCard({ tenant, active }: { tenant: TenantAccess; active: boolean 
   );
 }
 
+/** Password change through Keycloak's own page; the outcome is announced once after the redirect back. */
+function SignInSecurity() {
+  const { changePassword, passwordChange, clearPasswordChange } = useAuth();
+  const notify = useNotify();
+  useEffect(() => {
+    if (passwordChange === 'success') notify.success('Password changed.');
+    if (passwordChange === 'error') notify.error('Your password was not changed. Try again.');
+    if (passwordChange !== null) clearPasswordChange();
+  }, [passwordChange, clearPasswordChange, notify]);
+  return (
+    <Paper variant="outlined" className="p-4">
+      <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 600 }}>
+        Sign-in &amp; security
+      </Typography>
+      <Typography variant="body2" color="text.secondary" className="mt-1 mb-3">
+        Opens the secure Asseta sign-in page. You may be asked for your current password first.
+      </Typography>
+      <Button variant="outlined" onClick={changePassword}>
+        Change password
+      </Button>
+    </Paper>
+  );
+}
+
 /** Shows the signed-in user's identity, platform permissions and tenant memberships from /me. */
 export function MyAccessPage() {
   const { me, mode } = useSession();
@@ -94,6 +121,7 @@ export function MyAccessPage() {
             {formatMenus(me.platform_menus)}
           </Typography>
         </Paper>
+        <SignInSecurity />
         <Typography variant="h6" component="h2">
           Tenants
         </Typography>

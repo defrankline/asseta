@@ -126,3 +126,49 @@ describe('AuthProvider forced refresh', () => {
     expect(listener).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('AuthProvider password change', () => {
+  function Password() {
+    const { status, changePassword, passwordChange } = useAuth();
+    return (
+      <>
+        <span data-testid="status">{status}</span>
+        <span data-testid="outcome">{passwordChange ?? 'none'}</span>
+        <button type="button" onClick={changePassword}>
+          change
+        </button>
+      </>
+    );
+  }
+
+  it('starts the Keycloak UPDATE_PASSWORD action and reports its outcome after the redirect back', async () => {
+    const login = vi.fn<AuthClient['login']>(() => Promise.resolve());
+    const client: AuthClient = {
+      authenticated: true,
+      token: 'tok',
+      // keycloak-js reports the action outcome while init processes the callback.
+      init: () => {
+        client.onActionUpdate?.('success', 'UPDATE_PASSWORD');
+        return Promise.resolve(true);
+      },
+      login,
+      logout: vi.fn(() => Promise.resolve()),
+      updateToken: vi.fn(() => Promise.resolve(true)),
+    };
+    render(
+      <AuthProvider client={client}>
+        <Password />
+      </AuthProvider>,
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId('outcome').textContent).toBe('success');
+    });
+    act(() => {
+      screen.getByRole('button', { name: 'change' }).click();
+    });
+    expect(login).toHaveBeenCalledWith({
+      action: 'UPDATE_PASSWORD',
+      redirectUri: window.location.href,
+    });
+  });
+});

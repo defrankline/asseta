@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { registerRequestContext } from '../api/requestContext';
-import { AuthContext, type AuthContextValue, type AuthStatus } from './AuthContext';
+import {
+  AuthContext,
+  type AuthContextValue,
+  type AuthStatus,
+  type PasswordChangeOutcome,
+} from './AuthContext';
 import {
   createKeycloakClient,
   keycloakInitOptions,
@@ -55,6 +60,16 @@ function attachRefreshHandlers(
   kc.onAuthRefreshSuccess = onRefreshed;
 }
 
+/** Reports the outcome of the Keycloak UPDATE_PASSWORD action (keycloak-js `onActionUpdate`). */
+function attachActionHandler(
+  kc: AuthClient,
+  onPassword: (outcome: PasswordChangeOutcome) => void,
+): void {
+  kc.onActionUpdate = (outcome, action) => {
+    if (action === 'UPDATE_PASSWORD') onPassword(outcome);
+  };
+}
+
 export function AuthProvider({
   children,
   client,
@@ -63,6 +78,7 @@ export function AuthProvider({
   const [kc] = useState<AuthClient>(() => client ?? createKeycloakClient());
   const [status, setStatus] = useState<AuthStatus>('initializing');
   const [error, setError] = useState<string | null>(null);
+  const [passwordChange, setPasswordChange] = useState<PasswordChangeOutcome | null>(null);
   const redirecting = useRef(false);
   const refreshListeners = useRef(new Set<() => void>());
 
@@ -83,6 +99,14 @@ export function AuthProvider({
   const logout = useCallback(() => {
     void kc.logout({ redirectUri: window.location.origin });
   }, [kc]);
+
+  const changePassword = useCallback(() => {
+    void kc.login({ action: 'UPDATE_PASSWORD', redirectUri: window.location.href });
+  }, [kc]);
+
+  const clearPasswordChange = useCallback(() => {
+    setPasswordChange(null);
+  }, []);
 
   const getAccessToken = useCallback(async (): Promise<string | null> => {
     if (kc.authenticated !== true) return null;
@@ -107,6 +131,8 @@ export function AuthProvider({
 
   useEffect(() => {
     let active = true;
+    // Set before init: keycloak-js reports the action outcome while processing the redirect back.
+    attachActionHandler(kc, setPasswordChange);
     attachRefreshHandlers(kc, login, () => {
       for (const listener of [...refreshListeners.current]) listener();
     });
@@ -145,11 +171,26 @@ export function AuthProvider({
       error,
       login,
       logout,
+      changePassword,
+      passwordChange,
+      clearPasswordChange,
       getAccessToken,
       refreshToken,
       subscribeTokenRefresh,
     }),
-    [status, error, kc, login, logout, getAccessToken, refreshToken, subscribeTokenRefresh],
+    [
+      status,
+      error,
+      kc,
+      login,
+      logout,
+      changePassword,
+      passwordChange,
+      clearPasswordChange,
+      getAccessToken,
+      refreshToken,
+      subscribeTokenRefresh,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

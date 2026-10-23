@@ -40,6 +40,9 @@ function renderWith(reload = vi.fn(), refreshToken = vi.fn(() => Promise.resolve
     logout: vi.fn(),
     getAccessToken: () => Promise.resolve('jwt-1'),
     refreshToken,
+    changePassword: () => undefined,
+    passwordChange: null,
+    clearPasswordChange: () => undefined,
     subscribeTokenRefresh: (l) => {
       refreshed = l;
       return () => undefined;
