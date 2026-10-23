@@ -237,7 +237,7 @@ use different schemes.
 API and issuer endpoints:
 
 - **Debug** points at the local stack: API `http://localhost:8000`, Keycloak `http://localhost:8080/realms/asseta`. `NSAllowsLocalNetworking` permits plain HTTP to localhost and `.local` only.
-- **Release** is empty on purpose. Pass real values to `xcodebuild`. If a value is missing, the app shows "Build misconfigured" instead of contacting a wrong host.
+- **Release** points at production: API `https://asseta.co.tz`, issuer `https://asseta.co.tz/auth/realms/asseta`. Override with `xcodebuild` settings for other environments; a missing value makes the app show "Build misconfigured" instead of contacting a wrong host.
 
 Keycloak (realm `asseta`) must have a public client `asseta-mobile` with PKCE S256 required and
 standard flow on. Its valid redirect URIs must include `com.asseta.supervisor:/oauth2redirect` and

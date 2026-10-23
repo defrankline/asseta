@@ -26,11 +26,10 @@ settings:
       ASSETA_API_BASE_URL: "http://localhost:8000"
       ASSETA_OIDC_ISSUER: "http://localhost:8080/realms/asseta"
     Release:
-      # Intentionally empty: CI/release must pass real endpoints, e.g.
-      #   xcodebuild ... ASSETA_API_BASE_URL=https://api.example.com ASSETA_OIDC_ISSUER=https://id.example.com/realms/asseta
-      # An unset value makes the app show "Build misconfigured" instead of talking to a wrong host.
-      ASSETA_API_BASE_URL: ""
-      ASSETA_OIDC_ISSUER: ""
+      # Production (docs/deployment-live.md). Override per environment, e.g.
+      #   xcodebuild ... ASSETA_API_BASE_URL=https://staging.example ASSETA_OIDC_ISSUER=https://staging.example/auth/realms/asseta
+      ASSETA_API_BASE_URL: "https://asseta.co.tz"
+      ASSETA_OIDC_ISSUER: "https://asseta.co.tz/auth/realms/asseta"
 
 targetTemplates:
   AssetaApp:

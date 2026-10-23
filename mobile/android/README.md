@@ -43,7 +43,7 @@ Endpoints are Gradle properties (override with `-P` or `~/.gradle/gradle.propert
 | --- | --- |
 | `asseta.debug.apiBaseUrl` | `http://10.0.2.2:8000/` (emulator → host Docker Compose API) |
 | `asseta.debug.keycloakIssuer` | `http://10.0.2.2:8080/realms/asseta` |
-| `asseta.release.apiBaseUrl` / `asseta.release.keycloakIssuer` | empty; must be set to **https** URLs for release, otherwise the app fails fast on start |
+| `asseta.release.apiBaseUrl` / `asseta.release.keycloakIssuer` | `https://asseta.co.tz/` and `https://asseta.co.tz/auth/realms/asseta` (production); must be **https** URLs, otherwise the app fails fast on start |
 
 Each app has its own private-use redirect scheme so that, with both apps installed, the login/logout
 callback is never routed to the other app (no chooser). It is set once in the app module's
