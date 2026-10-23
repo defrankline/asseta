@@ -26,7 +26,7 @@ Test references are `file::test` (backend paths relative to `backend/tests/`, we
 | 9 | Evidence-backed fraud exceptions, neutral review, shadow/insufficient-data ML | PASS | — |
 | 10 | Fleet map states, timestamps, geofence alerts, drilldown, never claims stale as live | PARTIAL | Console PASS; signed-in live walkthrough of both native Owner apps pending |
 | 11 | Deny at every protected endpoint; wrong tenant, stale policy, role change, device loss, storage URLs | PASS | 301 routes enumerated; Medium hardening findings F-5..F-8 fixed (security.md) |
-| 12 | CI, migrations, backup/restore, telemetry load, Kafka/API/worker restart, backlog, object-store outage, docs | PARTIAL | All 6 drills PASS; hosted CI on the 7E commit pending; no staging environment |
+| 12 | CI, migrations, backup/restore, telemetry load, Kafka/API/worker restart, backlog, object-store outage, docs | PARTIAL | All 6 drills PASS; hosted CI green on 7fe05f8 (contains 7E + security fixes; run 39925192479); no staging environment |
 | HW | Field hardware criterion (real tracker commissioning) | **HARDWARE_VALIDATION_BLOCKED** | Needs customer tracker, SIM, installation (EXT-02/EXT-02a) |
 
 ---
@@ -268,8 +268,8 @@ All six drills PASS on the local Compose stack (2026-10-22); details, timings an
 The drills found three defects that were fixed with tests (hot gateway row lock and a pool ↔ threadpool convoy that
 hung the API under a Traccar burst; timeline worker one-replay-per-message throughput) — see the evidence README.
 
-**Status: PARTIAL** — drills, local full gate and docs PASS; remaining: a hosted CI run on the commit containing the
-Gate 7E changes (uncommitted at the time of writing) and migration up/down on a staging environment (none exists;
+**Status: PARTIAL** — drills, local full gate and docs PASS; hosted CI green on 7fe05f8, which contains the Gate 7E
+and security changes (all four jobs, run 39925192479); remaining: migration up/down on a staging environment (none exists;
 migrations are cycled locally and in CI).
 
 ## Field hardware criterion — HARDWARE_VALIDATION_BLOCKED
