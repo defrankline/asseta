@@ -31,11 +31,31 @@ public struct CashLine: Sendable, Equatable, Identifiable {
     public let currency: String
     /// Server balance (nil when the server has sent none for this currency yet).
     public let synced: CashCustodyBalanceDTO?
-    /// Net of local, not yet confirmed items (collections − custody expenses − handovers).
-    public let unverifiedNet: Decimal
+    /// Local, not yet confirmed items (all positive amounts).
+    public let pendingCollections: Decimal
+    public let pendingHandovers: Decimal
+    public let pendingCashExpenses: Decimal
     public var id: String { currency }
+
+    public init(currency: String, synced: CashCustodyBalanceDTO?, pendingCollections: Decimal = 0,
+                pendingHandovers: Decimal = 0, pendingCashExpenses: Decimal = 0) {
+        self.currency = currency
+        self.synced = synced
+        self.pendingCollections = pendingCollections
+        self.pendingHandovers = pendingHandovers
+        self.pendingCashExpenses = pendingCashExpenses
+    }
+
+    /// Net of local, not yet confirmed items (collections − custody expenses − handovers).
+    public var unverifiedNet: Decimal { pendingCollections - pendingHandovers - pendingCashExpenses }
     /// What the balance will be if the server accepts every pending item (unverified).
     public var projected: Decimal { (synced?.outstanding.value ?? 0) + unverifiedNet }
+    /// Estimate of the cash physically held (never a verified figure): the synced outstanding minus
+    /// claimed handovers and expenses awaiting approval (already out of hand), plus the unsynced net.
+    public var estimatedInHand: Decimal {
+        let held = synced.map { $0.outstanding.value - $0.claimedUnverifiedHandovers.value - $0.pendingSpending.value } ?? 0
+        return held + unverifiedNet
+    }
 }
 
 public struct CashSummary: Sendable, Equatable {
@@ -96,12 +116,14 @@ extension FieldDirectory {
             .filter { types.contains($0.opType) }
             .compactMap(Self.cashItem)
         let pending = items.filter { open.contains($0.status) }
-        var net: [String: Decimal] = [:]
-        for item in pending { net[item.currency ?? base ?? "", default: 0] += item.sign * item.amount }
+        var sums: [String: [LocalCashItem.Kind: Decimal]] = [:]
+        for item in pending { sums[item.currency ?? base ?? "", default: [:]][item.kind, default: 0] += item.amount }
         var currencies = balances.map(\.currency)
-        for key in net.keys.sorted() where !currencies.contains(key) { currencies.append(key) }
+        for key in sums.keys.sorted() where !currencies.contains(key) { currencies.append(key) }
         let lines = currencies.map { code in
-            CashLine(currency: code, synced: balances.first { $0.currency == code }, unverifiedNet: net[code] ?? 0)
+            CashLine(currency: code, synced: balances.first { $0.currency == code },
+                     pendingCollections: sums[code]?[.collection] ?? 0, pendingHandovers: sums[code]?[.handover] ?? 0,
+                     pendingCashExpenses: sums[code]?[.custodyExpense] ?? 0)
         }
         return CashSummary(lines: lines, pending: pending, needsAttention: items.filter { !open.contains($0.status) },
                            baseCurrency: base)

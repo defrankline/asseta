@@ -6,7 +6,8 @@ import PencilKit
 import SwiftUI
 import UIKit
 
-/// Supervisor work log entry (`JOB_ACTIVITY`, device-generated `client_id`).
+/// Supervisor work log entry (`JOB_ACTIVITY`, device-generated `client_id`). An entry without an end
+/// starts running on this phone and is stopped later from the job screen; a note is untimed.
 struct ActivityFormView: View {
     let model: FieldModel
     let job: FieldJob
@@ -26,12 +27,20 @@ struct ActivityFormView: View {
                     ForEach(ActivityType.allCases, id: \.self) { Text($0.rawValue.capitalized).tag($0) }
                 }
                 DatePicker("Started", selection: $startedAt)
-                Toggle("Has ended", isOn: $hasEnd)
-                if hasEnd { DatePicker("Ended", selection: $endedAt, in: startedAt...) }
-                Picker("Billable", selection: $billable) {
-                    Text("Contract default").tag(Bool?.none)
-                    Text("Yes").tag(Bool?.some(true))
-                    Text("No").tag(Bool?.some(false))
+                if type != .note {
+                    Section {
+                        Toggle("Has ended", isOn: $hasEnd)
+                        if hasEnd {
+                            DatePicker("Ended", selection: $endedAt, in: startedAt...)
+                            Picker("Billable", selection: $billable) {
+                                Text("Contract default").tag(Bool?.none)
+                                Text("Yes").tag(Bool?.some(true))
+                                Text("No").tag(Bool?.some(false))
+                            }
+                        }
+                    } footer: {
+                        if !hasEnd { Text("It keeps running until you stop it.") }
+                    }
                 }
                 Section("Note (downtime reason, issue…)") {
                     TextEditor(text: $note).frame(minHeight: 100)
@@ -50,8 +59,12 @@ struct ActivityFormView: View {
     private func save() {
         do {
             try model.perform {
-                try $0.recordActivity(job: job.job, type: type, startedAt: startedAt, endedAt: hasEnd ? endedAt : nil,
-                                      billable: billable, note: note)
+                if type == .note || hasEnd {
+                    try $0.recordActivity(job: job.job, type: type, startedAt: startedAt, endedAt: type == .note ? nil : endedAt,
+                                          billable: type == .note ? nil : billable, note: note)
+                } else {
+                    try $0.startEntry(job: job.job, type: type, startedAt: startedAt, note: note)
+                }
             }
             dismiss()
         } catch {
@@ -95,7 +108,7 @@ struct AcknowledgementFormView: View {
                 }
                 if let error { Text(error).foregroundStyle(.red) }
             }
-            .navigationTitle("Acknowledgement")
+            .navigationTitle("Customer acknowledgement")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }

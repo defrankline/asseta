@@ -11,13 +11,17 @@ public enum Brand {
 /// and on the server.
 public struct AppFlavor: Sendable, Equatable {
     public let appName: String
+    /// Role shown under the brand name on the sign-in screen ("Supervisor", "Owner").
+    public let roleName: String
     public let tagline: String
 
-    public init(appName: String, tagline: String) {
+    public init(appName: String, roleName: String, tagline: String) {
         self.appName = appName
+        self.roleName = roleName
         self.tagline = tagline
     }
 
-    public static let supervisor = AppFlavor(appName: "Asseta Supervisor", tagline: "Field jobs, meters and evidence")
-    public static let owner = AppFlavor(appName: "Asseta Owner", tagline: "Your fleet at a glance")
+    public static let supervisor = AppFlavor(appName: "Asseta Supervisor", roleName: "Supervisor",
+                                             tagline: "Field jobs, meters and evidence")
+    public static let owner = AppFlavor(appName: "Asseta Owner", roleName: "Owner", tagline: "Your fleet at a glance")
 }

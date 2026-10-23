@@ -25,7 +25,7 @@ struct MeterCaptureView: View {
         NavigationStack {
             Form {
                 Section {
-                    LabeledContent("Machine", value: capture.job.machine?.assetCode ?? "—")
+                    LabeledContent("Machine", value: capture.job.machine.map { "\($0.assetCode) · \($0.name)" } ?? "—")
                     LabeledContent("Method", value: capture.draft.mode == .automatic ? "Camera + automatic reading" : "Manual entry")
                 } footer: {
                     Text("Set by your company's capture rules (\(capture.snapshot.versionStamp)).")

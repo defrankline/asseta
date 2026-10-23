@@ -39,12 +39,16 @@ extension FieldRecorder {
     }
 
     /// Cash received from a customer into the supervisor's custody. A job, when chosen, only helps
-    /// pick the customer and is noted for the office (the collection itself has no job field).
+    /// pick the customer and is noted for the office (the collection itself has no job field); it must
+    /// belong to the chosen customer (`jobCustomerID`, when the job's contract is known).
     @discardableResult
     public func recordCashCollection(customerID: UUID?, amountText: String, currency: String, reference: String?,
-                                     note: String?, jobNumber: String? = nil, receivedAt: Date,
-                                     clientID: UUID = UUID()) throws -> ClientOperation {
-        guard let customerID else { throw FieldRecorderError.invalid("Choose the customer who paid") }
+                                     note: String?, jobNumber: String? = nil, jobCustomerID: UUID? = nil,
+                                     receivedAt: Date, clientID: UUID = UUID()) throws -> ClientOperation {
+        guard let customerID else { throw FieldRecorderError.invalid("Choose the customer who paid.") }
+        if let jobNumber, let jobCustomerID, jobCustomerID != customerID {
+            throw FieldRecorderError.invalid("Job \(jobNumber) belongs to another customer.")
+        }
         let amount = try FinanceRules.amount(amountText)
         let jobNote = jobNumber.map { "Job \($0)" }
         let combined = [jobNote, FinanceRules.clean(note, max: 1000)].compactMap { $0 }.joined(separator: ". ")

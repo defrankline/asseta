@@ -20,6 +20,7 @@ struct JobDetailView: View {
             List {
                 details(job, progress)
                 actions(job, progress)
+                if progress.canLogActivity { workLog(job) }
                 timeline(job)
             }
             .navigationTitle(job.job.jobNumber)
@@ -75,9 +76,6 @@ struct JobDetailView: View {
             if progress.canStart {
                 actionButton("Start job", "play.fill") { confirmAction = .start }
             }
-            if progress.canLogActivity {
-                actionButton("Add work log entry", "list.bullet.clipboard") { showActivity = true }
-            }
             if progress.canCaptureClosing {
                 actionButton("Capture closing reading", "gauge.with.dots.needle.100percent", enabled: gate.isAllowed) { capture = .closing }
             }
@@ -91,6 +89,38 @@ struct JobDetailView: View {
                 Text("No further actions on this job.").foregroundStyle(.secondary)
             }
         } header: { Text("Next steps") }
+    }
+
+    /// Work log: timed entries (start/stop on this phone) and the form for earlier or untimed entries.
+    @ViewBuilder private func workLog(_ job: FieldJob) -> some View {
+        Section("Work log") {
+            ForEach(model.workLog(for: job)) { line in
+                Text(Self.describe(line)).font(.subheadline)
+            }
+            if let running = model.runningEntry(for: job) {
+                actionButton("Stop \(running.activityType.rawValue.lowercased())", "stop.circle") {
+                    record { try $0.stopEntry(job: job.job) }
+                }
+            } else {
+                actionButton("Start work", "play.circle") { startEntry(job, .work) }
+                actionButton("Standby", "pause.circle") { startEntry(job, .standby) }
+                actionButton("Downtime", "wrench.and.screwdriver") { startEntry(job, .downtime) }
+            }
+            actionButton("Add work log entry", "list.bullet.clipboard") { showActivity = true }
+        }
+    }
+
+    private func startEntry(_ job: FieldJob, _ type: ActivityType) {
+        record { try $0.startEntry(job: job.job, type: type, startedAt: Date(), note: nil) }
+    }
+
+    /// "Work 08:00 → 10:30 · note" (or "→ running" while the entry is open).
+    static func describe(_ line: WorkLogLine) -> String {
+        let time = Date.FormatStyle(date: .omitted, time: .shortened)
+        var text = "\(line.type.rawValue.capitalized) \(line.startedAt.formatted(time))"
+        if let end = line.endedAt { text += " → \(end.formatted(time))" } else if line.isRunning { text += " → running" }
+        if let note = line.note { text += " · \(note)" }
+        return text
     }
 
     private func actionButton(_ title: String, _ icon: String, enabled: Bool = true, action: @escaping () -> Void) -> some View {
@@ -109,8 +139,12 @@ struct JobDetailView: View {
     }
 
     private func transition(_ job: FieldJob, _ action: JobAction) {
+        record { try $0.recordTransition(job: job.job, action: action) }
+    }
+
+    private func record(_ action: (FieldRecorder) throws -> Void) {
         do {
-            try model.perform { try $0.recordTransition(job: job.job, action: action) }
+            try model.perform(action)
         } catch {
             self.error = Self.describe(error)
         }

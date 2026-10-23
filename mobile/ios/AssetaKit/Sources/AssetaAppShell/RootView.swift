@@ -52,12 +52,11 @@ struct LoginView: View {
     var body: some View {
         VStack(spacing: 24) {
             Spacer()
-            Image(systemName: "mappin.and.ellipse")
-                .font(.system(size: 64, weight: .semibold))
-                .foregroundStyle(Brand.amber)
-                .accessibilityHidden(true)
+            AssetaMark()
+                .frame(width: 112, height: 112)
             VStack(spacing: 8) {
-                Text(flavor.appName).font(.largeTitle.bold()).foregroundStyle(Brand.offWhite)
+                Text("Asseta").font(.largeTitle.bold()).foregroundStyle(Brand.offWhite)
+                Text(flavor.roleName).font(.title3.weight(.semibold)).foregroundStyle(Brand.amber)
                 Text(flavor.tagline).font(.subheadline).foregroundStyle(Brand.offWhite.opacity(0.8))
             }
             Spacer()
@@ -73,7 +72,10 @@ struct LoginView: View {
             } label: {
                 Group {
                     if model.phase == .signingIn {
-                        ProgressView().tint(Brand.slate)
+                        HStack(spacing: 8) {
+                            ProgressView().tint(Brand.slate)
+                            Text("Signing in…").font(.headline)
+                        }
                     } else {
                         Text("Sign in").font(.headline)
                     }

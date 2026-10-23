@@ -32,7 +32,7 @@ struct ExpenseFormView: View {
                     TextField("Amount", text: $form.draft.amountText)
                         .keyboardType(.decimalPad).font(.title3.monospacedDigit())
                         .accessibilityIdentifier("expense.amount")
-                    TextField("Currency (empty = \(form.baseCurrency ?? "company currency"))", text: $form.draft.currency)
+                    TextField("Currency", text: $form.draft.currency)
                         .textInputAutocapitalization(.characters).autocorrectionDisabled()
                     TextField("What was it for?", text: $form.draft.description, axis: .vertical)
                         .accessibilityIdentifier("expense.description")
@@ -71,6 +71,7 @@ struct ExpenseFormView: View {
                 }
             }
             .task { await form.locate(using: model.locator) }
+            .onAppear { if form.draft.currency.isEmpty { form.draft.currency = form.baseCurrency ?? "" } }
             .fullScreenCover(isPresented: $showCamera) {
                 CameraCaptureView { data in
                     showCamera = false
@@ -144,10 +145,15 @@ struct ExpenseFormView: View {
         if !visible.isEmpty {
             Section { ForEach(visible, id: \.description) { Text($0.description).foregroundStyle(.orange) } }
         }
-        if let note = form.approvalNote, assessment.amount != nil {
+        if assessment.amount != nil {
             Section {
-                Label(note, systemImage: "person.badge.clock").font(.footnote)
-                    .accessibilityIdentifier("expense.approvalNote")
+                if let note = form.approvalNote {
+                    Label(note, systemImage: "person.badge.clock").font(.footnote)
+                        .accessibilityIdentifier("expense.approvalNote")
+                } else {
+                    Label("Within the auto-approval limit: approved automatically once synced.", systemImage: "checkmark.seal")
+                        .font(.footnote).accessibilityIdentifier("expense.autoApproved")
+                }
             }
         }
     }

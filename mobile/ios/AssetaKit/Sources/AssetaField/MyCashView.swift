@@ -55,20 +55,27 @@ struct MyCashView: View {
             } else {
                 LabeledContent("Synced balance", value: "Not yet received")
             }
-            if line.unverifiedNet != 0 {
-                LabeledContent("Not yet synced (unverified)") {
-                    Text((line.unverifiedNet > 0 ? "+" : "") + Self.money(line.unverifiedNet, line.currency))
-                        .foregroundStyle(.orange).monospacedDigit()
-                }
-                LabeledContent("If all are accepted (unverified)") {
-                    Text(Self.money(line.projected, line.currency)).foregroundStyle(.orange).monospacedDigit()
-                }
+            unsyncedRow("Collections not yet synced", "+", line.pendingCollections, line.currency)
+            unsyncedRow("Handovers not yet synced", "−", line.pendingHandovers, line.currency)
+            unsyncedRow("Cash expenses not yet synced", "−", line.pendingCashExpenses, line.currency)
+            LabeledContent("Estimated cash in hand (unverified)") {
+                Text(Self.money(line.estimatedInHand, line.currency)).foregroundStyle(.orange).monospacedDigit()
             }
+            .accessibilityIdentifier("cash.estimated.\(line.currency)")
         } header: {
             Text(line.currency.isEmpty ? (base ?? "Company currency") : line.currency)
         } footer: {
             if let asOf = line.synced?.asOf {
                 Text("Synced balance as of \(asOf.formatted(date: .abbreviated, time: .shortened)): cash floats and collections minus approved expenses and verified handovers.")
+            }
+        }
+    }
+
+    /// One unsynced (unverified) part of the estimate; hidden when zero.
+    @ViewBuilder private func unsyncedRow(_ title: String, _ sign: String, _ amount: Decimal, _ currency: String) -> some View {
+        if amount != 0 {
+            LabeledContent(title) {
+                Text(sign + Self.money(amount, currency)).foregroundStyle(.orange).monospacedDigit()
             }
         }
     }

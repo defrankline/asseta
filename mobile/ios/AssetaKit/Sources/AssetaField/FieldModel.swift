@@ -126,6 +126,10 @@ public final class FieldModel {
         (try? services?.store.outbox.operations(tenantID: tenant.tenantID, jobID: job.id)) ?? []
     }
 
+    func workLog(for job: FieldJob) -> [WorkLogLine] { (try? services?.recorder.workLog(jobID: job.id)) ?? [] }
+
+    func runningEntry(for job: FieldJob) -> RunningWorkEntry? { try? services?.recorder.runningEntry(jobID: job.id) }
+
     var clockStatus: ClockStatus { services?.directory.clockStatus() ?? .unknown }
     var deviceID: String? { services?.deviceID }
 

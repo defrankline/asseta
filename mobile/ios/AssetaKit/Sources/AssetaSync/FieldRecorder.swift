@@ -36,13 +36,15 @@ public struct JobProgress: Sendable, Equatable {
     public var isCompleted: Bool { completeOp != nil || serverStatus == .completed }
     public var isClosed: Bool { isCompleted || serverStatus == .cancelled }
 
-    /// What the supervisor may do next (OPENING needs an APPROVED job, CLOSING an IN_PROGRESS one).
+    /// What the supervisor may do next, mirroring the server: OPENING needs an APPROVED job, CLOSING an
+    /// IN_PROGRESS one; work may be logged on approved or running jobs; COMPLETE needs the closing
+    /// reading and the customer acknowledgement (server `ACK_REQUIRED`).
     public var canCaptureOpening: Bool { serverStatus == .approved && !isStarted && openingCaptureOp == nil }
     public var canStart: Bool { serverStatus == .approved && !isStarted && openingCaptureOp != nil }
-    public var canLogActivity: Bool { isStarted && !isClosed }
+    public var canLogActivity: Bool { (serverStatus == .approved || isStarted) && !isClosed }
     public var canCaptureClosing: Bool { isStarted && !isClosed && closingCaptureOp == nil }
-    public var canAcknowledge: Bool { closingCaptureOp != nil && acknowledgementOp == nil && !isClosed }
-    public var canComplete: Bool { closingCaptureOp != nil && !isClosed }
+    public var canAcknowledge: Bool { isStarted && closingCaptureOp != nil && acknowledgementOp == nil && !isClosed }
+    public var canComplete: Bool { isStarted && closingCaptureOp != nil && acknowledgementOp != nil && !isClosed }
 
     /// Effective status for display.
     public var displayStatus: JobStatus {
@@ -83,8 +85,8 @@ public struct FieldRecorder: Sendable {
                               snapshot: MeterPolicySnapshot, captureID: UUID = UUID()) throws -> ClientOperation {
         let progress = try progress(jobID: job.id, serverStatus: job.status)
         switch kind {
-        case .opening where !progress.canCaptureOpening: throw FieldRecorderError.notAllowed("Opening reading is not allowed now")
-        case .closing where !progress.canCaptureClosing: throw FieldRecorderError.notAllowed("Closing reading is not allowed now")
+        case .opening where !progress.canCaptureOpening: throw FieldRecorderError.notAllowed("Opening reading is not allowed now.")
+        case .closing where !progress.canCaptureClosing: throw FieldRecorderError.notAllowed("Closing reading is not allowed now.")
         default: break
         }
         return try store.database.transaction {
@@ -108,10 +110,18 @@ public struct FieldRecorder: Sendable {
         let dependencies: [UUID]
         switch action {
         case .start:
-            guard progress.canStart else { throw FieldRecorderError.notAllowed("Capture the opening reading first") }
+            guard progress.canStart else { throw FieldRecorderError.notAllowed("Capture the opening reading first.") }
             dependencies = [progress.openingCaptureOp].compactMap { $0 }
         case .complete:
-            guard progress.canComplete else { throw FieldRecorderError.notAllowed("Capture the closing reading first") }
+            guard progress.closingCaptureOp != nil, progress.isStarted, !progress.isClosed else {
+                throw FieldRecorderError.notAllowed("Capture the closing reading first.")
+            }
+            guard progress.acknowledgementOp != nil else {
+                throw FieldRecorderError.notAllowed("Get the customer acknowledgement first.")
+            }
+            if try runningEntry(jobID: job.id) != nil {
+                throw FieldRecorderError.notAllowed("Stop the running work-log entry first.")
+            }
             dependencies = [progress.closingCaptureOp, progress.acknowledgementOp].compactMap { $0 } + progress.activityOps
         }
         return try enqueue(.jobTransition, entityType: "job", entityID: job.id,
@@ -121,12 +131,17 @@ public struct FieldRecorder: Sendable {
 
     @discardableResult
     public func recordActivity(job: JobDTO, type: ActivityType, startedAt: Date, endedAt: Date?, billable: Bool?,
-                               note: String?, at date: Date = Date()) throws -> ClientOperation {
+                               note: String?, at date: Date = Date(), clientID: UUID = UUID()) throws -> ClientOperation {
         let progress = try progress(jobID: job.id, serverStatus: job.status)
-        guard progress.canLogActivity else { throw FieldRecorderError.notAllowed("Start the job before logging work") }
-        if let endedAt, endedAt < startedAt { throw FieldRecorderError.invalid("The end time is before the start time") }
+        guard progress.canLogActivity else {
+            throw FieldRecorderError.notAllowed("Work can only be logged on approved or running jobs.")
+        }
+        if let endedAt, endedAt < startedAt { throw FieldRecorderError.invalid("The end time is before the start time.") }
+        if type == .note && (note?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true) {
+            throw FieldRecorderError.invalid("Write a note first.")
+        }
         let trimmed = note?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let payload = ActivityPayload(jobID: job.id, activityType: type, startedAt: startedAt, endedAt: endedAt,
+        let payload = ActivityPayload(jobID: job.id, clientID: clientID, activityType: type, startedAt: startedAt, endedAt: endedAt,
                                       billable: billable, note: (trimmed?.isEmpty ?? true) ? nil : String(trimmed!.prefix(2000)),
                                       deviceID: deviceID)
         return try enqueue(.jobActivity, entityType: "job_activity", entityID: payload.clientID, payload: payload,
@@ -138,10 +153,10 @@ public struct FieldRecorder: Sendable {
                                       signerPhone: String?, signature: StoredEvidence?, acknowledgedHours: String?,
                                       at date: Date = Date()) throws -> ClientOperation {
         let progress = try progress(jobID: job.id, serverStatus: job.status)
-        guard progress.canAcknowledge else { throw FieldRecorderError.notAllowed("Capture the closing reading first") }
+        guard progress.canAcknowledge else { throw FieldRecorderError.notAllowed("Capture the closing reading first.") }
         let name = signerName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty, name.count <= 200 else { throw FieldRecorderError.invalid("Enter the customer's name") }
-        if method == .signature && signature == nil { throw FieldRecorderError.invalid("A signature is required") }
+        guard !name.isEmpty, name.count <= 200 else { throw FieldRecorderError.invalid("Enter the customer's name.") }
+        if method == .signature && signature == nil { throw FieldRecorderError.invalid("The customer must sign.") }
         return try store.database.transaction {
             let signatureLocal = try signature.map { try addAttachment($0, purpose: .signature) }
             let phone = signerPhone?.trimmingCharacters(in: .whitespaces)

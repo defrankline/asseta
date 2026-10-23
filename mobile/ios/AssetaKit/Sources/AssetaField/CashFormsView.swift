@@ -33,7 +33,7 @@ struct CashCollectionFormView: View {
                 Section {
                     TextField("Amount", text: $amount).keyboardType(.decimalPad).font(.title3.monospacedDigit())
                         .accessibilityIdentifier("collection.amount")
-                    TextField("Currency (empty = \(model.baseCurrency ?? "company currency"))", text: $currency)
+                    TextField("Currency", text: $currency)
                         .textInputAutocapitalization(.characters).autocorrectionDisabled()
                     TextField("Receipt / reference number (optional)", text: $reference)
                     DatePicker("Received", selection: $receivedAt, in: ...Date())
@@ -45,6 +45,7 @@ struct CashCollectionFormView: View {
             }
             .navigationTitle("Cash collection")
             .navigationBarTitleDisplayMode(.inline)
+            .onAppear { if currency.isEmpty { currency = model.baseCurrency ?? "" } }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
@@ -66,6 +67,7 @@ struct CashCollectionFormView: View {
                 try $0.recordCashCollection(customerID: customerID, amountText: amount, currency: currency,
                                             reference: reference, note: note,
                                             jobNumber: jobID.flatMap { model.job($0)?.job.jobNumber },
+                                            jobCustomerID: jobID.flatMap { model.job($0)?.customer?.id },
                                             receivedAt: receivedAt, clientID: clientID)
             }
             dismiss()
@@ -94,14 +96,14 @@ struct CashHandoverFormView: View {
                     Section("Your cash") {
                         ForEach(summary.lines) { line in
                             LabeledContent(line.currency.isEmpty ? "Company currency" : line.currency,
-                                           value: DecimalInput.format(line.projected))
+                                           value: DecimalInput.format(line.estimatedInHand))
                         }
                     }
                 }
                 Section {
                     TextField("Amount handed over", text: $amount).keyboardType(.decimalPad)
                         .font(.title3.monospacedDigit()).accessibilityIdentifier("handover.amount")
-                    TextField("Currency (empty = \(model.baseCurrency ?? "company currency"))", text: $currency)
+                    TextField("Currency", text: $currency)
                         .textInputAutocapitalization(.characters).autocorrectionDisabled()
                     TextField("Reference (deposit slip, receipt no.)", text: $reference)
                     DatePicker("Handed over", selection: $handedAt, in: ...Date())
@@ -113,6 +115,7 @@ struct CashHandoverFormView: View {
             }
             .navigationTitle("Hand over cash")
             .navigationBarTitleDisplayMode(.inline)
+            .onAppear { if currency.isEmpty { currency = model.baseCurrency ?? "" } }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
@@ -172,9 +175,10 @@ struct FuelFormView: View {
                         .accessibilityIdentifier("fuel.litres")
                     if type != .usage {
                         TextField("Price per litre", text: $unitPrice).keyboardType(.decimalPad)
-                        TextField("Currency (empty = \(model.baseCurrency ?? "company currency"))", text: $currency)
+                        TextField("Currency", text: $currency)
                             .textInputAutocapitalization(.characters).autocorrectionDisabled()
                     }
+                    if let cost { Text("Cost: \(cost)").accessibilityIdentifier("fuel.cost") }
                     if type == .purchase { TextField("Supplier (optional)", text: $supplier) }
                     DatePicker("When", selection: $occurredAt, in: ...Date())
                 } footer: { Text(Self.explain(type)) }
@@ -197,6 +201,7 @@ struct FuelFormView: View {
             }
             .navigationTitle("Fuel event")
             .navigationBarTitleDisplayMode(.inline)
+            .onAppear { if currency.isEmpty { currency = model.baseCurrency ?? "" } }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
@@ -204,6 +209,17 @@ struct FuelFormView: View {
                 }
             }
         }
+    }
+
+    /// Litres × price per litre, exact (shown before saving; the server computes the attributed cost itself).
+    private var cost: String? {
+        guard type != .usage,
+              case let .success(l) = DecimalInput.parse(litres, maxFractionDigits: FinanceRules.litresDecimals),
+              case let .success(p) = DecimalInput.parse(unitPrice, maxFractionDigits: FinanceRules.unitPriceDecimals,
+                                                        allowZero: true)
+        else { return nil }
+        let code = currency.trimmingCharacters(in: .whitespaces).uppercased()
+        return MyCashView.money(l * p, code.isEmpty ? (model.baseCurrency ?? "") : code)
     }
 
     static func explain(_ type: FuelEventType) -> String {
