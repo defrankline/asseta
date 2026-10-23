@@ -15,7 +15,7 @@ Test references are `file::test` (backend paths relative to `backend/tests/`, we
 
 | # | Criterion (short) | Status | Main gap |
 |---|---|---|---|
-| 1 | Two isolated tenants (1 vs 100 assets), different prices, tracker swap without double billing | PARTIAL | Automated only; no recorded live demonstration of a 100-asset tenant |
+| 1 | Two isolated tenants (1 vs 100 assets), different prices, tracker swap without double billing | PASS | Automated (`test_platform_billing.py`, `test_trackers_ingestion.py`) + live demonstration 2026-10-23 on the Compose stack: [evidence](evidence/acceptance/2026-10-23-criterion-1.md) (`backend/scripts/demo_acceptance_one.py`); tenants left for inspection in the platform console |
 | 2 | Subscription changes, suspension, grace, proration, immutable invoices, idempotency, Decimal | PASS | — |
 | 3 | Register machine + tracker, simulated device, GNSS into PostGIS, source/accuracy/stale | PASS (simulator) | Real device: see hardware row |
 | 4 | Geofences, proximity, playback, late/out-of-order, reassignment, spoofing, unknown capabilities | PASS | — |
@@ -31,7 +31,7 @@ Test references are `file::test` (backend paths relative to `backend/tests/`, we
 
 ---
 
-## 1. Two isolated tenants, negotiated prices, no double billing on tracker swap — PARTIAL
+## 1. Two isolated tenants, negotiated prices, no double billing on tracker swap — PASS
 
 **Automated**
 * `api/test_platform_billing.py::test_one_asset_monthly_vs_hundred_asset_yearly` — "Solo Excavation" 1 asset at
@@ -45,8 +45,12 @@ Test references are `file::test` (backend paths relative to `backend/tests/`, we
 
 **Hands-on:** `compose_smoke.py` onboards a tenant through the real API + Keycloak and checks the tenant token is
 refused on platform routes (track.md log 2026-10-21, `SMOKE OK`); the live platform-owner walkthrough
-(2026-10-21) covered onboarding/mandates. **Missing:** a recorded live demonstration with a 100-asset tenant next to a
-1-asset tenant (the demo baseline has one 5-machine tenant).
+(2026-10-21) covered onboarding/mandates. **Live demonstration (2026-10-23):** `backend/scripts/demo_acceptance_one.py`
+created "Solo Excavation Demo" (1 asset, TZS 75,000/month, VAT 18 %) and "Mega Fleet Demo" (100 assets, TZS
+600,000/year, −10 %, VAT 18 %, minimum 50) on the Compose stack, swapped the solo machine's tracker, generated both
+first invoices (88,500.00 and 63,720,000.00 TZS; one asset line after the swap) and checked cross-tenant refusal
+(404 on a foreign machine id, 403 `TENANT_ACCESS_DENIED` on a foreign `X-Tenant-ID`):
+[evidence](evidence/acceptance/2026-10-23-criterion-1.md). Both tenants remain in the stack for inspection.
 
 ## 2. Subscription lifecycle, proration, immutability, idempotency, Decimal — PASS
 
