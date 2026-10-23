@@ -4,6 +4,7 @@ import AssetaNetwork
 import AssetaSecurity
 import Foundation
 import Observation
+import os
 
 /// UI state machine shared by both apps: sign-in, profile (`/me`) and tenant selection.
 ///
@@ -85,6 +86,8 @@ public final class SessionModel {
             let callback = try await authenticate(pending.url, auth.callbackScheme)
             try await auth.completeSignIn(callbackURL: callback, pending: pending)
         } catch {
+            // The on-screen message is generic; the log keeps the cause (no tokens or credentials in errors).
+            Self.log.error("sign-in failed: \(String(describing: error), privacy: .public)")
             phase = .signedOut
             errorMessage = Self.message(for: error)
             return
@@ -155,6 +158,8 @@ public final class SessionModel {
     public func dismissError() {
         errorMessage = nil
     }
+
+    private static let log = Logger(subsystem: "com.asseta", category: "session")
 
     static func message(for error: any Error) -> String? {
         switch error {

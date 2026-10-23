@@ -14,7 +14,8 @@ data class MeResponse(
     val email: String,
     @SerialName("display_name") val displayName: String,
     @SerialName("platform_permissions") val platformPermissions: List<String> = emptyList(),
-    @SerialName("platform_menus") val platformMenus: List<String> = emptyList(),
+    @SerialName("platform_menus") val platformMenus: List<MenuEntry> = emptyList(),
+    @SerialName("platform_menu_groups") val platformMenuGroups: List<MenuGroup> = emptyList(),
     val tenants: List<TenantAccess> = emptyList(),
 )
 
@@ -27,8 +28,23 @@ data class TenantAccess(
     /** Server-computed effective access (subscription/membership); the app only reflects it in UI. */
     @SerialName("access_state") val accessState: TenantAccessState = TenantAccessState.UNKNOWN,
     val permissions: List<String> = emptyList(),
-    val menus: List<String> = emptyList(),
+    val menus: List<MenuEntry> = emptyList(),
+    @SerialName("menu_groups") val menuGroups: List<MenuGroup> = emptyList(),
 )
+
+/** Server-driven menu entry (`MenuDto`): grouped navigation hints, never authorization. */
+@Serializable
+data class MenuEntry(
+    val key: String,
+    val label: String,
+    val path: String,
+    val order: Int,
+    val group: String,
+)
+
+/** Navigation group (`MenuGroupDto`) that [MenuEntry.group] refers to. */
+@Serializable
+data class MenuGroup(val key: String, val label: String, val order: Int)
 
 /** Typed id helper so tenant ids are not confused with other UUIDs in signatures. */
 @JvmInline

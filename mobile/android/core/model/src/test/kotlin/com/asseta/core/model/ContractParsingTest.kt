@@ -36,14 +36,15 @@ class ContractParsingTest {
     fun `parses me response`() {
         val body = """
             {"user_id":"0d9c5c1e-3d55-4a35-8f7e-2b1e4f0f9a11","email":"sup@example.com","display_name":"Sup",
-             "platform_permissions":[],"platform_menus":["platform.tenants"],
+             "platform_permissions":[],"platform_menus":[{"key":"platform.tenants","label":"Tenants","path":"/platform/tenants","order":10,"group":"Clients"}],
              "tenants":[{"tenant_id":"a3c1d1f2-1111-4222-8333-944455556666",
-             "name":"Acme Hire","status":"ACTIVE","access_state":"READ_ONLY","permissions":["jobs.read"],"menus":["jobs"]},
+             "name":"Acme Hire","status":"ACTIVE","access_state":"READ_ONLY","permissions":["jobs.read"],"menus":[{"key":"tenant.jobs","label":"Jobs","path":"/tenant/jobs","order":20,"group":"Operations"}]},
              {"tenant_id":"b3c1d1f2-1111-4222-8333-944455556666","name":"Future","status":"X","access_state":"NEW_STATE"}]}
         """.trimIndent()
         val me = json.decodeFromString(MeResponse.serializer(), body)
         assertEquals(UUID.fromString("0d9c5c1e-3d55-4a35-8f7e-2b1e4f0f9a11"), me.userId)
-        assertEquals(listOf("platform.tenants"), me.platformMenus)
+        assertEquals(listOf("platform.tenants"), me.platformMenus.map { it.key })
+        assertEquals("Operations", me.tenants.first().menus.single().group)
         val acme = me.tenants.first()
         assertEquals("Acme Hire", acme.name)
         assertEquals(listOf("jobs.read"), acme.permissions)

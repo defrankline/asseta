@@ -40,7 +40,9 @@ class AuthManager(
     private val connectionBuilder = HttpConnectionBuilder(config.allowInsecureHttp)
     private val service = AuthorizationService(
         context.applicationContext,
-        AppAuthConfiguration.Builder().setConnectionBuilder(connectionBuilder).build(),
+        AppAuthConfiguration.Builder().setConnectionBuilder(connectionBuilder)
+            .setSkipIssuerHttpsCheck(config.allowInsecureHttp) // local Keycloak issuer is http (debug only)
+            .build(),
     )
     private val lock = Any()
     private var state: AuthState = restore()

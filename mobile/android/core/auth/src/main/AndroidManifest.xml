@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!-- AppAuth's redirect receiver is an AppCompatActivity but declares no theme, so it inherited the apps'
+             platform theme and crashed on the sign-in callback. Give it AppAuth's own invisible AppCompat theme. -->
+        <activity
+            android:name="net.openid.appauth.RedirectUriReceiverActivity"
+            android:theme="@style/Theme.AppCompat.Translucent.NoTitleBar" />
+    </application>
+</manifest>

@@ -18,6 +18,7 @@ import com.asseta.core.model.owner.TenantOverviewDto
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.descriptors.StructureKind
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
@@ -48,6 +49,23 @@ class OwnerContractTest {
         names.keys.forEach { assertTrue("$schemaName has no property '$it'", it in properties) }
         names.filterValues { !it }.keys.forEach { assertTrue("$schemaName.$it is mandatory in Kotlin but optional in the contract", it in required) }
         required.forEach { assertTrue("$schemaName.$it required by the contract but not mapped", it in names) }
+        // Array item kinds must agree too: a list of strings must not stand in for a list of objects (or vice versa).
+        (0 until descriptor.elementsCount).forEach { i ->
+            val name = descriptor.getElementName(i)
+            val items = arrayItems(schema["properties"]!!.jsonObject[name]!!.jsonObject) ?: return@forEach
+            val element = descriptor.getElementDescriptor(i)
+            assertEquals("$schemaName.$name is an array in the contract", StructureKind.LIST, element.kind)
+            val target = items["\$ref"]?.jsonPrimitive?.content?.substringAfterLast('/')?.let { schemas[it]!!.jsonObject } ?: items
+            val objectItems = target["type"]?.jsonPrimitive?.content == "object" || "properties" in target
+            val kotlinItem = element.getElementDescriptor(0).kind
+            assertEquals("$schemaName.$name item kind", objectItems, kotlinItem == StructureKind.CLASS)
+        }
+    }
+
+    /** Item schema of an array property (also when wrapped in a nullable anyOf), or null if not an array. */
+    private fun arrayItems(property: JsonObject): JsonObject? {
+        if (property["type"]?.jsonPrimitive?.content == "array") return property["items"]?.jsonObject
+        return property["anyOf"]?.jsonArray?.firstNotNullOfOrNull { arrayItems(it.jsonObject) }
     }
 
     @Test
@@ -67,6 +85,10 @@ class OwnerContractTest {
             "NotificationRoutingDto" to NotificationRoutingDto.serializer(),
             "PushDeviceDto" to PushDeviceDto.serializer(),
             "PushDeviceIn" to PushDeviceIn.serializer(),
+            "MeDto" to MeResponse.serializer(),
+            "TenantAccessDto" to TenantAccess.serializer(),
+            "MenuDto" to MenuEntry.serializer(),
+            "MenuGroupDto" to MenuGroup.serializer(),
         ).forEach { (name, serializer) -> check(name, serializer.descriptor) }
     }
 
