@@ -3,7 +3,7 @@
 #
 #   scripts/seed-demo-tenant.sh seed     [--region dar-es-salaam|dodoma|arusha|mwanza] [--demo-domain DOMAIN]
 #   scripts/seed-demo-tenant.sh feed     [--minutes 90] [--interval 30]
-#   scripts/seed-demo-tenant.sh field    [--dry-run]
+#   scripts/seed-demo-tenant.sh field    [--dry-run] [--reset-demo-password]
 #   scripts/seed-demo-tenant.sh status   [--quick]
 #   scripts/seed-demo-tenant.sh retire   --yes
 #
