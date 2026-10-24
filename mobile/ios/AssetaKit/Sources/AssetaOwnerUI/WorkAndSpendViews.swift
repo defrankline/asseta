@@ -4,7 +4,7 @@ import AssetaModel
 import AssetaOwnerKit
 import SwiftUI
 
-/// Meter exceptions (read-only), optionally of one job; reviewing them happens in the web console.
+/// Meter exceptions, optionally of one job; a row opens the exception, where it can be reviewed.
 struct ExceptionsView: View {
     let model: OwnerModel
     let jobID: UUID?
@@ -18,8 +18,9 @@ struct ExceptionsView: View {
                 if page.items.isEmpty {
                     EmptyState(title: ExceptionText.empty(openOnly: openOnly), systemImage: "exclamationmark.triangle")
                 }
-                ForEach(page.items) { RecordLink(model: model, row: ExceptionText.row($0)) }
-                FootNote(ExceptionText.footer)
+                ForEach(page.items) { exception in
+                    NavigationLink(value: OwnerRoute.exception(exception.id)) { RecordRowView(row: ExceptionText.row(exception)) }
+                }
             } else if let error = loader.error {
                 LoadFailure(message: error) { await reload() }
             } else {
@@ -106,16 +107,22 @@ private struct SpendStaleBanner: ViewModifier {
     }
 }
 
-/// Cash held by each supervisor over a period (read-only), largest holding first.
+/// Cash held by each supervisor over a period, largest holding first; each card lists the supervisor's handovers
+/// waiting for confirmation and "Issue float".
 struct CashView: View {
     let model: OwnerModel
     @State private var period = CashText.defaultPeriod
     @State private var loader = Loader<[CashSupervisorSummaryDTO]>()
+    @State private var handovers = Loader<Page<CashHandoverDTO>>()
+    @State private var floatFor: CashCard?
+    @State private var message: String?
 
     var body: some View {
         List {
             FilterChips(options: CashPeriod.allCases.map { ($0, $0.label) }, selection: $period)
                 .listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
+            if let message { Text(message).foregroundStyle(Brand.amber).accessibilityIdentifier("cash.message") }
+            if model.features.issueFloats, let floatBlock { BlockedNote(block: floatBlock) }
             if let items = loader.value {
                 let cards = CashText.cards(items)
                 if cards.isEmpty { EmptyState(title: CashText.empty, systemImage: "banknote") }
@@ -130,6 +137,16 @@ struct CashView: View {
                             LabeledContent(line.label) {
                                 Text(line.value).monospacedDigit().foregroundStyle(line.tone == .warning ? Palette.warning : .secondary)
                             }
+                        }
+                        ForEach(claimed(card)) { handover in
+                            NavigationLink(value: OwnerRoute.handover(handover.id)) {
+                                PendingHandoverRow(handover: handover, supervisor: card.title)
+                            }
+                        }
+                        if model.features.issueFloats, card.staffMemberID != nil {
+                            Button(FloatText.action) { floatFor = card }
+                                .disabled(floatBlock != nil)
+                                .accessibilityIdentifier("cash.issueFloat")
                         }
                     } header: {
                         Text(card.title)
@@ -146,11 +163,31 @@ struct CashView: View {
         .navigationTitle(CashText.title)
         .refreshable { await reload() }
         .task(id: ReloadKey(tick: model.changeTick, filter: period.rawValue)) { await reload() }
+        .sheet(item: $floatFor) { card in
+            if let staffMemberID = card.staffMemberID {
+                IssueFloatSheet(model: model, staffMemberID: staffMemberID, supervisor: card.title, currency: card.currency) { text in
+                    message = text
+                    UIAccessibility.post(notification: .announcement, argument: text)
+                    await reload()
+                }
+            }
+        }
+    }
+
+    /// One note at the top when floats can't be issued right now (offline, saved data, read-only company).
+    private var floatBlock: MutationBlock? {
+        model.mutationBlock(permitted: model.features.issueFloats, showingCachedData: loader.isFromCache)
+    }
+
+    /// The card's supervisor's handovers waiting for confirmation, in the card's currency.
+    private func claimed(_ card: CashCard) -> [CashHandoverDTO] {
+        (handovers.value?.items ?? []).filter { $0.staffMemberID == card.staffMemberID && $0.currency == card.currency }
     }
 
     private func reload() async {
         let range = CashText.range(period)
         await loader.load(model, .cash(period), OwnerAPI.cashSupervisorSummary(from: range.from, to: range.to))
+        await handovers.loadClaimed(model)
     }
 }
 

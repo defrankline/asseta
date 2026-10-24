@@ -150,9 +150,9 @@ extension OwnerFeatures {
         case .fleet, .machine, .alerts, .alert: fleet
         case .jobs, .job: jobs
         case .approvals, .approval: approvals
-        case .exceptions, .meterReset: meterEvidence
+        case .exceptions, .meterReset, .exception: meterEvidence
         case .fieldSpend: expenses
-        case .cash: finance
+        case .cash, .handover: finance
         case .investigations, .investigation: cases
         case .notifications, .notification: notifications
         }

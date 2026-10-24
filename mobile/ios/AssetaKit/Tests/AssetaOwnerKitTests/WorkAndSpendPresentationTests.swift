@@ -131,7 +131,6 @@ struct WorkAndSpendPresentationTests {
         #expect(confirmed.pills == [TextPill(text: "Blocking", tone: .critical), TextPill(text: "Confirmed", tone: .critical)])
         #expect(ExceptionText.filters.map(\.1) == ["Open", "All"] && ExceptionText.defaultOpenOnly)
         #expect(ExceptionText.empty(openOnly: true) == "No open exceptions." && ExceptionText.empty(openOnly: false) == "No exceptions.")
-        #expect(ExceptionText.footer == "Exceptions are reviewed in the web console.")
         #expect(SnapshotKey.exceptions(openOnly: true, jobID: nil).rawValue == "exceptions:OPEN:ALL")
         #expect(JobDetailText.exceptions(2) == "2 open exception(s) need review." && JobDetailText.exceptions(0) == nil)
     }

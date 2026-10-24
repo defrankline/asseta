@@ -126,7 +126,7 @@ public struct FuelEventDTO: Codable, Hashable, Sendable, Identifiable {
     }
 }
 
-/// `GET /tenant/exceptions`: a meter exception raised on a reading (the `evidence` object is not shown).
+/// `GET /tenant/exceptions`: a meter exception raised on a reading.
 public struct MeterExceptionDTO: Codable, Hashable, Sendable, Identifiable {
     public let id: UUID
     public let jobID: UUID?
@@ -138,9 +138,11 @@ public struct MeterExceptionDTO: Codable, Hashable, Sendable, Identifiable {
     public let reviewNote: String?
     public let reviewedAt: Date?
     public let createdAt: Date
+    /// What was measured (shown on the exception detail).
+    public let evidence: JSONValue?
 
     enum CodingKeys: String, CodingKey {
-        case id, severity, blocking, status
+        case id, severity, blocking, status, evidence
         case jobID = "job_id", machineID = "machine_id", exceptionType = "exception_type", reviewNote = "review_note"
         case reviewedAt = "reviewed_at", createdAt = "created_at"
     }

@@ -115,16 +115,19 @@ Screens on the home list under **Money & fuel**, shown by `/me` permissions (`te
 ## Gate 7: Owner app (`AssetaOwner`, `com.asseta.owner`)
 
 Read-mostly companion for owners/managers (prompt.md §4 R1-I). It is not a tenant admin console.
-The only business mutations are **alert acknowledge/resolve**, **approval decisions** and **job approval** (approve/decline). The
-user can also change their own push routing, push device and inbox read state.
+The boss is often away from the machines, so every decision they make can be taken here as on the web. The business
+mutations are **alert acknowledge/resolve**, **approval decisions**, **meter reset decisions** (approve/reject with a
+note), **job approval** (approve/decline), **confirming or disputing cash handovers**, **reviewing meter exceptions** and
+**issuing cash floats**. Each is gated like the others (permission hint, online, live data, writable tenant). The user can
+also change their own push routing, push device and inbox read state.
 
 **Sign-in and tenant.** The shared shell (ASWebAuthenticationSession, PKCE S256, ephemeral browser,
 Keychain tokens) with redirect `com.asseta.owner:/oauth2redirect`. The Keycloak realm already lists
 it on the public client `asseta-mobile` (`infra/keycloak/realm-asseta.json`), so nothing was added.
 Tenant picker as in the Supervisor app. The app shows only tabs whose `/me` permission hints are present.
 
-**Screens.** Tabs **Overview · Fleet · Jobs · Alerts · More** (Approvals, Investigations,
-Notifications, Settings):
+**Screens.** Tabs **Overview · Fleet · Jobs · Alerts · More** (Approvals, Meter exceptions, Field spend, Cash with
+supervisors, Investigations, Notifications, Settings):
 
 | Screen | API | Notes |
 |---|---|---|
@@ -135,6 +138,10 @@ Notifications, Settings):
 | Alerts | `GET /tenant/alerts`, `POST /alerts/{id}/action` | Acknowledge, or resolve with a required note, if `tenant.fleet.alert_manage` |
 | Approvals | `GET /tenant/approvals`, `POST /approvals/{id}/decision` | Approve/reject (reject is confirmed) with note if `tenant.approval.expense`. `SEGREGATION_OF_DUTIES` is shown as "Segregation of duties: you can't decide on a request you submitted…" |
 | Job approval | `GET /tenant/jobs?status=PENDING_APPROVAL`, `POST /tenant/jobs/{id}/transitions` | **Jobs** section of Approvals and the job detail: "Requested from the field by <name>" and the note; **Approve** (asks "Hourly rate (<currency>)" when `rate_source` is `PENDING_PRICE`, sent as `hourly_rate`) or **Decline** with a required reason (`CANCEL`), if `tenant.job.approve`. `PRICE_REQUIRED` reads "Set an hourly rate before approving this job." |
+| Meter resets | `GET /tenant/meter-resets`, `POST /tenant/meter-resets/{id}/decision` | **Meter resets** section of Approvals and the reset detail (old → new reading, reason, evidence photo): **Approve reset** / **Reject reset** with a required note (5+ characters) if `tenant.meter.approve`; the requester can't decide their own reset |
+| Cash handovers | `GET /tenant/cash/handovers?status=CLAIMED`, `POST /tenant/cash/handovers/{id}/decision` | **Cash handovers** section of Approvals, and under each supervisor card of the Cash screen: "<supervisor> handed over <currency> <amount>", "Claimed <date time>", the note (names from today's cash summary, else "A supervisor"). Detail: **Confirm received** ("Confirm this handover?", optional note, `verified: true`) or **Dispute** ("Dispute this handover?", required reason, `verified: false`) if `tenant.finance.verify`. `HANDOVER_ALREADY_DECIDED` reloads; the recorder can't decide (`SEGREGATION_OF_DUTIES`) |
+| Meter exceptions | `GET /tenant/exceptions`, `POST /tenant/exceptions/{id}/review` | Exceptions screen rows and the **Exceptions** section of Approvals ("<type> on <job number>", numbers from up to 25 job summaries) open **Meter exception** (status, severity, recorded/reviewed, evidence, Open job). **Review** (if `tenant.meter.review`) mirrors the web dialog: Outcome (Explained — a legitimate reason was found / Discrepancy confirmed — evidence stands as recorded) and a Review note of 5–2000 characters; **Record review**. `ALREADY_REVIEWED` reloads |
+| Cash with supervisors | `GET /tenant/cash/supervisor-summary`, `POST /tenant/cash/floats` | Holding per supervisor × currency; **Issue float** per supervisor card (one note at the top when blocked) ("Issue a cash float", "Amount (<currency>)", "Note (optional)", **Issue**) if `tenant.finance.cash`, sent as `FLOAT_ISSUED` with an `Idempotency-Key` (kept on a retry after a lost response). `NOT_CUSTODIAN`, `STAFF_INACTIVE`, `CURRENCY_NOT_CONFIGURED` are worded as on the web |
 | Investigations | `GET /tenant/cases`, `/cases/{id}` | Read-only, neutral wording ("signals are indicators that need review; they are not conclusions") |
 | Notifications | `GET /tenant/notifications`, `/{id}`, `/unread-count`, `POST /read` | Live in the foreground over the WebSocket (`asseta.v1, bearer.<jwt>` sub-protocol, `subscribe` first frame, pong on ping, token refresh on `reauth_required`, backoff reconnect, no reconnect after 4403 access codes). The inbox is re-read on each `auth_ok`/`notification`. `entity.changed` reloads open screens (throttled to 10 s) |
 | Settings | `GET/PUT /tenant/notification-routing`, `GET /me/push-devices` | Push matrix by category × severity. Mandatory PUSH cells are locked. Only changed cells are sent. Push status, device list, sign-out |

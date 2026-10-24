@@ -13,6 +13,10 @@ struct ApprovalsView: View {
     @State private var loader = Loader<Page<ApprovalRequestDTO>>()
     @State private var resets = Loader<[MeterResetDTO]>()
     @State private var pendingJobs = Loader<Page<JobDTO>>()
+    @State private var handovers = Loader<Page<CashHandoverDTO>>()
+    @State private var supervisorNames: [UUID: String] = [:]
+    @State private var openExceptions = Loader<Page<MeterExceptionDTO>>()
+    @State private var jobNumbers: [UUID: String] = [:]
 
     var body: some View {
         List {
@@ -42,6 +46,23 @@ struct ApprovalsView: View {
                     }
                 }
             }
+            if model.features.finance {
+                PendingHandoversSection(loader: handovers, names: supervisorNames)
+            }
+            if model.features.meterEvidence {
+                Section(ExceptionReviewText.sectionTitle) {
+                    let items = openExceptions.value?.items ?? []
+                    if items.isEmpty {
+                        Text(openExceptions.value == nil ? (openExceptions.error ?? "Loading…") : ExceptionReviewText.empty)
+                            .foregroundStyle(.secondary)
+                    }
+                    ForEach(items) { exception in
+                        NavigationLink(value: OwnerRoute.exception(exception.id)) {
+                            PendingExceptionRow(exception: exception, jobNumber: exception.jobID.flatMap { jobNumbers[$0] })
+                        }
+                    }
+                }
+            }
             if model.features.meterEvidence {
                 Section(MeterResetText.sectionTitle) {
                     let items = resets.value ?? []
@@ -64,7 +85,22 @@ struct ApprovalsView: View {
         async let a: Void = loader.load(model, .approvals(status), OwnerAPI.approvals(status: status, pageSize: 100))
         async let b: Void = loadResets()
         async let c: Void = loadPendingJobs()
-        _ = await (a, b, c)
+        async let d: Void = loadHandovers()
+        async let e: Void = loadExceptions()
+        _ = await (a, b, c, d, e)
+    }
+
+    private func loadHandovers() async {
+        guard model.features.finance else { return }
+        await handovers.loadClaimed(model)
+        supervisorNames = await OwnerLookups.supervisorNames(model)
+    }
+
+    private func loadExceptions() async {
+        guard model.features.meterEvidence else { return }
+        await openExceptions.load(model, .exceptions(openOnly: true, jobID: nil),
+                                  OwnerAPI.exceptions(status: ExceptionReviewText.openStatus, pageSize: 100))
+        jobNumbers = await OwnerLookups.jobNumbers(model, ids: openExceptions.value?.items.map(\.jobID) ?? [])
     }
 
     private func loadPendingJobs() async {

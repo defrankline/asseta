@@ -12,11 +12,17 @@ public struct OwnerFeatures: Equatable, Sendable {
     /// Approve (pricing it when needed) or decline jobs waiting for approval (`tenant.job.approve`).
     public let approveJobs: Bool
     public let finance: Bool
+    /// Confirm or dispute cash handovers (`tenant.finance.verify`, as the web Handovers tab).
+    public let verifyHandovers: Bool
+    /// Issue cash floats to supervisors (`tenant.finance.cash`, as the web float dialog).
+    public let issueFloats: Bool
     public let approvals: Bool
     public let decideApprovals: Bool
     public let cases: Bool
     public let meterEvidence: Bool
     public let meterApprove: Bool
+    /// Review meter exceptions (`tenant.meter.review`, as the web review dialog).
+    public let reviewExceptions: Bool
     public let expenses: Bool
     public let notifications: Bool
 
@@ -27,12 +33,15 @@ public struct OwnerFeatures: Equatable, Sendable {
         jobs = set.contains("tenant.job.read")
         approveJobs = set.contains("tenant.job.approve")
         finance = set.contains("tenant.finance.read")
+        verifyHandovers = set.contains("tenant.finance.verify")
+        issueFloats = set.contains("tenant.finance.cash")
         overview = fleet || jobs || finance
         approvals = set.contains("tenant.approval.read")
         decideApprovals = set.contains("tenant.approval.expense")
         cases = set.contains("tenant.case.read")
         meterEvidence = set.contains("tenant.meter.read")
         meterApprove = set.contains("tenant.meter.approve")
+        reviewExceptions = set.contains("tenant.meter.review")
         expenses = set.contains("tenant.expense.read")
         notifications = set.contains("tenant.notification.read")
     }
@@ -88,6 +97,10 @@ public enum DecisionErrorText {
             return "This request was already decided by someone else. The list has been refreshed."
         case "RESET_DECIDED":
             return MeterResetText.alreadyDecided
+        case "HANDOVER_ALREADY_DECIDED":
+            return HandoverText.alreadyDecided
+        case "ALREADY_REVIEWED":
+            return ExceptionReviewText.alreadyReviewed
         case "SUBSCRIPTION_READ_ONLY":
             return "This company's subscription is read-only, so changes are not accepted right now."
         case "PRICE_REQUIRED":

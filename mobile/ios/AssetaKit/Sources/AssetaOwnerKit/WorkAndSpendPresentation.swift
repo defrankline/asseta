@@ -132,7 +132,6 @@ public enum ExceptionText {
     /// Open only (the default) or all.
     public static let filters: [(Bool, String)] = [(true, "Open"), (false, "All")]
     public static let defaultOpenOnly = true
-    public static let footer = "Exceptions are reviewed in the web console."
 
     public static func empty(openOnly: Bool) -> String { openOnly ? "No open exceptions." : "No exceptions." }
 
@@ -176,11 +175,14 @@ public struct CashLine: Equatable, Sendable {
 }
 
 /// One supervisor x currency: who, what they hold, and how it adds up.
-public struct CashCard: Equatable, Sendable {
+public struct CashCard: Equatable, Sendable, Identifiable {
     public let id: String
     public let title: String
     public let holding: String
     public let lines: [CashLine]
+    /// Whose cash it is and in which currency (where "Issue float" sends the float).
+    public var staffMemberID: UUID?
+    public var currency: String?
 }
 
 public enum CashText {
@@ -225,7 +227,8 @@ public enum CashText {
             lines += awaiting.filter { $0.1.value > 0 }.map {
                 CashLine(label: $0.0, value: money($0.1, s.currency), tone: .warning)
             }
-            return CashCard(id: s.id, title: s.staffName, holding: money(s.closingOutstanding, s.currency), lines: lines)
+            return CashCard(id: s.id, title: s.staffName, holding: money(s.closingOutstanding, s.currency), lines: lines,
+                            staffMemberID: s.staffMemberID, currency: s.currency)
         }
     }
 }

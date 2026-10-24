@@ -20,6 +20,10 @@ public enum OwnerRoute: Hashable, Sendable {
     /// Cash held by supervisors.
     case cash
     case meterReset(UUID)
+    /// One cash handover (confirm received / dispute).
+    case handover(UUID)
+    /// One meter exception (review).
+    case exception(UUID)
     /// Open by notification id; the app fetches it and follows its `target`.
     case notification(UUID)
     case notifications
@@ -122,7 +126,7 @@ extension OwnerRoute {
     /// Whether the route opens one specific record (as opposed to a list).
     public var identifiesRecord: Bool {
         switch self {
-        case .machine, .alert, .approval, .investigation, .job, .meterReset, .notification: true
+        case .machine, .alert, .approval, .investigation, .job, .meterReset, .handover, .exception, .notification: true
         case .fleet, .jobs, .investigations, .alerts, .approvals, .exceptions, .fieldSpend, .cash, .notifications: false
         }
     }
