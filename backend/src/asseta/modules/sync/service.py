@@ -22,7 +22,8 @@ from asseta.modules.fleet.models import Machine, MachineAssignment, StaffMember
 from asseta.modules.geospatial.models import JobSite
 from asseta.modules.geospatial.sites_service import SiteService
 from asseta.modules.identity.principal import RequestContext
-from asseta.modules.jobs.dto import ContractDto, CustomerDto, JobDto
+from asseta.modules.jobs.dto import ContractDto, CustomerDto
+from asseta.modules.jobs.lifecycle import job_dtos
 from asseta.modules.jobs.models import Customer, Job, JobStatus, RentalContract
 from asseta.modules.jobs.scope import job_filter, own_staff
 from asseta.modules.policy.schemas import PolicyType
@@ -127,7 +128,11 @@ class SyncService:
         jobs_stmt = select(Job).where(scope)
         if min_revision is None:  # open jobs plus recently closed ones (history on the device)
             recent = and_(Job.status.in_(CLOSED_JOB_STATES), Job.updated_at >= self._now - CLOSED_JOB_WINDOW)
-            jobs_stmt = jobs_stmt.where(or_(Job.status.in_(OPEN_JOB_STATES), recent))
+            # the caller's own field requests still waiting for approval ("Waiting for approval" on the device)
+            conds = [Job.status.in_(OPEN_JOB_STATES), recent]
+            if staff is not None:
+                conds.append(and_(Job.status == JobStatus.PENDING_APPROVAL, Job.requested_by_staff_id == staff.id))
+            jobs_stmt = jobs_stmt.where(or_(*conds))
         else:
             jobs_stmt = jobs_stmt.where(Job.sync_revision > min_revision)
         jobs = list(self._s.execute(jobs_stmt.order_by(Job.sync_revision).limit(PAGE + 1)).scalars())
@@ -176,7 +181,7 @@ class SyncService:
         sites_svc = SiteService(self._s, self._tid, self._ctx.audit_actor())
         inbox = InboxReader(self._s, self._ctx, self._now, staff, PAGE).read(min_revision)
         data = SyncData(
-            jobs=[JobDto.model_validate(j) for j in jobs],
+            jobs=job_dtos(self._s, jobs),
             machines=[MachineDto.model_validate(m) for m in changed(Machine, machine_ids, fresh_assigned)],
             sites=[sites_svc.site_dto(s) for s in changed(JobSite, site_ids)],
             customers=[CustomerDto.model_validate(c) for c in customers],

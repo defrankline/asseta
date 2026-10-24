@@ -15,6 +15,7 @@ from asseta.core.paging import Page, PageParams, page_params, paginate
 from asseta.core.search import ilike_any
 from asseta.modules.fleet.dto import MachineDto
 from asseta.modules.fleet.models import Machine
+from asseta.modules.geospatial.models import JobSite
 from asseta.modules.identity.catalog import CATALOG, MenuDef
 from asseta.modules.identity.catalog import PermissionScope as S
 from asseta.modules.identity.dependencies import requires
@@ -30,17 +31,20 @@ from asseta.modules.jobs.dto import (
     CustomerDto,
     CustomerIn,
     CustomerUpdateIn,
+    FieldContractDto,
     JobDto,
     JobIn,
+    JobRequestIn,
     JobSummaryDto,
     JobTransitionIn,
     JobUpdateIn,
     RateCardDto,
     RateCardIn,
 )
-from asseta.modules.jobs.lifecycle import RecordLifecycleService, customer_query, job_list_query
+from asseta.modules.jobs.lifecycle import RecordLifecycleService, customer_query, job_dtos, job_list_query
 from asseta.modules.jobs.models import (
     ContractStatus,
+    Customer,
     CustomerAcknowledgement,
     Job,
     JobActivity,
@@ -57,6 +61,7 @@ JOB_READ = requires("tenant.job.read", S.TENANT, "View jobs, work logs and job s
 JOB_WRITE = requires("tenant.job.write", S.TENANT, "Create jobs and submit them for approval")
 JOB_APPROVE = requires("tenant.job.approve", S.TENANT, "Approve job prices and authorize start/completion")
 JOB_LOG = requires("tenant.job.log", S.TENANT, "Record work logs, start/stop and customer acknowledgements")
+JOB_REQUEST = requires("tenant.job.request", S.TENANT, "Request a job from the field for owner approval")
 for menu in (
     MenuDef(
         "tenant.customers",
@@ -208,6 +213,25 @@ def create_job(
     return dto
 
 
+@router.post("/jobs/requests", response_model=JobDto, status_code=201, operation_id="requestJob")
+def request_job(
+    body: JobRequestIn,
+    session: DbSession,
+    ctx: Annotated[RequestContext, Depends(JOB_REQUEST)],
+    idempotency_key: Annotated[str | None, Header()] = None,
+) -> JobDto:
+    """A supervisor requests a job from the field: the server assigns the job number and the rate-card price (or
+    PENDING_PRICE when no rate card applies), names the caller as supervisor and sends it straight to
+    PENDING_APPROVAL. `client_id` becomes the job id, so replays return the same job. 422 NO_STAFF_RECORD when the
+    login is not linked to an active staff record."""
+    guard = IdempotencyGuard(session, str(ctx.tenant_id), "requestJob", idempotency_key, request_hash(body))
+    if (replay := guard.begin()) is not None:
+        return JobDto.model_validate(replay)
+    dto = JobService(session, ctx).request_job(body)
+    guard.complete(dto, 201)
+    return dto
+
+
 @router.get("/jobs", response_model=Page[JobDto], operation_id="listJobs")
 def jobs(
     session: DbSession,
@@ -224,9 +248,7 @@ def jobs(
     if mine:
         stmt = stmt.where(job_filter(own_staff(session, ctx)))
     rows, total = paginate(session, stmt, paging)
-    return Page(
-        items=[JobDto.model_validate(j) for j in rows], total=total, page=paging.page, page_size=paging.page_size
-    )
+    return Page(items=job_dtos(session, list(rows)), total=total, page=paging.page, page_size=paging.page_size)
 
 
 @router.get("/jobs/{job_id}", response_model=JobSummaryDto, operation_id="getJobSummary")
@@ -249,6 +271,9 @@ def update_job(
 def transition(
     job_id: uuid.UUID, body: JobTransitionIn, session: DbSession, ctx: Annotated[RequestContext, Depends(JOB_READ)]
 ) -> JobDto:
+    """APPROVE may carry `hourly_rate` (rate_source becomes OWNER_APPROVED); a PENDING_PRICE job (field request
+    without a rate card) cannot be approved without it (422 PRICE_REQUIRED). Decline a request with CANCEL + reason.
+    """
     needed = {
         "SUBMIT": "tenant.job.write",
         "APPROVE": "tenant.job.approve",
@@ -258,7 +283,7 @@ def transition(
     }[body.action]
     if needed not in ctx.permissions:  # per-action authorization (deny by default)
         raise PermissionDenied(f"Missing permission {needed}")
-    return JobService(session, ctx).transition(job_id, body.action, body.reason)
+    return JobService(session, ctx).transition(job_id, body.action, body.reason, body.hourly_rate)
 
 
 @router.post("/jobs/{job_id}/activities", response_model=ActivityDto, status_code=201, operation_id="logJobActivity")
@@ -337,3 +362,36 @@ def field_machines(
     if (match := ilike_any(q, Machine.asset_code, Machine.name)) is not None:
         stmt = stmt.where(match)
     return [MachineDto.model_validate(m) for m in session.execute(stmt).scalars()]
+
+
+@router.get("/field/contracts", response_model=list[FieldContractDto], operation_id="listFieldContracts")
+def field_contracts(
+    session: DbSession, _: Annotated[RequestContext, Depends(JOB_REQUEST)], q: str | None = None
+) -> list[FieldContractDto]:
+    """Active contracts of active customers a job can be requested under (by contract number, reference or customer
+    name, at most 100), with the customer and default site names the field apps show."""
+    stmt = (
+        select(RentalContract, Customer.name, JobSite.name)
+        .join(Customer, Customer.id == RentalContract.customer_id)
+        .outerjoin(JobSite, JobSite.id == RentalContract.job_site_id)
+        .where(RentalContract.status == ContractStatus.ACTIVE, Customer.is_active.is_(True))
+        .order_by(Customer.name, RentalContract.contract_number)
+        .limit(100)
+    )
+    if (match := ilike_any(q, RentalContract.contract_number, RentalContract.reference, Customer.name)) is not None:
+        stmt = stmt.where(match)
+    return [
+        FieldContractDto(
+            id=c.id,
+            contract_number=c.contract_number,
+            customer_id=c.customer_id,
+            customer_name=customer_name,
+            job_site_id=c.job_site_id,
+            job_site_name=site_name,
+            currency=c.currency,
+            starts_on=c.starts_on,
+            ends_on=c.ends_on,
+            reference=c.reference,
+        )
+        for c, customer_name, site_name in session.execute(stmt).all()
+    ]

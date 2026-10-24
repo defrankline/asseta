@@ -2646,6 +2646,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenant/field/contracts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Field Contracts
+         * @description Active contracts of active customers a job can be requested under (by contract number, reference or customer
+         *     name, at most 100), with the customer and default site names the field apps show.
+         */
+        get: operations["listFieldContracts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenant/field/machines": {
         parameters: {
             query?: never;
@@ -3074,6 +3095,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenant/jobs/requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Request Job
+         * @description A supervisor requests a job from the field: the server assigns the job number and the rate-card price (or
+         *     PENDING_PRICE when no rate card applies), names the caller as supervisor and sends it straight to
+         *     PENDING_APPROVAL. `client_id` becomes the job id, so replays return the same job. 422 NO_STAFF_RECORD when the
+         *     login is not linked to an active staff record.
+         */
+        post: operations["requestJob"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenant/jobs/{job_id}": {
         parameters: {
             query?: never;
@@ -3158,7 +3202,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Transition */
+        /**
+         * Transition
+         * @description APPROVE may carry `hourly_rate` (rate_source becomes OWNER_APPROVED); a PENDING_PRICE job (field request
+         *     without a rate card) cannot be approved without it (422 PRICE_REQUIRED). Decline a request with CANCEL + reason.
+         */
         post: operations["transitionJob"];
         delete?: never;
         options?: never;
@@ -6411,6 +6459,41 @@ export interface components {
          * @enum {string}
          */
         ExpenseStatus: "PENDING_APPROVAL" | "APPROVED" | "REJECTED";
+        /**
+         * FieldContractDto
+         * @description An active contract a supervisor can request a job under (customer and site names included).
+         */
+        FieldContractDto: {
+            /** Contract Number */
+            contract_number: string;
+            /** Currency */
+            currency: string;
+            /**
+             * Customer Id
+             * Format: uuid
+             */
+            customer_id: string;
+            /** Customer Name */
+            customer_name: string;
+            /** Ends On */
+            ends_on: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Job Site Id */
+            job_site_id: string | null;
+            /** Job Site Name */
+            job_site_name: string | null;
+            /** Reference */
+            reference: string | null;
+            /**
+             * Starts On
+             * Format: date-time
+             */
+            starts_on: string;
+        };
         /** FindingDto */
         FindingDto: {
             /** Blocking */
@@ -7170,6 +7253,8 @@ export interface components {
         JobDto: {
             /** Approved At */
             approved_at: string | null;
+            /** Cancellation Reason */
+            cancellation_reason?: string | null;
             /** Completed At */
             completed_at: string | null;
             /**
@@ -7208,8 +7293,20 @@ export interface components {
              * Format: date-time
              */
             planned_start: string;
-            /** Rate Source */
+            /**
+             * Rate Source
+             * @description RATE_CARD:<id> | NEGOTIATED | PENDING_PRICE (field request without a rate card: APPROVE needs hourly_rate) | OWNER_APPROVED (priced by the approver)
+             */
             rate_source: string;
+            /** Request Note */
+            request_note?: string | null;
+            /** Requested By Name */
+            requested_by_name?: string | null;
+            /**
+             * Requested By Staff Id
+             * @description Staff record of the supervisor who requested the job from the field
+             */
+            requested_by_staff_id?: string | null;
             /** Standby Rate */
             standby_rate: string | null;
             standby_treatment: components["schemas"]["StandbyTreatment"];
@@ -7274,6 +7371,45 @@ export interface components {
              * @default 0
              */
             tax_rate_percent: number | string;
+        };
+        /**
+         * JobRequestIn
+         * @description A supervisor's job request from the field: the server numbers and prices it and sends it for approval.
+         */
+        JobRequestIn: {
+            /**
+             * Client Id
+             * Format: uuid
+             * @description Device-generated id; becomes the job id (replays return the same job)
+             */
+            client_id: string;
+            /**
+             * Contract Id
+             * Format: uuid
+             */
+            contract_id: string;
+            /**
+             * Job Site Id
+             * @description Defaults to the contract's site
+             */
+            job_site_id?: string | null;
+            /**
+             * Machine Id
+             * Format: uuid
+             */
+            machine_id: string;
+            /**
+             * Note
+             * @description What the customer asked for
+             */
+            note?: string | null;
+            /** Planned End */
+            planned_end?: string | null;
+            /**
+             * Planned Start
+             * Format: date-time
+             */
+            planned_start: string;
         };
         /** JobSiteDto */
         JobSiteDto: {
@@ -7366,6 +7502,11 @@ export interface components {
              * @enum {string}
              */
             action: "SUBMIT" | "APPROVE" | "START" | "COMPLETE" | "CANCEL";
+            /**
+             * Hourly Rate
+             * @description APPROVE only: the approved hourly price (required when rate_source is PENDING_PRICE)
+             */
+            hourly_rate?: number | string | null;
             /** Reason */
             reason?: string | null;
         };
@@ -8960,7 +9101,7 @@ export interface components {
              * Op Type
              * @enum {string}
              */
-            op_type: "METER_CAPTURE" | "JOB_ACTIVITY" | "JOB_ACKNOWLEDGEMENT" | "JOB_TRANSITION" | "EXPENSE" | "CASH_COLLECTION" | "CASH_HANDOVER" | "FUEL_EVENT" | "METER_RESET_REQUEST";
+            op_type: "METER_CAPTURE" | "JOB_ACTIVITY" | "JOB_ACKNOWLEDGEMENT" | "JOB_TRANSITION" | "EXPENSE" | "CASH_COLLECTION" | "CASH_HANDOVER" | "FUEL_EVENT" | "METER_RESET_REQUEST" | "JOB_REQUEST";
             /** Payload */
             payload: {
                 [key: string]: unknown;
@@ -27526,6 +27667,94 @@ export interface operations {
             };
         };
     };
+    listFieldContracts: {
+        parameters: {
+            query?: {
+                q?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FieldContractDto"][];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     listMyFieldMachines: {
         parameters: {
             query?: {
@@ -30261,6 +30490,97 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["JobIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    requestJob: {
+        parameters: {
+            query?: never;
+            header?: {
+                "idempotency-key"?: string | null;
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JobRequestIn"];
             };
         };
         responses: {

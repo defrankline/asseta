@@ -15,7 +15,7 @@ from asseta.modules.meter.dto import ExceptionDto, MeterCaptureDto, ResetDto
 
 PROTOCOL_VERSION = 1
 # Additive, optional features of protocol 1 (old clients ignore unknown fields; new clients check before relying).
-CAPABILITIES = ["SUPERVISOR_INBOX_V1", "OP_METER_RESET_REQUEST"]
+CAPABILITIES = ["SUPERVISOR_INBOX_V1", "OP_METER_RESET_REQUEST", "OP_JOB_REQUEST"]
 
 
 class DeviceRegisterIn(BaseModel):
@@ -147,6 +147,7 @@ OpType = Literal[
     "CASH_HANDOVER",
     "FUEL_EVENT",
     "METER_RESET_REQUEST",
+    "JOB_REQUEST",
 ]
 
 

@@ -90,6 +90,27 @@ def job_list_query(q: str | None, status: JobStatus | None, machine_id: uuid.UUI
     return stmt
 
 
+def job_dtos(session: Session, jobs: list[Job]) -> list[JobDto]:
+    """Job DTOs with the requesting supervisor's name (one lookup for the whole list)."""
+    staff_ids = {j.requested_by_staff_id for j in jobs if j.requested_by_staff_id}
+    names = (
+        dict(session.execute(select(StaffMember.id, StaffMember.full_name).where(StaffMember.id.in_(staff_ids))).all())
+        if staff_ids
+        else {}
+    )
+    dtos = []
+    for j in jobs:
+        dto = JobDto.model_validate(j)
+        if j.requested_by_staff_id:
+            dto.requested_by_name = names.get(j.requested_by_staff_id)
+        dtos.append(dto)
+    return dtos
+
+
+def job_dto(session: Session, job: Job) -> JobDto:
+    return job_dtos(session, [job])[0]
+
+
 class RecordLifecycleService:
     def __init__(self, session: Session, ctx: RequestContext):
         assert ctx.tenant_id is not None
@@ -239,7 +260,7 @@ class RecordLifecycleService:
         job.job_site_id = body.job_site_id or contract.job_site_id
         job.hourly_rate, job.minimum_hours, job.rate_source = rate, minimum, source
         flush_versioned(self._s, "Job")
-        dto = JobDto.model_validate(job)
+        dto = job_dto(self._s, job)
         self._record("jobs.job.updated", "job", job.id, before, dto.model_dump(mode="json"))
         OutboxWriter(self._s).emit(
             topic=TOPIC,

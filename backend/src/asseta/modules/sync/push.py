@@ -24,7 +24,7 @@ from asseta.modules.expenses.service import ExpenseService
 from asseta.modules.finance.cash_service import CashCustodyService
 from asseta.modules.finance.dto import CashCollectionIn, CashHandoverIn
 from asseta.modules.identity.principal import RequestContext
-from asseta.modules.jobs.dto import AcknowledgementIn, ActivityIn
+from asseta.modules.jobs.dto import AcknowledgementIn, ActivityIn, JobRequestIn
 from asseta.modules.jobs.models import Job
 from asseta.modules.jobs.service import JobService
 from asseta.modules.meter.dto import MeterCaptureIn, ResetIn
@@ -53,6 +53,7 @@ REQUIRED_PERMISSION = {
     "CASH_COLLECTION": "tenant.collection.record",
     "CASH_HANDOVER": "tenant.collection.record",
     "METER_RESET_REQUEST": "tenant.meter.capture",
+    "JOB_REQUEST": "tenant.job.request",
 }
 # Ops whose payload names resumable blob uploads: the op is DEFERRED (not rejected) until they complete.
 UPLOAD_FIELDS = {"EXPENSE": "receipt_upload_ids", "METER_RESET_REQUEST": "evidence_upload_id"}
@@ -241,6 +242,7 @@ class PushService:
                 CashHandoverOp.model_validate(op.payload), "SYNC"
             ),
             "METER_RESET_REQUEST": lambda: self._meter_reset(MeterResetOp.model_validate(op.payload)),
+            "JOB_REQUEST": lambda: JobService(self._s, self._ctx).request_job(JobRequestIn.model_validate(op.payload)),
         }
         try:
             with self._s.begin_nested():

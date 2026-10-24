@@ -12,7 +12,8 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from asseta.modules.fleet.models import AssignmentRole, Machine, MachineAssignment
+from asseta.modules.fleet.models import AssignmentRole, Machine, MachineAssignment, StaffMember
+from asseta.modules.geospatial.models import JobSite
 from asseta.modules.notification.types import Severity
 
 
@@ -277,18 +278,104 @@ def _expense_decided(_: Session, e: DomainEvent) -> list[Intent]:
     ]
 
 
+def _staff_name(session: Session, staff_id: object) -> str | None:
+    try:
+        sid = uuid.UUID(str(staff_id))
+    except ValueError:
+        return None
+    return session.execute(select(StaffMember.full_name).where(StaffMember.id == sid)).scalar_one_or_none()
+
+
+def _site_name(session: Session, site_id: object) -> str | None:
+    try:
+        sid = uuid.UUID(str(site_id))
+    except ValueError:
+        return None
+    return session.execute(select(JobSite.name).where(JobSite.id == sid)).scalar_one_or_none()
+
+
 @rule("JobPendingApproval")
-def _job_pending(_: Session, e: DomainEvent) -> list[Intent]:
+def _job_pending(session: Session, e: DomainEvent) -> list[Intent]:
     p = e.payload
     jid = p.get("job_id")
+    number = p.get("job_number", "")
+    body = f"Job {number} was submitted for price approval."
+    if requester := p.get("requested_by_staff_id"):
+        who = _staff_name(session, requester) or "a supervisor"
+        body = f"Job {number} was requested from the field by {who}."
+        if note := p.get("request_note"):
+            body += f" {note[:300]}"
     return [
         Intent(
             "JOB_AWAITING_APPROVAL",
             (perm("tenant.job.approve"),),
             "Job awaiting approval",
-            f"Job {p.get('job_number', '')} was submitted for price approval.",
+            body,
             _key(e),
             f"/tenant/jobs/{jid}" if jid else "/tenant/jobs",
+            "job",
+            jid,
+        )
+    ]
+
+
+@rule("JobApproved")
+def _job_approved(session: Session, e: DomainEvent) -> list[Intent]:
+    """The named supervisor learns the job is theirs to start: their own request approved, or a job the office
+    created and assigned to them."""
+    p = e.payload
+    jid, number, supervisor = p.get("job_id"), p.get("job_number", ""), p.get("supervisor_id")
+    if not supervisor:
+        return []
+    link = f"/tenant/field/jobs/{jid}" if jid else "/tenant/field/jobs"
+    if p.get("requested_by_staff_id") == supervisor:
+        return [
+            Intent(
+                "JOB_REQUEST_APPROVED",
+                (staff(supervisor),),
+                f"Job {number} approved",
+                f"Your job request {number} was approved; you can start it.",
+                _key(e),
+                link,
+                "job",
+                jid,
+            )
+        ]
+    where = _machine_label(session, p.get("machine_id"))
+    if p.get("job_site_id") and (site := _site_name(session, p["job_site_id"])):
+        where += f" at {site}"
+    return [
+        Intent(
+            "JOB_ASSIGNED",
+            (staff(supervisor),),
+            f"New job {number} assigned to you",
+            f"New job {number} assigned to you: {where}.",
+            _key(e),
+            link,
+            "job",
+            jid,
+        )
+    ]
+
+
+@rule("JobCancelled")
+def _job_cancelled(_: Session, e: DomainEvent) -> list[Intent]:
+    """A declined field request (or a cancelled job) reaches the supervisor it was for, with the reason."""
+    p = e.payload
+    jid, number, supervisor = p.get("job_id"), p.get("job_number", ""), p.get("supervisor_id")
+    if not supervisor:
+        return []
+    requested = p.get("requested_by_staff_id") == supervisor
+    verb = "declined" if requested else "cancelled"
+    reason = p.get("reason") or "no reason given"
+    return [
+        Intent(
+            "JOB_CANCELLED",
+            (staff(supervisor),),
+            f"Job {number} {verb}",
+            f"Job {number} {verb}: {reason}",
+            _key(e),
+            f"/tenant/field/jobs/{jid}" if jid else "/tenant/field/jobs",
             "job",
             jid,
         )

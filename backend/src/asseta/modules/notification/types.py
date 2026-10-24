@@ -87,6 +87,9 @@ _TYPES = (
     NotificationType("APPROVAL_PENDING_AGING", "Approval waiting", Category.REMINDER, Severity.WARNING, T, True),
     NotificationType("EXPENSE_DECIDED", "Expense decision", Category.INFO, Severity.INFO, T, low_priority=True),
     NotificationType("JOB_AWAITING_APPROVAL", "Job awaiting approval", Category.ACTION, Severity.INFO, T),
+    NotificationType("JOB_ASSIGNED", "Job assigned to you", Category.ACTION, Severity.INFO, T),
+    NotificationType("JOB_REQUEST_APPROVED", "Job request approved", Category.ACTION, Severity.INFO, T),
+    NotificationType("JOB_CANCELLED", "Job declined or cancelled", Category.INFO, Severity.WARNING, T),
     NotificationType("CUSTOMER_PAYMENT_TO_VERIFY", "Customer payment to verify", Category.ACTION, Severity.INFO, T),
     NotificationType("CASH_HANDOVER_TO_VERIFY", "Cash handover to verify", Category.ACTION, Severity.INFO, T),
     # Operations: reminders

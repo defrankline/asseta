@@ -5398,6 +5398,98 @@
         "title": "ExpenseStatus",
         "type": "string"
       },
+      "FieldContractDto": {
+        "description": "An active contract a supervisor can request a job under (customer and site names included).",
+        "properties": {
+          "contract_number": {
+            "title": "Contract Number",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "customer_id": {
+            "format": "uuid",
+            "title": "Customer Id",
+            "type": "string"
+          },
+          "customer_name": {
+            "title": "Customer Name",
+            "type": "string"
+          },
+          "ends_on": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ends On"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "job_site_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Site Id"
+          },
+          "job_site_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Site Name"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference"
+          },
+          "starts_on": {
+            "format": "date-time",
+            "title": "Starts On",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "contract_number",
+          "customer_id",
+          "customer_name",
+          "job_site_id",
+          "job_site_name",
+          "currency",
+          "starts_on",
+          "ends_on",
+          "reference"
+        ],
+        "title": "FieldContractDto",
+        "type": "object"
+      },
       "FindingDto": {
         "properties": {
           "blocking": {
@@ -7603,6 +7695,17 @@
             ],
             "title": "Approved At"
           },
+          "cancellation_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancellation Reason"
+          },
           "completed_at": {
             "anyOf": [
               {
@@ -7684,8 +7787,44 @@
             "type": "string"
           },
           "rate_source": {
+            "description": "RATE_CARD:<id> | NEGOTIATED | PENDING_PRICE (field request without a rate card: APPROVE needs hourly_rate) | OWNER_APPROVED (priced by the approver)",
             "title": "Rate Source",
             "type": "string"
+          },
+          "request_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Note"
+          },
+          "requested_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requested By Name"
+          },
+          "requested_by_staff_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Staff record of the supervisor who requested the job from the field",
+            "title": "Requested By Staff Id"
           },
           "standby_rate": {
             "anyOf": [
@@ -7922,6 +8061,78 @@
           "job_number"
         ],
         "title": "JobIn",
+        "type": "object"
+      },
+      "JobRequestIn": {
+        "description": "A supervisor's job request from the field: the server numbers and prices it and sends it for approval.",
+        "properties": {
+          "client_id": {
+            "description": "Device-generated id; becomes the job id (replays return the same job)",
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "contract_id": {
+            "format": "uuid",
+            "title": "Contract Id",
+            "type": "string"
+          },
+          "job_site_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Defaults to the contract's site",
+            "title": "Job Site Id"
+          },
+          "machine_id": {
+            "format": "uuid",
+            "title": "Machine Id",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What the customer asked for",
+            "title": "Note"
+          },
+          "planned_end": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planned End"
+          },
+          "planned_start": {
+            "format": "date-time",
+            "title": "Planned Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "contract_id",
+          "machine_id",
+          "planned_start"
+        ],
+        "title": "JobRequestIn",
         "type": "object"
       },
       "JobSiteDto": {
@@ -8204,6 +8415,22 @@
             ],
             "title": "Action",
             "type": "string"
+          },
+          "hourly_rate": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "APPROVE only: the approved hourly price (required when rate_source is PENDING_PRICE)",
+            "title": "Hourly Rate"
           },
           "reason": {
             "anyOf": [
@@ -12550,7 +12777,8 @@
               "CASH_COLLECTION",
               "CASH_HANDOVER",
               "FUEL_EVENT",
-              "METER_RESET_REQUEST"
+              "METER_RESET_REQUEST",
+              "JOB_REQUEST"
             ],
             "title": "Op Type",
             "type": "string"
@@ -47057,6 +47285,152 @@
         ]
       }
     },
+    "/api/v1/tenant/field/contracts": {
+      "get": {
+        "description": "Active contracts of active customers a job can be requested under (by contract number, reference or customer\nname, at most 100), with the customer and default site names the field apps show.",
+        "operationId": "listFieldContracts",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/FieldContractDto"
+                  },
+                  "title": "Response Listfieldcontracts",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Field Contracts",
+        "tags": [
+          "jobs"
+        ]
+      }
+    },
     "/api/v1/tenant/field/machines": {
       "get": {
         "description": "Machines the caller works on in the field: assigned to them or on a job they supervise (by asset code / name,\nat most 100). Field users have no machine register access; this is what the field apps receive on sync.",
@@ -51933,6 +52307,158 @@
         ]
       }
     },
+    "/api/v1/tenant/jobs/requests": {
+      "post": {
+        "description": "A supervisor requests a job from the field: the server assigns the job number and the rate-card price (or\nPENDING_PRICE when no rate card applies), names the caller as supervisor and sends it straight to\nPENDING_APPROVAL. `client_id` becomes the job id, so replays return the same job. 422 NO_STAFF_RECORD when the\nlogin is not linked to an active staff record.",
+        "operationId": "requestJob",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JobRequestIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobDto"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Request Job",
+        "tags": [
+          "jobs"
+        ]
+      }
+    },
     "/api/v1/tenant/jobs/{job_id}": {
       "get": {
         "operationId": "getJobSummary",
@@ -52929,6 +53455,7 @@
     },
     "/api/v1/tenant/jobs/{job_id}/transitions": {
       "post": {
+        "description": "APPROVE may carry `hourly_rate` (rate_source becomes OWNER_APPROVED); a PENDING_PRICE job (field request\nwithout a rate card) cannot be approved without it (422 PRICE_REQUIRED). Decline a request with CANCEL + reason.",
         "operationId": "transitionJob",
         "parameters": [
           {

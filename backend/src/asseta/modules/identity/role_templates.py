@@ -50,6 +50,7 @@ TENANT_TEMPLATES = (
         (
             "tenant.job.read",
             "tenant.job.log",
+            "tenant.job.request",  # request jobs from the field; the owner/manager approves them
             "tenant.meter.capture",
             "tenant.meter.read",
             "tenant.customer.read",

@@ -156,12 +156,16 @@ class Job(UuidPk, SyncRevisioned, Timestamps, Base):
     mobilization_fee: Mapped[Decimal] = mapped_column(MONEY, nullable=False)
     discount_percent: Mapped[Decimal] = mapped_column(Numeric(7, 4), nullable=False)
     tax_rate_percent: Mapped[Decimal] = mapped_column(Numeric(7, 4), nullable=False)
-    rate_source: Mapped[str] = mapped_column(String(64), nullable=False)  # RATE_CARD:<id> | NEGOTIATED
+    # RATE_CARD:<id> | NEGOTIATED | PENDING_PRICE (field request, no rate card) | OWNER_APPROVED (priced at approval)
+    rate_source: Mapped[str] = mapped_column(String(64), nullable=False)
     approved_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     cancellation_reason: Mapped[str | None] = mapped_column(Text)
+    # Set when a supervisor requested the job from the field (owner approves it); null for office-created jobs.
+    requested_by_staff_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("staff_member.id"))
+    request_note: Mapped[str | None] = mapped_column(Text)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     __mapper_args__ = {"version_id_col": version}  # noqa: RUF012
 

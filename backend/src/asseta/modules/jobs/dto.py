@@ -154,16 +154,68 @@ class JobDto(Dto):
     mobilization_fee: Money
     discount_percent: Decimal
     tax_rate_percent: Decimal
-    rate_source: str
+    rate_source: str = Field(
+        description="RATE_CARD:<id> | NEGOTIATED | PENDING_PRICE (field request without a rate card: APPROVE needs "
+        "hourly_rate) | OWNER_APPROVED (priced by the approver)"
+    )
     approved_at: datetime | None
     started_at: datetime | None
     completed_at: datetime | None
     version: int
+    cancellation_reason: str | None = None
+    requested_by_staff_id: uuid.UUID | None = Field(
+        default=None, description="Staff record of the supervisor who requested the job from the field"
+    )
+    requested_by_name: str | None = None
+    request_note: str | None = None
+
+
+class JobRequestIn(BaseModel):
+    """A supervisor's job request from the field: the server numbers and prices it and sends it for approval."""
+
+    client_id: uuid.UUID = Field(description="Device-generated id; becomes the job id (replays return the same job)")
+    contract_id: uuid.UUID
+    machine_id: uuid.UUID
+    job_site_id: uuid.UUID | None = Field(default=None, description="Defaults to the contract's site")
+    planned_start: datetime
+    planned_end: datetime | None = None
+    note: str | None = Field(default=None, max_length=1000, description="What the customer asked for")
+
+    @model_validator(mode="after")
+    def _dates(self) -> "JobRequestIn":
+        if self.planned_end is not None and self.planned_end < self.planned_start:
+            raise ValueError("planned_end must not be before planned_start")
+        return self
+
+
+class FieldContractDto(BaseModel):
+    """An active contract a supervisor can request a job under (customer and site names included)."""
+
+    id: uuid.UUID
+    contract_number: str
+    customer_id: uuid.UUID
+    customer_name: str
+    job_site_id: uuid.UUID | None
+    job_site_name: str | None
+    currency: str
+    starts_on: datetime
+    ends_on: datetime | None
+    reference: str | None
 
 
 class JobTransitionIn(BaseModel):
     action: Literal["SUBMIT", "APPROVE", "START", "COMPLETE", "CANCEL"]
     reason: str | None = Field(default=None, max_length=1000)
+    hourly_rate: Amount | None = Field(
+        default=None,
+        description="APPROVE only: the approved hourly price (required when rate_source is PENDING_PRICE)",
+    )
+
+    @model_validator(mode="after")
+    def _rate_only_on_approve(self) -> "JobTransitionIn":
+        if self.hourly_rate is not None and self.action != "APPROVE":
+            raise ValueError("hourly_rate is only accepted with APPROVE")
+        return self
 
 
 class ActivityIn(BaseModel):
