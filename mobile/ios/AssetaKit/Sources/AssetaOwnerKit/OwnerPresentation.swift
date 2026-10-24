@@ -149,7 +149,10 @@ extension OwnerFeatures {
         switch route {
         case .fleet, .machine, .alerts, .alert: fleet
         case .jobs, .job: jobs
-        case .approvals, .approval: approvals
+        case .approvals: approvalsScreen
+        case .approval: approvals
+        case let .decision(kind, _): decisionKinds.contains(kind)
+        case .accountability: accountability
         case .exceptions, .meterReset, .exception: meterEvidence
         case .fieldSpend: expenses
         case .cash, .handover: finance
@@ -160,7 +163,8 @@ extension OwnerFeatures {
 
     /// Entries of the More tab, in order.
     public var moreEntries: [String] {
-        (approvals ? ["Approvals"] : []) + (meterEvidence ? ["Meter exceptions"] : []) + (expenses ? ["Field spend"] : [])
+        (approvalsScreen ? ["Approvals"] : []) + (accountability ? [OwnerAccountabilityTexts.moreAccountability] : [])
+            + (meterEvidence ? ["Meter exceptions"] : []) + (expenses ? ["Field spend"] : [])
             + (finance ? ["Cash with supervisors"] : []) + (cases ? ["Investigations"] : [])
             + (notifications ? ["Notifications"] : []) + ["Settings"]
     }

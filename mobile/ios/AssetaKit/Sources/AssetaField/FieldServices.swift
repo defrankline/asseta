@@ -27,6 +27,8 @@ final class FieldServices: Sendable {
     /// The supervisor's own records (server copies merged with this phone's) behind every tab.
     let inbox: InboxDirectory
     let online: SupervisorOnline
+    /// Saved accountability policies and lists (custodians, cash to acknowledge, purchases, reasons).
+    let accountability: AccountabilityDirectory
 
     /// `launchAccount` is the user signed in when the app launched: owner of data written before
     /// owners were recorded.
@@ -49,6 +51,7 @@ final class FieldServices: Sendable {
         directory = FieldDirectory(store: store, tenantID: tenantID, owner: account)
         inbox = InboxDirectory(store: store, tenantID: tenantID, owner: account)
         online = SupervisorOnline(client: client, store: store, tenantID: tenantID)
+        accountability = AccountabilityDirectory(store: store, tenantID: tenantID, owner: account)
     }
 
     /// `DEVICE_REVOKED`: erase database + key, tokens and evidence files.

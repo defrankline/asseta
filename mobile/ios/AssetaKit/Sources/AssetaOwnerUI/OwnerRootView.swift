@@ -7,7 +7,7 @@ import SwiftUI
 enum OwnerTab: Hashable { case overview, fleet, jobs, alerts, more }
 
 /// Lists reachable from the "More" tab.
-enum MoreItem: Hashable { case approvals, exceptions, fieldSpend, cash, investigations, notifications, settings }
+enum MoreItem: Hashable { case approvals, accountability, exceptions, fieldSpend, cash, investigations, notifications, settings }
 
 /// Owner home for one tenant: tabs, deep links from notification taps, offline/stale state.
 public struct OwnerRootView: View {
@@ -113,6 +113,10 @@ public struct OwnerRootView: View {
             target = .more; path.append(MoreItem.approvals); path.append(route)
         case .approvals:
             target = .more; path.append(MoreItem.approvals)
+        case let .decision(kind, _) where model.features.decisionKinds.contains(kind):
+            target = .more; path.append(MoreItem.approvals); path.append(route)
+        case .accountability where model.features.accountability:
+            target = .more; path.append(MoreItem.accountability)
         case .meterReset where model.features.meterEvidence:
             target = .more; path.append(MoreItem.approvals); path.append(route)
         case .handover where model.features.finance:
@@ -164,6 +168,8 @@ struct RouteView: View {
         case .fleet: FleetView(model: model)
         case .jobs: JobsView(model: model)
         case .investigations: CasesView(model: model)
+        case let .decision(kind, id): DecisionDetailView(model: model, kind: kind, recordID: id)
+        case .accountability: AccountabilityDashboardView(model: model)
         }
     }
 }
@@ -175,6 +181,7 @@ struct MoreDestination: View {
     var body: some View {
         switch item {
         case .approvals: ApprovalsView(model: model)
+        case .accountability: AccountabilityDashboardView(model: model)
         case .exceptions: ExceptionsView(model: model, jobID: nil)
         case .fieldSpend: FieldSpendView(model: model)
         case .cash: CashView(model: model)
@@ -191,8 +198,13 @@ struct MoreView: View {
     var body: some View {
         List {
             Section {
-                if model.features.approvals {
+                if model.features.approvalsScreen {
                     NavigationLink(value: MoreItem.approvals) { Label("Approvals", systemImage: "checkmark.seal") }
+                }
+                if model.features.accountability {
+                    NavigationLink(value: MoreItem.accountability) {
+                        Label(OwnerAccountabilityTexts.moreAccountability, systemImage: "checkmark.shield")
+                    }
                 }
                 if model.features.meterEvidence {
                     NavigationLink(value: MoreItem.exceptions) {

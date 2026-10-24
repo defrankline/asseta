@@ -14,6 +14,9 @@ enum FieldRoute: Hashable {
 enum FieldSheet: Identifiable {
     case expense(ExpensePolicySnapshot), collection, handover, fuel, reset(machineID: UUID, oldReading: String?)
     case jobRequest
+    // Accountability (each gated by server capability, permission and tenant policy)
+    case hoursSale, hoursTransfer, cashTransfer, retention, cashAck(UUID, isFloat: Bool)
+    case capture(CaptureTarget, MeterPolicySnapshot)
 
     var id: String {
         switch self {
@@ -23,6 +26,12 @@ enum FieldSheet: Identifiable {
         case .fuel: "fuel"
         case .jobRequest: "job-request"
         case let .reset(machine, _): "reset-\(machine)"
+        case .hoursSale: "hours-sale"
+        case .hoursTransfer: "hours-transfer"
+        case .cashTransfer: "cash-transfer"
+        case .retention: "retention"
+        case let .cashAck(id, _): "cash-ack-\(id)"
+        case let .capture(target, _): "capture-\(target.title)-\(target.machineID?.uuidString ?? "")"
         }
     }
 }
@@ -37,6 +46,7 @@ public struct FieldRootView: View {
     @State private var paths: [SupervisorTab: [FieldRoute]] = [:]
     @State private var sheet: FieldSheet?
     @State private var blockedExpense: String?
+    @State private var blockedCapture: String?
     private let push = SupervisorPush.shared
     private let showsSwitchCompany: Bool
 
@@ -82,8 +92,18 @@ public struct FieldRootView: View {
             case .fuel: FuelFormView(model: model)
             case let .reset(machineID, oldReading): ResetRequestFormView(model: model, machineID: machineID, oldReading: oldReading)
             case .jobRequest: JobRequestFormView(model: model)
+            case .hoursSale: HoursSaleFormView(model: model)
+            case .hoursTransfer: HoursTransferFormView(model: model)
+            case .cashTransfer: CashTransferFormView(model: model)
+            case .retention: RetentionFormView(model: model)
+            case let .cashAck(id, isFloat): CashAckFormView(model: model, targetID: id, isFloat: isFloat)
+            case let .capture(target, snapshot): MeterCaptureView(model: model, target: target, snapshot: snapshot)
             }
         }
+        .alert("Can't record now", isPresented: Binding(get: { blockedCapture != nil },
+                                                       set: { if !$0 { blockedCapture = nil } })) {
+            Button("OK") { blockedCapture = nil }
+        } message: { Text(blockedCapture ?? "") }
         .alert("Can't record an expense now", isPresented: Binding(get: { blockedExpense != nil },
                                                                  set: { if !$0 { blockedExpense = nil } })) {
             Button("OK") { blockedExpense = nil }
@@ -128,7 +148,7 @@ public struct FieldRootView: View {
         case .jobs: JobsTabView(model: model, open: open).navigationTitle(model.tenant.name)
         case .readings: ReadingsTabView(model: model).navigationTitle("Readings")
         case .fuel: FuelTabView(model: model).navigationTitle("Fuel")
-        case .money: MoneyTabView(model: model).navigationTitle("Money")
+        case .money: MoneyTabView(model: model, acknowledge: { sheet = .cashAck($0, isFloat: $1) }).navigationTitle("Money")
         case .inbox: InboxTabView(model: model, open: openNotification, attention: openAttention).navigationTitle("Inbox")
         }
     }
@@ -136,8 +156,8 @@ public struct FieldRootView: View {
     @ViewBuilder private func destination(_ route: FieldRoute) -> some View {
         switch route {
         case let .job(id): JobDetailView(model: model, jobID: id)
-        case let .reading(id): ReadingDetailView(model: model, id: id, requestReset: requestReset)
-        case let .machine(id): MachineDetailView(model: model, machineID: id, requestReset: requestReset)
+        case let .reading(id): ReadingDetailView(model: model, id: id, requestReset: requestReset, capture: capture)
+        case let .machine(id): MachineDetailView(model: model, machineID: id, requestReset: requestReset, capture: capture)
         case let .resetDetail(id): ResetDetailView(model: model, id: id)
         case let .fuel(id): FuelDetailView(model: model, id: id)
         case let .expense(id): ExpenseDetailView(model: model, id: id, recordExpense: recordExpense)
@@ -160,12 +180,28 @@ public struct FieldRootView: View {
                     Button("Record fuel event", systemImage: "plus") { sheet = .fuel }.accessibilityIdentifier("fuel.add")
                 }
             case .money:
-                if model.canRecordExpenses || model.canRecordCash {
+                let a = model.access
+                let extra = a.sellHours || a.requestHoursTransfer || a.transferCash || a.askToKeepCash
+                if model.canRecordExpenses || model.canRecordCash || extra {
                     Menu {
                         if model.canRecordExpenses { Button("Record expense", systemImage: "doc.text.viewfinder") { recordExpense() } }
                         if model.canRecordCash {
                             Button("Record cash collection", systemImage: "banknote") { sheet = .collection }
                             Button("Hand over cash", systemImage: "arrow.up.forward.circle") { sheet = .handover }
+                        }
+                        if a.transferCash {
+                            Button(FieldAccountabilityTexts.menuTransferCash, systemImage: "arrow.left.arrow.right") { sheet = .cashTransfer }
+                        }
+                        if a.askToKeepCash {
+                            Button(FieldAccountabilityTexts.menuAskToKeepCash, systemImage: "hand.raised") { sheet = .retention }
+                        }
+                        if a.sellHours {
+                            Button(FieldAccountabilityTexts.menuSellHours, systemImage: "clock.badge.checkmark") { sheet = .hoursSale }
+                        }
+                        if a.requestHoursTransfer {
+                            Button(FieldAccountabilityTexts.menuRequestHoursTransfer, systemImage: "arrow.triangle.swap") {
+                                sheet = .hoursTransfer
+                            }
                         }
                     } label: { Image(systemName: "plus") }
                     .accessibilityLabel("Record").accessibilityIdentifier("money.add")
@@ -199,6 +235,15 @@ public struct FieldRootView: View {
 
     private func requestReset(_ machineID: UUID, _ oldReading: String?) { sheet = .reset(machineID: machineID, oldReading: oldReading) }
 
+    /// A daily reading, baseline or correction: the capture screen under the machine's capture rules.
+    private func capture(_ target: CaptureTarget) {
+        guard let machineID = target.machineID else { return }
+        switch model.gate(machineID: machineID) {
+        case let .allowed(snapshot): sheet = .capture(target, snapshot)
+        case let .blocked(reason): blockedCapture = reason.message
+        }
+    }
+
     /// Opens what a notification is about (marking it read), or its own detail when it points nowhere on the phone.
     private func openNotification(_ notification: NotificationDTO) {
         Task { await model.markRead(notification) }
@@ -206,6 +251,8 @@ public struct FieldRootView: View {
         case let .job(id): open(.job(id))
         case let .expense(id): open(.expense(model.inbox.expenses.first { $0.serverID == id }?.id ?? id))
         case .money: tab = .money
+        case let .machine(id):
+            if model.inbox.machines[id] != nil { open(.machine(id)) } else { open(.notification(notification.id)) }
         case .none: open(.notification(notification.id))
         }
     }

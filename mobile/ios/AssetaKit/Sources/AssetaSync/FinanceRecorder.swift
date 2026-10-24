@@ -65,11 +65,12 @@ extension FieldRecorder {
     /// Cash handed to the office; CLAIMED until finance verifies it.
     @discardableResult
     public func recordCashHandover(amountText: String, currency: String, reference: String?, note: String?,
-                                   handedAt: Date, clientID: UUID = UUID()) throws -> ClientOperation {
+                                   custodianID: UUID? = nil, handedAt: Date, clientID: UUID = UUID()) throws -> ClientOperation {
         let amount = try FinanceRules.amount(amountText)
         let payload = CashHandoverPayload(
             clientID: clientID, amount: amount, currency: try FinanceRules.currency(currency), handedAt: handedAt,
-            reference: FinanceRules.clean(reference, max: 120), note: FinanceRules.clean(note, max: 1000))
+            reference: FinanceRules.clean(reference, max: 120), note: FinanceRules.clean(note, max: 1000),
+            staffMemberID: custodianID)
         return try enqueue(.cashHandover, entityType: "cash_handover", entityID: clientID, payload: payload,
                            dependsOn: [], createdAt: handedAt)
     }

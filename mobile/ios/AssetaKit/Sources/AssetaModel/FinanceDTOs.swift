@@ -154,17 +154,23 @@ public struct CashHandoverPayload: Codable, Hashable, Sendable {
     public let reference: String?
     public let note: String?
 
-    public init(clientID: UUID, amount: Decimal, currency: String?, handedAt: Date, reference: String?, note: String?) {
+    /// The custodian who remits when a recorder records for someone else (nil = the recorder).
+    public let staffMemberID: UUID?
+
+    public init(clientID: UUID, amount: Decimal, currency: String?, handedAt: Date, reference: String?, note: String?,
+                staffMemberID: UUID? = nil) {
         self.clientID = clientID
         self.amount = DecimalString(amount)
         self.currency = currency
         self.handedAt = handedAt
         self.reference = reference
         self.note = note
+        self.staffMemberID = staffMemberID
     }
 
     enum CodingKeys: String, CodingKey {
         case amount, currency, reference, note, clientID = "client_id", handedAt = "handed_at"
+        case staffMemberID = "staff_member_id"
     }
 }
 

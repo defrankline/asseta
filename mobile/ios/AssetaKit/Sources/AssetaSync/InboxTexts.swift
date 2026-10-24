@@ -30,14 +30,16 @@ public enum JobSegment: String, CaseIterable, Sendable, Hashable {
     }
 }
 
+/// `transfers` is shown only when the server accepts cash transfers and the user records cash.
 public enum MoneySegment: String, CaseIterable, Sendable, Hashable {
-    case expenses, collections, handovers
+    case expenses, collections, handovers, transfers
 
     public var label: String {
         switch self {
         case .expenses: "Expenses"
         case .collections: "Collections"
         case .handovers: "Handovers"
+        case .transfers: FieldAccountabilityTexts.moneyTransfers
         }
     }
 }
@@ -90,7 +92,13 @@ public enum InboxTexts {
         }
     }
 
-    public static func readingKind(_ kind: String) -> String { kind == "OPENING" ? "Opening reading" : "Closing reading" }
+    public static func readingKind(_ kind: String) -> String {
+        switch kind {
+        case "OPENING": "Opening reading"
+        case "DAILY": FieldAccountabilityTexts.meterReadingKindDaily
+        default: "Closing reading"
+        }
+    }
 
     public static func captureMode(_ mode: String) -> String {
         switch mode {

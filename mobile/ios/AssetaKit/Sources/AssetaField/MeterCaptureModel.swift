@@ -5,16 +5,59 @@ import AssetaSync
 import Foundation
 import Observation
 
-/// State of one meter capture (OPENING or CLOSING). The capture id is generated once, here; the
-/// GPS attempt starts as soon as the capture screen opens and its real outcome is recorded.
+/// What a capture is for: a job reading, a DAILY reading outside a job, a baseline proposal or a correction of one of
+/// my readings (same evidence rules; Android `CaptureTarget`).
+enum CaptureTarget {
+    case job(FieldJob, ReadingKind)
+    case daily(MachineDTO)
+    case baseline(MachineDTO)
+    case correction(ReadingItem, MachineDTO)
+
+    var machine: MachineDTO? {
+        switch self {
+        case let .job(job, _): job.machine
+        case let .daily(machine), let .baseline(machine), let .correction(_, machine): machine
+        }
+    }
+
+    var machineID: UUID? {
+        switch self {
+        case let .job(job, _): job.job.machineID
+        default: machine?.id
+        }
+    }
+
+    /// The reading kind whose evidence rules apply (a baseline follows the closing/daily rules).
+    var kind: ReadingKind {
+        switch self {
+        case let .job(_, kind): kind
+        case .daily, .baseline: .daily
+        case let .correction(reading, _): ReadingKind(rawValue: reading.kind) ?? .closing
+        }
+    }
+
+    var title: String {
+        switch self {
+        case let .job(_, kind): kind == .opening ? "Opening reading" : "Closing reading"
+        case .daily: FieldAccountabilityTexts.titleDailyReading
+        case .baseline: FieldAccountabilityTexts.titleBaseline
+        case .correction: FieldAccountabilityTexts.titleCorrection
+        }
+    }
+}
+
+/// State of one meter capture (OPENING, CLOSING, DAILY, baseline or correction). The capture id is generated once,
+/// here; the GPS attempt starts as soon as the capture screen opens and its real outcome is recorded.
 @MainActor
 @Observable
 final class MeterCaptureModel {
     enum GpsState: Equatable { case locating, done(GpsPayload) }
 
-    let job: FieldJob
+    let target: CaptureTarget
     let kind: ReadingKind
     let snapshot: MeterPolicySnapshot
+    /// The baseline note or the correction reason.
+    var extraText = ""
     let requirements: CaptureRequirements
     let captureID = UUID()
 
@@ -27,16 +70,27 @@ final class MeterCaptureModel {
     private(set) var gpsState: GpsState = .locating
     var errorMessage: String?
 
-    init(job: FieldJob, kind: ReadingKind, snapshot: MeterPolicySnapshot) {
-        self.job = job
-        self.kind = kind
+    convenience init(job: FieldJob, kind: ReadingKind, snapshot: MeterPolicySnapshot) {
+        self.init(target: .job(job, kind), snapshot: snapshot)
+    }
+
+    init(target: CaptureTarget, snapshot: MeterPolicySnapshot) {
+        self.target = target
+        kind = target.kind
         self.snapshot = snapshot
-        requirements = CaptureRequirements(policy: snapshot.policy, kind: kind, decimalPlaces: job.decimalPlaces)
+        requirements = CaptureRequirements(policy: snapshot.policy, kind: target.kind,
+                                           decimalPlaces: target.machine?.meterDecimalPlaces ?? 1)
         // The mode is not a user choice: the owner's policy decides it.
         draft = CaptureDraft(mode: requirements.requiredMode)
     }
 
     var issues: [CaptureIssue] { CaptureValidator.issues(draft, requirements) }
+
+    /// A correction needs a reason of 10+ characters before it can be saved.
+    var extraBlocksSave: Bool {
+        if case .correction = target { return !AccountabilityRules.correctionReasonValid(extraText) }
+        return false
+    }
 
     /// A fresh fix for every capture (never a cached or earlier location).
     func locate(using locator: LocationCapturer) async {
@@ -92,15 +146,30 @@ final class MeterCaptureModel {
         guard issues.isEmpty, let gps = draft.gps,
               case let .success(reading) = CaptureValidator.normalizeReading(draft.readingText, decimalPlaces: requirements.decimalPlaces)
         else { return false }
-        if case let .blocked(reason) = model.gate(job) { // the snapshot may have expired meanwhile
+        guard let machineID = target.machineID else { return false }
+        if case let .blocked(reason) = model.gate(machineID: machineID) { // the snapshot may have expired meanwhile
             errorMessage = reason.message
             return false
         }
         let capturedAt = photoTakenAt ?? Date() // true device time of the reading
+        let (mode, ocr, photo, snapshot, captureID, note) = (draft.mode, draft.ocr, photo, snapshot, captureID, extraText)
         do {
-            try model.perform {
-                try $0.recordCapture(job: job.job, kind: kind, mode: draft.mode, reading: reading, ocr: draft.ocr,
-                                     photo: photo, gps: gps, capturedAt: capturedAt, snapshot: snapshot, captureID: captureID)
+            try model.perform { recorder in
+                switch target {
+                case let .job(job, kind):
+                    try recorder.recordCapture(job: job.job, kind: kind, mode: mode, reading: reading, ocr: ocr, photo: photo,
+                                               gps: gps, capturedAt: capturedAt, snapshot: snapshot, captureID: captureID)
+                case .daily:
+                    try recorder.recordDailyReading(machineID: machineID, mode: mode, reading: reading, ocr: ocr, photo: photo,
+                                                    gps: gps, capturedAt: capturedAt, snapshot: snapshot, captureID: captureID)
+                case .baseline:
+                    try recorder.proposeBaseline(machineID: machineID, reading: reading, photo: photo, gps: gps, note: note,
+                                                 capturedAt: capturedAt, baselineID: captureID)
+                case let .correction(original, _):
+                    try recorder.proposeCorrection(of: original, machineID: machineID, mode: mode, value: reading, ocr: ocr,
+                                                   photo: photo, gps: gps, capturedAt: capturedAt, reason: note,
+                                                   snapshot: snapshot, replacementID: captureID)
+                }
             }
             return true
         } catch {

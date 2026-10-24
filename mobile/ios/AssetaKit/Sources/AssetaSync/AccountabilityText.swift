@@ -36,6 +36,8 @@ public enum FieldAccountabilityTexts {
     public static let serverTooOld = "Your company's server does not accept this from the app yet."
     public static let onlineOnly = "Connect to the internet to send this request."
     public static func lastUpdated(_ time: String) -> String { "Last updated \(time)." }
+    public static let errCurrency = "Enter a 3-letter currency code." // field.common.errCurrency
+    public static let send = "Send" // field.common.send
 
     // Sell customer hours
     public static let hoursSectionCustomer = "Customer"
@@ -106,7 +108,7 @@ public enum FieldAccountabilityTexts {
     public static let cashTransferErrSame = "The sender and the receiver must be different people."
     public static let cashTransferErrAmount = "Enter the amount (more than 0)."
     public static let cashTransferErrReceived = "Enter the amount you received (0 or more)."
-    public static let currencyError = "Enter a 3-letter currency code."
+    public static let currencyError = errCurrency
 
     // Acknowledge a transfer or a float
     public static let ackSection = "Cash to acknowledge"
@@ -160,6 +162,9 @@ public enum FieldAccountabilityTexts {
     public static let meterErrCorrectionReason = "Enter a reason of at least 10 characters."
     public static let meterCorrectionNotSynced = "A reading can be corrected once the server has it."
     public static let meterCorrectionNotLive = "Only a reading the server still counts can be corrected."
+    public static let meterReadingKindDaily = "Daily reading" // field.meter.readingKindDaily
+    public static let meterNeedsSync = "Sync once while online before recording this." // field.meter.needsSync
+    public static let meterMachineMissing = "This machine is not on this device." // field.meter.machineMissing
 
     // Sync status titles (outbox)
     public static let outboxHoursSale = "Hours sale"

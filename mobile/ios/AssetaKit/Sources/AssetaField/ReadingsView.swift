@@ -73,6 +73,7 @@ struct ReadingDetailView: View {
     let model: FieldModel
     let id: UUID
     let requestReset: (UUID, String?) -> Void
+    var capture: (CaptureTarget) -> Void = { _ in }
 
     var body: some View {
         if let reading = model.inbox.readings.first(where: { $0.id == id }) {
@@ -148,6 +149,14 @@ struct ReadingDetailView: View {
                 }
             } header: { Text("Review") } footer: { Text(InboxTexts.reviewOutcome(s?.reviewStatus, findings: r.findings.count)) }
             SyncSection(operation: r.op)
+            // A live reading the server has can be corrected (a second person approves the replacement).
+            if model.access.proposeCorrection, FieldRecorder.correctionBlocked(r) == nil, let machine {
+                Section {
+                    Button(FieldAccountabilityTexts.meterProposeCorrection, systemImage: "gauge.with.dots.needle.33percent") {
+                        capture(.correction(r, machine))
+                    }
+                } footer: { Text(FieldAccountabilityTexts.meterCorrectionFooter) }
+            }
             if let machine {
                 Section {
                     Button("Request meter reset", systemImage: "wrench.and.screwdriver") { requestReset(machine.id, r.reading) }
@@ -163,6 +172,7 @@ struct MachineDetailView: View {
     let model: FieldModel
     let machineID: UUID
     let requestReset: (UUID, String?) -> Void
+    var capture: (CaptureTarget) -> Void = { _ in }
 
     var body: some View {
         if let machine = model.inbox.machines[machineID] {
@@ -188,6 +198,14 @@ struct MachineDetailView: View {
                     }
                 }
                 Section {
+                    if model.access.dailyReading {
+                        Button(FieldAccountabilityTexts.meterRecordDaily, systemImage: "gauge.with.dots.needle.33percent") {
+                            capture(.daily(machine))
+                        }
+                    }
+                    if model.access.proposeBaseline {
+                        Button(FieldAccountabilityTexts.meterProposeBaseline, systemImage: "checkmark.seal") { capture(.baseline(machine)) }
+                    }
                     Button("Request meter reset", systemImage: "wrench.and.screwdriver") { requestReset(machineID, latest?.reading) }
                 }
                 if !readings.isEmpty {

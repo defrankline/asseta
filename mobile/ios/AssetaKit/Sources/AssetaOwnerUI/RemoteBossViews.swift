@@ -116,6 +116,19 @@ struct HandoverDetailView: View {
                         Pill(text: OwnerFormat.humanize(handover.status), color: HandoverText.statusTone(handover.status).color)
                     }
                     if let note = handover.decisionNote { LabeledContent("Decision note", value: note) }
+                    if let expected = handover.expectedBalance {
+                        LabeledContent(OwnerAccountabilityTexts.remitExpected,
+                                       value: OwnerFormat.money(expected, currency: handover.currency))
+                    }
+                    if let shortfall = handover.partialShortfall {
+                        LabeledContent(OwnerAccountabilityTexts.remitShortfall,
+                                       value: OwnerFormat.money(shortfall, currency: handover.currency))
+                            .foregroundStyle(Palette.warning)
+                    }
+                    if let received = handover.amountReceived {
+                        LabeledContent(OwnerAccountabilityTexts.remitReceivedLabel,
+                                       value: OwnerFormat.money(received, currency: handover.currency))
+                    }
                 }
                 if handover.status == HandoverText.claimedStatus { decision(handover) }
                 if let message { Text(message).foregroundStyle(Brand.amber).accessibilityIdentifier("handover.message") }
@@ -182,9 +195,15 @@ struct HandoverDecisionSheet: View {
     let done: (CashHandoverDTO?, String) async -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var text = ""
+    @State private var received: String?
     @State private var working = false
     @State private var error: String?
     @State private var idempotencyKey = UUID()
+
+    private var receivedText: String { received ?? HandoverText.prefill(handover) }
+    private var canSubmit: Bool {
+        confirm ? HandoverText.canConfirm(amountReceived: receivedText, text: text) : HandoverText.canDecide(confirm: false, text: text)
+    }
 
     var body: some View {
         NavigationStack {
@@ -192,6 +211,19 @@ struct HandoverDecisionSheet: View {
                 Section {
                     Text(HandoverText.title(handover, supervisor: supervisor))
                     Text(HandoverText.claimed(handover)).foregroundStyle(.secondary)
+                }
+                if confirm {
+                    Section {
+                        TextField(OwnerAccountabilityTexts.remitAmountReceived,
+                                  text: Binding(get: { receivedText }, set: { received = $0 }))
+                            .keyboardType(.decimalPad).font(.title3.monospacedDigit())
+                            .accessibilityIdentifier("handover.confirm.received")
+                        if HandoverText.parseReceived(receivedText) == nil {
+                            Text(OwnerAccountabilityTexts.remitErrAmount).font(.footnote).foregroundStyle(Palette.offline)
+                        }
+                    } header: { Text(OwnerAccountabilityTexts.remitAmountReceived) } footer: {
+                        Text(OwnerAccountabilityTexts.remitAmountReceivedFooter)
+                    }
                 }
                 Section {
                     TextField(confirm ? HandoverText.note : HandoverText.reason, text: $text, axis: .vertical)
@@ -208,19 +240,21 @@ struct HandoverDecisionSheet: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(confirm ? HandoverText.confirm : HandoverText.dispute) { Task { await submit() } }
-                        .disabled(working || !HandoverText.canDecide(confirm: confirm, text: text))
+                        .disabled(working || !canSubmit)
                 }
             }
         }
     }
 
     private func submit() async {
-        guard let repository = model.repository, HandoverText.canDecide(confirm: confirm, text: text) else { return }
+        guard let repository = model.repository, canSubmit else { return }
         working = true
         defer { working = false }
         do {
             let updated = try await repository.send(
-                OwnerAPI.decideHandover(handover.id, confirm: confirm, note: text, idempotencyKey: idempotencyKey))
+                OwnerAPI.decideHandover(handover.id, confirm: confirm, note: text,
+                                        amountReceived: confirm ? HandoverText.parseReceived(receivedText) : nil,
+                                        idempotencyKey: idempotencyKey))
             dismiss()
             await done(updated, HandoverText.done(confirm: confirm))
         } catch {

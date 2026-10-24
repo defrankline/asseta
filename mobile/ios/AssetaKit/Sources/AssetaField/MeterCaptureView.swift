@@ -18,19 +18,24 @@ struct MeterCaptureView: View {
     @Environment(\.openURL) private var openURL
 
     init(model: FieldModel, job: FieldJob, kind: ReadingKind, snapshot: MeterPolicySnapshot) {
+        self.init(model: model, target: .job(job, kind), snapshot: snapshot)
+    }
+
+    init(model: FieldModel, target: CaptureTarget, snapshot: MeterPolicySnapshot) {
         self.model = model
-        _capture = State(initialValue: MeterCaptureModel(job: job, kind: kind, snapshot: snapshot))
+        _capture = State(initialValue: MeterCaptureModel(target: target, snapshot: snapshot))
     }
 
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    LabeledContent("Machine", value: capture.job.machine.map { "\($0.assetCode) · \($0.name)" } ?? "—")
+                    LabeledContent("Machine", value: capture.target.machine.map { "\($0.assetCode) · \($0.name)" } ?? "—")
                     LabeledContent("Method", value: capture.draft.mode == .automatic ? "Camera + automatic reading" : "Manual entry")
                 } footer: {
                     Text("Set by your company's capture rules (\(capture.snapshot.versionStamp)).")
                 }
+                targetSection
                 photoSection
                 readingSection
                 gpsSection
@@ -40,13 +45,13 @@ struct MeterCaptureView: View {
                     }
                 }
             }
-            .navigationTitle(capture.kind == .opening ? "Opening reading" : "Closing reading")
+            .navigationTitle(capture.target.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { capture.cancel(model: model); dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") { if capture.save(model: model) { dismiss() } }
-                        .disabled(!capture.issues.isEmpty || capture.isReadingPhoto)
+                        .disabled(!capture.issues.isEmpty || capture.isReadingPhoto || capture.extraBlocksSave)
                         .accessibilityIdentifier("capture.save")
                 }
             }
@@ -70,6 +75,25 @@ struct MeterCaptureView: View {
             } message: { Text(capture.errorMessage ?? "") }
         }
         .interactiveDismissDisabled()
+    }
+
+    /// What a daily reading, baseline or correction is for (and the note / reason it needs).
+    @ViewBuilder private var targetSection: some View {
+        switch capture.target {
+        case .job: EmptyView()
+        case .daily: Section { Text(FieldAccountabilityTexts.meterDailyFooter).font(.footnote) }
+        case .baseline:
+            Section {
+                TextField(FieldAccountabilityTexts.meterBaselineNote, text: $capture.extraText, axis: .vertical)
+            } footer: { Text(FieldAccountabilityTexts.meterBaselineFooter) }
+        case let .correction(original, _):
+            Section {
+                LabeledContent(FieldAccountabilityTexts.meterCorrectionOf,
+                               value: "\(InboxTexts.readingKind(original.kind)) · \(original.reading) · \(original.at.listText)")
+                TextField(FieldAccountabilityTexts.meterCorrectionReason, text: $capture.extraText, axis: .vertical)
+                    .lineLimit(2...5)
+            } footer: { Text(FieldAccountabilityTexts.meterCorrectionFooter) }
+        }
     }
 
     @ViewBuilder private var photoSection: some View {

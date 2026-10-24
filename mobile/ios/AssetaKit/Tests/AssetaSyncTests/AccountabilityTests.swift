@@ -281,4 +281,57 @@ struct AccountabilityTests {
                                                             captureMode: "MANUAL", at: .now, status: .notSynced, server: nil,
                                                             op: nil, localPayload: nil)) == FieldAccountabilityTexts.meterCorrectionNotSynced)
     }
+
+    // MARK: - Read side
+
+    @Test func cashToAcknowledgeHidesAnsweredAndOwnTransfers() throws {
+        let h = try SyncHarness()
+        try Self.supported(h.store)
+        let me = UUID(), colleague = UUID(), toMe = UUID(), fromMe = UUID(), float = UUID(), answeredFloat = UUID()
+        func transfer(_ id: UUID, from: UUID, to: UUID) -> [String: Any] {
+            ["id": id.lowercased, "client_id": NSNull(), "from_staff_id": from.lowercased, "to_staff_id": to.lowercased,
+             "amount_declared": "50000", "currency": "TZS", "transferred_at": "2026-10-24T08:00:00Z", "note": NSNull(),
+             "status": "PENDING_ACKNOWLEDGEMENT", "source": "SYNC", "recorded_by": NSNull(), "recorded_at": "2026-10-24T08:00:00Z",
+             "amount_received": NSNull(), "ack_method": NSNull(), "acknowledged_by": NSNull(), "acknowledged_at": NSNull(),
+             "ack_note": NSNull(), "variance_id": NSNull()]
+        }
+        func entry(_ id: UUID) -> [String: Any] {
+            ["id": id.lowercased, "staff_member_id": me.lowercased, "entry_type": "FLOAT_ISSUED", "amount": "100000",
+             "currency": "TZS", "occurred_at": "2026-10-24T07:00:00Z", "reference": NSNull(), "note": NSNull(),
+             "ack_required": true, "ack_status": "PENDING"]
+        }
+        func save(_ key: String, _ items: [[String: Any]]) throws {
+            let doc: [String: Any] = ["value": items, "forbidden": false, "fetched_at": "2026-10-24T09:00:00Z"]
+            try h.store.syncState.setValue(String(decoding: try JSONSerialization.data(withJSONObject: doc), as: UTF8.self),
+                                           for: key, tenant: SyncFixtures.tenant.uuidString.lowercased())
+        }
+        try save(AccountabilityKey.pendingTransfers, [transfer(toMe, from: colleague, to: me), transfer(fromMe, from: me, to: colleague)])
+        try save(AccountabilityKey.pendingFloats, [entry(float), entry(answeredFloat)])
+        try h.recorder.acknowledgeCash(targetID: answeredFloat, isFloat: true, acknowledge: true, receivedText: "100000", note: "")
+        let directory = AccountabilityDirectory(store: h.store, tenantID: SyncFixtures.tenant, owner: nil)
+        let pending = directory.toAcknowledge(myStaffID: me)
+        #expect(pending.transfers.map(\.id) == [toMe])
+        #expect(pending.floats.map(\.id) == [float])
+        // Policies saved online gate the entries (strict: unknown policy hides them).
+        #expect(!directory.access(permissions: Array(Self.permissions)).sellHours)
+        let policy: [String: Any] = ["value": ["enabled": true, "walk_in_allowed": false, "transfer_requires_approval": true,
+                                               "reason_code_required": false], "forbidden": false, "fetched_at": "2026-10-24T09:00:00Z"]
+        try h.store.syncState.setValue(String(decoding: try JSONSerialization.data(withJSONObject: policy), as: UTF8.self),
+                                       for: AccountabilityKey.hoursPolicy, tenant: SyncFixtures.tenant.uuidString.lowercased())
+        let access = directory.access(permissions: Array(Self.permissions))
+        #expect(access.sellHours && !access.walkIn && access.requestHoursTransfer && !access.recordForOthers)
+    }
+
+    @Test func inboxWordingForTheNewRecords() {
+        #expect(InboxTexts.readingKind("DAILY") == "Daily reading")
+        #expect(FindingTexts.type("MISSING_DAILY_REPORT") == "Daily report missing")
+        let id = UUID()
+        #expect(InboxLink.from(entity: "cash_transfer", id: id.lowercased) == .money)
+        #expect(InboxLink.from(entity: "supervisor_cash_custody", id: nil) == .money)
+        #expect(InboxLink.from(entity: "machine", id: id.lowercased) == .machine(id))
+        #expect(MoneySegment.transfers.label == "Transfers")
+        #expect(FieldAccountabilityTexts.operationTitle(.hoursPurchase, payload: nil) == "Hours sale")
+        #expect(FieldAccountabilityTexts.operationTitle(.meterCapture, payload: .object(["kind": .string("DAILY")])) == "Daily reading")
+        #expect(FieldAccountabilityTexts.operationTitle(.meterCapture, payload: .object(["kind": .string("OPENING")])) == nil)
+    }
 }

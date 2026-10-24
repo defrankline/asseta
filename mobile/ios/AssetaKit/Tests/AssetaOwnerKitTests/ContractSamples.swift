@@ -20,6 +20,12 @@ enum Contract {
         return schemas
     }()
 
+    /// The whole contract (paths and components).
+    static func root() throws -> [String: Any] {
+        let data = try Data(contentsOf: repositoryRoot.appendingPathComponent("contracts/openapi.json"))
+        return try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
+    }
+
     /// Missing required properties of `schema` in `json`, as dotted paths (empty = conforms).
     static func missingRequired(schema: String, json: String) throws -> [String] {
         let value = try JSONSerialization.jsonObject(with: Data(json.utf8), options: [.fragmentsAllowed])

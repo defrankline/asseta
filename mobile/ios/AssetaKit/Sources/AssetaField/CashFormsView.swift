@@ -17,6 +17,7 @@ struct CashCollectionFormView: View {
     @State private var reference = ""
     @State private var note = ""
     @State private var receivedAt = Date()
+    @State private var holderID: UUID?
     @State private var error: String?
 
     var body: some View {
@@ -30,6 +31,7 @@ struct CashCollectionFormView: View {
                     SearchablePickerField(label: "Customer", options: model.customerOptions, selection: $customerID,
                                           emptyMessage: "Customers of your jobs appear here after a sync.",
                                           identifier: "collection.customer")
+                    holderPicker
                 }
                 Section {
                     TextField("Amount", text: $amount).keyboardType(.decimalPad).font(.title3.monospacedDigit())
@@ -57,6 +59,17 @@ struct CashCollectionFormView: View {
         }
     }
 
+    /// Recorders may record for another cash holder when the company allows it (operators hold cash without a login).
+    @ViewBuilder private var holderPicker: some View {
+        if model.access.recordForOthers {
+            SearchablePickerField(label: FieldAccountabilityTexts.cashHolder, options: model.custodianOptions(),
+                                  selection: Binding(get: { holderID ?? model.myStaffID }, set: { holderID = $0 }),
+                                  emptyMessage: FieldAccountabilityTexts.cashTransferCustodiansEmpty, identifier: "cash.holder")
+        }
+    }
+
+    private var holder: UUID? { holderID.flatMap { model.access.recordForOthers && $0 != model.myStaffID ? $0 : nil } }
+
     /// A job pre-selects its customer (via its contract).
     private func selectJob(_ id: UUID?) {
         if let customer = id.flatMap({ model.job($0)?.customer?.id }) { customerID = customer }
@@ -69,7 +82,7 @@ struct CashCollectionFormView: View {
                                             reference: reference, note: note,
                                             jobNumber: jobID.flatMap { model.job($0)?.job.jobNumber },
                                             jobCustomerID: jobID.flatMap { model.job($0)?.customer?.id },
-                                            receivedAt: receivedAt, clientID: clientID)
+                                            custodianID: holder, receivedAt: receivedAt, clientID: clientID)
             }
             dismiss()
         } catch {
@@ -88,6 +101,7 @@ struct CashHandoverFormView: View {
     @State private var reference = ""
     @State private var note = ""
     @State private var handedAt = Date()
+    @State private var holderID: UUID?
     @State private var error: String?
 
     var body: some View {
@@ -102,6 +116,7 @@ struct CashHandoverFormView: View {
                     }
                 }
                 Section {
+                    holderPicker
                     TextField("Amount handed over", text: $amount).keyboardType(.decimalPad)
                         .font(.title3.monospacedDigit()).accessibilityIdentifier("handover.amount")
                     TextField("Currency", text: $currency)
@@ -130,13 +145,24 @@ struct CashHandoverFormView: View {
         do {
             try model.perform {
                 try $0.recordCashHandover(amountText: amount, currency: currency, reference: reference, note: note,
-                                          handedAt: handedAt, clientID: clientID)
+                                          custodianID: holder, handedAt: handedAt, clientID: clientID)
             }
             dismiss()
         } catch {
             self.error = JobDetailView.describe(error)
         }
     }
+
+    /// Recorders may record for another cash holder when the company allows it (operators hold cash without a login).
+    @ViewBuilder private var holderPicker: some View {
+        if model.access.recordForOthers {
+            SearchablePickerField(label: FieldAccountabilityTexts.cashHolder, options: model.custodianOptions(),
+                                  selection: Binding(get: { holderID ?? model.myStaffID }, set: { holderID = $0 }),
+                                  emptyMessage: FieldAccountabilityTexts.cashTransferCustodiansEmpty, identifier: "cash.holder")
+        }
+    }
+
+    private var holder: UUID? { holderID.flatMap { model.access.recordForOthers && $0 != model.myStaffID ? $0 : nil } }
 }
 
 /// Fuel event (`FUEL_EVENT`): PURCHASE (bought, priced), ISSUE (given to a machine, priced) or

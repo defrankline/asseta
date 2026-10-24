@@ -93,6 +93,8 @@ struct FuelDetailView: View {
 /// decisions. "+" opens the existing forms.
 struct MoneyTabView: View {
     let model: FieldModel
+    /// Opens the answer to a transfer (`false`) or a float (`true`) waiting for me.
+    var acknowledge: (UUID, Bool) -> Void = { _, _ in }
     @State private var segment: MoneySegment = .expenses
     /// The last fetch per currency; nil when it failed (the saved figures are used then).
     @State private var reconciliation: [String: CashReconciliationDayDTO]?
@@ -111,7 +113,9 @@ struct MoneyTabView: View {
                 ContentUnavailableView("No cash balance yet", systemImage: "banknote",
                                        description: Text("Your cash custody appears here after a sync."))
             }
-            FilterChips(options: MoneySegment.allCases.map { ($0, $0.label) }, selection: $segment)
+            CashToAcknowledgeSection(model: model, open: acknowledge)
+            FilterChips(options: MoneySegment.allCases.filter { $0 != .transfers || model.access.transferCash }.map { ($0, $0.label) },
+                        selection: $segment)
             switch segment {
             case .expenses:
                 if model.inbox.expenses.isEmpty {
@@ -135,10 +139,17 @@ struct MoneyTabView: View {
             case .handovers:
                 cashList(model.inbox.handovers, empty: ("No cash handovers",
                                                         "Cash you hand over to the office appears here with its verification."))
+            case .transfers:
+                TransfersSegment(model: model)
             }
         }
-        .refreshable { await model.sync(force: true); await loadReconciliation(summary) }
-        .task(id: model.isSyncing) { if !model.isSyncing { await loadReconciliation(summary) } }
+        .refreshable { await model.sync(force: true); await model.refreshAccountability(); await loadReconciliation(summary) }
+        .task(id: model.isSyncing) {
+            if !model.isSyncing {
+                await model.refreshAccountability()
+                await loadReconciliation(summary)
+            }
+        }
     }
 
     @ViewBuilder private func cashList(_ items: [CashItem], empty: (String, String)) -> some View {

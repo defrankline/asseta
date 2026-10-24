@@ -25,6 +25,10 @@ public final class FieldModel {
     public private(set) var notifications: [NotificationDTO] = []
     /// The last notification refresh could not reach the server (the saved list is shown).
     public private(set) var notificationsOffline = false
+    /// What the accountability entries need: server capabilities, permissions and the saved tenant policies.
+    public private(set) var access = FieldAccess(capabilities: nil, permissions: [])
+    /// Bumped whenever the saved accountability lists change (views re-read them).
+    public private(set) var accountabilityTick = 0
 
     let session: SessionModel
     let tenant: TenantMembership
@@ -67,6 +71,7 @@ public final class FieldModel {
         }
         await sync(force: true)
         await refreshNotifications()
+        await refreshAccountability()
         // Saved for offline job requests (the form refreshes them again when opened online).
         if canRequestJobs { await refreshRequestLookups() }
     }
@@ -111,6 +116,8 @@ public final class FieldModel {
         jobs = (try? services.directory.jobs()) ?? []
         overview = try? services.directory.overview()
         inbox = (try? services.inbox.snapshot()) ?? InboxSnapshot()
+        access = services.accountability.access(permissions: tenant.permissions)
+        accountabilityTick += 1
         if notifications.isEmpty { notifications = services.online.cachedNotifications()?.items ?? [] }
     }
 

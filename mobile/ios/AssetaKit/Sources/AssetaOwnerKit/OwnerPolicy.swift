@@ -29,9 +29,23 @@ public struct OwnerFeatures: Equatable, Sendable {
     public let reviewExceptions: Bool
     public let expenses: Bool
     public let notifications: Bool
+    /// The accountability dashboard summary (`tenant.accountability.read`).
+    public let accountability: Bool
+    /// Accountability decisions this role may list (each kind by its read permission), in Approvals order.
+    public let decisionKinds: [DecisionKind]
+    /// The `/me` permission hints (decide permissions per decision kind).
+    public let permissions: [String]
+
+    /// The Approvals screen shows approval requests or at least one kind of accountability decision.
+    public var approvalsScreen: Bool { approvals || !decisionKinds.isEmpty }
+
+    public func canDecide(_ kind: DecisionKind) -> Bool { kind.decidable(permissions: permissions) }
 
     public init(permissions: [String]) {
         let set = Set(permissions)
+        self.permissions = permissions
+        accountability = set.contains("tenant.accountability.read")
+        decisionKinds = DecisionKind.allCases.filter { $0.visible(permissions: permissions) }
         fleet = set.contains("tenant.fleet.read")
         manageAlerts = set.contains("tenant.fleet.alert_manage")
         jobs = set.contains("tenant.job.read")

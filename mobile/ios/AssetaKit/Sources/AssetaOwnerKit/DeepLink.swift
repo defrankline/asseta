@@ -27,6 +27,11 @@ public enum OwnerRoute: Hashable, Sendable {
     /// Open by notification id; the app fetches it and follows its `target`.
     case notification(UUID)
     case notifications
+    /// One accountability decision (discount, credit, hours transfer/cancellation, baseline, classification,
+    /// correction, write-off, retention, custody adjustment).
+    case decision(DecisionKind, UUID)
+    /// The accountability dashboard summary.
+    case accountability
 }
 
 /// A route plus the tenant it belongs to (a push may concern another company the user belongs to).
@@ -57,11 +62,28 @@ public enum DeepLinkParser {
         case let ("meter_reset", id?): return .meterReset(id)
         case ("meter_reset", nil): return .approvals
         case ("exception", _): return .exceptions(jobID: nil)
+        case let ("job_exception", id?): return .exception(id)
+        case let ("cash_handover", id?): return .handover(id)
+        case ("cash_transfer", _), ("supervisor_cash_custody", _): return .cash
+        case ("hours_purchase", _): return .accountability
+        case let (entity, id?) where DecisionKind(entity: entity) != nil: return .decision(DecisionKind(entity: entity)!, id)
+        case let (entity, nil) where DecisionKind(entity: entity) != nil: return .approvals
         default: return path.flatMap(route(path:))
         }
     }
 
+    /// Notification types whose screen is fixed whatever the record (strings doc "Notification deep links").
+    public static func route(type: String?) -> OwnerRoute? {
+        switch type {
+        case "CASH_VARIANCE_OPENED": .approvals
+        case "HOURS_EXPIRING": .accountability
+        case "CASH_TRANSFER_TO_ACKNOWLEDGE", "CASH_FLOAT_TO_ACKNOWLEDGE": .cash
+        default: nil
+        }
+    }
+
     public static func route(for notification: NotificationDTO) -> OwnerRoute {
+        if let fixed = route(type: notification.type) { return fixed }
         guard let target = notification.target else { return .notifications }
         return route(entity: target.entity, id: target.id, path: target.path) ?? .notifications
     }
@@ -83,6 +105,27 @@ public enum DeepLinkParser {
         case let ("meter-resets", id?): return .meterReset(id)
         case ("meter-resets", nil): return .approvals
         case ("exceptions", _): return .exceptions(jobID: nil)
+        case let ("customer-discounts", id?): return .decision(.discount, id)
+        case let ("credit-arrangements", id?): return .decision(.credit, id)
+        case let ("hours-transfers", id?): return .decision(.hoursTransfer, id)
+        case let ("hours-cancellations", id?): return .decision(.cancellation, id)
+        case let ("meter-baselines", id?): return .decision(.baseline, id)
+        case let ("meter-corrections", id?): return .decision(.correction, id)
+        case ("customer-discounts", nil), ("credit-arrangements", nil), ("hours-transfers", nil), ("hours-cancellations", nil),
+             ("meter-baselines", nil), ("meter-corrections", nil):
+            return .approvals
+        case ("hours", _): return .accountability
+        case ("engine-hours", _):
+            if parts.count >= 4, parts[2] == "machines", let machine = UUID(uuidString: parts[3]) { return .machine(machine) }
+            if parts.count >= 4, parts[2] == "classifications", let record = UUID(uuidString: parts[3]) {
+                return .decision(.classification, record)
+            }
+            return .approvals
+        case ("cash", _):
+            if parts.count >= 4, parts[2] == "handovers", let handover = UUID(uuidString: parts[3]) { return .handover(handover) }
+            if parts.count >= 3, parts[2] == "variances" { return .approvals }
+            return .cash
+        case ("accountability", _): return .accountability
         case ("fleet", _):
             if parts.count >= 4, parts[2] == "machines", let machine = UUID(uuidString: parts[3]) {
                 return .machine(machine)
@@ -106,6 +149,9 @@ public enum DeepLinkParser {
         }
         let tenant = string("tenant_id").flatMap(UUID.init(uuidString:))
         let notificationID = string("notification_id").flatMap(UUID.init(uuidString:))
+        if let fixed = route(type: string("type")) {
+            return DeepLink(tenantID: tenant, route: fixed, notificationID: notificationID)
+        }
         if let entity = string("entity"), let route = route(entity: entity, id: string("entity_id"), path: nil) {
             return DeepLink(tenantID: tenant, route: route, notificationID: notificationID)
         }
@@ -126,8 +172,9 @@ extension OwnerRoute {
     /// Whether the route opens one specific record (as opposed to a list).
     public var identifiesRecord: Bool {
         switch self {
-        case .machine, .alert, .approval, .investigation, .job, .meterReset, .handover, .exception, .notification: true
-        case .fleet, .jobs, .investigations, .alerts, .approvals, .exceptions, .fieldSpend, .cash, .notifications: false
+        case .machine, .alert, .approval, .investigation, .job, .meterReset, .handover, .exception, .notification, .decision: true
+        case .fleet, .jobs, .investigations, .alerts, .approvals, .exceptions, .fieldSpend, .cash, .notifications,
+             .accountability: false
         }
     }
 }

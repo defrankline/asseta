@@ -245,7 +245,8 @@ extension FieldRecorder {
         if let blocked = unavailable(capability) { throw FieldRecorderError.notAllowed(blocked) }
     }
 
-    func alreadySaved(_ type: OperationType, clientID: UUID) throws -> Bool {
+    /// An operation of `type` for this record/form is already on this phone (one answer per transfer/float).
+    public func alreadySaved(_ type: OperationType, clientID: UUID) throws -> Bool {
         try store.outbox.operations(tenantID: tenantID, owner: owner?.subject, statuses: Set(ClientOperationStatus.allCases))
             .contains { $0.opType == type.rawValue && $0.entityID == clientID }
     }

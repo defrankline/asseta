@@ -182,7 +182,8 @@ public enum JobFigures {
 
 /// What tapping a server notification opens (from its `target`).
 public enum InboxLink: Sendable, Equatable {
-    case job(UUID), expense(UUID), money, none
+    /// `machine`: a machine of mine (missing daily report, unexplained engine hours).
+    case job(UUID), expense(UUID), money, machine(UUID), none
 
     public static func from(entity: String?, id: String?) -> InboxLink {
         let uuid = id.flatMap(UUID.init(uuidString:))
@@ -190,6 +191,9 @@ public enum InboxLink: Sendable, Equatable {
         case "job": return uuid.map(InboxLink.job) ?? .none
         case "expense": return uuid.map(InboxLink.expense) ?? .none
         case "staff_member", "cash_custody": return .money
+        // Cash transfers and floats to acknowledge are answered on the Money tab.
+        case "cash_transfer", "supervisor_cash_custody": return .money
+        case "machine": return uuid.map(InboxLink.machine) ?? .none
         default: return .none
         }
     }
@@ -240,6 +244,11 @@ public enum FindingTexts {
         case "TELEMETRY_MISMATCH": "Does not match the tracker"
         case "CLOCK_SKEW": "Phone clock was wrong"
         case "POLICY_SNAPSHOT_UNVERIFIED": "Capture rules could not be verified"
+        case "HOURS_OVERRUN": "Hours beyond purchase"
+        case "UNEXPLAINED_HOURS": "Engine hours not yet explained"
+        case "MISSING_DAILY_REPORT": "Daily report missing"
+        case "OVERLAPPING_ALLOCATION": "Overlaps another job's hours"
+        case "OVERLAPPING_ACTIVITY": "Overlapping work log entries"
         default: InboxTexts.sentence(code)
         }
     }

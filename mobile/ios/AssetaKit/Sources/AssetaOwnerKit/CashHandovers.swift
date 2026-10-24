@@ -21,26 +21,41 @@ public struct CashHandoverDTO: Codable, Hashable, Sendable, Identifiable {
     public let verifiedBy: UUID?
     public let verifiedAt: Date?
     public let decisionNote: String?
+    /// What the office counted when confirming (may differ from the declared amount).
+    public let amountReceived: DecimalString?
+    /// The custodian's expected balance when remitted, and the part not covered by an approved retention
+    /// (non-null = flagged as a partial remittance).
+    public let expectedBalance: DecimalString?
+    public let partialShortfall: DecimalString?
 
     enum CodingKeys: String, CodingKey {
         case id, amount, currency, reference, note, status, source
         case clientID = "client_id", staffMemberID = "staff_member_id", handedAt = "handed_at"
         case recordedBy = "recorded_by", recordedAt = "recorded_at", verifiedBy = "verified_by"
-        case verifiedAt = "verified_at", decisionNote = "decision_note"
+        case verifiedAt = "verified_at", decisionNote = "decision_note", amountReceived = "amount_received"
+        case expectedBalance = "expected_balance", partialShortfall = "partial_shortfall"
     }
 }
 
-/// `SettlementDecisionIn`: `verified` true confirms the handover, false disputes it.
+/// `RemittanceDecisionIn`: `verified` true confirms the remittance with the amount actually received, false disputes it.
 public struct SettlementDecisionIn: Encodable, Hashable, Sendable {
     public let verified: Bool
     public let note: String?
+    public let amountReceived: DecimalString?
 
-    enum CodingKeys: String, CodingKey { case verified, note }
+    public init(verified: Bool, note: String?, amountReceived: DecimalString? = nil) {
+        self.verified = verified
+        self.note = note
+        self.amountReceived = amountReceived
+    }
+
+    enum CodingKeys: String, CodingKey { case verified, note, amountReceived = "amount_received" }
 
     public func encode(to encoder: any Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(verified, forKey: .verified)
         try c.encodeIfPresent(note, forKey: .note)
+        if verified { try c.encodeIfPresent(amountReceived, forKey: .amountReceived) }
     }
 }
 
@@ -97,11 +112,14 @@ extension OwnerAPI {
         .get("\(tenant)/cash/handovers", query: paging(page, pageSize) + compact([("status", status)]))
     }
 
-    /// Confirms (`verified: true`) or disputes a claimed handover; never by the person who recorded it.
-    public static func decideHandover(_ id: UUID, confirm: Bool, note: String?,
+    /// Confirms (`verified: true`, with the amount actually received) or disputes a claimed handover; never by the
+    /// person who recorded it.
+    public static func decideHandover(_ id: UUID, confirm: Bool, note: String?, amountReceived: Decimal? = nil,
                                       idempotencyKey: UUID) throws -> APIRequest<CashHandoverDTO> {
         try .mutation(.post, "\(tenant)/cash/handovers/\(id.lowercased)/decision",
-                      body: SettlementDecisionIn(verified: confirm, note: note.nonEmpty), idempotencyKey: idempotencyKey)
+                      body: SettlementDecisionIn(verified: confirm, note: note.nonEmpty,
+                                                 amountReceived: amountReceived.map(DecimalString.init)),
+                      idempotencyKey: idempotencyKey)
     }
 
     /// Issues a cash float into a supervisor's custody (added to what they must account for).
@@ -158,6 +176,21 @@ public enum HandoverText {
         guard trimmed.count <= maxNoteLength else { return false }
         return confirm || !trimmed.isEmpty
     }
+
+    /// Confirming also needs the amount received (0 or more), prefilled with the declared amount.
+    public static func canConfirm(amountReceived: String, text: String) -> Bool {
+        parseReceived(amountReceived) != nil && canDecide(confirm: true, text: text)
+    }
+
+    /// The counted amount: a plain decimal of 0 or more (`150000`, `150,000.50`), else nil.
+    public static func parseReceived(_ text: String) -> Decimal? {
+        let cleaned = text.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: "")
+        guard let value = DecimalString(string: cleaned)?.value, value >= 0 else { return nil }
+        return value
+    }
+
+    /// The declared amount as the editable starting value ("150000.5").
+    public static func prefill(_ h: CashHandoverDTO) -> String { h.amount.description }
 
     public static func done(confirm: Bool) -> String { confirm ? confirmed : disputed }
 

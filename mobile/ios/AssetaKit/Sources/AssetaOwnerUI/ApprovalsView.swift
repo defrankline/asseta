@@ -20,8 +20,23 @@ struct ApprovalsView: View {
 
     var body: some View {
         List {
-            FilterChips(options: ApprovalText.filters, selection: $status)
-                .listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
+            if model.features.approvals {
+                FilterChips(options: ApprovalText.filters, selection: $status)
+                    .listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
+                approvalRequests
+            }
+            ForEach(model.features.decisionKinds, id: \.self) { kind in
+                DecisionKindSection(model: model, kind: kind)
+            }
+            otherSections
+        }
+        .staleBanner(loader, model: model)
+        .navigationTitle("Approvals")
+        .refreshable { await reload() }
+        .task(id: ReloadKey(tick: model.changeTick, filter: status.rawValue)) { await reload() }
+    }
+
+    @ViewBuilder private var approvalRequests: some View {
             if let page = loader.value {
                 if page.items.isEmpty {
                     EmptyState(title: ApprovalText.emptyTitle, message: ApprovalText.emptyMessage, systemImage: "checkmark.seal")
@@ -34,6 +49,9 @@ struct ApprovalsView: View {
             } else {
                 ProgressView().frame(maxWidth: .infinity)
             }
+    }
+
+    @ViewBuilder private var otherSections: some View {
             if model.features.jobs {
                 Section(JobApprovalText.sectionTitle) {
                     let items = pendingJobs.value?.items ?? []
@@ -74,20 +92,20 @@ struct ApprovalsView: View {
                     }
                 }
             }
-        }
-        .staleBanner(loader, model: model)
-        .navigationTitle("Approvals")
-        .refreshable { await reload() }
-        .task(id: ReloadKey(tick: model.changeTick, filter: status.rawValue)) { await reload() }
     }
 
     private func reload() async {
-        async let a: Void = loader.load(model, .approvals(status), OwnerAPI.approvals(status: status, pageSize: 100))
+        async let a: Void = loadApprovals()
         async let b: Void = loadResets()
         async let c: Void = loadPendingJobs()
         async let d: Void = loadHandovers()
         async let e: Void = loadExceptions()
         _ = await (a, b, c, d, e)
+    }
+
+    private func loadApprovals() async {
+        guard model.features.approvals else { return }
+        await loader.load(model, .approvals(status), OwnerAPI.approvals(status: status, pageSize: 100))
     }
 
     private func loadHandovers() async {
