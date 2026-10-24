@@ -251,9 +251,11 @@ public struct AnomalyCaseDetailDTO: Codable, Hashable, Sendable {
 
 public struct MeterCaptureDTO: Codable, Hashable, Sendable, Identifiable {
     public let id: UUID
-    public let jobID: UUID
+    /// Nil for a DAILY reading outside a job.
+    public let jobID: UUID?
     public let machineID: UUID
-    public let kind: ReadingKind
+    /// Kept as text so a reading kind added later never breaks a list.
+    public let kind: String
     public let captureMode: String
     public let reading: DecimalString
     public let ocrValue: DecimalString?

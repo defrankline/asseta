@@ -190,4 +190,23 @@ struct SyncContractTests {
         let expense = try AssetaJSON.decoder().decode(SyncExpenseDTO.self, from: try JSONSerialization.data(withJSONObject: Self.expense))
         #expect(expense.decisionNote == "No receipt" && expense.receiptAttachmentIDs.count == 1)
     }
+
+    /// Compatibility: a DAILY reading outside a job arrives with `job_id: null` (METER_DAILY_READING); it must decode
+    /// everywhere (pull, inbox, readings lists) and never drop the batch.
+    @Test func dailyReadingWithNullJobDecodes() throws {
+        var daily = Self.capture
+        daily["job_id"] = NSNull()
+        daily["kind"] = "DAILY"
+        let dto = try AssetaJSON.decoder().decode(SyncMeterCaptureDTO.self, from: try JSONSerialization.data(withJSONObject: daily))
+        #expect(dto.jobID == nil && dto.kind == "DAILY")
+        try Self.check("SyncMeterCaptureDto", encoded: Self.roundTrip(SyncMeterCaptureDTO.self, daily), sample: daily)
+        let data: [String: Any] = ["my_meter_captures": [daily, Self.capture]]
+        let decoded = try AssetaJSON.decoder().decode(SyncData.self, from: try JSONSerialization.data(withJSONObject: data))
+        #expect(decoded.inbox[.meterCaptures]?.count == 2)
+        var owner = daily
+        for key in ["sync_revision", "review_status", "findings"] { owner.removeValue(forKey: key) }
+        let capture = try AssetaJSON.decoder().decode(MeterCaptureDTO.self, from: try JSONSerialization.data(withJSONObject: owner))
+        #expect(capture.jobID == nil && capture.kind == "DAILY")
+        #expect(ReadingKind(rawValue: "DAILY") == .daily)
+    }
 }

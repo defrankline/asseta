@@ -6,7 +6,8 @@ import Foundation
 /// (its outbox operation) with its sync state. Same model as Android `ReadingItem`.
 public struct ReadingItem: Sendable, Identifiable, Equatable {
     public let id: UUID
-    public let jobID: UUID
+    /// Nil for a DAILY reading outside a job.
+    public let jobID: UUID?
     public let machineID: UUID?
     public let kind: String
     public let reading: String
@@ -163,7 +164,7 @@ public struct InboxSnapshot: Sendable, Equatable {
 
     public func readings(ofJob jobID: UUID) -> [ReadingItem] { readings.filter { $0.jobID == jobID } }
 
-    public func machine(of reading: ReadingItem) -> UUID? { reading.machineID ?? jobs[reading.jobID]?.machineID }
+    public func machine(of reading: ReadingItem) -> UUID? { reading.machineID ?? reading.jobID.flatMap { jobs[$0]?.machineID } }
 
     /// Latest counted reading per machine (my captures).
     public func latestReadingByMachine() -> [UUID: ReadingItem] {
@@ -251,11 +252,12 @@ public struct InboxDirectory: Sendable {
         ).compactMap { m -> ReadingItem? in
             let s = m.server
             let p = payload(m.local)
-            guard let id = s?.id ?? m.local?.entityID, let job = s?.jobID ?? uuid(p, "job_id") else { return nil }
+            guard let id = s?.id ?? m.local?.entityID else { return nil }
+            let job = s?.jobID ?? uuid(p, "job_id")
             let server = s.map { InboxStatusRules.reading(state: $0.state, reviewStatus: $0.reviewStatus,
                                                           findingStatuses: $0.findings.map(\.status)) }
             return ReadingItem(
-                id: id, jobID: job, machineID: s?.machineID, kind: s?.kind ?? text(p, "kind") ?? "",
+                id: id, jobID: job, machineID: s?.machineID ?? uuid(p, "machine_id"), kind: s?.kind ?? text(p, "kind") ?? "",
                 reading: s?.reading ?? text(p, "reading") ?? "", captureMode: s?.captureMode ?? text(p, "capture_mode") ?? "",
                 at: date(p, "captured_at") ?? s?.capturedAt ?? m.local?.createdAtDevice ?? .distantPast,
                 status: InboxStatusRules.combined(local: m.local?.status, server: server), server: s, op: m.local,

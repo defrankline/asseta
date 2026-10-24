@@ -251,7 +251,7 @@ public enum MachineText {
 public enum ReadingText {
     public static let photoFooter = "Evidence photos are downloaded only when you open them and are never saved on this phone."
 
-    public static func title(_ c: MeterCaptureDTO) -> String { "\(OwnerFormat.humanize(c.kind.rawValue)) · \(c.reading.description)" }
+    public static func title(_ c: MeterCaptureDTO) -> String { "\(OwnerFormat.humanize(c.kind)) · \(c.reading.description)" }
 
     /// "22 Oct 2026, 14:05 · Ocr · corrected by hand · OCR 93% · GPS ok"
     public static func detail(_ c: MeterCaptureDTO) -> String {

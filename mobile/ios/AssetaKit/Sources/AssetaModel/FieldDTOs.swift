@@ -101,7 +101,8 @@ public enum CaptureMode: String, Codable, Sendable, CaseIterable {
 }
 
 public enum ReadingKind: String, Codable, Sendable, CaseIterable {
-    case opening = "OPENING", closing = "CLOSING"
+    /// DAILY: a reading outside a job (server capability METER_DAILY_READING); `job_id` may be null.
+    case opening = "OPENING", closing = "CLOSING", daily = "DAILY"
 }
 
 /// `METER_CAPTURE` policy values as delivered in a policy snapshot (owner-controlled rules).
@@ -128,6 +129,7 @@ public struct MeterCapturePolicy: Codable, Hashable, Sendable {
         self.gpsMaxAgeSeconds = gpsMaxAgeSeconds
     }
 
+    /// A DAILY reading carries the same evidence rules as a closing reading (server rule).
     public func mode(for kind: ReadingKind) -> CaptureMode {
         kind == .opening ? openingMode : closingMode
     }
@@ -187,7 +189,9 @@ public struct GpsPayload: Codable, Hashable, Sendable {
 
 public struct MeterCapturePayload: Codable, Hashable, Sendable {
     public let id: UUID
-    public let jobID: UUID
+    /// Nil for a DAILY reading outside a job (then `machineID` names the machine).
+    public let jobID: UUID?
+    public let machineID: UUID?
     public let kind: ReadingKind
     public let captureMode: CaptureMode
     /// Decimal string, never a float.
@@ -202,12 +206,13 @@ public struct MeterCapturePayload: Codable, Hashable, Sendable {
     public let capturedAt: Date
     public let policyVersionIDs: [UUID]
 
-    public init(id: UUID, jobID: UUID, kind: ReadingKind, captureMode: CaptureMode, reading: String,
+    public init(id: UUID, jobID: UUID?, machineID: UUID? = nil, kind: ReadingKind, captureMode: CaptureMode, reading: String,
                 ocrRawText: String?, ocrValue: String?, ocrConfidence: Double?, ocrEngine: String?,
                 photoAttachmentID: UUID?, gps: GpsPayload, deviceID: String, capturedAt: Date,
                 policyVersionIDs: [UUID]) {
         self.id = id
         self.jobID = jobID
+        self.machineID = machineID
         self.kind = kind
         self.captureMode = captureMode
         self.reading = reading
@@ -224,7 +229,8 @@ public struct MeterCapturePayload: Codable, Hashable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case id, kind, reading, gps
-        case jobID = "job_id", captureMode = "capture_mode", ocrRawText = "ocr_raw_text", ocrValue = "ocr_value"
+        case jobID = "job_id", machineID = "machine_id", captureMode = "capture_mode", ocrRawText = "ocr_raw_text"
+        case ocrValue = "ocr_value"
         case ocrConfidence = "ocr_confidence", ocrEngine = "ocr_engine", photoAttachmentID = "photo_attachment_id"
         case deviceID = "device_id", capturedAt = "captured_at", policyVersionIDs = "policy_version_ids"
     }

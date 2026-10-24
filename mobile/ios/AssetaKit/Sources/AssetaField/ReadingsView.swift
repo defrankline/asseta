@@ -50,7 +50,7 @@ struct ReadingRow: View {
     let reading: ReadingItem
 
     var body: some View {
-        let job = inbox.jobs[reading.jobID]?.jobNumber
+        let job = reading.jobID.flatMap { inbox.jobs[$0]?.jobNumber }
         let machine = inbox.machine(of: reading).flatMap { inbox.machines[$0]?.assetCode }
         InboxRow([job, InboxTexts.readingKind(reading.kind)].compactMap { $0 }.joined(separator: " · "), reading.status,
                  [reading.reading, machine].compactMap { $0 }.joined(separator: " · "),
@@ -95,7 +95,7 @@ struct ReadingDetailView: View {
             Section {
                 LabeledContent("Status") { StatusPill(status: r.status) }
                 LabeledContent(InboxTexts.readingKind(r.kind), value: r.reading)
-                if let job = model.inbox.jobs[r.jobID] { LabeledContent("Job", value: job.jobNumber) }
+                if let jobID = r.jobID, let job = model.inbox.jobs[jobID] { LabeledContent("Job", value: job.jobNumber) }
                 if let machine { LabeledContent("Machine", value: InboxTexts.machine(machine.assetCode, machine.name)) }
                 LabeledContent("Captured", value: r.at.listText)
                 LabeledContent("Capture mode", value: InboxTexts.captureMode(r.captureMode))

@@ -39,7 +39,8 @@ public struct FindingDTO: Codable, Hashable, Sendable, Identifiable {
 public struct SyncMeterCaptureDTO: Codable, Hashable, Sendable, Identifiable {
     /// The device-generated capture id (also the local capture's id).
     public let id: UUID
-    public let jobID: UUID
+    /// Nil for a DAILY reading outside a job.
+    public let jobID: UUID?
     public let machineID: UUID
     public let kind: String
     public let captureMode: String
@@ -77,7 +78,7 @@ public struct SyncMeterCaptureDTO: Codable, Hashable, Sendable, Identifiable {
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(UUID.self, forKey: .id)
-        jobID = try c.decode(UUID.self, forKey: .jobID)
+        jobID = try c.decodeIfPresent(UUID.self, forKey: .jobID)  // null for a DAILY reading outside a job
         machineID = try c.decode(UUID.self, forKey: .machineID)
         kind = try c.decode(String.self, forKey: .kind)
         captureMode = try c.decode(String.self, forKey: .captureMode)

@@ -174,7 +174,7 @@ struct ReadingRow: View {
         }
         .sheet(isPresented: $showPhoto) {
             if let id = capture.photoAttachmentID {
-                EvidencePhotoView(model: model, title: "\(OwnerFormat.humanize(capture.kind.rawValue)) reading",
+                EvidencePhotoView(model: model, title: "\(OwnerFormat.humanize(capture.kind)) reading",
                                   request: OwnerAPI.attachmentURL(id))
             }
         }
