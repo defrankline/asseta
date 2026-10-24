@@ -42,7 +42,8 @@ Open questions for the client are listed at the end with the default we build me
   approved_by)` approved by `tenant.hours.credit_approve` (SoD with proposer). Credit exposure = credit-activated
   amount not yet covered by verified payments.
 - **Hours ledger** (append-only) per purchase & machine: `ACTIVATED`, `CONSUMED`, `TRANSFER_OUT`, `TRANSFER_IN`,
-  `REVERSAL`. Derived per purchase: purchased, activated, consumed, remaining = activated − consumed ± transfers.
+  `EXPIRED`, `REVERSAL`. Unused activated hours expire after the tenant policy `purchased_hours_expiry_days`
+  (configurable, counted from activation; Q3). Derived per purchase: purchased, activated, consumed, remaining = activated − consumed ± transfers.
 
 ### Activation [3.1.7, 3.1.8]
 - Paid activation is automatic and only from VERIFIED money: when an allocated payment is verified, activated hours
@@ -106,10 +107,11 @@ automatic verdict.
 
 ## C. Cash custody chain (3.3) — extend `finance` cash
 
-- **Who can be a custodian** [3.3.1]: any staff member with `tenant.collection.record` and a linked login. Role
-  templates: Operator gains field cash permissions (collect, transfer, acknowledge, own custody) and the field app;
-  Manager gains the same. The Supervisor app becomes the field app for all field roles (screens follow
-  permissions; name unchanged in R1).
+- **Who can be a custodian** [3.3.1]: any active staff member, with or without a login (operators hold cash but
+  do not record — Q1). **Recorders** are staff with `tenant.collection.record` (Supervisor and Manager templates;
+  any role can be granted it) who record collections, transfers and remittances on a custodian's behalf. A transfer
+  is acknowledged by the receiving custodian; when the recorder *is* the receiver, recording it is the
+  acknowledgement (with the amount actually received). Operators keep no field-app write permissions by default.
 - **Collections** [3.3.1]: amount, custodian, customer (walk-in allowed), and link to the hours purchase or job when
   there is one; evidence attachments.
 - **Field-to-field transfer** [3.3.3, 3.3.4]: `CashTransfer(from_custodian, to_custodian, amount declared, note)`
@@ -150,10 +152,10 @@ automatic verdict.
 
 | # | Question | Default built |
 |---|---|---|
-| Q1 | Do operators carry phones and record collections/transfers themselves? | Yes, permitted per role; a supervisor/manager can still record on their behalf. |
-| Q2 | Are hours bought for one excavator only, or can one purchase cover several? | One excavator per purchase; moving hours = authorised transfer. |
-| Q3 | Do purchased hours expire? Refunds of unused hours? | No expiry; refund = cancellation of remaining hours with approval (reversal entries). |
-| Q4 | Who approves credit, and is credit per customer with a limit? | Per customer, money limit, approver ≠ proposer. |
+| Q1 | Do operators carry phones and record collections/transfers themselves? | **Answered 2026-10-24:** operators carry phones but managers record on their behalf. Operators are cash custodians without needing a login or the field app; supervisors/managers (field recorders) record collections, transfers and work for them. |
+| Q2 | Are hours bought for one excavator only, or can one purchase cover several? | **Answered:** per specific machine, not per site. One excavator per purchase; moving hours = authorised transfer. |
+| Q3 | Do purchased hours expire? Refunds of unused hours? | **Answered:** unused hours expire after a configurable period (tenant policy `purchased_hours_expiry_days`, counted from activation; EXPIRED ledger entry; alert before expiry). Refunds: still open — default is an approved cancellation of the remaining hours. |
+| Q4 | Who approves credit (and discounts, transfers, write-offs, classifications)? | **Answered:** whoever holds the permission — the tenant owner/admin or any role granted it. Nothing is tied to a fixed role; permission + segregation of duties only. Credit is per customer with a money limit. |
 | Q5 | Rounding of consumed hours (per 0.1 h, per hour, minimum hours per day)? | Existing tenant meter rounding policy; minimum hours from the rate card. |
 | Q6 | Aging threshold for unexplained hours? | 3 days, configurable. |
 | Q7 | What is the "daily operational report"? | A daily meter reading per working machine + the day's work log; cut-off hour configurable. |
