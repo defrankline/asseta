@@ -27,6 +27,8 @@ const mocks = vi.hoisted(() => ({
   listAcknowledgements: vi.fn<typeof jobService.listAcknowledgements>(),
   listActivities: vi.fn<typeof jobService.listActivities>(),
   fieldMachines: vi.fn<typeof jobService.fieldMachines>(),
+  fieldContracts: vi.fn<typeof jobService.fieldContracts>(),
+  request: vi.fn<typeof jobService.request>(),
   listCaptures: vi.fn<typeof meterService.listCaptures>(),
   listExceptions: vi.fn<typeof meterService.listExceptions>(),
   submitCapture: vi.fn<typeof meterService.submitCapture>(),
@@ -44,6 +46,8 @@ vi.mock('../../../api/services/jobService', () => ({
     listAcknowledgements: mocks.listAcknowledgements,
     listActivities: mocks.listActivities,
     fieldMachines: mocks.fieldMachines,
+    fieldContracts: mocks.fieldContracts,
+    request: mocks.request,
   },
 }));
 vi.mock('../../../api/services/meterService', () => ({
@@ -67,6 +71,19 @@ vi.mock('../../../api/services/customerService', () => ({
 vi.mock('../../../api/services/cashService', () => ({
   cashService: { recordCollection: mocks.recordCollection },
 }));
+
+const FIELD_CONTRACT = {
+  id: CONTRACT.id,
+  contract_number: 'C-1',
+  reference: null,
+  customer_id: CONTRACT.customer_id,
+  customer_name: 'Katavi Roads',
+  job_site_id: 'bbbbbbbb-0000-4000-8000-000000000001',
+  job_site_name: 'Site A',
+  currency: 'TZS',
+  starts_on: '2026-10-01T00:00:00Z',
+  ends_on: null,
+};
 
 /** The seeded Supervisor role (no office oversight, no machine register). */
 const SUPERVISOR = [
@@ -221,9 +238,87 @@ describe('MyJobsPage', () => {
     expect(statuses).toEqual([
       ['IN_PROGRESS', 'true'],
       ['APPROVED', 'true'],
+      ['PENDING_APPROVAL', 'true'],
       ['COMPLETED', 'true'],
+      ['CANCELLED', 'true'],
     ]);
     expect(screen.queryByRole('group', { name: 'Jobs shown' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Request a job' })).not.toBeInTheDocument();
+  });
+
+  it('shows why a job was declined and labels pending jobs as waiting for approval', async () => {
+    mocks.list.mockImplementation((query) =>
+      Promise.resolve(
+        page(
+          query.filters?.status === 'CANCELLED'
+            ? [
+                makeJob({
+                  status: 'CANCELLED',
+                  job_number: 'J-NO',
+                  cancellation_reason: 'Machine booked',
+                }),
+              ]
+            : query.filters?.status === 'PENDING_APPROVAL'
+              ? [makeJob({ status: 'PENDING_APPROVAL', job_number: 'J-WAIT' })]
+              : [],
+        ),
+      ),
+    );
+    renderWithProviders(<MyJobsPage />, { tenantPermissions: SUPERVISOR });
+    const pending = await screen.findByRole('region', { name: 'Waiting for approval' });
+    expect(within(pending).getByText('J-WAIT')).toBeInTheDocument();
+    expect(within(pending).getAllByText('Waiting for approval').length).toBeGreaterThan(0);
+    const declined = screen.getByRole('region', { name: 'Declined or cancelled' });
+    expect(within(declined).getByText('Reason: Machine booked')).toBeInTheDocument();
+  });
+
+  it('requests a job from the field; the server numbers it and it waits for approval', async () => {
+    const user = userEvent.setup();
+    mocks.fieldContracts.mockResolvedValue([FIELD_CONTRACT]);
+    mocks.request.mockResolvedValue(
+      makeJob({
+        status: 'PENDING_APPROVAL',
+        job_number: 'J-2026-105',
+        rate_source: 'PENDING_PRICE',
+      }),
+    );
+    renderWithProviders(<MyJobsPage />, {
+      tenantPermissions: [...SUPERVISOR, 'tenant.job.request'],
+    });
+    await user.click(await screen.findByRole('button', { name: 'Request a job' }));
+    const dialog = await screen.findByRole('dialog', { name: /Request a job/ });
+    await user.click(within(dialog).getByRole('button', { name: 'Next' }));
+    expect(await within(dialog).findByText('Choose the customer contract')).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('combobox', { name: /Customer — contract/ }));
+    await user.click(await screen.findByRole('option', { name: 'Katavi Roads — C-1' }));
+    expect(mocks.fieldContracts).toHaveBeenCalled();
+    await user.click(within(dialog).getByRole('combobox', { name: /^Machine/ }));
+    await user.click(await screen.findByRole('option', { name: 'EX-01 · Excavator' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Next' }));
+    await user.type(
+      await within(dialog).findByRole('textbox', { name: /What the customer asked for/ }),
+      'Clear the access road',
+    );
+    await user.click(within(dialog).getByRole('button', { name: 'Next' }));
+    expect(await within(dialog).findByText(/waits for the owner/)).toBeInTheDocument();
+    expect(within(dialog).getByText('Site A')).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Send request' }));
+    await waitFor(() => {
+      expect(mocks.request).toHaveBeenCalledTimes(1);
+    });
+    const [body, key] = mocks.request.mock.calls[0] ?? [];
+    expect(body).toMatchObject({
+      contract_id: FIELD_CONTRACT.id,
+      machine_id: MACHINE.id,
+      job_site_id: null,
+      planned_end: null,
+      note: 'Clear the access road',
+    });
+    expect(body?.client_id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(key).toEqual(expect.any(String));
+    expect(
+      await screen.findByText("Job J-2026-105 requested. It is waiting for the owner's approval."),
+    ).toBeInTheDocument();
   });
 
   it('lets job managers switch between all jobs and their own', async () => {

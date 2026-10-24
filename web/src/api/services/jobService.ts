@@ -3,9 +3,11 @@ import type {
   AcknowledgementDto,
   AcknowledgementIn,
   ActivityDto,
+  FieldContractDto,
   ActivityIn,
   JobDto,
   JobIn,
+  JobRequestIn,
   JobSummaryDto,
   JobTransitionIn,
   JobUpdateIn,
@@ -13,7 +15,13 @@ import type {
   Page,
 } from '../types';
 import { machineSchema } from './fleetSchemas';
-import { acknowledgementSchema, activitySchema, jobSchema, jobSummarySchema } from './jobSchemas';
+import {
+  acknowledgementSchema,
+  activitySchema,
+  fieldContractSchema,
+  jobSchema,
+  jobSummarySchema,
+} from './jobSchemas';
 import {
   seg,
   tenantGet,
@@ -38,6 +46,19 @@ export const jobService = {
   /** POST /tenant/jobs (createJob). */
   create(body: JobIn, idempotencyKey: string): Promise<JobDto> {
     return tenantSend('post', '/tenant/jobs', body, jobSchema, 'job', idempotencyKey);
+  },
+  /**
+   * POST /tenant/jobs/requests (requestJob): a supervisor asks for a job from the field. The server
+   * numbers and prices it and sends it straight to owner approval; `client_id` (the job id) dedupes.
+   */
+  request(body: JobRequestIn, idempotencyKey: string): Promise<JobDto> {
+    return tenantSend('post', '/tenant/jobs/requests', body, jobSchema, 'job', idempotencyKey);
+  },
+  /** GET /tenant/field/contracts (listFieldContracts): active contracts to request jobs on. */
+  fieldContracts(q: string | undefined, signal?: AbortSignal): Promise<FieldContractDto[]> {
+    return tenantList('/tenant/field/contracts', fieldContractSchema, 'field contracts', signal, {
+      q,
+    });
   },
   /** GET /tenant/jobs/{id} (getJobSummary). */
   summary(jobId: string, signal?: AbortSignal): Promise<JobSummaryDto> {

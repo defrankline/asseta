@@ -7,6 +7,7 @@ import type {
   ContractDto,
   ContractStatus,
   CustomerDto,
+  FieldContractDto,
   JobDto,
   JobStatus,
   JobSummaryDto,
@@ -66,6 +67,19 @@ export const contractSchema: Schema<ContractDto> = object({
   version: int(),
 });
 
+export const fieldContractSchema: Schema<FieldContractDto> = object({
+  id: id(),
+  contract_number: text(),
+  reference: nullableText().default(null),
+  customer_id: id(),
+  customer_name: text(),
+  job_site_id: nullableId(),
+  job_site_name: nullableText().default(null),
+  currency: text(),
+  starts_on: text(),
+  ends_on: nullableText().default(null),
+});
+
 export const rateCardSchema: Schema<RateCardDto> = object({
   id: id(),
   machine_category_id: id(),
@@ -99,6 +113,10 @@ const jobFields = {
   started_at: nullableText(),
   completed_at: nullableText(),
   version: int(),
+  cancellation_reason: nullableText().default(null),
+  requested_by_staff_id: nullableId().default(null),
+  requested_by_name: nullableText().default(null),
+  request_note: nullableText().default(null),
 };
 
 export const jobSchema: Schema<JobDto> = object(jobFields);

@@ -2,7 +2,7 @@ import { useCallback, useMemo } from 'react';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import { jobService } from '../../../api/services/jobService';
 import { machineService } from '../../../api/services/machineService';
-import type { JobDto, MachineDto } from '../../../api/types';
+import type { FieldContractDto, JobDto, MachineDto } from '../../../api/types';
 import { LOOKUP_PAGE_SIZE } from '../../../components/data/AsyncAutocomplete';
 import { useAsyncResource } from '../../../hooks/useAsyncResource';
 import { useSession } from '../../../session/useSession';
@@ -39,6 +39,10 @@ export const resolveFieldMachine = async (
   signal: AbortSignal,
 ): Promise<MachineDto | null> =>
   (await jobService.fieldMachines(undefined, signal)).find((m) => m.id === id) ?? null;
+
+/** Active contracts a job can be requested on (customer and site names included). */
+export const searchFieldContracts = (q: string, signal: AbortSignal): Promise<FieldContractDto[]> =>
+  jobService.fieldContracts(q.trim() === '' ? undefined : q, signal);
 
 export const searchAllMachines = async (q: string, signal: AbortSignal): Promise<MachineDto[]> =>
   (await machineService.list({ page: 1, page_size: LOOKUP_PAGE_SIZE, q }, signal)).items;

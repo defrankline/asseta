@@ -4,6 +4,7 @@ import type {
   ActivityType,
   ContractDto,
   JobAction,
+  JobDto,
   JobStatus,
   StandbyTreatment,
 } from '../../../api/types';
@@ -41,9 +42,22 @@ export const ACTIVITY_TYPE_OPTIONS: readonly Option<ActivityType>[] = [
   { value: 'NOTE', label: 'Note' },
 ];
 
-/** `NEGOTIATED` or `RATE_CARD:<version id>` → readable source. */
+/** Rate source of a field-requested job with no rate card: the owner sets the price on approval. */
+export const PENDING_PRICE = 'PENDING_PRICE';
+
+/** The job was requested by a supervisor from the field (not created by the office). */
+export const isFieldRequest = (job: JobDto): boolean =>
+  job.requested_by_staff_id !== null && job.requested_by_staff_id !== undefined;
+
+/** A pending field request is declined with CANCEL + reason; the supervisor is told why. */
+export const cancelLabelFor = (job: JobDto): string =>
+  isFieldRequest(job) && job.status === 'PENDING_APPROVAL' ? 'Decline request' : 'Cancel job';
+
+/** `NEGOTIATED`, `PENDING_PRICE`, `OWNER_APPROVED` or `RATE_CARD:<version id>` → readable source. */
 export function rateSourceLabel(source: string): string {
   if (source === 'NEGOTIATED') return 'Negotiated rate';
+  if (source === PENDING_PRICE) return 'No price yet (set on approval)';
+  if (source === 'OWNER_APPROVED') return 'Set by the owner on approval';
   if (source.startsWith('RATE_CARD:')) {
     return `Tenant rate card (version ${source.slice('RATE_CARD:'.length, 'RATE_CARD:'.length + 8)}…)`;
   }
@@ -119,6 +133,10 @@ export const JOB_ERROR_HINTS: Readonly<Record<string, string>> = {
   JOB_NOT_ACTIVE: 'Work can only be logged on approved, running or completed jobs.',
   READING_NOT_ALLOWED:
     'Opening readings are taken on approved jobs, closing readings on jobs in progress.',
+  PRICE_REQUIRED:
+    'No rate card applies to this job; enter the hourly rate to approve it at that price.',
+  NO_STAFF_RECORD:
+    'Your user is not linked to an active staff record; ask the office to link you before requesting jobs.',
   CAPTURE_ID_CONFLICT:
     'This capture was already recorded with different values; close the dialog and start again.',
 };

@@ -1,5 +1,5 @@
 import { PERMISSIONS } from '../../../access/permissionCodes';
-import type { JobDto, MachineDto } from '../../../api/types';
+import type { FieldContractDto, JobDto, MachineDto } from '../../../api/types';
 import { FormikAsyncIdAutocomplete } from '../../../components/forms/FormikAsyncIdAutocomplete';
 import { useSession } from '../../../session/useSession';
 import { machineLabel } from '../shared/display';
@@ -8,11 +8,13 @@ import { optionId } from '../shared/lookups';
 import {
   resolveFieldMachine,
   searchAllJobs,
+  searchFieldContracts,
   searchAllMachines,
   searchFieldMachines,
   searchMyJobs,
   useSeesAllJobs,
 } from './fieldLookups';
+import { fieldContractLabel } from './requestJob';
 
 interface IdPickerProps<T> {
   name: string;
@@ -50,6 +52,19 @@ export function FormikFieldMachineIdPicker(props: IdPickerProps<MachineDto>) {
       getOptionId={optionId}
       getOptionLabel={machineLabel}
       noOptionsText={register ? 'No matching machines' : 'No matching machines assigned to you'}
+    />
+  );
+}
+
+/** Active customer contract to request a job on ("Customer — contract"). */
+export function FormikFieldContractIdPicker(props: IdPickerProps<FieldContractDto>) {
+  return (
+    <FormikAsyncIdAutocomplete<FieldContractDto>
+      {...props}
+      fetchOptions={searchFieldContracts}
+      getOptionId={optionId}
+      getOptionLabel={fieldContractLabel}
+      noOptionsText="No matching active contracts"
     />
   );
 }

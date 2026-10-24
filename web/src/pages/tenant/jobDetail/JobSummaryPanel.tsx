@@ -12,9 +12,11 @@ import { labelOf } from '../shared/display';
 import {
   JOB_STATUS_OPTIONS,
   JOB_STATUS_TONES,
+  PENDING_PRICE,
   rateSourceLabel,
   STANDBY_OPTIONS,
 } from '../shared/jobDisplay';
+import { FieldRequestInfo } from './FieldRequestInfo';
 
 interface JobSummaryPanelProps {
   summary: JobSummaryDto;
@@ -36,6 +38,10 @@ export function JobSummaryPanel({
   const money = (amount: string) => <MoneyText amount={amount} currency={job.currency} />;
   return (
     <Stack spacing={2}>
+      <FieldRequestInfo job={job} />
+      {job.status === 'CANCELLED' && (job.cancellation_reason ?? '') !== '' && (
+        <Alert severity="warning">{`Cancelled: ${job.cancellation_reason ?? ''}`}</Alert>
+      )}
       <Paper variant="outlined" className="p-4">
         <Stack spacing={2}>
           <KeyValueGrid
@@ -66,7 +72,11 @@ export function JobSummaryPanel({
           <KeyValueGrid
             columns={4}
             items={[
-              { label: 'Hourly rate', value: money(job.hourly_rate) },
+              {
+                label: 'Hourly rate',
+                value:
+                  job.rate_source === PENDING_PRICE ? 'Not priced yet' : money(job.hourly_rate),
+              },
               { label: 'Rate source', value: rateSourceLabel(job.rate_source) },
               { label: 'Minimum hours', value: `${job.minimum_hours} h` },
               { label: 'Standby', value: labelOf(STANDBY_OPTIONS, job.standby_treatment) },

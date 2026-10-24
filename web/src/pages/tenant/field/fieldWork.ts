@@ -26,10 +26,24 @@ export const FIELD_JOB_SECTIONS: readonly {
     pageSize: 100,
   },
   {
+    key: 'pending',
+    title: 'Waiting for approval',
+    status: 'PENDING_APPROVAL',
+    empty: 'No job is waiting for approval.',
+    pageSize: 100,
+  },
+  {
     key: 'closed',
     title: 'Recently closed',
     status: 'COMPLETED',
     empty: 'No completed jobs yet.',
+    pageSize: 10,
+  },
+  {
+    key: 'cancelled',
+    title: 'Declined or cancelled',
+    status: 'CANCELLED',
+    empty: 'No declined or cancelled jobs.',
     pageSize: 10,
   },
 ];

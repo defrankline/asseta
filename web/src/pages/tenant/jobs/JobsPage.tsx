@@ -1,5 +1,5 @@
 import Add from '@mui/icons-material/Add';
-import { Box, Button, MenuItem, TextField } from '@mui/material';
+import { Box, Button, Chip, MenuItem, TextField } from '@mui/material';
 import { useCallback, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { CanMutate } from '../../../access/CanMutate';
@@ -22,8 +22,11 @@ import { formatInstantIn } from '../../../utils/time';
 import { labelOf } from '../shared/display';
 import {
   JOB_STATUS_OPTIONS,
+  cancelLabelFor,
+  isFieldRequest,
   JOB_STATUS_TONES,
   JOB_TRANSITIONS,
+  PENDING_PRICE,
   rateSourceLabel,
 } from '../shared/jobDisplay';
 import { MachinePicker } from '../shared/MachinePicker';
@@ -75,7 +78,23 @@ export function JobsPage() {
     [],
   );
   const columns: DataColumn<JobDto>[] = [
-    { id: 'number', header: 'Job', render: (j) => <strong>{j.job_number}</strong> },
+    {
+      id: 'number',
+      header: 'Job',
+      render: (j) => (
+        <Box className="flex flex-wrap items-center gap-1">
+          <strong>{j.job_number}</strong>
+          {isFieldRequest(j) && (
+            <Chip
+              size="small"
+              variant="outlined"
+              label="Field request"
+              title={`Requested from the field by ${j.requested_by_name ?? 'a supervisor'}`}
+            />
+          )}
+        </Box>
+      ),
+    },
     {
       id: 'status',
       header: 'Status',
@@ -97,7 +116,12 @@ export function JobsPage() {
       id: 'rate',
       header: 'Hourly rate',
       align: 'right',
-      render: (j) => <MoneyText amount={j.hourly_rate} currency={j.currency} />,
+      render: (j) =>
+        j.rate_source === PENDING_PRICE ? (
+          '—'
+        ) : (
+          <MoneyText amount={j.hourly_rate} currency={j.currency} />
+        ),
     },
     { id: 'source', header: 'Rate source', render: (j) => rateSourceLabel(j.rate_source) },
     {
@@ -126,7 +150,7 @@ export function JobsPage() {
             },
             {
               key: 'cancel',
-              label: 'Cancel job',
+              label: cancelLabelFor(j),
               destructive: true,
               hidden: !canCancel(j),
               onClick: () => {

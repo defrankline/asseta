@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../../../api/ApiError';
@@ -92,6 +92,111 @@ describe('JobActions', () => {
       expect(mocks.transition.mock.calls[0]?.[1]).toEqual({
         action: 'CANCEL',
         reason: 'Customer postponed',
+      });
+    });
+  });
+
+  describe('a job requested from the field', () => {
+    const requested = (overrides: Parameters<typeof makeJob>[0] = {}) =>
+      makeJob({
+        status: 'PENDING_APPROVAL',
+        supervisor_id: 'ffffffff-0000-4000-8000-000000000001',
+        requested_by_staff_id: 'ffffffff-0000-4000-8000-000000000001',
+        requested_by_name: 'Asha Mwita',
+        request_note: 'Dig a trench at the north gate',
+        rate_source: 'PENDING_PRICE',
+        hourly_rate: '0.0000',
+        ...overrides,
+      });
+
+    it('shows who requested it and requires the hourly rate when there is no price yet', async () => {
+      const user = userEvent.setup();
+      mocks.transition.mockResolvedValue(requested({ status: 'APPROVED' }));
+      renderWithProviders(<JobActions job={requested()} onChanged={vi.fn()} />, {
+        tenantPermissions: ALL,
+      });
+      expect(buttons()).toEqual(['Approve', 'Decline request']);
+      await user.click(screen.getByRole('button', { name: 'Approve' }));
+      const dialog = await screen.findByRole('dialog');
+      expect(within(dialog).getByText('Requested from the field by Asha Mwita')).toBeVisible();
+      expect(within(dialog).getByText('Dig a trench at the north gate')).toBeVisible();
+      await user.click(within(dialog).getByRole('button', { name: 'Approve' }));
+      expect(await within(dialog).findByText('Hourly rate is required')).toBeInTheDocument();
+      expect(mocks.transition).not.toHaveBeenCalled();
+      await user.type(within(dialog).getByRole('textbox', { name: /Hourly rate/ }), '120000');
+      await user.click(within(dialog).getByRole('button', { name: 'Approve' }));
+      await waitFor(() => {
+        expect(mocks.transition.mock.calls[0]?.[1]).toEqual({
+          action: 'APPROVE',
+          reason: null,
+          hourly_rate: '120000',
+        });
+      });
+    });
+
+    it('explains PRICE_REQUIRED', async () => {
+      const user = userEvent.setup();
+      mocks.transition.mockRejectedValue(
+        new ApiError({
+          status: 422,
+          code: 'PRICE_REQUIRED',
+          message: 'No price',
+          correlationId: null,
+        }),
+      );
+      renderWithProviders(
+        <JobActions job={requested({ rate_source: 'RATE_CARD:abc' })} onChanged={vi.fn()} />,
+        { tenantPermissions: ALL },
+      );
+      await user.click(screen.getByRole('button', { name: 'Approve' }));
+      const dialog = await screen.findByRole('dialog');
+      await user.click(within(dialog).getByRole('button', { name: 'Approve' }));
+      const error = await screen.findByText(/^PRICE_REQUIRED: No price/);
+      expect(error.textContent).toMatch(/enter the hourly rate/);
+    });
+
+    it('sends a changed price with APPROVE, never an unchanged one', async () => {
+      const user = userEvent.setup();
+      mocks.transition.mockResolvedValue(requested({ status: 'APPROVED' }));
+      renderWithProviders(
+        <JobActions
+          job={requested({ rate_source: 'RATE_CARD:abc', hourly_rate: '100000.0000' })}
+          onChanged={vi.fn()}
+        />,
+        { tenantPermissions: ALL },
+      );
+      await user.click(screen.getByRole('button', { name: 'Approve' }));
+      const dialog = await screen.findByRole('dialog');
+      const rate = within(dialog).getByRole('textbox', { name: /Hourly rate/ });
+      expect(rate).toHaveValue('100000.0000');
+      await user.clear(rate);
+      await user.type(rate, '110000');
+      await user.click(within(dialog).getByRole('button', { name: 'Approve' }));
+      await waitFor(() => {
+        expect(mocks.transition.mock.calls[0]?.[1]).toEqual({
+          action: 'APPROVE',
+          reason: null,
+          hourly_rate: '110000',
+        });
+      });
+    });
+
+    it('declines with a reason (CANCEL)', async () => {
+      const user = userEvent.setup();
+      mocks.transition.mockResolvedValue(requested({ status: 'CANCELLED' }));
+      renderWithProviders(<JobActions job={requested()} onChanged={vi.fn()} />, {
+        tenantPermissions: ALL,
+      });
+      await user.click(screen.getByRole('button', { name: 'Decline request' }));
+      const dialog = await screen.findByRole('dialog');
+      expect(within(dialog).getByText(/The supervisor is told your reason/)).toBeVisible();
+      await user.type(within(dialog).getByRole('textbox', { name: /Reason/ }), 'Machine booked');
+      await user.click(within(dialog).getByRole('button', { name: 'Decline request' }));
+      await waitFor(() => {
+        expect(mocks.transition.mock.calls[0]?.[1]).toEqual({
+          action: 'CANCEL',
+          reason: 'Machine booked',
+        });
       });
     });
   });

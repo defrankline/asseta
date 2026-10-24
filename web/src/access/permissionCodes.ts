@@ -83,6 +83,8 @@ export const PERMISSIONS = {
   tenantJobApprove: 'tenant.job.approve',
   /** START / COMPLETE jobs, work logs and customer acknowledgements. */
   tenantJobLog: 'tenant.job.log',
+  /** Request a job from the field; it goes straight to owner approval. */
+  tenantJobRequest: 'tenant.job.request',
   /** Meter readings, evidence and exceptions (read). */
   tenantMeterRead: 'tenant.meter.read',
   /** Capture readings, upload evidence and request meter resets. */

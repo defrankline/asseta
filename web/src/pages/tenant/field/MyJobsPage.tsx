@@ -1,3 +1,4 @@
+import Add from '@mui/icons-material/Add';
 import ChevronRight from '@mui/icons-material/ChevronRight';
 import {
   Button,
@@ -10,6 +11,8 @@ import {
 } from '@mui/material';
 import { useCallback, useState } from 'react';
 import { Link as RouterLink, useNavigate } from 'react-router';
+import { CanMutate } from '../../../access/CanMutate';
+import { PERMISSIONS } from '../../../access/permissionCodes';
 import { jobService } from '../../../api/services/jobService';
 import type { JobDto, Page } from '../../../api/types';
 import type { DataColumn } from '../../../components/data/ServerDataTable';
@@ -23,13 +26,19 @@ import { useDisplayTimeZone } from '../../../hooks/useDisplayTimeZone';
 import { fieldJobPath } from '../../../navigation/routes';
 import { ENTITY } from '../../../realtime/entities';
 import { useLiveRefresh } from '../../../realtime/hooks';
+import { useNotify } from '../../../notifications/useNotify';
 import { formatInstantIn } from '../../../utils/time';
 import { labelOf } from '../shared/display';
 import { JOB_STATUS_OPTIONS, JOB_STATUS_TONES } from '../shared/jobDisplay';
 import { useFieldMachineLabels, useSeesAllJobs } from './fieldLookups';
 import { FIELD_JOB_SECTIONS } from './fieldWork';
+import { RequestJobDialog } from './RequestJobDialog';
 
 type Scope = 'mine' | 'all';
+
+/** In the field a pending job is one the owner still has to approve (often requested from here). */
+const fieldStatusLabel = (status: JobDto['status']) =>
+  status === 'PENDING_APPROVAL' ? 'Waiting for approval' : labelOf(JOB_STATUS_OPTIONS, status);
 
 /** Supervisor job list (Field work): in progress, ready to start and recently closed. */
 export function MyJobsPage() {
@@ -39,6 +48,8 @@ export function MyJobsPage() {
   // Job managers are often not linked to a staff record, so they start on every job.
   const [scope, setScope] = useState<Scope>(seesAll ? 'all' : 'mine');
   const machineLabel = useFieldMachineLabels();
+  const notify = useNotify();
+  const [requesting, setRequesting] = useState(false);
   const load = useCallback(
     (signal: AbortSignal): Promise<Page<JobDto>[]> =>
       Promise.all(
@@ -82,11 +93,18 @@ export function MyJobsPage() {
       id: 'status',
       header: 'Status',
       render: (j) => (
-        <StatusChip
-          status={j.status}
-          tones={JOB_STATUS_TONES}
-          label={labelOf(JOB_STATUS_OPTIONS, j.status)}
-        />
+        <Stack spacing={0.5} className="items-start">
+          <StatusChip
+            status={j.status}
+            tones={JOB_STATUS_TONES}
+            label={fieldStatusLabel(j.status)}
+          />
+          {j.status === 'CANCELLED' && (j.cancellation_reason ?? '') !== '' && (
+            <Typography variant="caption" color="text.secondary">
+              {`Reason: ${j.cancellation_reason ?? ''}`}
+            </Typography>
+          )}
+        </Stack>
       ),
     },
     {
@@ -112,20 +130,33 @@ export function MyJobsPage() {
         title="My jobs"
         subtitle="Record opening and closing readings, start and complete jobs, log the work and the customer acknowledgement"
         actions={
-          seesAll ? (
-            <ToggleButtonGroup
-              size="small"
-              exclusive
-              value={scope}
-              aria-label="Jobs shown"
-              onChange={(_e, v: Scope | null) => {
-                if (v !== null) setScope(v);
-              }}
-            >
-              <ToggleButton value="mine">Assigned to me</ToggleButton>
-              <ToggleButton value="all">All jobs</ToggleButton>
-            </ToggleButtonGroup>
-          ) : undefined
+          <>
+            <CanMutate permission={PERMISSIONS.tenantJobRequest}>
+              <Button
+                variant="contained"
+                startIcon={<Add />}
+                onClick={() => {
+                  setRequesting(true);
+                }}
+              >
+                Request a job
+              </Button>
+            </CanMutate>
+            {seesAll && (
+              <ToggleButtonGroup
+                size="small"
+                exclusive
+                value={scope}
+                aria-label="Jobs shown"
+                onChange={(_e, v: Scope | null) => {
+                  if (v !== null) setScope(v);
+                }}
+              >
+                <ToggleButton value="mine">Assigned to me</ToggleButton>
+                <ToggleButton value="all">All jobs</ToggleButton>
+              </ToggleButtonGroup>
+            )}
+          </>
         }
       />
       <AsyncContent
@@ -139,8 +170,8 @@ export function MyJobsPage() {
               title="No jobs to work on"
               description={
                 scope === 'mine'
-                  ? 'Jobs appear here once they are approved and you are their supervisor or assigned to their machine.'
-                  : 'Jobs appear here once they are approved.'
+                  ? 'Jobs appear here once you are their supervisor or assigned to their machine, including jobs you request from the field.'
+                  : 'Jobs appear here once they are submitted for approval.'
               }
             />
           ) : (
@@ -184,6 +215,20 @@ export function MyJobsPage() {
           )
         }
       </AsyncContent>
+      {requesting && (
+        <RequestJobDialog
+          timeZone={timeZone}
+          onClose={() => {
+            setRequesting(false);
+          }}
+          onRequested={(j) => {
+            notify.success(
+              `Job ${j.job_number} requested. It is waiting for the owner's approval.`,
+            );
+            resource.reload();
+          }}
+        />
+      )}
     </>
   );
 }

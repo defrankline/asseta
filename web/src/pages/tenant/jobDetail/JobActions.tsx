@@ -8,18 +8,44 @@ import { FormDialog } from '../../../components/forms/FormDialog';
 import { FormikTextField } from '../../../components/forms/FormikTextField';
 import { useIdempotencyKey } from '../../../hooks/useIdempotencyKey';
 import { withErrorCode } from '../shared/errorHints';
-import { JOB_ERROR_HINTS, JOB_TRANSITIONS, type TransitionDef } from '../shared/jobDisplay';
+import { compareDecimal, isDecimalString } from '../../../utils/money';
+import { optionalDecimal, requiredDecimal } from '../shared/formRules';
+import {
+  cancelLabelFor,
+  isFieldRequest,
+  JOB_ERROR_HINTS,
+  JOB_TRANSITIONS,
+  PENDING_PRICE,
+  type TransitionDef,
+} from '../shared/jobDisplay';
+import { FieldRequestInfo } from './FieldRequestInfo';
 
-interface ReasonValues {
+interface TransitionValues {
   reason: string;
+  /** APPROVE only: the approved hourly price (required for a job without a price yet). */
+  hourly_rate: string;
 }
 
-const schemaFor = (required: boolean): ObjectSchema<ReasonValues> =>
+const schemaFor = (
+  reasonRequired: boolean,
+  priceRequired: boolean,
+): ObjectSchema<TransitionValues> =>
   object({
-    reason: required
+    reason: reasonRequired
       ? string().trim().required('A reason is required').max(1000, 'At most 1000 characters')
       : string().trim().ensure().max(1000, 'At most 1000 characters'),
+    hourly_rate: priceRequired ? requiredDecimal('Hourly rate') : optionalDecimal('Hourly rate'),
   });
+
+/** Send a price with APPROVE only when one is needed or the approver changed it. */
+function approvedRate(job: JobDto, entered: string): string | null {
+  const rate = entered.trim();
+  if (rate === '') return null;
+  if (job.rate_source === PENDING_PRICE) return rate;
+  return isDecimalString(job.hourly_rate) && compareDecimal(rate, job.hourly_rate) === 0
+    ? null
+    : rate;
+}
 
 interface TransitionDialogProps {
   job: JobDto;
@@ -31,18 +57,24 @@ interface TransitionDialogProps {
 /** Confirms one lifecycle action; failures keep the dialog open with the stable error code. */
 export function TransitionDialog({ job, def, onClose, onDone }: TransitionDialogProps) {
   const keyFor = useIdempotencyKey();
+  const approve = def.action === 'APPROVE';
+  const decline = def.action === 'CANCEL' && isFieldRequest(job);
+  const pendingPrice = approve && job.rate_source === PENDING_PRICE;
+  const label = def.action === 'CANCEL' ? cancelLabelFor(job) : def.label;
   return (
-    <FormDialog<ReasonValues>
+    <FormDialog<TransitionValues>
       open
-      title={`${def.label} · ${job.job_number}`}
-      initialValues={{ reason: '' }}
-      validationSchema={schemaFor(def.reasonRequired)}
-      submitLabel={def.label}
+      title={`${label} · ${job.job_number}`}
+      initialValues={{ reason: '', hourly_rate: pendingPrice ? '' : job.hourly_rate }}
+      validationSchema={schemaFor(def.reasonRequired, pendingPrice)}
+      submitLabel={label}
       onClose={onClose}
       onSubmit={async (v) => {
+        const rate = approve ? approvedRate(job, v.hourly_rate) : null;
         const body = {
           action: def.action,
           reason: v.reason.trim() === '' ? null : v.reason.trim(),
+          ...(rate === null ? {} : { hourly_rate: rate }),
         };
         try {
           onDone(
@@ -53,7 +85,25 @@ export function TransitionDialog({ job, def, onClose, onDone }: TransitionDialog
         }
       }}
     >
-      <Typography variant="body2">{def.description}</Typography>
+      {(approve || decline) && <FieldRequestInfo job={job} />}
+      <Typography variant="body2">
+        {decline
+          ? 'Decline the request. The supervisor is told your reason; the job stays on record as cancelled.'
+          : def.description}
+      </Typography>
+      {approve && (
+        <FormikTextField
+          name="hourly_rate"
+          label={`Hourly rate (${job.currency})`}
+          required={pendingPrice}
+          helperText={
+            pendingPrice
+              ? 'No rate card applies; the job is approved at this price.'
+              : 'Change only to approve at a different price.'
+          }
+          slotProps={{ htmlInput: { inputMode: 'decimal' } }}
+        />
+      )}
       <FormikTextField
         name="reason"
         label={def.reasonRequired ? 'Reason' : 'Note (optional)'}
@@ -89,7 +139,7 @@ export function JobActions({ job, onChanged }: JobActionsProps) {
             setActive(t);
           }}
         >
-          {t.label}
+          {t.action === 'CANCEL' ? cancelLabelFor(job) : t.label}
         </Button>
       ))}
       {active !== null && (

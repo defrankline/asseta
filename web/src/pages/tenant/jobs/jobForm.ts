@@ -19,7 +19,7 @@ import {
   requiredDecimal,
   requiredInstant,
 } from '../shared/formRules';
-import { JOB_ERROR_HINTS } from '../shared/jobDisplay';
+import { JOB_ERROR_HINTS, PENDING_PRICE } from '../shared/jobDisplay';
 
 /** Where the hourly price comes from: the tenant rate card (server-resolved) or a negotiated rate. */
 export type RateMode = 'RATE_CARD' | 'NEGOTIATED';
@@ -168,7 +168,10 @@ export function jobToValues(
   machine: MachineDto,
   supervisor: StaffDto | null,
 ): JobFormValues {
-  const negotiated = job.rate_source === 'NEGOTIATED';
+  // A job priced by hand (negotiated, or a field request still without a price) keeps a typed rate.
+  const unpriced = job.rate_source === PENDING_PRICE;
+  const negotiated =
+    job.rate_source === 'NEGOTIATED' || job.rate_source === 'OWNER_APPROVED' || unpriced;
   return {
     contract,
     job_number: job.job_number,
@@ -178,8 +181,8 @@ export function jobToValues(
     planned_start: job.planned_start,
     planned_end: job.planned_end ?? '',
     rate_mode: negotiated ? 'NEGOTIATED' : 'RATE_CARD',
-    hourly_rate: negotiated ? job.hourly_rate : '',
-    minimum_hours: negotiated ? job.minimum_hours : '',
+    hourly_rate: negotiated && !unpriced ? job.hourly_rate : '',
+    minimum_hours: negotiated && !unpriced ? job.minimum_hours : '',
     standby_treatment: job.standby_treatment,
     standby_rate: job.standby_rate ?? '',
     mobilization_fee: job.mobilization_fee,
