@@ -1,4 +1,4 @@
-package com.asseta.owner.push
+package com.asseta.core.push
 
 import android.content.Context
 import android.os.Build
@@ -8,16 +8,19 @@ import com.asseta.core.model.owner.PushDeviceIn
 import com.asseta.core.network.TenantApi
 
 /**
- * Registers this installation's push token with `/me/push-devices` (platform ANDROID, app OWNER) for the selected
- * tenant, and deactivates it on sign-out. The server de-duplicates by token, so re-registering is safe.
+ * Registers this installation's push token with `/me/push-devices` (platform ANDROID, [app] OWNER or SUPERVISOR) for
+ * the selected tenant, and deactivates it on sign-out. The server de-duplicates by token, so re-registering is safe.
+ * [prefsName] keeps each app's registration id apart.
  */
 class PushRegistrar(
     context: Context,
     private val provider: PushTokenProvider,
     private val api: () -> TenantApi,
     private val appVersion: String,
+    private val app: String,
+    prefsName: String,
 ) {
-    private val prefs = context.applicationContext.getSharedPreferences("asseta_owner_push", Context.MODE_PRIVATE)
+    private val prefs = context.applicationContext.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
 
     val available: Boolean get() = provider.available
     val providerName: String get() = provider.name
@@ -30,7 +33,7 @@ class PushRegistrar(
         if (!provider.available) return null
         val token = provider.token() ?: return null
         val device = api().registerPushDevice(
-            PushDeviceIn(token = token, platform = PLATFORM, app = APP, appVersion = appVersion, deviceLabel = "${Build.MANUFACTURER} ${Build.MODEL}".take(100)),
+            PushDeviceIn(token = token, platform = PLATFORM, app = app, appVersion = appVersion, deviceLabel = "${Build.MANUFACTURER} ${Build.MODEL}".take(100)),
         )
         prefs.edit { putString(KEY_DEVICE, device.id.toString()) }
         return device
@@ -47,7 +50,8 @@ class PushRegistrar(
 
     companion object {
         const val PLATFORM = "ANDROID"
-        const val APP = "OWNER"
+        const val APP_OWNER = "OWNER"
+        const val APP_SUPERVISOR = "SUPERVISOR"
         private const val KEY_DEVICE = "device_id"
     }
 }

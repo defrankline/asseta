@@ -4,7 +4,7 @@ import android.app.Application
 import com.asseta.core.ui.AppRole
 import com.asseta.core.ui.AssetaAppContainer
 import com.asseta.core.ui.AssetaContainerOwner
-import com.asseta.owner.push.PushNotifier
+import com.asseta.owner.push.OwnerMessagingService
 import com.asseta.owner.ui.map.MapSetup
 
 class OwnerApplication : Application(), AssetaContainerOwner {
@@ -15,7 +15,7 @@ class OwnerApplication : Application(), AssetaContainerOwner {
     override fun onCreate() {
         super.onCreate()
         container.sessionHooks = graph.sessionHooks
-        PushNotifier.ensureChannels(this)
+        OwnerMessagingService.notifier.ensureChannels(this)
         MapSetup.init(this)
     }
 }

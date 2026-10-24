@@ -7,9 +7,9 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import com.asseta.core.domain.owner.DeepLinkRouter
 import com.asseta.core.model.TenantAccessState
+import com.asseta.core.push.PushNotifier
 import com.asseta.core.ui.session.AssetaSessionApp
 import com.asseta.core.ui.theme.AssetaTheme
-import com.asseta.owner.push.PushNotifier
 import com.asseta.owner.ui.OwnerHome
 import com.asseta.owner.ui.OwnerSession
 

@@ -7,6 +7,12 @@ plugins {
 // Keycloak callback never reaches the wrong app; registered on Keycloak client `asseta-mobile`.
 val oidcRedirectScheme = "com.asseta.supervisor"
 
+// FCM needs the Firebase project file, an external input that is never committed. Without it the FCM provider is
+// compiled but disabled (BuildConfig.FCM_ENABLED=false) and the app uses the no-op push token provider.
+val firebaseConfig = file("google-services.json")
+val fcmEnabled = firebaseConfig.exists()
+if (fcmEnabled) apply(plugin = libs.plugins.google.services.get().pluginId)
+
 // Shared OCR fixtures (contracts/fixtures/ocr) are mounted read-only as instrumented-test assets; never copied.
 val ocrFixtures = rootProject.layout.projectDirectory.dir("../../contracts/fixtures/ocr").asFile
 
@@ -18,6 +24,7 @@ android {
         versionName = "0.4.0"
         manifestPlaceholders["appAuthRedirectScheme"] = oidcRedirectScheme
         buildConfigField("String", "OIDC_REDIRECT_SCHEME", "\"$oidcRedirectScheme\"")
+        buildConfigField("boolean", "FCM_ENABLED", fcmEnabled.toString())
     }
     buildFeatures {
         compose = true
@@ -39,6 +46,7 @@ dependencies {
     implementation(project(":core:ui"))
     implementation(project(":core:sync"))
     implementation(project(":core:security"))
+    implementation(project(":core:push"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
@@ -49,6 +57,7 @@ dependencies {
     implementation(libs.camerax.view)
     implementation(libs.mlkit.text.recognition)
     implementation(libs.play.services.location)
+    implementation(libs.firebase.messaging)
 
     testImplementation(libs.junit)
 

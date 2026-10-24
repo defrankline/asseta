@@ -8,6 +8,7 @@ import com.asseta.core.ui.AppRole
 import com.asseta.core.ui.AssetaAppContainer
 import com.asseta.core.ui.AssetaContainerOwner
 import com.asseta.core.ui.session.SessionHooks
+import com.asseta.supervisor.push.SupervisorMessagingService
 import com.asseta.supervisor.ui.FieldTexts
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -29,6 +30,14 @@ class SupervisorApplication : Application(), AssetaContainerOwner, SyncHost {
                 field.online.reset() // the in-memory notification list belongs to whoever was signed in before
             }
 
+            // Push: this phone stops receiving the user's notifications (best effort, bounded by the sign-out timeout).
+            override suspend fun beforeSignOut() = field.push.unregister()
+
+            override fun onSignedOut() {
+                field.pushTap.value = null
+                field.push.forget()
+            }
+
             override suspend fun signOutConfirmation(): String {
                 val tenantId = container.tenantStore.tenantId()
                 val unsynced = tenantId?.let {
@@ -37,6 +46,7 @@ class SupervisorApplication : Application(), AssetaContainerOwner, SyncHost {
                 return FieldTexts.signOutMessage(unsynced)
             }
         }
+        SupervisorMessagingService.notifier.ensureChannels(this)
     }
 
     override fun syncTenantId(): String? =

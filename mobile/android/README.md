@@ -25,8 +25,9 @@ Gate 5 adds offline field finance to the Supervisor app: record expense (receipt
 | `:core:network` | OkHttp/Retrofit client. Interceptors: `Authorization: Bearer`, `X-Tenant-ID`, `X-Correlation-ID` (UUID per request), `Idempotency-Key` on POST/PUT/PATCH/DELETE (an explicit key, e.g. the outbox operation id, is preserved), error envelope → `ApiException`. Base URL from `BuildConfig`. Debug-only cleartext to `10.0.2.2`/`localhost`. |
 | `:core:auth` | AppAuth Authorization Code + PKCE against Keycloak realm `asseta`, public client `asseta-mobile`; the redirect scheme is supplied per app (see Configuration), never defined in core; token refresh; logout (local clear + Keycloak end-session). `SelectedTenantStore`. Keycloak and the API are authoritative; the app never authorizes locally, it only hides UI. |
 | `:core:ui` | Material3 brand theme (Slate `#0F2A3D`, Amber `#F5A300`), launcher adaptive icon (vector conversion of `branding/asseta-mark.svg`), login screen, `/me` + tenant picker, `SessionViewModel` (+ forced sign-out via `SessionNotice`), `AssetaSessionApp(container, home)` (optional per-app home after tenant selection), `AssetaAppContainer` (manual DI, resettable `databaseHolder`). |
+| `:core:push` | App-agnostic push shared by both apps: `PushTokenProvider` (FCM, or no-op without a Firebase config), `PushRegistrar` (`/me/push-devices`, parameterised by app OWNER/SUPERVISOR), `PushNotifier` (per-app channels, tray notification, tap intent with the push data keys). |
 | `:app:supervisor` | `FieldGraph` (manual DI for the field app), screens (jobs, job detail, capture, acknowledgement + signature pad, sync status, clock banner), `MeterOcr` (ML Kit bundled), `ImageEnhancer`, `GpsLocator` (Fused, foreground only), `CameraCapture` (CameraX in-memory JPEG), just-in-time permission rationale. Manifest: INTERNET, CAMERA, FINE/COARSE location (no background location), backups disabled. |
-| `:app:owner` | Owner app (Gate 7): `OwnerGraph` (manual DI), `OwnerRepository`/`OwnerData` (server-first reads + offline snapshots, online-only actions), `LiveUpdates` (WebSocket), push (`PushTokenProvider`, `PushRegistrar`, `OwnerMessagingService`), MapLibre map, Compose screens. Manifest: INTERNET, ACCESS_NETWORK_STATE, POST_NOTIFICATIONS. |
+| `:app:owner` | Owner app (Gate 7): `OwnerGraph` (manual DI), `OwnerRepository`/`OwnerData` (server-first reads + offline snapshots, online-only actions), `LiveUpdates` (WebSocket), push (`OwnerMessagingService` on `:core:push`), MapLibre map, Compose screens. Manifest: INTERNET, ACCESS_NETWORK_STATE, POST_NOTIFICATIONS. |
 
 ## Toolchain
 
@@ -224,6 +225,13 @@ live updates still work). To enable: put the Firebase file at `app/owner/google-
 `POST_NOTIFICATIONS` on Android 13+). Sign-out deactivates the registration (`DELETE /me/push-devices/{id}`) and
 deletes the token. Taps (tray or in-app notification) carry `notification_id/tenant_id/link`; the app switches to
 that tenant if needed, resolves the notification's target and opens the machine/alert/approval/case/job screen.
+
+The Supervisor app works the same way with `app/supervisor/google-services.json` (package `com.asseta.supervisor`;
+`app=SUPERVISOR`). It registers automatically once the company is open when the role has `tenant.notification.read`
+(again after a company switch, an FCM token change, or when the permission is granted later), asks for
+`POST_NOTIFICATIONS` once, the first time the Inbox tab is shown, and shows the status under "Notifications on this
+phone" in the account menu. A tap opens the Inbox and the notification's detail; a push received while the app runs
+also refreshes the Inbox.
 
 ### Map tiles
 

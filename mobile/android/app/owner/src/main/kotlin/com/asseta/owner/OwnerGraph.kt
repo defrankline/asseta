@@ -7,6 +7,9 @@ import com.asseta.core.model.MeResponse
 import com.asseta.core.network.NetworkFactory
 import com.asseta.core.network.RealtimeSocket
 import com.asseta.core.network.TenantApi
+import com.asseta.core.push.FcmPushTokenProvider
+import com.asseta.core.push.NoOpPushTokenProvider
+import com.asseta.core.push.PushRegistrar
 import com.asseta.core.ui.AssetaAppContainer
 import com.asseta.core.ui.session.SessionHooks
 import com.asseta.owner.data.AndroidNetworkStatus
@@ -17,9 +20,6 @@ import com.asseta.owner.data.OwnerRepository
 import com.asseta.owner.data.RoomSnapshotStore
 import com.asseta.owner.data.SessionEvents
 import com.asseta.owner.data.SnapshotStore
-import com.asseta.owner.push.FcmPushTokenProvider
-import com.asseta.owner.push.NoOpPushTokenProvider
-import com.asseta.owner.push.PushRegistrar
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -67,7 +67,7 @@ class OwnerGraph(context: Context, val container: AssetaAppContainer) {
 
     val push: PushRegistrar by lazy {
         val provider = if (FcmPushTokenProvider.isConfigured(appContext, BuildConfig.FCM_ENABLED)) FcmPushTokenProvider() else NoOpPushTokenProvider
-        PushRegistrar(appContext, provider, { api }, BuildConfig.VERSION_NAME)
+        PushRegistrar(appContext, provider, { api }, BuildConfig.VERSION_NAME, PushRegistrar.APP_OWNER, "asseta_owner_push")
     }
 
     /** Pending deep link from a notification tap, consumed by the home once the tenant is ready. */

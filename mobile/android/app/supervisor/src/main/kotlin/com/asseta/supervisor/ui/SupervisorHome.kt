@@ -1,6 +1,10 @@
 package com.asseta.supervisor.ui
 
+import android.Manifest
+import android.os.Build
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,6 +19,7 @@ import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -28,6 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -38,6 +44,9 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
@@ -62,6 +71,10 @@ import com.asseta.core.ui.session.PasswordChangeText
 import com.asseta.core.ui.theme.palette
 import com.asseta.supervisor.FieldGraph
 import com.asseta.supervisor.R
+import com.asseta.supervisor.push.NotificationPermission
+import com.asseta.supervisor.push.PhonePushStatus
+import com.asseta.supervisor.push.PushTexts
+import com.asseta.supervisor.push.SupervisorPush
 import com.asseta.supervisor.ui.finance.CashFormScreen
 import com.asseta.supervisor.ui.finance.CashFormViewModel
 import com.asseta.supervisor.ui.finance.ExpenseScreen
@@ -148,6 +161,9 @@ data class TabStacks(val tab: SupervisorTab = SupervisorTab.JOBS, val stacks: Ma
     fun push(r: Route) = copy(stacks = stacks + (tab to stack + r))
     fun pop() = if (stack.size > 1) copy(stacks = stacks + (tab to stack.dropLast(1))) else this
     fun select(t: SupervisorTab) = if (t == tab) copy(stacks = stacks + (t to listOf(t.root))) else copy(tab = t)
+
+    /** A tab on its first screen (a notification tap opens the Inbox list); the other tabs keep their stacks. */
+    fun showRoot(t: SupervisorTab) = copy(tab = t, stacks = stacks + (t to listOf(t.root)))
 }
 
 /** Foreground sync shared by every list (pull to refresh) and the sync status screen ("Sync now"). */
@@ -192,7 +208,11 @@ class InboxViewModel(private val field: FieldGraph, private val tenantId: String
     }
 
     fun refreshNotifications() {
-        viewModelScope.launch { _offline.value = field.online.refreshNotifications(tenantId) !is OnlineResult.Fresh }
+        viewModelScope.launch { refreshNow() }
+    }
+
+    suspend fun refreshNow() {
+        _offline.value = field.online.refreshNotifications(tenantId) !is OnlineResult.Fresh
     }
 
     fun markRead(id: String) = viewModelScope.launch { field.online.markRead(tenantId, listOf(id)) }
@@ -229,6 +249,37 @@ fun SupervisorHome(
         // First login: register device + bootstrap; afterwards periodic delta pull and push in the background.
         field.scheduler.ensurePeriodic()
         field.scheduler.syncNow()
+        // Push is bound to the open company (in the background; never blocks sign-in or sync).
+        if (NOTIFICATION_READ in permissions) field.push.registerInBackground() else field.push.unregisterInBackground()
+    }
+
+    // Back in the foreground with the permission granted meanwhile (e.g. in Settings): register this phone.
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(tenantId) {
+        var granted = field.push.permission() == NotificationPermission.GRANTED
+        lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            val now = field.push.permission() == NotificationPermission.GRANTED
+            if (now && !granted && NOTIFICATION_READ in permissions && !field.push.registered.value) field.push.registerInBackground()
+            granted = now
+        }
+    }
+
+    // A tapped notification opens the Inbox (refreshed), then its own detail when the Inbox has it.
+    val tap by field.pushTap.collectAsStateWithLifecycle()
+    LaunchedEffect(tap) {
+        val opened = tap ?: return@LaunchedEffect
+        nav = nav.showRoot(SupervisorTab.INBOX)
+        try {
+            inbox.refreshNow()
+            val id = opened.notificationId ?: return@LaunchedEffect
+            inbox.notifications.value.firstOrNull { it.id.toString() == id }?.let { n ->
+                if (n.readAt == null) inbox.markRead(id)
+                push(Route.NotificationDetail(id))
+            }
+        } finally {
+            // Consumed only now: clearing it earlier would restart (cancel) this effect.
+            field.pushTap.compareAndSet(opened, null)
+        }
     }
 
     fun refresh() {
@@ -295,7 +346,7 @@ fun SupervisorHome(
             )
             else -> AssetaTopBar(
                 title, large = true,
-                leading = { AccountMenu(showSwitchCompany = companyCount > 1, onSwitchCompany = onSwitchTenant) },
+                leading = { AccountMenu(field.push, NOTIFICATION_READ in permissions, showSwitchCompany = companyCount > 1, onSwitchCompany = onSwitchTenant) },
                 actions = {
                     when (route) {
                         Route.Fuel -> if ("tenant.expense.write" in permissions) {
@@ -369,6 +420,7 @@ private fun RouteContent(
         Route.Fuel -> FuelScreen(snapshot, syncing, onRefresh, push)
         Route.Money -> MoneyScreen(field, tenantId, snapshot, syncing, onRefresh, push)
         Route.Inbox -> {
+            AskNotificationsOnce(field.push, NOTIFICATION_READ in permissions)
             val notifications by inbox.notifications.collectAsStateWithLifecycle()
             val offline by inbox.offline.collectAsStateWithLifecycle()
             InboxScreen(snapshot, notifications, offline, syncing, onRefresh, onNotification, onAttention, inbox::markAllRead)
@@ -452,20 +504,75 @@ private fun MoneyAddMenu(permissions: Set<String>, onExpense: () -> Unit, onRout
     }
 }
 
+private const val NOTIFICATION_READ = "tenant.notification.read"
+
+/** Asks for the notification permission (Android 13+) the first time the Inbox is shown; a refusal is not asked again. */
+@Composable
+private fun AskNotificationsOnce(push: SupervisorPush, canRead: Boolean) {
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        push.asked = true
+        push.registerInBackground()
+    }
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= 33 && PushTexts.askOnInbox(push.available, canRead, push.permission())) {
+            launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+}
+
 /**
- * Account menu (leading, like the iOS toolbar): "Switch company" when the user has several, "Change password"
- * (Keycloak's page; disabled offline) and "Sign out".
+ * Account menu (leading, like the iOS toolbar): "Switch company" when the user has several, "Notifications on this
+ * phone" (push status; "Turn on" asks for the permission and registers), "Change password" (Keycloak's page; disabled
+ * offline) and "Sign out".
  */
 @Composable
-private fun AccountMenu(showSwitchCompany: Boolean, onSwitchCompany: () -> Unit) {
+private fun AccountMenu(push: SupervisorPush, canReadNotifications: Boolean, showSwitchCompany: Boolean, onSwitchCompany: () -> Unit) {
     val actions = LocalSessionActions.current
     val online = rememberOnline()
+    val coroutines = rememberCoroutineScope()
     var open by remember { mutableStateOf(false) }
+    val registered by push.registered.collectAsStateWithLifecycle()
+    var checks by remember { mutableIntStateOf(0) }
+    // Re-read when the menu opens: the permission may have changed in Settings meanwhile.
+    val pushStatus = remember(open, registered, checks) { push.status() }
+    fun turnOn() {
+        coroutines.launch { push.register(); checks++ }
+    }
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        push.asked = true
+        turnOn()
+    }
     IconButton(onClick = { open = true }) {
         Icon(painterResource(R.drawable.ic_account), contentDescription = "Account", tint = palette.accent)
     }
     DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
         if (showSwitchCompany) DropdownMenuItem(text = { Text("Switch company") }, onClick = { open = false; onSwitchCompany() })
+        if (canReadNotifications) {
+            // Its own group, like the iOS section "Notifications on this phone".
+            HorizontalDivider()
+            val canTurnOn = pushStatus == PhonePushStatus.NOT_REGISTERED
+            DropdownMenuItem(
+                text = {
+                    Column {
+                        Text(PushTexts.ROW)
+                        Text(pushStatus.label, style = MaterialTheme.typography.bodySmall, color = palette.secondaryText)
+                    }
+                },
+                trailingIcon = if (canTurnOn) {
+                    { Text(PushTexts.TURN_ON, color = palette.accent, style = MaterialTheme.typography.labelLarge) }
+                } else null,
+                onClick = {
+                    open = false
+                    when {
+                        !canTurnOn -> Unit
+                        Build.VERSION.SDK_INT >= 33 && push.permission() == NotificationPermission.NOT_ASKED ->
+                            permission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        else -> turnOn()
+                    }
+                },
+            )
+            HorizontalDivider()
+        }
         DropdownMenuItem(
             text = {
                 Column {

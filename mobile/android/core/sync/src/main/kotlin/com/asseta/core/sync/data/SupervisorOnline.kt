@@ -10,6 +10,8 @@ import com.asseta.core.network.TenantApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import java.time.Instant
@@ -23,9 +25,20 @@ sealed interface OnlineResult<out T> {
 }
 
 /**
+ * Today's cash reconciliation of every currency as fetched at [fetchedAtMs], for [date] (this phone's local date then,
+ * ISO `yyyy-MM-dd`). Saved after every successful fetch so the Money tab can show the office's figures offline.
+ */
+@Serializable
+data class CashToday(
+    val date: String,
+    @SerialName("fetched_at_ms") val fetchedAtMs: Long,
+    val reconciliations: List<CashReconciliationDto>,
+)
+
+/**
  * The Supervisor's optional online reads: server notifications (EXPENSE_DECIDED, CASH_NOT_HANDED_OVER,
- * JOB_MISSING_READINGS, ...) cached in the encrypted store for offline viewing, and today's cash reconciliation. Both
- * are conveniences on top of sync: the app works fully without them.
+ * JOB_MISSING_READINGS, ...) and today's cash reconciliation, both cached in the encrypted store for offline viewing.
+ * Both are conveniences on top of sync: the app works fully without them.
  */
 class SupervisorOnline(
     private val api: () -> TenantApi,
@@ -95,11 +108,33 @@ class SupervisorOnline(
         notifications.value = emptyList()
     }
 
-    /** Today's reconciliation per currency from the server (online only; null when offline or refused). */
-    suspend fun todayReconciliation(currencies: List<String>, zone: ZoneId = ZoneId.systemDefault()): List<CashReconciliationDto>? = runCatching {
-        val today = Instant.ofEpochMilli(nowMs()).atZone(zone).toLocalDate().toString()
-        if (currencies.isEmpty()) api().myCashReconciliation(today, null)
-        else currencies.flatMap { api().myCashReconciliation(today, it) }
+    /**
+     * Today's reconciliation per currency from the server, saved for offline use; when the server cannot be reached
+     * (or refuses), the last saved one (possibly of an earlier day), else unavailable.
+     */
+    suspend fun todayCash(tenantId: String, currencies: List<String>, zone: ZoneId = ZoneId.systemDefault()): OnlineResult<CashToday> = try {
+        val now = nowMs()
+        val today = Instant.ofEpochMilli(now).atZone(zone).toLocalDate().toString()
+        val list = if (currencies.isEmpty()) api().myCashReconciliation(today, null) else currencies.flatMap { api().myCashReconciliation(today, it) }
+        val fresh = CashToday(today, now, list)
+        runCatching {
+            db().readSnapshotDao().putBounded(
+                ReadSnapshotEntity(tenantId, CASH_TODAY_KEY, json.encodeToString(CashToday.serializer(), fresh), now),
+                MAX_SNAPSHOTS,
+            )
+        }
+        OnlineResult.Fresh(fresh)
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        savedCash(tenantId) ?: OnlineResult.Unavailable(e.message ?: "Offline")
+    }
+
+    /** The figures saved on this phone, shown until the first fetch finishes (null when nothing was saved). */
+    suspend fun savedCash(tenantId: String): OnlineResult.Cached<CashToday>? = cachedCash(tenantId)?.let { OnlineResult.Cached(it, it.fetchedAtMs) }
+
+    private suspend fun cachedCash(tenantId: String): CashToday? = runCatching {
+        db().readSnapshotDao().get(tenantId, CASH_TODAY_KEY)?.let { json.decodeFromString(CashToday.serializer(), it.payloadJson) }
     }.getOrNull()
 
     /** A short-lived URL of a server attachment (meter photo, signature, reset evidence), when online and allowed. */
@@ -110,6 +145,7 @@ class SupervisorOnline(
 
     companion object {
         const val NOTIFICATIONS_KEY = "supervisor.notifications"
+        const val CASH_TODAY_KEY = "supervisor.cash_today"
         const val PAGE = 50
         const val MAX_SNAPSHOTS = 20
     }

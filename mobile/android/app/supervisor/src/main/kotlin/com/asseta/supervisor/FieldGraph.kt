@@ -2,6 +2,9 @@ package com.asseta.supervisor
 
 import android.content.Context
 import com.asseta.core.network.NetworkFactory
+import com.asseta.core.push.FcmPushTokenProvider
+import com.asseta.core.push.NoOpPushTokenProvider
+import com.asseta.core.push.PushRegistrar
 import com.asseta.core.sync.SystemSyncClock
 import com.asseta.core.sync.data.FieldOutbox
 import com.asseta.core.sync.data.FieldRepository
@@ -20,7 +23,16 @@ import com.asseta.core.sync.work.SyncScheduler
 import com.asseta.core.ui.AssetaAppContainer
 import com.asseta.supervisor.capture.GpsLocator
 import com.asseta.supervisor.capture.MeterOcr
+import com.asseta.supervisor.push.SupervisorPush
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import java.io.File
+
+/** A tapped push notification: opens the Inbox, and the notification's detail when the Inbox has it. */
+data class PushTap(val notificationId: String?)
 
 /**
  * Supervisor field-app graph on top of the shared container (manual DI). Every database access goes through
@@ -28,6 +40,7 @@ import java.io.File
  */
 class FieldGraph(context: Context, val container: AssetaAppContainer) {
     private val appContext = context.applicationContext
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val json = NetworkFactory.json
     private val db = { container.database }
     val clock = SystemSyncClock
@@ -89,4 +102,26 @@ class FieldGraph(context: Context, val container: AssetaAppContainer) {
 
     val ocr by lazy { MeterOcr(appContext) }
     val gps by lazy { GpsLocator(appContext) }
+
+    /** Optional FCM push (app SUPERVISOR); off on builds without google-services.json. */
+    val push: SupervisorPush by lazy {
+        val provider = if (FcmPushTokenProvider.isConfigured(appContext, BuildConfig.FCM_ENABLED)) FcmPushTokenProvider() else NoOpPushTokenProvider
+        SupervisorPush(appContext, PushRegistrar(appContext, provider, { tenantApi }, BuildConfig.VERSION_NAME, PushRegistrar.APP_SUPERVISOR, SupervisorPush.PREFS), scope)
+    }
+
+    /** Pending notification tap, consumed by the home once the tenant is ready. */
+    val pushTap = MutableStateFlow<PushTap?>(null)
+
+    private fun signedInTenant(): String? =
+        if (container.authManager.signedIn.value) container.tenantStore.tenantId() else null
+
+    fun onPushTokenRefreshed() {
+        if (signedInTenant() != null) push.onNewToken()
+    }
+
+    /** A push arrived: refresh the Inbox's notifications (the list and badge update while the app is open). */
+    fun onPushReceived() {
+        val tenantId = signedInTenant() ?: return
+        scope.launch { online.refreshNotifications(tenantId) }
+    }
 }

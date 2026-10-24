@@ -1,4 +1,4 @@
-package com.asseta.owner.push
+package com.asseta.core.push
 
 import android.content.Context
 import com.google.android.gms.tasks.Task

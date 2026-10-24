@@ -27,9 +27,11 @@ import com.asseta.core.domain.finance.CustodyLine
 import com.asseta.core.domain.inbox.InboxStatus
 import com.asseta.core.model.sync.CashReconciliationDayDto
 import com.asseta.core.sync.data.CashItem
+import com.asseta.core.sync.data.CashToday
 import com.asseta.core.sync.data.CashView
 import com.asseta.core.sync.data.ExpenseItem
 import com.asseta.core.sync.data.InboxSnapshot
+import com.asseta.core.sync.data.OnlineResult
 import com.asseta.core.ui.components.FilterChipRow
 import com.asseta.core.ui.components.GroupedItem
 import com.asseta.core.ui.components.groupedSection
@@ -39,10 +41,12 @@ import com.asseta.supervisor.FieldGraph
 import com.asseta.supervisor.R
 import com.asseta.supervisor.ui.finance.CashFormViewModel
 import com.asseta.supervisor.ui.finance.CustodySection
+import com.asseta.supervisor.ui.finance.MyCashTexts
+import java.time.LocalDate
 
 /**
  * Money tab: my cash custody (synced balance apart from unsynced records), today's reconciliation (from the office when
- * online, else a clearly labelled estimate), then my expenses, cash collections and handovers with the office's
+ * online, else the office's figures saved on this phone or a clearly labelled estimate), then my expenses, cash collections and handovers with the office's
  * decisions. "+" opens the existing expense, collection and handover forms.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -50,10 +54,9 @@ import com.asseta.supervisor.ui.finance.CustodySection
 fun MoneyScreen(field: FieldGraph, tenantId: String, snapshot: InboxSnapshot, syncing: Boolean, onRefresh: () -> Unit, onRoute: (Route) -> Unit) {
     val view by remember(tenantId) { field.financeRepository.observeCashView(tenantId) }.collectAsStateWithLifecycle(CashView(emptyList(), emptyList(), null))
     val currencies = view.lines.map { it.currency }
-    val reconciliation by produceState<Map<String, CashReconciliationDayDto>?>(null, currencies, syncing) {
-        if (!syncing) {
-            value = field.online.todayReconciliation(currencies)?.mapNotNull { r -> r.days.lastOrNull()?.let { r.currency to it } }?.toMap()
-        }
+    val today by produceState<OnlineResult<CashToday>?>(null, currencies, syncing) {
+        if (value == null) value = field.online.savedCash(tenantId) // until the first fetch finishes
+        if (!syncing) value = field.online.todayCash(tenantId, currencies)
     }
     var segment by rememberSaveable { mutableStateOf(MoneySegment.EXPENSES) }
     PullToRefreshBox(isRefreshing = syncing, onRefresh = onRefresh, modifier = Modifier.fillMaxSize()) {
@@ -65,7 +68,7 @@ fun MoneyScreen(field: FieldGraph, tenantId: String, snapshot: InboxSnapshot, sy
                 item(key = "custody-${line.currency}") {
                     Column(Modifier.padding(horizontal = 16.dp)) {
                         CustodySection(line)
-                        TodaySection(line, reconciliation?.get(line.currency))
+                        TodaySection(line, TodayCash.figures(today, line.currency, LocalDate.now()))
                     }
                 }
             }
@@ -107,34 +110,57 @@ private fun androidx.compose.foundation.lazy.LazyListScope.cashList(
     }
 }
 
-/** Today's figures: the office's reconciliation when online, else the offline estimate (clearly labelled). */
+/**
+ * Today's figures: the office's reconciliation when online; offline the copy saved on this phone (today's in full with
+ * what this phone has not synced yet, an earlier day's outstanding only), else the offline estimate (clearly labelled).
+ */
 @Composable
-private fun TodaySection(line: CustodyLine, day: CashReconciliationDayDto?) {
+private fun TodaySection(line: CustodyLine, figures: TodayFigures) {
     val c = line.currency
-    if (day == null) {
-        Section("Today (estimate)", footer = InboxTexts.ESTIMATE_FOOTER) {
-            LabeledRow("Estimated cash in hand", com.asseta.supervisor.ui.finance.MyCashTexts.money(line.estimatedInHand, c), WarningColor)
+    val header = TodayCash.header(figures)
+    when (figures) {
+        TodayFigures.Estimate -> Section(header, footer = InboxTexts.ESTIMATE_FOOTER) {
+            LabeledRow("Estimated cash in hand", MyCashTexts.money(line.estimatedInHand, c), WarningColor)
         }
-        return
+        is TodayFigures.Live -> Section(header, footer = InboxTexts.RECONCILIATION_FOOTER) { OfficeRows(figures.day, c) }
+        is TodayFigures.SavedToday -> {
+            Section(header, footer = TodayCash.SAVED_FOOTER) { OfficeRows(figures.day, c) }
+            val notSynced = TodayCash.notSynced(line)
+            if (notSynced.isNotEmpty()) {
+                Section(TodayCash.NOT_SYNCED) {
+                    notSynced.forEach { (label, amount) -> LabeledRow(label, amount) }
+                    LabeledRow("Estimated cash in hand", MyCashTexts.money(line.estimatedInHand, c), WarningColor)
+                }
+            }
+        }
+        is TodayFigures.SavedEarlier -> Section(header, footer = InboxTexts.ESTIMATE_FOOTER) {
+            LabeledRow("Outstanding", "") {
+                Text(InboxTexts.money(figures.day.outstanding, c), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            }
+            LabeledRow("Estimated cash in hand", MyCashTexts.money(line.estimatedInHand, c), WarningColor)
+        }
     }
-    Section("Today", footer = InboxTexts.RECONCILIATION_FOOTER) {
-        LabeledRow("Opening balance", InboxTexts.money(day.opening, c))
-        LabeledRow("Floats issued", InboxTexts.money(day.floatsIssued, c))
-        LabeledRow("Collections", InboxTexts.money(day.collections, c))
-        LabeledRow("Approved spending", InboxTexts.money(day.approvedSpending, c))
-        LabeledRow("Verified handovers", InboxTexts.money(day.verifiedHandovers, c))
-        LabeledRow("Outstanding", "") {
-            Text(InboxTexts.money(day.outstanding, c), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        }
-        if (day.claimedUnverifiedHandovers.toBigDecimalOrNull()?.signum() != 0) {
-            LabeledRow("Handed over, awaiting verification", InboxTexts.money(day.claimedUnverifiedHandovers, c))
-        }
-        if (day.unverifiedCollections.toBigDecimalOrNull()?.signum() != 0) {
-            LabeledRow("Collections awaiting verification", InboxTexts.money(day.unverifiedCollections, c))
-        }
-        if (day.pendingSpending.toBigDecimalOrNull()?.signum() != 0) {
-            LabeledRow("Expenses awaiting approval", InboxTexts.money(day.pendingSpending, c))
-        }
+}
+
+/** The office's reconciliation of one day (online, or as saved on this phone today). */
+@Composable
+private fun OfficeRows(day: CashReconciliationDayDto, c: String) {
+    LabeledRow("Opening balance", InboxTexts.money(day.opening, c))
+    LabeledRow("Floats issued", InboxTexts.money(day.floatsIssued, c))
+    LabeledRow("Collections", InboxTexts.money(day.collections, c))
+    LabeledRow("Approved spending", InboxTexts.money(day.approvedSpending, c))
+    LabeledRow("Verified handovers", InboxTexts.money(day.verifiedHandovers, c))
+    LabeledRow("Outstanding", "") {
+        Text(InboxTexts.money(day.outstanding, c), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+    }
+    if (day.claimedUnverifiedHandovers.toBigDecimalOrNull()?.signum() != 0) {
+        LabeledRow("Handed over, awaiting verification", InboxTexts.money(day.claimedUnverifiedHandovers, c))
+    }
+    if (day.unverifiedCollections.toBigDecimalOrNull()?.signum() != 0) {
+        LabeledRow("Collections awaiting verification", InboxTexts.money(day.unverifiedCollections, c))
+    }
+    if (day.pendingSpending.toBigDecimalOrNull()?.signum() != 0) {
+        LabeledRow("Expenses awaiting approval", InboxTexts.money(day.pendingSpending, c))
     }
 }
 

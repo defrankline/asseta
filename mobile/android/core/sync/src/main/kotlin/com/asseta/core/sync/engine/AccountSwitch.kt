@@ -54,6 +54,6 @@ class AccountSwitch(private val db: () -> AssetaDatabase) {
         finance.deleteAllCategories(tenantId)
         finance.clearCustody(tenantId)
         database.inboxDao().deleteTenant(tenantId)
-        database.readSnapshotDao().deleteTenant(tenantId) // cached notifications of the previous user
+        database.readSnapshotDao().deleteTenant(tenantId) // cached notifications and cash figures of the previous user
     }
 }

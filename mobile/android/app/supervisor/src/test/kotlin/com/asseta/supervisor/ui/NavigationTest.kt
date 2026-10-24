@@ -46,6 +46,16 @@ class NavigationTest {
     }
 
     @Test
+    fun `a notification tap opens the Inbox list and keeps the other tabs`() {
+        var nav = TabStacks().push(Route.JobDetail("1", "J-1")).select(SupervisorTab.INBOX).push(Route.NotificationDetail("n0"))
+        nav = nav.select(SupervisorTab.JOBS).showRoot(SupervisorTab.INBOX)
+        assertEquals(SupervisorTab.INBOX, nav.tab)
+        assertEquals(listOf<Route>(Route.Inbox), nav.stack)
+        assertEquals(Route.NotificationDetail("n1"), nav.push(Route.NotificationDetail("n1")).route)
+        assertEquals(Route.JobDetail("1", "J-1"), nav.select(SupervisorTab.JOBS).route)
+    }
+
+    @Test
     fun `back label is the previous title when short`() {
         assertEquals("J-001", NavigationChrome.backLabel(Route.JobDetail("1", "J-001").title("Acme")))
         assertEquals("Back", NavigationChrome.backLabel(Route.Jobs.title("Acme Earthmoving Holdings")))
