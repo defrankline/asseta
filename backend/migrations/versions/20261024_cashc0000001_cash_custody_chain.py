@@ -435,7 +435,7 @@ GUARDED = {
 }
 CASH_SEED = (
     '{"recorders_may_record_for_others": true, "transfer_ack_required": true, '
-    '"recorder_receiver_counts_as_ack": true, "float_ack_required": false, "remit_full_balance": true, '
+    '"recorder_receiver_counts_as_ack": true, "float_ack_required": false, "remit_full_balance": false, '
     '"remittance_cutoff_hour": null, "variance_case_threshold": "0", "writeoff_requires_approval": true, '
     '"retention_allowed": true}'
 )

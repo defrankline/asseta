@@ -172,6 +172,7 @@ def test_remittance_received_amount_partial_flag_retention_and_writeoff(api: Api
     f = setup_finance(api)
     mgr, acct, acct2 = f.manager, f.accountant, f.accountant2
     operator = _staff(f, "Operator Baraka")
+    cash_policy(f, remit_full_balance=True)  # a tenant capability (platform default: off)
     _collect(mgr, f, operator, "200000")
 
     # Remitting less than the expected balance without an approved retention is flagged (not refused).
@@ -244,7 +245,7 @@ def test_remittance_received_amount_partial_flag_retention_and_writeoff(api: Api
     )
 
     # Tenants that do not require write-off approval let a write-off holder resolve directly (not their own record).
-    cash_policy(f, writeoff_requires_approval=False)
+    cash_policy(f, remit_full_balance=True, writeoff_requires_approval=False)
     h3 = _ok(mgr.post(f"{C}/handovers", {"staff_member_id": operator, "amount": "10000", "handed_at": T1}))
     _ok(acct.post(f"{C}/handovers/{h3['id']}/decision", {"verified": True, "amount_received": "9000"}), 200)
     v3 = next(x for x in _ok(acct.get(f"{C}/variances", status="OPEN"), 200)["items"] if x["source_id"] == h3["id"])
@@ -259,7 +260,7 @@ def test_remittance_received_amount_partial_flag_retention_and_writeoff(api: Api
         "AMOUNT_RECEIVED_INVALID",
     )
     # Retention is a capability: off => no retention may be requested.
-    cash_policy(f, retention_allowed=False)
+    cash_policy(f, remit_full_balance=True, retention_allowed=False)
     _err(
         mgr.post(f"{C}/retentions", {"staff_member_id": operator, "amount": "1", "reason": "keep"}),
         422,

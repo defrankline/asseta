@@ -357,7 +357,7 @@ SEED_DEFAULTS: dict[PolicyType, dict[str, object]] = {
         "transfer_ack_required": True,
         "recorder_receiver_counts_as_ack": True,
         "float_ack_required": False,  # on would leave floats uncounted for field apps without acknowledgement
-        "remit_full_balance": True,
+        "remit_full_balance": False,  # off: no partial-remittance flags until a tenant opts in
         "remittance_cutoff_hour": None,
         "variance_case_threshold": "0",
         "writeoff_requires_approval": True,

@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from tests.support.api import Actor, Api
-from tests.support.finance import setup_finance, tenant_sql
+from tests.support.finance import cash_policy, setup_finance, tenant_sql
 
 DEVICE = "android-oversight-01"
 T1 = "2026-11-01T07:00:00+00:00"
@@ -111,6 +111,7 @@ def test_sync_conflict_review(api: Api) -> None:
 
 def test_accountability_summary(api: Api) -> None:
     f = setup_finance(api)
+    cash_policy(f, remit_full_balance=True)  # a tenant capability (platform default: off)
     owner, mgr, acct = f.owner, f.manager, f.accountant
     c = "/api/v1/tenant/cash"
     operator = _ok(owner.post("/api/v1/tenant/staff", {"full_name": "Operator Zuberi", "kind": "OPERATOR"}), 201)["id"]

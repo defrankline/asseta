@@ -40,8 +40,8 @@ class EngineHoursPolicy(BaseModel):
 
 
 ENGINE_HOURS_SEED: dict[str, object] = {
-    "baseline_required_before_start": True,
-    "daily_report_required": True,
+    "baseline_required_before_start": False,  # off: existing tenants keep starting jobs; switch on per tenant
+    "daily_report_required": False,  # off: no new reminders until a tenant opts in
     "daily_report_cutoff_hour": 18,
     "unexplained_investigation_after_days": 3,
     "unexplained_flag_min_hours": "0",

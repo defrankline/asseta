@@ -34,7 +34,7 @@ GRANTS = {
 }
 DECIDED = ["machine_meter_baseline", "engine_hour_classification", "meter_correction"]
 ENGINE_HOURS_SEED = (
-    '{"baseline_required_before_start": true, "daily_report_required": true, "daily_report_cutoff_hour": 18, '
+    '{"baseline_required_before_start": false, "daily_report_required": false, "daily_report_cutoff_hour": 18, '
     '"unexplained_investigation_after_days": 3, "unexplained_flag_min_hours": "0", '
     '"classification_requires_approval": true, "correction_requires_second_person": true, '
     '"ledger_includes_unreviewed_readings": false, "prevent_overlapping_allocation": true, '
