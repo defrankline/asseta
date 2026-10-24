@@ -14,6 +14,28 @@ Principles that apply everywhere:
 - **Offline never bypasses a control.** Field ops arrive at the server as claims; the server applies the control.
 - Existing behaviour that already satisfies a control stays (see "Already covered" per section).
 
+**Configurable SaaS, not one tenant's logic (Platform Owner, 2026-10-24: "DO NOT FIX LOGICS. I WANT A CONFIGURABLE
+SYSTEM").** Asseta is multi-tenant; the founding tenant's answers are *its configuration*, not code. Rules:
+- Every behaviour below that a tenant could reasonably want differently is a **tenant policy** (versioned,
+  effective-dated, audited, edited in the console by permission), seeded with a safe platform default. No tenant
+  names, role names, amounts, day counts, hours, categories or modes in code.
+- Capabilities are **switchable per tenant** (e.g. prepaid hours on/off, invoice billing on/off, walk-ins allowed,
+  credit allowed, field-to-field transfers, receiver acknowledgement required, full-remittance rule, daily report
+  required, baseline required before start, expiry on/off). Off = the existing behaviour keeps working.
+- **Approvals are permissions**, granted to any role; segregation of duties (proposer ≠ approver) is itself a policy
+  default that a tenant can only make stricter.
+- **Lists are tenant data, not enums**, where the business may vary: non-customer activity categories, variance
+  reasons, write-off reasons, discount reasons, credit terms.
+- The design defaults and the founding tenant's values (Q table) become seed/policy values only.
+
+Policy keys (initial set; implementers may add, never hard-code instead):
+| Area | Policy | Default |
+|---|---|---|
+| Customer hours | `hours.enabled`, `hours.walk_in_allowed`, `hours.billing_modes` (PREPAID_HOURS, INVOICE) and default per job, `hours.activation_basis` (VERIFIED_PAYMENT, CREDIT), `hours.partial_activation`, `hours.expiry_days` (null = never) and `hours.expiry_warning_days`, `hours.over_consumption` (BLOCK_START, FLAG_EXCESS), `hours.transfer_requires_approval`, `hours.cancellation_requires_approval`, `hours.discount_requires_approval`, `hours.credit_allowed` | on (as design) |
+| Engine hours | `meter.baseline_required_before_start`, `meter.daily_report_required`, `meter.daily_report_cutoff_hour`, `meter.unexplained_investigation_after_days`, `meter.classification_requires_approval`, `meter.correction_requires_second_person`, non-customer categories (tenant list) | on / 18:00 / 3 |
+| Cash | `cash.recorders_may_record_for_others`, `cash.transfer_ack_required`, `cash.recorder_receiver_counts_as_ack`, `cash.float_ack_required`, `cash.remit_full_balance`, `cash.remittance_cutoff_hour`, `cash.variance_case_threshold`, `cash.writeoff_requires_approval`, `cash.retention_allowed` | on |
+| Oversight | dashboard tiles visible, alert routing (existing notification routing) | all |
+
 Open questions for the client are listed at the end with the default we build meanwhile.
 
 ---
