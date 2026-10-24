@@ -2,6 +2,7 @@ import { Box, Button, Paper, Stack, Tab, Tabs, Typography } from '@mui/material'
 import { useCallback, useState } from 'react';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import { CanMutate } from '../../../access/CanMutate';
+import { useCanMutate } from '../../../access/useCanMutate';
 import { cashService } from '../../../api/services/cashService';
 import type { CashHandoverDto, CustomerPaymentDto } from '../../../api/types';
 import { ServerDataTable, type DataColumn } from '../../../components/data/ServerDataTable';
@@ -18,6 +19,11 @@ import { ENTITY } from '../../../realtime/entities';
 import { useLiveRefresh } from '../../../realtime/hooks';
 import { formatInstantIn } from '../../../utils/time';
 import { HandoverDialog } from '../finance/cash/CashDialogs';
+import { useCashPolicy } from '../finance/cash/custodyHooks';
+import { FloatsTab } from '../finance/cash/FloatsTab';
+import { RetentionsTab } from '../finance/cash/RetentionsTab';
+import { TransactionsDrawer, type DrillDown } from '../finance/cash/TransactionsDrawer';
+import { TransfersTab } from '../finance/cash/TransfersTab';
 import { BalanceCard } from '../finance/cash/CustodyTab';
 import { FormulaCard, RECONCILIATION_FORMULA } from '../finance/cash/ReconciliationTab';
 import {
@@ -28,7 +34,7 @@ import {
 import { useCustomerLabels } from '../shared/useFinanceLabels';
 import { FieldCollectionDialog } from './FieldCollectionDialog';
 
-type TabKey = 'collections' | 'handovers';
+type TabKey = 'collections' | 'handovers' | 'transfers' | 'floats' | 'retentions';
 type Open = 'collection' | 'handover' | null;
 
 const settlement = (s: CustomerPaymentDto['status']) => (
@@ -37,6 +43,7 @@ const settlement = (s: CustomerPaymentDto['status']) => (
 
 /** Today's custody and reconciliation for the caller (one entry per currency). */
 function MyCustody({ timeZone, reloadKey }: { timeZone: string; reloadKey: number }) {
+  const [drill, setDrill] = useState<DrillDown | null>(null);
   const load = useCallback(async (signal: AbortSignal) => {
     const [balances, reconciliation] = await Promise.all([
       cashService.myCustody(signal),
@@ -66,8 +73,24 @@ function MyCustody({ timeZone, reloadKey }: { timeZone: string; reloadKey: numbe
           </Typography>
           {d.reconciliation.flatMap((r) =>
             r.days.map((day) => (
-              <FormulaCard key={`${r.currency}-${day.day}`} day={day} currency={r.currency} />
+              <FormulaCard
+                key={`${r.currency}-${day.day}`}
+                day={day}
+                currency={r.currency}
+                onFigure={(dayIso, figure) => {
+                  setDrill({ from: dayIso, to: dayIso, currency: r.currency, figure });
+                }}
+              />
             )),
+          )}
+          {drill !== null && (
+            <TransactionsDrawer
+              drill={drill}
+              timeZone={timeZone}
+              onClose={() => {
+                setDrill(null);
+              }}
+            />
           )}
         </Stack>
       )}
@@ -75,7 +98,11 @@ function MyCustody({ timeZone, reloadKey }: { timeZone: string; reloadKey: numbe
   );
 }
 
-/** Supervisor cash (Field work): own custody, today's reconciliation, collections and handovers. */
+/**
+ * Field cash (Field work): own custody and today's reconciliation (every figure drills down), the
+ * collections and remittances recorded, transfers between custodians, floats to acknowledge and
+ * requests to keep cash. Recording for another custodian follows the tenant's CASH_CUSTODY policy.
+ */
 export function FieldCashPage() {
   const timeZone = useDisplayTimeZone();
   const notify = useNotify();
@@ -83,6 +110,9 @@ export function FieldCashPage() {
   const [tab, setTab] = useState<TabKey>('collections');
   const [status, setStatus] = useState('');
   const [open, setOpen] = useState<Open>(null);
+  const policy = useCashPolicy();
+  const canOffice = useCanMutate(PERMISSIONS.tenantFinanceCash);
+  const forOthers = canOffice || policy?.recordersMayRecordForOthers === true;
   const [reloadKey, setReloadKey] = useState(0);
   const reload = useCallback(() => {
     setReloadKey((k) => k + 1);
@@ -132,7 +162,7 @@ export function FieldCashPage() {
     <>
       <PageHeader
         title="Cash"
-        subtitle="Cash in your custody, today’s reconciliation, and the collections and handovers you recorded"
+        subtitle="Cash in your custody, today’s reconciliation, transfers, floats and the collections and remittances you recorded"
         actions={
           <CanMutate permission={PERMISSIONS.tenantCollectionRecord}>
             <Button
@@ -149,7 +179,7 @@ export function FieldCashPage() {
                 setOpen('handover');
               }}
             >
-              Hand over cash
+              Remit cash
             </Button>
           </CanMutate>
         }
@@ -166,10 +196,16 @@ export function FieldCashPage() {
             }}
           >
             <Tab value="collections" label="My collections" />
-            <Tab value="handovers" label="My handovers" />
+            <Tab value="handovers" label="My remittances" />
+            <Tab value="transfers" label="Transfers" />
+            <Tab value="floats" label="Floats" />
+            <Tab value="retentions" label="Keep cash requests" />
           </Tabs>
           <Box className="p-3">
-            {tab === 'collections' ? (
+            {tab === 'transfers' && <TransfersTab timeZone={timeZone} field />}
+            {tab === 'floats' && <FloatsTab timeZone={timeZone} />}
+            {tab === 'retentions' && <RetentionsTab timeZone={timeZone} field />}
+            {tab === 'collections' && (
               <ServerDataTable
                 columns={collectionColumns}
                 fetchPage={fetchCollections}
@@ -188,7 +224,8 @@ export function FieldCashPage() {
                   />
                 }
               />
-            ) : (
+            )}
+            {tab === 'handovers' && (
               <ServerDataTable
                 columns={handoverColumns}
                 fetchPage={fetchHandovers}
@@ -196,7 +233,7 @@ export function FieldCashPage() {
                 searchable={false}
                 reloadKey={reloadKey}
                 filters={{ status: status || undefined }}
-                emptyTitle="No handovers"
+                emptyTitle="No remittances"
                 isRowMuted={(h) => h.status === 'REJECTED'}
                 toolbar={
                   <StaticSelectFilter
@@ -214,6 +251,7 @@ export function FieldCashPage() {
       {open === 'collection' && (
         <FieldCollectionDialog
           timeZone={timeZone}
+          forOthers={forOthers}
           onClose={close}
           onRecorded={() => {
             done('Cash collection recorded; it is claimed until the office verifies it.');
@@ -222,11 +260,11 @@ export function FieldCashPage() {
       )}
       {open === 'handover' && (
         <HandoverDialog
-          ownCustody
+          ownCustody={!forOthers}
           timeZone={timeZone}
           onClose={close}
           onRecorded={() => {
-            done('Handover recorded; it is claimed until the office verifies it.');
+            done('Remittance recorded; it is awaiting confirmation until the office counts it.');
           }}
         />
       )}

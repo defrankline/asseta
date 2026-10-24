@@ -124,6 +124,24 @@ export const PERMISSIONS = {
   tenantFinanceCash: 'tenant.finance.cash',
   /** Machine / job / customer profitability. */
   tenantFinanceReport: 'tenant.finance.report',
+  // ---- Cash custody chain + oversight (accountability design C/D); never on your own record ----
+  /** Resolve cash variances and propose write-offs. */
+  tenantFinanceVariance: 'tenant.finance.variance',
+  /** Approve or reject proposed write-offs. */
+  tenantFinanceWriteoff: 'tenant.finance.writeoff',
+  /** Approve or reject requests to retain field cash. */
+  tenantFinanceRetentionApprove: 'tenant.finance.retention_approve',
+  /** Approve or reject custody reversals and adjustments. */
+  tenantFinanceAdjustmentApprove: 'tenant.finance.adjustment_approve',
+  /** The tenant's cash reason lists (variance, write-off, retention, adjustment). */
+  tenantFinanceReasonManage: 'tenant.finance.reason_manage',
+  /** Accountability dashboard summary. */
+  tenantAccountabilityRead: 'tenant.accountability.read',
+  /** Refused attempts (missing permission, segregation of duties). */
+  tenantSecurityEventRead: 'tenant.security_event.read',
+  /** Offline field operations the server did not apply: view; resolve. */
+  tenantSyncConflictRead: 'tenant.sync_conflict.read',
+  tenantSyncConflictResolve: 'tenant.sync_conflict.resolve',
   /** Own tenant inbox and preferences; tenant-wide defaults and the SMS delivery log. */
   tenantNotificationRead: 'tenant.notification.read',
   tenantNotificationManage: 'tenant.notification.manage',

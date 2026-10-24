@@ -1,57 +1,45 @@
-import { Box, Paper, Tab, Tabs } from '@mui/material';
-import { useState } from 'react';
-import { useSearchParams } from 'react-router';
-import { staffService } from '../../../api/services/staffService';
-import type { CashSupervisorSummaryDto, StaffDto } from '../../../api/types';
+import { Box, Button, Paper, Tab, Tabs } from '@mui/material';
+import { Link as RouterLink, Navigate, useSearchParams } from 'react-router';
+import { PERMISSIONS } from '../../../access/permissionCodes';
 import { PageHeader } from '../../../components/feedback/PageHeader';
 import { useDisplayTimeZone } from '../../../hooks/useDisplayTimeZone';
-import { useNotify } from '../../../notifications/useNotify';
-import { CustodyTab } from './cash/CustodyTab';
-import { HandoversTab } from './cash/HandoversTab';
-import { ReconciliationTab } from './cash/ReconciliationTab';
-import { SupervisorsTab } from './cash/SupervisorsTab';
+import { CASH_TABS_MOVED, cashTabPath, ROUTES } from '../../../navigation/routes';
+import { useSession } from '../../../session/useSession';
 import { InvoicesTab } from './invoices/InvoicesTab';
 import { PaymentsTab } from './payments/PaymentsTab';
 
 const TABS = [
   { key: 'invoices', label: 'Hire invoices' },
   { key: 'payments', label: 'Customer payments' },
-  { key: 'supervisors', label: 'All supervisors' },
-  { key: 'custody', label: 'Cash custody' },
-  { key: 'handovers', label: 'Handovers' },
-  { key: 'reconciliation', label: 'Reconciliation' },
 ] as const;
 
 type TabKey = (typeof TABS)[number]['key'];
 
 const isTab = (v: string | null): v is TabKey => TABS.some((t) => t.key === v);
 
-/** Tenant hire finance: customer invoices and receivables, supervisor cash custody (R1-G). */
+/** Tenant hire finance: customer invoices and receivables (R1-G). Cash custody has its own page. */
 export function FinancePage() {
   const timeZone = useDisplayTimeZone();
+  const { hasPermission } = useSession();
   const [params, setParams] = useSearchParams();
   const raw = params.get('tab');
+  if (raw !== null && CASH_TABS_MOVED.has(raw)) {
+    // Older links (notifications, cases) to the cash tabs that moved to the cash custody page.
+    return <Navigate to={cashTabPath(raw)} replace />;
+  }
   const tab: TabKey = isTab(raw) ? raw : 'invoices';
-  /** Shared between custody and reconciliation so switching tabs keeps the supervisor. */
-  const [supervisor, setSupervisor] = useState<StaffDto | null>(null);
-  const notify = useNotify();
-  /** A row of the all-supervisors summary opens that supervisor's custody tab. */
-  const openCustody = (row: CashSupervisorSummaryDto) => {
-    staffService.get(row.staff_member_id).then(
-      (staff) => {
-        setSupervisor(staff);
-        setParams({ tab: 'custody' });
-      },
-      (err: unknown) => {
-        notify.error(err, `Could not open ${row.staff_name}'s custody`);
-      },
-    );
-  };
   return (
     <>
       <PageHeader
         title="Hire finance"
-        subtitle="Customer hire invoices, payments and supervisor cash. Separate from your Asseta subscription invoices."
+        subtitle="Customer hire invoices and payments. Separate from your Asseta subscription invoices."
+        actions={
+          hasPermission(PERMISSIONS.tenantFinanceRead) ? (
+            <Button component={RouterLink} to={ROUTES.tenantCashCustody} variant="outlined">
+              Cash custody
+            </Button>
+          ) : undefined
+        }
       />
       <Paper variant="outlined">
         <Tabs
@@ -69,18 +57,6 @@ export function FinancePage() {
         <Box className="p-3">
           {tab === 'invoices' && <InvoicesTab timeZone={timeZone} />}
           {tab === 'payments' && <PaymentsTab timeZone={timeZone} />}
-          {tab === 'supervisors' && <SupervisorsTab onOpenSupervisor={openCustody} />}
-          {tab === 'custody' && (
-            <CustodyTab
-              timeZone={timeZone}
-              supervisor={supervisor}
-              onSupervisorChange={setSupervisor}
-            />
-          )}
-          {tab === 'handovers' && <HandoversTab timeZone={timeZone} />}
-          {tab === 'reconciliation' && (
-            <ReconciliationTab supervisor={supervisor} onSupervisorChange={setSupervisor} />
-          )}
         </Box>
       </Paper>
     </>

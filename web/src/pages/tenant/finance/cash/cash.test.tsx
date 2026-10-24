@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PERMISSIONS as P } from '../../../../access/permissionCodes';
 import type { cashService } from '../../../../api/services/cashService';
+import type { custodyService } from '../../../../api/services/custodyService';
 import type { staffService } from '../../../../api/services/staffService';
 import {
   makeDay,
@@ -27,7 +28,12 @@ const mocks = vi.hoisted(() => ({
   issueFloat: vi.fn<typeof cashService.issueFloat>(),
   staff: vi.fn<typeof staffService.list>(),
 }));
+const custody = vi.hoisted(() => ({
+  custodians: vi.fn<typeof custodyService.custodians>(),
+  decideRemittance: vi.fn<typeof custodyService.decideRemittance>(),
+}));
 vi.mock('../../../../api/services/cashService', () => ({ cashService: mocks }));
+vi.mock('../../../../api/services/custodyService', () => ({ custodyService: custody }));
 vi.mock('../../../../api/services/staffService', () => ({
   staffService: { list: mocks.staff, get: vi.fn().mockResolvedValue(SUPERVISOR) },
 }));
@@ -37,6 +43,7 @@ const READ = [P.tenantFinanceRead, P.tenantStaffRead];
 beforeEach(() => {
   mocks.staff.mockResolvedValue(page([SUPERVISOR]));
   mocks.listHandovers.mockResolvedValue(page([makeHandover()]));
+  custody.custodians.mockResolvedValue(page([]));
 });
 
 describe('ReconciliationTab (§10 #8)', () => {
@@ -62,7 +69,7 @@ describe('ReconciliationTab (§10 #8)', () => {
       ['Floats issued', 'TZS 50,000.00'],
       ['Cash collections', 'TZS 200,000.00'],
       ['Approved cash expenses', 'TZS 30,000.00'],
-      ['Verified handovers', 'TZS 120,000.00'],
+      ['Confirmed remittances', 'TZS 120,000.00'],
     ] as const) {
       const row = within(calc).getByText(label).closest('tr');
       expect(row).not.toBeNull();
@@ -85,7 +92,7 @@ describe('ReconciliationTab (§10 #8)', () => {
     renderWithProviders(<ReconciliationTab supervisor={null} onSupervisorChange={vi.fn()} />, {
       tenantPermissions: READ,
     });
-    expect(screen.getByText('Choose a supervisor')).toBeInTheDocument();
+    expect(screen.getByText('Choose a custodian')).toBeInTheDocument();
     expect(mocks.reconciliation).not.toHaveBeenCalled();
   });
 });
@@ -230,18 +237,18 @@ describe('HandoversTab', () => {
     mocks.listHandovers.mockResolvedValue(
       page([makeHandover({ id: 'mine', reference: 'MINE', recorded_by: ME }), makeHandover()]),
     );
-    mocks.decideHandover.mockResolvedValue(makeHandover({ status: 'REJECTED' }));
+    custody.decideRemittance.mockResolvedValue(makeHandover({ status: 'REJECTED' }));
     renderWithProviders(<HandoversTab timeZone="UTC" />, {
       tenantPermissions: [...READ, P.tenantFinanceVerify],
     });
-    await user.click(await screen.findByRole('button', { name: 'Actions for handover MINE' }));
+    await user.click(await screen.findByRole('button', { name: 'Actions for remittance MINE' }));
     expect(screen.getByRole('menuitem', { name: /not allowed: you recorded it/ })).toHaveAttribute(
       'aria-disabled',
       'true',
     );
     await user.keyboard('{Escape}');
-    await user.click(screen.getByRole('button', { name: 'Actions for handover SLIP-9' }));
-    await user.click(screen.getByRole('menuitem', { name: 'Verify / reject' }));
+    await user.click(screen.getByRole('button', { name: 'Actions for remittance SLIP-9' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Confirm / reject' }));
     const dialog = await screen.findByRole('dialog');
     await user.click(within(dialog).getByRole('combobox', { name: /Decision/ }));
     await user.click(await screen.findByRole('option', { name: 'Reject (not received)' }));
@@ -250,9 +257,33 @@ describe('HandoversTab', () => {
     await user.type(within(dialog).getByRole('textbox', { name: /Note/ }), 'Short by 10k');
     await user.click(within(dialog).getByRole('button', { name: 'Record decision' }));
     await waitFor(() => {
-      expect(mocks.decideHandover).toHaveBeenCalledWith(
+      expect(custody.decideRemittance).toHaveBeenCalledWith(
         makeHandover().id,
         { verified: false, note: 'Short by 10k' },
+        expect.any(String),
+      );
+    });
+  });
+
+  it('confirms a remittance with the amount actually received', async () => {
+    const user = userEvent.setup();
+    custody.decideRemittance.mockResolvedValue(makeHandover({ status: 'VERIFIED' }));
+    renderWithProviders(<HandoversTab timeZone="UTC" />, {
+      tenantPermissions: [...READ, P.tenantFinanceVerify],
+    });
+    await user.click(await screen.findByRole('button', { name: 'Actions for remittance SLIP-9' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Confirm / reject' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('combobox', { name: /Decision/ }));
+    await user.click(await screen.findByRole('option', { name: 'Confirm (cash counted)' }));
+    const received = await within(dialog).findByRole('textbox', { name: /Amount received/ });
+    await user.clear(received);
+    await user.type(received, '110000');
+    await user.click(within(dialog).getByRole('button', { name: 'Record decision' }));
+    await waitFor(() => {
+      expect(custody.decideRemittance).toHaveBeenCalledWith(
+        makeHandover().id,
+        { verified: true, note: null, amount_received: '110000' },
         expect.any(String),
       );
     });

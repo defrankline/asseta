@@ -1,6 +1,7 @@
 import Refresh from '@mui/icons-material/Refresh';
 import { Button, Stack } from '@mui/material';
 import { useCallback } from 'react';
+import { PERMISSIONS } from '../../../access/permissionCodes';
 import { overviewService } from '../../../api/services/overviewService';
 import type { TenantOverviewDto } from '../../../api/types';
 import { AsyncContent } from '../../../components/feedback/AsyncContent';
@@ -12,6 +13,7 @@ import { useNow } from '../../../hooks/useNow';
 import { useLiveRefresh } from '../../../realtime/hooks';
 import { useSession } from '../../../session/useSession';
 import { formatInstantIn } from '../../../utils/time';
+import { AccountabilityDashboardSection } from '../accountability/AccountabilityPage';
 import { DASHBOARD_LIVE_ENTITIES } from './dashboardModel';
 import {
   FleetSection,
@@ -86,13 +88,16 @@ export function DashboardPage() {
           </Button>
         }
       />
-      <AsyncContent
-        resource={overview}
-        errorTitle="Could not load the dashboard"
-        loadingLabel="Loading dashboard"
-      >
-        {(d) => <DashboardContent data={d} can={can} nowMs={nowMs} />}
-      </AsyncContent>
+      <Stack spacing={4}>
+        {hasPermission(PERMISSIONS.tenantAccountabilityRead) && <AccountabilityDashboardSection />}
+        <AsyncContent
+          resource={overview}
+          errorTitle="Could not load the dashboard"
+          loadingLabel="Loading dashboard"
+        >
+          {(d) => <DashboardContent data={d} can={can} nowMs={nowMs} />}
+        </AsyncContent>
+      </Stack>
     </>
   );
 }

@@ -38,6 +38,15 @@ for menu in (
         "tenant.finance", S.TENANT, "Hire finance", "/tenant/finance", 66, "tenant.finance.read", group="tenant.finance"
     ),
     MenuDef(
+        "tenant.cash_custody",
+        S.TENANT,
+        "Cash custody",
+        "/tenant/finance/cash",
+        67,
+        "tenant.finance.read",
+        group="tenant.finance",
+    ),
+    MenuDef(
         "tenant.profitability",
         S.TENANT,
         "Profitability",

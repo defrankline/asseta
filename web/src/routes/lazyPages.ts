@@ -202,6 +202,31 @@ export const SmsDeliveriesPage = lazy(() =>
 export const DashboardPage = lazy(() =>
   import('../pages/tenant/dashboard/DashboardPage').then((m) => ({ default: m.DashboardPage })),
 );
+export const AccountabilityPage = lazy(() =>
+  import('../pages/tenant/accountability/AccountabilityPage').then((m) => ({
+    default: m.AccountabilityPage,
+  })),
+);
+export const SecurityEventsPage = lazy(() =>
+  import('../pages/tenant/accountability/SecurityEventsPage').then((m) => ({
+    default: m.SecurityEventsPage,
+  })),
+);
+export const SyncConflictsPage = lazy(() =>
+  import('../pages/tenant/accountability/SyncConflictsPage').then((m) => ({
+    default: m.SyncConflictsPage,
+  })),
+);
+export const SyncConflictDetailPage = lazy(() =>
+  import('../pages/tenant/accountability/SyncConflictsPage').then((m) => ({
+    default: m.SyncConflictDetailPage,
+  })),
+);
+export const CashCustodyPage = lazy(() =>
+  import('../pages/tenant/finance/cash/CashCustodyPage').then((m) => ({
+    default: m.CashCustodyPage,
+  })),
+);
 export const AuditLogPage = lazy(() =>
   import('../pages/audit/AuditLogPage').then((m) => ({ default: m.AuditLogPage })),
 );

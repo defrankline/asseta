@@ -70,6 +70,7 @@ def test_finance_only_role_sees_only_finance_and_its_administration_items() -> N
     assert [g.key for g in groups] == ["tenant.finance", "tenant.admin"]
     assert [(m.group, m.label) for m in menus] == [
         ("tenant.finance", "Hire finance"),
+        ("tenant.finance", "Cash custody"),
         ("tenant.finance", "Expenses & fuel"),
         ("tenant.finance", "Approvals"),
         ("tenant.finance", "Profitability"),

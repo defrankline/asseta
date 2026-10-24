@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { newUuid } from '../../../../api/ids';
 import { cashService } from '../../../../api/services/cashService';
 import type { CashCustodyEntryDto, CashHandoverDto, StaffDto } from '../../../../api/types';
+import type { CustodianDto } from '../../../../api/custodyTypes';
 import { KeyValueGrid } from '../../../../components/display/KeyValueGrid';
 import { FormikDateTimeField } from '../../../../components/forms/FormikDateTimeField';
 import { FormikSelectField } from '../../../../components/forms/FormikSelectField';
@@ -23,6 +24,7 @@ import {
   type FloatValues,
   type HandoverValues,
 } from './cashForms';
+import { FormikCustodianIdPicker } from './custodyPickers';
 
 const amountText = (amount: string, currency: string) => formatEnteredMoney(amount, currency);
 
@@ -135,7 +137,7 @@ interface HandoverDialogProps {
   onRecorded: (handover: CashHandoverDto) => void;
 }
 
-/** A supervisor hands cash to the office; CLAIMED until someone else verifies it. */
+/** A custodian remits cash to the company; CLAIMED until someone else confirms the amount received. */
 export function HandoverDialog({
   staffMemberId = '',
   ownCustody = false,
@@ -145,7 +147,7 @@ export function HandoverDialog({
 }: HandoverDialogProps) {
   const keyFor = useIdempotencyKey();
   const [clientId] = useState(() => newUuid());
-  const [staff, setStaff] = useState<StaffDto | null>(null);
+  const [staff, setStaff] = useState<CustodianDto | null>(null);
   const [initial] = useState<HandoverValues>(() => ({
     staff_member_id: staffMemberId,
     amount: '',
@@ -157,10 +159,10 @@ export function HandoverDialog({
   return (
     <StepperFormDialog<HandoverValues>
       open
-      title="Record cash handover"
+      title="Record remittance"
       initialValues={initial}
       validationSchema={handoverSchema}
-      submitLabel="Record handover"
+      submitLabel="Record remittance"
       onClose={onClose}
       steps={[
         {
@@ -169,12 +171,11 @@ export function HandoverDialog({
           render: () => (
             <>
               {!ownCustody && (
-                <FormikStaffIdPicker
+                <FormikCustodianIdPicker
                   name="staff_member_id"
                   label="Handed over by (custodian)"
-                  supervisorsOnly
                   onOptionChange={setStaff}
-                  helperText="Leave empty for your own custody. Someone else's needs office cash permission (NOT_CUSTODIAN)."
+                  helperText="Leave empty for your own custody. Someone else's needs office cash permission or the tenant's permission for recorders."
                 />
               )}
               <FormikTextField name="amount" label="Amount" required />
@@ -211,8 +212,8 @@ export function HandoverDialog({
             ]}
           />
           <Alert severity="info">
-            Recorded as CLAIMED. It reduces the custodian’s outstanding cash only after someone else
-            verifies it (segregation of duties).
+            Recorded as awaiting confirmation. It reduces the custodian’s outstanding cash only
+            after someone else confirms the amount received (segregation of duties).
           </Alert>
         </>
       )}

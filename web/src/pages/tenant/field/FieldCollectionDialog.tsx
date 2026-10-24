@@ -6,6 +6,7 @@ import { cashService } from '../../../api/services/cashService';
 import { customerService } from '../../../api/services/customerService';
 import { jobService } from '../../../api/services/jobService';
 import type { CustomerDto, CustomerPaymentDto } from '../../../api/types';
+import type { CustodianDto } from '../../../api/custodyTypes';
 import { KeyValueGrid } from '../../../components/display/KeyValueGrid';
 import { FormikDateTimeField } from '../../../components/forms/FormikDateTimeField';
 import { FormikSelectField } from '../../../components/forms/FormikSelectField';
@@ -16,6 +17,7 @@ import { formatEnteredMoney } from '../../../utils/money';
 import { formatInstantIn } from '../../../utils/time';
 import { withErrorCode } from '../shared/errorHints';
 import { CURRENCY_OPTIONS, FINANCE_ERROR_HINTS } from '../shared/financeDisplay';
+import { FormikCustodianIdPicker } from '../finance/cash/custodyPickers';
 import { customerOptionLabel } from '../shared/financeLookups';
 import { FormikCustomerIdPicker } from '../shared/financePickers';
 import {
@@ -51,6 +53,8 @@ function JobCustomerSync() {
 
 interface FieldCollectionDialogProps {
   timeZone: string;
+  /** The tenant lets recorders collect into another custodian's custody (no login needed). */
+  forOthers?: boolean;
   onClose: () => void;
   onRecorded: (payment: CustomerPaymentDto) => void;
 }
@@ -58,12 +62,14 @@ interface FieldCollectionDialogProps {
 /** Collection → Details → Review. Cash enters the caller's custody as CLAIMED until verified. */
 export function FieldCollectionDialog({
   timeZone,
+  forOthers = false,
   onClose,
   onRecorded,
 }: FieldCollectionDialogProps) {
   const keyFor = useIdempotencyKey();
   const [clientId] = useState(newUuid);
   const [customer, setCustomer] = useState<CustomerDto | null>(null);
+  const [custodian, setCustodian] = useState<CustodianDto | null>(null);
   const [initial] = useState(() => emptyCollectionValues(new Date().toISOString()));
   return (
     <StepperFormDialog<FieldCollectionValues>
@@ -76,10 +82,18 @@ export function FieldCollectionDialog({
       steps={[
         {
           label: 'Collection',
-          fields: ['job_id', 'customer_id', 'amount', 'currency'],
+          fields: ['job_id', 'customer_id', 'staff_member_id', 'amount', 'currency'],
           render: () => (
             <>
               <JobCustomerSync />
+              {forOthers && (
+                <FormikCustodianIdPicker
+                  name="staff_member_id"
+                  label="Collected by (custodian)"
+                  helperText="Leave empty when the cash is in your own custody."
+                  onOptionChange={setCustodian}
+                />
+              )}
               <FormikFieldJobIdPicker
                 name="job_id"
                 label="Job (optional)"
@@ -130,12 +144,13 @@ export function FieldCollectionDialog({
               { label: 'Amount', value: formatEnteredMoney(v.amount, v.currency) },
               { label: 'Received at', value: formatInstantIn(v.received_at, timeZone) },
               { label: 'Reference', value: v.reference.trim() || '—' },
-              { label: 'Custodian', value: 'Me (my custody)' },
+              { label: 'Custodian', value: custodian?.full_name ?? 'Me (my custody)' },
             ]}
           />
           <Alert severity="info">
-            Recorded as CLAIMED in your cash custody. The office verifies it and allocates it to the
-            customer’s invoices; until then it does not reduce the customer’s balance.
+            Recorded as CLAIMED in the custodian’s cash custody. The office verifies it and
+            allocates it to the customer’s invoices; until then it does not reduce the customer’s
+            balance.
           </Alert>
         </>
       )}

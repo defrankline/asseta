@@ -46,11 +46,28 @@ export function BalanceCard({ b, timeZone }: { b: CashCustodyBalanceDto; timeZon
             label: 'Expenses pending approval',
             value: <MoneyText amount={b.pending_spending} currency={b.currency} />,
           },
+          {
+            label: 'Sent, not yet acknowledged (still held)',
+            value: <MoneyText amount={b.in_transit_out} currency={b.currency} />,
+          },
+          {
+            label: 'Incoming, not yet acknowledged',
+            value: <MoneyText amount={b.in_transit_in} currency={b.currency} />,
+          },
+          {
+            label: 'Floats awaiting acknowledgement',
+            value: <MoneyText amount={b.pending_floats} currency={b.currency} />,
+          },
+          {
+            label: 'Approved to keep (retention)',
+            value: <MoneyText amount={b.approved_retention} currency={b.currency} />,
+          },
         ]}
       />
       <Typography variant="caption" color="text.secondary">
-        As of {formatInstantIn(b.as_of, timeZone)}. Outstanding = floats + collections − approved
-        cash expenses − verified handovers; claims do not reduce it until verified.
+        As of {formatInstantIn(b.as_of, timeZone)}. Outstanding = floats + collections + transfers
+        received − transfers sent − approved cash expenses − confirmed remittances ± approved
+        adjustments − written off; claims and transfers in transit do not change it until confirmed.
       </Typography>
     </Paper>
   );
@@ -86,9 +103,8 @@ export function CustodyTab({ timeZone, supervisor, onSupervisorChange }: Custody
       <Box className="flex flex-wrap items-center gap-3">
         <Box sx={{ minWidth: 260 }}>
           <StaffFilter
-            label="Supervisor"
-            placeholder="Choose a supervisor"
-            supervisorsOnly
+            label="Custodian"
+            placeholder="Choose a custodian"
             value={supervisor}
             onChange={onSupervisorChange}
           />
@@ -121,15 +137,15 @@ export function CustodyTab({ timeZone, supervisor, onSupervisorChange }: Custody
                 setOpen('handover');
               }}
             >
-              Record handover
+              Record remittance
             </Button>
           </>
         )}
       </Box>
       {supervisor === null ? (
         <EmptyState
-          title="Choose a supervisor"
-          description="Custody is held per supervisor and per currency."
+          title="Choose a custodian"
+          description="Custody is held per custodian (any staff member) and per currency."
         />
       ) : (
         <AsyncContent
@@ -144,7 +160,8 @@ export function CustodyTab({ timeZone, supervisor, onSupervisorChange }: Custody
                 <BalanceCard key={b.currency} b={b} timeZone={timeZone} />
               ))}
               <Alert severity="info">
-                Use the Reconciliation tab for the day-by-day breakdown of this supervisor’s cash.
+                Use the Reconciliation tab for the day-by-day breakdown of this custodian’s cash;
+                every figure opens the transactions behind it.
               </Alert>
             </Box>
           )}

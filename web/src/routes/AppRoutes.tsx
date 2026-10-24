@@ -65,6 +65,11 @@ import {
   TrackerDetailPage,
   TrackersPage,
   DashboardPage,
+  AccountabilityPage,
+  SecurityEventsPage,
+  SyncConflictsPage,
+  SyncConflictDetailPage,
+  CashCustodyPage,
   AuditLogPage,
   FieldCashPage,
   FieldExpensesPage,
@@ -183,6 +188,22 @@ export function AppRoutes() {
           element={guard(PERMISSIONS.tenantFleetRead, <DashboardPage />)}
         />
         <Route
+          path={ROUTES.tenantAccountability}
+          element={guard(PERMISSIONS.tenantAccountabilityRead, <AccountabilityPage />)}
+        />
+        <Route
+          path={ROUTES.tenantSecurityEvents}
+          element={guard(PERMISSIONS.tenantSecurityEventRead, <SecurityEventsPage />)}
+        />
+        <Route
+          path={ROUTES.tenantSyncConflicts}
+          element={guard(PERMISSIONS.tenantSyncConflictRead, <SyncConflictsPage />)}
+        />
+        <Route
+          path={ROUTES.tenantSyncConflictDetail}
+          element={guard(PERMISSIONS.tenantSyncConflictRead, <SyncConflictDetailPage />)}
+        />
+        <Route
           path={ROUTES.tenantAudit}
           element={guard(PERMISSIONS.tenantAuditRead, <AuditLogPage scope="tenant" />)}
         />
@@ -261,6 +282,10 @@ export function AppRoutes() {
         <Route
           path={ROUTES.tenantHireInvoicePrint}
           element={guard(PERMISSIONS.tenantFinanceRead, <HireInvoicePrintPage />)}
+        />
+        <Route
+          path={ROUTES.tenantCashCustody}
+          element={guard(PERMISSIONS.tenantFinanceRead, <CashCustodyPage />)}
         />
         <Route
           path={ROUTES.tenantProfitability}

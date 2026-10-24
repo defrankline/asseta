@@ -20,6 +20,7 @@ from asseta.modules.accountability.dto import (
 )
 from asseta.modules.accountability.models import SecurityEventKind
 from asseta.modules.accountability.service import AccountabilityDashboard, SecurityEventService, SyncConflictService
+from asseta.modules.identity.catalog import CATALOG, MenuDef
 from asseta.modules.identity.catalog import PermissionScope as S
 from asseta.modules.identity.dependencies import requires
 from asseta.modules.identity.principal import RequestContext
@@ -35,6 +36,39 @@ SYNC_CONFLICT_RESOLVE = requires(
     "tenant.sync_conflict.resolve", S.TENANT, "Resolve conflicted or rejected offline operations (dismiss/re-captured)"
 )
 ACCOUNTABILITY_READ = requires("tenant.accountability.read", S.TENANT, "View the accountability dashboard summary")
+
+# Grouped side navigation: the dashboard opens the Overview group; refused attempts and offline operations awaiting
+# review are risk follow-ups.
+for menu in (
+    MenuDef(
+        "tenant.accountability",
+        S.TENANT,
+        "Accountability",
+        "/tenant/accountability",
+        7,
+        "tenant.accountability.read",
+        group="tenant.overview",
+    ),
+    MenuDef(
+        "tenant.security_events",
+        S.TENANT,
+        "Security events",
+        "/tenant/security-events",
+        65,
+        "tenant.security_event.read",
+        group="tenant.risk",
+    ),
+    MenuDef(
+        "tenant.sync_conflicts",
+        S.TENANT,
+        "Sync conflicts",
+        "/tenant/sync-conflicts",
+        66,
+        "tenant.sync_conflict.read",
+        group="tenant.risk",
+    ),
+):
+    CATALOG.register_menu(menu)
 
 router = APIRouter(prefix="/api/v1/tenant", tags=["accountability"], responses=ERROR_RESPONSES)
 DbSession = Annotated[Session, Depends(get_session)]

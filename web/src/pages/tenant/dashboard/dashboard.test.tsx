@@ -134,7 +134,7 @@ describe('DashboardPage', () => {
     );
     expect(within(money).getByRole('link', { name: /Cash held by supervisors/ })).toHaveAttribute(
       'href',
-      '/tenant/finance?tab=custody',
+      '/tenant/finance/cash?tab=custody',
     );
     // No tenant.expense.read: the expenses figure is shown without a link.
     expect(within(money).getByText('Approved expenses this month')).toBeInTheDocument();

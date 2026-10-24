@@ -59,6 +59,15 @@ export const ROUTES = {
   tenantFinance: '/tenant/finance',
   tenantHireInvoiceDetail: '/tenant/finance/invoices/:invoiceId',
   tenantHireInvoicePrint: '/tenant/finance/invoices/:invoiceId/print',
+  /** Matches the backend `tenant.cash_custody` menu path (custody chain, remittances, reconciliation). */
+  tenantCashCustody: '/tenant/finance/cash',
+  /** Matches the backend `tenant.accountability` menu path (Overview group). */
+  tenantAccountability: '/tenant/accountability',
+  /** Matches the backend `tenant.security_events` menu path (Risk & review group). */
+  tenantSecurityEvents: '/tenant/security-events',
+  /** Matches the backend `tenant.sync_conflicts` menu path (Risk & review group). */
+  tenantSyncConflicts: '/tenant/sync-conflicts',
+  tenantSyncConflictDetail: '/tenant/sync-conflicts/:operationId',
   /** Matches the backend `tenant.profitability` menu path. */
   tenantProfitability: '/tenant/profitability',
   tenantJobs: '/tenant/jobs',
@@ -137,9 +146,35 @@ export function caseDetailPath(caseId: string): string {
   return `${ROUTES.tenantCases}/${encodeURIComponent(caseId)}`;
 }
 
-/** Hire finance hub on a given tab (`invoices`, `payments`, `supervisors`, `custody`, `handovers`, `reconciliation`). */
+/** Cash tabs that moved from the hire finance hub to the cash custody page (old links keep working). */
+export const CASH_TABS_MOVED: ReadonlySet<string> = new Set([
+  'supervisors',
+  'custody',
+  'handovers',
+  'reconciliation',
+]);
+
+/** Hire finance hub on a given tab (`invoices`, `payments`); cash tabs open the cash custody page. */
 export function financeTabPath(tab: string): string {
+  if (CASH_TABS_MOVED.has(tab)) return cashTabPath(tab);
   return `${ROUTES.tenantFinance}?tab=${encodeURIComponent(tab)}`;
+}
+
+/**
+ * Cash custody page on a tab (`supervisors`, `custody`, `transfers`, `floats`, `handovers`,
+ * `variances`, `retentions`, `adjustments`, `reconciliation`, `reasons`) with optional filters.
+ */
+export function cashTabPath(
+  tab: string,
+  params: Readonly<Record<string, string | undefined>> = {},
+): string {
+  const q = new URLSearchParams({ tab });
+  for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== '') q.set(k, v);
+  return `${ROUTES.tenantCashCustody}?${q.toString()}`;
+}
+
+export function syncConflictDetailPath(operationId: string): string {
+  return `${ROUTES.tenantSyncConflicts}/${encodeURIComponent(operationId)}`;
 }
 
 export function hireInvoiceDetailPath(invoiceId: string): string {
@@ -218,6 +253,10 @@ export const IMPLEMENTED_PATHS: ReadonlySet<string> = new Set([
   ROUTES.tenantExpenseCategories,
   ROUTES.tenantApprovals,
   ROUTES.tenantFinance,
+  ROUTES.tenantCashCustody,
+  ROUTES.tenantAccountability,
+  ROUTES.tenantSecurityEvents,
+  ROUTES.tenantSyncConflicts,
   ROUTES.tenantProfitability,
   ROUTES.tenantJobs,
   ROUTES.tenantExceptions,
