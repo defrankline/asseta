@@ -227,6 +227,37 @@ export type ReviewOutcome = ReviewIn['outcome'];
 export type ResetDto = Schemas['ResetDto'];
 export type ResetIn = Schemas['ResetIn'];
 
+// ---- Engine hours (accountability design B): baselines, machine ledger, classifications, corrections ----
+
+export type MeterProposalStatus = Schemas['MeterProposalStatus'];
+export type MeterDecisionIn = Schemas['MeterDecisionIn'];
+export type BaselineSource = Schemas['BaselineSource'];
+export type BaselineDto = Schemas['BaselineDto'];
+export type BaselineIn = Schemas['BaselineIn'];
+export type BaselineFromReadingIn = Schemas['BaselineFromReadingIn'];
+export type EngineHourReasonKind = Schemas['EngineHourReasonKind'];
+export type EngineHourReasonDto = Schemas['EngineHourReasonDto'];
+export type EngineHourReasonIn = Schemas['EngineHourReasonIn'];
+export type EngineHourReasonUpdateIn = Schemas['EngineHourReasonUpdateIn'];
+export type ReconciliationStatus = Schemas['ReconciliationStatus'];
+export type ReadingReview = Schemas['ReadingReview'];
+export type SegmentKind = Schemas['SegmentKind'];
+export type SegmentClassification = Schemas['SegmentClassification'];
+export type ClassificationOutcome = Schemas['ClassificationOutcome'];
+export type ClassificationRefDto = Schemas['ClassificationRefDto'];
+export type LedgerPointDto = Schemas['LedgerPointDto'];
+export type SegmentDto = Schemas['SegmentDto'];
+export type IntervalDto = Schemas['IntervalDto'];
+export type EngineHourTotalsDto = Schemas['TotalsDto'];
+export type JobOverlapDto = Schemas['JobOverlapDto'];
+export type MachineEngineHoursDto = Schemas['MachineEngineHoursDto'];
+export type MachineEngineHoursSummaryDto = Schemas['MachineEngineHoursSummaryDto'];
+export type UnallocatedSegmentDto = Schemas['UnallocatedSegmentDto'];
+export type ClassificationDto = Schemas['ClassificationDto'];
+export type ClassificationIn = Schemas['ClassificationIn'];
+export type CorrectionDto = Schemas['CorrectionDto'];
+export type CorrectionIn = Schemas['CorrectionIn'];
+
 // ---- Managed service (DEC-018): consented, audited platform access to a client tenant ----
 
 export type MandateScope = Schemas['MandateScope'];

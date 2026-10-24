@@ -16,6 +16,7 @@ import { useDisplayTimeZone } from '../../../hooks/useDisplayTimeZone';
 import { ROUTES } from '../../../navigation/routes';
 import { useSession } from '../../../session/useSession';
 import { formatInstantIn } from '../../../utils/time';
+import { MachineEngineHoursPanel } from '../engineHours/MachineEngineHoursPanel';
 import { useMachineActions } from '../machines/useMachineActions';
 import { labelOf, MACHINE_STATUS_OPTIONS, MACHINE_STATUS_TONES } from '../shared/display';
 import { HistoryTab } from './HistoryTab';
@@ -24,7 +25,7 @@ import { MachineInfo } from './MachineInfo';
 import { StaffAssignmentsTab } from './StaffAssignmentsTab';
 import { TrackerHistoryTab } from './TrackerHistoryTab';
 
-type TabKey = 'live' | 'history' | 'staff' | 'trackers';
+type TabKey = 'live' | 'history' | 'staff' | 'trackers' | 'engineHours';
 
 interface Loaded {
   machine: MachineDto;
@@ -46,6 +47,9 @@ function MachineTabs({ machineId, timeZone }: { machineId: string; timeZone: str
       : []),
     ...(hasPermission(PERMISSIONS.tenantTrackerRead)
       ? [{ key: 'trackers' as const, label: 'Tracker history' }]
+      : []),
+    ...(hasPermission(PERMISSIONS.tenantMeterRead)
+      ? [{ key: 'engineHours' as const, label: 'Engine hours' }]
       : []),
   ];
   const [tab, setTab] = useState<TabKey | null>(null);
@@ -70,6 +74,7 @@ function MachineTabs({ machineId, timeZone }: { machineId: string; timeZone: str
         {active === 'history' && <HistoryTab machineId={machineId} timeZone={timeZone} />}
         {active === 'staff' && <StaffAssignmentsTab machineId={machineId} timeZone={timeZone} />}
         {active === 'trackers' && <TrackerHistoryTab machineId={machineId} timeZone={timeZone} />}
+        {active === 'engineHours' && <MachineEngineHoursPanel machineId={machineId} />}
       </Box>
     </Paper>
   );

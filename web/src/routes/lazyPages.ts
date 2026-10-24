@@ -75,6 +75,41 @@ export const MeterResetsPage = lazy(() =>
     default: m.MeterResetsPage,
   })),
 );
+export const EngineHoursMachinesPage = lazy(() =>
+  import('../pages/tenant/engineHours/EngineHoursMachinesPage').then((m) => ({
+    default: m.EngineHoursMachinesPage,
+  })),
+);
+export const MachineEngineHoursPage = lazy(() =>
+  import('../pages/tenant/engineHours/MachineEngineHoursPage').then((m) => ({
+    default: m.MachineEngineHoursPage,
+  })),
+);
+export const UnallocatedHoursPage = lazy(() =>
+  import('../pages/tenant/engineHours/UnallocatedHoursPage').then((m) => ({
+    default: m.UnallocatedHoursPage,
+  })),
+);
+export const ClassificationsPage = lazy(() =>
+  import('../pages/tenant/engineHours/ClassificationsPage').then((m) => ({
+    default: m.ClassificationsPage,
+  })),
+);
+export const MeterBaselinesPage = lazy(() =>
+  import('../pages/tenant/engineHours/MeterBaselinesPage').then((m) => ({
+    default: m.MeterBaselinesPage,
+  })),
+);
+export const MeterCorrectionsPage = lazy(() =>
+  import('../pages/tenant/engineHours/MeterCorrectionsPage').then((m) => ({
+    default: m.MeterCorrectionsPage,
+  })),
+);
+export const EngineHourReasonsPage = lazy(() =>
+  import('../pages/tenant/engineHours/EngineHourReasonsPage').then((m) => ({
+    default: m.EngineHourReasonsPage,
+  })),
+);
 export const CasesPage = lazy(() =>
   import('../pages/tenant/cases/CasesPage').then((m) => ({ default: m.CasesPage })),
 );

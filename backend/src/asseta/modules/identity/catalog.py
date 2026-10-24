@@ -91,6 +91,8 @@ for _group in (
     MenuGroupDef("tenant.field", PermissionScope.TENANT, "Field work", 15),
     MenuGroupDef("tenant.operations", PermissionScope.TENANT, "Operations", 20),
     MenuGroupDef("tenant.fleet", PermissionScope.TENANT, "Fleet", 30),
+    # Engine-hour accountability (design B): reconciliation, explanations, baselines, corrections, reason lists.
+    MenuGroupDef("tenant.engine_hours", PermissionScope.TENANT, "Engine hours", 37),
     MenuGroupDef("tenant.finance", PermissionScope.TENANT, "Finance", 40),
     MenuGroupDef("tenant.risk", PermissionScope.TENANT, "Risk & review", 50),
     MenuGroupDef("tenant.admin", PermissionScope.TENANT, "Administration", 90),

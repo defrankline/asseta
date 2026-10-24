@@ -1,57 +1,55 @@
-import { Alert, Box, Typography } from '@mui/material';
-import { useCallback, useEffect, useState } from 'react';
-import { mixed, object, string, type ObjectSchema } from 'yup';
-import { PERMISSIONS } from '../../../access/permissionCodes';
-import { ApiError } from '../../../api/ApiError';
+import { Alert } from '@mui/material';
+import { useState } from 'react';
+import { object, string, type ObjectSchema } from 'yup';
 import { newUuid } from '../../../api/ids';
 import { meterService } from '../../../api/services/meterService';
-import { policyService } from '../../../api/services/policyService';
 import type {
   AttachmentDto,
   CaptureMode,
   CaptureResultDto,
-  GpsIn,
   JobDto,
   MeterCaptureIn,
   ReadingKind,
 } from '../../../api/types';
 import { FormDialog } from '../../../components/forms/FormDialog';
-import { FormikSelectField } from '../../../components/forms/FormikSelectField';
-import { FormikTextField } from '../../../components/forms/FormikTextField';
-import { AttachmentUpload } from '../../../components/meter/AttachmentUpload';
-import { useAsyncResource } from '../../../hooks/useAsyncResource';
 import { useIdempotencyKey } from '../../../hooks/useIdempotencyKey';
-import { useSession } from '../../../session/useSession';
-import { attemptGpsFix } from '../../../utils/geolocation';
 import { humanize } from '../../../utils/text';
+import { FormikFieldMachineIdPicker } from '../field/fieldPickers';
 import { withErrorCode } from '../shared/errorHints';
 import { JOB_ERROR_HINTS } from '../shared/jobDisplay';
-import { CONSOLE_DEVICE_ID, photoExpected, readCapturePolicy } from './capturePolicy';
-import { CapturePolicySummary } from './CapturePolicySummary';
-import { GpsAttemptPanel } from './GpsAttemptPanel';
+import { CONSOLE_DEVICE_ID } from './capturePolicy';
+import { CaptureEvidenceFields } from './ReadingEvidence';
+import {
+  captureModeField,
+  gpsPendingError,
+  readingField,
+  useBrowserGps,
+} from './readingEvidenceKit';
 
 interface CaptureValues {
+  machine_id: string;
   capture_mode: CaptureMode | '';
   reading: string;
 }
 
-const schema: ObjectSchema<CaptureValues> = object({
-  capture_mode: mixed<CaptureMode | ''>()
-    .oneOf(['AUTOMATIC', 'MANUAL'], 'Choose the capture mode')
-    .required('Choose the capture mode'),
-  reading: string()
-    .trim()
-    .required('Reading is required')
-    .matches(/^\d+(\.\d{1,4})?$/, 'Enter the meter reading as shown (up to 4 decimals)'),
-});
+const schemaFor = (needsMachine: boolean): ObjectSchema<CaptureValues> =>
+  object({
+    machine_id: needsMachine ? string().required('Choose the machine') : string().ensure(),
+    capture_mode: captureModeField(),
+    reading: readingField(),
+  });
 
-const MODE_OPTIONS = [
-  { value: 'AUTOMATIC', label: 'Automatic (photo; no OCR runs in the console)' },
-  { value: 'MANUAL', label: 'Manual (numeric entry)' },
-];
+/** A machine the reading is for when it is not tied to a job (DAILY readings). */
+export interface ReadingMachine {
+  id: string;
+  label: string;
+}
 
 interface ConsoleCaptureDialogProps {
-  job: JobDto;
+  /** The job of an OPENING / CLOSING reading; omit for a DAILY reading (no job). */
+  job?: JobDto;
+  /** DAILY reading: the machine (omit to let the user choose one). Ignored when `job` is given. */
+  machine?: ReadingMachine;
   kind: ReadingKind;
   /** `field`: a supervisor recording from a laptop or tablet (Field work), not an office fallback. */
   variant?: 'console' | 'field';
@@ -60,85 +58,44 @@ interface ConsoleCaptureDialogProps {
 }
 
 /**
- * Owner/manager fallback for recording a reading from the console (mobile apps are the primary path).
- * The capture `id` is generated once per dialog open so retries never create a second reading, and
- * the browser's real GPS outcome is submitted — coordinates are never invented.
+ * Records a meter reading from a browser: a job's opening / closing reading, or a DAILY reading of a
+ * machine outside jobs (job optional). The capture `id` is generated once per dialog open so retries
+ * never create a second reading, and the browser's real GPS outcome is submitted — coordinates are
+ * never invented.
  */
 export function ConsoleCaptureDialog({
   job,
+  machine,
   kind,
   variant = 'console',
   onClose,
   onRecorded,
 }: ConsoleCaptureDialogProps) {
-  const { hasPermission } = useSession();
-  // Capturing users may read the METER_CAPTURE policy they capture under (as the field apps do).
-  const canReadPolicy = hasPermission(
-    [PERMISSIONS.tenantPolicyRead, PERMISSIONS.tenantMeterCapture],
-    'any',
-  );
   const [captureId] = useState(newUuid);
   const [capturedAt] = useState(() => new Date().toISOString());
   const keyFor = useIdempotencyKey();
-  const uploadKey = useIdempotencyKey();
-  const [gps, setGps] = useState<GpsIn | null>(null);
+  const { gps, retry } = useBrowserGps();
   const [photo, setPhoto] = useState<AttachmentDto | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    void attemptGpsFix().then((r) => {
-      if (active) setGps(r);
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
-  const retryGps = () => {
-    setGps(null);
-    void attemptGpsFix().then(setGps);
-  };
-
-  const loadPolicy = useCallback(
-    (signal: AbortSignal) =>
-      policyService.effective(
-        'METER_CAPTURE',
-        { machine_id: job.machine_id, site_id: job.job_site_id ?? undefined },
-        signal,
-      ),
-    [job.machine_id, job.job_site_id],
-  );
-  const policy = useAsyncResource(loadPolicy, [], canReadPolicy);
-  const view = policy.data === null ? null : readCapturePolicy(policy.data.values, kind);
+  const needsMachine = job === undefined && machine === undefined;
   const kindLabel = humanize(kind).toLowerCase();
-
-  const upload = (file: File) =>
-    meterService.upload(
-      file,
-      'METER_PHOTO',
-      uploadKey({ name: file.name, size: file.size, modified: file.lastModified }),
-    );
+  const target = job?.job_number ?? machine?.label ?? null;
+  const title = `Record ${kindLabel} reading${target === null ? '' : ` · ${target}`}`;
 
   return (
     <FormDialog<CaptureValues>
       open
-      title={`Record ${kindLabel} reading · ${job.job_number}`}
-      initialValues={{ capture_mode: '', reading: '' }}
-      validationSchema={schema}
+      title={title}
+      initialValues={{ machine_id: '', capture_mode: '', reading: '' }}
+      validationSchema={schemaFor(needsMachine)}
       submitLabel="Submit reading"
       maxWidth="md"
       onClose={onClose}
       onSubmit={async (v) => {
-        if (gps === null) {
-          throw new ApiError({
-            status: null,
-            code: 'gps_pending',
-            message: 'Wait for the GPS attempt to finish before submitting.',
-            correlationId: null,
-          });
-        }
+        if (gps === null) throw gpsPendingError();
+        const machineId = machine?.id ?? v.machine_id;
         const payload: MeterCaptureIn = {
           id: captureId,
-          job_id: job.id,
+          ...(job !== undefined ? { job_id: job.id } : { job_id: null, machine_id: machineId }),
           kind,
           capture_mode: v.capture_mode === '' ? 'MANUAL' : v.capture_mode,
           reading: v.reading.trim(),
@@ -156,69 +113,48 @@ export function ConsoleCaptureDialog({
         }
       }}
     >
-      {(formik) => (
-        <>
-          {variant === 'field' ? (
-            <Alert severity="info">
-              Photograph the hour meter (or choose a photo taken on site) and type the reading shown
-              on it. The browser does not read the meter automatically, so an Automatic reading
-              recorded here has no OCR result and is listed for review.
-            </Alert>
-          ) : (
-            <Alert severity="info">
-              Console fallback. Supervisors normally capture readings in the mobile app. The console
-              does not run OCR, so an Automatic reading recorded here has no OCR result and will be
-              listed for review.
-            </Alert>
-          )}
-          <CapturePolicySummary
-            resource={canReadPolicy ? policy : null}
-            view={view}
-            kindLabel={kindLabel}
-          />
-          <Box className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <FormikSelectField
-              name="capture_mode"
-              label="Capture mode"
-              options={MODE_OPTIONS}
-              required
-              helperText={
-                view?.requiredMode == null
-                  ? undefined
-                  : `Policy requires ${humanize(view.requiredMode)} for this reading`
-              }
-            />
-            <FormikTextField
-              name="reading"
-              label="Meter reading (hours)"
-              required
-              slotProps={{ htmlInput: { inputMode: 'decimal' } }}
-            />
-          </Box>
-          {view?.requiredMode != null &&
-            formik.values.capture_mode !== '' &&
-            formik.values.capture_mode !== view.requiredMode && (
-              <Alert severity="warning">
-                This differs from the policy ({humanize(view.requiredMode)}). The reading will be
-                recorded and listed as an exception that requires review.
+      {(formik) => {
+        const machineId =
+          job?.machine_id ??
+          machine?.id ??
+          (formik.values.machine_id === '' ? null : formik.values.machine_id);
+        return (
+          <>
+            {variant === 'field' ? (
+              <Alert severity="info">
+                Photograph the hour meter (or choose a photo taken on site) and type the reading
+                shown on it. The browser does not read the meter automatically, so an Automatic
+                reading recorded here has no OCR result and is listed for review.
+              </Alert>
+            ) : (
+              <Alert severity="info">
+                Console fallback. Supervisors normally capture readings in the mobile app. The
+                console does not run OCR, so an Automatic reading recorded here has no OCR result
+                and will be listed for review.
               </Alert>
             )}
-          <AttachmentUpload
-            label="Meter photo"
-            value={photo}
-            onChange={setPhoto}
-            upload={upload}
-            required={photoExpected(view, formik.values.capture_mode)}
-            capture="environment"
-            preview
-            helperText="The original image is stored unchanged with its SHA-256 hash."
-          />
-          <Typography variant="subtitle2" component="h3">
-            Location
-          </Typography>
-          <GpsAttemptPanel gps={gps} onRetry={retryGps} />
-        </>
-      )}
+            {kind === 'DAILY' && (
+              <Alert severity="info">
+                A daily reading records the machine&apos;s engine hours outside a job, so hours
+                between jobs are accounted for.
+              </Alert>
+            )}
+            {needsMachine && (
+              <FormikFieldMachineIdPicker name="machine_id" label="Machine" required />
+            )}
+            <CaptureEvidenceFields
+              machineId={machineId}
+              siteId={job?.job_site_id ?? null}
+              kind={kind}
+              captureMode={formik.values.capture_mode}
+              photo={photo}
+              onPhotoChange={setPhoto}
+              gps={gps}
+              onRetryGps={retry}
+            />
+          </>
+        );
+      }}
     </FormDialog>
   );
 }

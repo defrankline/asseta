@@ -13,6 +13,7 @@ from asseta.core.db import get_session
 from asseta.core.errors import ERROR_RESPONSES
 from asseta.core.lifecycle import IncludeInactive, LifecycleChangeIn
 from asseta.core.paging import Page, PageParams, page_params, paginate
+from asseta.modules.identity.catalog import CATALOG, MenuDef
 from asseta.modules.identity.catalog import PermissionScope as S
 from asseta.modules.identity.dependencies import requires
 from asseta.modules.identity.principal import RequestContext
@@ -42,6 +43,64 @@ CLASSIFY = requires(
     "tenant.meter.classify", S.TENANT, "Approve classifications of unallocated engine hours (second person)"
 )
 REASONS = requires("tenant.meter.reasons", S.TENANT, "Manage engine-hour activity categories and variance reasons")
+# Engine hours group: reconcile, explain, decide, configure (server-scoped: field users see their machines only).
+for _menu in (
+    MenuDef(
+        "tenant.engine_hours",
+        S.TENANT,
+        "Reconciliation",
+        "/tenant/engine-hours",
+        44,
+        "tenant.meter.read",
+        group="tenant.engine_hours",
+    ),
+    MenuDef(
+        "tenant.engine_hours.unallocated",
+        S.TENANT,
+        "Hours to explain",
+        "/tenant/engine-hours/unallocated",
+        45,
+        "tenant.meter.read",
+        group="tenant.engine_hours",
+    ),
+    MenuDef(
+        "tenant.engine_hours.classifications",
+        S.TENANT,
+        "Hour explanations",
+        "/tenant/engine-hours/classifications",
+        46,
+        "tenant.meter.read",
+        group="tenant.engine_hours",
+    ),
+    MenuDef(
+        "tenant.meter_baselines",
+        S.TENANT,
+        "Meter baselines",
+        "/tenant/meter-baselines",
+        47,
+        "tenant.meter.read",
+        group="tenant.engine_hours",
+    ),
+    MenuDef(
+        "tenant.meter_corrections",
+        S.TENANT,
+        "Reading corrections",
+        "/tenant/meter-corrections",
+        48,
+        "tenant.meter.read",
+        group="tenant.engine_hours",
+    ),
+    MenuDef(
+        "tenant.engine_hour_reasons",
+        S.TENANT,
+        "Engine-hour reasons",
+        "/tenant/engine-hour-reasons",
+        49,
+        "tenant.meter.reasons",
+        group="tenant.engine_hours",
+    ),
+):
+    CATALOG.register_menu(_menu)
 
 router = APIRouter(prefix="/api/v1/tenant", tags=["engine-hours"], responses=ERROR_RESPONSES)
 DbSession = Annotated[Session, Depends(get_session)]

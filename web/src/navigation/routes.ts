@@ -65,6 +65,14 @@ export const ROUTES = {
   tenantExceptions: '/tenant/exceptions',
   /** Matches the backend `tenant.meter_resets` menu path (company-wide reset approvals). */
   tenantMeterResets: '/tenant/meter-resets',
+  // Engine hours (backend `tenant.engine_hours` group): baselines, reconciliation, explanations, corrections.
+  tenantEngineHours: '/tenant/engine-hours',
+  tenantEngineHoursMachine: '/tenant/engine-hours/machines/:machineId',
+  tenantEngineHoursUnallocated: '/tenant/engine-hours/unallocated',
+  tenantEngineHourClassifications: '/tenant/engine-hours/classifications',
+  tenantMeterBaselines: '/tenant/meter-baselines',
+  tenantMeterCorrections: '/tenant/meter-corrections',
+  tenantEngineHourReasons: '/tenant/engine-hour-reasons',
   /** Matches the backend `tenant.cases` menu path ("Investigations"). */
   tenantCases: '/tenant/cases',
   tenantCaseDetail: '/tenant/cases/:caseId',
@@ -106,6 +114,11 @@ export function customerDetailPath(customerId: string): string {
 /** Field work job workspace (readings, start/complete, work log, acknowledgement). */
 export function fieldJobPath(jobId: string): string {
   return `${ROUTES.fieldJobs}/${encodeURIComponent(jobId)}`;
+}
+
+/** A machine's engine-hour ledger (intervals, segments, totals). */
+export function engineHoursMachinePath(machineId: string): string {
+  return `${ROUTES.tenantEngineHours}/machines/${encodeURIComponent(machineId)}`;
 }
 
 export function jobDetailPath(jobId: string): string {
@@ -207,6 +220,12 @@ export const IMPLEMENTED_PATHS: ReadonlySet<string> = new Set([
   ROUTES.tenantProfitability,
   ROUTES.tenantJobs,
   ROUTES.tenantExceptions,
+  ROUTES.tenantEngineHours,
+  ROUTES.tenantEngineHoursUnallocated,
+  ROUTES.tenantEngineHourClassifications,
+  ROUTES.tenantMeterBaselines,
+  ROUTES.tenantMeterCorrections,
+  ROUTES.tenantEngineHourReasons,
   ROUTES.tenantCases,
   ROUTES.tenantInsights,
   ROUTES.tenantAccess,

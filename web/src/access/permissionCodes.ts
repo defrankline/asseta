@@ -93,6 +93,10 @@ export const PERMISSIONS = {
   tenantMeterReview: 'tenant.meter.review',
   /** Decide meter resets and reading corrections. */
   tenantMeterApprove: 'tenant.meter.approve',
+  /** Decide classifications of unallocated engine hours (second person). */
+  tenantMeterClassify: 'tenant.meter.classify',
+  /** Manage engine-hour activity categories and variance reasons (tenant lists). */
+  tenantMeterReasons: 'tenant.meter.reasons',
   /** Users & roles (Keycloak group membership): view; invite and grant/revoke roles. */
   tenantAccessRead: 'tenant.access.read',
   tenantAccessManage: 'tenant.access.manage',

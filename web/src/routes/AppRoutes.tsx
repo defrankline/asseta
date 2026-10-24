@@ -32,6 +32,13 @@ import {
   ExpenseCategoriesPage,
   ExceptionsPage,
   MeterResetsPage,
+  EngineHoursMachinesPage,
+  MachineEngineHoursPage,
+  UnallocatedHoursPage,
+  ClassificationsPage,
+  MeterBaselinesPage,
+  MeterCorrectionsPage,
+  EngineHourReasonsPage,
   CasesPage,
   CaseDetailPage,
   InsightsPage,
@@ -270,6 +277,34 @@ export function AppRoutes() {
         <Route
           path={ROUTES.tenantMeterResets}
           element={guard(PERMISSIONS.tenantMeterApprove, <MeterResetsPage />)}
+        />
+        <Route
+          path={ROUTES.tenantEngineHours}
+          element={guard(PERMISSIONS.tenantMeterRead, <EngineHoursMachinesPage />)}
+        />
+        <Route
+          path={ROUTES.tenantEngineHoursMachine}
+          element={guard(PERMISSIONS.tenantMeterRead, <MachineEngineHoursPage />)}
+        />
+        <Route
+          path={ROUTES.tenantEngineHoursUnallocated}
+          element={guard(PERMISSIONS.tenantMeterRead, <UnallocatedHoursPage />)}
+        />
+        <Route
+          path={ROUTES.tenantEngineHourClassifications}
+          element={guard(PERMISSIONS.tenantMeterRead, <ClassificationsPage />)}
+        />
+        <Route
+          path={ROUTES.tenantMeterBaselines}
+          element={guard(PERMISSIONS.tenantMeterRead, <MeterBaselinesPage />)}
+        />
+        <Route
+          path={ROUTES.tenantMeterCorrections}
+          element={guard(PERMISSIONS.tenantMeterRead, <MeterCorrectionsPage />)}
+        />
+        <Route
+          path={ROUTES.tenantEngineHourReasons}
+          element={guard(PERMISSIONS.tenantMeterRead, <EngineHourReasonsPage />)}
         />
         <Route
           path={ROUTES.tenantCases}

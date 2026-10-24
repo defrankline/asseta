@@ -17,7 +17,14 @@ import { ENTITY } from '../../../realtime/entities';
 import { useLiveRefresh } from '../../../realtime/hooks';
 import { humanize } from '../../../utils/text';
 import { formatInstantIn } from '../../../utils/time';
+import { PERMISSIONS } from '../../../access/permissionCodes';
+import { useCanMutate } from '../../../access/useCanMutate';
+import { useNotify } from '../../../notifications/useNotify';
+import { ProposeBaselineDialog } from '../engineHours/BaselineDialogs';
+import { ProposeCorrectionDialog } from '../engineHours/ProposeCorrectionDialog';
 import { CaptureCard } from '../jobDetail/CaptureCard';
+import { resultMessage } from '../jobDetail/capturePolicy';
+import { ConsoleCaptureDialog } from '../jobDetail/ConsoleCaptureDialog';
 import { useFieldJobLabels, useFieldMachineLabels } from './fieldLookups';
 
 /** Server `state` filter; PROVISIONAL and REJECTED are the readings that need attention. */
@@ -31,24 +38,38 @@ const STATE_OPTIONS: readonly { value: CaptureState; label: string }[] = [
 const KIND_OPTIONS = [
   { value: 'OPENING', label: 'Opening' },
   { value: 'CLOSING', label: 'Closing' },
+  { value: 'DAILY', label: 'Daily (no job)' },
 ];
+
+/** Live readings (not superseded or rejected) may be corrected through a proposal. */
+const isLive = (c: MeterCaptureDto) => c.state === 'ACCEPTED' || c.state === 'PROVISIONAL';
 
 function ReadingDialog({
   capture,
   jobLabel,
+  machineLabel,
   timeZone,
+  onCorrect,
   onClose,
 }: {
   capture: MeterCaptureDto;
   jobLabel: string;
+  machineLabel: string;
   timeZone: string;
+  /** Present when the caller may propose a correction of this reading. */
+  onCorrect?: (() => void) | undefined;
   onClose: () => void;
 }) {
   const load = useCallback(
     async (signal: AbortSignal) =>
       (
         await meterService.listExceptions(
-          { page: 1, page_size: 200, filters: { job_id: capture.job_id ?? undefined } },
+          {
+            page: 1,
+            page_size: 200,
+            // A DAILY reading has no job: look through the caller's own exceptions instead.
+            filters: capture.job_id === null ? { mine: 'true' } : { job_id: capture.job_id },
+          },
           signal,
         )
       ).items.filter((e) => e.meter_capture_id === capture.id),
@@ -58,7 +79,8 @@ function ReadingDialog({
   return (
     <Dialog open onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle>
-        {humanize(capture.kind)} reading · job {jobLabel}
+        {humanize(capture.kind)} reading ·{' '}
+        {capture.job_id === null ? machineLabel : `job ${jobLabel}`}
       </DialogTitle>
       <DialogContent>
         <AsyncContent resource={findings} errorTitle="Could not load the reading's findings">
@@ -66,6 +88,9 @@ function ReadingDialog({
         </AsyncContent>
       </DialogContent>
       <DialogActions>
+        {onCorrect !== undefined && isLive(capture) && (
+          <Button onClick={onCorrect}>Propose correction</Button>
+        )}
         {capture.job_id !== null && (
           <Button component={RouterLink} to={fieldJobPath(capture.job_id)}>
             Open job
@@ -85,6 +110,10 @@ export function FieldReadingsPage() {
   const [state, setState] = useState('');
   const [kind, setKind] = useState('');
   const [viewing, setViewing] = useState<MeterCaptureDto | null>(null);
+  const [correcting, setCorrecting] = useState<MeterCaptureDto | null>(null);
+  const [recording, setRecording] = useState<'daily' | 'baseline' | null>(null);
+  const notify = useNotify();
+  const canCapture = useCanMutate(PERMISSIONS.tenantMeterCapture);
   const [reloadKey, setReloadKey] = useState(0);
   const liveReload = useCallback(() => {
     setReloadKey((k) => k + 1);
@@ -122,7 +151,29 @@ export function FieldReadingsPage() {
     <>
       <PageHeader
         title="Readings"
-        subtitle="Your opening and closing meter readings, how the policy judged them, and any review notes"
+        subtitle="Your meter readings (job and daily), how the policy judged them, and any review notes"
+        actions={
+          canCapture ? (
+            <Box className="flex flex-wrap gap-2">
+              <Button
+                variant="contained"
+                onClick={() => {
+                  setRecording('daily');
+                }}
+              >
+                Record daily reading
+              </Button>
+              <Button
+                variant="outlined"
+                onClick={() => {
+                  setRecording('baseline');
+                }}
+              >
+                Propose baseline
+              </Button>
+            </Box>
+          ) : undefined
+        }
       />
       <ServerDataTable
         columns={columns}
@@ -132,7 +183,7 @@ export function FieldReadingsPage() {
         reloadKey={reloadKey}
         filters={{ state: state || undefined, kind: kind || undefined }}
         emptyTitle="No readings"
-        emptyDescription="Readings recorded from My jobs (or the field apps) appear here."
+        emptyDescription="Readings recorded from My jobs, daily readings and the field apps appear here."
         isRowMuted={(c) => c.state === 'SUPERSEDED'}
         onRowClick={setViewing}
         toolbar={
@@ -156,9 +207,58 @@ export function FieldReadingsPage() {
         <ReadingDialog
           capture={viewing}
           jobLabel={viewing.job_id === null ? '—' : jobLabel(viewing.job_id)}
+          machineLabel={machineLabel(viewing.machine_id)}
           timeZone={timeZone}
+          onCorrect={
+            canCapture
+              ? () => {
+                  setCorrecting(viewing);
+                  setViewing(null);
+                }
+              : undefined
+          }
           onClose={() => {
             setViewing(null);
+          }}
+        />
+      )}
+      {correcting !== null && (
+        <ProposeCorrectionDialog
+          capture={correcting}
+          machineLabel={machineLabel(correcting.machine_id)}
+          onClose={() => {
+            setCorrecting(null);
+          }}
+          onProposed={(c) => {
+            notify.success(
+              c.status === 'APPROVED'
+                ? 'Reading corrected.'
+                : 'Correction proposed; a second person decides it.',
+            );
+            liveReload();
+          }}
+        />
+      )}
+      {recording === 'daily' && (
+        <ConsoleCaptureDialog
+          kind="DAILY"
+          variant="field"
+          onClose={() => {
+            setRecording(null);
+          }}
+          onRecorded={(r) => {
+            notify.success(resultMessage(r));
+            liveReload();
+          }}
+        />
+      )}
+      {recording === 'baseline' && (
+        <ProposeBaselineDialog
+          onClose={() => {
+            setRecording(null);
+          }}
+          onProposed={() => {
+            notify.success('Baseline proposed; a second person decides it.');
           }}
         />
       )}

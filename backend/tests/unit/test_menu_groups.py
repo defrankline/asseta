@@ -42,6 +42,7 @@ def test_groups_follow_the_daily_workflow_and_start_on_the_landing_page() -> Non
         "Field work",
         "Operations",
         "Fleet",
+        "Engine hours",
         "Finance",
         "Risk & review",
         "Administration",
