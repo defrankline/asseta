@@ -123,8 +123,11 @@ public struct CashCollectionPayload: Codable, Hashable, Sendable {
     public let reference: String?
     public let note: String?
 
+    /// The custodian who holds the cash when a recorder records for someone else (nil = the recorder).
+    public let staffMemberID: UUID?
+
     public init(clientID: UUID, customerID: UUID, amount: Decimal, currency: String?, receivedAt: Date,
-                reference: String?, note: String?) {
+                reference: String?, note: String?, staffMemberID: UUID? = nil) {
         self.clientID = clientID
         self.customerID = customerID
         self.amount = DecimalString(amount)
@@ -132,11 +135,13 @@ public struct CashCollectionPayload: Codable, Hashable, Sendable {
         self.receivedAt = receivedAt
         self.reference = reference
         self.note = note
+        self.staffMemberID = staffMemberID
     }
 
     enum CodingKeys: String, CodingKey {
         case amount, currency, reference, note
         case clientID = "client_id", customerID = "customer_id", receivedAt = "received_at"
+        case staffMemberID = "staff_member_id"
     }
 }
 

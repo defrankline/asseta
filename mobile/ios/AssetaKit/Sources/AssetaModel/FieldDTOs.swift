@@ -153,6 +153,11 @@ public enum OperationType: String, Codable, Sendable, CaseIterable {
     case meterResetRequest = "METER_RESET_REQUEST"
     /// A job requested from the field for owner approval (permission `tenant.job.request`).
     case jobRequest = "JOB_REQUEST"
+    /// Accountability ops (each needs its server capability, see ``SyncCapability``).
+    case hoursPurchase = "HOURS_PURCHASE", hoursTransferRequest = "HOURS_TRANSFER_REQUEST"
+    case cashTransfer = "CASH_TRANSFER", cashTransferAcknowledgement = "CASH_TRANSFER_ACKNOWLEDGEMENT"
+    case cashFloatAcknowledgement = "CASH_FLOAT_ACKNOWLEDGEMENT"
+    case meterBaseline = "METER_BASELINE", meterCorrection = "METER_CORRECTION"
 }
 
 public enum GpsStatus: String, Codable, Sendable, CaseIterable {

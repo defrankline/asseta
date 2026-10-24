@@ -286,6 +286,8 @@ public struct PushResultDTO: Codable, Hashable, Sendable {
 public enum BlobPurpose: String, Codable, Sendable, CaseIterable {
     case meterPhoto = "METER_PHOTO", signature = "SIGNATURE", resetEvidence = "RESET_EVIDENCE"
     case expenseReceipt = "EXPENSE_RECEIPT"
+    /// Receipt photo / mobile-money screenshot of a payment taken with an hours purchase.
+    case paymentEvidence = "PAYMENT_EVIDENCE"
 }
 
 public struct BlobStartIn: Codable, Hashable, Sendable {

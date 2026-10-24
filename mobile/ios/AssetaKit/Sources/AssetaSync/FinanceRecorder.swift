@@ -38,13 +38,15 @@ extension FieldRecorder {
         }
     }
 
-    /// Cash received from a customer into the supervisor's custody. A job, when chosen, only helps
+    /// Cash received from a customer into the supervisor's custody (or, when the tenant lets recorders record for
+    /// others, into `custodianID`'s custody). A job, when chosen, only helps
     /// pick the customer and is noted for the office (the collection itself has no job field); it must
     /// belong to the chosen customer (`jobCustomerID`, when the job's contract is known).
     @discardableResult
     public func recordCashCollection(customerID: UUID?, amountText: String, currency: String, reference: String?,
                                      note: String?, jobNumber: String? = nil, jobCustomerID: UUID? = nil,
-                                     receivedAt: Date, clientID: UUID = UUID()) throws -> ClientOperation {
+                                     custodianID: UUID? = nil, receivedAt: Date,
+                                     clientID: UUID = UUID()) throws -> ClientOperation {
         guard let customerID else { throw FieldRecorderError.invalid("Choose the customer who paid.") }
         if let jobNumber, let jobCustomerID, jobCustomerID != customerID {
             throw FieldRecorderError.invalid("Job \(jobNumber) belongs to another customer.")
@@ -55,7 +57,7 @@ extension FieldRecorder {
         let payload = CashCollectionPayload(
             clientID: clientID, customerID: customerID, amount: amount, currency: try FinanceRules.currency(currency),
             receivedAt: receivedAt, reference: FinanceRules.clean(reference, max: 120),
-            note: FinanceRules.clean(combined, max: 1000))
+            note: FinanceRules.clean(combined, max: 1000), staffMemberID: custodianID)
         return try enqueue(.cashCollection, entityType: "cash_collection", entityID: clientID, payload: payload,
                            dependsOn: [], createdAt: receivedAt)
     }

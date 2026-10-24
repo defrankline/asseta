@@ -36,6 +36,10 @@ public enum AttachmentPayloadField: String, Sendable, CaseIterable {
     case receiptUploads = "receipt_upload_ids"
     /// METER_RESET_REQUEST evidence photo: the upload session id is written here (like receipts).
     case evidenceUpload = "evidence_upload_id"
+    /// HOURS_PURCHASE payment evidence: each upload session id is appended to this array (like receipts).
+    case evidenceUploads = "evidence_upload_ids"
+    /// METER_CORRECTION: the replacement reading's photo attachment id (nested in `replacement`).
+    case replacementPhoto = "replacement.photo_attachment_id"
 }
 
 /// A durable, device-generated mutation waiting to be pushed to the server.

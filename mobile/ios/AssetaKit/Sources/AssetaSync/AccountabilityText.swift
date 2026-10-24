@@ -1,0 +1,199 @@
+import AssetaModel
+import Foundation
+
+/// Wording of the accountability field screens (Supervisor app), copied exactly from
+/// `docs/requirements/accountability-mobile-strings.md` (Android `FieldAccountabilityTexts` / `AccountabilityMessages`).
+/// The comment after each constant is its key in that file.
+public enum FieldAccountabilityTexts {
+    // Money tab "+" menu
+    public static let menuSellHours = "Sell customer hours" // field.menu.sellHours
+    public static let menuRequestHoursTransfer = "Request hours transfer" // field.menu.requestHoursTransfer
+    public static let menuTransferCash = "Transfer cash to a colleague" // field.menu.transferCash
+    public static let menuAskToKeepCash = "Ask to keep cash" // field.menu.askToKeepCash
+
+    // Screen titles
+    public static let titleHoursSale = "Sell customer hours"
+    public static let titleHoursTransfer = "Request hours transfer"
+    public static let titleCashTransfer = "Transfer cash"
+    public static let titleAcknowledgeTransfer = "Cash transfer"
+    public static let titleAcknowledgeFloat = "Cash float"
+    public static let titleRetention = "Ask to keep cash"
+    public static let titleDailyReading = "Daily reading"
+    public static let titleBaseline = "Propose meter baseline"
+    public static let titleCorrection = "Propose reading correction"
+
+    // Common
+    public static let cashHolder = "Cash held by"
+    public static let me = "Me"
+    public static let reasonCategory = "Reason category"
+    public static let reasonCategoryOptional = "Reason category (optional)"
+    public static let noCategory = "No category"
+    public static let reason = "Reason"
+    public static let noteOptional = "Note (optional)"
+    public static let amount = "Amount"
+    public static let currency = "Currency"
+    public static let needsRules = "Connect once so this phone can load your company's rules for this."
+    public static let serverTooOld = "Your company's server does not accept this from the app yet."
+    public static let onlineOnly = "Connect to the internet to send this request."
+    public static func lastUpdated(_ time: String) -> String { "Last updated \(time)." }
+
+    // Sell customer hours
+    public static let hoursSectionCustomer = "Customer"
+    public static let hoursRegistered = "Registered"
+    public static let hoursWalkIn = "Walk-in"
+    public static let hoursCustomer = "Customer"
+    public static let hoursCustomerEmpty = "Customers appear here after a sync."
+    public static let hoursWalkInName = "Customer name"
+    public static let hoursWalkInPhone = "Phone (optional)"
+    public static let hoursWalkInFooter = "The office gives a walk-in customer a code. A phone number helps find them again."
+    public static let hoursSectionHours = "Hours"
+    public static let hoursMachine = "Machine"
+    public static let hoursHours = "Hours"
+    public static let hoursHoursFooter = "The price comes from your company's rate card and any approved discount."
+    public static let hoursSectionPayment = "Payment"
+    public static let hoursPaidNow = "Paid now"
+    public static let hoursNotPaid = "Not paid yet"
+    public static let hoursMethodCash = "Cash"
+    public static let hoursMethodBank = "Bank"
+    public static let hoursMethodMobileMoney = "Mobile money"
+    public static let hoursAmountReceived = "Amount received"
+    public static let hoursReference = "Reference (required for bank and mobile money)"
+    public static let hoursReceived = "Received"
+    public static let hoursPaymentFooter = "Hours become available only after someone else verifies this payment."
+    public static let hoursNotPaidFooter = "The hours stay inactive until a payment is verified or credit is approved by the office."
+    public static let hoursEvidence = "Payment evidence (optional)"
+    public static let hoursEvidenceFooter = "Receipt or mobile-money screenshot. Stored encrypted on this phone and uploaded before the sale is sent."
+    public static let hoursPhotograph = "Photograph evidence"
+    public static let hoursAddPhoto = "Add another photo"
+    public static let hoursErrCustomer = "Choose the customer."
+    public static let hoursErrWalkInName = "Enter the customer's name."
+    public static let hoursErrPhone = "The phone number must have at least 3 characters."
+    public static let hoursErrMachine = "Choose the machine."
+    public static let hoursErrHours = "Enter the hours (more than 0, at most 2 decimal places)."
+    public static let hoursErrAmount = "Enter the amount received (more than 0)."
+    public static let hoursErrReference = "Enter the reference for bank and mobile-money payments."
+    public static let hoursErrWalkInOff = "Walk-in customers are turned off for your company."
+    public static let hoursOff = "Customer hours are turned off for your company."
+
+    // Request hours transfer
+    public static let transferPurchase = "Purchase"
+    public static func transferPurchaseOption(number: String, hours: String) -> String { "\(number) · \(hours) h left" }
+    public static let transferPurchasesEmpty = "No purchases with hours left. Purchases appear here after you connect."
+    public static let transferFromMachine = "From machine"
+    public static let transferToMachine = "To machine"
+    public static let transferHours = "Hours to move"
+    public static let transferFooterApproval = "Someone else approves the transfer before the hours move."
+    public static let transferFooterDirect = "The hours move when the server accepts the request."
+    public static let transferErrPurchase = "Choose the purchase."
+    public static let transferErrMachine = "Choose the machine to move the hours to."
+    public static let transferErrSameMachine = "Choose a different machine from the one the hours are on."
+    public static let transferErrHours = "Enter the hours to move (more than 0, at most 2 decimal places)."
+    public static func transferErrTooMany(_ hours: String) -> String { "Only \(hours) h are left on this purchase." }
+    public static let transferErrReason = "Enter a reason (at least 3 characters)."
+    public static let transferErrCategory = "Choose a reason category."
+
+    // Transfer cash
+    public static let cashTransferFrom = "From"
+    public static let cashTransferTo = "To"
+    public static let cashTransferAmount = "Amount handed over"
+    public static let cashTransferWhen = "Transferred"
+    public static let cashTransferAmountReceived = "Amount you received"
+    public static let cashTransferFooterAck = "The cash stays with the sender until the receiver acknowledges it."
+    public static let cashTransferFooterNoAck = "The cash moves to the receiver when the server accepts the transfer."
+    public static let cashTransferFooterSelf = "Recording a transfer you receive counts as your acknowledgement."
+    public static let cashTransferCustodiansEmpty = "Colleagues who hold cash appear here after you connect."
+    public static let cashTransferErrTo = "Choose who receives the cash."
+    public static let cashTransferErrSame = "The sender and the receiver must be different people."
+    public static let cashTransferErrAmount = "Enter the amount (more than 0)."
+    public static let cashTransferErrReceived = "Enter the amount you received (0 or more)."
+    public static let currencyError = "Enter a 3-letter currency code."
+
+    // Acknowledge a transfer or a float
+    public static let ackSection = "Cash to acknowledge"
+    public static func ackTransferFrom(_ name: String) -> String { "Transfer from \(name)" }
+    public static let ackFloatFromOffice = "Float from the office"
+    public static let ackSomeone = "A colleague"
+    public static let ackDeclared = "Declared amount"
+    public static let ackSent = "Sent"
+    public static let ackIssued = "Issued"
+    public static let ackAmountReceived = "Amount received"
+    public static let ackAcknowledge = "Acknowledge"
+    public static let ackDispute = "Dispute"
+    public static let ackDisputeReason = "Why you dispute it"
+    public static let ackFooter = "A different amount opens a cash difference for the office to review."
+    public static let ackErrReceived = "Enter the amount you received (0 or more)."
+    public static let ackErrReason = "Say why you dispute it."
+    public static let ackWaiting = "Your answer is waiting to sync."
+    public static let ackNotFound = "This item is no longer waiting for you."
+
+    // Money tab "Transfers" segment
+    public static let moneyTransfers = "Transfers"
+    public static let moneyTransfersEmptyTitle = "No cash transfers"
+    public static let moneyTransfersEmptyMessage = "Cash moved between you and colleagues appears here."
+    public static func moneyTransferTo(_ name: String) -> String { "To \(name)" }
+    public static func moneyTransferFrom(_ name: String) -> String { "From \(name)" }
+    public static let moneyStatusPendingAck = "Awaiting acknowledgement"
+    public static let moneyStatusAcknowledged = "Acknowledged"
+    public static let moneyStatusDisputed = "Disputed"
+
+    // Ask to keep cash
+    public static let retentionAmount = "Amount to keep"
+    public static let retentionValidUntil = "Keep until (optional)"
+    public static let retentionFooter = "Someone else approves this. Until then the full balance is expected when you remit."
+    public static let retentionSent = "Request sent for approval."
+    public static let retentionErrAmount = "Enter the amount to keep (more than 0)."
+    public static let retentionErrReason = "Enter a reason (at least 3 characters)."
+    public static let retentionOff = "Your company does not allow keeping cash."
+
+    // Readings
+    public static let meterRecordDaily = "Record daily reading"
+    public static let meterProposeBaseline = "Propose meter baseline"
+    public static let meterProposeCorrection = "Propose a correction"
+    public static let meterKindDaily = "Daily"
+    public static let meterKindBaseline = "Baseline"
+    public static let meterDailyFooter = "A daily reading outside a job keeps the machine's engine hours accounted for."
+    public static let meterBaselineFooter = "Someone else approves the baseline before it counts."
+    public static let meterBaselineNote = "Note (optional)"
+    public static let meterCorrectionOf = "Reading to correct"
+    public static let meterCorrectionReason = "Reason for the correction"
+    public static let meterCorrectionFooter = "The corrected reading replaces the old one only after someone else approves it."
+    public static let meterErrCorrectionReason = "Enter a reason of at least 10 characters."
+    public static let meterCorrectionNotSynced = "A reading can be corrected once the server has it."
+    public static let meterCorrectionNotLive = "Only a reading the server still counts can be corrected."
+
+    // Sync status titles (outbox)
+    public static let outboxHoursSale = "Hours sale"
+    public static let outboxHoursTransfer = "Hours transfer request"
+    public static let outboxCashTransfer = "Cash transfer"
+    public static let outboxTransferAck = "Transfer acknowledgement"
+    public static let outboxFloatAck = "Float acknowledgement"
+    public static let outboxBaseline = "Meter baseline proposal"
+    public static let outboxCorrection = "Reading correction proposal"
+    public static let outboxDailyReading = "Daily reading"
+
+    /// Messages of the recorder (same wording as Android `AccountabilityCapture`).
+    public static let tooManyEvidence = "At most 10 evidence photos per sale."
+    public static let customerGone = "This customer is no longer active. Choose another one."
+    public static let machineMissing = "This machine is not on this device."
+    public static let alreadySaved = "This is already saved."
+
+    /// Outbox title of an accountability operation (nil for other operations).
+    public static func operationTitle(_ type: OperationType, payload: JSONValue?) -> String? {
+        switch type {
+        case .hoursPurchase: outboxHoursSale
+        case .hoursTransferRequest: outboxHoursTransfer
+        case .cashTransfer: outboxCashTransfer
+        case .cashTransferAcknowledgement: outboxTransferAck
+        case .cashFloatAcknowledgement: outboxFloatAck
+        case .meterBaseline: outboxBaseline
+        case .meterCorrection: outboxCorrection
+        case .meterCapture where payload?["kind"]?.stringValue == ReadingKind.daily.rawValue: outboxDailyReading
+        default: nil
+        }
+    }
+
+    /// Payment methods of the sale form with their labels.
+    public static let paymentMethods: [(wire: String, label: String)] = [
+        ("CASH", hoursMethodCash), ("BANK", hoursMethodBank), ("MOBILE_MONEY", hoursMethodMobileMoney),
+    ]
+}

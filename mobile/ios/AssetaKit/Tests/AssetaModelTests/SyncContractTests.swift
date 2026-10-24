@@ -209,4 +209,106 @@ struct SyncContractTests {
         #expect(capture.jobID == nil && capture.kind == "DAILY")
         #expect(ReadingKind(rawValue: "DAILY") == .daily)
     }
+
+    /// Every key an accountability payload writes is a property of its contract input (op-only keys excepted), with
+    /// the required ones present; nested objects are checked against their own schema.
+    static func checkPayload<T: Encodable>(_ value: T, schema: String, opOnly: Set<String> = []) throws {
+        let data = try AssetaJSON.encoder().encode(value)
+        let encoded = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let contract = try #require(schemas[schema] as? [String: Any], "schema \(schema) missing")
+        let properties = contract["properties"] as? [String: Any] ?? [:]
+        for key in encoded.keys where !opOnly.contains(key) { #expect(properties[key] != nil, "\(schema) has no property '\(key)'") }
+        for key in contract["required"] as? [String] ?? [] { #expect(encoded[key] != nil, "\(schema).\(key) required") }
+    }
+
+    @Test func accountabilityPayloadsMatchTheContract() throws {
+        let id = UUID(), at = Date(timeIntervalSince1970: 1_790_000_000)
+        let gps = GpsPayload.fix(latitude: -6.8, longitude: 39.2, accuracyM: 5, capturedAt: at)
+        let payment = PurchasePaymentPayload(method: "CASH", amount: 100, receivedAt: at, reference: nil, note: nil, staffMemberID: id)
+        let walkIn = WalkInCustomerPayload(clientID: id, name: "Asha", phone: "0712")
+        try Self.checkPayload(walkIn, schema: "WalkInCustomerIn")
+        try Self.checkPayload(payment, schema: "PurchasePaymentIn")
+        try Self.checkPayload(HoursPurchasePayload(clientID: id, machineID: id, hours: 5, customerID: nil, walkIn: walkIn, jobSiteID: nil,
+                                                   note: "n", payment: payment),
+                              schema: "HoursPurchaseIn", opOnly: ["evidence_upload_ids"])
+        try Self.checkPayload(HoursTransferPayload(clientID: id, purchaseID: id, fromMachineID: id, toMachineID: UUID(), hours: 2,
+                                                   reason: "Moved site", reasonCodeID: id), schema: "TransferIn")
+        try Self.checkPayload(CashTransferPayload(clientID: id, fromStaffID: id, toStaffID: UUID(), amount: 5, amountReceived: 4,
+                                                  currency: "TZS", transferredAt: at, note: "x"), schema: "CashTransferIn")
+        try Self.checkPayload(CashAcknowledgementPayload(transferID: id, acknowledged: true, amountReceived: 4, note: nil),
+                              schema: "CashAcknowledgementIn", opOnly: ["transfer_id"])
+        try Self.checkPayload(CashAcknowledgementPayload(entryID: id, acknowledged: false, amountReceived: nil, note: "Short"),
+                              schema: "CashAcknowledgementIn", opOnly: ["entry_id"])
+        try Self.checkPayload(MeterBaselinePayload(id: id, machineID: id, reading: "10.0", capturedAt: at, gps: gps, deviceID: "dev-1",
+                                                   note: nil), schema: "BaselineIn")
+        let replacement = MeterCapturePayload(id: id, jobID: nil, machineID: id, kind: .daily, captureMode: .manual, reading: "10.0",
+                                              ocrRawText: nil, ocrValue: nil, ocrConfidence: nil, ocrEngine: nil,
+                                              photoAttachmentID: nil, gps: gps, deviceID: "dev-1", capturedAt: at, policyVersionIDs: [id])
+        try Self.checkPayload(replacement, schema: "MeterCaptureIn")
+        try Self.checkPayload(MeterCorrectionPayload(supersededCaptureID: id, reason: "Misread digit", replacement: replacement),
+                              schema: "CorrectionIn")
+        try Self.checkPayload(CashRetentionIn(amount: 5, currency: "TZS", reason: "Float", reasonID: id, staffMemberID: id,
+                                              validUntil: at), schema: "CashRetentionIn")
+        try Self.checkPayload(CashCollectionPayload(clientID: id, customerID: id, amount: 5, currency: "TZS", receivedAt: at,
+                                                    reference: nil, note: nil, staffMemberID: id), schema: "CashCollectionIn")
+    }
+
+    @Test func accountabilityReadsMatchTheContract() throws {
+        let i = Self.ids
+        let custodian: [String: Any] = ["staff_member_id": i[0], "full_name": "Juma", "kind": "OPERATOR", "employee_code": NSNull(),
+                                        "is_active": true, "has_login": false]
+        try Self.check("CustodianDto", encoded: Self.roundTrip(CustodianDTO.self, custodian), sample: custodian)
+        let transfer: [String: Any] = [
+            "id": i[1], "client_id": i[2], "from_staff_id": i[0], "to_staff_id": i[3], "amount_declared": "50000", "currency": "TZS",
+            "transferred_at": "2026-10-24T08:00:00Z", "note": NSNull(), "status": "PENDING_ACKNOWLEDGEMENT", "source": "SYNC",
+            "recorded_by": NSNull(), "recorded_at": "2026-10-24T08:00:00Z", "amount_received": NSNull(), "ack_method": NSNull(),
+            "acknowledged_by": NSNull(), "acknowledged_at": NSNull(), "ack_note": NSNull(), "variance_id": NSNull()]
+        try Self.check("CashTransferDto", encoded: Self.roundTrip(CashTransferDTO.self, transfer), sample: transfer)
+        let float: [String: Any] = [
+            "id": i[4], "staff_member_id": i[0], "entry_type": "FLOAT_ISSUED", "amount": "100000", "currency": "TZS",
+            "occurred_at": "2026-10-24T07:00:00Z", "reference": NSNull(), "note": NSNull(), "ack_required": true,
+            "ack_status": "PENDING", "amount_received": NSNull(), "acknowledged_at": NSNull()]
+        try Self.check("CashCustodyEntryDto", encoded: Self.roundTrip(CashFloatDTO.self, float), sample: float)
+        let retention: [String: Any] = [
+            "id": i[5], "staff_member_id": i[0], "amount": "20000", "currency": "TZS", "reason_id": NSNull(), "reason": "Working float",
+            "valid_until": NSNull(), "status": "PENDING", "created_by": NSNull(), "created_at": "2026-10-24T07:00:00Z",
+            "decided_by": NSNull(), "decided_at": NSNull(), "decision_note": NSNull()]
+        try Self.check("CashRetentionDto", encoded: Self.roundTrip(CashRetentionDTO.self, retention), sample: retention)
+        let totals: [String: Any] = ["purchased": "10", "activated": "4", "consumed": "1", "remaining": "3", "awaiting_activation": "6"]
+        let purchase: [String: Any] = [
+            "id": i[6], "purchase_number": "HP-2026-00001", "client_id": NSNull(), "customer_id": i[7], "customer_name": "Asha",
+            "machine_id": i[8], "hours": "10", "currency": "TZS", "amount": "250000", "status": "PARTLY_ACTIVE",
+            "created_at": "2026-10-24T07:00:00Z", "totals": totals, "machines": [["machine_id": i[8], "remaining": "3"]]]
+        let p = try AssetaJSON.decoder().decode(HoursPurchaseDTO.self, from: JSONSerialization.data(withJSONObject: purchase))
+        #expect(p.remaining(on: UUID(uuidString: i[8])) == 3 && p.remaining(on: nil) == 3)
+        let props = try #require((Self.schemas["HoursPurchaseDto"] as? [String: Any])?["properties"] as? [String: Any])
+        for key in try Self.roundTrip(HoursPurchaseDTO.self, purchase).keys { #expect(props[key] != nil, "HoursPurchaseDto.\(key)") }
+        let totalProps = try #require((Self.schemas["PurchaseTotalsDto"] as? [String: Any])?["properties"] as? [String: Any])
+        for key in totals.keys { #expect(totalProps[key] != nil) }
+        let reason: [String: Any] = ["id": i[9], "kind": "TRANSFER", "code": "SITE", "label": "Site move", "is_active": true]
+        let reasonProps = try #require((Self.schemas["ReasonCodeDto"] as? [String: Any])?["properties"] as? [String: Any])
+        for key in try Self.roundTrip(ReasonCodeDTO.self, reason).keys { #expect(reasonProps[key] != nil) }
+        let cashReason: [String: Any] = ["id": i[10], "kind": "RETENTION", "label": "Working float", "description": NSNull(), "is_active": true]
+        let cashReasonProps = try #require((Self.schemas["CashReasonDto"] as? [String: Any])?["properties"] as? [String: Any])
+        for key in try Self.roundTrip(CashReasonDTO.self, cashReason).keys { #expect(cashReasonProps[key] != nil) }
+        let effective: [String: Any] = ["policy_type": "CUSTOMER_HOURS", "version_stamp": "v3", "values": [
+            "enabled": true, "walk_in_allowed": false, "transfer_requires_approval": true, "reason_code_required": false,
+            "billing_modes": ["PREPAID_HOURS"]]]
+        let policy = try AssetaJSON.decoder().decode(EffectivePolicyDTO<CustomerHoursPolicyValues>.self,
+                                                     from: JSONSerialization.data(withJSONObject: effective))
+        #expect(policy.values.enabled && !policy.values.walkInAllowed)
+        let effectiveProps = try #require((Self.schemas["EffectivePolicyDto"] as? [String: Any])?["properties"] as? [String: Any])
+        for key in ["policy_type", "version_stamp", "values"] { #expect(effectiveProps[key] != nil) }
+        for capability in [SyncCapability.hoursPurchase, SyncCapability.hoursTransferRequest, SyncCapability.cashTransfer,
+                           SyncCapability.meterDailyReading, SyncCapability.meterBaseline, SyncCapability.meterCorrection] {
+            #expect(capability.hasPrefix("OP_") || capability == "METER_DAILY_READING")
+        }
+        let opTypes = try #require(((Self.schemas["OperationIn"] as? [String: Any])?["properties"] as? [String: Any])?["op_type"]
+            as? [String: Any])
+        let allowed = Set(opTypes["enum"] as? [String] ?? [])
+        for op in OperationType.allCases { #expect(allowed.isEmpty || allowed.contains(op.rawValue), "op \(op.rawValue)") }
+        let purposes = Set((((Self.schemas["BlobStartIn"] as? [String: Any])?["properties"] as? [String: Any])?["purpose"]
+            as? [String: Any])?["enum"] as? [String] ?? [])
+        for purpose in BlobPurpose.allCases { #expect(purposes.isEmpty || purposes.contains(purpose.rawValue)) }
+    }
 }

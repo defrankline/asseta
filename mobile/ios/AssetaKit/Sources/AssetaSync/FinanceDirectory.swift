@@ -131,8 +131,10 @@ extension FieldDirectory {
     }
 
     static func cashItem(_ op: ClientOperation) -> LocalCashItem? {
-        guard let payload = try? JSONValue.parse(op.payloadJSON),
-              let amount = payload["amount"]?.stringValue.flatMap(DecimalString.init(string:))?.value else { return nil }
+        guard let payload = try? JSONValue.parse(op.payloadJSON) else { return nil }
+        // Recorded for another custodian: not in my custody.
+        if payload["staff_member_id"]?.stringValue != nil { return nil }
+        guard let amount = payload["amount"]?.stringValue.flatMap(DecimalString.init(string:))?.value else { return nil }
         let kind: LocalCashItem.Kind
         let date: String?
         switch OperationType(rawValue: op.opType) {

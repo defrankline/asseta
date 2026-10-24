@@ -29,7 +29,11 @@ public struct OutboxItem: Sendable, Equatable, Identifiable {
     public var id: UUID { operation.id }
 
     public var title: String {
-        switch OperationType(rawValue: operation.opType) {
+        let type = OperationType(rawValue: operation.opType)
+        if let type, let title = FieldAccountabilityTexts.operationTitle(type, payload: try? JSONValue.parse(operation.payloadJSON)) {
+            return title
+        }
+        return switch type {
         case .meterCapture: "Meter reading"
         case .jobActivity: "Work log entry"
         case .jobAcknowledgement: "Customer acknowledgement"
@@ -40,7 +44,8 @@ public struct OutboxItem: Sendable, Equatable, Identifiable {
         case .fuelEvent: "Fuel event"
         case .meterResetRequest: "Meter reset request"
         case .jobRequest: JobRequestText.operation
-        case nil: operation.opType
+        case .hoursPurchase, .hoursTransferRequest, .cashTransfer, .cashTransferAcknowledgement, .cashFloatAcknowledgement,
+             .meterBaseline, .meterCorrection, nil: operation.opType
         }
     }
 }

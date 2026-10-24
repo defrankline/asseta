@@ -182,12 +182,14 @@ public struct FieldRecorder: Sendable {
             sizeBytes: evidence.sizeBytes, contentType: evidence.contentType, ownerSubject: owner?.subject)).id
     }
 
+    /// `operationID` defaults to a fresh id; ops whose server key is the operation id (HOURS_PURCHASE,
+    /// HOURS_TRANSFER_REQUEST, METER_BASELINE) pass the form's id so a second save of the same visit is refused.
     func enqueue(_ type: OperationType, entityType: String, entityID: UUID, payload: some Encodable,
                          dependsOn: [UUID], attachments: [(localID: UUID, field: AttachmentPayloadField)] = [],
-                         createdAt: Date) throws -> ClientOperation {
+                         createdAt: Date, operationID: UUID = UUID()) throws -> ClientOperation {
         let json = try JSONValue.encode(payload).lowercasingUUIDs().jsonString()
         return try store.outbox.enqueue(NewClientOperation(
-            tenantID: tenantID, opType: type.rawValue, entityType: entityType, entityID: entityID, payloadJSON: json,
+            id: operationID, tenantID: tenantID, opType: type.rawValue, entityType: entityType, entityID: entityID, payloadJSON: json,
             dependsOn: dependsOn, attachments: attachments, createdAtDevice: createdAt, owner: owner))
     }
 }

@@ -228,7 +228,9 @@ struct OperationRow: View {
 
     private var title: String {
         let payload = try? JSONValue.parse(operation.payloadJSON)
-        switch OperationType(rawValue: operation.opType) {
+        let type = OperationType(rawValue: operation.opType)
+        if let type, let title = FieldAccountabilityTexts.operationTitle(type, payload: payload) { return title }
+        switch type {
         case .meterCapture:
             let kind = payload?["kind"]?.stringValue == "OPENING" ? "Opening" : "Closing"
             return "\(kind) reading \(payload?["reading"]?.stringValue ?? "")"
@@ -242,7 +244,8 @@ struct OperationRow: View {
         case .cashHandover: return "Cash handover \(payload?["amount"]?.stringValue ?? "")"
         case .meterResetRequest: return "Meter reset request"
         case .jobRequest: return JobRequestText.operation
-        case nil: return operation.opType
+        case .hoursPurchase, .hoursTransferRequest, .cashTransfer, .cashTransferAcknowledgement, .cashFloatAcknowledgement,
+             .meterBaseline, .meterCorrection, nil: return operation.opType
         }
     }
 }

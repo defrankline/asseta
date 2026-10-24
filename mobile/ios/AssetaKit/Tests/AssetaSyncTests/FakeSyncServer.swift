@@ -8,7 +8,7 @@ import Foundation
 /// (re-applied when re-sent after reactivation), resumable chunked blobs with SHA-256 verification.
 final class FakeSyncServer: @unchecked Sendable {
     struct StoredOp { var status: String; var result: [String: Any]; var error: [String: Any]? }
-    struct Blob { var sha256: String; var size: Int; var chunks: [Int: Data] = [:]; var attachmentID: UUID? }
+    struct Blob { var sha256: String; var size: Int; var chunks: [Int: Data] = [:]; var attachmentID: UUID?; var purpose: String? = nil }
 
     private let lock = NSLock()
     // Failure injection and behaviour switches.
@@ -188,6 +188,25 @@ final class FakeSyncServer: @unchecked Sendable {
             applyOrder.append(id)
             return ["id": id.uuidString.lowercased(), "status": "ACKED", "result": result, "error": NSNull()]
         }
+        if op["op_type"] as? String == "HOURS_PURCHASE" {
+            // Mirrors push.py `_hours_purchase`: incomplete evidence uploads defer; an unknown one is rejected.
+            let uploads = (payload["evidence_upload_ids"] as? [String] ?? []).compactMap(UUID.init(uuidString:))
+            if uploads.contains(where: { blobs[$0] != nil && blobs[$0]?.attachmentID == nil }) {
+                return ["id": id.uuidString.lowercased(), "status": "DEFERRED", "error": ["code": "ATTACHMENT_PENDING"]]
+            }
+            if uploads.contains(where: { blobs[$0] == nil }) {
+                let error: [String: Any] = ["code": "ATTACHMENT_NOT_FOUND", "message": "Evidence upload not found"]
+                stored[id] = StoredOp(status: "REJECTED", result: ["error": error], error: error)
+                return ["id": id.uuidString.lowercased(), "status": "REJECTED", "result": ["error": error], "error": error]
+            }
+        }
+        if op["op_type"] as? String == "METER_CORRECTION",
+           let text = (payload["replacement"] as? [String: Any])?["photo_attachment_id"] as? String,
+           !blobs.values.contains(where: { $0.attachmentID?.uuidString.lowercased() == text }) {
+            let error: [String: Any] = ["code": "NOT_FOUND", "message": "Photo attachment not found"]
+            stored[id] = StoredOp(status: "REJECTED", result: ["error": error], error: error)
+            return ["id": id.uuidString.lowercased(), "status": "REJECTED", "result": ["error": error], "error": error]
+        }
         if op["op_type"] as? String == "JOB_REQUEST" {
             // Mirrors JobService.request_job: client_id becomes the job id, numbered by the server, PENDING_APPROVAL.
             let jobID = payload["client_id"] as? String ?? id.uuidString.lowercased()
@@ -221,7 +240,8 @@ final class FakeSyncServer: @unchecked Sendable {
         sessionsStarted += 1
         let sha = body["sha256"] as? String ?? ""
         let id = UUID()
-        blobs[id] = Blob(sha256: sha, size: body["size_bytes"] as? Int ?? 0, attachmentID: knownContent[sha])
+        blobs[id] = Blob(sha256: sha, size: body["size_bytes"] as? Int ?? 0, attachmentID: knownContent[sha],
+                         purpose: body["purpose"] as? String)
         return json(201, blobDTO(id))
     }
 

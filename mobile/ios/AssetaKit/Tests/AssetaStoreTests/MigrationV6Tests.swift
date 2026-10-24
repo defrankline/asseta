@@ -28,7 +28,7 @@ struct MigrationV6Tests {
         try db.execute("INSERT INTO operation_attachment (operation_id, attachment_local_id, payload_field) VALUES (?, ?, ?)",
                        [.text(op.lowercased), .text(file.lowercased), .text("photo_attachment_id")])
         try LocalStore(database: db).syncState.setValue("53", for: "cursor", tenant: tenant.lowercased)
-        #expect(try Migrator.asseta.migrate(db) == 6)
+        #expect(try Migrator(migrations: Array(AssetaSchema.migrations.prefix(6))).migrate(db) == 6)
         return (db, op, file)
     }
 

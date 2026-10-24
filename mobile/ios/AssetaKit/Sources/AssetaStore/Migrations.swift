@@ -155,6 +155,11 @@ public enum AssetaSchema {
             name: "supervisor_inbox",
             statements: InboxV6.statements
         ),
+        Migration(
+            version: 7,
+            name: "accountability_evidence",
+            statements: AccountabilityV7.statements
+        ),
     ]
 }
 

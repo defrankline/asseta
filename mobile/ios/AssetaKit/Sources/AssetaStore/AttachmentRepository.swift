@@ -196,15 +196,15 @@ public final class AttachmentRepository: Sendable {
                 guard let kind = AttachmentPayloadField(rawValue: field) else { continue }
                 // Only unsent operations are rewritten; an op already sent keeps its exact payload.
                 switch kind {
-                case .receiptUploads:
+                case .receiptUploads, .evidenceUploads:
                     guard let session else { throw OutboxError.attachmentMissing(id) }
                     try db.execute(
                         """
                         UPDATE client_operation
-                        SET payload_json = json_insert(payload_json, '$.receipt_upload_ids[#]', ?)
+                        SET payload_json = json_insert(payload_json, '$.\(field)[#]', ?)
                         WHERE id = ? AND status = 'PENDING'
-                          AND json_type(payload_json, '$.receipt_upload_ids') = 'array'
-                          AND NOT EXISTS (SELECT 1 FROM json_each(client_operation.payload_json, '$.receipt_upload_ids')
+                          AND json_type(payload_json, '$.\(field)') = 'array'
+                          AND NOT EXISTS (SELECT 1 FROM json_each(client_operation.payload_json, '$.\(field)')
                                           WHERE value = ?)
                         """,
                         [.text(session.lowercased), .text(operationID), .text(session.lowercased)]
@@ -218,7 +218,7 @@ public final class AttachmentRepository: Sendable {
                         """,
                         [.text(session.lowercased), .text(operationID)]
                     )
-                case .photo, .signature:
+                case .photo, .signature, .replacementPhoto:
                     try db.execute(
                         """
                         UPDATE client_operation SET payload_json = json_set(payload_json, '$.\(field)', ?)
