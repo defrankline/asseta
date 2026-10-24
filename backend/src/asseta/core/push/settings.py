@@ -6,7 +6,9 @@ ASSETA_PUSH_IOS_PROVIDER       console (default: logs only) | apns
 FCM HTTP v1:   ASSETA_PUSH_FCM_SERVICE_ACCOUNT_FILE (Google service-account JSON), ASSETA_PUSH_FCM_PROJECT_ID (optional,
                defaults to the JSON's project_id)
 APNs (token):  ASSETA_PUSH_APNS_KEY_FILE (.p8), ASSETA_PUSH_APNS_KEY_ID, ASSETA_PUSH_APNS_TEAM_ID,
-               ASSETA_PUSH_APNS_TOPIC (app bundle id), ASSETA_PUSH_APNS_ENVIRONMENT production | sandbox
+               ASSETA_PUSH_APNS_TOPIC (Owner app bundle id),
+               ASSETA_PUSH_APNS_SUPERVISOR_TOPIC (Supervisor app bundle id; empty = no APNs pushes to that app),
+               ASSETA_PUSH_APNS_ENVIRONMENT production | sandbox
 """
 
 from functools import lru_cache
@@ -31,6 +33,7 @@ class PushSettings(BaseSettings):
     apns_key_id: str = ""
     apns_team_id: str = ""
     apns_topic: str = ""
+    apns_supervisor_topic: str = ""
     apns_environment: Literal["production", "sandbox"] = "production"
 
     @model_validator(mode="after")

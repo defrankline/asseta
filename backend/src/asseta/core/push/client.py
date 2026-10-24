@@ -30,6 +30,7 @@ class PushMessage:
     data: dict[str, str] = field(default_factory=dict)
     high_priority: bool = False
     collapse_key: str | None = None
+    app: str = "OWNER"  # DeviceApp of the receiving installation (selects the APNs topic)
 
 
 @dataclass(frozen=True)
@@ -180,9 +181,13 @@ class ApnsPushClient:
         return token
 
     def send(self, message: PushMessage, reference: str | None = None) -> PushSendResult:
+        topic = self._s.apns_supervisor_topic if message.app == "SUPERVISOR" else self._s.apns_topic
+        if not topic:
+            # Not a device fault: the device stays registered and the delivery is not retried.
+            raise PushSendError(f"No APNs topic configured for the {message.app.lower()} app", retryable=False)
         headers = {
             "authorization": f"bearer {self._provider_token()}",
-            "apns-topic": self._s.apns_topic,
+            "apns-topic": topic,
             "apns-push-type": "alert",
             "apns-priority": "10" if message.high_priority else "5",
         }

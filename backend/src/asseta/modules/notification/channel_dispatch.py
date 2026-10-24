@@ -182,6 +182,7 @@ class ChannelDispatcher:
             },
             high_priority=d.severity is not Severity.INFO,
             collapse_key=d.notification_type,
+            app=device.app.value,
         )
         d.attempts += 1
         try:

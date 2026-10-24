@@ -227,6 +227,7 @@ def _apns(path: Path, handler: Any, now: list[float]) -> ApnsPushClient:
         apns_key_id="ABC123",
         apns_team_id="TEAM42",
         apns_topic="com.asseta.owner",
+        apns_supervisor_topic="com.asseta.supervisor",
         apns_environment="sandbox",
     )
     return ApnsPushClient(settings, httpx.Client(transport=httpx.MockTransport(handler)), clock=lambda: now[0])
@@ -272,3 +273,27 @@ def test_apns_token_auth_request_and_errors(apns_key: tuple[Path, Any]) -> None:
     now[0] += 60
     client.send(ios)
     assert seen[-1].headers["authorization"] != tokens[0]
+
+
+def test_apns_topic_follows_the_receiving_app(apns_key: tuple[Path, Any]) -> None:
+    path, _ = apns_key
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200)
+
+    client = _apns(path, handler, [time.time()])
+    client.send(PushMessage("a1b2c3d4" * 8, "Expense approved", "TZS 20,000", app="SUPERVISOR"))
+    assert seen[0].headers["apns-topic"] == "com.asseta.supervisor"
+    settings = PushSettings(
+        ios_provider="apns",
+        apns_key_file=str(path),
+        apns_key_id="ABC123",
+        apns_team_id="T",
+        apns_topic="com.asseta.owner",
+    )
+    unset = ApnsPushClient(settings, httpx.Client(transport=httpx.MockTransport(handler)))
+    with pytest.raises(PushSendError) as err:
+        unset.send(PushMessage("a1b2c3d4" * 8, "Expense approved", "TZS 20,000", app="SUPERVISOR"))
+    assert not err.value.retryable and not err.value.unregistered and len(seen) == 1
