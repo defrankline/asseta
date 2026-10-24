@@ -641,6 +641,62 @@ def _meter(session: Session, e: DomainEvent) -> list[Intent]:
     ]
 
 
+_METER_APPROVALS: dict[str, tuple[str, str, str, str]] = {
+    # event -> (what, id key, audience permission, link)
+    "MeterBaselineProposed": ("Meter baseline", "baseline_id", "tenant.meter.approve", "/tenant/meter-baselines"),
+    "MeterCorrectionProposed": (
+        "Reading correction",
+        "correction_id",
+        "tenant.meter.approve",
+        "/tenant/meter-corrections",
+    ),
+    "EngineHoursClassificationProposed": (
+        "Engine-hour classification",
+        "classification_id",
+        "tenant.meter.classify",
+        "/tenant/engine-hours/classifications",
+    ),
+}
+
+
+@rule(*_METER_APPROVALS)
+def _meter_approval(session: Session, e: DomainEvent) -> list[Intent]:
+    what, key, audience, link = _METER_APPROVALS[e.event_type]
+    p = e.payload
+    return [
+        Intent(
+            "METER_APPROVAL_REQUESTED",
+            (perm(audience),),
+            f"{what} awaiting approval",
+            f"{_machine_label(session, p.get('machine_id'))}: a second person's decision is needed.",
+            _key(e),
+            link,
+            key.removesuffix("_id"),
+            p.get(key),
+        )
+    ]
+
+
+@rule("EngineHoursFlagRaised")
+def _engine_flag(session: Session, e: DomainEvent) -> list[Intent]:
+    p = e.payload
+    if p.get("exception_type") != "UNEXPLAINED_HOURS":
+        return []  # daily-report gaps are reminded by the scheduler; overlaps show in the exceptions list
+    return [
+        Intent(
+            "UNEXPLAINED_ENGINE_HOURS",
+            (perm("tenant.meter.review"),),
+            "Engine hours to explain",
+            f"{_machine_label(session, p.get('machine_id'))}: {p.get('hours')} engine hours are not yet allocated "
+            "or explained.",
+            _key(e),
+            f"/tenant/engine-hours/machines/{p.get('machine_id')}",
+            "machine",
+            p.get("machine_id"),
+        )
+    ]
+
+
 @rule("SyncAnomalyDetected")
 def _sync(_: Session, e: DomainEvent) -> list[Intent]:
     p = e.payload

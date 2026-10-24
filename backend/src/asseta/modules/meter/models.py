@@ -9,6 +9,7 @@ from typing import Any
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     DateTime,
     Enum,
     Float,
@@ -36,6 +37,7 @@ def _enum(cls: type[StrEnum], length: int = 24) -> Enum:
 class ReadingKind(StrEnum):
     OPENING = "OPENING"
     CLOSING = "CLOSING"
+    DAILY = "DAILY"  # daily operational reading of a machine, inside or outside a job (job_id optional)
 
 
 class GpsStatus(StrEnum):
@@ -69,6 +71,10 @@ class ExceptionType(StrEnum):
     TELEMETRY_MISMATCH = "TELEMETRY_MISMATCH"
     CLOCK_SKEW = "CLOCK_SKEW"
     POLICY_SNAPSHOT_UNVERIFIED = "POLICY_SNAPSHOT_UNVERIFIED"  # offline snapshot not issued to the device / not valid
+    # Engine-hour accountability (design B): machine-level flags, raised for review only, never a verdict.
+    MISSING_DAILY_REPORT = "MISSING_DAILY_REPORT"  # working machine without a reading by the policy cut-off
+    UNEXPLAINED_HOURS = "UNEXPLAINED_HOURS"  # an unallocated engine-hour segment nobody has explained yet
+    OVERLAPPING_ALLOCATION = "OVERLAPPING_ALLOCATION"  # two jobs claim the same engine interval
     HOURS_OVERRUN = "HOURS_OVERRUN"  # prepaid job used more hours than the customer had activated on the machine
 
 
@@ -103,12 +109,13 @@ class MeterCapture(UuidPk, SyncRevisioned, Base):
             "job_id",
             "kind",
             unique=True,
-            postgresql_where=text("state IN ('ACCEPTED', 'PROVISIONAL')"),
+            postgresql_where=text("state IN ('ACCEPTED', 'PROVISIONAL') AND kind <> 'DAILY'"),
         ),
+        CheckConstraint("kind = 'DAILY' OR job_id IS NOT NULL", name="ck_meter_capture_job_reading"),
     )
 
     tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenant.id"), nullable=False, index=True)
-    job_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("job.id"), nullable=False, index=True)
+    job_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("job.id"), index=True)  # null: DAILY outside a job
     machine_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("machine.id"), nullable=False)
     kind: Mapped[ReadingKind] = mapped_column(_enum(ReadingKind), nullable=False)
     capture_mode: Mapped[str] = mapped_column(String(16), nullable=False)  # AUTOMATIC | MANUAL

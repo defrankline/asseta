@@ -41,6 +41,7 @@ const POLICY_TYPES: readonly PolicyType[] = [
   'FRAUD_CONTROLS',
   'CASH_CUSTODY',
   'OVERSIGHT',
+  'ENGINE_HOURS',
   'CUSTOMER_HOURS',
 ];
 const SUBTITLES: Readonly<Record<PolicyType, string>> = {
@@ -56,6 +57,8 @@ const SUBTITLES: Readonly<Record<PolicyType, string>> = {
   CASH_CUSTODY:
     'Cash custody: recording for custodians, acknowledgements, full remittance and write-off approval (tenant-wide only)',
   OVERSIGHT: 'Oversight: accountability dashboard tiles and windows (tenant-wide only)',
+  ENGINE_HOURS:
+    'Engine hours: baselines, daily reports, explanations and corrections of engine hours (machine overrides)',
   CUSTOMER_HOURS:
     'Customer hours: prepaid hours, activation, expiry, approvals and walk-ins (tenant-wide only)',
 };

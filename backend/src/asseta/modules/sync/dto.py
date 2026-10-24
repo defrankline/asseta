@@ -22,6 +22,9 @@ CAPABILITIES = [
     "OP_CASH_TRANSFER",  # CASH_TRANSFER, CASH_TRANSFER_ACKNOWLEDGEMENT, CASH_FLOAT_ACKNOWLEDGEMENT
     "OP_HOURS_PURCHASE",  # walk-in/registered customer hours purchase (+ payment claim and evidence uploads)
     "OP_HOURS_TRANSFER_REQUEST",
+    "METER_DAILY_READING",  # METER_CAPTURE accepts kind DAILY (job_id optional, machine_id instead)
+    "OP_METER_BASELINE",
+    "OP_METER_CORRECTION",
 ]
 
 
@@ -160,6 +163,8 @@ OpType = Literal[
     "JOB_REQUEST",
     "HOURS_PURCHASE",  # customer hours purchase recorded in the field (payment stays CLAIMED until verified)
     "HOURS_TRANSFER_REQUEST",  # request to move remaining hours to another machine (approved per tenant policy)
+    "METER_BASELINE",  # baseline proposal (engine-hour accountability)
+    "METER_CORRECTION",  # reading correction proposal (approved by a second person)
 ]
 
 

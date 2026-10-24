@@ -113,12 +113,17 @@ _TYPES = (
         "TRACKERS_STALE", "Trackers not reporting", Category.REMINDER, Severity.WARNING, T, low_priority=True
     ),
     NotificationType("JOB_MISSING_READINGS", "Job missing readings", Category.REMINDER, Severity.WARNING, T, True),
+    NotificationType("MISSING_DAILY_REPORT", "Daily report missing", Category.REMINDER, Severity.WARNING, T, True),
+    NotificationType("METER_APPROVAL_REQUESTED", "Meter approval requested", Category.ACTION, Severity.INFO, T),
     # Anomalies
     NotificationType("TRACKING_ALERT", "Tracking alert", Category.ANOMALY, Severity.WARNING, T, True),
     NotificationType(
         "METER_EXCEPTION", "Meter reading exception", Category.ANOMALY, Severity.WARNING, T, low_priority=True
     ),
     NotificationType("HOURS_OVERRUN", "Hours used beyond purchase", Category.ANOMALY, Severity.WARNING, T, True),
+    NotificationType(
+        "UNEXPLAINED_ENGINE_HOURS", "Engine hours to explain", Category.ANOMALY, Severity.WARNING, T, low_priority=True
+    ),
     NotificationType("SYNC_ANOMALY", "Device sync anomaly", Category.ANOMALY, Severity.WARNING, T, low_priority=True),
     NotificationType(
         "SOD_VIOLATION_ATTEMPT", "Segregation-of-duties attempt", Category.ANOMALY, Severity.WARNING, T, True, IN_APP

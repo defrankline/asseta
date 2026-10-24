@@ -40,7 +40,7 @@ export const GPS_STATUSES: readonly GpsStatus[] = [
   'PERMISSION_DENIED',
   'DISABLED',
 ];
-export const READING_KINDS: readonly ReadingKind[] = ['OPENING', 'CLOSING'];
+export const READING_KINDS: readonly ReadingKind[] = ['OPENING', 'CLOSING', 'DAILY'];
 export const EXCEPTION_STATUSES: readonly ExceptionStatus[] = ['OPEN', 'EXPLAINED', 'CONFIRMED'];
 export const EXCEPTION_TYPES: readonly ExceptionType[] = [
   'GPS_UNAVAILABLE',
@@ -58,6 +58,9 @@ export const EXCEPTION_TYPES: readonly ExceptionType[] = [
   'TELEMETRY_MISMATCH',
   'CLOCK_SKEW',
   'POLICY_SNAPSHOT_UNVERIFIED',
+  'MISSING_DAILY_REPORT',
+  'UNEXPLAINED_HOURS',
+  'OVERLAPPING_ALLOCATION',
 ];
 
 export const attachmentSchema: Schema<AttachmentDto> = object({
@@ -76,7 +79,7 @@ export const photoUrlSchema: Schema<PhotoUrlDto> = object({
 
 const captureFields = {
   id: id(),
-  job_id: id(),
+  job_id: nullableId(),
   machine_id: id(),
   kind: oneOf(READING_KINDS),
   capture_mode: text(),

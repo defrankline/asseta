@@ -4,6 +4,7 @@
  */
 import type { PolicyType } from '../../../api/types';
 import { CASH_CUSTODY_FIELDS, OVERSIGHT_FIELDS } from './accountabilityPolicyFields';
+import { ENGINE_HOURS_FIELDS } from './engineHoursPolicyFields';
 
 /** `decimal` values stay strings end to end (never parsed to float). */
 export type FieldKind =
@@ -326,6 +327,7 @@ export const POLICY_FIELDS: Readonly<Record<PolicyType, readonly PolicyFieldDef[
   CASH_CUSTODY: CASH_CUSTODY_FIELDS,
   OVERSIGHT: OVERSIGHT_FIELDS,
   CUSTOMER_HOURS: CUSTOMER_HOURS_FIELDS,
+  ENGINE_HOURS: ENGINE_HOURS_FIELDS,
 };
 
 export const POLICY_TYPE_LABELS: Readonly<Record<PolicyType, string>> = {
@@ -338,6 +340,7 @@ export const POLICY_TYPE_LABELS: Readonly<Record<PolicyType, string>> = {
   CASH_CUSTODY: 'Cash custody',
   OVERSIGHT: 'Oversight',
   CUSTOMER_HOURS: 'Customer hours',
+  ENGINE_HOURS: 'Engine hours',
 };
 
 export type OverrideScope = 'TENANT' | 'MACHINE' | 'SITE';
@@ -386,6 +389,10 @@ const SCOPE_FIELDS: Readonly<
       'fuel_max_litres_per_meter_hour',
       'expense_threshold_per_machine_per_week',
     ]),
+    SITE: new Set<string>(),
+  },
+  ENGINE_HOURS: {
+    MACHINE: new Set(['baseline_required_before_start', 'daily_report_required']),
     SITE: new Set<string>(),
   },
 };

@@ -24,6 +24,9 @@ export const EXCEPTION_TYPE_LABELS: Readonly<Record<ExceptionType, string>> = {
   CLOCK_SKEW: 'Device clock ahead of server',
   POLICY_SNAPSHOT_UNVERIFIED: 'Offline policy not confirmed',
   HOURS_OVERRUN: 'Hours beyond what the customer has active',
+  MISSING_DAILY_REPORT: 'Daily report missing',
+  UNEXPLAINED_HOURS: 'Engine hours not yet explained',
+  OVERLAPPING_ALLOCATION: 'Job intervals overlap',
 };
 
 /** Labels (with units) for evidence keys; unknown keys fall back to a humanised key. */
@@ -120,6 +123,14 @@ const EXPLAIN: Readonly<Record<ExceptionType, Explainer>> = {
   HOURS_OVERRUN: (g) =>
     `${g('excess_hours')} of ${g('billable_hours')} billable hours were not covered by the customer's activated ` +
     `hours on this machine; new activated hours cover them, or a reviewer records the outcome.`,
+  MISSING_DAILY_REPORT: (g) =>
+    `The machine worked on ${g('day')} but no meter reading was recorded before ${g('cutoff_hour')}:00 ` +
+    `(basis: ${g('basis')}).`,
+  UNEXPLAINED_HOURS: (g) =>
+    `${g('hours')} engine hours between readings ${g('start_reading')} and ${g('end_reading')} are not ` +
+    `allocated to a job and not yet explained.`,
+  OVERLAPPING_ALLOCATION: (g) =>
+    `Two jobs claim the same engine hours (${g('basis')}); each hour is counted once, for the earlier job.`,
 };
 
 /** One-sentence, neutral explanation of an exception from its recorded evidence. */

@@ -173,7 +173,7 @@ def _readings(session: Session, ctx: RequestContext, now: datetime, f: BaseModel
         {
             "captured_at": c.captured_at,
             "machine": machines.get(c.machine_id),
-            "job": jobs.get(c.job_id),
+            "job": jobs.get(c.job_id) if c.job_id else None,  # DAILY readings may have no job
             "kind": c.kind,
             "reading": c.reading,
             "capture_mode": c.capture_mode,

@@ -306,6 +306,16 @@ def build_fixture(stack: Stack, kc: Keycloak) -> dict[str, Any]:
         },
         "set capture policy",
     )
+    # The field E2E exercises the job flow, not engine-hour accountability: no baseline gate for this tenant.
+    o.post(
+        "/tenant/policies/ENGINE_HOURS/versions",
+        {
+            "scope": "TENANT",
+            "values": {"baseline_required_before_start": False, "daily_report_required": False},
+            "reason": "Field E2E: job flow without the engine-hour baseline gate",
+        },
+        "set engine-hour policy",
+    )
     sup_email = f"field-e2e-sup-{tag}@example.com"
     o.post(
         "/tenant/access/members",

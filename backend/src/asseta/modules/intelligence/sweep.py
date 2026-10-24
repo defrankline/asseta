@@ -11,6 +11,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from asseta.modules.geospatial.models import TrackingAlert
+from asseta.modules.intelligence.detectors_engine_hours import (
+    detect_aged_unexplained_hours,
+    refresh_engine_hour_flags,
+)
 from asseta.modules.intelligence.detectors_finance import (
     detect_cash_not_handed_over,
     detect_duplicate_receipts,
@@ -65,6 +69,8 @@ def sweep_tenant(s: Session, tenant_id: uuid.UUID, now: datetime) -> Intelligenc
         *detect_cash_not_handed_over(s, tenant_id, now, eff),
         *detect_work_without_authorization(s, eff, since),
     ]
+    refresh_engine_hour_flags(s, tenant_id, now)
+    findings += detect_aged_unexplained_hours(s, tenant_id, now)
     linker = CaseLinker(s, tenant_id, now, eff.policy.case_grouping_window_hours)
     added = _finish(s, tenant_id, findings, linker, now)
     link_sources(s, linker, since, eff.version_stamp)

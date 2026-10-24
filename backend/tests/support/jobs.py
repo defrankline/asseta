@@ -84,9 +84,21 @@ def setup_job(api: Api, name: str = "Hire Co", device: str = "HIRE-1") -> JobCtx
         "/api/v1/tenant/contracts",
         {"customer_id": cust, "contract_number": "CT-001", "starts_on": api.clock.now.isoformat()},
     ).json()["id"]
+    engine_hours_policy(o, baseline_required_before_start=False, daily_report_required=False)
     ctx = JobCtx(t, o, "", cat, contract)
     ctx.job_id = new_job(api, ctx, "J-001")
     return ctx
+
+
+def engine_hours_policy(owner: Actor, scope: str = "TENANT", ref: str | None = None, **values: Any) -> None:
+    """Version the tenant's ENGINE_HOURS policy. Job-flow tests run with the baseline gate and daily-report
+    requirement switched off (the behaviour before engine-hour accountability); tests/api/test_engine_hours.py
+    exercises them on (the platform default)."""
+    body: dict[str, Any] = {"scope": scope, "values": values, "reason": "Engine-hour controls for this test"}
+    if ref is not None:
+        body["scope_ref_id"] = ref
+    r = owner.post("/api/v1/tenant/policies/ENGINE_HOURS/versions", body)
+    assert r.status_code == 201, r.text
 
 
 def capture(

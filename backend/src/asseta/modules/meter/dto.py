@@ -37,7 +37,10 @@ class GpsIn(BaseModel):
 
 class MeterCaptureIn(BaseModel):
     id: uuid.UUID = Field(description="Device-generated UUID (idempotency key for offline sync)")
-    job_id: uuid.UUID
+    job_id: uuid.UUID | None = Field(default=None, description="Required for OPENING/CLOSING; optional for DAILY")
+    machine_id: uuid.UUID | None = Field(
+        default=None, description="DAILY reading outside a job: the machine read (must match the job's when both)"
+    )
     kind: ReadingKind
     capture_mode: CaptureMode
     reading: Reading
@@ -54,6 +57,14 @@ class MeterCaptureIn(BaseModel):
     )
     supersedes_id: uuid.UUID | None = Field(default=None, description="Approved correction of a prior capture")
 
+    @model_validator(mode="after")
+    def _target(self) -> "MeterCaptureIn":
+        if self.kind is not ReadingKind.DAILY and self.job_id is None:
+            raise ValueError("job_id is required for OPENING and CLOSING readings")
+        if self.job_id is None and self.machine_id is None:
+            raise ValueError("a DAILY reading names its machine (machine_id) or its job (job_id)")
+        return self
+
 
 class FindingDto(BaseModel):
     type: ExceptionType
@@ -64,7 +75,7 @@ class FindingDto(BaseModel):
 
 class MeterCaptureDto(Dto):
     id: uuid.UUID
-    job_id: uuid.UUID
+    job_id: uuid.UUID | None
     machine_id: uuid.UUID
     kind: ReadingKind
     capture_mode: str

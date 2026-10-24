@@ -34,6 +34,8 @@ from asseta.modules.jobs.dto import AcknowledgementIn, ActivityIn, JobRequestIn
 from asseta.modules.jobs.models import Job
 from asseta.modules.jobs.service import JobService
 from asseta.modules.meter.dto import MeterCaptureIn, ResetIn
+from asseta.modules.meter.engine_dto import BaselineIn, CorrectionIn
+from asseta.modules.meter.engine_service import EngineHoursService
 from asseta.modules.meter.service import MeterService
 from asseta.modules.policy.service import PolicyService
 from asseta.modules.sync.dto import OperationIn, OperationResultDto, PushIn, PushResultDto
@@ -53,6 +55,12 @@ CONFLICT_CODES = {
     # customer hours: two field users drawing on the same remaining hours are serialised; the loser sees a conflict
     "NO_AVAILABLE_HOURS",
     "EXCEEDS_REMAINING_HOURS",
+    # engine-hour controls: resolvable later (a baseline approved, the other job corrected), never silently applied
+    "BASELINE_REQUIRED",
+    "OVERLAPPING_ALLOCATION",
+    "OVERLAPPING_ACTIVITY",
+    "BASELINE_PENDING",
+    "CORRECTION_PENDING",
 }
 REQUIRED_PERMISSION = {
     "METER_CAPTURE": "tenant.meter.capture",
@@ -65,6 +73,8 @@ REQUIRED_PERMISSION = {
     "CASH_HANDOVER": "tenant.collection.record",
     "METER_RESET_REQUEST": "tenant.meter.capture",
     "JOB_REQUEST": "tenant.job.request",
+    "METER_BASELINE": "tenant.meter.capture",
+    "METER_CORRECTION": "tenant.meter.capture",
     "CASH_TRANSFER": "tenant.collection.record",
     "CASH_TRANSFER_ACKNOWLEDGEMENT": "tenant.collection.record",
     "CASH_FLOAT_ACKNOWLEDGEMENT": "tenant.collection.record",
@@ -292,6 +302,12 @@ class PushService:
             ),
             "METER_RESET_REQUEST": lambda: self._meter_reset(MeterResetOp.model_validate(op.payload)),
             "JOB_REQUEST": lambda: JobService(self._s, self._ctx).request_job(JobRequestIn.model_validate(op.payload)),
+            "METER_BASELINE": lambda: EngineHoursService(self._s, self._ctx, self._now).propose_baseline(
+                BaselineIn.model_validate({"id": op.id, **op.payload})
+            ),
+            "METER_CORRECTION": lambda: EngineHoursService(self._s, self._ctx, self._now).propose_correction(
+                CorrectionIn.model_validate(op.payload), device_session_id=device.id
+            ),
             "CASH_TRANSFER": lambda: CashCustodyControls(self._s, self._ctx, self._now).record_transfer(
                 CashTransferOp.model_validate(op.payload), "SYNC"
             ),

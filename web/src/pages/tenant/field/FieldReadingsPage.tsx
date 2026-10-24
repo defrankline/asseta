@@ -48,7 +48,7 @@ function ReadingDialog({
     async (signal: AbortSignal) =>
       (
         await meterService.listExceptions(
-          { page: 1, page_size: 200, filters: { job_id: capture.job_id } },
+          { page: 1, page_size: 200, filters: { job_id: capture.job_id ?? undefined } },
           signal,
         )
       ).items.filter((e) => e.meter_capture_id === capture.id),
@@ -66,9 +66,11 @@ function ReadingDialog({
         </AsyncContent>
       </DialogContent>
       <DialogActions>
-        <Button component={RouterLink} to={fieldJobPath(capture.job_id)}>
-          Open job
-        </Button>
+        {capture.job_id !== null && (
+          <Button component={RouterLink} to={fieldJobPath(capture.job_id)}>
+            Open job
+          </Button>
+        )}
         <Button onClick={onClose}>Close</Button>
       </DialogActions>
     </Dialog>
@@ -98,7 +100,7 @@ export function FieldReadingsPage() {
   );
   const columns: DataColumn<MeterCaptureDto>[] = [
     { id: 'at', header: 'Captured', render: (c) => formatInstantIn(c.captured_at, timeZone) },
-    { id: 'job', header: 'Job', render: (c) => jobLabel(c.job_id) },
+    { id: 'job', header: 'Job', render: (c) => (c.job_id === null ? '—' : jobLabel(c.job_id)) },
     { id: 'machine', header: 'Machine', render: (c) => machineLabel(c.machine_id) },
     { id: 'kind', header: 'Reading', render: (c) => humanize(c.kind) },
     {
@@ -153,7 +155,7 @@ export function FieldReadingsPage() {
       {viewing !== null && (
         <ReadingDialog
           capture={viewing}
-          jobLabel={jobLabel(viewing.job_id)}
+          jobLabel={viewing.job_id === null ? '—' : jobLabel(viewing.job_id)}
           timeZone={timeZone}
           onClose={() => {
             setViewing(null);

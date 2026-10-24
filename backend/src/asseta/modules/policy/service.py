@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from asseta.core.audit import AuditActor, AuditService
 from asseta.core.db import utcnow
 from asseta.core.errors import BusinessRuleViolation, ErrorDetail
+from asseta.modules.policy.engine_hours import EngineHoursPolicy
 from asseta.modules.policy.models import PolicyVersion
 from asseta.modules.policy.schemas import (
     OVERRIDABLE,
@@ -150,6 +151,14 @@ class PolicyService:
 
     def oversight(self, tenant_id: uuid.UUID, at: datetime | None = None) -> EffectivePolicy[OversightPolicy]:
         return cast(EffectivePolicy[OversightPolicy], self.resolve(PolicyType.OVERSIGHT, tenant_id, at=at))
+
+    def engine_hours(
+        self, tenant_id: uuid.UUID, machine_id: uuid.UUID | None = None, at: datetime | None = None
+    ) -> EffectivePolicy[EngineHoursPolicy]:
+        return cast(
+            EffectivePolicy[EngineHoursPolicy],
+            self.resolve(PolicyType.ENGINE_HOURS, tenant_id, machine_id=machine_id, at=at),
+        )
 
     def by_stamp(self, ptype: PolicyType, version_ids: list[uuid.UUID]) -> dict[str, Any]:
         """Re-materialize the policy snapshot a device enforced offline, from its version ids."""

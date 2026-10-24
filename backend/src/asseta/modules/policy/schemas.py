@@ -7,6 +7,8 @@ from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from asseta.modules.policy.engine_hours import ENGINE_HOURS_SEED, EngineHoursPolicy
+
 
 class PolicyType(StrEnum):
     TRACKING = "TRACKING"
@@ -15,6 +17,7 @@ class PolicyType(StrEnum):
     DEVICE_SYNC = "DEVICE_SYNC"
     EXPENSE_CAPTURE = "EXPENSE_CAPTURE"
     FRAUD_CONTROLS = "FRAUD_CONTROLS"
+    ENGINE_HOURS = "ENGINE_HOURS"
     CASH_CUSTODY = "CASH_CUSTODY"
     OVERSIGHT = "OVERSIGHT"
     CUSTOMER_HOURS = "CUSTOMER_HOURS"
@@ -236,6 +239,7 @@ SCHEMAS: dict[PolicyType, type[BaseModel]] = {
     PolicyType.DEVICE_SYNC: DeviceSyncPolicy,
     PolicyType.EXPENSE_CAPTURE: ExpenseCapturePolicy,
     PolicyType.FRAUD_CONTROLS: FraudControlsPolicy,
+    PolicyType.ENGINE_HOURS: EngineHoursPolicy,
     PolicyType.CASH_CUSTODY: CashCustodyPolicy,
     PolicyType.OVERSIGHT: OversightPolicy,
     PolicyType.CUSTOMER_HOURS: CustomerHoursPolicy,
@@ -243,6 +247,10 @@ SCHEMAS: dict[PolicyType, type[BaseModel]] = {
 
 # Fields a lower scope may override (platform/tenant may override any field).
 OVERRIDABLE: dict[PolicyType, dict[PolicyScope, frozenset[str]]] = {
+    PolicyType.ENGINE_HOURS: {
+        PolicyScope.MACHINE: frozenset({"baseline_required_before_start", "daily_report_required"}),
+        PolicyScope.SITE: frozenset(),
+    },
     PolicyType.TRACKING: {
         PolicyScope.MACHINE: frozenset(
             {
@@ -287,6 +295,7 @@ OVERRIDABLE: dict[PolicyType, dict[PolicyScope, frozenset[str]]] = {
 }
 
 SEED_DEFAULTS: dict[PolicyType, dict[str, object]] = {
+    PolicyType.ENGINE_HOURS: ENGINE_HOURS_SEED,
     PolicyType.TRACKING: {
         "live_max_age_seconds": 300,
         "stale_after_seconds": 1800,

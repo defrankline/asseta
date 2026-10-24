@@ -51,6 +51,7 @@ from asseta.modules.jobs.models import (
     StandbyTreatment,
 )
 from asseta.modules.jobs.scope import own_staff
+from asseta.modules.meter.engine_hours import ensure_job_can_complete, ensure_job_can_start, ensure_no_activity_overlap
 from asseta.modules.meter.models import CaptureState, ExceptionStatus, JobException, MeterCapture, ReadingKind
 from asseta.modules.meter.rules import billable_hours
 from asseta.modules.platform_billing.models_commercial import Currency
@@ -358,6 +359,7 @@ class JobService:
             opening = self._reading(job.id, ReadingKind.OPENING)
             if opening is None:
                 raise BusinessRuleViolation("An opening meter reading is required to start", code="OPENING_REQUIRED")
+            ensure_job_can_start(self._s, self._tid, job, opening, now)
             HoursEngine(self._s, self._tid, self._ctx.audit_actor(), now).check_start(job)
             job.started_at = opening.captured_at
         elif action == "COMPLETE":
@@ -371,6 +373,7 @@ class JobService:
                 is None
             ):
                 raise BusinessRuleViolation("Customer acknowledgement is required to complete", code="ACK_REQUIRED")
+            ensure_job_can_complete(self._s, self._tid, job, closing, now)
             job.completed_at = closing.captured_at
         elif action == "CANCEL":
             if not reason:
@@ -426,6 +429,7 @@ class JobService:
         job = self.job(job_id)
         if job.status not in (JobStatus.APPROVED, JobStatus.IN_PROGRESS, JobStatus.COMPLETED):
             raise BusinessRuleViolation("Work can only be logged on approved/running jobs", code="JOB_NOT_ACTIVE")
+        ensure_no_activity_overlap(self._s, self._tid, job, body.activity_type.value, body.started_at, body.ended_at)
         billable = body.billable
         if billable is None:
             billable = body.activity_type is ActivityType.WORK or (

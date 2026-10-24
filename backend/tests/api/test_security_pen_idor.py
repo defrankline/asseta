@@ -21,6 +21,7 @@ from tests.support.finance import (
     complete_job,
     expense_policy,
     issue_invoice,
+    role,
     setup_finance,
 )
 from tests.support.intelligence import cases, expense, feed_events, receipt
@@ -88,6 +89,7 @@ def _populate_b(api: Api) -> tuple[FinCtx, dict[tuple[str, str], str]]:
     )
     assert pay.status_code == 201, pay.text
     ids[("/customer-payments/", "payment_id")] = pay.json()["id"]
+    ids |= _engine_hours_records(api, f)
     # Duplicate receipt -> expense + receipt + investigation case.
     cat = category(f, "SPARES", "Spares")
     ids[("/expense-categories/", "category_id")] = cat
@@ -216,6 +218,50 @@ def _cash_chain_b(api: Api, f: FinCtx) -> dict[tuple[str, str], str]:
         ("/variances/", "variance_id"): variance,
         ("/reasons/", "reason_id"): reason,
         ("/sync/conflicts/", "operation_id"): op_id,
+    }
+
+
+def _engine_hours_records(api: Api, f: FinCtx) -> dict[tuple[str, str], str]:
+    """Baseline (from the earliest reading, approved by a second owner), a list entry, a classification proposal
+    and a correction proposal on B's machine."""
+    o, machine = f.owner, f.c.t.machine_id
+    approver = role(api, f.tid, "owner", "idor-b-approver")
+    base = o.post(f"{T}/meter-baselines/from-reading", {"machine_id": machine})
+    assert base.status_code == 201, base.text
+    ok = approver.post(
+        f"{T}/meter-baselines/{base.json()['id']}/decision", {"decision": "APPROVE", "note": "Evidence checked"}
+    )
+    assert ok.status_code == 200, ok.text
+    reason = o.post(f"{T}/engine-hour-reasons", {"kind": "NON_CUSTOMER_CATEGORY", "code": "MAINT", "name": "Service"})
+    api.clock.set_at(api.clock.now + timedelta(hours=3))
+    daily = capture("", "DAILY", "110.0", api.clock.now, mode="MANUAL")
+    daily.pop("job_id")
+    daily["machine_id"] = machine
+    assert o.post(f"{T}/meter-captures", daily).status_code == 201
+    seg = o.get(f"{T}/engine-hours/unallocated").json()["items"][0]
+    cls = o.post(
+        f"{T}/engine-hours/classifications",
+        {
+            "machine_id": machine,
+            "start_ref": seg["start"]["ref"],
+            "end_ref": seg["end"]["ref"],
+            "outcome": "APPROVED_NON_CUSTOMER",
+            "reason_id": reason.json()["id"],
+            "note": "Moved to the yard",
+        },
+    )
+    assert cls.status_code == 201, cls.text
+    fix = {**daily, "id": str(uuid.uuid4()), "reading": "109.5"}
+    corr = o.post(
+        f"{T}/meter-corrections",
+        {"superseded_capture_id": daily["id"], "reason": "Misread the last digit", "replacement": fix},
+    )
+    assert corr.status_code == 201, corr.text
+    return {
+        ("/meter-baselines/", "baseline_id"): base.json()["id"],
+        ("/engine-hour-reasons/", "reason_id"): reason.json()["id"],
+        ("/engine-hours/classifications/", "classification_id"): cls.json()["id"],
+        ("/meter-corrections/", "correction_id"): corr.json()["id"],
     }
 
 

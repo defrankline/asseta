@@ -24,10 +24,11 @@ from asseta.modules.finance.models import (
     SettlementStatus,
     TenantHireInvoice,
 )
-from asseta.modules.fleet.models import StaffKind, StaffMember
+from asseta.modules.fleet.models import AssignmentRole, MachineAssignment, StaffKind, StaffMember
 from asseta.modules.geospatial.models import AlertStatus, AlertType, TrackingAlert
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.jobs.models import Job, JobStatus
+from asseta.modules.meter.engine_hours import missing_daily_reports
 from asseta.modules.meter.models import CaptureState, MeterCapture, ReadingKind
 from asseta.modules.notification.engine import NotificationEngine
 from asseta.modules.notification.realtime import RealtimePublisher
@@ -70,6 +71,7 @@ class TenantReminders:
             self._approvals,
             self._trackers,
             self._jobs,
+            self._daily_reports,
         ):
             out += fn()
         return out
@@ -249,6 +251,33 @@ class TenantReminders:
                         str(job.id),
                     )
                 )
+        return out
+
+    def _daily_reports(self) -> list[Intent]:
+        """Working machines without a reading by the tenant's daily-report cut-off (engine-hour policy)."""
+        out = []
+        for miss in missing_daily_reports(self._s, self._tid, self._now):
+            supervisors = self._s.execute(
+                select(MachineAssignment.staff_member_id).where(
+                    MachineAssignment.machine_id == miss.machine_id,
+                    MachineAssignment.role == AssignmentRole.SUPERVISOR,
+                    MachineAssignment.effective_to.is_(None),
+                )
+            ).scalars()
+            out.append(
+                Intent(
+                    "MISSING_DAILY_REPORT",
+                    (perm("tenant.meter.review"), *(staff(s) for s in supervisors)),
+                    f"Daily report missing: {miss.machine_code}",
+                    f"{miss.machine_name} worked on {miss.day} but has no meter reading before "
+                    f"{miss.cutoff_hour:02d}:00.",
+                    self._k("daily-report", f"{miss.machine_id}:{miss.day.isoformat()}"),
+                    f"/tenant/engine-hours/machines/{miss.machine_id}",
+                    "machine",
+                    str(miss.machine_id),
+                    data={"day": miss.day.isoformat(), "basis": miss.basis},
+                )
+            )
         return out
 
     def system_scoped(self) -> list[Intent]:

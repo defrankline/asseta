@@ -114,6 +114,18 @@ export const RULE_EVIDENCE = {
     recorder_supervisor_assigned: false,
     reasons: ['BEFORE_JOB_AUTHORIZED', 'SUPERVISOR_NOT_ASSIGNED_TO_MACHINE'],
   },
+  UNEXPLAINED_ENGINE_HOURS: {
+    machine_code: 'EXC-001',
+    hours: '3.50',
+    start_ref: 'eeeeeeee-0000-4000-8000-000000000001',
+    end_ref: 'eeeeeeee-0000-4000-8000-000000000002',
+    start_reading: '1000.00',
+    end_reading: '1003.50',
+    opened_at: '2026-10-16T09:00:00Z',
+    age_days: 4,
+    investigation_after_days: 3,
+    classification: 'UNEXPLAINED',
+  },
 } as const;
 
 export function makeCaseSignal(overrides: Partial<CaseSignalDto> = {}): CaseSignalDto {

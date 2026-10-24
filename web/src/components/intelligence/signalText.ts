@@ -21,6 +21,7 @@ export const RULE_LABELS: Readonly<Record<RuleCode, string>> = {
   EXPENSE_THRESHOLD_EXCEEDED: 'Weekly machine spending above the threshold',
   CASH_NOT_HANDED_OVER: 'Cash held beyond the handover limits',
   WORK_WITHOUT_AUTHORIZATION: 'Work recorded outside an authorized job',
+  UNEXPLAINED_ENGINE_HOURS: 'Engine hours still unexplained after the review period',
 };
 
 export const SOURCE_TYPE_LABELS: Readonly<Record<CaseSourceType, string>> = {
@@ -195,6 +196,11 @@ const RULE_EXPLAIN: Readonly<Record<RuleCode, Explainer>> = {
       `Clock tolerance: ${f.text('tolerance_minutes')} min. Job status now: ${humanize(f.text('job_status_now'))}.`
     );
   },
+  UNEXPLAINED_ENGINE_HOURS: (f) =>
+    `${f.text('hours')} engine hours on ${f.text('machine_code')} (readings ${f.text('start_reading')} to ` +
+    `${f.text('end_reading')}) are not allocated to a job and have not been explained for ` +
+    `${f.text('age_days')} days (review period: ${f.text('investigation_after_days')} days). ` +
+    'They stay unexplained until a person records an approved explanation.',
 };
 
 /** One-sentence, neutral explanation of a risk signal from its recorded evidence. */
