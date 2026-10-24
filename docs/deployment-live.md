@@ -272,8 +272,10 @@ number `2026/10/0001`). `--registration-number`, `--tenant-name` and `--slug` se
 cd /home/asseta
 scripts/seed-demo-tenant.sh status --quick          # platform-level check, no change
 scripts/seed-demo-tenant.sh seed                     # once; --region dodoma|arusha|mwanza (default dar-es-salaam)
+scripts/seed-demo-tenant.sh field --dry-run          # prints the field history it would play (sends nothing)
+scripts/seed-demo-tenant.sh field                    # once: the supervisor's recent field work (see below)
 scripts/seed-demo-tenant.sh feed --minutes 90        # start ~5 min before the demo; Ctrl-C stops cleanly
-scripts/seed-demo-tenant.sh status                   # counts the tenant's data (short mandate, see below)
+scripts/seed-demo-tenant.sh status                   # counts the tenant's data incl. field activity (short mandate)
 ```
 For a feed that outlives your SSH session:
 `nohup scripts/seed-demo-tenant.sh feed --minutes 120 >> .deploy/demo-feed.log 2>&1 &`. Stop it early with
@@ -286,7 +288,7 @@ Keycloak client, grants a **managed-service mandate** (DEC-018) for today and to
 tenant's `owner` role under it, does the work, then ends the mandate and deletes the user and client in a
 `finally`. The client sees the mandate (consent reference "Platform owner demo setup", or `--consent-reference`)
 and every action under it on its **Managed service** page and in the audit log. `status` (without `--quick`) and
-`retire` open and end such a mandate too. Keycloak admin access uses `KEYCLOAK_ADMIN_USER`/`KEYCLOAK_ADMIN_PASSWORD`
+`retire` open and end such a mandate too, and so does `field` to issue the supervisor's cash float. Keycloak admin access uses `KEYCLOAK_ADMIN_USER`/`KEYCLOAK_ADMIN_PASSWORD`
 from `.env.production` (a master-realm admin that signs in with a password, as for `create-platform-owner.sh`). The script refuses if the tenant already has an open mandate, is not
 VERIFIED with an ACTIVE subscription and FULL access, already has machines, or if the demo e-mails already exist.
 
@@ -301,8 +303,53 @@ VERIFIED with an ACTIVE subscription and FULL access, already has machines, or i
   categories, and two demo accounts: `supervisor.wambura@demo.asseta.co.tz` (field app) and
   `accountant.wambura@demo.asseta.co.tz`. `demo.asseta.co.tz` has no mail server, so nothing is ever delivered;
   `--demo-domain` changes it (do not use a domain where real people receive mail).
-* Jobs are approved but not started: starting a job needs an opening meter reading with a photo in the field app,
-  which the script does not fake. Start one live with the supervisor account during the demo.
+* Jobs are approved but not started. `field` (below) adds the supervisor's field work; J-2026-104 stays ready to
+  start live with the supervisor account during the demo.
+
+**What `field` adds** (run once, after `seed`). It plays a recent field history **as the demo supervisor**, through
+the offline sync protocol the phones use: it registers a device session (`demo-wambura-phone`), uploads evidence
+with the resumable blob upload, and sends the work as `POST /api/v1/sync/push` operations. So the server applies
+every rule exactly as for a real phone: meter validation and exceptions, phone GPS vs tracker comparison, the
+tenant's expense policy, cash custody and the audit trail (the actor is the supervisor).
+* J-2026-103 (WL-01): opening reading, started, work logs, closing reading, customer acknowledgement
+  (NAME_CONFIRMATION by "Grace Mushi") and completed, so it shows meter, billable hours and charges.
+* J-2026-101 (EX-01) and J-2026-102 (EX-02): opening reading, started and still IN_PROGRESS, with daily work logs
+  (WORK with a lunch gap, one STANDBY block, one short DOWNTIME with a note). There is no mid-job meter reading:
+  the API only has OPENING and CLOSING readings.
+* Fuel: one PURCHASE of 600 L into stock and an ISSUE to each of the three machines at TZS 3,200/L with the meter.
+* Cash: a TZS 500,000 float, a TZS 1,500,000 customer cash collection on J-2026-103 and a TZS 1,200,000 handover
+  left unverified (CLAIMED) for the accountant. Four small cash expenses (lubricants, tyre repair, hydraulic hose,
+  lunch allowance) with a GPS fix. Receipts and approvals follow the tenant's expense policy: with the default
+  policy every expense needs a receipt (a generated placeholder image of the amount is uploaded) and none is
+  auto-approved; with an auto-approve limit, the allowance is kept under it and the hose purchase above it.
+* Meter photos are generated placeholder images of the digits, not camera photos. When the policy asks for
+  AUTOMATIC capture, the reading carries `ocr_engine = "demo-script (generated image, not a camera photo)"`, so
+  the record says how it was made. Opening readings start at each machine's current simulated engine hours.
+
+Timing: everything is in the past, in the tenant's time zone, on its operating weekdays, between 07:30 and 17:30
+(narrowed by its operating window), and **never before the jobs were approved**: earlier records would rightly be
+flagged as work without authorization. With a seed four or more days old the history is exactly "J-2026-103
+started 4 days ago and completed yesterday, J-2026-101 started 3 days ago, J-2026-102 2 days ago", plus today's
+work so far. With a younger seed the same story is compressed into the working time since approval (all of it
+today if the seed ran this morning); with less than 3 h of working time since approval, `field` refuses and asks
+you to run it later. `--dry-run` prints the plan without signing in.
+
+What to expect from the simulated trackers: the readings carry the phone GPS at the machine's spot on its site, so
+where a tracker fix exists within 5 minutes they compare within tolerance. The simulated trackers only report while
+`seed`/`feed` run, so for J-2026-103 the tracker's engine hours usually barely moved between its opening and
+closing readings: the server then raises a TELEMETRY_MISMATCH exception on the closing reading and the job is not
+billing-ready until someone reviews it in Exceptions. That is the control working on simulated data; resolve it
+during the demo to show the review flow.
+
+Safety: `field` signs in only as `supervisor.wambura@demo.asseta.co.tz`, with the password from
+`demo-wambura-credentials.json` (never printed), and only if that e-mail, its Keycloak user id and its app user id
+are the ones `seed` recorded in the state file. It uses its own throwaway Keycloak client (deleted at the end). The
+float is the only office action (a supervisor cannot issue cash to themselves): it is issued under the same
+temporary mandate mechanism as `seed`. `field` refuses when any field activity exists (a job not APPROVED, or any
+reading, work log, fuel, expense, collection or handover of the supervisor). The operations are kept in the state
+file before they are sent, so after a failure `field` again re-sends the same operations, which the server answers
+as duplicates. `retire` cannot cancel the two IN_PROGRESS jobs (only unstarted jobs can be cancelled): they stay
+as history.
 
 **Billing.** Telemetry is only accepted for enrolled machines, so all 7 machines are **enrolled from today on the
 tenant's subscription**. They count as billable assets on the client's next platform invoice (the seed prints

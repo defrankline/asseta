@@ -3,12 +3,15 @@
 #
 #   scripts/seed-demo-tenant.sh seed     [--region dar-es-salaam|dodoma|arusha|mwanza] [--demo-domain DOMAIN]
 #   scripts/seed-demo-tenant.sh feed     [--minutes 90] [--interval 30]
+#   scripts/seed-demo-tenant.sh field    [--dry-run]
 #   scripts/seed-demo-tenant.sh status   [--quick]
 #   scripts/seed-demo-tenant.sh retire   --yes
 #
 # Defaults target "Wambura & Sons Ltd" (registration number 2026/10/0001); --registration-number, --tenant-name and
 # --slug select another tenant. The tenant is changed only under a temporary managed-service mandate that the
 # script grants and ends itself (DEC-018); its throwaway platform user and Keycloak client are deleted at the end.
+# `field` plays a recent field history as the demo supervisor `seed` created (credentials file only, through the
+# sync API the phones use); it never signs in as any other account.
 #
 # Runs backend/scripts/demo_tenant_live.py in a throwaway container of the deployed API image on the compose network
 # (`compose run --rm --no-deps api`), as the calling user, so the files it writes to DEMO_DIR (default .deploy/)
@@ -36,7 +39,7 @@ usage() {
 command="$1"
 shift
 case "$command" in
-  seed | feed | status | retire) ;;
+  seed | feed | field | status | retire) ;;
   -h | --help | help) usage 0 ;;
   *) usage 1 ;;
 esac
