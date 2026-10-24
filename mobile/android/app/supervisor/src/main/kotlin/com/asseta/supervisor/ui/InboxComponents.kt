@@ -1,7 +1,6 @@
 package com.asseta.supervisor.ui
 
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -24,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import com.asseta.core.domain.inbox.InboxStatus
 import com.asseta.core.domain.inbox.Tone
 import com.asseta.core.ui.components.Pill
+import com.asseta.core.ui.image.decodeUpright
 import com.asseta.core.ui.theme.AssetaType
 import com.asseta.core.ui.theme.palette
 import kotlinx.coroutines.Dispatchers
@@ -90,10 +90,4 @@ private suspend fun download(url: String): ByteArray? = withContext(Dispatchers.
     }.getOrNull()
 }
 
-private suspend fun decode(bytes: ByteArray): Bitmap? = withContext(Dispatchers.Default) {
-    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
-    var sample = 1
-    while (bounds.outWidth / sample > 2048 || bounds.outHeight / sample > 2048) sample *= 2
-    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample })
-}
+private suspend fun decode(bytes: ByteArray): Bitmap? = withContext(Dispatchers.Default) { decodeUpright(bytes) }

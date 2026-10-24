@@ -1,7 +1,6 @@
 package com.asseta.owner.ui.common
 
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -15,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
+import com.asseta.core.ui.image.decodeUpright
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -33,12 +33,7 @@ object EvidenceImages {
             client.newCall(Request.Builder().url(url).build()).execute().use { response ->
                 val body = response.body
                 if (!response.isSuccessful || body.contentLength() > MAX_BYTES) return@use null
-                val bytes = body.bytes()
-                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
-                var sample = 1
-                while (bounds.outWidth / sample > 2048 || bounds.outHeight / sample > 2048) sample *= 2
-                BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample })
+                decodeUpright(body.bytes())
             }
         }.getOrNull()
     }
