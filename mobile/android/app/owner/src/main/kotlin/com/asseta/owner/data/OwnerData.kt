@@ -16,6 +16,7 @@ import com.asseta.core.model.owner.ExpenseDto
 import com.asseta.core.model.owner.FuelEventDto
 import com.asseta.core.model.owner.HistoryDto
 import com.asseta.core.model.owner.JobDto
+import com.asseta.core.model.owner.JobIn
 import com.asseta.core.model.owner.JobSummaryDto
 import com.asseta.core.model.owner.JobTransitionIn
 import com.asseta.core.model.owner.MachineDto
@@ -214,6 +215,22 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
     suspend fun issueFloat(staffMemberId: String, amount: String, currency: String, note: String?) = repo.act {
         issueCashFloat(CashFloatIn(staffMemberId, amount.trim(), currency, note?.trim()?.takeIf { it.isNotEmpty() }))
     }
+
+    /** Create a DRAFT job; [key] is the form visit's Idempotency-Key so a retry never creates a second job. */
+    suspend fun createJob(body: JobIn, key: String) = repo.act { createJob(body, key) }
+
+    /** SUBMIT a DRAFT job for approval ([key]: stable per form visit). */
+    suspend fun submitJob(id: String, key: String) = repo.act { transitionJob(id, JobTransitionIn(JobTransitionIn.SUBMIT), key) }
+
+    /** APPROVE a job just created at its own price ([key]: stable per form visit); the supervisor is notified. */
+    suspend fun approveNewJob(id: String, key: String) = repo.act { transitionJob(id, JobTransitionIn(JobTransitionIn.APPROVE), key) }
+
+    // --- "New job" lookups (online only, never cached; same endpoints as the web form) --------------------------
+    /** Contracts matching [q] (CLOSED ones are hidden by the server, as in the web picker). */
+    suspend fun searchContracts(q: String) = repo.act { contracts(q = q.trim().ifEmpty { null }).items }
+    suspend fun searchMachines(q: String) = repo.act { machines(q = q.trim().ifEmpty { null }).items }
+    suspend fun searchSupervisors(q: String) = repo.act { staff(q = q.trim().ifEmpty { null }, kind = "SUPERVISOR").items }
+    suspend fun searchJobSites(q: String) = repo.act { jobSites(q = q.trim().ifEmpty { null }) }
 
     // --- online-only helpers (never cached) -------------------------------------------------------------------
     suspend fun attachmentUrl(attachmentId: String) = repo.act { attachmentUrl(attachmentId) }

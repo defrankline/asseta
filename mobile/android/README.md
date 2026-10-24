@@ -206,6 +206,7 @@ online + live data + tenant not read-only; every POST carries an `Idempotency-Ke
 | Confirm received (optional note) / dispute (reason required) a claimed cash handover | Approvals > Cash handovers, Cash cards | `tenant.finance.verify` | `POST /tenant/cash/handovers/{id}/decision` |
 | Review a meter exception: outcome Explained / Discrepancy confirmed + review note (5..2000) | Approvals > Exceptions, Meter exceptions | `tenant.meter.review` | `POST /tenant/exceptions/{id}/review` |
 | Issue a cash float to a supervisor (amount in the card's currency, optional note) | Cash with supervisors | `tenant.finance.cash` | `POST /tenant/cash/floats` |
+| New job: customer contract, machine, supervisor, optional site, planned start/end, job number (typed, as on the web), rate card or negotiated rate, optional minimum hours; "Approve now" (default on, only with `tenant.job.approve`) creates, submits and approves so the supervisor is notified at once, otherwise create + submit. One Idempotency-Key per step per form visit; a refused submit/approve opens the created job with the reason | Jobs | `tenant.job.write` (+ `tenant.job.approve`) | `POST /tenant/jobs`, `POST /tenant/jobs/{id}/transitions` (lookups: `GET /tenant/contracts`, `/tenant/machines`, `/tenant/staff?kind=SUPERVISOR`, `/tenant/job-sites`) |
 | Push routing and push devices | Settings | (own) | `/tenant/notification-routing`, `/me/push-devices` |
 
 Nothing else changes data. Segregation of duties is enforced by the server (the recorder/requester cannot decide);

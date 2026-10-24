@@ -46,7 +46,7 @@ data class JobDto(
 }
 
 /**
- * `JobTransitionIn` (transitionJob). [hourlyRate] only with APPROVE (required when the job's rate source is
+ * `JobTransitionIn` (transitionJob): SUBMIT a new job for approval, APPROVE or CANCEL. [hourlyRate] only with APPROVE (required when the job's rate source is
  * PENDING_PRICE, `422 PRICE_REQUIRED`); CANCEL takes a [reason] (a declined field request).
  */
 @Serializable
@@ -56,6 +56,7 @@ data class JobTransitionIn(
     @SerialName("hourly_rate") val hourlyRate: String? = null,
 ) {
     companion object {
+        const val SUBMIT = "SUBMIT"
         const val APPROVE = "APPROVE"
         const val CANCEL = "CANCEL"
     }

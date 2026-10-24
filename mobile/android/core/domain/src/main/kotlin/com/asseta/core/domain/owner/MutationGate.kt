@@ -18,6 +18,9 @@ enum class OwnerAction(val permission: String) {
 
     /** Issue a cash float into a supervisor's custody. */
     ISSUE_FLOAT("tenant.finance.cash"),
+
+    /** Create a job and send it for approval (approving it right away also needs [DECIDE_JOB]'s permission). */
+    CREATE_JOB("tenant.job.write"),
 }
 
 sealed interface MutationCheck {

@@ -95,6 +95,19 @@ class MutationGateTest {
         assertFalse(MutationGate.resetNoteValid("abcd"))
         assertTrue(MutationGate.resetNoteValid("abcde"))
     }
+
+    @Test
+    fun `creating a job needs tenant job write, online live data and a writable company`() {
+        assertEquals("tenant.job.write", OwnerAction.CREATE_JOB.permission)
+        val write = setOf("tenant.job.write")
+        assertEquals(MutationCheck.Allowed, MutationGate.check(OwnerAction.CREATE_JOB, true, DataSource.LIVE, write, false))
+        assertEquals(MutationCheck.Blocked(MutationGate.NOT_PERMITTED), MutationGate.check(OwnerAction.CREATE_JOB, true, DataSource.LIVE, setOf("tenant.job.approve"), false))
+        assertEquals(MutationCheck.Blocked(MutationGate.OFFLINE), MutationGate.check(OwnerAction.CREATE_JOB, false, DataSource.LIVE, write, false))
+        assertEquals(MutationCheck.Blocked(MutationGate.SHOWING_SAVED_DATA), MutationGate.check(OwnerAction.CREATE_JOB, true, DataSource.CACHE, write, false))
+        assertEquals(MutationCheck.Blocked(MutationGate.READ_ONLY_TENANT), MutationGate.check(OwnerAction.CREATE_JOB, true, DataSource.LIVE, write, true))
+        assertEquals("No rate card applies to this machine; choose Negotiated rate and enter a price.", OwnerErrors.message("NO_RATE", "x"))
+        assertEquals("That job number is already used.", OwnerErrors.message("DUPLICATE_JOB", "x"))
+    }
 }
 
 class OwnerErrorsTest {

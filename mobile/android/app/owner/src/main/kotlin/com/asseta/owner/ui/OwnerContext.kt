@@ -45,6 +45,8 @@ data class OwnerFeatures(val permissions: Set<String>) {
     val approvals get() = "tenant.approval.read" in permissions
     val decideApprovals get() = "tenant.approval.expense" in permissions
     val approveJobs get() = "tenant.job.approve" in permissions
+    val createJobs get() = "tenant.job.write" in permissions
+    val jobSites get() = "tenant.geofence.read" in permissions
     val cases get() = "tenant.case.read" in permissions
     val meterEvidence get() = "tenant.meter.read" in permissions
     val meterApprove get() = "tenant.meter.approve" in permissions

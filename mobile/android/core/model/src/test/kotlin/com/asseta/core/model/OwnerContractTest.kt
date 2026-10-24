@@ -70,6 +70,10 @@ class OwnerContractTest {
             "SettlementDecisionIn" to com.asseta.core.model.owner.SettlementDecisionIn.serializer(),
             "CashFloatIn" to com.asseta.core.model.owner.CashFloatIn.serializer(),
             "CashCustodyEntryDto" to com.asseta.core.model.owner.CashCustodyEntryDto.serializer(),
+            "JobIn" to com.asseta.core.model.owner.JobIn.serializer(),
+            "ContractDto" to com.asseta.core.model.owner.ContractDto.serializer(),
+            "StaffDto" to com.asseta.core.model.owner.StaffDto.serializer(),
+            "JobSiteDto" to com.asseta.core.model.owner.JobSiteDto.serializer(),
         ).forEach { (name, serializer) -> check(name, serializer.descriptor) }
     }
 

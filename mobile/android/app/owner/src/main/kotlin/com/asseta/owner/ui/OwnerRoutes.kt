@@ -78,7 +78,7 @@ fun OwnerRoutes(
         }
         OwnerDestination.Jobs -> {
             val vm: JobsViewModel = viewModel(key = "jobs-$t") { JobsViewModel(data, graph.refreshTriggers("job")) }
-            JobsScreen(vm) { open(OwnerDestination.Job(it)) }
+            JobsScreen(vm, session, online) { open(OwnerDestination.Job(it)) }
         }
         is OwnerDestination.Job -> {
             val vm: JobDetailViewModel = viewModel(key = "job-$t-${route.jobId}") {

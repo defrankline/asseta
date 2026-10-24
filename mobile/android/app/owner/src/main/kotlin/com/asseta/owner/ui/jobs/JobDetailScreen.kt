@@ -11,6 +11,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.testTag
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -71,6 +73,14 @@ class JobDetailViewModel(val data: OwnerData, private val jobId: String, spend: 
     val message: StateFlow<String?> = _message.asStateFlow()
     private val _busy = MutableStateFlow(false)
     val busy: StateFlow<Boolean> = _busy.asStateFlow()
+    private val _notice = MutableStateFlow<String?>(null)
+
+    /** What went wrong after "New job" created this job (SUBMIT or APPROVE refused), shown once. */
+    val notice: StateFlow<String?> = _notice.asStateFlow()
+
+    fun takeNotice() {
+        JobNotices.take(jobId)?.let { _notice.value = it }
+    }
 
     /** Approve (with [hourlyRate] for a job without a rate card) and reload the job. */
     fun approve(hourlyRate: String?) = decide(JobApprovalText.APPROVED) { data.approveJob(jobId, hourlyRate) }
@@ -143,12 +153,24 @@ fun JobDetailScreen(vm: JobDetailViewModel, session: OwnerSession, online: Boole
     val error by vm.error.collectAsStateWithLifecycle()
     val message by vm.message.collectAsStateWithLifecycle()
     val busy by vm.busy.collectAsStateWithLifecycle()
+    val notice by vm.notice.collectAsStateWithLifecycle()
+    LaunchedEffect(Unit) { vm.takeNotice() }
     SnapshotScaffold(state, vm::refresh) { d ->
         val s = d.summary
         val job = s.job
         val zone = ZoneId.systemDefault()
         val photosOnline = online && !state.stale
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 16.dp, bottom = 16.dp)) {
+            notice?.let { n ->
+                item {
+                    SectionCard(null) {
+                        Text(
+                            n, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.testTag("job-notice").semantics { liveRegion = LiveRegionMode.Polite },
+                        )
+                    }
+                }
+            }
             item {
                 SectionCard("Job") {
                     KeyValue("Number", job.jobNumber)

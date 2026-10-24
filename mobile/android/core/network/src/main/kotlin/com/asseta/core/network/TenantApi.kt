@@ -12,11 +12,14 @@ import com.asseta.core.model.owner.CashCustodyEntryDto
 import com.asseta.core.model.owner.CashFloatIn
 import com.asseta.core.model.owner.CashHandoverDto
 import com.asseta.core.model.owner.CashSupervisorSummaryDto
+import com.asseta.core.model.owner.ContractDto
 import com.asseta.core.model.owner.ExceptionDto
 import com.asseta.core.model.owner.ExpenseDto
 import com.asseta.core.model.owner.FuelEventDto
 import com.asseta.core.model.owner.HistoryDto
 import com.asseta.core.model.owner.JobDto
+import com.asseta.core.model.owner.JobIn
+import com.asseta.core.model.owner.JobSiteDto
 import com.asseta.core.model.owner.JobSummaryDto
 import com.asseta.core.model.owner.MachineDto
 import com.asseta.core.model.owner.MachineMapDto
@@ -34,6 +37,7 @@ import com.asseta.core.model.owner.PhotoUrlDto
 import com.asseta.core.model.owner.PushDeviceDto
 import com.asseta.core.model.owner.PushDeviceIn
 import com.asseta.core.model.owner.SettlementDecisionIn
+import com.asseta.core.model.owner.StaffDto
 import com.asseta.core.model.owner.TenantOverviewDto
 import com.asseta.core.model.owner.JobTransitionIn
 import com.asseta.core.model.sync.CashReconciliationDto
@@ -41,6 +45,7 @@ import com.asseta.core.model.sync.FieldContractDto
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
+import retrofit2.http.Header
 import retrofit2.http.POST
 import retrofit2.http.PUT
 import retrofit2.http.Path
@@ -83,9 +88,46 @@ interface TenantApi {
         @Query("sort") sort: String? = null,
     ): PageDto<JobDto>
 
-    /** transitionJob: APPROVE (with hourly_rate for a PENDING_PRICE job) or CANCEL with a reason (needs tenant.job.approve). */
+    /**
+     * transitionJob: SUBMIT (tenant.job.write), APPROVE (with hourly_rate for a PENDING_PRICE job) or CANCEL with a
+     * reason (tenant.job.approve). [idempotencyKey]: a stable key so a retried step is not applied twice (else random).
+     */
     @POST("api/v1/tenant/jobs/{id}/transitions")
-    suspend fun transitionJob(@Path("id") jobId: String, @Body body: JobTransitionIn): JobDto
+    suspend fun transitionJob(
+        @Path("id") jobId: String,
+        @Body body: JobTransitionIn,
+        @Header(AssetaHeaders.IDEMPOTENCY_KEY) idempotencyKey: String? = null,
+    ): JobDto
+
+    /** createJob (needs tenant.job.write): a DRAFT job; [idempotencyKey] is kept for the whole form visit. */
+    @POST("api/v1/tenant/jobs")
+    suspend fun createJob(@Body body: JobIn, @Header(AssetaHeaders.IDEMPOTENCY_KEY) idempotencyKey: String): JobDto
+
+    /** listContracts: CLOSED contracts are hidden by default; `q` searches number / reference. */
+    @GET("api/v1/tenant/contracts")
+    suspend fun contracts(
+        @Query("q") q: String? = null,
+        @Query("status") status: String? = null,
+        @Query("page") page: Int = 1,
+        @Query("page_size") pageSize: Int = 20,
+    ): PageDto<ContractDto>
+
+    /** listMachines: `q` searches asset code / name. */
+    @GET("api/v1/tenant/machines")
+    suspend fun machines(@Query("q") q: String? = null, @Query("page") page: Int = 1, @Query("page_size") pageSize: Int = 20): PageDto<MachineDto>
+
+    /** listStaff: `kind=SUPERVISOR` for the job's supervisor. */
+    @GET("api/v1/tenant/staff")
+    suspend fun staff(
+        @Query("q") q: String? = null,
+        @Query("kind") kind: String? = null,
+        @Query("page") page: Int = 1,
+        @Query("page_size") pageSize: Int = 20,
+    ): PageDto<StaffDto>
+
+    /** listJobSites (plain list): `q` searches code and name (needs tenant.geofence.read). */
+    @GET("api/v1/tenant/job-sites")
+    suspend fun jobSites(@Query("q") q: String? = null): List<JobSiteDto>
 
     /** getJobSummary */
     @GET("api/v1/tenant/jobs/{id}")
