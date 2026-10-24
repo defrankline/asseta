@@ -1,7 +1,7 @@
 # ASSETA — RELEASE 1 IMPLEMENTATION TRACKER
 
 **Scope authority:** `prompt.md` (FROZEN). **Enhancements:** `backlog.md` only.  
-**Last update:** 2026-10-21 (session 1: Gates 0–1 verified locally; Gate 2 backend + real Traccar E2E verified; Gate 2 UI next)  
+**Last update:** 2026-10-24 (field-initiated jobs DEC-028; remote-boss owner-app parity DEC-029)  
 **Overall status:** IN PROGRESS  
 **Gate in progress:** Gate 4 — sync backend done; native Android + iOS supervisor field apps next. Gates 1–3 await a live browser walkthrough.  
 **Owner:** Implementation agent; final scope decisions by Asseta Platform Owner.
@@ -228,6 +228,8 @@
 | 2026-10-21 | DEC-007 | Brand mark: "A" with GPS-pin apex and crawler-track crossbar; Slate `#0F2A3D` / Amber `#F5A300` (`branding/`) | Owner delegated logo design | Web/mobile icons |
 | 2026-10-22 | DEC-026 | Owner asked not to park work behind unanswered questions. Decided: switcher label "Asseta platform"; auto-switch to platform console on platform routes (not the reverse); Approve gated on passing evaluation; real OCR photo cropped below a reflection; drill leftovers: orphaned MinIO objects deleted, drill user mirror deactivated (audit kept), deactivated tracker model and Traccar auto-registered devices left (harmless, unknown trackers refused), Kafka drill events left to retention | Owner instruction 2026-10-22 | web layout/access/models, OCR fixtures, ops |
 | 2026-10-23 | DEC-027 | Owner direction: apps must surface existing R1 capabilities in depth (no new scope). Supervisor apps get an R1 "inbox" in the sync pull (own records with server state) and a Jobs/Readings/Fuel/Money/Inbox layout on both platforms; field users see only their own records (REST lists, attachment URLs); local field data and sync state are owned per user on shared phones | Owner feedback 2026-10-23; prompt.md R1-F outbox/inbox | sync, jobs/scope, expenses, meter, finance cash, both supervisor apps |
+| 2026-10-24 | DEC-028 | Jobs start two ways (R1 acceptance #7 "with phones offline, create jobs"): the Supervisor requests a job from the field (`tenant.job.request`, REST `POST /tenant/jobs/requests` + sync `JOB_REQUEST`, server-assigned number, straight to PENDING_APPROVAL; machines limited to the supervisor's assigned/own-job machines; the supervisor never sets price — rate card, else `PENDING_PRICE` and APPROVE requires `hourly_rate`), or the boss creates and assigns. The named supervisor is notified on approval/assignment/decline | Owner: "The boss could be in Dar es salaam but his machines are in Katavi"; "of course jobs can be started by the boss and assigned to supervisor" | jobs, sync, notification, web, both supervisor + owner apps |
+| 2026-10-24 | DEC-029 | The boss is remote and phone-first: every boss decision is available in the Owner apps as well as the web — job create/assign/approve/decline, expense and meter-reset decisions, exception review, cash-handover confirm/dispute, cash floats. Web gains the company-wide Meter resets page and the all-supervisors cash summary the apps already had. Tenant administration (customers/contracts/rate cards, machines/trackers, staff/access, investigations decisions, profitability, subscription) stays web-only per prompt.md R1-I | Owner: "are the apps in sync with the web client?" | owner apps, web finance/meter |
 
 ## Work session log (append each session)
 
@@ -249,6 +251,12 @@
 - **Completed:** platform admin UI (agent; verified locally), policy engine, R1-B registry, tracker registry, telemetry contract + Traccar adapter + simulator, ingestion, partitioned PostGIS, geofences, timeline replay, alerts, fleet map/history, connectivity sweeper, workers (timeline, connectivity), gateway bootstrap, real Traccar E2E.
 - **Defects found and fixed:** migration re-granted revoked invoice DELETE (caught by test; grants now table-scoped + permanent privilege audit); system-scope write pending across RLS scope switch; DB session timezone leaking into API instants (sessions pinned to UTC); geofence DTO computed from unflushed expression; new release permissions not reaching existing roles (DEC-015); data-dependent seed downgrade; Traccar env key naming / device-id regex.
 - **Next smallest action:** confirm CI run 2 green; finish + verify Gate 2 web UI (agent running); then Gate 3 (customers, rental contracts/jobs, meter capture policy + GPS evidence).
+
+### 2026-10-24 — Field-initiated jobs and remote-boss parity
+- **Completed:** DEC-028 supervisor job requests end to end (backend c47f68a, web ea9b75a, Android 182dab0, iOS 90a1b15); DEC-029 owner-app decisions (Android 749f909 + 364cb51, iOS f8ea9a2) and owner-app New job (Android 159acbd, iOS 28daebf); web Meter resets page + all-supervisors cash tab (3332dd0); live demo field history seeded (`seed-demo-tenant.sh field --reset-demo-password`).
+- **Tests run:** backend full pytest green (new `test_job_requests.py`); web vitest 640 green; Android `testDebugUnitTest` 349 green; iOS `swift test` 292 green + Simulator builds of both apps.
+- **Not yet verified:** the new flows on real phones against https://asseta.co.tz (needs deploy + new app builds).
+- **Next smallest action:** deploy, then walk request → approve → start → complete with the demo supervisor and owner accounts on both platforms.
 
 ## Release 1 completion sign-off
 
