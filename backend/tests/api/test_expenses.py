@@ -154,5 +154,6 @@ def test_fuel_events_attribute_cost_to_machine_and_job(api: Api) -> None:
     assert bad.status_code == 422  # ISSUE needs a machine or job
     listed = f.accountant.get(fe, machine_id=f.c.t.machine_id).json()
     assert {x["event_type"] for x in listed["items"]} == {"ISSUE", "USAGE"}
+    assert [x["id"] for x in f.accountant.get(fe, job_id=f.c.job_id).json()["items"]] == [issued["id"]]
     with pytest.raises(DBAPIError, match=r"asseta: |permission denied"):
         tenant_sql(f.tid, "UPDATE fuel_event SET litres = 1 WHERE id = :i", i=issued["id"])

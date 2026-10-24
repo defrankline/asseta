@@ -47885,6 +47885,23 @@
             }
           },
           {
+            "in": "query",
+            "name": "job_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Job Id"
+            }
+          },
+          {
             "description": "Only the caller's own records. Always applied for callers without approval or finance oversight permission (field supervisors).",
             "in": "query",
             "name": "mine",

@@ -247,6 +247,7 @@ def list_fuel(
     paging: Annotated[PageParams, Depends(page_params)],
     event_type: FuelEventType | None = None,
     machine_id: uuid.UUID | None = None,
+    job_id: uuid.UUID | None = None,
     mine: Mine = False,
 ) -> Page[FuelEventDto]:
     stmt = select(FuelEvent).order_by(FuelEvent.occurred_at.desc())
@@ -256,6 +257,8 @@ def list_fuel(
         stmt = stmt.where(FuelEvent.event_type == event_type)
     if machine_id:
         stmt = stmt.where(FuelEvent.machine_id == machine_id)
+    if job_id:
+        stmt = stmt.where(FuelEvent.job_id == job_id)
     rows, total = paginate(session, stmt, paging)
     return Page(
         items=[FuelEventDto.model_validate(f) for f in rows], total=total, page=paging.page, page_size=paging.page_size

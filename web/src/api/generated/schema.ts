@@ -27956,6 +27956,7 @@ export interface operations {
             query?: {
                 event_type?: components["schemas"]["FuelEventType"] | null;
                 machine_id?: string | null;
+                job_id?: string | null;
                 /** @description Only the caller's own records. Always applied for callers without approval or finance oversight permission (field supervisors). */
                 mine?: boolean;
                 page?: number;
