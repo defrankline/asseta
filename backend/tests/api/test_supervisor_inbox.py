@@ -356,7 +356,8 @@ def test_supervisor_own_cash_views(api: Api) -> None:
     assert sup.get("/api/v1/tenant/cash/custody/me/reconciliation").status_code == 200  # defaults to today
     assert other.get("/api/v1/tenant/cash/custody/me/collections").json()["items"] == []
     assert other.get("/api/v1/tenant/cash/custody/me/handovers").json()["total"] == 0
-    assert f.manager.get("/api/v1/tenant/cash/custody/me/handovers").status_code == 403  # no COLLECT permission
+    operator_role = role(api, f.tid, "operator", "inbox-operator")  # the operator template records no cash
+    assert operator_role.get("/api/v1/tenant/cash/custody/me/handovers").status_code == 403  # no COLLECT
 
 
 def test_offline_meter_reset_request_idempotent(api: Api) -> None:

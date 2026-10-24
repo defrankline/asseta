@@ -210,6 +210,14 @@ class CashCustodyEntryDto(Dto):
     occurred_at: datetime
     reference: str | None
     note: str | None
+    ack_required: bool = False
+    ack_status: Literal["NOT_REQUIRED", "PENDING", "ACKNOWLEDGED", "DISPUTED"] = Field(
+        default="NOT_REQUIRED", description="A float needing acknowledgement counts in custody only once ACKNOWLEDGED"
+    )
+    amount_received: Money | None = None
+    acknowledged_by: uuid.UUID | None = None
+    acknowledged_at: datetime | None = None
+    created_by: uuid.UUID | None = None
 
 
 class CashHandoverIn(BaseModel):
@@ -238,21 +246,44 @@ class CashHandoverDto(Dto):
     verified_by: uuid.UUID | None
     verified_at: datetime | None
     decision_note: str | None
+    amount_received: Money | None = Field(
+        default=None, description="What the office counted when verifying (null = the declared amount)"
+    )
+    expected_balance: Money | None = Field(default=None, description="Custodian's expected balance when recorded")
+    partial_shortfall: Money | None = Field(
+        default=None, description="Unretained balance not remitted (PARTIAL_REMITTANCE flag); null = not flagged"
+    )
+
+
+class RemittanceDecisionIn(SettlementDecisionIn):
+    """Verify/reject a remittance (cash handover). `amount_received` is what was actually counted; omitted (older
+    clients) = the declared amount. A difference opens a cash variance."""
+
+    amount_received: PositiveAmount | None = None
 
 
 class CashReconciliationDayDto(BaseModel):
-    """outstanding = opening + floats_issued + collections - approved_spending - verified_handovers."""
+    """outstanding = opening + floats_issued + collections + transfers_in - transfers_out - approved_spending
+    - verified_handovers + adjustments - written_off. Each figure drills down to its transactions."""
 
     day: date
     opening: Money
-    floats_issued: Money
+    floats_issued: Money  # floats counted in custody (acknowledged where acknowledgement is required)
     collections: Money  # claimed or verified (rejected collections excluded)
+    transfers_in: Money = Decimal(0)  # acknowledged amount received from other custodians
+    transfers_out: Money = Decimal(0)  # acknowledged amount handed to other custodians
     approved_spending: Money  # APPROVED expenses paid from this custody
-    verified_handovers: Money
+    verified_handovers: Money  # remittances: the amount the office actually received
+    adjustments: Money = Decimal(0)  # approved custody adjustments/reversals (signed)
+    written_off: Money = Decimal(0)  # approved write-offs of variances this custodian was accountable for
     outstanding: Money
     claimed_unverified_handovers: Money  # shown separately; not deducted until verified
     pending_spending: Money  # expenses awaiting approval; not deducted
     unverified_collections: Money  # part of `collections` not yet verified by the office
+    in_transit_out: Money = Decimal(0)  # transfers awaiting the receiver's acknowledgement (still held here)
+    in_transit_in: Money = Decimal(0)  # transfers to this custodian awaiting acknowledgement (not yet counted)
+    pending_floats: Money = Decimal(0)  # floats awaiting acknowledgement (not yet counted)
+    pending_adjustments: Money = Decimal(0)  # adjustments awaiting approval (not yet counted)
     outstanding_if_claims_verified: Money
 
 
@@ -269,6 +300,10 @@ class CashCustodyBalanceDto(BaseModel):
     outstanding: Money
     claimed_unverified_handovers: Money
     pending_spending: Money
+    in_transit_out: Money = Decimal(0)
+    in_transit_in: Money = Decimal(0)
+    pending_floats: Money = Decimal(0)
+    approved_retention: Money = Decimal(0)  # currently authorised to keep (full-remittance exception)
     as_of: datetime
 
 
@@ -284,8 +319,12 @@ class CashSupervisorSummaryDto(BaseModel):
     opening: Money
     floats_issued: Money
     collections: Money
+    transfers_in: Money = Decimal(0)
+    transfers_out: Money = Decimal(0)
     approved_spending: Money
     verified_handovers: Money
+    adjustments: Money = Decimal(0)
+    written_off: Money = Decimal(0)
     closing_outstanding: Money
     claimed_unverified_handovers: Money
     pending_spending: Money

@@ -27,8 +27,19 @@ def emit_detached(topic: str, event_type: str, tenant_id: uuid.UUID, payload: di
 def sod_violation(
     tenant_id: uuid.UUID, actor_id: uuid.UUID | None, action: str, entity_type: str, entity_id: object
 ) -> None:
-    """A user tried to approve/verify their own record (refused). Feeds SOD_VIOLATION_ATTEMPT notifications and,
-    later, Gate 6 fraud rules."""
+    """A user tried to approve/verify their own record (refused). Feeds SOD_VIOLATION_ATTEMPT notifications, Gate 6
+    cases and the tenant's security event list."""
+    from asseta.modules.accountability.models import SecurityEventKind  # lazy: core must not import modules at load
+    from asseta.modules.accountability.security_events import record_security_event
+
+    record_security_event(
+        tenant_id,
+        SecurityEventKind.SEGREGATION_OF_DUTIES,
+        actor_id,
+        action=action,
+        entity_type=entity_type,
+        entity_id=entity_id,
+    )
     emit_detached(
         "asseta.security",
         "SegregationOfDutiesViolation",

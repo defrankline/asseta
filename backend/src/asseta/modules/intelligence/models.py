@@ -69,6 +69,7 @@ class CaseSourceType(StrEnum):
     TRACKING_ALERT = "TRACKING_ALERT"
     SOD_EVENT = "SOD_EVENT"
     PREDICTION = "PREDICTION"  # surfaced model predictions only (never shadow ones)
+    CASH_VARIANCE = "CASH_VARIANCE"  # declared != received cash above the tenant's case threshold
 
 
 class CaseOutcomeKind(StrEnum):

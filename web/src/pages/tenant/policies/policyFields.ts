@@ -3,6 +3,7 @@
  * set (mirrors the backend OVERRIDABLE table; tenant = all fields).
  */
 import type { PolicyType } from '../../../api/types';
+import { CASH_CUSTODY_FIELDS, OVERSIGHT_FIELDS } from './accountabilityPolicyFields';
 
 /** `decimal` values stay strings end to end (never parsed to float). */
 export type FieldKind =
@@ -322,6 +323,8 @@ export const POLICY_FIELDS: Readonly<Record<PolicyType, readonly PolicyFieldDef[
   DEVICE_SYNC: DEVICE_SYNC_FIELDS,
   EXPENSE_CAPTURE: EXPENSE_CAPTURE_FIELDS,
   FRAUD_CONTROLS: FRAUD_CONTROLS_FIELDS,
+  CASH_CUSTODY: CASH_CUSTODY_FIELDS,
+  OVERSIGHT: OVERSIGHT_FIELDS,
   CUSTOMER_HOURS: CUSTOMER_HOURS_FIELDS,
 };
 
@@ -332,6 +335,8 @@ export const POLICY_TYPE_LABELS: Readonly<Record<PolicyType, string>> = {
   DEVICE_SYNC: 'Device sync',
   EXPENSE_CAPTURE: 'Expense capture',
   FRAUD_CONTROLS: 'Risk signals',
+  CASH_CUSTODY: 'Cash custody',
+  OVERSIGHT: 'Oversight',
   CUSTOMER_HOURS: 'Customer hours',
 };
 
@@ -372,6 +377,8 @@ const SCOPE_FIELDS: Readonly<
   HIRE_BILLING: null,
   DEVICE_SYNC: null,
   EXPENSE_CAPTURE: null,
+  CASH_CUSTODY: null,
+  OVERSIGHT: null,
   CUSTOMER_HOURS: null,
   FRAUD_CONTROLS: {
     MACHINE: new Set([

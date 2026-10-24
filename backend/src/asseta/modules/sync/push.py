@@ -19,9 +19,12 @@ from sqlalchemy.orm import Session
 
 from asseta.core.errors import AppError, BusinessRuleViolation, DependencyUnavailable, NotFound
 from asseta.core.outbox import OutboxWriter
+from asseta.modules.accountability.security_events import permission_refused
 from asseta.modules.expenses.dto import ExpenseIn, FuelEventIn
 from asseta.modules.expenses.service import ExpenseService
 from asseta.modules.finance.cash_service import CashCustodyService
+from asseta.modules.finance.custody_dto import CashAcknowledgementIn, CashTransferIn
+from asseta.modules.finance.custody_service import CashCustodyControls
 from asseta.modules.finance.dto import CashCollectionIn, CashHandoverIn
 from asseta.modules.hours.approvals import HoursApprovals
 from asseta.modules.hours.dto import HoursPurchaseIn, TransferIn
@@ -45,6 +48,8 @@ CONFLICT_CODES = {
     "JOB_NOT_ACTIVE",
     "STALE_VERSION",
     "DUPLICATE_PAYMENT_REFERENCE",
+    "TRANSFER_ALREADY_DECIDED",  # cash custody: a second acknowledgement of the same transfer/float
+    "FLOAT_ALREADY_ACKNOWLEDGED",
     # customer hours: two field users drawing on the same remaining hours are serialised; the loser sees a conflict
     "NO_AVAILABLE_HOURS",
     "EXCEEDS_REMAINING_HOURS",
@@ -60,6 +65,9 @@ REQUIRED_PERMISSION = {
     "CASH_HANDOVER": "tenant.collection.record",
     "METER_RESET_REQUEST": "tenant.meter.capture",
     "JOB_REQUEST": "tenant.job.request",
+    "CASH_TRANSFER": "tenant.collection.record",
+    "CASH_TRANSFER_ACKNOWLEDGEMENT": "tenant.collection.record",
+    "CASH_FLOAT_ACKNOWLEDGEMENT": "tenant.collection.record",
     "HOURS_PURCHASE": "tenant.hours.purchase",
     "HOURS_TRANSFER_REQUEST": "tenant.hours.transfer",
 }
@@ -96,6 +104,18 @@ class HoursPurchaseOp(HoursPurchaseIn):
     references resumable blob uploads (purpose PAYMENT_EVIDENCE) and the op waits until they complete."""
 
     evidence_upload_ids: list[uuid.UUID] = Field(default_factory=list, max_length=10)
+
+
+class CashTransferOp(CashTransferIn):
+    client_id: uuid.UUID
+
+
+class CashTransferAckOp(CashAcknowledgementIn):
+    transfer_id: uuid.UUID
+
+
+class CashFloatAckOp(CashAcknowledgementIn):
+    entry_id: uuid.UUID
 
 
 class FuelEventOp(FuelEventIn):
@@ -238,6 +258,16 @@ class PushService:
     def _dispatch(self, device: DeviceSession, op: OperationIn) -> tuple[OperationStatus, dict[str, Any]]:
         needed = REQUIRED_PERMISSION[op.op_type]
         if needed not in self._ctx.permissions:
+            permission_refused(
+                self._tid,
+                self._ctx.user_id,
+                needed,
+                "SYNC",
+                op.op_type,
+                {"operation_id": str(op.id)},
+                occurred_at=self._now,
+                actor_subject=self._ctx.subject,
+            )
             return OperationStatus.REJECTED, {"error": {"code": "PERMISSION_DENIED", "message": f"Missing {needed}"}}
         handlers: dict[str, Callable[[], BaseModel]] = {
             "METER_CAPTURE": lambda: MeterService(self._s, self._ctx, self._now).submit(
@@ -262,6 +292,11 @@ class PushService:
             ),
             "METER_RESET_REQUEST": lambda: self._meter_reset(MeterResetOp.model_validate(op.payload)),
             "JOB_REQUEST": lambda: JobService(self._s, self._ctx).request_job(JobRequestIn.model_validate(op.payload)),
+            "CASH_TRANSFER": lambda: CashCustodyControls(self._s, self._ctx, self._now).record_transfer(
+                CashTransferOp.model_validate(op.payload), "SYNC"
+            ),
+            "CASH_TRANSFER_ACKNOWLEDGEMENT": lambda: self._transfer_ack(CashTransferAckOp.model_validate(op.payload)),
+            "CASH_FLOAT_ACKNOWLEDGEMENT": lambda: self._float_ack(op.id, CashFloatAckOp.model_validate(op.payload)),
             "HOURS_PURCHASE": lambda: self._hours_purchase(
                 HoursPurchaseOp.model_validate({"client_id": op.id, **op.payload})
             ),
@@ -338,6 +373,14 @@ class PushService:
             {**body.model_dump(exclude={"evidence_upload_id"}), "evidence_attachment_id": evidence}
         )
         return MeterService(self._s, self._ctx, self._now).request_reset(reset)
+
+    def _transfer_ack(self, body: CashTransferAckOp) -> BaseModel:
+        ack = CashAcknowledgementIn.model_validate(body.model_dump(exclude={"transfer_id"}))
+        return CashCustodyControls(self._s, self._ctx, self._now).acknowledge_transfer(body.transfer_id, ack, "SYNC")
+
+    def _float_ack(self, op_id: uuid.UUID, body: CashFloatAckOp) -> BaseModel:
+        ack = CashAcknowledgementIn.model_validate(body.model_dump(exclude={"entry_id"}))
+        return CashCustodyControls(self._s, self._ctx, self._now).acknowledge_float(body.entry_id, ack, op_id, "SYNC")
 
     def _transition(self, body: JobTransitionOp) -> BaseModel:
         if body.action not in ("START", "COMPLETE"):

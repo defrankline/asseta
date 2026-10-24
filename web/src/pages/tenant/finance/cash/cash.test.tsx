@@ -108,6 +108,10 @@ describe('SupervisorsTab', () => {
       claimed_unverified_handovers: '90000.0000',
       pending_spending: '15000.0000',
       unverified_collections: '0.0000',
+      transfers_in: '0.0000',
+      transfers_out: '0.0000',
+      adjustments: '0.0000',
+      written_off: '0.0000',
     };
     mocks.supervisorSummary.mockResolvedValue([row]);
     const onOpen = vi.fn();
@@ -145,6 +149,10 @@ describe('CustodyTab', () => {
         outstanding: '200000.0000',
         claimed_unverified_handovers: '90000.0000',
         pending_spending: '15000.0000',
+        in_transit_out: '0.0000',
+        in_transit_in: '0.0000',
+        pending_floats: '0.0000',
+        approved_retention: '0.0000',
         as_of: '2026-10-21T16:00:00Z',
       },
       {
@@ -153,6 +161,10 @@ describe('CustodyTab', () => {
         outstanding: '40.0000',
         claimed_unverified_handovers: '0.0000',
         pending_spending: '0.0000',
+        in_transit_out: '0.0000',
+        in_transit_in: '0.0000',
+        pending_floats: '0.0000',
+        approved_retention: '0.0000',
         as_of: '2026-10-21T16:00:00Z',
       },
     ]);
@@ -181,6 +193,12 @@ describe('CustodyTab', () => {
       occurred_at: '2026-10-21T06:00:00Z',
       reference: null,
       note: null,
+      ack_required: false,
+      ack_status: 'NOT_REQUIRED',
+      amount_received: null,
+      acknowledged_by: null,
+      acknowledged_at: null,
+      created_by: null,
     });
     renderWithProviders(
       <CustodyTab timeZone="UTC" supervisor={SUPERVISOR} onSupervisorChange={vi.fn()} />,

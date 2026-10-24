@@ -24,7 +24,17 @@ import type {
   SettlementStatus,
   StatementLineKind,
 } from '../types';
-import { id, idList, int, nullableId, nullableOneOf, nullableText, oneOf, text } from './schemaKit';
+import {
+  bool,
+  id,
+  idList,
+  int,
+  nullableId,
+  nullableOneOf,
+  nullableText,
+  oneOf,
+  text,
+} from './schemaKit';
 
 export const HIRE_INVOICE_STATUSES: readonly HireInvoiceStatus[] = ['DRAFT', 'ISSUED', 'VOIDED'];
 export const CHARGE_KINDS: readonly ChargeKind[] = [
@@ -38,6 +48,12 @@ export const PAYMENT_STATES: readonly InvoicePaymentState[] = ['UNPAID', 'PARTIA
 export const PAYMENT_METHODS: readonly HirePaymentMethod[] = ['CASH', 'BANK', 'MOBILE_MONEY'];
 export const SETTLEMENT_STATUSES: readonly SettlementStatus[] = ['CLAIMED', 'VERIFIED', 'REJECTED'];
 export const STATEMENT_KINDS: readonly StatementLineKind[] = ['INVOICE', 'REVERSAL', 'PAYMENT'];
+export const FLOAT_ACK_STATUSES: readonly CashCustodyEntryDto['ack_status'][] = [
+  'NOT_REQUIRED',
+  'PENDING',
+  'ACKNOWLEDGED',
+  'DISPUTED',
+];
 export const CUSTODY_ENTRY_TYPES: readonly CustodyEntryType[] = ['OPENING_BALANCE', 'FLOAT_ISSUED'];
 export const GROUP_BYS: readonly ProfitabilityGroupBy[] = ['MACHINE', 'JOB', 'CUSTOMER'];
 
@@ -150,6 +166,12 @@ export const custodyEntrySchema: Schema<CashCustodyEntryDto> = object({
   occurred_at: text(),
   reference: nullableText(),
   note: nullableText(),
+  ack_required: bool(),
+  ack_status: oneOf(FLOAT_ACK_STATUSES),
+  amount_received: nullableText(),
+  acknowledged_by: nullableId(),
+  acknowledged_at: nullableText(),
+  created_by: nullableId(),
 });
 
 export const custodyBalanceSchema: Schema<CashCustodyBalanceDto> = object({
@@ -158,6 +180,10 @@ export const custodyBalanceSchema: Schema<CashCustodyBalanceDto> = object({
   outstanding: text(),
   claimed_unverified_handovers: text(),
   pending_spending: text(),
+  in_transit_out: text(),
+  in_transit_in: text(),
+  pending_floats: text(),
+  approved_retention: text(),
   as_of: text(),
 });
 
@@ -177,6 +203,9 @@ export const handoverSchema: Schema<CashHandoverDto> = object({
   verified_by: nullableId(),
   verified_at: nullableText(),
   decision_note: nullableText(),
+  amount_received: nullableText(),
+  expected_balance: nullableText(),
+  partial_shortfall: nullableText(),
 });
 
 export const reconciliationSchema: Schema<CashReconciliationDto> = object({
@@ -196,6 +225,14 @@ export const reconciliationSchema: Schema<CashReconciliationDto> = object({
       pending_spending: text(),
       unverified_collections: text(),
       outstanding_if_claims_verified: text(),
+      transfers_in: text(),
+      transfers_out: text(),
+      adjustments: text(),
+      written_off: text(),
+      in_transit_out: text(),
+      in_transit_in: text(),
+      pending_floats: text(),
+      pending_adjustments: text(),
     }),
   ).required(),
 });
@@ -215,6 +252,10 @@ export const supervisorSummarySchema: Schema<CashSupervisorSummaryDto> = object(
   claimed_unverified_handovers: text(),
   pending_spending: text(),
   unverified_collections: text(),
+  transfers_in: text(),
+  transfers_out: text(),
+  adjustments: text(),
+  written_off: text(),
 });
 
 function isStringRecord(value: unknown): value is Record<string, string> {

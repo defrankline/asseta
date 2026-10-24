@@ -162,6 +162,15 @@ def expense_policy(f: FinCtx, **values: Any) -> None:
     assert r.status_code == 201, r.text
 
 
+def cash_policy(f: FinCtx, **values: Any) -> None:
+    """Version the tenant's CASH_CUSTODY policy (cash custody chain switches)."""
+    r = f.owner.post(
+        "/api/v1/tenant/policies/CASH_CUSTODY/versions",
+        {"scope": "TENANT", "values": values, "reason": "Owner cash custody controls"},
+    )
+    assert r.status_code == 201, r.text
+
+
 def gps(at: datetime, accuracy: float = 10.0) -> dict[str, Any]:
     return {
         "status": "FIX",

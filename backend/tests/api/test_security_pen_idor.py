@@ -104,6 +104,7 @@ def _populate_b(api: Api) -> tuple[FinCtx, dict[tuple[str, str], str]]:
     ids[("/cases/", "case_id")] = cases(o)[0]["id"]
     drain(api)
     ids.update(_customer_hours_b(api, f))
+    ids.update(_cash_chain_b(api, f))
     optional = {
         ("/notifications/", "notification_id"): f"{T}/notifications",
         ("/assignments/", "assignment_id"): f"{T}/machines/{f.c.t.machine_id}/assignments",
@@ -185,6 +186,36 @@ def _customer_hours_b(api: Api, f: FinCtx) -> dict[tuple[str, str], str]:
         ("/work-execution-allocations/", "allocation_id"): allocation,
         ("/customer-payments/", "payment_id"): pay,
         ("/evidence/", "attachment_id"): up.json()["id"],
+    }
+
+
+def _cash_chain_b(api: Api, f: FinCtx) -> dict[tuple[str, str], str]:
+    """B's cash custody chain records: a transfer, a remittance variance, a reason and a rejected device op."""
+    c = f"{T}/cash"
+    now = api.clock.now.isoformat()
+    other = f.owner.post(f"{T}/staff", {"full_name": "B operator", "kind": "OPERATOR"}).json()["id"]
+    transfer = f.supervisor.post(f"{c}/transfers", {"to_staff_id": other, "amount": "10", "transferred_at": now})
+    assert transfer.status_code == 201, transfer.text
+    h = f.supervisor.post(f"{c}/handovers", {"amount": "10", "handed_at": now}).json()
+    f.accountant.post(f"{c}/handovers/{h['id']}/decision", {"verified": True, "amount_received": "9"})
+    variance = f.accountant.get(f"{c}/variances").json()["items"][0]["id"]
+    reason = f.accountant.post(f"{c}/reasons", {"kind": "VARIANCE", "label": "B reason"}).json()["id"]
+    headers = {**f.supervisor.headers(True, None), "X-Device-Id": "idor-b-device-01"}
+    api.client.post(
+        "/api/v1/sync/devices",
+        headers=headers,
+        json={"device_id": "idor-b-device-01", "platform": "ANDROID", "app_version": "1"},
+    )
+    op_id = str(uuid.uuid4())
+    op = {"id": op_id, "op_type": "CASH_TRANSFER_ACKNOWLEDGEMENT", "created_at_device": now,
+          "payload": {"transfer_id": str(uuid.uuid4()), "acknowledged": True}}  # fmt: skip
+    pushed = api.client.post("/api/v1/sync/push", headers=headers, json={"device_now": now, "operations": [op]})
+    assert pushed.json()["results"][0]["status"] == "REJECTED", pushed.text
+    return {
+        ("/transfers/", "transfer_id"): transfer.json()["id"],
+        ("/variances/", "variance_id"): variance,
+        ("/reasons/", "reason_id"): reason,
+        ("/sync/conflicts/", "operation_id"): op_id,
     }
 
 

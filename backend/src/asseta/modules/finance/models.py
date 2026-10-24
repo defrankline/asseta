@@ -216,6 +216,9 @@ class SupervisorCashCustody(UuidPk, Base):
     note: Mapped[str | None] = mapped_column(Text)
     created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    # Snapshot of the CASH_CUSTODY policy at issue: a float that needs the receiver's acknowledgement counts in
+    # custody only once acknowledged (`cash_float_acknowledgement`). Pre-existing entries: counted when issued.
+    ack_required: Mapped[bool] = mapped_column(nullable=False, default=False, server_default=text("false"))
 
 
 class CashHandover(UuidPk, SyncRevisioned, Base):
@@ -242,3 +245,9 @@ class CashHandover(UuidPk, SyncRevisioned, Base):
     verified_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     decision_note: Mapped[str | None] = mapped_column(Text)
+    # Remittance controls (accountability design C). `amount_received` is what the office counted when verifying
+    # (null on legacy/rejected rows = the declared amount); set once with the decision. The balance snapshot and the
+    # unretained shortfall are fixed at recording: a non-null shortfall is the PARTIAL_REMITTANCE flag.
+    amount_received: Mapped[Decimal | None] = mapped_column(MONEY)
+    expected_balance: Mapped[Decimal | None] = mapped_column(MONEY)
+    partial_shortfall: Mapped[Decimal | None] = mapped_column(MONEY)

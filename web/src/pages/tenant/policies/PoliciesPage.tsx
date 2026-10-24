@@ -39,6 +39,8 @@ const POLICY_TYPES: readonly PolicyType[] = [
   'DEVICE_SYNC',
   'EXPENSE_CAPTURE',
   'FRAUD_CONTROLS',
+  'CASH_CUSTODY',
+  'OVERSIGHT',
   'CUSTOMER_HOURS',
 ];
 const SUBTITLES: Readonly<Record<PolicyType, string>> = {
@@ -51,6 +53,9 @@ const SUBTITLES: Readonly<Record<PolicyType, string>> = {
     'Expense capture: receipts, GPS and approval limits for field expenses (tenant-wide only)',
   FRAUD_CONTROLS:
     'Risk signals: thresholds for deterministic checks that open investigation cases (machine overrides)',
+  CASH_CUSTODY:
+    'Cash custody: recording for custodians, acknowledgements, full remittance and write-off approval (tenant-wide only)',
+  OVERSIGHT: 'Oversight: accountability dashboard tiles and windows (tenant-wide only)',
   CUSTOMER_HOURS:
     'Customer hours: prepaid hours, activation, expiry, approvals and walk-ins (tenant-wide only)',
 };

@@ -502,6 +502,101 @@ def _hours_expired(_: Session, e: DomainEvent) -> list[Intent]:
     ]
 
 
+@rule("CashTransferRecorded")
+def _cash_transfer(session: Session, e: DomainEvent) -> list[Intent]:
+    p = e.payload
+    if p.get("status") != "PENDING_ACKNOWLEDGEMENT":
+        return []
+    sender = _staff_name(session, p.get("from_staff_id")) or "A custodian"
+    return [
+        Intent(
+            "CASH_TRANSFER_TO_ACKNOWLEDGE",
+            (staff(p["to_staff_id"]),),
+            "Cash transfer to acknowledge",
+            f"{sender} handed you {p['currency']} {p['amount']}; confirm the amount you received.",
+            _key(e),
+            "/tenant/cash/transfers",
+            "cash_transfer",
+            p["transfer_id"],
+        )
+    ]
+
+
+@rule("CashFloatIssued")
+def _cash_float(_: Session, e: DomainEvent) -> list[Intent]:
+    p = e.payload
+    return [
+        Intent(
+            "CASH_FLOAT_TO_ACKNOWLEDGE",
+            (staff(p["staff_member_id"]),),
+            "Cash float to acknowledge",
+            f"A float of {p['currency']} {p['amount']} was issued to you; confirm the amount you received.",
+            _key(e),
+            "/tenant/cash/floats",
+            "supervisor_cash_custody",
+            p["entry_id"],
+        )
+    ]
+
+
+@rule("CashApprovalRequested")
+def _cash_approval(_: Session, e: DomainEvent) -> list[Intent]:
+    p = e.payload
+    what = {"WRITE_OFF": "write-off", "RETENTION": "cash retention", "CUSTODY_ADJUSTMENT": "custody adjustment"}
+    label = what.get(p.get("kind", ""), "cash request")
+    return [
+        Intent(
+            "CASH_APPROVAL_REQUESTED",
+            (perm(p["permission"]),),
+            f"Approve {label}",
+            f"A {label} of {p['currency']} {p['amount']} awaits approval by someone other than the proposer.",
+            _key(e),
+            "/tenant/cash",
+            p["entity_type"],
+            p["entity_id"],
+        )
+    ]
+
+
+@rule("CashVarianceOpened")
+def _cash_variance(session: Session, e: DomainEvent) -> list[Intent]:
+    p = e.payload
+    who = _staff_name(session, p.get("staff_member_id"))
+    source = p["source_type"].lower()
+    return [
+        Intent(
+            "CASH_VARIANCE_OPENED",
+            (perm("tenant.finance.variance"),),
+            "Cash difference to review",
+            f"The amount received on a {source} differs from the declared amount by {p['currency']} {p['amount']}"
+            + (f" ({who})." if who else "."),
+            _key(e),
+            "/tenant/cash/variances",
+            "cash_variance",
+            p["variance_id"],
+        )
+    ]
+
+
+@rule("PartialRemittanceFlagged")
+def _partial_remittance(session: Session, e: DomainEvent) -> list[Intent]:
+    p = e.payload
+    who = _staff_name(session, p.get("staff_member_id")) or "A custodian"
+    return [
+        Intent(
+            "PARTIAL_REMITTANCE",
+            (perm("tenant.finance.verify"),),
+            "Partial remittance",
+            f"{who} remitted {p['currency']} {p['amount']}; {p['currency']} {p['shortfall']} of the expected balance "
+            "is not covered by an approved retention.",
+            _key(e),
+            "/tenant/cash/handovers",
+            "cash_handover",
+            p["handover_id"],
+        )
+    ]
+
+
 # --- anomalies -----------------------------------------------------------------------------------------------------
 @rule("TrackingAlertRaised")
 def _alert(session: Session, e: DomainEvent) -> list[Intent]:

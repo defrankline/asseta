@@ -6,7 +6,7 @@ from decimal import Decimal
 from typing import Any
 
 from tests.support.api import Api
-from tests.support.finance import FinCtx, category, expense_policy, setup_finance
+from tests.support.finance import FinCtx, cash_policy, category, expense_policy, setup_finance
 
 C = "/api/v1/tenant/cash"
 
@@ -34,6 +34,9 @@ def _verify(actor: Any, handover_id: str, ok: bool = True) -> Any:
 def test_multi_day_cash_reconciliation_with_claimed_handovers(api: Api) -> None:
     f = setup_finance(api)
     sup, acct = f.supervisor, f.accountant
+    # The pre-existing custody behaviour is what a tenant gets with the custody-chain capabilities switched off:
+    # floats count when issued, and field recorders move only their own custody.
+    cash_policy(f, float_ack_required=False, recorders_may_record_for_others=False)
     misc = category(f, "SPARES", "Spares")
     expense_policy(f, receipt_required_above="100000000", gps_required=False, auto_approve_limit="50000")
 

@@ -15,6 +15,8 @@ class PolicyType(StrEnum):
     DEVICE_SYNC = "DEVICE_SYNC"
     EXPENSE_CAPTURE = "EXPENSE_CAPTURE"
     FRAUD_CONTROLS = "FRAUD_CONTROLS"
+    CASH_CUSTODY = "CASH_CUSTODY"
+    OVERSIGHT = "OVERSIGHT"
     CUSTOMER_HOURS = "CUSTOMER_HOURS"
 
 
@@ -197,6 +199,36 @@ class CustomerHoursPolicy(BaseModel):
         return self
 
 
+class CashCustodyPolicy(BaseModel):
+    """Cash custody chain controls (accountability design C). Every switch is tenant configuration; switching a
+    capability off keeps the pre-existing behaviour (own-custody recording, floats counted when issued, no
+    acknowledgement step). Segregation of duties (proposer != approver) is always enforced and is not a switch.
+    Amounts are in the tenant's base currency."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    # Recorders (`tenant.collection.record`) may record collections/transfers/remittances for any active staff
+    # member (custodians need no login). Off: only the office cash permission may name another custodian.
+    recorders_may_record_for_others: bool
+    transfer_ack_required: bool  # off: a field transfer counts as received at the declared amount when recorded
+    recorder_receiver_counts_as_ack: bool  # recording a transfer you receive is its acknowledgement
+    float_ack_required: bool  # off: a float counts in the receiver's custody when issued
+    remit_full_balance: bool  # a remittance below the outstanding balance (less approved retentions) is flagged
+    remittance_cutoff_hour: int | None = Field(default=None, ge=0, le=23)  # tenant-local hour; null = no daily cut-off
+    variance_case_threshold: Decimal | None = Field(default=None, ge=0)  # |variance| above -> case; null = never
+    writeoff_requires_approval: bool  # on: a write-off is proposed then approved by another permission holder
+    retention_allowed: bool  # off: no retention may be requested (everything must be remitted)
+
+
+class OversightPolicy(BaseModel):
+    """Accountability dashboard (design D): which tiles a tenant shows and the look-back window of its counts."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    hidden_dashboard_tiles: list[str] = Field(default_factory=list, max_length=50)
+    security_event_window_days: int = Field(ge=1, le=366)
+
+
 SCHEMAS: dict[PolicyType, type[BaseModel]] = {
     PolicyType.TRACKING: TrackingPolicy,
     PolicyType.METER_CAPTURE: MeterCapturePolicy,
@@ -204,6 +236,8 @@ SCHEMAS: dict[PolicyType, type[BaseModel]] = {
     PolicyType.DEVICE_SYNC: DeviceSyncPolicy,
     PolicyType.EXPENSE_CAPTURE: ExpenseCapturePolicy,
     PolicyType.FRAUD_CONTROLS: FraudControlsPolicy,
+    PolicyType.CASH_CUSTODY: CashCustodyPolicy,
+    PolicyType.OVERSIGHT: OversightPolicy,
     PolicyType.CUSTOMER_HOURS: CustomerHoursPolicy,
 }
 
@@ -241,6 +275,8 @@ OVERRIDABLE: dict[PolicyType, dict[PolicyScope, frozenset[str]]] = {
     PolicyType.HIRE_BILLING: {PolicyScope.MACHINE: frozenset(), PolicyScope.SITE: frozenset()},
     PolicyType.DEVICE_SYNC: {PolicyScope.MACHINE: frozenset(), PolicyScope.SITE: frozenset()},
     PolicyType.EXPENSE_CAPTURE: {PolicyScope.MACHINE: frozenset(), PolicyScope.SITE: frozenset()},
+    PolicyType.CASH_CUSTODY: {PolicyScope.MACHINE: frozenset(), PolicyScope.SITE: frozenset()},
+    PolicyType.OVERSIGHT: {PolicyScope.MACHINE: frozenset(), PolicyScope.SITE: frozenset()},
     PolicyType.FRAUD_CONTROLS: {
         PolicyScope.MACHINE: frozenset(
             {"engine_activity_min_minutes", "fuel_max_litres_per_meter_hour", "expense_threshold_per_machine_per_week"}
@@ -307,6 +343,18 @@ SEED_DEFAULTS: dict[PolicyType, dict[str, object]] = {
         "authorization_tolerance_minutes": 5,
         "detection_lookback_hours": 168,
     },
+    PolicyType.CASH_CUSTODY: {
+        "recorders_may_record_for_others": True,
+        "transfer_ack_required": True,
+        "recorder_receiver_counts_as_ack": True,
+        "float_ack_required": False,  # on would leave floats uncounted for field apps without acknowledgement
+        "remit_full_balance": True,
+        "remittance_cutoff_hour": None,
+        "variance_case_threshold": "0",
+        "writeoff_requires_approval": True,
+        "retention_allowed": True,
+    },
+    PolicyType.OVERSIGHT: {"hidden_dashboard_tiles": [], "security_event_window_days": 7},
     PolicyType.CUSTOMER_HOURS: {
         "enabled": True,
         "walk_in_allowed": True,

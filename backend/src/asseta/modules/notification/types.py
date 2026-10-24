@@ -92,6 +92,12 @@ _TYPES = (
     NotificationType("JOB_CANCELLED", "Job declined or cancelled", Category.INFO, Severity.WARNING, T),
     NotificationType("CUSTOMER_PAYMENT_TO_VERIFY", "Customer payment to verify", Category.ACTION, Severity.INFO, T),
     NotificationType("CASH_HANDOVER_TO_VERIFY", "Cash handover to verify", Category.ACTION, Severity.INFO, T),
+    # Cash custody chain (accountability design C)
+    NotificationType("CASH_TRANSFER_TO_ACKNOWLEDGE", "Cash transfer to acknowledge", Category.ACTION, Severity.INFO, T),
+    NotificationType("CASH_FLOAT_TO_ACKNOWLEDGE", "Cash float to acknowledge", Category.ACTION, Severity.INFO, T),
+    NotificationType("CASH_APPROVAL_REQUESTED", "Cash approval requested", Category.ACTION, Severity.INFO, T),
+    NotificationType("CASH_VARIANCE_OPENED", "Cash difference to review", Category.ANOMALY, Severity.WARNING, T, True),
+    NotificationType("PARTIAL_REMITTANCE", "Partial remittance", Category.ANOMALY, Severity.WARNING, T, True),
     NotificationType("HOURS_APPROVAL_REQUESTED", "Customer hours approval", Category.ACTION, Severity.INFO, T),
     NotificationType(
         "HOURS_APPROVAL_DECIDED", "Customer hours decision", Category.INFO, Severity.INFO, T, low_priority=True

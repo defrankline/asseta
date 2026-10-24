@@ -24,7 +24,7 @@ from asseta.modules.finance.dto import (
     CashReconciliationDto,
     CashSupervisorSummaryDto,
     CustomerPaymentDto,
-    SettlementDecisionIn,
+    RemittanceDecisionIn,
 )
 from asseta.modules.finance.models import CashHandover, SettlementStatus
 from asseta.modules.finance.payment_service import payment_dto
@@ -110,11 +110,13 @@ def list_handovers(
 @router.post("/handovers/{handover_id}/decision", response_model=CashHandoverDto, operation_id="decideCashHandover")
 def decide_handover(
     handover_id: uuid.UUID,
-    body: SettlementDecisionIn,
+    body: RemittanceDecisionIn,
     session: DbSession,
     now: Now,
     ctx: Annotated[RequestContext, Depends(VERIFY)],
 ) -> CashHandoverDto:
+    """Confirm (with the amount actually counted; omitted = the declared amount) or reject a remittance. The recorder
+    cannot decide it. A counted amount different from the declared one opens a cash variance."""
     return CashCustodyService(session, ctx, now).decide_handover(handover_id, body)
 
 

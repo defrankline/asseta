@@ -13,9 +13,10 @@ from typing import Annotated
 from fastapi import Depends, Header, Request
 from sqlalchemy.orm import Session
 
-from asseta.core.clock import get_today
+from asseta.core.clock import get_now, get_today
 from asseta.core.db import DbScope, apply_scope, get_session
 from asseta.core.errors import NotAuthenticated, PermissionDenied
+from asseta.modules.accountability.security_events import permission_refused
 from asseta.modules.identity.catalog import CATALOG, PermissionScope
 from asseta.modules.identity.principal import RequestContext, TokenClaims
 from asseta.modules.identity.repository import IdentityRepository
@@ -121,6 +122,19 @@ def _context(
     )
 
 
+def _refused(request: Request, ctx: RequestContext, permission: str) -> None:
+    """A signed-in tenant member asked for something their roles do not grant: kept as a security event."""
+    permission_refused(
+        ctx.tenant_id,
+        ctx.user_id,
+        permission,
+        request.method,
+        request.url.path,
+        occurred_at=get_now(request),
+        actor_subject=ctx.subject,
+    )
+
+
 def _bind(session: Session, ctx: RequestContext) -> RequestContext:
     apply_scope(session, ctx.scope, ctx.tenant_id, ctx.user_id)
     session.info["mandate_id"] = ctx.mandate_id  # stamped on every audit event of this request
@@ -145,6 +159,7 @@ def requires(
     ) -> RequestContext:
         ctx = _context(request, claims, session, x_tenant_id, scope, quarantine_when_read_only)
         if code not in ctx.permissions:
+            _refused(request, ctx, code)
             raise PermissionDenied(f"Missing permission {code}")
         return _bind(session, ctx)
 
@@ -169,6 +184,7 @@ def requires_any(codes: tuple[str, ...], scope: PermissionScope) -> Callable[...
             raise ValueError(f"requires_any: undeclared permissions {unknown}")
         ctx = _context(request, claims, session, x_tenant_id, scope, False)
         if not any(c in ctx.permissions for c in codes):
+            _refused(request, ctx, " | ".join(codes))
             raise PermissionDenied(f"Missing any of permissions {', '.join(codes)}")
         return _bind(session, ctx)
 

@@ -1634,6 +1634,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenant/accountability/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Accountability Summary
+         * @description The 3.6 oversight list in one call (web dashboard and Owner app summary). Tiles hidden by the tenant's
+         *     OVERSIGHT policy are null and listed in `hidden_tiles`.
+         */
+        get: operations["getAccountabilitySummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenant/alerts": {
         parameters: {
             query?: never;
@@ -1994,6 +2015,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenant/cash/adjustments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Adjustments */
+        get: operations["listCustodyAdjustments"];
+        put?: never;
+        /**
+         * Propose Adjustment
+         * @description Propose a reversal or adjustment of a custodian's expected balance (reason required); counts once approved
+         *     by someone else.
+         */
+        post: operations["proposeCustodyAdjustment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/cash/adjustments/{adjustment_id}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Decide Adjustment */
+        post: operations["decideCustodyAdjustment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenant/cash/collections": {
         parameters: {
             query?: never;
@@ -2005,6 +2065,26 @@ export interface paths {
         put?: never;
         /** Record Collection */
         post: operations["recordCashCollection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/cash/custodians": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Custodians
+         * @description Staff who can hold company cash (any active staff member; a login is not required). Search by name/code.
+         */
+        get: operations["listCashCustodians"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2106,7 +2186,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenant/cash/custody/me/reconciliation/transactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My Reconciliation Transactions
+         * @description The caller's own custody transactions behind each reconciliation figure.
+         */
+        get: operations["listMyCashReconciliationTransactions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenant/cash/floats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Floats
+         * @description Floats (and opening balances) with their acknowledgement state. Field recorders see their own unless the
+         *     tenant lets them record on custodians' behalf.
+         */
+        get: operations["listCashFloats"];
+        put?: never;
+        /** Issue Float */
+        post: operations["issueCashFloat"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/cash/floats/{entry_id}/acknowledgement": {
         parameters: {
             query?: never;
             header?: never;
@@ -2115,8 +2237,12 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Issue Float */
-        post: operations["issueCashFloat"];
+        /**
+         * Acknowledge Float
+         * @description Acknowledge (amount actually received) or dispute a float that the tenant requires to be acknowledged. Until
+         *     then it does not count in the receiver's custody.
+         */
+        post: operations["acknowledgeCashFloat"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2150,8 +2276,82 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Decide Handover */
+        /**
+         * Decide Handover
+         * @description Confirm (with the amount actually counted; omitted = the declared amount) or reject a remittance. The recorder
+         *     cannot decide it. A counted amount different from the declared one opens a cash variance.
+         */
         post: operations["decideCashHandover"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/cash/reasons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Reasons */
+        get: operations["listCashReasons"];
+        put?: never;
+        /** Create Reason */
+        post: operations["createCashReason"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/cash/reasons/{reason_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Reason */
+        get: operations["getCashReason"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Reason */
+        patch: operations["updateCashReason"];
+        trace?: never;
+    };
+    "/api/v1/tenant/cash/reasons/{reason_id}/deactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Deactivate Reason */
+        post: operations["deactivateCashReason"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/cash/reasons/{reason_id}/reactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reactivate Reason */
+        post: operations["reactivateCashReason"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2175,6 +2375,65 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenant/cash/reconciliation/transactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Reconciliation Transactions
+         * @description The transactions behind each reconciliation figure of a custodian over the period (tenant-local days), with
+         *     the record (entity_type/entity_id) holding its evidence. Latest first.
+         */
+        get: operations["listCashReconciliationTransactions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/cash/retentions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Retentions */
+        get: operations["listCashRetentions"];
+        put?: never;
+        /**
+         * Request Retention
+         * @description Ask that a custodian may keep some cash instead of remitting it (exception to full remittance).
+         */
+        post: operations["requestCashRetention"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/cash/retentions/{retention_id}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Decide Retention */
+        post: operations["decideCashRetention"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenant/cash/supervisor-summary": {
         parameters: {
             query?: never;
@@ -2189,6 +2448,159 @@ export interface paths {
         get: operations["listCashSupervisorSummaries"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/cash/transfers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Transfers */
+        get: operations["listCashTransfers"];
+        put?: never;
+        /**
+         * Record Transfer
+         * @description Field-to-field transfer (never a company receipt). Pending the receiver's acknowledgement unless the tenant
+         *     does not require one, or the recorder is the receiver and the tenant counts that as acknowledgement.
+         */
+        post: operations["recordCashTransfer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/cash/transfers/{transfer_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Transfer */
+        get: operations["getCashTransfer"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/cash/transfers/{transfer_id}/acknowledgement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Acknowledge Transfer
+         * @description The receiver (or, when the tenant allows, a recorder on their behalf) acknowledges the amount actually
+         *     received or disputes the transfer. Never the sender; a different amount opens a cash variance.
+         */
+        post: operations["acknowledgeCashTransfer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/cash/variances": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Variances */
+        get: operations["listCashVariances"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/cash/variances/{variance_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Variance */
+        get: operations["getCashVariance"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/cash/variances/{variance_id}/resolution": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resolve Variance
+         * @description Resolve an open variance as RECOVERED or CORRECTED_ERROR (reason required). WRITTEN_OFF directly only when
+         *     the tenant does not require write-off approval, and then only with the write-off permission.
+         */
+        post: operations["resolveCashVariance"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/cash/variances/{variance_id}/write-off-decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Decide Writeoff
+         * @description Approve (resolves as WRITTEN_OFF; the accountable custodian's expected balance drops by the difference) or
+         *     reject (back to OPEN) a proposed write-off. Never by the proposer.
+         */
+        post: operations["decideCashVarianceWriteOff"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/cash/variances/{variance_id}/write-off-proposal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Propose Writeoff */
+        post: operations["proposeCashVarianceWriteOff"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4873,6 +5285,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenant/security-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Security Events
+         * @description Refused attempts, latest first. `q` searches permission, action, record type and request path.
+         */
+        get: operations["listSecurityEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenant/staff": {
         parameters: {
             query?: never;
@@ -4944,6 +5376,65 @@ export interface paths {
         put?: never;
         /** Reactivate Staff */
         post: operations["reactivateStaff"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/sync/conflicts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Sync Conflicts
+         * @description Field operations the server did not apply, with the device payload (evidence), the reason and server state.
+         *     `resolved=false` lists those still awaiting the office's outcome.
+         */
+        get: operations["listSyncConflicts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/sync/conflicts/{operation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Sync Conflict */
+        get: operations["getSyncConflict"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/sync/conflicts/{operation_id}/resolution": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resolve Sync Conflict
+         * @description Record the outcome once: DISMISSED (reason) or RECAPTURED (optionally naming the new record). Audited; never
+         *     by the person who submitted the operation.
+         */
+        post: operations["resolveSyncConflict"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5129,6 +5620,65 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * AccountabilitySummaryDto
+         * @description The 3.6 oversight list. A tile is null when hidden by the tenant's OVERSIGHT policy or when the capability
+         *     behind it is not available in this deployment (`unavailable_tiles` names those).
+         */
+        AccountabilitySummaryDto: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            cash?: components["schemas"]["CashTileDto"] | null;
+            /**
+             * Customer Hours
+             * @description [3.6.2] purchased/activated/consumed/remaining (customer hours module)
+             */
+            customer_hours?: {
+                [key: string]: unknown;
+            } | null;
+            discrepancies?: components["schemas"]["DiscrepanciesTileDto"] | null;
+            /**
+             * Engine Hours
+             * @description [3.6.3] engine-hour reconciliation per machine (meter module)
+             */
+            engine_hours?: {
+                [key: string]: unknown;
+            } | null;
+            /** Hidden Tiles */
+            hidden_tiles: string[];
+            /**
+             * Hours Awaiting Activation
+             * @description [3.6.8] hours awaiting activation (customer hours module)
+             */
+            hours_awaiting_activation?: {
+                [key: string]: unknown;
+            } | null;
+            investigations?: components["schemas"]["InvestigationsTileDto"] | null;
+            /**
+             * Missing Daily Reports
+             * @description [3.6.9] missing or overdue operational reports (meter module)
+             */
+            missing_daily_reports?: {
+                [key: string]: unknown;
+            } | null;
+            outstanding_approvals?: components["schemas"]["ApprovalsTileDto"] | null;
+            payments?: components["schemas"]["PaymentsTileDto"] | null;
+            /** Policy Version */
+            policy_version: string;
+            unauthorized_attempts?: components["schemas"]["AttemptsTileDto"] | null;
+            /** Unavailable Tiles */
+            unavailable_tiles: string[];
+            /**
+             * Unexplained Hours
+             * @description [3.6.4] unexplained engine hours (meter module)
+             */
+            unexplained_hours?: {
+                [key: string]: unknown;
+            } | null;
+        };
         /** AcknowledgementDto */
         AcknowledgementDto: {
             /** Acknowledged Hours */
@@ -5178,6 +5728,11 @@ export interface components {
             /** Signer Phone */
             signer_phone?: string | null;
         };
+        /**
+         * AcknowledgementMethod
+         * @enum {string}
+         */
+        AcknowledgementMethod: "RECEIVER" | "ON_BEHALF" | "RECORDER_IS_RECEIVER" | "NOT_REQUIRED";
         /**
          * ActivationSource
          * @enum {string}
@@ -5497,6 +6052,26 @@ export interface components {
          * @enum {string}
          */
         ApprovalStatus: "PENDING" | "APPROVED" | "REJECTED";
+        /**
+         * ApprovalsTileDto
+         * @description [3.6.10] Outstanding approvals across modules.
+         */
+        ApprovalsTileDto: {
+            /** Approval Requests */
+            approval_requests: number;
+            /** Cash Retentions */
+            cash_retentions: number;
+            /** Custody Adjustments */
+            custody_adjustments: number;
+            /** Payments To Verify */
+            payments_to_verify: number;
+            /** Remittances To Verify */
+            remittances_to_verify: number;
+            /** Total */
+            total: number;
+            /** Write Offs */
+            write_offs: number;
+        };
         /** AreaDto */
         AreaDto: {
             /** Code */
@@ -5634,6 +6209,18 @@ export interface components {
              * Format: date-time
              */
             uploaded_at: string;
+        };
+        /**
+         * AttemptsTileDto
+         * @description [3.6.10] Refused attempts in the policy window.
+         */
+        AttemptsTileDto: {
+            /** Permission Denied */
+            permission_denied: number;
+            /** Segregation Of Duties */
+            segregation_of_duties: number;
+            /** Window Days */
+            window_days: number;
         };
         /** AuditEventDto */
         AuditEventDto: {
@@ -5978,12 +6565,27 @@ export interface components {
          * CaseSourceType
          * @enum {string}
          */
-        CaseSourceType: "RISK_SIGNAL" | "METER_EXCEPTION" | "TRACKING_ALERT" | "SOD_EVENT" | "PREDICTION";
+        CaseSourceType: "RISK_SIGNAL" | "METER_EXCEPTION" | "TRACKING_ALERT" | "SOD_EVENT" | "PREDICTION" | "CASH_VARIANCE";
         /**
          * CaseStatus
          * @enum {string}
          */
         CaseStatus: "OPEN" | "IN_REVIEW" | "RESOLVED";
+        /**
+         * CashAcknowledgementIn
+         * @description Receiver's answer: acknowledge with the amount actually received, or dispute (nothing received).
+         */
+        CashAcknowledgementIn: {
+            /** Acknowledged */
+            acknowledged: boolean;
+            /**
+             * Amount Received
+             * @description Acknowledgement only; defaults to the declared amount
+             */
+            amount_received?: number | string | null;
+            /** Note */
+            note?: string | null;
+        };
         /**
          * CashCollectionIn
          * @description Cash a supervisor received from a customer (enters that supervisor's custody).
@@ -6020,6 +6622,11 @@ export interface components {
         /** CashCustodyBalanceDto */
         CashCustodyBalanceDto: {
             /**
+             * Approved Retention
+             * @default 0.0000
+             */
+            approved_retention: string;
+            /**
              * As Of
              * Format: date-time
              */
@@ -6028,8 +6635,23 @@ export interface components {
             claimed_unverified_handovers: string;
             /** Currency */
             currency: string;
+            /**
+             * In Transit In
+             * @default 0.0000
+             */
+            in_transit_in: string;
+            /**
+             * In Transit Out
+             * @default 0.0000
+             */
+            in_transit_out: string;
             /** Outstanding */
             outstanding: string;
+            /**
+             * Pending Floats
+             * @default 0.0000
+             */
+            pending_floats: string;
             /** Pending Spending */
             pending_spending: string;
             /**
@@ -6040,8 +6662,28 @@ export interface components {
         };
         /** CashCustodyEntryDto */
         CashCustodyEntryDto: {
+            /**
+             * Ack Required
+             * @default false
+             */
+            ack_required: boolean;
+            /**
+             * Ack Status
+             * @description A float needing acknowledgement counts in custody only once ACKNOWLEDGED
+             * @default NOT_REQUIRED
+             * @enum {string}
+             */
+            ack_status: "NOT_REQUIRED" | "PENDING" | "ACKNOWLEDGED" | "DISPUTED";
+            /** Acknowledged At */
+            acknowledged_at?: string | null;
+            /** Acknowledged By */
+            acknowledged_by?: string | null;
             /** Amount */
             amount: string;
+            /** Amount Received */
+            amount_received?: string | null;
+            /** Created By */
+            created_by?: string | null;
             /** Currency */
             currency: string;
             entry_type: components["schemas"]["CustodyEntryType"];
@@ -6065,6 +6707,12 @@ export interface components {
              */
             staff_member_id: string;
         };
+        /**
+         * CashDecisionStatus
+         * @description Single decision lifecycle (guard_pending_decision): PENDING -> APPROVED | REJECTED.
+         * @enum {string}
+         */
+        CashDecisionStatus: "PENDING" | "APPROVED" | "REJECTED";
         /** CashFloatIn */
         CashFloatIn: {
             /** Amount */
@@ -6143,12 +6791,22 @@ export interface components {
         CashHandoverDto: {
             /** Amount */
             amount: string;
+            /**
+             * Amount Received
+             * @description What the office counted when verifying (null = the declared amount)
+             */
+            amount_received?: string | null;
             /** Client Id */
             client_id: string | null;
             /** Currency */
             currency: string;
             /** Decision Note */
             decision_note: string | null;
+            /**
+             * Expected Balance
+             * @description Custodian's expected balance when recorded
+             */
+            expected_balance?: string | null;
             /**
              * Handed At
              * Format: date-time
@@ -6161,6 +6819,11 @@ export interface components {
             id: string;
             /** Note */
             note: string | null;
+            /**
+             * Partial Shortfall
+             * @description Unretained balance not remitted (PARTIAL_REMITTANCE flag); null = not flagged
+             */
+            partial_shortfall?: string | null;
             /**
              * Recorded At
              * Format: date-time
@@ -6206,11 +6869,66 @@ export interface components {
              */
             staff_member_id?: string | null;
         };
+        /** CashReasonDto */
+        CashReasonDto: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Deactivated At */
+            deactivated_at: string | null;
+            /** Deactivation Reason */
+            deactivation_reason: string | null;
+            /** Description */
+            description: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            kind: components["schemas"]["CashReasonKind"];
+            /** Label */
+            label: string;
+            /** Version */
+            version: number;
+        };
+        /** CashReasonIn */
+        CashReasonIn: {
+            /** Description */
+            description?: string | null;
+            kind: components["schemas"]["CashReasonKind"];
+            /** Label */
+            label: string;
+        };
+        /**
+         * CashReasonKind
+         * @description Which tenant list a reason belongs to (the reasons themselves are tenant data).
+         * @enum {string}
+         */
+        CashReasonKind: "VARIANCE" | "WRITE_OFF" | "RETENTION" | "ADJUSTMENT";
+        /** CashReasonUpdateIn */
+        CashReasonUpdateIn: {
+            /** Description */
+            description?: string | null;
+            /** Label */
+            label?: string | null;
+            /** Version */
+            version?: number | null;
+        };
         /**
          * CashReconciliationDayDto
-         * @description outstanding = opening + floats_issued + collections - approved_spending - verified_handovers.
+         * @description outstanding = opening + floats_issued + collections + transfers_in - transfers_out - approved_spending
+         *     - verified_handovers + adjustments - written_off. Each figure drills down to its transactions.
          */
         CashReconciliationDayDto: {
+            /**
+             * Adjustments
+             * @default 0.0000
+             */
+            adjustments: string;
             /** Approved Spending */
             approved_spending: string;
             /** Claimed Unverified Handovers */
@@ -6224,18 +6942,53 @@ export interface components {
             day: string;
             /** Floats Issued */
             floats_issued: string;
+            /**
+             * In Transit In
+             * @default 0.0000
+             */
+            in_transit_in: string;
+            /**
+             * In Transit Out
+             * @default 0.0000
+             */
+            in_transit_out: string;
             /** Opening */
             opening: string;
             /** Outstanding */
             outstanding: string;
             /** Outstanding If Claims Verified */
             outstanding_if_claims_verified: string;
+            /**
+             * Pending Adjustments
+             * @default 0.0000
+             */
+            pending_adjustments: string;
+            /**
+             * Pending Floats
+             * @default 0.0000
+             */
+            pending_floats: string;
             /** Pending Spending */
             pending_spending: string;
+            /**
+             * Transfers In
+             * @default 0.0000
+             */
+            transfers_in: string;
+            /**
+             * Transfers Out
+             * @default 0.0000
+             */
+            transfers_out: string;
             /** Unverified Collections */
             unverified_collections: string;
             /** Verified Handovers */
             verified_handovers: string;
+            /**
+             * Written Off
+             * @default 0.0000
+             */
+            written_off: string;
         };
         /** CashReconciliationDto */
         CashReconciliationDto: {
@@ -6251,12 +7004,72 @@ export interface components {
             /** Timezone */
             timezone: string;
         };
+        /** CashRetentionDto */
+        CashRetentionDto: {
+            /** Amount */
+            amount: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by: string | null;
+            /** Currency */
+            currency: string;
+            /** Decided At */
+            decided_at: string | null;
+            /** Decided By */
+            decided_by: string | null;
+            /** Decision Note */
+            decision_note: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Reason */
+            reason: string;
+            /** Reason Id */
+            reason_id: string | null;
+            /**
+             * Staff Member Id
+             * Format: uuid
+             */
+            staff_member_id: string;
+            status: components["schemas"]["CashDecisionStatus"];
+            /** Valid Until */
+            valid_until: string | null;
+        };
+        /** CashRetentionIn */
+        CashRetentionIn: {
+            /** Amount */
+            amount: number | string;
+            /** Currency */
+            currency?: string | null;
+            /** Reason */
+            reason: string;
+            /** Reason Id */
+            reason_id?: string | null;
+            /**
+             * Staff Member Id
+             * @description Defaults to the caller's staff record
+             */
+            staff_member_id?: string | null;
+            /** Valid Until */
+            valid_until?: string | null;
+        };
         /**
          * CashSupervisorSummaryDto
          * @description One custodian x currency over a tenant-local period: the daily reconciliation, totalled.
          *     closing_outstanding = opening + floats_issued + collections - approved_spending - verified_handovers.
          */
         CashSupervisorSummaryDto: {
+            /**
+             * Adjustments
+             * @default 0.0000
+             */
+            adjustments: string;
             /** Approved Spending */
             approved_spending: string;
             /** Claimed Unverified Handovers */
@@ -6290,10 +7103,192 @@ export interface components {
             staff_member_id: string;
             /** Staff Name */
             staff_name: string;
+            /**
+             * Transfers In
+             * @default 0.0000
+             */
+            transfers_in: string;
+            /**
+             * Transfers Out
+             * @default 0.0000
+             */
+            transfers_out: string;
             /** Unverified Collections */
             unverified_collections: string;
             /** Verified Handovers */
             verified_handovers: string;
+            /**
+             * Written Off
+             * @default 0.0000
+             */
+            written_off: string;
+        };
+        /**
+         * CashTileDto
+         * @description [3.6.5]-[3.6.7] Cash per custodian, transfers awaiting acknowledgement, remittances awaiting confirmation.
+         */
+        CashTileDto: {
+            /** Custodians */
+            custodians: components["schemas"]["CustodianCashDto"][];
+            /** Floats Awaiting Acknowledgement */
+            floats_awaiting_acknowledgement: components["schemas"]["CountAmountDto"][];
+            /** Partial Remittances In Window */
+            partial_remittances_in_window: number;
+            /** Remittances Awaiting Confirmation */
+            remittances_awaiting_confirmation: components["schemas"]["CountAmountDto"][];
+            /** Transfers Awaiting Acknowledgement */
+            transfers_awaiting_acknowledgement: components["schemas"]["CountAmountDto"][];
+        };
+        /** CashTransferDto */
+        CashTransferDto: {
+            ack_method: components["schemas"]["AcknowledgementMethod"] | null;
+            /** Ack Note */
+            ack_note: string | null;
+            /** Acknowledged At */
+            acknowledged_at: string | null;
+            /** Acknowledged By */
+            acknowledged_by: string | null;
+            /** Amount Declared */
+            amount_declared: string;
+            /** Amount Received */
+            amount_received: string | null;
+            /** Client Id */
+            client_id: string | null;
+            /** Currency */
+            currency: string;
+            /**
+             * From Staff Id
+             * Format: uuid
+             */
+            from_staff_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Note */
+            note: string | null;
+            /**
+             * Recorded At
+             * Format: date-time
+             */
+            recorded_at: string;
+            /** Recorded By */
+            recorded_by: string | null;
+            /** Source */
+            source: string;
+            status: components["schemas"]["CashTransferStatus"];
+            /**
+             * To Staff Id
+             * Format: uuid
+             */
+            to_staff_id: string;
+            /**
+             * Transferred At
+             * Format: date-time
+             */
+            transferred_at: string;
+            /** Variance Id */
+            variance_id?: string | null;
+        };
+        /** CashTransferIn */
+        CashTransferIn: {
+            /**
+             * Amount
+             * @description Amount declared by the sender
+             */
+            amount: number | string;
+            /**
+             * Amount Received
+             * @description Only when the recorder is the receiver (and the tenant counts that as acknowledgement): the amount actually received; defaults to the declared amount
+             */
+            amount_received?: number | string | null;
+            /**
+             * Client Id
+             * @description Device/client id (offline idempotency)
+             */
+            client_id?: string | null;
+            /** Currency */
+            currency?: string | null;
+            /**
+             * From Staff Id
+             * @description Sender; defaults to the caller's staff record
+             */
+            from_staff_id?: string | null;
+            /** Note */
+            note?: string | null;
+            /**
+             * To Staff Id
+             * Format: uuid
+             */
+            to_staff_id: string;
+            /**
+             * Transferred At
+             * Format: date-time
+             */
+            transferred_at: string;
+        };
+        /**
+         * CashTransferStatus
+         * @enum {string}
+         */
+        CashTransferStatus: "PENDING_ACKNOWLEDGEMENT" | "ACKNOWLEDGED" | "DISPUTED";
+        /** CashVarianceDto */
+        CashVarianceDto: {
+            /**
+             * Amount
+             * @description declared - received (negative: more received than declared)
+             */
+            amount: string;
+            /** Case Id */
+            case_id: string | null;
+            /** Counterparty Staff Id */
+            counterparty_staff_id: string | null;
+            /** Currency */
+            currency: string;
+            /** Declared Amount */
+            declared_amount: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Opened At
+             * Format: date-time
+             */
+            opened_at: string;
+            /** Opened By */
+            opened_by: string | null;
+            outcome: components["schemas"]["VarianceOutcome"] | null;
+            /** Proposal Note */
+            proposal_note: string | null;
+            /** Proposed At */
+            proposed_at: string | null;
+            /** Proposed By */
+            proposed_by: string | null;
+            /** Reason Id */
+            reason_id: string | null;
+            /** Received Amount */
+            received_amount: string;
+            /** Resolution Note */
+            resolution_note: string | null;
+            /** Resolved At */
+            resolved_at: string | null;
+            /** Resolved By */
+            resolved_by: string | null;
+            /**
+             * Source Id
+             * Format: uuid
+             */
+            source_id: string;
+            source_type: components["schemas"]["VarianceSource"];
+            /**
+             * Staff Member Id
+             * @description Custodian accountable for the difference
+             */
+            staff_member_id: string | null;
+            status: components["schemas"]["VarianceStatus"];
         };
         /**
          * Category
@@ -6517,6 +7512,15 @@ export interface components {
              */
             version: number;
         };
+        /** CountAmountDto */
+        CountAmountDto: {
+            /** Amount */
+            amount: string;
+            /** Count */
+            count: number;
+            /** Currency */
+            currency: string;
+        };
         /** CreditActivationIn */
         CreditActivationIn: {
             /** Hours */
@@ -6674,11 +7678,164 @@ export interface components {
             /** Outstanding Balance */
             outstanding_balance: string;
         };
+        /** CustodianCashDto */
+        CustodianCashDto: {
+            /** Claimed Unverified Handovers */
+            claimed_unverified_handovers: string;
+            /** Currency */
+            currency: string;
+            /** In Transit Out */
+            in_transit_out: string;
+            /** Outstanding */
+            outstanding: string;
+            /** Pending Floats */
+            pending_floats: string;
+            /**
+             * Staff Member Id
+             * Format: uuid
+             */
+            staff_member_id: string;
+            /** Staff Name */
+            staff_name: string;
+        };
+        /**
+         * CustodianDto
+         * @description A staff member who can hold company cash. A login is not required (custodians without one are recorded for
+         *     by recorders when the tenant allows it).
+         */
+        CustodianDto: {
+            /** Employee Code */
+            employee_code: string | null;
+            /** Full Name */
+            full_name: string;
+            /** Has Login */
+            has_login: boolean;
+            /** Is Active */
+            is_active: boolean;
+            kind: components["schemas"]["StaffKind"];
+            /**
+             * Staff Member Id
+             * Format: uuid
+             */
+            staff_member_id: string;
+        };
+        /** CustodyAdjustmentDto */
+        CustodyAdjustmentDto: {
+            /** Amount */
+            amount: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by: string | null;
+            /** Currency */
+            currency: string;
+            /** Decided At */
+            decided_at: string | null;
+            /** Decided By */
+            decided_by: string | null;
+            /** Decision Note */
+            decision_note: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            kind: components["schemas"]["CustodyAdjustmentKind"];
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Reason */
+            reason: string;
+            /** Reason Id */
+            reason_id: string | null;
+            /** Reverses Entity Id */
+            reverses_entity_id: string | null;
+            /** Reverses Entity Type */
+            reverses_entity_type: string | null;
+            /**
+             * Staff Member Id
+             * Format: uuid
+             */
+            staff_member_id: string;
+            status: components["schemas"]["CashDecisionStatus"];
+        };
+        /** CustodyAdjustmentIn */
+        CustodyAdjustmentIn: {
+            /**
+             * Amount
+             * @description Signed: positive raises the expected balance, negative lowers it
+             */
+            amount: number | string;
+            /** Currency */
+            currency?: string | null;
+            kind: components["schemas"]["CustodyAdjustmentKind"];
+            /** Occurred At */
+            occurred_at?: string | null;
+            /** Reason */
+            reason: string;
+            /** Reason Id */
+            reason_id?: string | null;
+            /** Reverses Entity Id */
+            reverses_entity_id?: string | null;
+            /** Reverses Entity Type */
+            reverses_entity_type?: ("customer_payment" | "cash_handover" | "cash_transfer" | "supervisor_cash_custody" | "expense" | "custody_adjustment") | null;
+            /**
+             * Staff Member Id
+             * Format: uuid
+             */
+            staff_member_id: string;
+        };
+        /**
+         * CustodyAdjustmentKind
+         * @enum {string}
+         */
+        CustodyAdjustmentKind: "REVERSAL" | "ADJUSTMENT";
         /**
          * CustodyEntryType
          * @enum {string}
          */
         CustodyEntryType: "OPENING_BALANCE" | "FLOAT_ISSUED";
+        /**
+         * CustodyTransactionDto
+         * @description One transaction behind a reconciliation figure, with the record to open for its evidence.
+         */
+        CustodyTransactionDto: {
+            /**
+             * Amount
+             * @description Contribution to the figure (adjustments and write-offs are signed)
+             */
+            amount: string;
+            /** Counterparty Staff Id */
+            counterparty_staff_id: string | null;
+            /** Currency */
+            currency: string;
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /** Entity Type */
+            entity_type: string;
+            figure: components["schemas"]["ReconciliationFigure"];
+            /** Note */
+            note: string | null;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Recorded By */
+            recorded_by: string | null;
+            /** Reference */
+            reference: string | null;
+            /** Status */
+            status: string;
+        };
         /**
          * CustomerBalanceDto
          * @description Positive balance = customer owes; negative = customer credit (deposits/advances/overpayment).
@@ -7098,6 +8255,18 @@ export interface components {
             reason_code_id?: string | null;
             /** Version */
             version: number;
+        };
+        /**
+         * DiscrepanciesTileDto
+         * @description [3.6.10] Unresolved cash variances and offline operations awaiting review.
+         */
+        DiscrepanciesTileDto: {
+            /** Open Variances */
+            open_variances: components["schemas"]["CountAmountDto"][];
+            /** Sync Conflicts Unresolved */
+            sync_conflicts_unresolved: number;
+            /** Write Offs Proposed */
+            write_offs_proposed: number;
         };
         /**
          * DriftSummaryLevel
@@ -8203,6 +9372,16 @@ export interface components {
          * @enum {string}
          */
         IngestionStatus: "ACCEPTED" | "ACCEPTED_NO_FIX" | "DUPLICATE" | "QUARANTINED";
+        /**
+         * InvestigationsTileDto
+         * @description [3.6.4] Open and in-review investigation cases.
+         */
+        InvestigationsTileDto: {
+            /** In Review */
+            in_review: number;
+            /** Open */
+            open: number;
+        };
         /** InviteIn */
         InviteIn: {
             /**
@@ -10322,7 +11501,7 @@ export interface components {
              * Op Type
              * @enum {string}
              */
-            op_type: "METER_CAPTURE" | "JOB_ACTIVITY" | "JOB_ACKNOWLEDGEMENT" | "JOB_TRANSITION" | "EXPENSE" | "CASH_COLLECTION" | "CASH_HANDOVER" | "FUEL_EVENT" | "METER_RESET_REQUEST" | "JOB_REQUEST" | "HOURS_PURCHASE" | "HOURS_TRANSFER_REQUEST";
+            op_type: "METER_CAPTURE" | "JOB_ACTIVITY" | "JOB_ACKNOWLEDGEMENT" | "JOB_TRANSITION" | "EXPENSE" | "CASH_COLLECTION" | "CASH_HANDOVER" | "CASH_TRANSFER" | "CASH_TRANSFER_ACKNOWLEDGEMENT" | "CASH_FLOAT_ACKNOWLEDGEMENT" | "FUEL_EVENT" | "METER_RESET_REQUEST" | "JOB_REQUEST" | "HOURS_PURCHASE" | "HOURS_TRANSFER_REQUEST";
             /** Payload */
             payload: {
                 [key: string]: unknown;
@@ -10352,6 +11531,11 @@ export interface components {
              */
             status: "ACKED" | "DUPLICATE" | "REJECTED" | "CONFLICT" | "DEFERRED" | "QUARANTINED";
         };
+        /**
+         * OperationStatus
+         * @enum {string}
+         */
+        OperationStatus: "ACKED" | "REJECTED" | "CONFLICT" | "QUARANTINED";
         /** OverridePendingChargeIn */
         OverridePendingChargeIn: {
             /** Amount */
@@ -10594,10 +11778,65 @@ export interface components {
             /** Total */
             total: number;
         };
+        /** Page[CashCustodyEntryDto] */
+        Page_CashCustodyEntryDto_: {
+            /** Items */
+            items: components["schemas"]["CashCustodyEntryDto"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+        };
         /** Page[CashHandoverDto] */
         Page_CashHandoverDto_: {
             /** Items */
             items: components["schemas"]["CashHandoverDto"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+        };
+        /** Page[CashReasonDto] */
+        Page_CashReasonDto_: {
+            /** Items */
+            items: components["schemas"]["CashReasonDto"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+        };
+        /** Page[CashRetentionDto] */
+        Page_CashRetentionDto_: {
+            /** Items */
+            items: components["schemas"]["CashRetentionDto"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+        };
+        /** Page[CashTransferDto] */
+        Page_CashTransferDto_: {
+            /** Items */
+            items: components["schemas"]["CashTransferDto"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+        };
+        /** Page[CashVarianceDto] */
+        Page_CashVarianceDto_: {
+            /** Items */
+            items: components["schemas"]["CashVarianceDto"][];
             /** Page */
             page: number;
             /** Page Size */
@@ -10620,6 +11859,39 @@ export interface components {
         Page_CreditArrangementDto_: {
             /** Items */
             items: components["schemas"]["CreditArrangementDto"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+        };
+        /** Page[CustodianDto] */
+        Page_CustodianDto_: {
+            /** Items */
+            items: components["schemas"]["CustodianDto"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+        };
+        /** Page[CustodyAdjustmentDto] */
+        Page_CustodyAdjustmentDto_: {
+            /** Items */
+            items: components["schemas"]["CustodyAdjustmentDto"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+        };
+        /** Page[CustodyTransactionDto] */
+        Page_CustodyTransactionDto_: {
+            /** Items */
+            items: components["schemas"]["CustodyTransactionDto"][];
             /** Page */
             page: number;
             /** Page Size */
@@ -10913,6 +12185,17 @@ export interface components {
             /** Total */
             total: number;
         };
+        /** Page[SecurityEventDto] */
+        Page_SecurityEventDto_: {
+            /** Items */
+            items: components["schemas"]["SecurityEventDto"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+        };
         /** Page[SmsDeliveryDto] */
         Page_SmsDeliveryDto_: {
             /** Items */
@@ -10939,6 +12222,17 @@ export interface components {
         Page_StaffDto_: {
             /** Items */
             items: components["schemas"]["StaffDto"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+        };
+        /** Page[SyncConflictDto] */
+        Page_SyncConflictDto_: {
+            /** Items */
+            items: components["schemas"]["SyncConflictDto"][];
             /** Page */
             page: number;
             /** Page Size */
@@ -11125,6 +12419,14 @@ export interface components {
          * @enum {string}
          */
         PaymentStatus: "RECORDED" | "VERIFIED" | "REJECTED";
+        /**
+         * PaymentsTileDto
+         * @description [3.6.8] Customer payments claimed but not yet confirmed by the office.
+         */
+        PaymentsTileDto: {
+            /** Awaiting Confirmation */
+            awaiting_confirmation: components["schemas"]["CountAmountDto"][];
+        };
         /** PendingChargeDto */
         PendingChargeDto: {
             /** Amount */
@@ -11249,7 +12551,7 @@ export interface components {
          * PolicyType
          * @enum {string}
          */
-        PolicyType: "TRACKING" | "METER_CAPTURE" | "HIRE_BILLING" | "DEVICE_SYNC" | "EXPENSE_CAPTURE" | "FRAUD_CONTROLS" | "CUSTOMER_HOURS";
+        PolicyType: "TRACKING" | "METER_CAPTURE" | "HIRE_BILLING" | "DEVICE_SYNC" | "EXPENSE_CAPTURE" | "FRAUD_CONTROLS" | "CASH_CUSTODY" | "OVERSIGHT" | "CUSTOMER_HOURS";
         /** PolicyVersionDto */
         PolicyVersionDto: {
             /**
@@ -11833,6 +13135,12 @@ export interface components {
          * @enum {string}
          */
         ReasonKind: "DISCOUNT" | "CREDIT" | "TRANSFER" | "CANCELLATION";
+        /**
+         * ReconciliationFigure
+         * @description A reconciliation figure (the field name on the daily reconciliation) a transaction contributes to.
+         * @enum {string}
+         */
+        ReconciliationFigure: "floats_issued" | "collections" | "transfers_in" | "transfers_out" | "approved_spending" | "verified_handovers" | "adjustments" | "written_off" | "claimed_unverified_handovers" | "pending_spending" | "unverified_collections" | "in_transit_out" | "in_transit_in" | "pending_floats" | "pending_adjustments";
         /** RecordPaymentIn */
         RecordPaymentIn: {
             /**
@@ -11862,6 +13170,19 @@ export interface components {
              * @description Required when invoice_id is omitted
              */
             tenant_id?: string | null;
+        };
+        /**
+         * RemittanceDecisionIn
+         * @description Verify/reject a remittance (cash handover). `amount_received` is what was actually counted; omitted (older
+         *     clients) = the declared amount. A difference opens a cash variance.
+         */
+        RemittanceDecisionIn: {
+            /** Amount Received */
+            amount_received?: number | string | null;
+            /** Note */
+            note?: string | null;
+            /** Verified */
+            verified: boolean;
         };
         /** ReportColumnDto */
         ReportColumnDto: {
@@ -12035,6 +13356,47 @@ export interface components {
          * @enum {string}
          */
         RuleCode: "UNREPORTED_ENGINE_ACTIVITY" | "DUPLICATE_RECEIPT" | "FUEL_ALLOWANCE_EXCEEDED" | "EXPENSE_THRESHOLD_EXCEEDED" | "CASH_NOT_HANDED_OVER" | "WORK_WITHOUT_AUTHORIZATION";
+        /** SecurityEventDto */
+        SecurityEventDto: {
+            /** Action */
+            action: string | null;
+            /** Actor Display Name */
+            actor_display_name?: string | null;
+            /** Actor Subject */
+            actor_subject: string | null;
+            /** Actor User Id */
+            actor_user_id: string | null;
+            /** Detail */
+            detail: {
+                [key: string]: unknown;
+            };
+            /** Entity Id */
+            entity_id: string | null;
+            /** Entity Type */
+            entity_type: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            kind: components["schemas"]["SecurityEventKind"];
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Permission */
+            permission: string | null;
+            /** Request Method */
+            request_method: string | null;
+            /** Request Path */
+            request_path: string | null;
+        };
+        /**
+         * SecurityEventKind
+         * @enum {string}
+         */
+        SecurityEventKind: "PERMISSION_DENIED" | "SEGREGATION_OF_DUTIES";
         /** SettlementDecisionIn */
         SettlementDecisionIn: {
             /** Note */
@@ -12457,12 +13819,22 @@ export interface components {
         SyncCashHandoverDto: {
             /** Amount */
             amount: string;
+            /**
+             * Amount Received
+             * @description What the office counted when verifying (null = the declared amount)
+             */
+            amount_received?: string | null;
             /** Client Id */
             client_id: string | null;
             /** Currency */
             currency: string;
             /** Decision Note */
             decision_note: string | null;
+            /**
+             * Expected Balance
+             * @description Custodian's expected balance when recorded
+             */
+            expected_balance?: string | null;
             /**
              * Handed At
              * Format: date-time
@@ -12475,6 +13847,11 @@ export interface components {
             id: string;
             /** Note */
             note: string | null;
+            /**
+             * Partial Shortfall
+             * @description Unretained balance not remitted (PARTIAL_REMITTANCE flag); null = not flagged
+             */
+            partial_shortfall?: string | null;
             /**
              * Recorded At
              * Format: date-time
@@ -12498,6 +13875,61 @@ export interface components {
             verified_at: string | null;
             /** Verified By */
             verified_by: string | null;
+        };
+        /**
+         * SyncConflictDto
+         * @description A field operation the server did not apply (CONFLICT or REJECTED), with what the device sent (evidence), why
+         *     it was not applied, the server state at the time and the office's outcome once resolved.
+         */
+        SyncConflictDto: {
+            /** Attempts */
+            attempts: number;
+            /**
+             * Created At Device
+             * Format: date-time
+             */
+            created_at_device: string;
+            /** Device Id */
+            device_id: string;
+            /** Device Platform */
+            device_platform: string;
+            /** Error Code */
+            error_code: string | null;
+            /** Error Message */
+            error_message: string | null;
+            /** Op Type */
+            op_type: string;
+            /**
+             * Operation Id
+             * Format: uuid
+             */
+            operation_id: string;
+            /** Payload */
+            payload: {
+                [key: string]: unknown;
+            };
+            /**
+             * Received At
+             * Format: date-time
+             */
+            received_at: string;
+            resolution: components["schemas"]["SyncResolutionDto"] | null;
+            /** Server State */
+            server_state: {
+                [key: string]: unknown;
+            };
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "CONFLICT" | "REJECTED";
+            /**
+             * Submitted By
+             * Format: uuid
+             */
+            submitted_by: string;
+            /** Submitted By Name */
+            submitted_by_name: string | null;
         };
         /** SyncData */
         SyncData: {
@@ -12856,6 +14288,43 @@ export interface components {
             /** Sync Revision */
             sync_revision: number;
         };
+        /** SyncResolutionDto */
+        SyncResolutionDto: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            outcome: components["schemas"]["SyncResolutionOutcome"];
+            /** Reason */
+            reason: string;
+            /** Recaptured Entity Id */
+            recaptured_entity_id: string | null;
+            /** Recaptured Entity Type */
+            recaptured_entity_type: string | null;
+            /**
+             * Resolved At
+             * Format: date-time
+             */
+            resolved_at: string;
+            /** Resolved By */
+            resolved_by: string | null;
+        };
+        /** SyncResolutionIn */
+        SyncResolutionIn: {
+            outcome: components["schemas"]["SyncResolutionOutcome"];
+            /** Reason */
+            reason: string;
+            /** Recaptured Entity Id */
+            recaptured_entity_id?: string | null;
+            /** Recaptured Entity Type */
+            recaptured_entity_type?: string | null;
+        };
+        /**
+         * SyncResolutionOutcome
+         * @enum {string}
+         */
+        SyncResolutionOutcome: "DISMISSED" | "RECAPTURED";
         /**
          * TelemetryAdapterKind
          * @enum {string}
@@ -13457,6 +14926,29 @@ export interface components {
             /** Weeks Observed */
             weeks_observed: number;
         };
+        /**
+         * VarianceOutcome
+         * @enum {string}
+         */
+        VarianceOutcome: "RECOVERED" | "CORRECTED_ERROR" | "WRITTEN_OFF";
+        /** VarianceResolutionIn */
+        VarianceResolutionIn: {
+            /** Note */
+            note: string;
+            outcome: components["schemas"]["VarianceOutcome"];
+            /** Reason Id */
+            reason_id?: string | null;
+        };
+        /**
+         * VarianceSource
+         * @enum {string}
+         */
+        VarianceSource: "TRANSFER" | "REMITTANCE" | "FLOAT";
+        /**
+         * VarianceStatus
+         * @enum {string}
+         */
+        VarianceStatus: "OPEN" | "WRITE_OFF_PROPOSED" | "RESOLVED";
         /** VerificationIn */
         VerificationIn: {
             /** Note */
@@ -13563,6 +15055,13 @@ export interface components {
             overrun_hours: string;
             /** Policy Version */
             policy_version: string;
+        };
+        /** WriteOffProposalIn */
+        WriteOffProposalIn: {
+            /** Note */
+            note: string;
+            /** Reason Id */
+            reason_id?: string | null;
         };
     };
     responses: never;
@@ -23294,6 +24793,92 @@ export interface operations {
             };
         };
     };
+    getAccountabilitySummary: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountabilitySummaryDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     listTrackingAlerts: {
         parameters: {
             query?: {
@@ -25213,6 +26798,281 @@ export interface operations {
             };
         };
     };
+    listCustodyAdjustments: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["CashDecisionStatus"] | null;
+                staff_member_id?: string | null;
+                page?: number;
+                page_size?: number;
+                q?: string | null;
+                sort?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_CustodyAdjustmentDto_"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    proposeCustodyAdjustment: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CustodyAdjustmentIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustodyAdjustmentDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    decideCustodyAdjustment: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                adjustment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecisionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustodyAdjustmentDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     recordCashCollection: {
         parameters: {
             query?: never;
@@ -25237,6 +27097,99 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CustomerPaymentDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listCashCustodians: {
+        parameters: {
+            query?: {
+                /** @description Also return deactivated/retired/closed records (hidden by default) */
+                include_inactive?: boolean;
+                page?: number;
+                page_size?: number;
+                q?: string | null;
+                sort?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_CustodianDto_"];
                 };
             };
             /** @description Bad Request */
@@ -25752,6 +27705,195 @@ export interface operations {
             };
         };
     };
+    listMyCashReconciliationTransactions: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+                currency?: string | null;
+                /** @description Only these figures (default: all) */
+                figure?: components["schemas"]["ReconciliationFigure"][] | null;
+                page?: number;
+                page_size?: number;
+                q?: string | null;
+                sort?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_CustodyTransactionDto_"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listCashFloats: {
+        parameters: {
+            query?: {
+                staff_member_id?: string | null;
+                awaiting_acknowledgement?: boolean | null;
+                page?: number;
+                page_size?: number;
+                q?: string | null;
+                sort?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_CashCustodyEntryDto_"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     issueCashFloat: {
         parameters: {
             query?: never;
@@ -25771,6 +27913,98 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CashCustodyEntryDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    acknowledgeCashFloat: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CashAcknowledgementIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -26041,7 +28275,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["SettlementDecisionIn"];
+                "application/json": components["schemas"]["RemittanceDecisionIn"];
             };
         };
         responses: {
@@ -26052,6 +28286,554 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CashHandoverDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listCashReasons: {
+        parameters: {
+            query?: {
+                kind?: components["schemas"]["CashReasonKind"] | null;
+                /** @description Also return deactivated/retired/closed records (hidden by default) */
+                include_inactive?: boolean;
+                page?: number;
+                page_size?: number;
+                q?: string | null;
+                sort?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_CashReasonDto_"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    createCashReason: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CashReasonIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CashReasonDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getCashReason: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                reason_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CashReasonDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    updateCashReason: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                reason_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CashReasonUpdateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CashReasonDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    deactivateCashReason: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                reason_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LifecycleChangeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CashReasonDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    reactivateCashReason: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                reason_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LifecycleChangeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CashReasonDto"];
                 };
             };
             /** @description Bad Request */
@@ -26210,6 +28992,378 @@ export interface operations {
             };
         };
     };
+    listCashReconciliationTransactions: {
+        parameters: {
+            query: {
+                staff_member_id: string;
+                from: string;
+                to: string;
+                currency?: string | null;
+                /** @description Only these figures (default: all) */
+                figure?: components["schemas"]["ReconciliationFigure"][] | null;
+                page?: number;
+                page_size?: number;
+                q?: string | null;
+                sort?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_CustodyTransactionDto_"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listCashRetentions: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["CashDecisionStatus"] | null;
+                staff_member_id?: string | null;
+                page?: number;
+                page_size?: number;
+                q?: string | null;
+                sort?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_CashRetentionDto_"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    requestCashRetention: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CashRetentionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CashRetentionDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    decideCashRetention: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                retention_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecisionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CashRetentionDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     listCashSupervisorSummaries: {
         parameters: {
             query: {
@@ -26234,6 +29388,828 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CashSupervisorSummaryDto"][];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listCashTransfers: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["CashTransferStatus"] | null;
+                staff_member_id?: string | null;
+                page?: number;
+                page_size?: number;
+                q?: string | null;
+                sort?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_CashTransferDto_"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    recordCashTransfer: {
+        parameters: {
+            query?: never;
+            header?: {
+                "idempotency-key"?: string | null;
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CashTransferIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CashTransferDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getCashTransfer: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                transfer_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CashTransferDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    acknowledgeCashTransfer: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                transfer_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CashAcknowledgementIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CashTransferDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listCashVariances: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["VarianceStatus"] | null;
+                staff_member_id?: string | null;
+                source_type?: components["schemas"]["VarianceSource"] | null;
+                page?: number;
+                page_size?: number;
+                q?: string | null;
+                sort?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_CashVarianceDto_"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getCashVariance: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                variance_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CashVarianceDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    resolveCashVariance: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                variance_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VarianceResolutionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CashVarianceDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    decideCashVarianceWriteOff: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                variance_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecisionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CashVarianceDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    proposeCashVarianceWriteOff: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                variance_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WriteOffProposalIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CashVarianceDto"];
                 };
             };
             /** @description Bad Request */
@@ -43449,6 +47425,101 @@ export interface operations {
             };
         };
     };
+    listSecurityEvents: {
+        parameters: {
+            query?: {
+                kind?: components["schemas"]["SecurityEventKind"] | null;
+                actor_user_id?: string | null;
+                occurred_from?: string | null;
+                occurred_to?: string | null;
+                page?: number;
+                page_size?: number;
+                q?: string | null;
+                sort?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_SecurityEventDto_"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     listStaff: {
         parameters: {
             query?: {
@@ -43930,6 +48001,280 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StaffDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listSyncConflicts: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["OperationStatus"] | null;
+                op_type?: string | null;
+                resolved?: boolean | null;
+                page?: number;
+                page_size?: number;
+                q?: string | null;
+                sort?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_SyncConflictDto_"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getSyncConflict: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                operation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncConflictDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    resolveSyncConflict: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                operation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SyncResolutionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncConflictDto"];
                 };
             };
             /** @description Bad Request */

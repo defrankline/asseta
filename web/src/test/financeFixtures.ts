@@ -125,6 +125,9 @@ export function makeHandover(overrides: Partial<CashHandoverDto> = {}): CashHand
     verified_by: null,
     verified_at: null,
     decision_note: null,
+    amount_received: null,
+    expected_balance: null,
+    partial_shortfall: null,
     ...overrides,
   };
 }
@@ -144,6 +147,14 @@ export function makeDay(
     pending_spending: '15000.0000',
     unverified_collections: '40000.0000',
     outstanding_if_claims_verified: '110000.0000',
+    transfers_in: '0.0000',
+    transfers_out: '0.0000',
+    adjustments: '0.0000',
+    written_off: '0.0000',
+    in_transit_out: '0.0000',
+    in_transit_in: '0.0000',
+    pending_floats: '0.0000',
+    pending_adjustments: '0.0000',
     ...overrides,
   };
 }

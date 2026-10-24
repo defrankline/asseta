@@ -19,6 +19,7 @@ CAPABILITIES = [
     "SUPERVISOR_INBOX_V1",
     "OP_METER_RESET_REQUEST",
     "OP_JOB_REQUEST",
+    "OP_CASH_TRANSFER",  # CASH_TRANSFER, CASH_TRANSFER_ACKNOWLEDGEMENT, CASH_FLOAT_ACKNOWLEDGEMENT
     "OP_HOURS_PURCHASE",  # walk-in/registered customer hours purchase (+ payment claim and evidence uploads)
     "OP_HOURS_TRANSFER_REQUEST",
 ]
@@ -151,6 +152,9 @@ OpType = Literal[
     "EXPENSE",
     "CASH_COLLECTION",
     "CASH_HANDOVER",
+    "CASH_TRANSFER",  # field-to-field cash transfer (payload CashTransferIn, client_id required)
+    "CASH_TRANSFER_ACKNOWLEDGEMENT",  # {transfer_id, acknowledged, amount_received?, note?}
+    "CASH_FLOAT_ACKNOWLEDGEMENT",  # {entry_id, acknowledged, amount_received?, note?}
     "FUEL_EVENT",
     "METER_RESET_REQUEST",
     "JOB_REQUEST",

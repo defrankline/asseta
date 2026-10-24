@@ -16,9 +16,11 @@ from asseta.core.logging import configure_logging
 from asseta.core.request_limits import RequestSizeLimitMiddleware
 from asseta.core.sms import SmsClient, build_sms_client
 from asseta.core.storage import ObjectStore, S3ObjectStore
+from asseta.modules.accountability import router as accountability_router
 from asseta.modules.audit_log import router as audit_log_router
 from asseta.modules.expenses import router as expenses_router
 from asseta.modules.finance import cash_router as finance_cash_router
+from asseta.modules.finance import custody_router as finance_custody_router
 from asseta.modules.finance import router as finance_router
 from asseta.modules.fleet import photos as fleet_photos
 from asseta.modules.fleet import router as fleet_router
@@ -145,6 +147,8 @@ def create_app(
         managed_service_router.router,
         finance_router.router,
         finance_cash_router.router,
+        finance_custody_router.router,
+        accountability_router.router,
         hours_router.router,
         expenses_router.router,
         intelligence_router.router,

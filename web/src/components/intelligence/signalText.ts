@@ -29,6 +29,7 @@ export const SOURCE_TYPE_LABELS: Readonly<Record<CaseSourceType, string>> = {
   TRACKING_ALERT: 'Tracking alert',
   SOD_EVENT: 'Segregation of duties',
   PREDICTION: 'Model output',
+  CASH_VARIANCE: 'Cash difference',
 };
 
 /** Tracking alert types linked to cases (backend `ALERT_TITLES`); others are humanised. */
@@ -243,6 +244,12 @@ export function explainCaseSignal(
             `${withArticle(humanize(f.text('entity_type')).toLowerCase())} record by the person whose ` +
             'own record it was (segregation of duties).'
         : 'A segregation-of-duties check refused an action.';
+    case 'CASH_VARIANCE':
+      return (
+        `The amount received on a ${humanize(f.text('source_type')).toLowerCase()} differed from the ` +
+        `declared amount (declared ${f.text('declared_amount')}, received ${f.text('received_amount')} ` +
+        `${f.text('currency')}). It needs review; the difference is not a conclusion.`
+      );
     case 'PREDICTION':
       return 'A model output was surfaced for review; it is an indication, not a finding.';
   }
