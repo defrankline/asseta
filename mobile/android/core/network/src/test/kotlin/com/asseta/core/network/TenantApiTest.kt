@@ -1,6 +1,7 @@
 package com.asseta.core.network
 
 import com.asseta.core.model.owner.ApprovalDecisionIn
+import com.asseta.core.model.owner.MeterResetDecisionIn
 import kotlinx.coroutines.test.runTest
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
@@ -55,6 +56,31 @@ class TenantApiTest {
         val url = server.takeRequest().url
         assertEquals("2026-10-21T08:00:00Z", url.queryParameter("from"))
         assertEquals("2026-10-22T08:00:00Z", url.queryParameter("to"))
+    }
+
+    @Test
+    fun `meter reset decision, filtered lists and cash period queries`() = runTest {
+        server.enqueue(MockResponse.Builder().code(409).body("""{"error":{"code":"RESET_DECIDED","message":"Reset already decided","correlation_id":"c"}}""").build())
+        try {
+            api.decideMeterReset(tenant, MeterResetDecisionIn(MeterResetDecisionIn.APPROVE, "Meter replaced"))
+            fail("expected ApiException")
+        } catch (e: ApiException) {
+            assertEquals("RESET_DECIDED", e.code)
+        }
+        val decision = server.takeRequest()
+        assertEquals("/api/v1/tenant/meter-resets/$tenant/decision", decision.url.encodedPath)
+        assertEquals("""{"outcome":"EXPLAINED","note":"Meter replaced"}""", decision.body!!.utf8())
+        server.enqueue(MockResponse.Builder().body("[]").build())
+        api.cashSupervisorSummary("2026-10-01", "2026-10-22")
+        val cash = server.takeRequest().url
+        assertEquals("/api/v1/tenant/cash/supervisor-summary", cash.encodedPath)
+        assertEquals("2026-10-01", cash.queryParameter("from"))
+        assertEquals("2026-10-22", cash.queryParameter("to"))
+        server.enqueue(MockResponse.Builder().body("""{"items":[],"total":0,"page":1,"page_size":100}""").build())
+        api.fuelEvents(jobId = tenant, pageSize = 100)
+        val fuel = server.takeRequest().url
+        assertEquals(tenant, fuel.queryParameter("job_id"))
+        assertEquals("100", fuel.queryParameter("page_size"))
     }
 
     @Test

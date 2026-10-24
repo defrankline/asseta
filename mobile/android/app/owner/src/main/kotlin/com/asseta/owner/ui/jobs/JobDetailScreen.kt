@@ -1,38 +1,57 @@
 package com.asseta.owner.ui.jobs
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.asseta.core.domain.owner.OwnerDestination
 import com.asseta.core.domain.owner.OwnerFormat
+import com.asseta.core.model.owner.ActivityDto
 import com.asseta.core.model.owner.JobSummaryDto
 import com.asseta.core.ui.components.LabeledValue
 import com.asseta.core.ui.components.NavigationRow
+import com.asseta.core.ui.theme.AssetaType
 import com.asseta.core.ui.theme.palette
 import com.asseta.owner.data.JobDetail
 import com.asseta.owner.data.OwnerData
 import com.asseta.owner.ui.OwnerFeatures
 import com.asseta.owner.ui.common.EvidencePhoto
 import com.asseta.owner.ui.common.KeyValue
+import com.asseta.owner.ui.common.OwnerColors
 import com.asseta.owner.ui.common.ReadingRow
 import com.asseta.owner.ui.common.SectionCard
 import com.asseta.owner.ui.common.SnapshotScaffold
 import com.asseta.owner.ui.common.SnapshotViewModel
 import com.asseta.owner.ui.common.StatusPill
+import com.asseta.owner.ui.home.KpiTone
+import com.asseta.owner.ui.spend.ExpenseRow
+import com.asseta.owner.ui.spend.FuelRow
+import com.asseta.owner.ui.spend.SpendText
 import kotlinx.coroutines.flow.Flow
+import java.math.BigDecimal
+import java.math.RoundingMode
+import java.time.Duration
+import java.time.Instant
 import java.time.ZoneId
 
-class JobDetailViewModel(val data: OwnerData, jobId: String, refreshOn: Flow<Unit>) : SnapshotViewModel<JobDetail>({ data.job(jobId) }, refreshOn)
+/** [spend]: the role may read expenses, so the job's expenses and fuel are loaded too. */
+class JobDetailViewModel(val data: OwnerData, jobId: String, spend: Boolean, refreshOn: Flow<Unit>) :
+    SnapshotViewModel<JobDetail>({ data.job(jobId, spend) }, refreshOn)
 
 /** Job detail wording shared with iOS (`JobDetailView`). */
 object JobDetailText {
@@ -44,10 +63,32 @@ object JobDetailText {
         else -> "Not ready to invoice."
     }
 
-    fun exceptions(open: Int): String? = if (open > 0) "$open open exception(s) need review in the console." else null
+    fun exceptions(open: Int): String? = if (open > 0) "$open open exception(s) need review." else null
+
+    const val NO_WORK = "No work logged yet."
+    const val BILLABLE = "Billable"
+    const val NOT_BILLABLE = "Not billable"
+
+    fun billableTone(billable: Boolean): KpiTone = if (billable) KpiTone.GOOD else KpiTone.MUTED
+
+    /**
+     * "21 Oct 2026, 08:00 – 21 Oct 2026, 12:30 · 4.5 h": whole minutes as hours; an activity without an end reads
+     * "… – ongoing" with the time elapsed until [nowMs].
+     */
+    fun workLogDetail(a: ActivityDto, zone: ZoneId, nowMs: Long = System.currentTimeMillis()): String {
+        val start = OwnerFormat.parseInstant(a.startedAt)
+        val end = OwnerFormat.parseInstant(a.endedAt)
+        val to = if (end == null) "ongoing" else OwnerFormat.dateTime(end, zone)
+        val minutes = start?.let { Duration.between(it, end ?: Instant.ofEpochMilli(nowMs)).toMinutes().coerceAtLeast(0) } ?: 0
+        val hours = BigDecimal.valueOf(minutes).divide(BigDecimal(60), 4, RoundingMode.HALF_EVEN)
+        return "${OwnerFormat.dateTime(start, zone)} – $to · ${OwnerFormat.hours(hours)}"
+    }
 }
 
-/** Job drilldown: meter vs billable hours (server-computed), charges, readings with photos, customer acknowledgement. */
+/**
+ * Job drilldown: meter vs billable hours (server-computed), charges, readings with photos, work log, expenses and fuel
+ * (when the role may read expenses), customer acknowledgement.
+ */
 @Composable
 fun JobDetailScreen(vm: JobDetailViewModel, features: OwnerFeatures, online: Boolean, onOpen: (OwnerDestination) -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
@@ -93,13 +134,39 @@ fun JobDetailScreen(vm: JobDetailViewModel, features: OwnerFeatures, online: Boo
                         KeyValue("Tax", OwnerFormat.money(c.taxTotal.value, c.currency))
                         LabeledValue("Total") { Text(OwnerFormat.money(c.total.value, c.currency), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold) }
                     }
-                    JobDetailText.exceptions(s.openExceptions)?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+                    JobDetailText.exceptions(s.openExceptions)?.let {
+                        // Opens this job's exceptions when the role can read meter evidence.
+                        val open = if (features.meterEvidence) Modifier.clickable(role = Role.Button) { onOpen(OwnerDestination.Exceptions(job.id.toString())) } else Modifier
+                        Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, modifier = open)
+                    }
                 }
             }
             item {
                 SectionCard("Readings") {
                     if (d.captures.isEmpty()) Text("No readings yet.", color = palette.secondaryText)
                     d.captures.forEach { c -> ReadingRow(c, zone, photosOnline) { vm.data.attachmentUrl(it) } }
+                }
+            }
+            item {
+                SectionCard("Work log") {
+                    if (d.activities.isEmpty()) Text(JobDetailText.NO_WORK, color = palette.secondaryText)
+                    d.activities.forEach { a -> WorkLogRow(a, zone) }
+                }
+            }
+            d.expenses?.let { expenses ->
+                item {
+                    SectionCard("Expenses", footer = SpendText.totalApproved(expenses).joinToString("\n").ifEmpty { null }) {
+                        if (expenses.isEmpty()) Text(SpendText.NO_JOB_EXPENSES, color = palette.secondaryText)
+                        expenses.forEach { e -> ExpenseRow(e, zone) }
+                    }
+                }
+            }
+            d.fuel?.let { fuel ->
+                item {
+                    SectionCard("Fuel") {
+                        if (fuel.isEmpty()) Text(SpendText.NO_JOB_FUEL, color = palette.secondaryText)
+                        fuel.forEach { f -> FuelRow(f, zone) }
+                    }
                 }
             }
             item {
@@ -118,5 +185,18 @@ fun JobDetailScreen(vm: JobDetailViewModel, features: OwnerFeatures, online: Boo
                 }
             }
         }
+    }
+}
+
+/** One work-log entry: activity, period and duration, billable pill, note. */
+@Composable
+private fun WorkLogRow(a: ActivityDto, zone: ZoneId) {
+    Column(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text(OwnerFormat.humanize(a.activityType), style = AssetaType.headline, modifier = Modifier.weight(1f))
+            StatusPill(if (a.billable) JobDetailText.BILLABLE else JobDetailText.NOT_BILLABLE, OwnerColors.tone(JobDetailText.billableTone(a.billable)))
+        }
+        Text(JobDetailText.workLogDetail(a, zone), style = AssetaType.subheadline, color = palette.secondaryText)
+        a.note?.takeIf { it.isNotBlank() }?.let { Text(it, style = AssetaType.caption, color = palette.secondaryText) }
     }
 }

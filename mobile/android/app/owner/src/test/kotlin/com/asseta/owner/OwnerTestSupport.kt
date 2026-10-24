@@ -71,6 +71,24 @@ object Samples {
         "reported_work_status":"WORKING","location_compliance":"COMPLIANT","open_alerts":1,"policy_version":"p","latitude":-6.8,
         "longitude":39.28,"last_seen_age_seconds":30,"tracker_id":null}"""
 
+    const val JOB_SUMMARY = """{"job":{"id":"$ID1","job_number":"J-1001","status":"COMPLETED","machine_id":"$ID2","contract_id":"$ID2","currency":"TZS",
+        "hourly_rate":"95000.0000","minimum_hours":"0.0000","mobilization_fee":"0.0000","discount_percent":"0.0000","tax_rate_percent":"15.0000",
+        "rate_source":"CONTRACT","standby_treatment":"EXCLUDED","planned_start":"2026-10-21T06:00:00Z","version":3},
+        "nonbillable_hours":"0.0000","billing_ready":false,"open_exceptions":2,"blocking_exceptions":1,"policy_version":"p"}"""
+
+    fun expense(id: String = ID1, status: String = "PENDING_APPROVAL", currency: String = "TZS", amount: String = "150000.0000", supplier: String? = "Tyre shop") =
+        """{"id":"$id","amount":"$amount","currency":"$currency","description":"Tyre repair","status":"$status","incurred_at":"2026-10-21T09:00:00Z",
+        "submitted_at":"2026-10-21T09:05:00Z","paid_from":"CASH_CUSTODY","supplier":${supplier?.let { "\"$it\"" } ?: "null"},"job_id":"$ID1",
+        "decision_note":null,"receipt_required":true}"""
+
+    fun fuel(id: String = ID1, supplier: String? = "Puma") = """{"id":"$id","event_type":"PURCHASE","litres":"40.500","unit_price":"3200.0000",
+        "attributed_cost":"129600.0000","currency":"TZS","job_id":"$ID1","supplier":${supplier?.let { "\"$it\"" } ?: "null"},
+        "occurred_at":"2026-10-21T07:00:00Z","source":"MOBILE"}"""
+
+    fun reset(id: String = ID1, status: String = "PENDING") = """{"id":"$id","machine_id":"$ID2","old_reading":"1200.00","new_reading":"0.00",
+        "effective_at":"2026-10-21T07:00:00Z","reason":"Meter replaced after damage","evidence_attachment_id":null,"status":"$status",
+        "requested_by":null,"decided_at":null}"""
+
     const val OVERVIEW = """{"tenant_id":"$TENANT","as_of":"2026-10-22T08:00:00Z","timezone":"Africa/Dar_es_Salaam","fleet":null,"work":
         {"jobs_by_status":{"IN_PROGRESS":2},"pending_approvals":1,"latest_source_at":"2026-10-22T07:00:00Z"},"money":null,"risk":null}"""
 

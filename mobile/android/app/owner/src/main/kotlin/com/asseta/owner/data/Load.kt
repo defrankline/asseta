@@ -14,6 +14,12 @@ sealed interface Load<out T> {
     data class Failed(val error: UiError, val kind: FailureKind) : Load<Nothing>
 }
 
+/** The same load with its data transformed (provenance kept). */
+fun <A, B> Load<A>.map(transform: (A) -> B): Load<B> = when (this) {
+    is Load.Ok -> Load.Ok(Snapshot(transform(snapshot.data), snapshot.fetchedAtMs, snapshot.source))
+    is Load.Failed -> this
+}
+
 /** Result of an owner mutation (acknowledge/resolve alert, approval decision, settings). */
 sealed interface ActionResult<out T> {
     data class Done<T>(val value: T) : ActionResult<T>

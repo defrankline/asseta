@@ -12,6 +12,7 @@ object OwnerErrors {
         "NOTE_REQUIRED" -> "Add a note explaining how the alert was resolved."
         "ALERT_CLOSED" -> "This alert was already closed by someone else. The list has been refreshed."
         "APPROVAL_ALREADY_DECIDED" -> "This request was already decided by someone else. The list has been refreshed."
+        "RESET_DECIDED" -> RESET_DECIDED
         "SUBSCRIPTION_READ_ONLY" -> "This company's subscription is read-only, so changes are not accepted right now."
         "PERMISSION_DENIED" -> "You do not have permission to do this."
         "TENANT_ACCESS_DENIED", "TENANT_ACCESS_BLOCKED", "MANDATE_ENDED", "MANDATE_REQUIRED" ->
@@ -19,6 +20,17 @@ object OwnerErrors {
         else -> serverMessage
     }
 
+    /** Wording for a refused meter reset decision: segregation of duties is about the reset's requester. */
+    fun meterResetMessage(code: String?, serverMessage: String): String = when (code) {
+        "SEGREGATION_OF_DUTIES" -> RESET_SEGREGATION
+        "RESET_DECIDED" -> RESET_DECIDED
+        null -> serverMessage
+        else -> message(code, serverMessage)
+    }
+
+    const val RESET_DECIDED = "This reset was already decided."
+    const val RESET_SEGREGATION = "You requested this reset, so someone else must decide it."
+
     /** Codes after which the shown list is out of date and must be reloaded. */
-    fun needsReload(code: String): Boolean = code == "ALERT_CLOSED" || code == "APPROVAL_ALREADY_DECIDED"
+    fun needsReload(code: String): Boolean = code == "ALERT_CLOSED" || code == "APPROVAL_ALREADY_DECIDED" || code == "RESET_DECIDED"
 }

@@ -1,18 +1,25 @@
 package com.asseta.owner.data
 
 import com.asseta.core.model.owner.AcknowledgementDto
+import com.asseta.core.model.owner.ActivityDto
 import com.asseta.core.model.owner.AlertActionIn
 import com.asseta.core.model.owner.AlertDto
 import com.asseta.core.model.owner.AnomalyCaseDetailDto
 import com.asseta.core.model.owner.AnomalyCaseDto
 import com.asseta.core.model.owner.ApprovalDecisionIn
 import com.asseta.core.model.owner.ApprovalRequestDto
+import com.asseta.core.model.owner.CashSupervisorSummaryDto
+import com.asseta.core.model.owner.ExceptionDto
+import com.asseta.core.model.owner.ExpenseDto
+import com.asseta.core.model.owner.FuelEventDto
 import com.asseta.core.model.owner.HistoryDto
 import com.asseta.core.model.owner.JobDto
 import com.asseta.core.model.owner.JobSummaryDto
 import com.asseta.core.model.owner.MachineDto
 import com.asseta.core.model.owner.MachineMapDto
 import com.asseta.core.model.owner.MeterCaptureDto
+import com.asseta.core.model.owner.MeterResetDecisionIn
+import com.asseta.core.model.owner.MeterResetDto
 import com.asseta.core.model.owner.NotificationDto
 import com.asseta.core.model.owner.PageDto
 import com.asseta.core.model.owner.TenantOverviewDto
@@ -21,9 +28,19 @@ import kotlinx.serialization.builtins.ListSerializer
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
-/** Job detail composed from the summary, its readings and the customer acknowledgements. */
+/**
+ * Job detail composed from the summary, its readings, the customer acknowledgements, the work log and (when the role
+ * may read expenses) its expenses and fuel. The newer parts have defaults so snapshots saved before them still decode.
+ */
 @Serializable
-data class JobDetail(val summary: JobSummaryDto, val captures: List<MeterCaptureDto>, val acknowledgements: List<AcknowledgementDto>)
+data class JobDetail(
+    val summary: JobSummaryDto,
+    val captures: List<MeterCaptureDto>,
+    val acknowledgements: List<AcknowledgementDto>,
+    val activities: List<ActivityDto> = emptyList(),
+    val expenses: List<ExpenseDto>? = null,
+    val fuel: List<FuelEventDto>? = null,
+)
 
 /**
  * Typed owner reads for one tenant, each with a stable snapshot key (the offline cache), plus the few allowed
@@ -58,9 +75,41 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
     suspend fun jobs(status: String?): Load<PageDto<JobDto>> =
         repo.load(tenantId, "jobs:${status ?: "ALL"}", PageDto.serializer(JobDto.serializer())) { jobs(status = status, pageSize = LIST_PAGE) }
 
-    suspend fun job(id: String): Load<JobDetail> = repo.load(tenantId, "job:$id", JobDetail.serializer()) {
-        JobDetail(jobSummary(id), jobCaptures(id), jobAcknowledgements(id))
+    /** [spend]: also fetch the job's expenses and fuel (`tenant.expense.read`); otherwise they stay null (hidden). */
+    suspend fun job(id: String, spend: Boolean = false): Load<JobDetail> = repo.load(tenantId, "job:$id", JobDetail.serializer()) {
+        JobDetail(
+            jobSummary(id), jobCaptures(id), jobAcknowledgements(id), jobActivities(id),
+            expenses = if (spend) expenses(jobId = id, pageSize = LIST_PAGE).items else null,
+            fuel = if (spend) fuelEvents(jobId = id, pageSize = LIST_PAGE).items else null,
+        )
     }
+
+    /** Meter exceptions, [status] OPEN or null (all), optionally of one job. */
+    suspend fun exceptions(status: String?, jobId: String?): Load<PageDto<ExceptionDto>> =
+        repo.load(tenantId, "exceptions:${status ?: "ALL"}:${jobId ?: "ALL"}", PageDto.serializer(ExceptionDto.serializer())) {
+            exceptions(status = status, jobId = jobId, pageSize = LIST_PAGE)
+        }
+
+    /** Expenses, [status] PENDING_APPROVAL (cached as "expenses:PENDING", as on iOS) or null (all). */
+    suspend fun expenses(status: String?): Load<PageDto<ExpenseDto>> {
+        val key = when (status) {
+            null -> "ALL"
+            "PENDING_APPROVAL" -> "PENDING"
+            else -> status
+        }
+        return repo.load(tenantId, "expenses:$key", PageDto.serializer(ExpenseDto.serializer())) { expenses(status = status, pageSize = LIST_PAGE) }
+    }
+
+    suspend fun fuel(): Load<PageDto<FuelEventDto>> =
+        repo.load(tenantId, "fuel:ALL", PageDto.serializer(FuelEventDto.serializer())) { fuelEvents(pageSize = LIST_PAGE) }
+
+    /** Meter reset requests, [status] PENDING or null (all). */
+    suspend fun meterResets(status: String?): Load<List<MeterResetDto>> =
+        repo.load(tenantId, "meter_resets:${status ?: "ALL"}", ListSerializer(MeterResetDto.serializer())) { meterResets(status) }
+
+    /** Cash with each supervisor over the local days [from]..[to]; [period] names the cached snapshot. */
+    suspend fun cash(period: String, from: java.time.LocalDate, to: java.time.LocalDate): Load<List<CashSupervisorSummaryDto>> =
+        repo.load(tenantId, "cash:$period", ListSerializer(CashSupervisorSummaryDto.serializer())) { cashSupervisorSummary(from.toString(), to.toString()) }
 
     suspend fun alerts(status: String?): Load<PageDto<AlertDto>> =
         repo.load(tenantId, "alerts:${status ?: "ALL"}", PageDto.serializer(AlertDto.serializer())) { alerts(status = status, pageSize = LIST_PAGE) }
@@ -91,6 +140,10 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
 
     suspend fun decideApproval(id: String, approve: Boolean, note: String?) =
         repo.act { decideApproval(id, ApprovalDecisionIn(approve, note?.trim()?.takeIf { it.isNotEmpty() })) }
+
+    suspend fun decideMeterReset(id: String, approve: Boolean, note: String) = repo.act {
+        decideMeterReset(id, MeterResetDecisionIn(if (approve) MeterResetDecisionIn.APPROVE else MeterResetDecisionIn.REJECT, note.trim()))
+    }
 
     // --- online-only helpers (never cached) -------------------------------------------------------------------
     suspend fun attachmentUrl(attachmentId: String) = repo.act { attachmentUrl(attachmentId) }

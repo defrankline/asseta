@@ -75,7 +75,9 @@ object OverviewPresentation {
                     OverviewRow("Pending approvals", "$it", tone = if (it > 0) KpiTone.WARNING else KpiTone.NORMAL, target = OwnerDestination.Approvals())
                 },
                 w.readingsNeedingReview?.let { OverviewRow("Readings needing review", "$it") },
-                w.openExceptions?.let { OverviewRow("Open meter exceptions", "$it", tone = if (it > 0) KpiTone.WARNING else KpiTone.NORMAL) },
+                w.openExceptions?.let {
+                    OverviewRow("Open meter exceptions", "$it", tone = if (it > 0) KpiTone.WARNING else KpiTone.NORMAL, target = OwnerDestination.Exceptions())
+                },
             )
             OverviewSection("Jobs and work", freshnessLine(w.latestSourceAt, nowMs), listOf(OverviewGroup(null, rows)), listOf(OverviewAction("Open jobs", OwnerDestination.Jobs)))
         },

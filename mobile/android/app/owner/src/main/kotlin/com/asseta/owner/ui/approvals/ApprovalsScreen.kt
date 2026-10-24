@@ -40,6 +40,7 @@ import com.asseta.core.domain.owner.OwnerDestination
 import com.asseta.core.domain.owner.OwnerFormat
 import com.asseta.core.model.owner.ApprovalRequestDto
 import com.asseta.core.model.owner.ExpenseDto
+import com.asseta.core.model.owner.MeterResetDto
 import com.asseta.core.model.owner.PageDto
 import com.asseta.core.ui.components.ButtonRow
 import com.asseta.core.ui.components.FilterChipRow
@@ -56,8 +57,10 @@ import com.asseta.owner.ui.OwnerSession
 import com.asseta.owner.ui.common.BlockedNote
 import com.asseta.owner.ui.common.EmptyState
 import com.asseta.owner.ui.common.EvidencePhoto
+import com.asseta.owner.ui.common.FootNote
 import com.asseta.owner.ui.common.KeyValue
 import com.asseta.owner.ui.common.OwnerColors
+import com.asseta.owner.ui.common.Section
 import com.asseta.owner.ui.common.SectionCard
 import com.asseta.owner.ui.common.SnapshotScaffold
 import com.asseta.owner.ui.common.SnapshotViewModel
@@ -105,14 +108,30 @@ class ApprovalsViewModel private constructor(
     data: OwnerData,
     private val selected: MutableStateFlow<String?>,
     refreshOn: Flow<Unit>,
+    meterResets: Boolean,
 ) : SnapshotViewModel<PageDto<ApprovalRequestDto>>({ data.approvals(selected.value) }, refreshOn) {
-    constructor(data: OwnerData, refreshOn: Flow<Unit>) : this(data, MutableStateFlow(ApprovalText.DEFAULT_FILTER), refreshOn)
+    /** [meterResets]: also list pending meter reset requests (`tenant.meter.read`). */
+    constructor(data: OwnerData, refreshOn: Flow<Unit>, meterResets: Boolean = false) :
+        this(data, MutableStateFlow(ApprovalText.DEFAULT_FILTER), refreshOn, meterResets)
 
     val status: StateFlow<String?> get() = selected
+
+    /** Pending meter resets, loaded independently of the expense requests (null when the role cannot see them). */
+    val resets: Section<List<MeterResetDto>>? = if (meterResets) Section(viewModelScope) { data.meterResets("PENDING") } else null
+
+    init {
+        resets?.refresh()
+        viewModelScope.launch { refreshOn.collect { resets?.refresh() } }
+    }
 
     fun filter(status: String?) {
         selected.value = status
         refresh()
+    }
+
+    fun refreshAll() {
+        refresh()
+        resets?.refresh()
     }
 }
 
@@ -152,9 +171,10 @@ class ApprovalDetailViewModel(val data: OwnerData, val approvalId: String, refre
 fun ApprovalsScreen(vm: ApprovalsViewModel, onOpen: (OwnerDestination) -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
     val status by vm.status.collectAsStateWithLifecycle()
+    val resets = vm.resets?.state?.collectAsStateWithLifecycle()?.value
     Column(Modifier.fillMaxSize()) {
         FilterChipRow(ApprovalText.FILTERS.map { (s, l) -> s as String? to l }, status, vm::filter)
-        SnapshotScaffold(state, vm::refresh) { page ->
+        SnapshotScaffold(state, vm::refreshAll) { page ->
             val zone = ZoneId.systemDefault()
             val rows = buildList {
                 if (page.items.isEmpty()) add(GroupedItem("empty") { EmptyState(ApprovalText.EMPTY_TITLE, ApprovalText.EMPTY_MESSAGE, R.drawable.ic_approval) })
@@ -162,7 +182,24 @@ fun ApprovalsScreen(vm: ApprovalsViewModel, onOpen: (OwnerDestination) -> Unit) 
                     add(GroupedItem(a.id.toString(), onClick = { onOpen(OwnerDestination.Approvals(a.id.toString())) }) { ApprovalRow(a, zone) })
                 }
             }
-            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp)) { groupedSection("approvals", rows) }
+            // Meter resets below the (unchanged) expense requests, as their own section with its own state.
+            val resetRows = resets?.let { r ->
+                buildList {
+                    val list = r.data
+                    when {
+                        list == null && r.loading -> Unit
+                        list == null -> add(GroupedItem("error") { FootNote(r.error?.message.orEmpty()) })
+                        list.isEmpty() -> add(GroupedItem("empty") { FootNote(MeterResetText.EMPTY) })
+                        else -> list.forEach { m ->
+                            add(GroupedItem(m.id.toString(), onClick = { onOpen(OwnerDestination.MeterReset(m.id.toString())) }) { MeterResetRow(m, zone) })
+                        }
+                    }
+                }
+            }
+            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp)) {
+                groupedSection("approvals", rows)
+                resetRows?.let { groupedSection("resets", it, header = MeterResetText.SECTION) }
+            }
         }
     }
 }

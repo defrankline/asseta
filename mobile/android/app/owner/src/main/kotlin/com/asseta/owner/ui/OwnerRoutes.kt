@@ -13,10 +13,16 @@ import com.asseta.owner.ui.approvals.ApprovalDetailScreen
 import com.asseta.owner.ui.approvals.ApprovalDetailViewModel
 import com.asseta.owner.ui.approvals.ApprovalsScreen
 import com.asseta.owner.ui.approvals.ApprovalsViewModel
+import com.asseta.owner.ui.approvals.MeterResetScreen
+import com.asseta.owner.ui.approvals.MeterResetViewModel
+import com.asseta.owner.ui.cash.CashScreen
+import com.asseta.owner.ui.cash.CashViewModel
 import com.asseta.owner.ui.cases.CaseDetailScreen
 import com.asseta.owner.ui.cases.CaseDetailViewModel
 import com.asseta.owner.ui.cases.CasesScreen
 import com.asseta.owner.ui.cases.CasesViewModel
+import com.asseta.owner.ui.exceptions.ExceptionsScreen
+import com.asseta.owner.ui.exceptions.ExceptionsViewModel
 import com.asseta.owner.ui.fleet.FleetScreen
 import com.asseta.owner.ui.fleet.FleetViewModel
 import com.asseta.owner.ui.home.HomeScreen
@@ -34,6 +40,8 @@ import com.asseta.owner.ui.notifications.NotificationsViewModel
 import com.asseta.owner.ui.settings.PushControl
 import com.asseta.owner.ui.settings.SettingsScreen
 import com.asseta.owner.ui.settings.SettingsViewModel
+import com.asseta.owner.ui.spend.FieldSpendScreen
+import com.asseta.owner.ui.spend.FieldSpendViewModel
 
 /** One screen per destination; view models are keyed by tenant (and id) so switching tenant never mixes data. */
 @Composable
@@ -69,7 +77,9 @@ fun OwnerRoutes(
             JobsScreen(vm) { open(OwnerDestination.Job(it)) }
         }
         is OwnerDestination.Job -> {
-            val vm: JobDetailViewModel = viewModel(key = "job-$t-${route.jobId}") { JobDetailViewModel(data, route.jobId, graph.refreshTriggers("job", "meter_capture")) }
+            val vm: JobDetailViewModel = viewModel(key = "job-$t-${route.jobId}") {
+                JobDetailViewModel(data, route.jobId, features.expenses, graph.refreshTriggers("job", "meter_capture", "exception", "expense", "fuel_event"))
+            }
             JobDetailScreen(vm, features, online, open)
         }
         is OwnerDestination.Alerts -> {
@@ -85,12 +95,32 @@ fun OwnerRoutes(
         is OwnerDestination.Approvals -> {
             val id = route.approvalId
             if (id == null) {
-                val vm: ApprovalsViewModel = viewModel(key = "approvals-$t") { ApprovalsViewModel(data, graph.refreshTriggers("approval", "expense")) }
+                val vm: ApprovalsViewModel = viewModel(key = "approvals-$t") {
+                    ApprovalsViewModel(data, graph.refreshTriggers("approval", "expense", "meter_reset"), meterResets = features.meterEvidence)
+                }
                 ApprovalsScreen(vm, open)
             } else {
                 val vm: ApprovalDetailViewModel = viewModel(key = "approval-$t-$id") { ApprovalDetailViewModel(data, id, graph.refreshTriggers("approval", "expense")) }
                 ApprovalDetailScreen(vm, session, online)
             }
+        }
+        is OwnerDestination.MeterReset -> {
+            val vm: MeterResetViewModel = viewModel(key = "meter-reset-$t-${route.resetId}") { MeterResetViewModel(data, route.resetId, graph.refreshTriggers("meter_reset")) }
+            MeterResetScreen(vm, session, online)
+        }
+        is OwnerDestination.Exceptions -> {
+            val vm: ExceptionsViewModel = viewModel(key = "exceptions-$t-${route.jobId ?: "all"}") {
+                ExceptionsViewModel(data, route.jobId, graph.refreshTriggers("exception", "job"))
+            }
+            ExceptionsScreen(vm, features, open)
+        }
+        OwnerDestination.FieldSpend -> {
+            val vm: FieldSpendViewModel = viewModel(key = "spend-$t") { FieldSpendViewModel(data, graph.refreshTriggers("expense", "fuel_event")) }
+            FieldSpendScreen(vm, features, open)
+        }
+        OwnerDestination.Cash -> {
+            val vm: CashViewModel = viewModel(key = "cash-$t") { CashViewModel(data, graph.refreshTriggers("cash", "expense")) }
+            CashScreen(vm)
         }
         OwnerDestination.Cases -> {
             val vm: CasesViewModel = viewModel(key = "cases-$t") { CasesViewModel(data, graph.refreshTriggers("case")) }

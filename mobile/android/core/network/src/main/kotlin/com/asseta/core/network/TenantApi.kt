@@ -1,19 +1,25 @@
 package com.asseta.core.network
 
 import com.asseta.core.model.owner.AcknowledgementDto
+import com.asseta.core.model.owner.ActivityDto
 import com.asseta.core.model.owner.AlertActionIn
 import com.asseta.core.model.owner.AlertDto
 import com.asseta.core.model.owner.AnomalyCaseDetailDto
 import com.asseta.core.model.owner.AnomalyCaseDto
 import com.asseta.core.model.owner.ApprovalDecisionIn
 import com.asseta.core.model.owner.ApprovalRequestDto
+import com.asseta.core.model.owner.CashSupervisorSummaryDto
+import com.asseta.core.model.owner.ExceptionDto
 import com.asseta.core.model.owner.ExpenseDto
+import com.asseta.core.model.owner.FuelEventDto
 import com.asseta.core.model.owner.HistoryDto
 import com.asseta.core.model.owner.JobDto
 import com.asseta.core.model.owner.JobSummaryDto
 import com.asseta.core.model.owner.MachineDto
 import com.asseta.core.model.owner.MachineMapDto
 import com.asseta.core.model.owner.MeterCaptureDto
+import com.asseta.core.model.owner.MeterResetDecisionIn
+import com.asseta.core.model.owner.MeterResetDto
 import com.asseta.core.model.owner.NotificationDto
 import com.asseta.core.model.owner.NotificationMarkReadIn
 import com.asseta.core.model.owner.NotificationMarkReadResultDto
@@ -83,6 +89,10 @@ interface TenantApi {
     @GET("api/v1/tenant/jobs/{id}/acknowledgements")
     suspend fun jobAcknowledgements(@Path("id") jobId: String): List<AcknowledgementDto>
 
+    /** listJobActivities (work log, oldest first) */
+    @GET("api/v1/tenant/jobs/{id}/activities")
+    suspend fun jobActivities(@Path("id") jobId: String): List<ActivityDto>
+
     /** listMeterCaptures (latest captured first) */
     @GET("api/v1/tenant/meter-captures")
     suspend fun meterCaptures(
@@ -122,6 +132,45 @@ interface TenantApi {
     /** getExpense */
     @GET("api/v1/tenant/expenses/{id}")
     suspend fun expense(@Path("id") expenseId: String): ExpenseDto
+
+    /** listExpenses (newest first) */
+    @GET("api/v1/tenant/expenses")
+    suspend fun expenses(
+        @Query("job_id") jobId: String? = null,
+        @Query("status") status: String? = null,
+        @Query("page") page: Int = 1,
+        @Query("page_size") pageSize: Int = 50,
+    ): PageDto<ExpenseDto>
+
+    /** listFuelEvents (latest first) */
+    @GET("api/v1/tenant/fuel-events")
+    suspend fun fuelEvents(
+        @Query("job_id") jobId: String? = null,
+        @Query("event_type") eventType: String? = null,
+        @Query("page") page: Int = 1,
+        @Query("page_size") pageSize: Int = 50,
+    ): PageDto<FuelEventDto>
+
+    /** listJobExceptions (newest first) */
+    @GET("api/v1/tenant/exceptions")
+    suspend fun exceptions(
+        @Query("status") status: String? = null,
+        @Query("job_id") jobId: String? = null,
+        @Query("page") page: Int = 1,
+        @Query("page_size") pageSize: Int = 50,
+    ): PageDto<ExceptionDto>
+
+    /** listMeterResets (plain list, newest first) */
+    @GET("api/v1/tenant/meter-resets")
+    suspend fun meterResets(@Query("status") status: String? = null): List<MeterResetDto>
+
+    /** decideMeterReset (needs tenant.meter.approve; the requester cannot decide their own reset) */
+    @POST("api/v1/tenant/meter-resets/{id}/decision")
+    suspend fun decideMeterReset(@Path("id") resetId: String, @Body body: MeterResetDecisionIn): MeterResetDto
+
+    /** listCashSupervisorSummaries: every custodian x currency over tenant-local days [from, to] (YYYY-MM-DD). */
+    @GET("api/v1/tenant/cash/supervisor-summary")
+    suspend fun cashSupervisorSummary(@Query("from") from: String, @Query("to") to: String): List<CashSupervisorSummaryDto>
 
     /** listAnomalyCases */
     @GET("api/v1/tenant/cases")

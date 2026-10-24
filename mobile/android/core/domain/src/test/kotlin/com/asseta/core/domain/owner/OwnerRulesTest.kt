@@ -85,6 +85,16 @@ class MutationGateTest {
         assertEquals(MutationCheck.Blocked(MutationGate.READ_ONLY_TENANT), MutationGate.check(true, DataSource.LIVE, false, true))
         assertFalse(MutationGate.resolveNoteValid("   "))
     }
+
+    @Test
+    fun `meter reset decisions need tenant meter approve and a five character note`() {
+        assertEquals("tenant.meter.approve", OwnerAction.DECIDE_METER_RESET.permission)
+        assertEquals(MutationCheck.Allowed, MutationGate.check(OwnerAction.DECIDE_METER_RESET, true, DataSource.LIVE, setOf("tenant.meter.approve"), false))
+        assertTrue(MutationGate.check(OwnerAction.DECIDE_METER_RESET, true, DataSource.LIVE, setOf("tenant.meter.read"), false) is MutationCheck.Blocked)
+        assertFalse(MutationGate.resetNoteValid(" ok  "))
+        assertFalse(MutationGate.resetNoteValid("abcd"))
+        assertTrue(MutationGate.resetNoteValid("abcde"))
+    }
 }
 
 class OwnerErrorsTest {
@@ -94,5 +104,15 @@ class OwnerErrorsTest {
         assertEquals("server text", OwnerErrors.message("SOMETHING_NEW", "server text"))
         assertTrue(OwnerErrors.needsReload("APPROVAL_ALREADY_DECIDED"))
         assertFalse(OwnerErrors.needsReload("SEGREGATION_OF_DUTIES"))
+    }
+
+    @Test
+    fun `meter reset refusals have their own wording`() {
+        assertEquals("You requested this reset, so someone else must decide it.", OwnerErrors.meterResetMessage("SEGREGATION_OF_DUTIES", "x"))
+        assertEquals("This reset was already decided.", OwnerErrors.meterResetMessage("RESET_DECIDED", "x"))
+        assertEquals("This reset was already decided.", OwnerErrors.message("RESET_DECIDED", "x"))
+        assertEquals("You do not have permission to do this.", OwnerErrors.meterResetMessage("PERMISSION_DENIED", "x"))
+        assertEquals("server text", OwnerErrors.meterResetMessage(null, "server text"))
+        assertTrue(OwnerErrors.needsReload("RESET_DECIDED"))
     }
 }

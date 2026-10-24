@@ -5,6 +5,7 @@ enum class OwnerAction(val permission: String) {
     ACKNOWLEDGE_ALERT("tenant.fleet.alert_manage"),
     RESOLVE_ALERT("tenant.fleet.alert_manage"),
     DECIDE_APPROVAL("tenant.approval.expense"),
+    DECIDE_METER_RESET("tenant.meter.approve"),
 }
 
 sealed interface MutationCheck {
@@ -33,6 +34,11 @@ object MutationGate {
     const val SHOWING_SAVED_DATA = "Showing saved data. Refresh while online before making changes."
     const val READ_ONLY_TENANT = "This company is read-only. Changes are disabled."
     const val NOT_PERMITTED = "Your role can view this but not change it."
+
+    /** A meter reset decision needs a note of at least 5 characters (server `ReviewIn`). */
+    fun resetNoteValid(note: String): Boolean = note.trim().length >= RESET_NOTE_MIN
+
+    const val RESET_NOTE_MIN = 5
 
     /** Resolving an alert needs a note (the server answers `422 NOTE_REQUIRED` otherwise). */
     fun resolveNoteValid(note: String): Boolean = note.isNotBlank()

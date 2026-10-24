@@ -106,3 +106,57 @@ data class AcknowledgementDto(
     @SerialName("signer_phone") val signerPhone: String? = null,
     @SerialName("signature_attachment_id") val signatureAttachmentId: SerializableUuid? = null,
 )
+
+/** `ActivityDto` (listJobActivities): one work-log entry of a job; [endedAt] is null while it is still going on. */
+@Serializable
+data class ActivityDto(
+    val id: SerializableUuid,
+    @SerialName("client_id") val clientId: SerializableUuid,
+    @SerialName("activity_type") val activityType: String,
+    @SerialName("started_at") val startedAt: String,
+    val billable: Boolean,
+    @SerialName("ended_at") val endedAt: String? = null,
+    val note: String? = null,
+)
+
+/** `ExceptionDto` (listJobExceptions): a meter-evidence finding. [evidence] is server-defined and not shown. */
+@Serializable
+data class ExceptionDto(
+    val id: SerializableUuid,
+    @SerialName("machine_id") val machineId: SerializableUuid,
+    @SerialName("exception_type") val exceptionType: String,
+    val severity: String,
+    val blocking: Boolean,
+    val status: String,
+    @SerialName("created_at") val createdAt: String,
+    val evidence: Map<String, kotlinx.serialization.json.JsonElement> = emptyMap(),
+    @SerialName("job_id") val jobId: SerializableUuid? = null,
+    @SerialName("meter_capture_id") val meterCaptureId: SerializableUuid? = null,
+    @SerialName("policy_version") val policyVersion: String? = null,
+    @SerialName("review_note") val reviewNote: String? = null,
+    @SerialName("reviewed_at") val reviewedAt: String? = null,
+)
+
+/** `ResetDto` (listMeterResets / decideMeterReset): a requested meter reset; [status] PENDING, APPROVED or REJECTED. */
+@Serializable
+data class MeterResetDto(
+    val id: SerializableUuid,
+    @SerialName("machine_id") val machineId: SerializableUuid,
+    @SerialName("old_reading") val oldReading: DecimalAmount,
+    @SerialName("new_reading") val newReading: DecimalAmount,
+    @SerialName("effective_at") val effectiveAt: String,
+    val reason: String,
+    val status: String,
+    @SerialName("evidence_attachment_id") val evidenceAttachmentId: SerializableUuid? = null,
+    @SerialName("requested_by") val requestedBy: SerializableUuid? = null,
+    @SerialName("decided_at") val decidedAt: String? = null,
+)
+
+/** `ReviewIn` for decideMeterReset: EXPLAINED approves, CONFIRMED rejects; [note] 5..2000 characters. */
+@Serializable
+data class MeterResetDecisionIn(val outcome: String, val note: String) {
+    companion object {
+        const val APPROVE = "EXPLAINED"
+        const val REJECT = "CONFIRMED"
+    }
+}

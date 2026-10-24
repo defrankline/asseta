@@ -10,11 +10,19 @@ sealed interface OwnerDestination {
     /** Alerts list, scrolled to / highlighting [alertId] when known. */
     data class Alerts(val alertId: String? = null) : OwnerDestination
     data class Approvals(val approvalId: String? = null) : OwnerDestination
+    /** A meter reset request (listed under Approvals), with approve / reject. */
+    data class MeterReset(val resetId: String) : OwnerDestination
+    /** Meter exceptions, optionally only those of [jobId]. */
+    data class Exceptions(val jobId: String? = null) : OwnerDestination
+    /** Expenses and fuel recorded in the field. */
+    data object FieldSpend : OwnerDestination
+    /** Cash held by each supervisor over a period. */
+    data object Cash : OwnerDestination
     data object Cases : OwnerDestination
     data class Case(val caseId: String) : OwnerDestination
     data class Notifications(val notificationId: String? = null) : OwnerDestination
     data object Settings : OwnerDestination
-    /** Menu of the secondary screens (approvals, investigations, notifications, settings). */
+    /** Menu of the secondary screens (approvals, exceptions, field spend, cash, investigations, notifications, settings). */
     data object More : OwnerDestination
 }
 
@@ -36,6 +44,8 @@ object DeepLinkRouter {
         return when (entity) {
             "alert" -> OwnerDestination.Alerts(target)
             "approval" -> OwnerDestination.Approvals(target)
+            "meter_reset" -> target?.let { OwnerDestination.MeterReset(it) } ?: OwnerDestination.Approvals()
+            "exception" -> OwnerDestination.Exceptions()
             "job" -> target?.let { OwnerDestination.Job(it) } ?: OwnerDestination.Jobs
             "machine", "fleet.position" -> target?.let { OwnerDestination.Machine(it) } ?: OwnerDestination.Fleet
             "case" -> target?.let { OwnerDestination.Case(it) } ?: OwnerDestination.Cases
@@ -52,6 +62,8 @@ object DeepLinkRouter {
         return when (rest.firstOrNull()) {
             "alerts" -> OwnerDestination.Alerts(second)
             "approvals" -> OwnerDestination.Approvals(second)
+            "meter-resets" -> second?.let { OwnerDestination.MeterReset(it) } ?: OwnerDestination.Approvals()
+            "exceptions" -> OwnerDestination.Exceptions()
             "jobs" -> second?.let { OwnerDestination.Job(it) } ?: OwnerDestination.Jobs
             "cases" -> second?.let { OwnerDestination.Case(it) } ?: OwnerDestination.Cases
             "machines" -> second?.let { OwnerDestination.Machine(it) } ?: OwnerDestination.Fleet

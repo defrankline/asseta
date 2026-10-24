@@ -25,6 +25,15 @@ class DeepLinkRouterTest {
     }
 
     @Test
+    fun `meter reset and exception targets`() {
+        assertEquals(OwnerDestination.MeterReset(id), DeepLinkRouter.fromTarget("meter_reset", id, null))
+        assertEquals(OwnerDestination.Approvals(), DeepLinkRouter.fromTarget("meter_reset", null, null))
+        assertEquals(OwnerDestination.Exceptions(), DeepLinkRouter.fromTarget("exception", id, null))
+        assertEquals(OwnerDestination.MeterReset(id), DeepLinkRouter.fromPath("/tenant/meter-resets/$id"))
+        assertEquals(OwnerDestination.Exceptions(), DeepLinkRouter.fromPath("/tenant/exceptions"))
+    }
+
+    @Test
     fun `console paths`() {
         assertEquals(OwnerDestination.Job(id), DeepLinkRouter.fromPath("/tenant/jobs/$id"))
         assertEquals(OwnerDestination.Machine(id), DeepLinkRouter.fromPath("/tenant/fleet/machines/$id"))
@@ -52,6 +61,16 @@ class OwnerFormatTest {
         assertEquals("BHD 1.234", OwnerFormat.money(BigDecimal("1.2345"), "BHD")) // 3 minor units
         assertEquals("USD -0.12", OwnerFormat.money(BigDecimal("-0.125"), "USD")) // half-even
         assertEquals("XYZ 5.00", OwnerFormat.money(BigDecimal("5"), "XYZ")) // unknown code: 2 dp
+    }
+
+    @Test
+    fun `dates and plain decimals`() {
+        assertEquals("21 Oct 2026", OwnerFormat.date("2026-10-21T23:30:00Z", java.time.ZoneOffset.UTC))
+        assertEquals("22 Oct 2026", OwnerFormat.date("2026-10-21T23:30:00Z", java.time.ZoneId.of("Africa/Dar_es_Salaam")))
+        assertEquals("—", OwnerFormat.date(null, java.time.ZoneOffset.UTC))
+        assertEquals("12.5", OwnerFormat.decimal(BigDecimal("12.500")))
+        assertEquals("40", OwnerFormat.decimal(BigDecimal("40.000")))
+        assertEquals("100", OwnerFormat.decimal(BigDecimal("100")))
     }
 
     @Test

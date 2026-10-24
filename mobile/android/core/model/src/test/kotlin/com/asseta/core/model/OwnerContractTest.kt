@@ -1,14 +1,21 @@
 package com.asseta.core.model
 
+import com.asseta.core.model.owner.ActivityDto
 import com.asseta.core.model.owner.AlertDto
 import com.asseta.core.model.owner.AnomalyCaseDetailDto
 import com.asseta.core.model.owner.AnomalyCaseDto
 import com.asseta.core.model.owner.ApprovalRequestDto
+import com.asseta.core.model.owner.CashSupervisorSummaryDto
+import com.asseta.core.model.owner.ExceptionDto
+import com.asseta.core.model.owner.ExpenseDto
+import com.asseta.core.model.owner.FuelEventDto
 import com.asseta.core.model.owner.HistoryDto
 import com.asseta.core.model.owner.JobDto
 import com.asseta.core.model.owner.JobSummaryDto
 import com.asseta.core.model.owner.MachineMapDto
 import com.asseta.core.model.owner.MeterCaptureDto
+import com.asseta.core.model.owner.MeterResetDecisionIn
+import com.asseta.core.model.owner.MeterResetDto
 import com.asseta.core.model.owner.NotificationDto
 import com.asseta.core.model.owner.NotificationRoutingDto
 import com.asseta.core.model.owner.PageDto
@@ -52,6 +59,12 @@ class OwnerContractTest {
             "TenantAccessDto" to TenantAccess.serializer(),
             "MenuDto" to MenuEntry.serializer(),
             "MenuGroupDto" to MenuGroup.serializer(),
+            "ActivityDto" to ActivityDto.serializer(),
+            "FuelEventDto" to FuelEventDto.serializer(),
+            "ExceptionDto" to ExceptionDto.serializer(),
+            "ResetDto" to MeterResetDto.serializer(),
+            "ReviewIn" to MeterResetDecisionIn.serializer(),
+            "CashSupervisorSummaryDto" to CashSupervisorSummaryDto.serializer(),
         ).forEach { (name, serializer) -> check(name, serializer.descriptor) }
     }
 
@@ -101,5 +114,33 @@ class OwnerContractTest {
             "category":"ACTION","severity":"INFO","priority":"NORMAL","title":"t","body":"b","created_at":"2026-10-22T08:00:00Z","read_at":null,
             "target":{"entity":"approval","id":"a3c1d1f2-1111-4222-8333-944455556667","path":"/tenant/approvals"},"tenant_id":null,"data":{}}""")
         assertEquals("approval", n.target!!.entity)
+    }
+
+    @Test
+    fun `parses field spend, meter evidence and cash rows with exact decimals`() {
+        val id = "a3c1d1f2-1111-4222-8333-944455556666"
+        val fuel = json.decodeFromString(FuelEventDto.serializer(), """{"id":"$id","client_id":null,"event_type":"PURCHASE","litres":"40.000",
+            "unit_price":"3200.0000","attributed_cost":"128000.0000","currency":"TZS","machine_id":null,"job_id":"$id","expense_id":null,
+            "meter_reading":null,"supplier":"Puma","occurred_at":"2026-10-22T08:00:00Z","note":null,"source":"MOBILE","recorded_by":null}""")
+        assertEquals(0, BigDecimal("40").compareTo(fuel.litres.value))
+        assertEquals(id, fuel.jobId.toString())
+        val e = json.decodeFromString(ExceptionDto.serializer(), """{"id":"$id","job_id":null,"machine_id":"$id","meter_capture_id":null,
+            "exception_type":"METER_DECREASE","severity":"CRITICAL","blocking":true,"evidence":{"delta":"-3"},"policy_version":null,
+            "status":"OPEN","review_note":null,"reviewed_at":null,"created_at":"2026-10-22T08:00:00Z"}""")
+        assertEquals(true, e.blocking)
+        val r = json.decodeFromString(MeterResetDto.serializer(), """{"id":"$id","machine_id":"$id","old_reading":"1200.00","new_reading":"0.00",
+            "effective_at":"2026-10-22T08:00:00Z","reason":"Meter replaced","evidence_attachment_id":null,"status":"PENDING","requested_by":null,"decided_at":null}""")
+        assertEquals("1200.00", r.oldReading.toPlainString())
+        val a = json.decodeFromString(ActivityDto.serializer(), """{"id":"$id","client_id":"$id","activity_type":"STANDBY","started_at":"2026-10-22T08:00:00Z",
+            "ended_at":null,"billable":false,"note":null}""")
+        assertNull(a.endedAt)
+        val c = json.decodeFromString(CashSupervisorSummaryDto.serializer(), """{"staff_member_id":"$id","staff_name":"Neema","currency":"TZS",
+            "period_from":"2026-10-22","period_to":"2026-10-22","opening":"0.0000","floats_issued":"100000.0000","collections":"0.0000",
+            "approved_spending":"20000.0000","verified_handovers":"0.0000","closing_outstanding":"80000.0000","claimed_unverified_handovers":"0.0000",
+            "pending_spending":"5000.0000","unverified_collections":"0.0000"}""")
+        assertEquals(0, BigDecimal("80000").compareTo(c.closingOutstanding.value))
+        val x = json.decodeFromString(ExpenseDto.serializer(), """{"id":"$id","amount":"150000.0000","currency":"TZS","description":"Tyre",
+            "status":"REJECTED","incurred_at":"2026-10-22T08:00:00Z","submitted_at":"2026-10-22T08:00:00Z","paid_from":"COMPANY","decision_note":"Duplicate"}""")
+        assertEquals("Duplicate", x.decisionNote)
     }
 }

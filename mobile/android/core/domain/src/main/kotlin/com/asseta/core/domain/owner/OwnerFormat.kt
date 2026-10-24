@@ -34,6 +34,7 @@ object OwnerFormat {
 
     private val dateTime = DateTimeFormatter.ofPattern("d MMM yyyy, HH:mm", Locale.US)
     private val time = DateTimeFormatter.ofPattern("HH:mm", Locale.US)
+    private val date = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.US)
 
     /** Parses a server instant (ISO-8601 with offset/Z); null when absent or malformed. */
     fun parseInstant(raw: String?): Instant? = raw?.let { runCatching { java.time.OffsetDateTime.parse(it).toInstant() }.getOrNull() }
@@ -45,6 +46,12 @@ object OwnerFormat {
     fun dateTime(raw: String?, zone: ZoneId): String = dateTime(parseInstant(raw), zone)
 
     fun time(instant: Instant, zone: ZoneId): String = time.format(instant.atZone(zone))
+
+    /** "22 Oct 2026" (the local day of a server instant); "—" when absent or malformed. */
+    fun date(raw: String?, zone: ZoneId): String = parseInstant(raw)?.let { date.format(it.atZone(zone)) } ?: "—"
+
+    /** Exact decimal without trailing zeros or exponent: "12.500" -> "12.5", "40.000" -> "40". */
+    fun decimal(value: BigDecimal): String = value.stripTrailingZeros().let { if (it.scale() < 0) it.setScale(0) else it }.toPlainString()
 
     /**
      * "Offline — data from 21 Oct 2026, 14:05 (stale)" style label for cached snapshots; when the device is online

@@ -56,7 +56,7 @@ data class ApprovalRequestDto(
 @Serializable
 data class ApprovalDecisionIn(val approve: Boolean, val note: String? = null)
 
-/** `ExpenseDto` subset shown with an expense approval (getExpense). */
+/** `ExpenseDto` subset shown with an expense approval (getExpense) and in the field spend lists (listExpenses). */
 @Serializable
 data class ExpenseDto(
     val id: SerializableUuid,
@@ -71,6 +71,9 @@ data class ExpenseDto(
     @SerialName("receipt_attachment_ids") val receiptAttachmentIds: List<SerializableUuid> = emptyList(),
     @SerialName("machine_id") val machineId: SerializableUuid? = null,
     @SerialName("job_id") val jobId: SerializableUuid? = null,
+    @SerialName("custodian_staff_id") val custodianStaffId: SerializableUuid? = null,
+    @SerialName("receipt_required") val receiptRequired: Boolean = false,
+    @SerialName("decision_note") val decisionNote: String? = null,
 )
 
 /** `AnomalyCaseDto` (listAnomalyCases). Investigations are read-only in the Owner app. */

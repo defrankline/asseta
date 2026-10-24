@@ -5,6 +5,12 @@ import com.asseta.core.model.owner.PushDeviceDto
 import com.asseta.owner.ui.alerts.AlertDetailViewModel
 import com.asseta.owner.ui.alerts.AlertsViewModel
 import com.asseta.owner.ui.approvals.ApprovalDetailViewModel
+import com.asseta.owner.ui.approvals.ApprovalsViewModel
+import com.asseta.owner.ui.approvals.MeterResetViewModel
+import com.asseta.owner.ui.cash.CashPeriod
+import com.asseta.owner.ui.cash.CashViewModel
+import com.asseta.owner.ui.spend.FieldSpendViewModel
+import com.asseta.owner.ui.spend.SpendSegment
 import com.asseta.owner.ui.common.ScreenState
 import com.asseta.owner.ui.home.HomeViewModel
 import com.asseta.owner.ui.notifications.NotificationsViewModel
@@ -65,6 +71,68 @@ class ViewModelTest {
         assertEquals(1, vm.state.settled().data!!.items.size)
         trigger.tryEmit(Unit)
         assertEquals(2, vm.state.await { it.data?.items?.size == 2 }.data!!.items.size)
+    }
+
+    @Test
+    fun `meter reset decision updates the request and refusals use reset wording`() {
+        h.ok("[${Samples.reset()}]")
+        val vm = MeterResetViewModel(h.data, ID1, emptyFlow())
+        assertEquals("PENDING", vm.reset(vm.state.settled().data!!)!!.status)
+        h.error(422, "SEGREGATION_OF_DUTIES", "Requester cannot approve their own reset")
+        vm.decide(true, "Meter replaced")
+        assertEquals("You requested this reset, so someone else must decide it.", vm.error.await { it != null })
+        vm.busy.await { !it }
+        h.ok(Samples.reset(status = "APPROVED"))
+        h.ok("[]")
+        h.ok("[${Samples.reset(status = "APPROVED")}]")
+        vm.decide(true, "Meter replaced")
+        assertEquals("Reset approved.", vm.message.await { it != null })
+        assertEquals("APPROVED", vm.reset(vm.state.await { it.data?.first()?.status == "APPROVED" }.data!!)!!.status)
+    }
+
+    @Test
+    fun `a decided reset is found in the full list`() {
+        h.ok("[]")
+        h.ok("[${Samples.reset(status = "REJECTED")}]")
+        val vm = MeterResetViewModel(h.data, ID1, emptyFlow())
+        assertEquals("REJECTED", vm.reset(vm.state.settled().data!!)!!.status)
+        assertEquals("PENDING", h.server.takeRequest().url.queryParameter("status"))
+        assertNull(h.server.takeRequest().url.queryParameter("status"))
+    }
+
+    @Test
+    fun `approvals load pending meter resets as their own section`() {
+        h.ok(Samples.page(Samples.approval()))
+        h.ok("[${Samples.reset()}]")
+        val vm = ApprovalsViewModel(h.data, emptyFlow(), meterResets = true)
+        assertEquals(1, vm.state.settled().data!!.items.size)
+        assertEquals(1, vm.resets!!.state.settled().data!!.size)
+        assertNull(ApprovalsViewModel(h.data, emptyFlow()).resets)
+    }
+
+    @Test
+    fun `field spend switches between expenses and fuel`() {
+        h.ok(Samples.page(Samples.expense()))
+        val vm = FieldSpendViewModel(h.data, emptyFlow())
+        assertEquals(1, vm.state.settled().data!!.expenses.size)
+        h.ok(Samples.page(Samples.fuel()))
+        vm.select(SpendSegment.FUEL)
+        assertEquals(1, vm.state.await { it.data?.segment == SpendSegment.FUEL }.data!!.fuel.size)
+        h.server.takeRequest()
+        assertEquals("/api/v1/tenant/fuel-events", h.server.takeRequest().url.encodedPath)
+    }
+
+    @Test
+    fun `cash asks for the selected local period`() {
+        h.ok("[]")
+        val vm = CashViewModel(h.data, emptyFlow()) { java.time.LocalDate.parse("2026-10-22") }
+        vm.state.settled()
+        h.ok("[]")
+        vm.select(CashPeriod.MONTH)
+        vm.state.await { !it.loading && h.server.requestCount == 2 }
+        val today = h.server.takeRequest().url
+        assertEquals("2026-10-22", today.queryParameter("from"))
+        assertEquals("2026-10-01", h.server.takeRequest().url.queryParameter("from"))
     }
 
     @Test

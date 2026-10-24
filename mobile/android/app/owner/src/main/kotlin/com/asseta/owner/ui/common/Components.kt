@@ -41,6 +41,7 @@ import com.asseta.core.ui.theme.AssetaType
 import com.asseta.core.ui.theme.palette
 import com.asseta.owner.R
 import com.asseta.owner.data.Snapshot
+import com.asseta.owner.ui.home.KpiTone
 import java.time.ZoneId
 import com.asseta.core.ui.R as CoreR
 import com.asseta.core.ui.components.EmptyState as CoreEmptyState
@@ -171,6 +172,15 @@ object OwnerColors {
         Connectivity.STALE -> Stale
         Connectivity.OFFLINE -> Offline
         else -> Neutral
+    }
+
+    /** Pill colour of a presentation tone (NORMAL and MUTED are grey). */
+    @Composable @ReadOnlyComposable
+    fun tone(t: KpiTone): Color = when (t) {
+        KpiTone.GOOD -> Live
+        KpiTone.WARNING -> Warning
+        KpiTone.CRITICAL -> Critical
+        KpiTone.NORMAL, KpiTone.MUTED -> Neutral
     }
 
     @Composable @ReadOnlyComposable
