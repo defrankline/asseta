@@ -4,7 +4,7 @@ import AssetaStore // UUID.lowercased
 import Foundation
 
 /// Typed requests of the Owner app. Reads are plain GETs; the only business mutations are the
-/// alert action and the approval decision (plus the user's own inbox, routing and push device).
+/// alert action, the approval decision and the meter reset decision (plus the user's own inbox, routing and push device).
 /// Every request is re-authorized by the server; nothing here decides access.
 public enum OwnerAPI {
     static let tenant = "/api/v1/tenant"
@@ -44,6 +44,11 @@ public enum OwnerAPI {
         .get("\(tenant)/jobs/\(id.lowercased)/acknowledgements")
     }
 
+    /// The job's work log (activities, billable or not).
+    public static func jobActivities(_ id: UUID) -> APIRequest<[ActivityDTO]> {
+        .get("\(tenant)/jobs/\(id.lowercased)/activities")
+    }
+
     /// The machine register entry (make, model, ownership).
     public static func machineInfo(_ id: UUID) -> APIRequest<OwnerMachineDTO> { .get("\(tenant)/machines/\(id.lowercased)") }
 
@@ -53,6 +58,47 @@ public enum OwnerAPI {
     /// Presigned receipt photo URL of an expense, fetched on demand only.
     public static func receiptURL(expenseID: UUID, attachmentID: UUID) -> APIRequest<PhotoURLDTO> {
         .get("\(tenant)/expenses/\(expenseID.lowercased)/receipts/\(attachmentID.lowercased)/url")
+    }
+
+    /// Expenses, newest first; `status` is the server's `ExpenseStatus` (`PENDING_APPROVAL`, `APPROVED`, `REJECTED`).
+    public static func expenses(jobID: UUID? = nil, status: String? = nil, page: Int = 1,
+                                pageSize: Int = 100) -> APIRequest<Page<ExpenseDTO>> {
+        .get("\(tenant)/expenses", query: paging(page, pageSize) + compact([
+            ("job_id", jobID?.lowercased), ("status", status),
+        ]))
+    }
+
+    public static func fuelEvents(jobID: UUID? = nil, page: Int = 1, pageSize: Int = 100) -> APIRequest<Page<FuelEventDTO>> {
+        .get("\(tenant)/fuel-events", query: paging(page, pageSize) + compact([("job_id", jobID?.lowercased)]))
+    }
+
+    /// Meter exceptions, newest first (`status` nil = all).
+    public static func exceptions(status: String? = nil, jobID: UUID? = nil, page: Int = 1,
+                                  pageSize: Int = 100) -> APIRequest<Page<MeterExceptionDTO>> {
+        .get("\(tenant)/exceptions", query: paging(page, pageSize) + compact([
+            ("status", status), ("job_id", jobID?.lowercased),
+        ]))
+    }
+
+    /// Meter reset requests (a plain list, not paged); `status` nil = all.
+    public static func meterResets(status: String? = nil) -> APIRequest<[MeterResetDTO]> {
+        .get("\(tenant)/meter-resets", query: compact([("status", status)]))
+    }
+
+    /// Approve (`EXPLAINED`) or reject (`CONFIRMED`) a reset; the note (5 to 2000 characters) is required.
+    public static func decideMeterReset(_ id: UUID, approve: Bool, note: String,
+                                        idempotencyKey: UUID) throws -> APIRequest<MeterResetDTO> {
+        try .mutation(.post, "\(tenant)/meter-resets/\(id.lowercased)/decision",
+                      body: MeterResetDecisionIn(outcome: approve ? "EXPLAINED" : "CONFIRMED",
+                                                 note: note.trimmingCharacters(in: .whitespacesAndNewlines)),
+                      idempotencyKey: idempotencyKey)
+    }
+
+    /// Cash held by each supervisor over tenant-local days `from`...`to` (`YYYY-MM-DD`).
+    public static func cashSupervisorSummary(from: String, to: String) -> APIRequest<[CashSupervisorSummaryDTO]> {
+        .get("\(tenant)/cash/supervisor-summary", query: [
+            URLQueryItem(name: "from", value: from), URLQueryItem(name: "to", value: to),
+        ])
     }
 
     public static func alerts(status: AlertStatus? = nil, machineID: UUID? = nil,

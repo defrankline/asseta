@@ -88,13 +88,17 @@ struct JobRow: View {
     }
 }
 
-/// Job drilldown: meter vs billable hours (server-computed), charges, readings with photos, customer acknowledgement.
+/// Job drilldown: meter vs billable hours (server-computed), charges, readings with photos, work log, expenses and fuel
+/// (when the role can read expenses), customer acknowledgement.
 struct JobDetailView: View {
     let model: OwnerModel
     let jobID: UUID
     @State private var loader = Loader<JobSummaryDTO>()
     @State private var captures = Loader<[MeterCaptureDTO]>()
     @State private var acknowledgements = Loader<[AcknowledgementDTO]>()
+    @State private var activities = Loader<[ActivityDTO]>()
+    @State private var expenses = Loader<Page<ExpenseDTO>>()
+    @State private var fuel = Loader<Page<FuelEventDTO>>()
 
     var body: some View {
         List {
@@ -138,7 +142,13 @@ struct JobDetailView: View {
                         Text(JobDetailText.noCharges).foregroundStyle(.secondary)
                     }
                     if let exceptions = JobDetailText.exceptions(summary.openExceptions) {
-                        Text(exceptions).font(.footnote).foregroundStyle(Palette.offline)
+                        if model.features.meterEvidence {
+                            NavigationLink(value: OwnerRoute.exceptions(jobID: jobID)) {
+                                Text(exceptions).font(.footnote).foregroundStyle(Palette.offline)
+                            }
+                        } else {
+                            Text(exceptions).font(.footnote).foregroundStyle(Palette.offline)
+                        }
                     }
                 } header: {
                     Text("Charges")
@@ -151,6 +161,37 @@ struct JobDetailView: View {
                         Text(captures.value == nil ? (captures.error ?? "Loading…") : "No readings yet.").foregroundStyle(.secondary)
                     }
                     ForEach(items) { ReadingRow(model: model, capture: $0) }
+                }
+                Section(WorkLogText.title) {
+                    let items = activities.value ?? []
+                    if items.isEmpty {
+                        Text(activities.value == nil ? (activities.error ?? "Loading…") : WorkLogText.empty)
+                            .foregroundStyle(.secondary)
+                    }
+                    ForEach(items) { RecordRowView(row: WorkLogText.row($0)) }
+                }
+                if model.features.expenses {
+                    Section {
+                        let items = expenses.value?.items ?? []
+                        if items.isEmpty {
+                            Text(expenses.value == nil ? (expenses.error ?? "Loading…") : SpendText.jobExpensesEmpty)
+                                .foregroundStyle(.secondary)
+                        }
+                        ForEach(items) { RecordRowView(row: SpendText.expenseRow($0)) }
+                    } header: {
+                        Text(SpendText.expensesTitle)
+                    } footer: {
+                        let totals = SpendText.totalApproved(expenses.value?.items ?? [])
+                        if !totals.isEmpty { Text(totals.joined(separator: "\n")) }
+                    }
+                    Section(SpendText.fuelTitle) {
+                        let items = fuel.value?.items ?? []
+                        if items.isEmpty {
+                            Text(fuel.value == nil ? (fuel.error ?? "Loading…") : SpendText.jobFuelEmpty)
+                                .foregroundStyle(.secondary)
+                        }
+                        ForEach(items) { RecordRowView(row: SpendText.fuelRow($0)) }
+                    }
                 }
                 Section("Customer acknowledgement") {
                     let items = acknowledgements.value ?? []
@@ -176,7 +217,17 @@ struct JobDetailView: View {
         async let a: Void = loader.load(model, .job(jobID), OwnerAPI.jobSummary(jobID))
         async let b: Void = captures.load(model, .jobCaptures(jobID), OwnerAPI.jobCaptures(jobID))
         async let c: Void = acknowledgements.load(model, .jobAcknowledgements(jobID), OwnerAPI.jobAcknowledgements(jobID))
-        _ = await (a, b, c)
+        async let d: Void = activities.load(model, .jobActivities(jobID), OwnerAPI.jobActivities(jobID))
+        async let e: Void = loadSpend()
+        _ = await (a, b, c, d, e)
+    }
+
+    /// Expenses and fuel of the job, only for roles that can read expenses.
+    private func loadSpend() async {
+        guard model.features.expenses else { return }
+        async let e: Void = expenses.load(model, .jobExpenses(jobID), OwnerAPI.expenses(jobID: jobID, pageSize: 100))
+        async let f: Void = fuel.load(model, .jobFuel(jobID), OwnerAPI.fuelEvents(jobID: jobID, pageSize: 100))
+        _ = await (e, f)
     }
 }
 

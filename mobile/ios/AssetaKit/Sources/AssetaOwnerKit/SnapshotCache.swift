@@ -30,6 +30,19 @@ public struct SnapshotKey: Hashable, Sendable, CustomStringConvertible {
     public static func machineInfo(_ id: UUID) -> SnapshotKey { SnapshotKey("machine.\(id.lowercased).info") }
     public static func jobCaptures(_ id: UUID) -> SnapshotKey { SnapshotKey("job.\(id.lowercased).captures") }
     public static func jobAcknowledgements(_ id: UUID) -> SnapshotKey { SnapshotKey("job.\(id.lowercased).acknowledgements") }
+    public static func jobActivities(_ id: UUID) -> SnapshotKey { SnapshotKey("job.\(id.lowercased).activities") }
+    public static func jobExpenses(_ id: UUID) -> SnapshotKey { SnapshotKey("job.\(id.lowercased).expenses") }
+    public static func jobFuel(_ id: UUID) -> SnapshotKey { SnapshotKey("job.\(id.lowercased).fuel") }
+    /// Same keys as the Android Owner app: `exceptions:OPEN:ALL`, `expenses:PENDING`, `fuel:ALL`, `cash:TODAY`.
+    public static func exceptions(openOnly: Bool, jobID: UUID?) -> SnapshotKey {
+        SnapshotKey("exceptions:\(openOnly ? "OPEN" : "ALL"):\(jobID?.lowercased ?? "ALL")")
+    }
+    public static func expenses(pendingOnly: Bool) -> SnapshotKey { SnapshotKey("expenses:\(pendingOnly ? "PENDING" : "ALL")") }
+    public static let fuel = SnapshotKey("fuel:ALL")
+    public static func cash(_ period: CashPeriod) -> SnapshotKey { SnapshotKey("cash:\(period.rawValue)") }
+    public static func meterResets(pendingOnly: Bool) -> SnapshotKey {
+        SnapshotKey("meter_resets:\(pendingOnly ? "PENDING" : "ALL")")
+    }
     /// The latest 200 alerts / requests of any status (detail screens look a record up here).
     public static let recentAlerts = SnapshotKey("alerts.recent")
     public static let recentApprovals = SnapshotKey("approvals.recent")

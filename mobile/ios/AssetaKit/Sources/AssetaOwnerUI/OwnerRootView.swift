@@ -7,7 +7,7 @@ import SwiftUI
 enum OwnerTab: Hashable { case overview, fleet, jobs, alerts, more }
 
 /// Lists reachable from the "More" tab.
-enum MoreItem: Hashable { case approvals, investigations, notifications, settings }
+enum MoreItem: Hashable { case approvals, exceptions, fieldSpend, cash, investigations, notifications, settings }
 
 /// Owner home for one tenant: tabs, deep links from notification taps, offline/stale state.
 public struct OwnerRootView: View {
@@ -113,6 +113,16 @@ public struct OwnerRootView: View {
             target = .more; path.append(MoreItem.approvals); path.append(route)
         case .approvals:
             target = .more; path.append(MoreItem.approvals)
+        case .meterReset where model.features.meterEvidence:
+            target = .more; path.append(MoreItem.approvals); path.append(route)
+        case .exceptions(nil) where model.features.meterEvidence:
+            target = .more; path.append(MoreItem.exceptions)
+        case .exceptions where model.features.meterEvidence:
+            target = .more; path.append(MoreItem.exceptions); path.append(route)
+        case .fieldSpend where model.features.expenses:
+            target = .more; path.append(MoreItem.fieldSpend)
+        case .cash where model.features.finance:
+            target = .more; path.append(MoreItem.cash)
         case .investigation:
             target = .more; path.append(MoreItem.investigations); path.append(route)
         case .notification:
@@ -139,6 +149,10 @@ struct RouteView: View {
         case .approvals: ApprovalsView(model: model)
         case let .investigation(id): CaseDetailView(model: model, caseID: id)
         case let .job(id): JobDetailView(model: model, jobID: id)
+        case let .exceptions(jobID): ExceptionsView(model: model, jobID: jobID)
+        case .fieldSpend: FieldSpendView(model: model)
+        case .cash: CashView(model: model)
+        case let .meterReset(id): MeterResetDetailView(model: model, resetID: id)
         case let .notification(id): NotificationResolverView(model: model, notificationID: id)
         case .notifications: NotificationsView(model: model)
         case .fleet: FleetView(model: model)
@@ -155,6 +169,9 @@ struct MoreDestination: View {
     var body: some View {
         switch item {
         case .approvals: ApprovalsView(model: model)
+        case .exceptions: ExceptionsView(model: model, jobID: nil)
+        case .fieldSpend: FieldSpendView(model: model)
+        case .cash: CashView(model: model)
         case .investigations: CasesView(model: model)
         case .notifications: NotificationsView(model: model)
         case .settings: SettingsView(model: model)
@@ -170,6 +187,17 @@ struct MoreView: View {
             Section {
                 if model.features.approvals {
                     NavigationLink(value: MoreItem.approvals) { Label("Approvals", systemImage: "checkmark.seal") }
+                }
+                if model.features.meterEvidence {
+                    NavigationLink(value: MoreItem.exceptions) {
+                        Label(ExceptionText.title, systemImage: "exclamationmark.triangle")
+                    }
+                }
+                if model.features.expenses {
+                    NavigationLink(value: MoreItem.fieldSpend) { Label(SpendText.title, systemImage: "receipt") }
+                }
+                if model.features.finance {
+                    NavigationLink(value: MoreItem.cash) { Label(CashText.title, systemImage: "banknote") }
                 }
                 if model.features.cases {
                     NavigationLink(value: MoreItem.investigations) {

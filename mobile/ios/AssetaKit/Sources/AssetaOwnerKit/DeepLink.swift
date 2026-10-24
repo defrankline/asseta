@@ -13,6 +13,13 @@ public enum OwnerRoute: Hashable, Sendable {
     case approvals
     case investigation(UUID)
     case job(UUID)
+    /// Meter exceptions, optionally only those of one job.
+    case exceptions(jobID: UUID?)
+    /// Expenses and fuel recorded in the field.
+    case fieldSpend
+    /// Cash held by supervisors.
+    case cash
+    case meterReset(UUID)
     /// Open by notification id; the app fetches it and follows its `target`.
     case notification(UUID)
     case notifications
@@ -43,6 +50,7 @@ public enum DeepLinkParser {
         case let ("approval", id?): return .approval(id)
         case let ("case", id?): return .investigation(id)
         case let ("job", id?): return .job(id)
+        case let ("meter_reset", id?): return .meterReset(id)
         default: return path.flatMap(route(path:))
         }
     }
@@ -109,8 +117,8 @@ extension OwnerRoute {
     /// Whether the route opens one specific record (as opposed to a list).
     public var identifiesRecord: Bool {
         switch self {
-        case .machine, .alert, .approval, .investigation, .job, .notification: true
-        case .fleet, .jobs, .investigations, .alerts, .approvals, .notifications: false
+        case .machine, .alert, .approval, .investigation, .job, .meterReset, .notification: true
+        case .fleet, .jobs, .investigations, .alerts, .approvals, .exceptions, .fieldSpend, .cash, .notifications: false
         }
     }
 }

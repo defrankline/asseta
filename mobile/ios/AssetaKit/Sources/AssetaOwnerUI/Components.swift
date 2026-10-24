@@ -202,6 +202,42 @@ struct Pill: View {
     }
 }
 
+/// One `RecordRow` (work log, expense, fuel, exception): title and figure, detail and pills, note below.
+struct RecordRowView: View {
+    let row: RecordRow
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(row.title).font(.headline)
+                Spacer()
+                if let trailing = row.trailing { Text(trailing).font(.subheadline.bold()).monospacedDigit() }
+            }
+            HStack(alignment: .firstTextBaseline) {
+                Text(row.detail).font(.subheadline).foregroundStyle(.secondary)
+                Spacer()
+                ForEach(row.pills, id: \.text) { Pill(text: $0.text, color: $0.tone.color) }
+            }
+            if let note = row.note { Text(note).font(.caption).foregroundStyle(.secondary) }
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// A `RecordRow` that opens its job when it has one and the role can see jobs.
+struct RecordLink: View {
+    let model: OwnerModel
+    let row: RecordRow
+
+    var body: some View {
+        if let jobID = row.jobID, model.features.jobs {
+            NavigationLink(value: OwnerRoute.job(jobID)) { RecordRowView(row: row) }
+        } else {
+            RecordRowView(row: row)
+        }
+    }
+}
+
 /// One KPI: big number, caption, optional tint.
 struct KPITile: View {
     let title: String

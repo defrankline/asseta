@@ -14,6 +14,8 @@ public struct OwnerFeatures: Equatable, Sendable {
     public let decideApprovals: Bool
     public let cases: Bool
     public let meterEvidence: Bool
+    public let meterApprove: Bool
+    public let expenses: Bool
     public let notifications: Bool
 
     public init(permissions: [String]) {
@@ -27,6 +29,8 @@ public struct OwnerFeatures: Equatable, Sendable {
         decideApprovals = set.contains("tenant.approval.expense")
         cases = set.contains("tenant.case.read")
         meterEvidence = set.contains("tenant.meter.read")
+        meterApprove = set.contains("tenant.meter.approve")
+        expenses = set.contains("tenant.expense.read")
         notifications = set.contains("tenant.notification.read")
     }
 
@@ -79,6 +83,8 @@ public enum DecisionErrorText {
             return "This alert was already closed by someone else. The list has been refreshed."
         case "APPROVAL_ALREADY_DECIDED":
             return "This request was already decided by someone else. The list has been refreshed."
+        case "RESET_DECIDED":
+            return MeterResetText.alreadyDecided
         case "SUBSCRIPTION_READ_ONLY":
             return "This company's subscription is read-only, so changes are not accepted right now."
         case "PERMISSION_DENIED":
@@ -91,9 +97,15 @@ public enum DecisionErrorText {
         }
     }
 
+    /// A meter reset decision: the requester-can't-decide refusal is worded for resets; everything else as above.
+    public static func resetMessage(for error: any Error) -> String {
+        if (error as? APIError)?.code == "SEGREGATION_OF_DUTIES" { return MeterResetText.ownRequest }
+        return message(for: error)
+    }
+
     /// Codes after which the shown record is out of date and must be reloaded (as on Android).
     public static func needsReload(_ error: any Error) -> Bool {
         guard let api = error as? APIError else { return false }
-        return api.code == "ALERT_CLOSED" || api.code == "APPROVAL_ALREADY_DECIDED"
+        return api.code == "ALERT_CLOSED" || api.code == "APPROVAL_ALREADY_DECIDED" || api.code == "RESET_DECIDED"
     }
 }

@@ -11,6 +11,7 @@ struct ApprovalsView: View {
     let model: OwnerModel
     @State private var status: ApprovalStatus = .pending
     @State private var loader = Loader<Page<ApprovalRequestDTO>>()
+    @State private var resets = Loader<[MeterResetDTO]>()
 
     var body: some View {
         List {
@@ -28,6 +29,17 @@ struct ApprovalsView: View {
             } else {
                 ProgressView().frame(maxWidth: .infinity)
             }
+            if model.features.meterEvidence {
+                Section(MeterResetText.sectionTitle) {
+                    let items = resets.value ?? []
+                    if items.isEmpty {
+                        Text(resets.value == nil ? (resets.error ?? "Loading…") : MeterResetText.empty).foregroundStyle(.secondary)
+                    }
+                    ForEach(items) { reset in
+                        NavigationLink(value: OwnerRoute.meterReset(reset.id)) { MeterResetRow(reset: reset) }
+                    }
+                }
+            }
         }
         .staleBanner(loader, model: model)
         .navigationTitle("Approvals")
@@ -36,7 +48,141 @@ struct ApprovalsView: View {
     }
 
     private func reload() async {
-        await loader.load(model, .approvals(status), OwnerAPI.approvals(status: status, pageSize: 100))
+        async let a: Void = loader.load(model, .approvals(status), OwnerAPI.approvals(status: status, pageSize: 100))
+        async let b: Void = loadResets()
+        _ = await (a, b)
+    }
+
+    private func loadResets() async {
+        guard model.features.meterEvidence else { return }
+        await resets.load(model, .meterResets(pendingOnly: true), OwnerAPI.meterResets(status: MeterResetText.pendingStatus))
+    }
+}
+
+struct MeterResetRow: View {
+    let reset: MeterResetDTO
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(MeterResetText.title).font(.headline)
+            Text(MeterResetText.detail(reset)).font(.subheadline).foregroundStyle(.secondary)
+            Text(reset.reason).font(.caption).foregroundStyle(.secondary)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// One meter reset request: found in the pending list, else in the full list. Approve or reject with a required note
+/// when permitted; the server refuses a decision by the person who requested the reset.
+struct MeterResetDetailView: View {
+    let model: OwnerModel
+    let resetID: UUID
+    @State private var pending = Loader<[MeterResetDTO]>()
+    @State private var all = Loader<[MeterResetDTO]>()
+    @State private var decided: MeterResetDTO?
+    @State private var note = ""
+    @State private var working = false
+    @State private var decisionError: String?
+    @State private var message: String?
+    @State private var showPhoto = false
+
+    private var reset: MeterResetDTO? {
+        decided ?? pending.value?.first { $0.id == resetID } ?? all.value?.first { $0.id == resetID }
+    }
+
+    /// The list the shown record came from (its cache state gates the decision).
+    private var showingCachedData: Bool {
+        pending.value?.contains { $0.id == resetID } == true ? pending.isFromCache : all.isFromCache
+    }
+
+    var body: some View {
+        Form {
+            if let reset {
+                Section(MeterResetText.title) {
+                    LabeledContent("Old reading", value: reset.oldReading.description)
+                    LabeledContent("New reading", value: reset.newReading.description)
+                    LabeledContent("Effective at", value: reset.effectiveAt.shortStamp)
+                    LabeledContent("Reason", value: reset.reason)
+                    LabeledContent("Status") {
+                        Pill(text: OwnerFormat.humanize(reset.status), color: MeterResetText.statusTone(reset.status).color)
+                    }
+                    if let at = reset.decidedAt { LabeledContent("Decided", value: at.shortStamp) }
+                    if reset.evidenceAttachmentID != nil {
+                        PhotoButton(label: "evidence photo", isOnline: model.isOnline) { showPhoto = true }
+                    }
+                }
+                if reset.status == MeterResetText.pendingStatus && model.features.meterApprove { decision }
+                if let message { Text(message).foregroundStyle(Brand.amber).accessibilityIdentifier("reset.message") }
+            } else if let error = pending.error ?? all.error {
+                LoadFailure(message: error) { await reload() }
+            } else if pending.value != nil && all.value != nil {
+                EmptyState(title: MeterResetText.notFound, systemImage: "questionmark")
+            } else {
+                ProgressView()
+            }
+        }
+        .staleBanner(pending.value?.contains { $0.id == resetID } == true ? pending : all, model: model)
+        .navigationTitle(MeterResetText.title)
+        .refreshable { await reload() }
+        .task(id: model.changeTick) { await reload() }
+        .sheet(isPresented: $showPhoto) {
+            if let id = reset?.evidenceAttachmentID {
+                EvidencePhotoView(model: model, title: MeterResetText.title, request: OwnerAPI.attachmentURL(id))
+            }
+        }
+    }
+
+    @ViewBuilder private var decision: some View {
+        let block = model.mutationBlock(permitted: model.features.meterApprove, showingCachedData: showingCachedData)
+        Section("Decision") {
+            if let block {
+                BlockedNote(block: block)
+            } else {
+                TextField(MeterResetText.noteLabel, text: $note, axis: .vertical)
+                    .lineLimit(2...5)
+                HStack {
+                    Button(MeterResetText.approve) { Task { await decide(approve: true) } }
+                        .buttonStyle(.borderedProminent).tint(Palette.live)
+                    Spacer()
+                    Button(MeterResetText.reject, role: .destructive) { Task { await decide(approve: false) } }
+                        .buttonStyle(.bordered)
+                }
+                .disabled(working || !MeterResetText.canDecide(note: note))
+                if let decisionError {
+                    Text(decisionError).font(.footnote).foregroundStyle(Palette.offline)
+                        .accessibilityIdentifier("reset.error")
+                }
+            }
+        }
+    }
+
+    private func decide(approve: Bool) async {
+        guard let repository = model.repository, MeterResetText.canDecide(note: note) else { return }
+        working = true
+        defer { working = false }
+        do {
+            let request = try OwnerAPI.decideMeterReset(resetID, approve: approve, note: note, idempotencyKey: UUID())
+            decided = try await repository.send(request)
+            decisionError = nil
+            note = ""
+            message = MeterResetText.done(approve: approve)
+            UIAccessibility.post(notification: .announcement, argument: message)
+            await reload()
+        } catch {
+            decisionError = DecisionErrorText.resetMessage(for: error)
+            model.handle(error)
+            if DecisionErrorText.needsReload(error) {
+                decided = nil
+                await reload()
+            }
+        }
+    }
+
+    private func reload() async {
+        await pending.load(model, .meterResets(pendingOnly: true), OwnerAPI.meterResets(status: MeterResetText.pendingStatus))
+        if pending.value?.contains(where: { $0.id == resetID }) != true {
+            await all.load(model, .meterResets(pendingOnly: false), OwnerAPI.meterResets())
+        }
     }
 }
 

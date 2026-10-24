@@ -84,7 +84,8 @@ public enum OverviewPresentation {
             }
             if let n = w.readingsNeedingReview { rows.append(OverviewRow(label: "Readings needing review", value: "\(n)")) }
             if let n = w.openExceptions {
-                rows.append(OverviewRow(label: "Open meter exceptions", value: "\(n)", tone: n > 0 ? .warning : .normal))
+                rows.append(OverviewRow(label: "Open meter exceptions", value: "\(n)", tone: n > 0 ? .warning : .normal,
+                                        route: .exceptions(jobID: nil)))
             }
             out.append(OverviewSection(title: "Jobs and work", freshness: OwnerFormat.sourceFreshness(w.latestSourceAt, now: now),
                                        groups: [OverviewGroup(heading: nil, rows: rows)],
@@ -149,6 +150,9 @@ extension OwnerFeatures {
         case .fleet, .machine, .alerts, .alert: fleet
         case .jobs, .job: jobs
         case .approvals, .approval: approvals
+        case .exceptions, .meterReset: meterEvidence
+        case .fieldSpend: expenses
+        case .cash: finance
         case .investigations, .investigation: cases
         case .notifications, .notification: notifications
         }
@@ -156,8 +160,9 @@ extension OwnerFeatures {
 
     /// Entries of the More tab, in order.
     public var moreEntries: [String] {
-        (approvals ? ["Approvals"] : []) + (cases ? ["Investigations"] : []) + (notifications ? ["Notifications"] : [])
-            + ["Settings"]
+        (approvals ? ["Approvals"] : []) + (meterEvidence ? ["Meter exceptions"] : []) + (expenses ? ["Field spend"] : [])
+            + (finance ? ["Cash with supervisors"] : []) + (cases ? ["Investigations"] : [])
+            + (notifications ? ["Notifications"] : []) + ["Settings"]
     }
 }
 
@@ -289,7 +294,7 @@ public enum JobDetailText {
     }
 
     public static func exceptions(_ open: Int) -> String? {
-        open > 0 ? "\(open) open exception(s) need review in the console." : nil
+        open > 0 ? "\(open) open exception(s) need review." : nil
     }
 }
 
