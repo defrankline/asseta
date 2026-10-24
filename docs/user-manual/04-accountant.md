@@ -6,7 +6,7 @@
 
 This manual is for the people who look after the money side of an equipment-hire company in Asseta. That covers bookkeepers, accountants, finance officers and office cashiers. In Asseta this role is called **Accountant / Finance**.
 
-You work in the **web console** at <https://asseta.co.tz> on a laptop or desktop. You do not need a mobile app.
+You work in the **web console** at <https://asseta.co.tz> on a laptop or desktop. You do not need a mobile app. (If your company gives you the **Asseta Owner** app, people with the right permissions can also confirm or dispute cash handovers and issue cash floats from it. See the [Tenant Owner manual](01-tenant-owner.md#approvals).)
 
 ## What you can do
 
@@ -151,7 +151,15 @@ Rules Asseta checks for you:
    - **Balance due**
 3. The **Statement** tab shows a period's **Opening balance**, each debit and credit, and the **Closing balance**. Choose the period with **From** and **To**, and the **Statement currency**.
 
-### 6. Issue a cash float to a supervisor
+### 6. See all supervisors' cash at once
+
+1. Go to **Finance → Hire finance → All supervisors**.
+2. Choose the **As of** day and, optionally, the **Currency**.
+3. Each row shows the **Supervisor**, **Currency**, **Outstanding accountability**, **Claimed handovers (not yet verified)**, **Expenses pending approval** and **As of**.
+
+Outstanding = floats + collections − approved cash expenses − verified handovers, at the end of the chosen day. Claims do not reduce it until verified. Click a row to open that supervisor's **Cash custody**.
+
+### 7. Issue a cash float to a supervisor
 
 1. Go to **Finance → Hire finance → Cash custody**.
 2. Choose the **Supervisor**.
@@ -170,7 +178,7 @@ Each supervisor's custody card (one per currency) shows:
 - **Claimed handovers (not yet verified)**
 - **Expenses pending approval**
 
-### 7. Verify a cash handover
+### 8. Verify a cash handover
 
 When a supervisor hands cash to the office, they record a handover in their app or the web console. It arrives as **Claimed (unverified)**.
 
@@ -181,9 +189,11 @@ When a supervisor hands cash to the office, they record a handover in their app 
 
    *What you'll see:* "Handover verified." or "Handover rejected." The supervisor sees your note in their **Office note** column.
 
+Handovers can also be confirmed (verified) or disputed (rejected) in the Asseta Owner app by people with verify permission, often the owner when away from the office. The result is the same, and the same segregation-of-duties rule applies.
+
 You can also record a handover on someone's behalf (**Record handover** on the Cash custody tab, with **Handed over by (custodian)**). This needs office cash permission. Another person must then verify it.
 
-### 8. Run the daily cash reconciliation
+### 9. Run the daily cash reconciliation
 
 1. Go to **Finance → Hire finance → Reconciliation**.
 2. Choose the **Supervisor**, the **Currency** and the period (**From** / **To**).
@@ -199,7 +209,7 @@ You can also record a handover on someone's behalf (**Record handover** on the C
 
 **How to read it:** if **Outstanding** is higher than the supervisor says they hold, first verify any pending handovers and ask an approver to decide pending expenses. Then compare again. Use **Export** to keep a CSV or PDF copy.
 
-### 9. Review expenses and fuel
+### 10. Review expenses and fuel
 
 1. Go to **Finance → Expenses & fuel**.
 2. The **Expenses** tab lists every expense with **Category**, **Description**, **Machine**, **Paid from**, **Amount** and **Status** (Pending approval, Approved, Rejected). Filter by **Status**, **Machine** or **Custodian**.
@@ -214,13 +224,13 @@ You can also record a handover on someone's behalf (**Record handover** on the C
 - **Supervisor cash custody**: the supervisor paid from cash in hand. Once approved, it reduces their outstanding cash.
 - **Company (office / bank)**: paid by the office. It does not affect custody.
 
-### 10. Manage expense categories
+### 11. Manage expense categories
 
 1. In **Expenses & fuel**, open **Expense categories**.
 2. **New expense category** needs a **Code** and a **Name**.
 3. To retire a category, deactivate it with a reason. New expenses can no longer use it, but past expenses keep it. You can reactivate it later.
 
-### 11. Record your own expense, fuel or cash collection
+### 12. Record your own expense, fuel or cash collection
 
 You have the same **Field work** screens as a supervisor:
 
@@ -230,7 +240,7 @@ You have the same **Field work** screens as a supervisor:
 
 The steps are described in the [Supervisor manual](03-supervisor.md#working-from-a-laptop-web-console). The same rules apply: your own submissions must be approved or verified by someone else.
 
-### 12. Profitability report
+### 13. Profitability report
 
 1. Go to **Finance → Profitability**.
 2. Choose the period (**From** / **To**) and **Group by**: **By machine**, **By job** or **By customer**.
@@ -238,7 +248,7 @@ The steps are described in the [Supervisor manual](03-supervisor.md#working-from
 
 Revenue means **issued invoices, excluding tax**. Voided invoices reverse their revenue. Costs are **approved, categorised** expenses and fuel only. Pending or rejected expenses are not counted.
 
-### 13. Check the company's Asseta subscription
+### 14. Check the company's Asseta subscription
 
 Go to **Administration → Subscription** to see your company's subscription with the Platform Owner, the billable machines and the Platform Owner's invoices to your company. This is read-only for you.
 

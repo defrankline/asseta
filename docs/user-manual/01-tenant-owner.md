@@ -9,7 +9,16 @@ This manual is for the owner, or the top administrator, of an equipment-hire com
 You can see and do everything in your company's account. You work in two places:
 
 - The **web console** at <https://asseta.co.tz>, for set-up, administration, reviews and finance.
-- The **Asseta Owner** app on Android or iPhone, to watch the business, decide approvals and react to alerts on the go.
+- The **Asseta Owner** app on Android or iPhone, to watch the business and run it on the go: approve or create jobs, decide expenses and meter resets, confirm cash handovers, review exceptions, issue cash floats and react to alerts.
+
+### Running the business from a distance
+
+You may be far from your machines, for example in Dar es Salaam while the machines work in Katavi. Asseta is built so you can still decide from your phone. A job starts in one of two ways:
+
+- **The supervisor requests it from the field.** A customer on site asks for work; the supervisor sends a job request from their phone. You set the price and approve it, or decline it with a reason. See [Approve jobs](#6-approve-expenses-and-jobs) and [Approvals](#approvals) in the app.
+- **You create it and assign a supervisor.** In the web console (**Operations → Jobs**) or in the Owner app (**Jobs → New job**). With **Approve now**, the supervisor is notified at once.
+
+Either way the supervisor then takes the readings, logs the work and collects the customer acknowledgement in the field, and you follow it all from the app.
 
 Many day-to-day tasks are shared with other roles. This manual points to their manuals rather than repeating every step:
 
@@ -21,6 +30,7 @@ Many day-to-day tasks are shared with other roles. This manual points to their m
 
 Everything any other role can do, plus the tasks reserved for owners by default:
 
+- **Approve jobs and set their price**, including jobs supervisors request from the field.
 - **Review meter and GPS exceptions.** This unblocks invoicing.
 - **Decide meter reset requests.**
 - **Set company policies**: reading modes, GPS rules, expense limits, tracking thresholds, billing rounding, device offline limits and risk-signal thresholds.
@@ -41,7 +51,7 @@ Everything any other role can do, plus the tasks reserved for owners by default:
 | Field work | My jobs, Readings, Fuel, Expenses, Cash |
 | Operations | Jobs, Customers, Staff |
 | Fleet | Machines, Trackers, Sites & geofences, Alerts |
-| Risk & review | Exceptions, Investigations, Insights |
+| Risk & review | Exceptions, Meter resets, Investigations, Insights |
 | Finance | Hire finance, Expenses & fuel, Approvals, Profitability |
 | Administration | Policies, Users & roles, Audit log, Subscription, Managed service, Notifications, My access |
 
@@ -60,9 +70,9 @@ The top bar has:
 |---|---|
 | **Overview** | Your dashboard tiles (fleet, jobs, money, investigations) |
 | **Fleet** | Map or list of machines with live/last-known status |
-| **Jobs** | Jobs and their hours, charges, readings, work log, expenses, fuel and customer acknowledgement |
+| **Jobs** | Jobs and their hours, charges, readings, work log, expenses, fuel and customer acknowledgement; **New job**; approve or decline jobs waiting for approval |
 | **Alerts** | Tracking alerts to acknowledge or resolve |
-| **More** | Approvals, Meter exceptions, Field spend, Cash with supervisors, Investigations, Notifications, Settings, Company |
+| **More** | Approvals (expenses, meter resets, jobs, cash handovers, exceptions), Meter exceptions, Field spend, Cash with supervisors (with **Issue float**), Investigations, Notifications, Settings, Company |
 
 ---
 
@@ -76,10 +86,10 @@ The Platform Owner (the company that runs Asseta) onboards your company, agrees 
 4. **Add your machines**: **Fleet → Machines**. Then enrol each one as a billable asset ([Task 2](#2-enroll-machines-as-billable-assets)).
 5. **Register trackers** and assign them to machines: **Fleet → Trackers**.
 6. **Add staff**: **Operations → Staff**. Create your supervisors and operators, and link each supervisor to their Asseta login.
-7. **Assign staff to machines** on each machine's **Staff assignments** tab.
+7. **Assign staff to machines** on each machine's **Staff assignments** tab. A supervisor can request jobs only on machines assigned to them (or already on their jobs).
 8. **Create job sites and geofences**: **Fleet → Sites & geofences**.
 9. **Add customers, contracts and rate cards**: **Operations → Customers**.
-10. **Create your first job** and approve it. Your supervisor sees it on their phone after syncing.
+10. **Create your first job** and approve it, in the web console or the Owner app. Your supervisor sees it on their phone after syncing. From then on supervisors can also request jobs from the field for you to approve.
 11. **Install the Asseta Owner app** and enable push notifications.
 
 Steps 4 to 10 are described in the [Manager / Dispatcher manual](02-manager-dispatcher.md).
@@ -206,13 +216,17 @@ Exception types you will meet:
 
 As Asseta says on screen: *"Exceptions are recorded evidence that requires review. They are not a conclusion about any person."*
 
+You can also review exceptions in the Owner app (see [Approvals](#approvals)).
+
 If something needs a deeper look, the evidence can be grouped into an **investigation** (see [Task 7](#7-investigations-and-insights)).
 
 ### 5. Decide meter reset requests
 
 A supervisor requests a meter reset when an hour meter is replaced or rolls over.
 
-1. Open the job and go to its **Meter resets** tab (from **Operations → Jobs**). Or open **More → Approvals → Meter resets** in the Owner app.
+1. Go to **Risk & review → Meter resets** ("Replaced or rolled-over hour meters across all machines, awaiting or after a decision"). It shows pending resets by default; filter by **Status** or **Machine**. Each row shows the **Machine**, **Requested by**, **Reading (old → new)**, **Reason** and **Evidence**.
+
+   You can also open a job's **Meter resets** tab (from **Operations → Jobs**), or **More → Approvals → Meter resets** in the Owner app.
 2. Check the **Old** and **New** readings, the **Effective** time, the **Reason** and the evidence (**View evidence**).
 3. Click **Decide**. Choose the **Decision**:
    - **Approve reset (documented reason accepted)**
@@ -225,6 +239,7 @@ The person who requested a reset can never decide it: *"You requested this reset
 
 - **Expenses** above the auto-approval limit wait in **Finance → Approvals**. See the [Manager manual, Task 11](02-manager-dispatcher.md#11-decide-expense-approvals).
 - **Jobs**: open a job in **Pending approval** and click **Approve**. This fixes the hourly price for billing. See the [Manager manual, Task 3](02-manager-dispatcher.md#3-submit-and-approve-a-job).
+- **Jobs requested from the field** carry a **Field request** chip in **Operations → Jobs**. When you approve one, the dialog shows "Requested from the field by <supervisor>" and what the customer asked for. If no rate card applies, the price shows "No price yet (set on approval)": enter the **Hourly rate** to approve it at that price. To refuse it, click **Decline request** and give a **Reason**. The supervisor is told your reason, and the job stays on record as cancelled.
 
 You cannot approve your own expense, and you cannot verify a payment or cash handover you recorded yourself.
 
@@ -235,7 +250,7 @@ You cannot approve your own expense, and you cannot verify a payment or cash han
 
 ### 8. Finance
 
-- **Hire finance**: hire invoices, customer payments, cash custody, handovers and the daily reconciliation.
+- **Hire finance**: hire invoices, customer payments, the **All supervisors** cash summary, cash custody, handovers and the daily reconciliation.
 - **Expenses & fuel**: all expenses and fuel events, and expense categories.
 - **Profitability**: by machine, job or customer.
 
@@ -357,7 +372,22 @@ Filter by **In progress**, **Approved**, **Pending approval**, **Completed**, **
 - **Readings** (with photos), **Work log**, **Expenses**, **Fuel**.
 - **Customer acknowledgement**: who signed, the method, hours acknowledged, and **View signature**.
 
-Jobs are created and approved in the web console. The app is for following them.
+**Approve or decline a job.** A job in **Pending approval** shows a **Request** section (for a field request: "Requested from the field by <name>" and "What the customer asked for") and a **Decision** section:
+
+1. Tap **Approve**. If no rate card applies, the app says "No rate card applies — set the price to approve": enter the **Hourly rate** first. Confirm **Approve this job?**.
+2. Or tap **Decline**, write the **Reason** (required; the supervisor sees it) and confirm **Decline this job?**.
+
+*What you'll see:* "Job approved." or "Job declined." The supervisor is notified.
+
+**Create a job and assign a supervisor.** On the Jobs tab, tap **New job**:
+
+1. Choose the **Customer contract**, **Machine** and **Supervisor**, and optionally the **Site (optional)**.
+2. Set the **Planned start** and **Planned end (optional)**, and type the **Job number**.
+3. Under **Price**, choose **Rate card** or **Negotiated rate** (then enter the **Hourly rate**). Optionally enter **Minimum hours (optional)**.
+4. Leave **Approve now** on to approve it straight away, and tap **Create and approve**. *What you'll see:* "Job J-… created and assigned to <supervisor>." The supervisor is notified at once.
+5. With **Approve now** off, tap **Create**: the job is sent for approval ("Job J-… created and sent for approval.").
+
+Other job terms (standby, fees, discount, tax) take the standard defaults. Use the web console when you need to set them.
 
 ### Alerts
 
@@ -368,7 +398,7 @@ Filter **Open**, **Acknowledged**, **Resolved** or **All**. Open an alert to see
 
 ### Approvals
 
-**More → Approvals** lists expense requests, filtered **Pending**, **Approved** or **Rejected**, and a **Meter resets** section.
+**More → Approvals** lists expense requests, filtered **Pending**, **Approved** or **Rejected**, and these sections: **Meter resets**, **Jobs** (waiting for approval), **Cash handovers** and **Exceptions**.
 
 For an expense:
 
@@ -380,15 +410,31 @@ For a meter reset:
 1. Open it and check the old and new readings, the reason and the photo.
 2. Enter a **Note (required)** and tap **Approve reset** or **Reject reset**.
 
-The app reminds you: "The person who submitted a request can't decide it (segregation of duties)."
+For a job, see [Jobs](#jobs) above.
 
-### More: other screens (read-only)
+For a cash handover ("<supervisor> handed over <currency> <amount>", "Claimed <time>"):
 
-- **Meter exceptions**: open and all exceptions, with **Blocking** marked. Tap one to open its job. Reviews are done in the web console.
-- **Field spend**: expenses and fuel recorded in the field.
+1. Open it and check the amount, reference and note against the cash or deposit slip.
+2. Tap **Confirm received** (a note is optional), or **Dispute** (a **Reason** is required). Confirm **Confirm this handover?** or **Dispute this handover?**.
+
+*What you'll see:* "Handover confirmed." or "Handover disputed." Only a confirmed handover reduces the supervisor's cash. A disputed one shows as **Rejected** to the supervisor, with your reason.
+
+For an exception ("<type> on <job number>"):
+
+1. Open it to see the status, severity, evidence and **Open job**. Tap **Review**.
+2. Choose the **Outcome**: **Explained — a legitimate reason was found** or **Discrepancy confirmed — evidence stands as recorded**.
+3. Write the **Review note** (5 to 2000 characters) and tap **Record review**. *What you'll see:* "Exception reviewed."
+
+The app reminds you: "The person who submitted a request can't decide it (segregation of duties)." The same applies to handovers: you cannot confirm one you recorded yourself.
+
+### More: other screens
+
+- **Meter exceptions**: open and all exceptions, with **Blocking** marked. Tap one to see it and **Review** it, as in [Approvals](#approvals).
+- **Field spend** (read-only): expenses and fuel recorded in the field.
 - **Cash with supervisors**: per supervisor and currency, for **Today**, **7 days** or **This month**:
   - **Holding** = opening + floats + collections − approved spending − verified handovers
-  - Plus amounts awaiting approval or verification.
+  - Plus amounts awaiting approval or verification, and the supervisor's claimed handovers (tap one to confirm or dispute it).
+  - **Issue float**: opens **Issue a cash float**. Enter the **Amount** (in the card's currency) and a **Note (optional)**, then tap **Issue**. *What you'll see:* "Float issued." The supervisor's cash goes up.
 - **Investigations**: cases and their signals and outcomes. Decisions are recorded in the web console.
 - **Notifications**: your inbox, with **Unread only** and **Mark all read**.
 
@@ -403,7 +449,7 @@ The app reminds you: "The person who submitted a request can't decide it (segreg
 
 Screens you have opened are kept encrypted on your phone for up to 7 days. With no connection you can still look at them. A banner says, for example, "Offline — data from 21 Oct 2026, 14:05 (stale)".
 
-While you are looking at saved data, **all decisions are disabled**. Approvals and alert actions need a live connection. They become available again by themselves once you are back online.
+While you are looking at saved data, **all decisions are disabled**. Approvals, new jobs, handover decisions, reviews, floats and alert actions need a live connection. They become available again by themselves once you are back online.
 
 ---
 
@@ -424,6 +470,7 @@ While you are looking at saved data, **all decisions are disabled**. Approvals a
 
 ## Good practice
 
+- **Decide field job requests quickly.** The supervisor and the customer are waiting on site.
 - **Review blocking exceptions every day.** They hold up invoicing.
 - **Keep segregation of duties.** Have at least two people with approval and verification rights, so nobody decides their own records.
 - **Change policies with a clear reason.** The reason is kept with the version.
@@ -448,6 +495,12 @@ Your Asseta subscription is past due or suspended. Pay the open Asseta invoice (
 
 **A machine shows Offline or Stale on the map.**
 The tracker has not reported for longer than your Tracking policy allows. Check the tracker's power and SIM. **Fleet → Trackers → Ingestion events** shows the last messages. A machine stays billable while its tracker is offline.
+
+**A supervisor says their machine is not in the list when requesting a job.**
+Supervisors can request jobs only on machines assigned to them. Assign the machine on its **Staff assignments** tab (web console), then ask them to sync.
+
+**"No rate card applies — set the price to approve".**
+There is no rate card for this machine's category. Enter the hourly rate you agreed with the customer, then approve.
 
 **I can't make changes in the Owner app.**
 The app shows why:

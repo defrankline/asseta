@@ -20,7 +20,7 @@ Asseta works in three places:
 |---|---|---|
 | **Web console**, <https://asseta.co.tz> | Everyone with a login | The full system, on a laptop or desktop. Needs an internet connection. |
 | **Asseta Supervisor** app (Android and iPhone) | Field supervisors | Works **offline** and syncs when a connection is available. |
-| **Asseta Owner** app (Android and iPhone) | Owners and managers | Dashboard, fleet map, jobs, alerts and approvals on the go. Keeps read-only copies for offline viewing. |
+| **Asseta Owner** app (Android and iPhone) | Owners and managers | Dashboard, fleet map, jobs, alerts and approvals on the go. The boss can approve or create jobs, confirm cash handovers, review exceptions and issue cash floats from far away. Keeps read-only copies for offline viewing. |
 
 The Android and iPhone versions of each app look and work the same.
 
@@ -36,7 +36,7 @@ Each company using Asseta has its own private account, called a **tenant**. Nobo
 | **Accountant / Finance** | Accountant, bookkeeper, cashier | Web console | [04-accountant.md](04-accountant.md) |
 | **Operator** | Machine operator | Web console (notifications only) | [05-operator.md](05-operator.md) |
 
-The two most important users are the **Supervisor**, who records the field work, and the **Tenant Owner**, who runs the company.
+The two most important users are the **Supervisor**, who records the field work, and the **Tenant Owner**, who runs the company, often from far away (for example in Dar es Salaam while the machines work in Katavi).
 
 Roles are examples set up for each company. Your company can adjust them, so you may see slightly more or fewer menus than described here. If a menu is missing, your role does not include it.
 
@@ -100,6 +100,7 @@ A company may show **Read only**. Its Asseta subscription is restricted, and you
 | **Geofence / job site** | A place drawn on the map. An *allowed area* alerts when a machine leaves, and a *restricted area* alerts when one enters. |
 | **Customer, contract, rate card** | Who you hire to, under which agreement, and your standard hourly price per machine category. |
 | **Job** | One hire of one machine to a customer under a contract. It moves through **Draft → Pending approval → Approved → In progress → Completed**, or **Cancelled**. The hourly price is fixed when the job is approved. |
+| **Two ways a job starts** | The **supervisor requests it from the field** (on a machine assigned to them; it waits for approval and the owner sets the price), or the **office or owner creates it and assigns a supervisor**. Either way it is approved before work starts, in the web console or the Owner app. |
 | **Reading** | A photo-backed hour-meter value. A job needs an **opening reading** before it can start, and a **closing reading** and a **customer acknowledgement** before it can be completed. Each reading also records a GPS location. |
 | **Customer acknowledgement** | The customer's representative confirming the work: a signature on screen or their name. |
 | **Work log** | Entries for **Work**, **Standby**, **Downtime**, **Mobilization** and **Notes**. Meter hours are not automatically billable hours; the work log and the contract decide. |

@@ -25,6 +25,7 @@ You can do all of your work in either of two places:
 ## What you can do
 
 - See the jobs assigned to you and the machines on them.
+- **Request a job** from the field when a customer asks for work on one of your machines. The owner sets the price and approves it.
 - Take the **opening** hour-meter reading with a photo, **start** the job, **log work, standby and downtime**, take the **closing** reading, get the **customer acknowledgement**, and **complete** the job.
 - Record **fuel** (purchases, issues to machines, usage).
 - Record **expenses** with receipt photos.
@@ -34,7 +35,7 @@ You can do all of your work in either of two places:
 - Read **office decisions and reminders** in your inbox.
 - See the **exceptions** on your readings and the office's review notes.
 
-What you cannot do: approve jobs, approve your own expenses, verify your own cash, or decide meter resets. The office does those. This separation protects you as much as the company.
+What you cannot do: approve jobs (including the ones you request) or set their price, approve your own expenses, verify your own cash, or decide meter resets. The office does those. This separation protects you as much as the company.
 
 ## Where you work
 
@@ -42,7 +43,7 @@ What you cannot do: approve jobs, approve your own expenses, verify your own cas
 
 | Tab | What it holds |
 |---|---|
-| **Jobs** | Your jobs: **In progress**, **Ready to start**, **Recently closed**, **My machines** |
+| **Jobs** | Your jobs: **In progress**, **Ready to start**, **Recently closed**, **My machines**, and **Request job** |
 | **Readings** | Every meter reading you captured and your meter reset requests, with the office's review |
 | **Fuel** | Your fuel events (Purchase / Issue / Usage) |
 | **Money** | Your cash, today's figures, expenses, collections and handovers |
@@ -102,7 +103,7 @@ Below is a typical day for one job. The job detail screen always shows a **Next 
 
 If the job is not there:
 
-- It may not be approved yet. The office must approve a job before it reaches the field.
+- It may not be approved yet. The office must approve a job before you can start it. A job you requested shows **Waiting for approval** until then.
 - It may not be assigned to you.
 - Your phone may not have synced since the job was approved. Pull down to sync.
 
@@ -198,11 +199,47 @@ Asseta will not complete a job without both the **closing reading** and the **cu
 
 At the bottom of each job, **Recorded on this phone** lists everything you did on this job and whether it has synced. For example: "Opening reading 4521 – Synced", "Job started – Waiting to sync".
 
-### A3. Working offline and syncing
+### A3. Request a job
+
+A job reaches you in one of two ways:
+
+- **The office creates it and assigns it to you.** It appears under **Ready to start** once approved, and you get a notification "New job J-… assigned to you".
+- **You request it from the field.** Use this when a customer on site asks for work on one of your machines. The owner sets the price and approves it, often from their phone.
+
+To request a job:
+
+1. Open the **Jobs** tab and tap **Request job**. The **Request a job** form opens.
+2. Choose the **Customer contract**.
+3. Choose the **Machine**. Only machines assigned to you, or already on your jobs, are listed. If a machine is missing, ask the office to assign it to you.
+4. Optionally choose the **Site (optional)**. Leave it empty to use the contract's site.
+5. Set the **Planned start** and, if known, the **Planned end (optional)**.
+6. Write **What the customer asked for**, for example "Clear the access road, about 3 days". The owner reads it when approving.
+7. Tap **Send for approval**.
+
+The form reminds you: "The owner sets the price and approves the job. You can start it once it is approved."
+
+**This works offline.** The request is saved on the phone and sent at the next sync, like everything else. You do not set a price; the owner does.
+
+*What you'll see* in the Jobs list:
+
+| Shown as | Meaning |
+|---|---|
+| **Waiting for approval (not yet sent)** | Saved on the phone, not yet synced. Sync when you have a connection. |
+| **Waiting for approval** | Received by Asseta and numbered (J-…). The owner has not decided yet. |
+| **Declined** | The owner declined it. The reason is shown with the job. |
+
+When the owner decides, you get a notification:
+
+- "Job J-… approved": "Your job request J-… was approved; you can start it." The job moves to **Ready to start**. Continue with [Step 2](#step-2-capture-the-opening-reading).
+- "Job J-… declined", with the owner's reason.
+
+You cannot start a job while it is waiting for approval.
+
+### A4. Working offline and syncing
 
 The Supervisor app is built for sites with no signal.
 
-**What works offline:** everything in this manual. That includes jobs, readings with photos, starting and completing jobs, the work log, acknowledgements, fuel, expenses, cash collections and handovers. Everything is saved **encrypted on the phone** and sent later.
+**What works offline:** everything in this manual. That includes jobs, job requests, readings with photos, starting and completing jobs, the work log, acknowledgements, fuel, expenses, cash collections and handovers. Everything is saved **encrypted on the phone** and sent later.
 
 **What you'll see when offline:** a banner reading "Offline. You can keep working; everything is saved on this phone and syncs when you are back online."
 
@@ -238,7 +275,7 @@ Get a connection for a moment and pull down to sync. Capture then opens again.
 
 **Signing out with unsent items.** The app warns you: "N item(s) are not synced yet. They stay encrypted on this phone and sync after you sign in again." Unsent items are not lost, but they are sent only when **you** sign in again on that phone. Avoid signing out with unsent items when you can.
 
-### A4. Fuel
+### A5. Fuel
 
 1. Open the **Fuel** tab and tap **+** (**Record fuel event**).
 2. Choose the type:
@@ -255,7 +292,7 @@ Fuel events are a log. They are not edited after recording. If you made a mistak
 
 **Tip:** when you pay for fuel with your cash, record **both** a fuel purchase (litres) and an **expense** (the money). The office links the two so the cost is not counted twice.
 
-### A5. Expenses
+### A6. Expenses
 
 1. Open the **Money** tab, tap **+** and choose **Record expense**.
 2. Choose a **Category**, enter the **Amount**, **Currency**, **What was it for?** and **Supplier (optional)**.
@@ -276,7 +313,7 @@ Fuel events are a log. They are not edited after recording. If you made a mistak
 
 A **rejected** expense stays rejected. If the office asks for a correction, tap **Record a new expense**.
 
-### A6. Cash: collecting and handing over
+### A7. Cash: collecting and handing over
 
 #### Record cash collected from a customer
 
@@ -322,7 +359,7 @@ Offline, the section is headed **Today (as of HH:mm)** or **Today (estimate)**. 
 
 Below the figures, the chips **Expenses / Collections / Handovers** list your records, grouped as On this phone, Pending approval, Awaiting verification, Approved, Verified and Rejected. Rows show any **Office note**.
 
-### A7. Request a meter reset
+### A8. Request a meter reset
 
 Use this when the hour meter was **replaced**, **repaired** or **rolled over** (went back to zero). A reset tells Asseta that later readings start from a new value, so they are not flagged as "Reading lower than before".
 
@@ -338,7 +375,7 @@ Use this when the hour meter was **replaced**, **repaired** or **rolled over** (
 
 If the screen says "Meter reset not available", sync once while online and try again.
 
-### A8. Readings tab: following up on your evidence
+### A9. Readings tab: following up on your evidence
 
 The **Readings** tab lists your readings, with a filter **All / Needs attention**. A reading appears under **Needs attention** when it was flagged or rejected.
 
@@ -367,20 +404,21 @@ Finding names you may see:
 
 **Findings are not accusations.** They are notes for the office to check. Many are explained in seconds, for example "meter replaced". The office records the outcome as **Explained** or **Confirmed**.
 
-### A9. Inbox
+### A10. Inbox
 
 The **Inbox** tab has two parts:
 
 - **Needs attention**: your own items the office rejected or flagged, or that the server did not accept. Examples are a meter reading, expense, fuel event, cash collection, cash handover, job step or photo upload. Tap one to open it.
 - **Notifications** from Asseta and the office, for example:
   - "Expense approved" / "Expense rejected"
+  - "Job J-… approved" / "Job J-… declined" for your job requests, and "New job J-… assigned to you"
   - "Job J-…: opening/closing reading missing"
   - "Cash not handed over"
   - Tracking alerts on your machines
 
 Tap a notification to open the related job, expense or Money screen. Use **Mark all as read** to clear the unread badge. Offline, you see the notifications saved on the phone.
 
-### A10. Account menu
+### A11. Account menu
 
 Tap the person icon (top-left of the first screen of each tab):
 
@@ -403,13 +441,24 @@ Differences from the phone:
 
 ### B1. My jobs
 
-**Field work → My jobs** has three sections:
+**Field work → My jobs** has five sections:
 
 - **In progress**
 - **Ready to start** (approved jobs)
+- **Waiting for approval** (jobs you requested, or the office submitted, that are not yet approved)
 - **Recently closed** (the last 10 completed)
+- **Declined or cancelled** (each with "Reason: …")
 
 Click **Open** on a job.
+
+#### Request a job
+
+1. On **My jobs**, click **Request a job**. The **Request a job** dialog has two steps, then a review:
+   - **Customer & machine**: **Customer — contract**, **Machine** (only machines assigned to you or on your jobs) and **Job site (optional)** (empty = the contract's site).
+   - **When & what**: **Planned start**, **Planned end (optional)** and **What the customer asked for (optional)**. This note is shown to the owner when approving.
+2. Check the review and click **Send request**.
+
+*What you'll see:* "Job J-… requested. It is waiting for the owner's approval." The job appears under **Waiting for approval**. Once approved it moves to **Ready to start**. If the owner declines it, it moves to **Declined or cancelled** with the reason.
 
 ### B2. The job page
 
@@ -446,8 +495,8 @@ While the job is approved or running, you also have these buttons:
   - **Billable override**: Default, Billable or Non-billable.
   - **Note**.
   - **Start** and **End (optional)**. An entry without an end stays open and is not counted until ended.
-- **Record fuel**. Opens **Record fuel event**. The steps match [A4](#a4-fuel).
-- **Record expense**. Opens **Record expense**. The steps match [A5](#a5-expenses). The dialog has three steps: **Expense**, **Attribution & payment** and **Receipts & GPS**.
+- **Record fuel**. Opens **Record fuel event**. The steps match [A5](#a5-fuel).
+- **Record expense**. Opens **Record expense**. The steps match [A6](#a6-expenses). The dialog has three steps: **Expense**, **Attribution & payment** and **Receipts & GPS**.
 
 A line shows the work totals, for example "Work 5 h 10 min · Standby 1 h 00 min · Downtime 0 h 30 min".
 
@@ -483,13 +532,13 @@ Lower on the page you see the job's details (rate, minimum hours, standby terms,
 
 | Status | Meaning | What you can do |
 |---|---|---|
-| Draft / Pending approval | The office is preparing or approving the job and its price | Nothing yet; it reaches you once approved |
+| Draft / Pending approval (shown as **Waiting for approval**) | The office is preparing the job, or the owner has not yet approved it and its price. Your own requests wait here too | Nothing yet; you can start once approved |
 | **Approved** (Ready to start) | Approved with an agreed price | Take the opening reading, then start |
 | **In progress** | Running | Log work, take the closing reading, get the acknowledgement, complete |
 | **Completed** | Finished | Nothing; records are kept as captured |
-| Cancelled | Stopped by the office (a reason is recorded) | Nothing |
+| Cancelled (phone: **Declined** for a job request) | Stopped or declined by the office (a reason is recorded) | Nothing; read the reason, and request again if needed |
 
-On the phone, "· not synced" after a status means your action is saved on the phone but not yet sent.
+On the phone, a job request not yet sent shows **Waiting for approval (not yet sent)**, and "· not synced" after a status means your action is saved on the phone but not yet sent.
 
 ### Reading status
 
@@ -538,7 +587,19 @@ Each finding is shown as **Waiting for review**, **Explained** (a legitimate rea
 ## Troubleshooting and FAQ
 
 **My job is not in the list.**
-Pull down to sync. Jobs appear only once **approved** and assigned to you or your machine. Ask the office to check.
+Pull down to sync. Jobs appear once they are assigned to you or your machine, and you can start them only once **approved**. Ask the office to check.
+
+**My machine isn't in the list when I request a job.**
+You can request jobs only on machines assigned to you or already on your jobs. Ask the office to assign the machine to you, then sync and try again.
+
+**"Job requests not available" / "Sync once while online before requesting a job."**
+Your phone needs one sync with a connection to load contracts and machines. If it says your company's server does not accept job requests yet, ask the office.
+
+**"Your user is not linked to an active staff record…"**
+Ask the office to link your login to your staff record before you request jobs.
+
+**My job request was declined.**
+Read the owner's reason on the job. If the customer still wants the work, agree the details and request it again.
 
 **"Capture the opening reading first." / "Get the customer acknowledgement first."**
 Asseta enforces the order: opening reading → start → closing reading → acknowledgement → complete.

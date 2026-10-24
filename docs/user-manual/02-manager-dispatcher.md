@@ -16,7 +16,7 @@ You work mainly in the **web console** at <https://asseta.co.tz>.
 ## What you can do
 
 - **Customers and contracts**: create and edit customers, contracts and rental rate cards.
-- **Jobs**: create jobs, submit them, approve them (including the hourly price), cancel them, and follow them through to completion.
+- **Jobs**: create jobs, submit them, approve them (including the hourly price), approve or decline jobs supervisors request from the field, cancel them, and follow them through to completion.
 - **Field work**: start and complete jobs, log work and record customer acknowledgements from **My jobs**. Meter readings are taken by supervisors.
 - **Fleet**: register and edit machines, assign supervisors and operators to machines, register and assign GPS trackers, draw job sites and geofences.
 - **Monitoring**: watch the fleet map and history, and acknowledge and resolve tracking alerts.
@@ -27,7 +27,7 @@ You work mainly in the **web console** at <https://asseta.co.tz>.
 
 What the Manager role does **not** include, by default:
 
-- Meter exception reviews and meter reset decisions.
+- Meter exception reviews and meter reset decisions (if your company adds them to your role, you also get **Risk & review → Meter resets**).
 - Hire invoices, payments and cash.
 - Users and roles, policies changes, and the company's Asseta subscription.
 
@@ -45,7 +45,7 @@ The **Tenant Owner** handles these. Your company may customise roles.
 | Finance | Approvals |
 | Administration | Policies (read-only), Audit log, Notifications, My access |
 
-The **Asseta Owner** phone app can also be used by managers whose company gives them access. It covers the fleet map, jobs, alerts and approvals on the go; see the [Tenant Owner manual](01-tenant-owner.md#the-asseta-owner-app). The buttons shown there depend on your role's permissions.
+The **Asseta Owner** phone app can also be used by managers whose company gives them access. It covers the fleet map, jobs (including **New job** and approving or declining jobs), alerts and approvals on the go; see the [Tenant Owner manual](01-tenant-owner.md#the-asseta-owner-app). The buttons shown there depend on your role's permissions.
 
 ---
 
@@ -87,6 +87,13 @@ Without a rate card, every job needs a negotiated hourly rate.
 
 ### 2. Create a job
 
+A job starts in one of two ways:
+
+- **The office creates it and assigns a supervisor**, as described below (or with **New job** in the Owner app).
+- **A supervisor requests it from the field** when a customer on site asks for work. It arrives as **Pending approval** for you to price and approve (see [Task 3](#3-submit-and-approve-a-job)).
+
+To create one:
+
 1. Go to **Operations → Jobs** and open **New job**. The dialog has three steps: **Assignment**, **Schedule** and **Pricing**.
 2. **Assignment**:
    - **Job number**
@@ -118,6 +125,15 @@ The hourly price is fixed when the job is approved. The supervisor can then take
 3. An approver then clicks **Approve**. This approves the job and its price snapshot.
 
    *What you'll see:* the status changes to **Approved**. The job appears under **Ready to start** on the supervisor's phone after their next sync, and owners and approvers receive a "Job awaiting approval" notification while it waits.
+
+**Jobs requested from the field.** In **Operations → Jobs** these carry a **Field request** chip. They are already in **Pending approval**, with the requesting supervisor as the job's supervisor.
+
+1. Open the job. The approval dialog shows "Requested from the field by <supervisor>" and what the customer asked for.
+2. Check the price. If no rate card applies, the job shows "No price yet (set on approval)" and the **Hourly rate** is required: "No rate card applies; the job is approved at this price." Otherwise you may change the rate to approve at a different price.
+3. Click **Approve**. The supervisor is notified ("Job J-… approved") and the job moves to their **Ready to start**.
+4. To refuse it, click **Decline request** and enter the **Reason**. The supervisor is told your reason, and the job stays on record as cancelled.
+
+When an office-created job is approved, its supervisor is notified "New job J-… assigned to you".
 
 **One active job per machine:** a machine can have only one approved or running job at a time. Otherwise Asseta says: "This machine already has an approved or running job; complete or cancel that job first."
 
@@ -165,6 +181,8 @@ Machine actions:
 1. Open the machine and go to the **Staff assignments** tab.
 2. Click **Assign**. Choose the **Staff member**, the **Role** (**Supervisor** or **Operator**) and **Effective from**.
 3. To finish an assignment, use **End assignment** with the **Ends at** time.
+
+Assign each supervisor to the machines they look after. A supervisor can request jobs from the field only on machines assigned to them or already on their jobs.
 
 ### 7. Manage staff
 
@@ -308,6 +326,7 @@ A value outside the usual range is a prompt to look, not a conclusion about anyo
 ## Good practice
 
 - **Approve jobs only with the right price.** The approved price is what the customer is billed.
+- **Decide field job requests quickly.** The supervisor and the customer are waiting on site.
 - **Keep one active job per machine** and complete jobs promptly so the next one can start.
 - **Link every supervisor's staff record to their login** before their first job.
 - **Write useful notes** when resolving alerts and cases. They form the audit trail.
@@ -329,6 +348,12 @@ A machine with an open job cannot be retired or taken out of service.
 
 **"The machine must be an enrolled billable asset before it can be tracked."**
 Ask the owner to **Enroll as billable asset** on the machine.
+
+**A supervisor can't find a machine when requesting a job.**
+Assign the supervisor to the machine on its **Staff assignments** tab ([Task 6](#6-register-and-maintain-machines)), then ask them to sync.
+
+**"No rate card applies to this job; enter the hourly rate to approve it at that price."**
+The job was requested from the field and has no rate card. Enter the agreed hourly rate in the approval dialog.
 
 **I can't review exceptions or decide meter resets.**
 These belong to the owner by default. Ask the owner, or ask them to adjust your role.
