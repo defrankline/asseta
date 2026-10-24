@@ -4,6 +4,7 @@
  */
 import type { PolicyType } from '../../../api/types';
 import { CASH_CUSTODY_FIELDS, OVERSIGHT_FIELDS } from './accountabilityPolicyFields';
+import { CUSTOMER_HOURS_FIELDS } from './customerHoursPolicyFields';
 import { ENGINE_HOURS_FIELDS } from './engineHoursPolicyFields';
 
 /** `decimal` values stay strings end to end (never parsed to float). */
@@ -16,7 +17,9 @@ export type FieldKind =
   | 'time'
   | 'weekdays'
   | 'bool'
-  | 'enum';
+  | 'enum'
+  /** A list of values from `options` (e.g. allowed billing modes); stored as a JSON array. */
+  | 'multiEnum';
 
 export interface FieldOption {
   value: string;
@@ -29,8 +32,10 @@ export interface PolicyFieldDef {
   kind: FieldKind;
   unit?: string;
   help?: string;
-  /** Allowed values for `enum` fields. */
+  /** Allowed values for `enum` and `multiEnum` fields. */
   options?: readonly FieldOption[];
+  /** `multiEnum`: fewest values that must be chosen (default 1). */
+  minItems?: number;
 }
 
 export const TRACKING_FIELDS: readonly PolicyFieldDef[] = [
@@ -249,74 +254,6 @@ export const FRAUD_CONTROLS_FIELDS: readonly PolicyFieldDef[] = [
   },
 ];
 
-export const CUSTOMER_HOURS_FIELDS: readonly PolicyFieldDef[] = [
-  {
-    key: 'enabled',
-    label: 'Customer hours switched on',
-    kind: 'bool',
-    help: 'Off: no purchases or prepaid jobs; jobs are invoiced.',
-  },
-  { key: 'walk_in_allowed', label: 'Walk-in customers allowed', kind: 'bool' },
-  {
-    key: 'default_billing_mode',
-    label: 'Default billing of new jobs',
-    kind: 'enum',
-    options: [
-      { value: 'INVOICE', label: 'Invoice after the work' },
-      { value: 'PREPAID_HOURS', label: 'Prepaid customer hours' },
-    ],
-  },
-  { key: 'partial_activation', label: 'Partial payments activate hours pro rata', kind: 'bool' },
-  {
-    key: 'hours_increment',
-    label: 'Activation step',
-    kind: 'decimal',
-    unit: 'h',
-    help: 'Activated hours are rounded down to this step.',
-  },
-  {
-    key: 'expiry_days',
-    label: 'Unused hours expire after',
-    kind: 'nullableNumber',
-    unit: 'days',
-    help: 'Counted from activation; leave empty to never expire.',
-  },
-  { key: 'expiry_warning_days', label: 'Warn before expiry', kind: 'int', unit: 'days' },
-  {
-    key: 'over_consumption',
-    label: 'When a prepaid job has no hours left',
-    kind: 'enum',
-    options: [
-      { value: 'BLOCK_START', label: 'Do not let the job start' },
-      { value: 'FLAG_EXCESS', label: 'Allow it and flag the excess' },
-    ],
-  },
-  {
-    key: 'overrun_exception_blocking',
-    label: 'Excess hours block the job until reviewed',
-    kind: 'bool',
-  },
-  {
-    key: 'transfer_requires_approval',
-    label: 'Transfers between machines need a second person',
-    kind: 'bool',
-  },
-  {
-    key: 'cancellation_requires_approval',
-    label: 'Cancellations need a second person',
-    kind: 'bool',
-  },
-  {
-    key: 'cancellation_after_consumption_allowed',
-    label: 'Cancel the rest of a partly used purchase',
-    kind: 'bool',
-  },
-  { key: 'discount_requires_approval', label: 'Discounts need a second person', kind: 'bool' },
-  { key: 'max_discount_percent', label: 'Highest discount', kind: 'decimal', unit: '%' },
-  { key: 'credit_allowed', label: 'Credit arrangements allowed', kind: 'bool' },
-  { key: 'reason_code_required', label: 'A reason from the tenant list is required', kind: 'bool' },
-];
-
 export const POLICY_FIELDS: Readonly<Record<PolicyType, readonly PolicyFieldDef[]>> = {
   TRACKING: TRACKING_FIELDS,
   METER_CAPTURE: METER_CAPTURE_FIELDS,
@@ -427,6 +364,10 @@ export function formatPolicyValue(def: PolicyFieldDef | undefined, value: unknow
       .join(', ');
   }
   if (def?.kind === 'bool' && typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (def?.kind === 'multiEnum' && Array.isArray(value)) {
+    if (value.length === 0) return 'None';
+    return value.map((v) => def.options?.find((o) => o.value === v)?.label ?? String(v)).join(', ');
+  }
   if (def?.kind === 'enum' && typeof value === 'string') {
     return def.options?.find((o) => o.value === value)?.label ?? value;
   }
@@ -441,6 +382,7 @@ export function formatPolicyValue(def: PolicyFieldDef | undefined, value: unknow
 export function toInputValue(def: PolicyFieldDef, value: unknown): string {
   if (value === null || value === undefined) return '';
   if (def.kind === 'weekdays') return Array.isArray(value) ? value.map(String).join(',') : '';
+  if (def.kind === 'multiEnum') return Array.isArray(value) ? value.map(String).join(',') : '';
   if (def.kind === 'time' && typeof value === 'string') return value.slice(0, 5);
   if (def.kind === 'bool') return value === true ? 'true' : 'false';
   return typeof value === 'number' || typeof value === 'string' ? String(value) : '';
@@ -464,6 +406,8 @@ export function fromInputValue(def: PolicyFieldDef, input: string): unknown {
       return v === '' ? null : v;
     case 'bool':
       return v === 'true';
+    case 'multiEnum':
+      return v === '' ? [] : splitMulti(def, v);
     case 'weekdays':
       return v === ''
         ? []
@@ -496,5 +440,21 @@ export function inputError(def: PolicyFieldDef, input: string): string | null {
       return v === 'true' || v === 'false' ? null : 'Choose yes or no';
     case 'enum':
       return def.options?.some((o) => o.value === v) === true ? null : 'Choose a value';
+    case 'multiEnum': {
+      const chosen = v === '' ? [] : v.split(',');
+      const min = def.minItems ?? 1;
+      if (chosen.some((c) => def.options?.some((o) => o.value === c) !== true)) {
+        return 'Choose from the listed values';
+      }
+      return chosen.length >= min
+        ? null
+        : `Choose at least ${String(min)} value${min === 1 ? '' : 's'}`;
+    }
   }
+}
+
+/** Multi-select input ('A,B') → values in the order of `options` (stable, no duplicates). */
+function splitMulti(def: PolicyFieldDef, input: string): string[] {
+  const chosen = new Set(input.split(','));
+  return (def.options ?? []).map((o) => o.value).filter((v) => chosen.has(v));
 }

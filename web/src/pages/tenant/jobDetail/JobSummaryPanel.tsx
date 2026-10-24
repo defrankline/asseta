@@ -5,9 +5,11 @@ import { KeyValueGrid } from '../../../components/display/KeyValueGrid';
 import { MoneyText } from '../../../components/display/MoneyText';
 import { StatusChip } from '../../../components/display/StatusChip';
 import { HoursComparison } from '../../../components/meter/HoursComparison';
+import { HOURS_ROUTES } from '../../../navigation/hoursRoutes';
 import { exceptionsPath } from '../../../navigation/routes';
 import { formatPercent } from '../../../utils/money';
 import { formatInstantIn } from '../../../utils/time';
+import { BILLING_MODE_LABELS } from '../hours/hoursDisplay';
 import { labelOf } from '../shared/display';
 import {
   JOB_STATUS_OPTIONS,
@@ -87,8 +89,21 @@ export function JobSummaryPanel({
               { label: 'Mobilization fee', value: money(job.mobilization_fee) },
               { label: 'Discount', value: formatPercent(job.discount_percent) },
               { label: 'Tax rate', value: formatPercent(job.tax_rate_percent) },
+              ...(job.billing_mode === 'PREPAID_HOURS'
+                ? [{ label: 'Billing', value: BILLING_MODE_LABELS.PREPAID_HOURS }]
+                : []),
             ]}
           />
+          {job.billing_mode === 'PREPAID_HOURS' && (
+            <Button
+              component={RouterLink}
+              to={`${HOURS_ROUTES.allocations}?job_id=${encodeURIComponent(job.id)}`}
+              size="small"
+              sx={{ alignSelf: 'flex-start' }}
+            >
+              Customer hours used by this job
+            </Button>
+          )}
         </Stack>
       </Paper>
       <Paper variant="outlined" className="p-4">

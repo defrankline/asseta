@@ -42,6 +42,7 @@ def test_groups_follow_the_daily_workflow_and_start_on_the_landing_page() -> Non
         "Field work",
         "Operations",
         "Fleet",
+        "Customer hours",
         "Engine hours",
         "Finance",
         "Risk & review",
@@ -108,4 +109,5 @@ def test_supervisor_template_gets_the_field_work_group_after_overview() -> None:
         ("Fuel", "/tenant/field/fuel"),
         ("Expenses", "/tenant/field/expenses"),
         ("Cash", "/tenant/field/cash"),
+        ("Customer hours", "/tenant/field/hours"),
     ]

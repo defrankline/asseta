@@ -28,6 +28,7 @@ import {
 } from './jobForm';
 import { AssignmentFields, PricingFields, ScheduleFields } from './JobFormSteps';
 import { JobReview } from './JobReview';
+import { useBillingChoice } from './useBillingChoice';
 
 export interface EditJobDialogProps {
   job: JobDto;
@@ -49,6 +50,7 @@ function EditJobForm({
 }: EditJobDialogProps & { initialValues: JobFormValues }) {
   const keyFor = useIdempotencyKey();
   const { stale, guard } = useStaleVersion();
+  const billing = useBillingChoice();
   const { hasPermission } = useSession();
   const [site, setSite] = useState<JobSiteDto | null>(null);
   const siteLabel = (id: string | null) =>
@@ -77,7 +79,7 @@ function EditJobForm({
     {
       label: 'Pricing',
       fields: PRICING_FIELDS,
-      render: (formik) => <PricingFields formik={formik} />,
+      render: (formik) => <PricingFields formik={formik} billing={billing} />,
     },
   ];
   return (

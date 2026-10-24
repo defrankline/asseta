@@ -57,6 +57,50 @@ function WeekdayPicker({
   );
 }
 
+/** Code-defined options as checkboxes; the value is the chosen option values joined by ','. */
+function MultiOptionPicker({
+  def,
+  value,
+  onChange,
+  disabled,
+}: {
+  def: PolicyFieldDef;
+  value: string;
+  onChange: (v: string) => void;
+  disabled: boolean;
+}) {
+  const selected = new Set(value === '' ? [] : value.split(','));
+  const options = def.options ?? NO_OPTIONS;
+  return (
+    <Box className="flex flex-wrap" role="group" aria-label={def.label}>
+      {options.map((o) => (
+        <FormControlLabel
+          key={o.value}
+          disabled={disabled}
+          control={
+            <Checkbox
+              size="small"
+              checked={selected.has(o.value)}
+              onChange={(e) => {
+                const next = new Set(selected);
+                if (e.target.checked) next.add(o.value);
+                else next.delete(o.value);
+                onChange(
+                  options
+                    .map((x) => x.value)
+                    .filter((x) => next.has(x))
+                    .join(','),
+                );
+              }}
+            />
+          }
+          label={o.label}
+        />
+      ))}
+    </Box>
+  );
+}
+
 /** One overridable policy field: an "Override" switch plus a typed input. */
 export function OverrideFieldInput({ def }: { def: PolicyFieldDef }) {
   const formik = useFormikContext<PolicyFormValues>();
@@ -89,6 +133,15 @@ export function OverrideFieldInput({ def }: { def: PolicyFieldDef }) {
           {error !== undefined && (
             <Typography variant="caption" color="error">
               {error}
+            </Typography>
+          )}
+        </Box>
+      ) : def.kind === 'multiEnum' ? (
+        <Box>
+          <MultiOptionPicker def={def} value={value} onChange={setValue} disabled={!enabled} />
+          {(error ?? def.help) !== undefined && (
+            <Typography variant="caption" color={error !== undefined ? 'error' : 'text.secondary'}>
+              {error ?? def.help}
             </Typography>
           )}
         </Box>

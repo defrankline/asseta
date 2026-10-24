@@ -10,10 +10,12 @@ import {
   Typography,
 } from '@mui/material';
 import type { FormikProps } from 'formik';
+import type { BillingMode } from '../../../api/hoursTypes';
 import type { JobSiteDto } from '../../../api/types';
 import { FormikDateTimeField } from '../../../components/forms/FormikDateTimeField';
 import { FormikSelectField } from '../../../components/forms/FormikSelectField';
 import { FormikTextField } from '../../../components/forms/FormikTextField';
+import { BILLING_MODE_LABELS } from '../hours/hoursDisplay';
 import { STANDBY_OPTIONS } from '../shared/jobDisplay';
 import {
   FormikContractPicker,
@@ -86,10 +88,55 @@ export function ScheduleFields({ timeZone }: { timeZone: string }) {
   );
 }
 
-export function PricingFields({ formik }: { formik: FormikProps<JobFormValues> }) {
+/** Billing choice when customer hours are on: modes allowed by the tenant policy, default first. */
+type ModesKey = 'INVOICE' | 'PREPAID_HOURS' | 'INVOICE,PREPAID_HOURS';
+type Options = readonly { value: string; label: string }[];
+const modesKey = (b: BillingChoice): ModesKey =>
+  b.modes.includes('INVOICE')
+    ? b.modes.includes('PREPAID_HOURS')
+      ? 'INVOICE,PREPAID_HOURS'
+      : 'INVOICE'
+    : 'PREPAID_HOURS';
+const optionsFor = (defaultMode: BillingMode, modes: readonly BillingMode[]): Options => [
+  { value: '', label: `Company default (${BILLING_MODE_LABELS[defaultMode]})` },
+  ...modes.map((m) => ({ value: m, label: BILLING_MODE_LABELS[m] })),
+];
+type BillingKey = `${BillingMode}/${ModesKey}`;
+const billingKey = (b: BillingChoice): BillingKey => `${b.defaultMode}/${modesKey(b)}`;
+/** Code-defined select options per (company default, allowed modes) of the tenant policy. */
+const BILLING_OPTIONS: Readonly<Record<BillingKey, Options>> = {
+  'INVOICE/INVOICE': optionsFor('INVOICE', ['INVOICE']),
+  'INVOICE/PREPAID_HOURS': optionsFor('INVOICE', ['PREPAID_HOURS']),
+  'INVOICE/INVOICE,PREPAID_HOURS': optionsFor('INVOICE', ['INVOICE', 'PREPAID_HOURS']),
+  'PREPAID_HOURS/INVOICE': optionsFor('PREPAID_HOURS', ['INVOICE']),
+  'PREPAID_HOURS/PREPAID_HOURS': optionsFor('PREPAID_HOURS', ['PREPAID_HOURS']),
+  'PREPAID_HOURS/INVOICE,PREPAID_HOURS': optionsFor('PREPAID_HOURS', ['INVOICE', 'PREPAID_HOURS']),
+};
+
+export interface BillingChoice {
+  modes: readonly BillingMode[];
+  defaultMode: BillingMode;
+}
+
+export function PricingFields({
+  formik,
+  billing = null,
+}: {
+  formik: FormikProps<JobFormValues>;
+  /** null: customer hours off (or unknown) — every job is invoiced as before. */
+  billing?: BillingChoice | null;
+}) {
   const { values, setFieldValue } = formik;
   return (
     <>
+      {billing !== null && billing.modes.length > 0 && (
+        <FormikSelectField
+          name="billing_mode"
+          label="Billing"
+          options={BILLING_OPTIONS[billingKey(billing)]}
+          helperText="Prepaid jobs draw on the customer’s activated hours for this machine."
+        />
+      )}
       <FormControl>
         <FormLabel id="rate-mode-label">Hourly rate source</FormLabel>
         <RadioGroup

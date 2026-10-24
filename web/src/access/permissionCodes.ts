@@ -141,4 +141,20 @@ export const PERMISSIONS = {
   tenantSignalRead: 'tenant.signal.read',
   /** The tenant's audit log (who changed what, when). */
   tenantAuditRead: 'tenant.audit.read',
+  // ---- Customer hours (accountability design A); approvals never on your own proposal ----
+  /** Hours purchases, balances, the hours ledger, allocations and requests (read). */
+  tenantHoursRead: 'tenant.hours.read',
+  /** Record walk-in customers and hours purchases, link payments and evidence. */
+  tenantHoursPurchase: 'tenant.hours.purchase',
+  tenantHoursDiscount: 'tenant.hours.discount',
+  tenantHoursDiscountApprove: 'tenant.hours.discount_approve',
+  tenantHoursCredit: 'tenant.hours.credit',
+  tenantHoursCreditApprove: 'tenant.hours.credit_approve',
+  tenantHoursCreditActivate: 'tenant.hours.credit_activate',
+  tenantHoursTransfer: 'tenant.hours.transfer',
+  tenantHoursTransferApprove: 'tenant.hours.transfer_approve',
+  tenantHoursCancel: 'tenant.hours.cancel',
+  tenantHoursCancelApprove: 'tenant.hours.cancel_approve',
+  /** The tenant's discount / credit / transfer / cancellation reason lists. */
+  tenantHoursReasons: 'tenant.hours.reasons',
 } as const;

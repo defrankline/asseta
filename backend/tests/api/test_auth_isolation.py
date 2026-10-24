@@ -59,6 +59,8 @@ def test_me_returns_menu_groups_in_order_only_when_visible(api: Api) -> None:
         "Field work",  # the owner holds the field permissions too; their console still opens on the Dashboard
         "Operations",
         "Fleet",
+        "Customer hours",
+        "Engine hours",
         "Finance",
         "Risk & review",
         "Administration",

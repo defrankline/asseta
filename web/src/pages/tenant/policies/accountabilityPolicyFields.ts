@@ -1,5 +1,5 @@
 /** Policy field catalogues for the accountability controls (cash custody chain, oversight dashboard). */
-import type { PolicyFieldDef } from './policyFields';
+import type { FieldOption, PolicyFieldDef } from './policyFields';
 
 export const CASH_CUSTODY_FIELDS: readonly PolicyFieldDef[] = [
   {
@@ -38,7 +38,30 @@ export const CASH_CUSTODY_FIELDS: readonly PolicyFieldDef[] = [
   { key: 'retention_allowed', label: 'Approved retentions allowed', kind: 'bool' },
 ];
 
+/** Accountability dashboard tiles (backend `accountability.service.TILES`). */
+const DASHBOARD_TILES: readonly FieldOption[] = [
+  { value: 'customer_hours', label: 'Customer hours' },
+  { value: 'hours_awaiting_activation', label: 'Hours awaiting activation' },
+  { value: 'engine_hours', label: 'Engine hours' },
+  { value: 'unexplained_hours', label: 'Unexplained engine hours' },
+  { value: 'missing_daily_reports', label: 'Missing daily reports' },
+  { value: 'investigations', label: 'Investigations' },
+  { value: 'cash', label: 'Cash' },
+  { value: 'payments', label: 'Payments' },
+  { value: 'discrepancies', label: 'Discrepancies' },
+  { value: 'unauthorized_attempts', label: 'Refused attempts' },
+  { value: 'outstanding_approvals', label: 'Outstanding approvals' },
+];
+
 export const OVERSIGHT_FIELDS: readonly PolicyFieldDef[] = [
+  {
+    key: 'hidden_dashboard_tiles',
+    label: 'Hidden dashboard tiles',
+    kind: 'multiEnum',
+    options: DASHBOARD_TILES,
+    minItems: 0,
+    help: 'Ticked tiles are hidden from the accountability dashboard.',
+  },
   {
     key: 'security_event_window_days',
     label: 'Refused-attempts window',

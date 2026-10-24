@@ -61,6 +61,7 @@ export const EXCEPTION_TYPES: readonly ExceptionType[] = [
   'MISSING_DAILY_REPORT',
   'UNEXPLAINED_HOURS',
   'OVERLAPPING_ALLOCATION',
+  'HOURS_OVERRUN',
 ];
 
 export const attachmentSchema: Schema<AttachmentDto> = object({

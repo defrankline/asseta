@@ -19,6 +19,7 @@ import {
 } from './jobForm';
 import { AssignmentFields, PricingFields, ScheduleFields } from './JobFormSteps';
 import { JobReview } from './JobReview';
+import { useBillingChoice } from './useBillingChoice';
 
 interface CreateJobDialogProps {
   timeZone: string;
@@ -34,6 +35,7 @@ export function CreateJobDialog({ timeZone, onClose, onCreated }: CreateJobDialo
   const siteLabel = (id: string | null) =>
     id !== null && site?.id === id ? jobSiteLabel(site) : (id ?? '—');
   const [initialValues] = useState(() => emptyJobValues(new Date().toISOString()));
+  const billing = useBillingChoice();
   const steps: FormStep<JobFormValues>[] = [
     {
       label: 'Assignment',
@@ -53,7 +55,7 @@ export function CreateJobDialog({ timeZone, onClose, onCreated }: CreateJobDialo
     {
       label: 'Pricing',
       fields: PRICING_FIELDS,
-      render: (formik) => <PricingFields formik={formik} />,
+      render: (formik) => <PricingFields formik={formik} billing={billing} />,
     },
   ];
   return (

@@ -1,4 +1,5 @@
 import { mixed, object, string, type ObjectSchema } from 'yup';
+import type { BillingMode } from '../../../api/hoursTypes';
 import type {
   ContractDto,
   JobDto,
@@ -9,7 +10,7 @@ import type {
   StaffDto,
   StandbyTreatment,
 } from '../../../api/types';
-import { STANDBY_TREATMENTS } from '../../../api/services/jobSchemas';
+import { BILLING_MODES, STANDBY_TREATMENTS } from '../../../api/services/jobSchemas';
 import {
   isAfter,
   optionalDecimal,
@@ -40,6 +41,8 @@ export interface JobFormValues {
   mobilization_fee: string;
   discount_percent: string;
   tax_rate_percent: string;
+  /** '' = the company default (CUSTOMER_HOURS policy); shown only when customer hours are on. */
+  billing_mode: BillingMode | '';
 }
 
 export const ASSIGNMENT_FIELDS = [
@@ -59,6 +62,7 @@ export const PRICING_FIELDS = [
   'mobilization_fee',
   'discount_percent',
   'tax_rate_percent',
+  'billing_mode',
 ] as const;
 
 export function emptyJobValues(now: string): JobFormValues {
@@ -78,6 +82,7 @@ export function emptyJobValues(now: string): JobFormValues {
     mobilization_fee: '0',
     discount_percent: '0',
     tax_rate_percent: '0',
+    billing_mode: '',
   };
 }
 
@@ -122,6 +127,10 @@ export const jobFormSchema: ObjectSchema<JobFormValues> = object({
   mobilization_fee: requiredDecimal('Mobilization fee'),
   discount_percent: percentDecimal('Discount'),
   tax_rate_percent: percentDecimal('Tax rate'),
+  billing_mode: mixed<BillingMode | ''>()
+    .default('')
+    .oneOf(['', ...BILLING_MODES])
+    .defined(),
 });
 
 /**
@@ -144,6 +153,7 @@ export function toJobPayload(v: JobFormValues): JobIn {
     mobilization_fee: v.mobilization_fee.trim(),
     discount_percent: v.discount_percent.trim(),
     tax_rate_percent: v.tax_rate_percent.trim(),
+    billing_mode: v.billing_mode === '' ? null : v.billing_mode,
   };
 }
 
@@ -188,6 +198,7 @@ export function jobToValues(
     mobilization_fee: job.mobilization_fee,
     discount_percent: job.discount_percent,
     tax_rate_percent: job.tax_rate_percent,
+    billing_mode: job.billing_mode,
   };
 }
 
@@ -207,6 +218,7 @@ export function toJobUpdatePayload(v: JobFormValues, version: number): JobUpdate
     mobilization_fee: p.mobilization_fee,
     discount_percent: p.discount_percent,
     tax_rate_percent: p.tax_rate_percent,
+    billing_mode: p.billing_mode ?? null,
     version,
   };
 }

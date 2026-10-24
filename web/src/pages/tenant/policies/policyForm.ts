@@ -57,7 +57,9 @@ interface FormParent {
 }
 
 export const policyFormSchema = object({
-  policy_type: mixed<PolicyType>().oneOf(['TRACKING', 'METER_CAPTURE', 'HIRE_BILLING']).required(),
+  policy_type: mixed<PolicyType>()
+    .oneOf(Object.keys(POLICY_FIELDS) as PolicyType[])
+    .required(),
   scope: mixed<OverrideScope>().oneOf(['TENANT', 'MACHINE', 'SITE']).required(),
   machine: mixed<MachineDto>()
     .nullable()

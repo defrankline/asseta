@@ -1,4 +1,5 @@
 import { PERMISSIONS } from '../access/permissionCodes';
+import { HOURS_MENU_PATHS } from './hoursRoutes';
 
 export const ROUTES = {
   home: '/',
@@ -235,4 +236,5 @@ export const IMPLEMENTED_PATHS: ReadonlySet<string> = new Set([
   ROUTES.fieldFuel,
   ROUTES.fieldExpenses,
   ROUTES.fieldCash,
+  ...HOURS_MENU_PATHS,
 ]);

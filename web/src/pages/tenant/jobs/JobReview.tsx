@@ -6,6 +6,7 @@ import { formatInstantIn } from '../../../utils/time';
 import { labelOf, machineLabel } from '../shared/display';
 import { contractLabel, STANDBY_OPTIONS } from '../shared/jobDisplay';
 import type { JobFormValues } from './jobForm';
+import { BILLING_MODE_LABELS } from '../hours/hoursDisplay';
 
 function money(amount: string, currency: string | undefined) {
   return currency === undefined ? amount : <MoneyText amount={amount} currency={currency} />;
@@ -74,6 +75,9 @@ export function JobReview({
           { label: 'Mobilization fee', value: money(v.mobilization_fee.trim(), currency) },
           { label: 'Discount', value: formatPercent(v.discount_percent.trim()) },
           { label: 'Tax rate', value: formatPercent(v.tax_rate_percent.trim()) },
+          ...(v.billing_mode === ''
+            ? []
+            : [{ label: 'Billing', value: BILLING_MODE_LABELS[v.billing_mode] }]),
         ]}
       />
     </>
