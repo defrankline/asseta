@@ -4,9 +4,9 @@
 
 ## Who this is for
 
-This manual is for Asseta's own staff who run the service:
+This manual is for the **Platform Owner**: the owner and operator of the Asseta SaaS business. You onboard equipment companies as tenants, they pay you a subscription fee (per billable machine), and they then use Asseta to manage their own assets. Your work:
 
-- Onboarding customer companies (tenants).
+- Onboarding equipment companies (tenants).
 - Negotiating and recording their subscription prices.
 - Invoicing them and verifying their payments.
 - Approving tracker hardware.

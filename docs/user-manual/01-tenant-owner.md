@@ -27,7 +27,7 @@ Everything any other role can do, plus the tasks reserved for owners by default:
 - **Manage users' roles** (Users & roles).
 - **Enroll machines as billable assets** in your Asseta subscription.
 - **See your Asseta subscription**, its invoices and your SMS wallet.
-- **Review or revoke a managed-service mandate**, if Asseta staff help run your account.
+- **Review or revoke a managed-service mandate**, if the Platform Owner helps run your account.
 - **Set company-wide notification defaults** and see the SMS delivery log.
 - **Read the audit log**: who changed what, and when.
 
@@ -68,7 +68,7 @@ The top bar has:
 
 ## Getting started: setting up your company
 
-Asseta onboards your company and sends you a **temporary password** through a secure channel. Then:
+The Platform Owner (the company that runs Asseta) onboards your company, agrees your subscription fee, and sends you a **temporary password** through a secure channel. Then:
 
 1. **Sign in** at <https://asseta.co.tz> and set your own password. You may also be asked to set up an authenticator app. See [Signing in](README.md#signing-in).
 2. **Check your subscription**: **Administration → Subscription** shows your agreement, price per machine and billing period.
@@ -124,7 +124,7 @@ Your Asseta subscription is charged **per billable machine**, not per user.
 
 The machine is now counted on your subscription and can have a tracker assigned. Replacing its tracker later does **not** create a second billable machine.
 
-To stop billing a machine (sold, scrapped or returned), contact Asseta. Platform staff end the enrollment with a reason and preview any credit.
+To stop billing a machine (sold, scrapped or returned), contact the Platform Owner, who ends the enrollment with a reason and preview any credit.
 
 ### 3. Set company policies
 
@@ -258,7 +258,7 @@ To remove a role from someone:
 
 Asseta will not remove the **last owner**. Roles granted under a managed-service mandate end with the mandate.
 
-**Adding a new login:** the web console does not yet have an "invite user" button. Ask Asseta support to create the login with the right role. The person receives a temporary password and sets their own at first sign-in.
+**Adding a new login:** the web console does not yet have an "invite user" button. Ask the Platform Owner to create the login with the right role. The person receives a temporary password and sets their own at first sign-in.
 
 **Linking a supervisor:** after the login exists, link it to their staff record (**Operations → Staff**, **Login subject**). Their jobs and cash then appear under their name.
 
@@ -279,7 +279,7 @@ Asseta will not remove the **last owner**. Roles granted under a managed-service
 3. The **Push and e-mail** routing sets defaults by category and severity. Click **Save routing**.
 4. **Delivery log** shows SMS, push and e-mail delivery results.
 
-SMS uses credits from your **SMS wallet**, which is shown on the **Subscription** page. Buy SMS bundles through Asseta. You are warned when credits run low or run out.
+SMS uses credits from your **SMS wallet**, which is shown on the **Subscription** page. Buy SMS bundles from the Platform Owner. You are warned when credits run low or run out.
 
 ### 11. Subscription
 
@@ -290,21 +290,21 @@ SMS uses credits from your **SMS wallet**, which is shown on the **Subscription*
 - Asseta's **Invoices** to you (**View**).
 - Your **SMS wallet**.
 
-Pricing is negotiated with Asseta and is read-only here.
+Pricing is agreed with the Platform Owner and is read-only here.
 
 If a payment is overdue, your account may become **read-only**. A banner says: "…is read-only. You can view data, but changes are disabled until the subscription is restored." **Your data is never deleted.** Field work recorded offline during that time is held and applied after reactivation.
 
 ### 12. Managed service
 
-If you have agreed that Asseta staff help run your account, **Administration → Managed service** shows:
+If you have agreed that the Platform Owner helps run your account, **Administration → Managed service** shows:
 
 - The **Mandate** (reference, scope, term and your consent reference).
 - **Staff with access**.
 - **Recent actions under this mandate**.
 
-Everything Asseta staff do is recorded in your audit log, marked "By Asseta staff under {mandate}".
+Everything done under the mandate is recorded in your audit log, marked "By Asseta staff under {mandate}".
 
-To end it, use **Revoke mandate** with a **Reason for revoking**. If there is no mandate, the page says "No managed-service mandate". Asseta staff then have no access to your account.
+To end it, use **Revoke mandate** with a **Reason for revoking**. If there is no mandate, the page says "No managed-service mandate". The Platform Owner then has no access to your account.
 
 ### 13. Audit log
 
@@ -441,10 +441,10 @@ It has a blocking exception or a missing reading. Open the job: "N blocking bill
 Segregation of duties. Another approver must decide.
 
 **A supervisor lost their phone.**
-Unsent records on that phone cannot be recovered. Contact Asseta support to revoke the device so its local data is wiped and it can no longer sync. Then have the supervisor sign in on a new phone.
+Unsent records on that phone cannot be recovered. Contact the Platform Owner to revoke the device so its local data is wiped and it can no longer sync. Then have the supervisor sign in on a new phone.
 
 **The console says the company is read-only.**
-Your Asseta subscription is past due or suspended. Pay the open Asseta invoice (**Subscription → Invoices**) or contact Asseta. Access returns when the payment is verified.
+Your Asseta subscription is past due or suspended. Pay the open Asseta invoice (**Subscription → Invoices**) or contact the Platform Owner. Access returns when the payment is verified.
 
 **A machine shows Offline or Stale on the map.**
 The tracker has not reported for longer than your Tracking policy allows. Check the tracker's power and SIM. **Fleet → Trackers → Ingestion events** shows the last messages. A machine stays billable while its tracker is offline.

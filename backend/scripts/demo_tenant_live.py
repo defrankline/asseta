@@ -262,7 +262,7 @@ class KeycloakAdmin:
         return uid, password
 
     def set_password(self, uid: str, password: str) -> None:
-        """Only ever called for users this run created."""
+        """Only ever called for demo users `seed` created (on creation, or `field --reset-demo-password`)."""
         self._ok(
             httpx.put(
                 f"{self.realm}/users/{uid}",
@@ -282,6 +282,15 @@ class KeycloakAdmin:
             ),
             "set password",
             204,
+        )
+
+    def clear_lockout(self, uid: str) -> None:
+        """Lifts a brute-force lockout (temporary disable after failed sign-ins), if any."""
+        self._ok(
+            httpx.delete(f"{self.realm}/attack-detection/brute-force/users/{uid}", headers=self.h(), timeout=TIMEOUT),
+            "clear lockout",
+            204,
+            404,
         )
 
     def get_user(self, uid: str) -> dict[str, Any] | None:
@@ -333,6 +342,10 @@ class KeycloakAdmin:
         )
 
 
+class LoginFailed(RuntimeError):
+    """Keycloak refused a password grant; the message carries Keycloak's error code and description, never secrets."""
+
+
 @dataclass
 class Client:
     client_id: str
@@ -365,7 +378,11 @@ class Login:
                 timeout=TIMEOUT,
             )
             if r.status_code != 200:
-                raise RuntimeError(f"login of {self.email} failed: HTTP {r.status_code}")
+                reason = ""
+                with contextlib.suppress(ValueError, AttributeError):
+                    err = r.json()
+                    reason = f" ({err.get('error')}: {err.get('error_description')})"
+                raise LoginFailed(f"login of {self.email} failed: HTTP {r.status_code}{reason}")
             body = r.json()
             self._token = str(body["access_token"])
             self._expires = time.monotonic() + max(10, int(body.get("expires_in", 300)) - 30)
@@ -1952,6 +1969,20 @@ def issue_float(kc: KeycloakAdmin, a: argparse.Namespace, state: dict[str, Any],
     log(f"cash float {FIELD_FLOAT} issued to the demo supervisor (by the office, under the mandate)")
 
 
+def reset_demo_password(kc: KeycloakAdmin, a: argparse.Namespace, who: DemoSupervisor) -> DemoSupervisor:
+    """New generated password for the seed-created demo supervisor only (identity checked by the caller against the
+    Keycloak id `seed` recorded), written to the credentials file (mode 600) and never printed."""
+    password = "Dm-" + secrets.token_urlsafe(24)
+    kc.set_password(who.subject, password)
+    kc.clear_lockout(who.subject)
+    path = Path(a.out_dir) / f"demo-{a.slug}-credentials.json"
+    creds = json.loads(path.read_text())
+    creds["accounts"]["supervisor"]["password"] = password
+    write_private(path, creds)
+    log(f"new password set for {who.email}; it is in {path.name} (not printed)")
+    return DemoSupervisor(who.email, password, who.user_id, who.subject, who.staff_id)
+
+
 def field_history(a: argparse.Namespace) -> int:
     path = state_file(a)
     state = load_state(path)
@@ -1979,13 +2010,24 @@ def field_history(a: argparse.Namespace) -> int:
     hits = kc.users_by_email(who.email)
     if len(hits) != 1 or str(hits[0]["id"]) != who.subject or not hits[0].get("enabled"):
         raise Refuse(f"{who.email} is not the enabled Keycloak user `seed` created; nothing was changed")
+    if a.reset_demo_password:
+        who = reset_demo_password(kc, a, who)
     client = kc.create_client()
     try:
         device = FieldDevice(
             Api(Login(client, who.email, who.password), state["tenant_id"], {"X-Device-Id": f"demo-{a.slug}-phone"}),
             f"demo-{a.slug}-phone",
         )
-        me = device.api.get("/me")
+        try:
+            me = device.api.get("/me")
+        except LoginFailed as e:
+            raise Refuse(
+                f"Keycloak refused the demo supervisor's sign-in: {e}.",
+                "Usually its password was changed after `seed` (e.g. with Change password in the app), so the",
+                "credentials file is out of date, or it is locked after failed sign-ins. Nothing was changed.",
+                "Re-run with --reset-demo-password to give this demo account (and only it) a new generated",
+                "password, saved to the credentials file; then sign in to the apps with that new password.",
+            ) from None
         if str(me.get("user_id")) != who.user_id:
             raise Refuse(f"{who.email} signed in as another app user than the one `seed` created; stopping")
         log(f"signed in as the demo supervisor {who.email}")
@@ -2269,6 +2311,11 @@ def main(argv: list[str]) -> int:
     st.add_argument("--quick", action="store_true", help="platform-level facts only (no mandate)")
     fh = sub.add_parser("field", parents=[common])
     fh.add_argument("--dry-run", action="store_true", help="print the planned history; no sign-in, nothing sent")
+    fh.add_argument(
+        "--reset-demo-password",
+        action="store_true",
+        help="give the seed-created demo supervisor a new generated password first (saved to the credentials file)",
+    )
     r = sub.add_parser("retire", parents=[common])
     r.add_argument("--yes", action="store_true")
     a = p.parse_args(argv)

@@ -4,7 +4,14 @@ Welcome to Asseta. This manual explains how to use Asseta day to day, one chapte
 
 ## What Asseta is
 
-Asseta is an online service for companies that hire out heavy equipment, such as excavators, loaders, graders and trucks. It helps the company:
+Asseta is a multi-tenant SaaS (software as a service) for companies that own and hire out heavy equipment, such as excavators, loaders, graders and trucks.
+
+**How it works:**
+
+1. The **Platform Owner** owns and runs Asseta. The Platform Owner onboards each equipment company as a **tenant**, agrees its subscription fee (charged per billable machine), and bills it.
+2. Once onboarded, the tenant uses Asseta to manage its own assets, jobs, people and money. Inside each tenant, the **Tenant Owner** runs the business and the **Supervisors** do the field work.
+
+For a tenant, Asseta helps the company:
 
 - Know **where every machine is**, using GPS trackers fitted to the machines.
 - Run **hire jobs** from start to finish, with hour-meter readings photographed in the field, a work log, and the customer's acknowledgement.
@@ -22,7 +29,7 @@ Asseta works in three places:
 
 The Android and iPhone versions of each app look and work the same.
 
-Each company using Asseta has its own private account. In Asseta that account is called a **tenant**. Nobody from another company can see your data.
+Each company using Asseta has its own private account, called a **tenant**. Nobody from another company can see its data, and the Platform Owner does not see a tenant's business data unless the tenant grants a managed-service mandate.
 
 ## Roles
 
@@ -33,10 +40,13 @@ Each company using Asseta has its own private account. In Asseta that account is
 | **Supervisor** | Field supervisor on site | Supervisor app (+ web **Field work**) | [03-supervisor.md](03-supervisor.md) |
 | **Accountant / Finance** | Accountant, bookkeeper, cashier | Web console | [04-accountant.md](04-accountant.md) |
 | **Operator** | Machine operator | Web console (notifications only) | [05-operator.md](05-operator.md) |
-| **Platform Owner** | Asseta's own staff running the service | Web console (platform) | [06-platform-owner.md](06-platform-owner.md) |
+| **Platform Owner** | The owner and operator of the Asseta SaaS: onboards tenants, sets their fees, bills them | Web console (platform) | [06-platform-owner.md](06-platform-owner.md) |
 | **Platform Auditor** | Auditors of the Asseta platform | Web console (platform, read-only) | [07-platform-auditor.md](07-platform-auditor.md) |
 
-The two most important users are the **Supervisor**, who records the field work, and the **Tenant Owner**, who runs the business.
+There are two levels:
+
+- **Platform level:** the **Platform Owner** runs Asseta as a business and serves all tenants. The **Platform Auditor** can inspect the platform read-only.
+- **Tenant level:** within each tenant, the two most important users are the **Supervisor**, who records the field work, and the **Tenant Owner**, who runs the company.
 
 Roles are examples set up for each company. Your company can adjust them, so you may see slightly more or fewer menus than described here. If a menu is missing, your role does not include it.
 
@@ -74,11 +84,11 @@ You stay signed in between uses, even offline. Signing out of the Supervisor app
 
 In every case the secure Asseta sign-in page opens. You need an internet connection.
 
-**Forgotten password:** ask your company's administrator (normally the owner) or Asseta support to reset it.
+**Forgotten password:** ask your company's administrator (normally the owner) or the Platform Owner to reset it.
 
 ### Switch company
 
-Some people work for more than one company. Asseta staff working under a managed-service mandate are one example.
+Some people work for more than one company. The Platform Owner working inside a tenant under a managed-service mandate is one example.
 
 - **Web:** click the company name at the top left and choose another. With many companies, use the search box.
 - **Apps:** account menu or **More → Settings** → **Switch company**.
@@ -116,9 +126,9 @@ A company may show **Read only**. Its Asseta subscription is restricted, and you
 | **Alert** | A tracking event, such as leaving a geofence, moving outside working hours, or a tracker going offline or losing power. Alerts are **Open**, then **Acknowledged**, then **Resolved**. |
 | **Notifications** | Messages in your in-app **inbox** (the bell). Depending on settings and severity, they can also reach you by phone **push**, **SMS** (uses your company's SMS credits) or **e-mail**. Some important ones are required and cannot be switched off. |
 | **Audit log** | A permanent record of who changed what, and when. |
-| **Managed service** | An arrangement, with your written consent, under which Asseta staff operate your account for you. Everything they do is recorded and visible to you, and you can revoke it. |
+| **Managed service** | An arrangement, with your written consent, under which the Platform Owner operates your account for you. Everything they do is recorded and visible to you, and you can revoke it. |
 
 ## Getting help
 
-- If something does not work, note the **Reference** code shown with the error message and give it to your administrator or Asseta support.
+- If something does not work, note the **Reference** code shown with the error message and give it to your administrator or the Platform Owner.
 - If a menu or button is missing, your role probably does not include it. Ask your company's owner.

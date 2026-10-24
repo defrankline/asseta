@@ -240,7 +240,7 @@ Revenue means **issued invoices, excluding tax**. Voided invoices reverse their 
 
 ### 13. Check the company's Asseta subscription
 
-Go to **Administration → Subscription** to see your company's plan with Asseta, the billable machines and Asseta's invoices to your company. This is read-only for you.
+Go to **Administration → Subscription** to see your company's subscription with the Platform Owner, the billable machines and the Platform Owner's invoices to your company. This is read-only for you.
 
 ---
 

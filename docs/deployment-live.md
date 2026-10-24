@@ -274,6 +274,8 @@ scripts/seed-demo-tenant.sh status --quick          # platform-level check, no c
 scripts/seed-demo-tenant.sh seed                     # once; --region dodoma|arusha|mwanza (default dar-es-salaam)
 scripts/seed-demo-tenant.sh field --dry-run          # prints the field history it would play (sends nothing)
 scripts/seed-demo-tenant.sh field                    # once: the supervisor's recent field work (see below)
+scripts/seed-demo-tenant.sh field --reset-demo-password   # if Keycloak refuses the demo supervisor (password changed
+                                                     # since seed): new generated password, saved to the credentials file
 scripts/seed-demo-tenant.sh feed --minutes 90        # start ~5 min before the demo; Ctrl-C stops cleanly
 scripts/seed-demo-tenant.sh status                   # counts the tenant's data incl. field activity (short mandate)
 ```
