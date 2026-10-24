@@ -2646,6 +2646,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenant/field/machines": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Field Machines
+         * @description Machines the caller works on in the field: assigned to them or on a job they supervise (by asset code / name,
+         *     at most 100). Field users have no machine register access; this is what the field apps receive on sync.
+         */
+        get: operations["listMyFieldMachines"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenant/finance/profitability": {
         parameters: {
             query?: never;
@@ -3791,7 +3812,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Effective */
+        /**
+         * Effective
+         * @description Policy readers see every type; a field user sees only the capture policy their capture permission covers.
+         */
         get: operations["getEffectivePolicy"];
         put?: never;
         post?: never;
@@ -27502,6 +27526,94 @@ export interface operations {
             };
         };
     };
+    listMyFieldMachines: {
+        parameters: {
+            query?: {
+                q?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MachineDto"][];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     getProfitability: {
         parameters: {
             query: {
@@ -30045,6 +30157,8 @@ export interface operations {
             query?: {
                 status?: components["schemas"]["JobStatus"] | null;
                 machine_id?: string | null;
+                /** @description Only jobs the caller supervises: named supervisor, or on a machine assigned to them */
+                mine?: boolean;
                 page?: number;
                 page_size?: number;
                 q?: string | null;

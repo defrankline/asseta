@@ -56,6 +56,7 @@ def test_me_returns_menu_groups_in_order_only_when_visible(api: Api) -> None:
     [tenant] = a["owner"].get("/api/v1/me").json()["tenants"]
     assert [g["label"] for g in tenant["menu_groups"]] == [
         "Overview",
+        "Field work",  # the owner holds the field permissions too; their console still opens on the Dashboard
         "Operations",
         "Fleet",
         "Finance",

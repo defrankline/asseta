@@ -29,7 +29,7 @@ interface TransitionDialogProps {
 }
 
 /** Confirms one lifecycle action; failures keep the dialog open with the stable error code. */
-function TransitionDialog({ job, def, onClose, onDone }: TransitionDialogProps) {
+export function TransitionDialog({ job, def, onClose, onDone }: TransitionDialogProps) {
   const keyFor = useIdempotencyKey();
   return (
     <FormDialog<ReasonValues>

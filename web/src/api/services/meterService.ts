@@ -30,6 +30,7 @@ import {
 } from './tenantRequest';
 
 const exceptionPageSchema = tenantPageSchema(exceptionSchema);
+const capturePageSchema = tenantPageSchema(meterCaptureSchema);
 
 /** Evidence purposes accepted by uploadAttachment. */
 export type AttachmentPurpose = 'METER_PHOTO' | 'SIGNATURE' | 'RESET_EVIDENCE';
@@ -78,6 +79,13 @@ export const meterService = {
       signal,
     );
   },
+  /**
+   * GET /tenant/meter-captures (listMeterCaptures), latest first. Filters: `job_id`, `machine_id`,
+   * `kind`, `state`, `captured_from`, `captured_to`, `mine`.
+   */
+  listAllCaptures(query: TenantListQuery, signal?: AbortSignal): Promise<Page<MeterCaptureDto>> {
+    return tenantPage('/tenant/meter-captures', capturePageSchema, query, 'meter captures', signal);
+  },
   /** POST /tenant/meter-resets (requestMeterReset). */
   requestReset(body: ResetIn, idempotencyKey: string): Promise<ResetDto> {
     return tenantSend(
@@ -89,9 +97,13 @@ export const meterService = {
       idempotencyKey,
     );
   },
-  /** GET /tenant/meter-resets (listMeterResets). Filters: `machine_id`, `status`. */
+  /** GET /tenant/meter-resets (listMeterResets). Filters: `machine_id`, `status`, `mine`. */
   listResets(
-    filters: { machine_id?: string | undefined; status?: string | undefined },
+    filters: {
+      machine_id?: string | undefined;
+      status?: string | undefined;
+      mine?: string | undefined;
+    },
     signal?: AbortSignal,
   ): Promise<ResetDto[]> {
     return tenantList('/tenant/meter-resets', resetSchema, 'meter resets', signal, filters);

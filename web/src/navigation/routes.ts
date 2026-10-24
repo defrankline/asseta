@@ -72,6 +72,13 @@ export const ROUTES = {
   tenantManagedService: '/tenant/managed-service',
   /** The tenant's own SMS wallet (balance + ledger). */
   tenantSmsWallet: '/tenant/sms-wallet',
+  // Field work (backend `tenant.field` group): the supervisor's own capture flows from a browser.
+  fieldJobs: '/tenant/field/jobs',
+  fieldJobDetail: '/tenant/field/jobs/:jobId',
+  fieldReadings: '/tenant/field/readings',
+  fieldFuel: '/tenant/field/fuel',
+  fieldExpenses: '/tenant/field/expenses',
+  fieldCash: '/tenant/field/cash',
 } as const;
 
 export function platformInvoiceDetailPath(invoiceId: string): string {
@@ -92,6 +99,11 @@ export function staffDetailPath(staffId: string): string {
 
 export function customerDetailPath(customerId: string): string {
   return `${ROUTES.tenantCustomers}/${encodeURIComponent(customerId)}`;
+}
+
+/** Field work job workspace (readings, start/complete, work log, acknowledgement). */
+export function fieldJobPath(jobId: string): string {
+  return `${ROUTES.fieldJobs}/${encodeURIComponent(jobId)}`;
 }
 
 export function jobDetailPath(jobId: string): string {
@@ -197,4 +209,9 @@ export const IMPLEMENTED_PATHS: ReadonlySet<string> = new Set([
   ROUTES.tenantInsights,
   ROUTES.tenantAccess,
   ROUTES.tenantManagedService,
+  ROUTES.fieldJobs,
+  ROUTES.fieldReadings,
+  ROUTES.fieldFuel,
+  ROUTES.fieldExpenses,
+  ROUTES.fieldCash,
 ]);

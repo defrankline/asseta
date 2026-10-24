@@ -19,6 +19,8 @@ import { PersonName } from '../shared/PersonName';
 import { labelOf } from '../shared/display';
 import { useExpenseCategoryLabels, useStaffLabels } from '../shared/useFinanceLabels';
 import { useMachineLabels } from '../shared/useMachineLabels';
+import { PERMISSIONS } from '../../../access/permissionCodes';
+import { useSession } from '../../../session/useSession';
 
 interface ExpenseDetailsDrawerProps {
   expense: ExpenseDto;
@@ -31,6 +33,7 @@ export function ExpenseDetailsDrawer({ expense: e, timeZone, onClose }: ExpenseD
   const categoryLabel = useExpenseCategoryLabels();
   const staffLabel = useStaffLabels();
   const machineLabel = useMachineLabels();
+  const canSeeApprovals = useSession().hasPermission(PERMISSIONS.tenantApprovalRead);
   const fetchUrl = (attachmentId: string) => expenseService.receiptUrl(e.id, attachmentId);
   return (
     <DetailsDrawer
@@ -47,8 +50,13 @@ export function ExpenseDetailsDrawer({ expense: e, timeZone, onClose }: ExpenseD
       {e.status === 'PENDING_APPROVAL' && (
         <Alert severity="warning">
           Above the policy’s auto-approval limit: waiting for approval by someone other than the
-          submitter. It does not count as approved spending until then.{' '}
-          <RouterLink to={ROUTES.tenantApprovals}>Open approvals</RouterLink>
+          submitter. It does not count as approved spending until then.
+          {canSeeApprovals && (
+            <>
+              {' '}
+              <RouterLink to={ROUTES.tenantApprovals}>Open approvals</RouterLink>
+            </>
+          )}
         </Alert>
       )}
       {e.status === 'REJECTED' && (

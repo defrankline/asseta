@@ -1,4 +1,4 @@
-import { Alert } from '@mui/material';
+import { Alert, Typography } from '@mui/material';
 import { useState } from 'react';
 import { newUuid } from '../../../api/ids';
 import { expenseService } from '../../../api/services/expenseService';
@@ -25,6 +25,7 @@ import {
   FormikMachineIdPicker,
   FormikStaffIdPicker,
 } from '../shared/financePickers';
+import { FormikFieldJobIdPicker, FormikFieldMachineIdPicker } from '../field/fieldPickers';
 import { ExpenseEvidenceStep } from './ExpenseEvidenceStep';
 import {
   ATTRIBUTION_FIELDS,
@@ -37,17 +38,36 @@ import {
 } from './expenseForm';
 
 interface RecordExpenseDialogProps {
+  /**
+   * `field`: a supervisor's own expense (Field work) — jobs and machines they work on, paid from
+   * their own custody when cash. `office` (default) may name any custodian.
+   */
+  variant?: 'office' | 'field';
+  /** Pre-selects the job (Field work job workspace). */
+  jobId?: string;
   timeZone: string;
   onClose: () => void;
   onRecorded: (expense: ExpenseDto) => void;
 }
 
 /** Expense → Attribution & payment → Receipts & GPS → Review (console capture). */
-export function RecordExpenseDialog({ timeZone, onClose, onRecorded }: RecordExpenseDialogProps) {
+export function RecordExpenseDialog({
+  variant = 'office',
+  jobId,
+  timeZone,
+  onClose,
+  onRecorded,
+}: RecordExpenseDialogProps) {
   const keyFor = useIdempotencyKey();
   const [clientId] = useState(() => newUuid());
   const [category, setCategory] = useState<ExpenseCategoryDto | null>(null);
-  const [initial] = useState(() => emptyExpenseValues(new Date().toISOString()));
+  const [initial] = useState(() => ({
+    ...emptyExpenseValues(new Date().toISOString()),
+    job_id: jobId ?? '',
+  }));
+  const field = variant === 'field';
+  const JobPicker = field ? FormikFieldJobIdPicker : FormikJobIdPicker;
+  const MachinePicker = field ? FormikFieldMachineIdPicker : FormikMachineIdPicker;
   const steps: FormStep<ExpenseFormValues>[] = [
     {
       label: 'Expense',
@@ -78,12 +98,12 @@ export function RecordExpenseDialog({ timeZone, onClose, onRecorded }: RecordExp
       fields: ATTRIBUTION_FIELDS,
       render: (formik) => (
         <>
-          <FormikJobIdPicker
+          <JobPicker
             name="job_id"
             label="Job (optional)"
             helperText="Attributes the cost to the job and its machine."
           />
-          <FormikMachineIdPicker
+          <MachinePicker
             name="machine_id"
             label="Machine (optional)"
             helperText="Leave empty when a job is chosen; it must match the job's machine."
@@ -94,7 +114,13 @@ export function RecordExpenseDialog({ timeZone, onClose, onRecorded }: RecordExp
             options={PAID_FROM_OPTIONS}
             required
           />
-          {formik.values.paid_from === 'CASH_CUSTODY' && (
+          {formik.values.paid_from === 'CASH_CUSTODY' && field && (
+            <Typography variant="body2" color="text.secondary">
+              Paid from your own cash custody. An approved cash expense reduces your outstanding
+              cash.
+            </Typography>
+          )}
+          {formik.values.paid_from === 'CASH_CUSTODY' && !field && (
             <FormikStaffIdPicker
               name="custodian_staff_id"
               label="Custodian (whose cash paid)"

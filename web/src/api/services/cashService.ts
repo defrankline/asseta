@@ -28,6 +28,7 @@ import {
 } from './tenantRequest';
 
 const handoverPageSchema = tenantPageSchema(handoverSchema);
+const paymentPageSchema = tenantPageSchema(customerPaymentSchema);
 
 export interface ReconciliationQuery {
   staffMemberId: string;
@@ -43,6 +44,43 @@ export const cashService = {
     return tenantList('/tenant/cash/custody', custodyBalanceSchema, 'cash custody', signal, {
       staff_member_id: staffMemberId,
     });
+  },
+  /** GET /tenant/cash/custody/me (getMyCashCustody): the caller's balance per currency. */
+  myCustody(signal?: AbortSignal): Promise<CashCustodyBalanceDto[]> {
+    return tenantList('/tenant/cash/custody/me', custodyBalanceSchema, 'my cash custody', signal);
+  },
+  /** GET /tenant/cash/custody/me/reconciliation (getMyCashReconciliation): one per currency (`date` = tenant day). */
+  myReconciliation(
+    date: string | undefined,
+    signal?: AbortSignal,
+  ): Promise<CashReconciliationDto[]> {
+    return tenantList(
+      '/tenant/cash/custody/me/reconciliation',
+      reconciliationSchema,
+      'my reconciliation',
+      signal,
+      { date },
+    );
+  },
+  /** GET /tenant/cash/custody/me/collections (listMyCashCollections). Filter: `status`. */
+  myCollections(query: TenantListQuery, signal?: AbortSignal): Promise<Page<CustomerPaymentDto>> {
+    return tenantPage(
+      '/tenant/cash/custody/me/collections',
+      paymentPageSchema,
+      query,
+      'my collections',
+      signal,
+    );
+  },
+  /** GET /tenant/cash/custody/me/handovers (listMyCashHandovers). Filter: `status`. */
+  myHandovers(query: TenantListQuery, signal?: AbortSignal): Promise<Page<CashHandoverDto>> {
+    return tenantPage(
+      '/tenant/cash/custody/me/handovers',
+      handoverPageSchema,
+      query,
+      'my handovers',
+      signal,
+    );
   },
   /** POST /tenant/cash/floats (issueCashFloat): opening balance or float issued. */
   issueFloat(body: CashFloatIn, idempotencyKey: string): Promise<CashCustodyEntryDto> {

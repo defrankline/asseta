@@ -87,6 +87,8 @@ CATALOG = PermissionCatalog()
 # Side-navigation sections in daily-workflow order: each console opens on its Overview (the landing page).
 for _group in (
     MenuGroupDef("tenant.overview", PermissionScope.TENANT, "Overview", 10),
+    # Supervisor field work from a browser (the same R1 capture flows as the field apps); right after Overview.
+    MenuGroupDef("tenant.field", PermissionScope.TENANT, "Field work", 15),
     MenuGroupDef("tenant.operations", PermissionScope.TENANT, "Operations", 20),
     MenuGroupDef("tenant.fleet", PermissionScope.TENANT, "Fleet", 30),
     MenuGroupDef("tenant.finance", PermissionScope.TENANT, "Finance", 40),

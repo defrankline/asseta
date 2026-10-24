@@ -47057,6 +47057,152 @@
         ]
       }
     },
+    "/api/v1/tenant/field/machines": {
+      "get": {
+        "description": "Machines the caller works on in the field: assigned to them or on a job they supervise (by asset code / name,\nat most 100). Field users have no machine register access; this is what the field apps receive on sync.",
+        "operationId": "listMyFieldMachines",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MachineDto"
+                  },
+                  "title": "Response Listmyfieldmachines",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Field Machines",
+        "tags": [
+          "jobs"
+        ]
+      }
+    },
     "/api/v1/tenant/finance/profitability": {
       "get": {
         "operationId": "getProfitability",
@@ -51446,6 +51592,18 @@
                 }
               ],
               "title": "Machine Id"
+            }
+          },
+          {
+            "description": "Only jobs the caller supervises: named supervisor, or on a machine assigned to them",
+            "in": "query",
+            "name": "mine",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Only jobs the caller supervises: named supervisor, or on a machine assigned to them",
+              "title": "Mine",
+              "type": "boolean"
             }
           },
           {
@@ -60151,6 +60309,7 @@
     },
     "/api/v1/tenant/policies/{ptype}/effective": {
       "get": {
+        "description": "Policy readers see every type; a field user sees only the capture policy their capture permission covers.",
         "operationId": "getEffectivePolicy",
         "parameters": [
           {

@@ -1,6 +1,7 @@
 import AccountBalanceWalletOutlined from '@mui/icons-material/AccountBalanceWalletOutlined';
 import ApartmentOutlined from '@mui/icons-material/ApartmentOutlined';
 import DashboardOutlined from '@mui/icons-material/DashboardOutlined';
+import EngineeringOutlined from '@mui/icons-material/EngineeringOutlined';
 import FolderOutlined from '@mui/icons-material/FolderOutlined';
 import InsightsOutlined from '@mui/icons-material/InsightsOutlined';
 import LocalShippingOutlined from '@mui/icons-material/LocalShippingOutlined';
@@ -13,6 +14,7 @@ import type { SvgIconComponent } from '@mui/icons-material';
 /** Header icon per server menu group key (`<scope>.<section>`); unknown groups get a folder. */
 const ICONS: Readonly<Record<string, SvgIconComponent>> = {
   overview: DashboardOutlined,
+  field: EngineeringOutlined,
   operations: WorkOutlined,
   fleet: LocalShippingOutlined,
   finance: AccountBalanceWalletOutlined,

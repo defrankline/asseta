@@ -3,8 +3,8 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, Header, Query
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from asseta.core.db import get_session
@@ -13,6 +13,8 @@ from asseta.core.idempotency import IdempotencyGuard, request_hash
 from asseta.core.lifecycle import IncludeInactive, LifecycleChangeIn
 from asseta.core.paging import Page, PageParams, page_params, paginate
 from asseta.core.search import ilike_any
+from asseta.modules.fleet.dto import MachineDto
+from asseta.modules.fleet.models import Machine
 from asseta.modules.identity.catalog import CATALOG, MenuDef
 from asseta.modules.identity.catalog import PermissionScope as S
 from asseta.modules.identity.dependencies import requires
@@ -40,11 +42,13 @@ from asseta.modules.jobs.lifecycle import RecordLifecycleService, customer_query
 from asseta.modules.jobs.models import (
     ContractStatus,
     CustomerAcknowledgement,
+    Job,
     JobActivity,
     JobStatus,
     RentalContract,
     RentalRatePolicy,
 )
+from asseta.modules.jobs.scope import assigned_machine_ids, job_filter, own_staff
 from asseta.modules.jobs.service import JobService
 
 CUSTOMER_READ = requires("tenant.customer.read", S.TENANT, "View customers and contracts")
@@ -64,6 +68,7 @@ for menu in (
         group="tenant.operations",
     ),
     MenuDef("tenant.jobs", S.TENANT, "Jobs", "/tenant/jobs", 15, "tenant.job.read", group="tenant.operations"),
+    MenuDef("tenant.field.jobs", S.TENANT, "My jobs", "/tenant/field/jobs", 11, "tenant.job.log", group="tenant.field"),
 ):
     CATALOG.register_menu(menu)
 
@@ -206,12 +211,19 @@ def create_job(
 @router.get("/jobs", response_model=Page[JobDto], operation_id="listJobs")
 def jobs(
     session: DbSession,
-    _: Annotated[RequestContext, Depends(JOB_READ)],
+    ctx: Annotated[RequestContext, Depends(JOB_READ)],
     paging: Annotated[PageParams, Depends(page_params)],
     status: JobStatus | None = None,
     machine_id: uuid.UUID | None = None,
+    mine: Annotated[
+        bool,
+        Query(description="Only jobs the caller supervises: named supervisor, or on a machine assigned to them"),
+    ] = False,
 ) -> Page[JobDto]:
-    rows, total = paginate(session, job_list_query(paging.q, status, machine_id), paging)
+    stmt = job_list_query(paging.q, status, machine_id)
+    if mine:
+        stmt = stmt.where(job_filter(own_staff(session, ctx)))
+    rows, total = paginate(session, stmt, paging)
     return Page(
         items=[JobDto.model_validate(j) for j in rows], total=total, page=paging.page, page_size=paging.page_size
     )
@@ -304,3 +316,24 @@ def acknowledgements(
         .order_by(CustomerAcknowledgement.captured_at)
     ).scalars()
     return [AcknowledgementDto.model_validate(a) for a in rows]
+
+
+@router.get("/field/machines", response_model=list[MachineDto], operation_id="listMyFieldMachines")
+def field_machines(
+    session: DbSession, ctx: Annotated[RequestContext, Depends(JOB_READ)], q: str | None = None
+) -> list[MachineDto]:
+    """Machines the caller works on in the field: assigned to them or on a job they supervise (by asset code / name,
+    at most 100). Field users have no machine register access; this is what the field apps receive on sync."""
+    staff = own_staff(session, ctx)
+    if staff is None:
+        return []
+    on_my_jobs = select(Job.machine_id).where(job_filter(staff))
+    stmt = (
+        select(Machine)
+        .where(or_(Machine.id.in_(assigned_machine_ids(staff.id)), Machine.id.in_(on_my_jobs)))
+        .order_by(Machine.asset_code)
+        .limit(100)
+    )
+    if (match := ilike_any(q, Machine.asset_code, Machine.name)) is not None:
+        stmt = stmt.where(match)
+    return [MachineDto.model_validate(m) for m in session.execute(stmt).scalars()]

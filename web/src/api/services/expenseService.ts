@@ -26,7 +26,7 @@ const approvalPageSchema = tenantPageSchema(approvalRequestSchema);
 
 /** Field expenses under the EXPENSE_CAPTURE policy; receipts are fetched via short-lived URLs. */
 export const expenseService = {
-  /** GET /tenant/expenses (listExpenses). Filters: `status`, `machine_id`, `job_id`, `custodian_staff_id`. */
+  /** GET /tenant/expenses (listExpenses). Filters: `status`, `machine_id`, `job_id`, `custodian_staff_id`, `mine`. */
   list(query: TenantListQuery, signal?: AbortSignal): Promise<Page<ExpenseDto>> {
     return tenantPage('/tenant/expenses', expensePageSchema, query, 'expenses', signal);
   },
@@ -64,7 +64,7 @@ export const expenseService = {
 
 /** Fuel purchase / issue / usage log with cost attribution. */
 export const fuelService = {
-  /** GET /tenant/fuel-events (listFuelEvents). Filters: `event_type`, `machine_id`. */
+  /** GET /tenant/fuel-events (listFuelEvents). Filters: `event_type`, `machine_id`, `job_id`, `mine`. */
   list(query: TenantListQuery, signal?: AbortSignal): Promise<Page<FuelEventDto>> {
     return tenantPage('/tenant/fuel-events', fuelPageSchema, query, 'fuel events', signal);
   },

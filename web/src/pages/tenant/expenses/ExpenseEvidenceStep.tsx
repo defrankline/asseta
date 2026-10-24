@@ -19,7 +19,11 @@ const show = (v: unknown): string =>
 /** EXPENSE_CAPTURE policy in force at the incurred time: receipt / GPS rules and approval limit. */
 export function ExpensePolicySummary({ at }: { at: string }) {
   const { hasPermission } = useSession();
-  const canRead = hasPermission(PERMISSIONS.tenantPolicyRead);
+  // Expense writers may read the EXPENSE_CAPTURE policy they submit under (as the field apps do).
+  const canRead = hasPermission(
+    [PERMISSIONS.tenantPolicyRead, PERMISSIONS.tenantExpenseWrite],
+    'any',
+  );
   const load = useCallback(
     (signal: AbortSignal): Promise<EffectivePolicyDto> =>
       policyService.effective('EXPENSE_CAPTURE', { at }, signal),

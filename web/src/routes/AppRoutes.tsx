@@ -57,6 +57,12 @@ import {
   TrackersPage,
   DashboardPage,
   AuditLogPage,
+  FieldCashPage,
+  FieldExpensesPage,
+  FieldFuelPage,
+  FieldJobPage,
+  FieldReadingsPage,
+  MyJobsPage,
 } from './lazyPages';
 
 const NOTIFICATION_MANAGE = [
@@ -279,6 +285,27 @@ export function AppRoutes() {
         <Route
           path={ROUTES.tenantManagedService}
           element={guard(PERMISSIONS.tenantManagedServiceRead, <ClientManagedServicePage />)}
+        />
+        <Route path={ROUTES.fieldJobs} element={guard(PERMISSIONS.tenantJobLog, <MyJobsPage />)} />
+        <Route
+          path={ROUTES.fieldJobDetail}
+          element={guard(PERMISSIONS.tenantJobLog, <FieldJobPage />)}
+        />
+        <Route
+          path={ROUTES.fieldReadings}
+          element={guard(PERMISSIONS.tenantMeterCapture, <FieldReadingsPage />)}
+        />
+        <Route
+          path={ROUTES.fieldFuel}
+          element={guard(PERMISSIONS.tenantExpenseWrite, <FieldFuelPage />)}
+        />
+        <Route
+          path={ROUTES.fieldExpenses}
+          element={guard(PERMISSIONS.tenantExpenseWrite, <FieldExpensesPage />)}
+        />
+        <Route
+          path={ROUTES.fieldCash}
+          element={guard(PERMISSIONS.tenantCollectionRecord, <FieldCashPage />)}
         />
         <Route path={ROUTES.forbidden} element={<ForbiddenPage />} />
         <Route path="*" element={<NotFoundPage />} />

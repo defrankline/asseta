@@ -9,12 +9,15 @@ import type {
   JobSummaryDto,
   JobTransitionIn,
   JobUpdateIn,
+  MachineDto,
   Page,
 } from '../types';
+import { machineSchema } from './fleetSchemas';
 import { acknowledgementSchema, activitySchema, jobSchema, jobSummarySchema } from './jobSchemas';
 import {
   seg,
   tenantGet,
+  tenantList,
   tenantPage,
   tenantPageSchema,
   tenantSend,
@@ -25,7 +28,10 @@ const jobPageSchema = tenantPageSchema(jobSchema);
 const j = (id: string) => `/tenant/jobs/${seg(id)}`;
 
 export const jobService = {
-  /** GET /tenant/jobs (listJobs). Filters: `status`, `machine_id`; `q` searches the job number. */
+  /**
+   * GET /tenant/jobs (listJobs). Filters: `status`, `machine_id`, `mine` ('true': jobs the caller
+   * supervises); `q` searches the job number.
+   */
   list(query: TenantListQuery, signal?: AbortSignal): Promise<Page<JobDto>> {
     return tenantPage('/tenant/jobs', jobPageSchema, query, 'job page', signal);
   },
@@ -84,6 +90,10 @@ export const jobService = {
       'acknowledgement',
       idempotencyKey,
     );
+  },
+  /** GET /tenant/field/machines (listMyFieldMachines): machines the caller works on; `q` searches. */
+  fieldMachines(q: string | undefined, signal?: AbortSignal): Promise<MachineDto[]> {
+    return tenantList('/tenant/field/machines', machineSchema, 'field machines', signal, { q });
   },
   /** PUT /tenant/jobs/{id} (updateJob): DRAFT / PENDING_APPROVAL only; price is re-derived. */
   update(jobId: string, body: JobUpdateIn, idempotencyKey: string): Promise<JobDto> {

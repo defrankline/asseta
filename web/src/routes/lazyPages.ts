@@ -165,3 +165,27 @@ export const DashboardPage = lazy(() =>
 export const AuditLogPage = lazy(() =>
   import('../pages/audit/AuditLogPage').then((m) => ({ default: m.AuditLogPage })),
 );
+
+// ---- Field work: the supervisor's capture flows from a browser ----
+export const MyJobsPage = lazy(() =>
+  import('../pages/tenant/field/MyJobsPage').then((m) => ({ default: m.MyJobsPage })),
+);
+export const FieldJobPage = lazy(() =>
+  import('../pages/tenant/field/FieldJobPage').then((m) => ({ default: m.FieldJobPage })),
+);
+export const FieldReadingsPage = lazy(() =>
+  import('../pages/tenant/field/FieldReadingsPage').then((m) => ({
+    default: m.FieldReadingsPage,
+  })),
+);
+export const FieldFuelPage = lazy(() =>
+  import('../pages/tenant/field/FieldFuelPage').then((m) => ({ default: m.FieldFuelPage })),
+);
+export const FieldExpensesPage = lazy(() =>
+  import('../pages/tenant/field/FieldExpensesPage').then((m) => ({
+    default: m.FieldExpensesPage,
+  })),
+);
+export const FieldCashPage = lazy(() =>
+  import('../pages/tenant/field/FieldCashPage').then((m) => ({ default: m.FieldCashPage })),
+);

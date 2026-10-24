@@ -39,6 +39,7 @@ def test_groups_follow_the_daily_workflow_and_start_on_the_landing_page() -> Non
 
     assert labels(PermissionScope.TENANT) == [
         "Overview",
+        "Field work",
         "Operations",
         "Fleet",
         "Finance",
@@ -92,3 +93,18 @@ def test_registration_rejects_ungrouped_or_cross_scope_menus() -> None:
         catalog.register_group(MenuGroupDef("tenant.bad", PermissionScope.PLATFORM, "Bad", 1))
     catalog.register_menu(MenuDef("tenant.new", PermissionScope.TENANT, "New", "/n", 1, "tenant.x.read", "tenant.g"))
     assert [m.group for m in catalog.menus()] == ["tenant.g"]
+
+
+def test_supervisor_template_gets_the_field_work_group_after_overview() -> None:
+    from asseta.modules.identity.role_templates import TENANT_TEMPLATES, template_permissions
+
+    supervisor = next(t for t in TENANT_TEMPLATES if t.key == "supervisor")
+    menus, groups = menus_for(_rows(), "TENANT", frozenset(template_permissions(supervisor)))
+    assert [g.key for g in groups][:2] == ["tenant.overview", "tenant.field"]
+    assert [(m.label, m.path) for m in menus if m.group == "tenant.field"] == [
+        ("My jobs", "/tenant/field/jobs"),
+        ("Readings", "/tenant/field/readings"),
+        ("Fuel", "/tenant/field/fuel"),
+        ("Expenses", "/tenant/field/expenses"),
+        ("Cash", "/tenant/field/cash"),
+    ]

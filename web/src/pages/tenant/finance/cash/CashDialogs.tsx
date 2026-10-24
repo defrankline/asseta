@@ -128,6 +128,8 @@ export function FloatDialog({
 
 interface HandoverDialogProps {
   staffMemberId?: string;
+  /** Field work: the caller hands over their own cash (no custodian picker). */
+  ownCustody?: boolean;
   timeZone: string;
   onClose: () => void;
   onRecorded: (handover: CashHandoverDto) => void;
@@ -136,6 +138,7 @@ interface HandoverDialogProps {
 /** A supervisor hands cash to the office; CLAIMED until someone else verifies it. */
 export function HandoverDialog({
   staffMemberId = '',
+  ownCustody = false,
   timeZone,
   onClose,
   onRecorded,
@@ -165,13 +168,15 @@ export function HandoverDialog({
           fields: ['staff_member_id', 'amount', 'currency'],
           render: () => (
             <>
-              <FormikStaffIdPicker
-                name="staff_member_id"
-                label="Handed over by (custodian)"
-                supervisorsOnly
-                onOptionChange={setStaff}
-                helperText="Leave empty for your own custody. Someone else's needs office cash permission (NOT_CUSTODIAN)."
-              />
+              {!ownCustody && (
+                <FormikStaffIdPicker
+                  name="staff_member_id"
+                  label="Handed over by (custodian)"
+                  supervisorsOnly
+                  onOptionChange={setStaff}
+                  helperText="Leave empty for your own custody. Someone else's needs office cash permission (NOT_CUSTODIAN)."
+                />
+              )}
               <FormikTextField name="amount" label="Amount" required />
               <FormikSelectField name="currency" label="Currency" options={CURRENCY_OPTIONS} />
             </>

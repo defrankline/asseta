@@ -5,7 +5,7 @@ import { HomeRedirect } from '../pages/HomeRedirect';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { SessionContext } from '../session/SessionContext';
 import { makeMe, makeSession, TENANT_A } from '../test/fixtures';
-import { makeGroupedTenantMe, TENANT_MENUS } from '../test/navFixtures';
+import { makeGroupedTenantMe, TENANT_GROUPS, TENANT_MENUS } from '../test/navFixtures';
 import { SideNav } from './SideNav';
 
 const STORAGE_KEY = 'asseta.nav.groups';
@@ -110,6 +110,7 @@ describe('HomeRedirect', () => {
             <Route path="/" element={<HomeRedirect />} />
             <Route path="/tenant/dashboard" element={<p>Tenant dashboard page</p>} />
             <Route path="/tenant/fleet" element={<p>Fleet map page</p>} />
+            <Route path="/tenant/field/jobs" element={<p>My jobs page</p>} />
             <Route path="/platform" element={<p>Dashboard page</p>} />
             <Route path="*" element={<p>Somewhere else</p>} />
           </Routes>
@@ -120,6 +121,48 @@ describe('HomeRedirect', () => {
 
   it('lands tenant users on the first Overview item: the Dashboard', () => {
     landOn(makeSession(makeGroupedTenantMe(), { kind: 'tenant', tenantId: TENANT_A }));
+    expect(screen.getByText('Tenant dashboard page')).toBeInTheDocument();
+  });
+
+  it('lands field users (no office oversight) on My jobs', () => {
+    const field = {
+      key: 'tenant.field.jobs',
+      label: 'My jobs',
+      path: '/tenant/field/jobs',
+      order: 11,
+      group: 'tenant.field',
+    };
+    const groups = [...TENANT_GROUPS, { key: 'tenant.field', label: 'Field work', order: 15 }];
+    const me = makeGroupedTenantMe([...TENANT_MENUS, field], groups);
+    const asSupervisor = {
+      ...me,
+      tenants: me.tenants.map((t) => ({
+        ...t,
+        permissions: ['tenant.job.log', 'tenant.fleet.read'],
+      })),
+    };
+    landOn(makeSession(asSupervisor, { kind: 'tenant', tenantId: TENANT_A }));
+    expect(screen.getByText('My jobs page')).toBeInTheDocument();
+  });
+
+  it('keeps owners on the Dashboard even with Field work menus', () => {
+    const field = {
+      key: 'tenant.field.jobs',
+      label: 'My jobs',
+      path: '/tenant/field/jobs',
+      order: 11,
+      group: 'tenant.field',
+    };
+    const groups = [...TENANT_GROUPS, { key: 'tenant.field', label: 'Field work', order: 15 }];
+    const me = makeGroupedTenantMe([...TENANT_MENUS, field], groups);
+    const asOwner = {
+      ...me,
+      tenants: me.tenants.map((t) => ({
+        ...t,
+        permissions: ['tenant.job.log', 'tenant.job.approve', 'tenant.finance.read'],
+      })),
+    };
+    landOn(makeSession(asOwner, { kind: 'tenant', tenantId: TENANT_A }));
     expect(screen.getByText('Tenant dashboard page')).toBeInTheDocument();
   });
 

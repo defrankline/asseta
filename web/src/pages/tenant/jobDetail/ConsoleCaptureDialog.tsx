@@ -53,6 +53,8 @@ const MODE_OPTIONS = [
 interface ConsoleCaptureDialogProps {
   job: JobDto;
   kind: ReadingKind;
+  /** `field`: a supervisor recording from a laptop or tablet (Field work), not an office fallback. */
+  variant?: 'console' | 'field';
   onClose: () => void;
   onRecorded: (result: CaptureResultDto) => void;
 }
@@ -65,11 +67,16 @@ interface ConsoleCaptureDialogProps {
 export function ConsoleCaptureDialog({
   job,
   kind,
+  variant = 'console',
   onClose,
   onRecorded,
 }: ConsoleCaptureDialogProps) {
   const { hasPermission } = useSession();
-  const canReadPolicy = hasPermission(PERMISSIONS.tenantPolicyRead);
+  // Capturing users may read the METER_CAPTURE policy they capture under (as the field apps do).
+  const canReadPolicy = hasPermission(
+    [PERMISSIONS.tenantPolicyRead, PERMISSIONS.tenantMeterCapture],
+    'any',
+  );
   const [captureId] = useState(newUuid);
   const [capturedAt] = useState(() => new Date().toISOString());
   const keyFor = useIdempotencyKey();
@@ -151,11 +158,19 @@ export function ConsoleCaptureDialog({
     >
       {(formik) => (
         <>
-          <Alert severity="info">
-            Console fallback. Supervisors normally capture readings in the mobile app. The console
-            does not run OCR, so an Automatic reading recorded here has no OCR result and will be
-            listed for review.
-          </Alert>
+          {variant === 'field' ? (
+            <Alert severity="info">
+              Photograph the hour meter (or choose a photo taken on site) and type the reading shown
+              on it. The browser does not read the meter automatically, so an Automatic reading
+              recorded here has no OCR result and is listed for review.
+            </Alert>
+          ) : (
+            <Alert severity="info">
+              Console fallback. Supervisors normally capture readings in the mobile app. The console
+              does not run OCR, so an Automatic reading recorded here has no OCR result and will be
+              listed for review.
+            </Alert>
+          )}
           <CapturePolicySummary
             resource={canReadPolicy ? policy : null}
             view={view}
@@ -194,6 +209,8 @@ export function ConsoleCaptureDialog({
             onChange={setPhoto}
             upload={upload}
             required={photoExpected(view, formik.values.capture_mode)}
+            capture="environment"
+            preview
             helperText="The original image is stored unchanged with its SHA-256 hash."
           />
           <Typography variant="subtitle2" component="h3">

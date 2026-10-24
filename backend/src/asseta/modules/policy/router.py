@@ -10,9 +10,9 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from asseta.core.db import get_session
-from asseta.core.errors import ERROR_RESPONSES, BusinessRuleViolation, NotFound
+from asseta.core.errors import ERROR_RESPONSES, BusinessRuleViolation, NotFound, PermissionDenied
 from asseta.modules.identity.catalog import CATALOG, MenuDef, PermissionScope
-from asseta.modules.identity.dependencies import requires
+from asseta.modules.identity.dependencies import requires, requires_any
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.policy.models import PolicyVersion
 from asseta.modules.policy.schemas import PolicyScope, PolicyType
@@ -32,6 +32,14 @@ CATALOG.register_menu(
         group="tenant.admin",
     )
 )
+
+# Field users capture under a policy they must be able to see (the field apps receive it as a sync snapshot): the
+# capture permission alone grants the effective policy of that capture type, nothing else.
+CAPTURE_POLICY_READERS = {
+    PolicyType.METER_CAPTURE: "tenant.meter.capture",
+    PolicyType.EXPENSE_CAPTURE: "tenant.expense.write",
+}
+EFFECTIVE_READ = requires_any(("tenant.policy.read", *CAPTURE_POLICY_READERS.values()), PermissionScope.TENANT)
 
 router = APIRouter(prefix="/api/v1", tags=["policy"], responses=ERROR_RESPONSES)
 DbSession = Annotated[Session, Depends(get_session)]
@@ -69,11 +77,14 @@ class EffectivePolicyDto(BaseModel):
 def effective(
     ptype: PolicyType,
     session: DbSession,
-    ctx: Annotated[RequestContext, Depends(POLICY_READ)],
+    ctx: Annotated[RequestContext, Depends(EFFECTIVE_READ)],
     machine_id: uuid.UUID | None = None,
     site_id: uuid.UUID | None = None,
     at: datetime | None = None,
 ) -> EffectivePolicyDto:
+    """Policy readers see every type; a field user sees only the capture policy their capture permission covers."""
+    if "tenant.policy.read" not in ctx.permissions and CAPTURE_POLICY_READERS.get(ptype) not in ctx.permissions:
+        raise PermissionDenied("Missing permission tenant.policy.read")
     eff = PolicyService(session).resolve(ptype, ctx.tenant_id, machine_id=machine_id, site_id=site_id, at=at)
     return EffectivePolicyDto(policy_type=ptype, version_stamp=eff.version_stamp, values=eff.policy.model_dump())
 

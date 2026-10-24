@@ -20,7 +20,7 @@ import { useLiveRefresh } from '../../../../realtime/hooks';
 
 type Open = 'float' | 'collection' | 'handover' | null;
 
-function BalanceCard({ b, timeZone }: { b: CashCustodyBalanceDto; timeZone: string }) {
+export function BalanceCard({ b, timeZone }: { b: CashCustodyBalanceDto; timeZone: string }) {
   return (
     <Paper
       variant="outlined"

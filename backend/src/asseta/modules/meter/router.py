@@ -62,11 +62,21 @@ CAPTURE = requires("tenant.meter.capture", S.TENANT, "Capture hour-meter reading
 METER_READ = requires("tenant.meter.read", S.TENANT, "View meter readings, evidence and exceptions")
 REVIEW = requires("tenant.meter.review", S.TENANT, "Review meter/GPS exceptions")
 APPROVE = requires("tenant.meter.approve", S.TENANT, "Approve meter resets and reading corrections")
-CATALOG.register_menu(
+for menu in (
     MenuDef(
         "tenant.exceptions", S.TENANT, "Exceptions", "/tenant/exceptions", 62, "tenant.meter.read", group="tenant.risk"
-    )
-)
+    ),
+    MenuDef(
+        "tenant.field.readings",
+        S.TENANT,
+        "Readings",
+        "/tenant/field/readings",
+        12,
+        "tenant.meter.capture",
+        group="tenant.field",
+    ),
+):
+    CATALOG.register_menu(menu)
 PURPOSES = {"METER_PHOTO", "SIGNATURE", "RESET_EVIDENCE", "EXPENSE_RECEIPT"}
 
 router = APIRouter(prefix="/api/v1/tenant", tags=["meter"], responses=ERROR_RESPONSES)

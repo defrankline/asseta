@@ -35,7 +35,13 @@ import { useLiveRefresh } from '../../../../realtime/hooks';
 export const RECONCILIATION_FORMULA =
   'Opening + floats + collections − approved cash expenses − verified handovers = outstanding';
 
-function FormulaCard({ day: d, currency }: { day: CashReconciliationDayDto; currency: string }) {
+export function FormulaCard({
+  day: d,
+  currency,
+}: {
+  day: CashReconciliationDayDto;
+  currency: string;
+}) {
   const m = (v: string, strong = false) => (
     <MoneyText amount={v} currency={currency} strong={strong} />
   );

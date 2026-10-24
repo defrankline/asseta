@@ -79,6 +79,18 @@ for menu in (
         "tenant.approval.read",
         group="tenant.finance",
     ),
+    MenuDef(
+        "tenant.field.fuel", S.TENANT, "Fuel", "/tenant/field/fuel", 13, "tenant.expense.write", group="tenant.field"
+    ),
+    MenuDef(
+        "tenant.field.expenses",
+        S.TENANT,
+        "Expenses",
+        "/tenant/field/expenses",
+        14,
+        "tenant.expense.write",
+        group="tenant.field",
+    ),
 ):
     CATALOG.register_menu(menu)
 

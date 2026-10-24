@@ -34,12 +34,14 @@ interface CapturesTabProps {
   job: JobDto;
   timeZone: string;
   onChanged: () => void;
+  /** false where another control records readings (the Field work job workspace). */
+  allowRecord?: boolean;
 }
 
 /** Readings & evidence: every capture with GPS, tracker comparison, map and findings. */
-export function CapturesTab({ job, timeZone, onChanged }: CapturesTabProps) {
+export function CapturesTab({ job, timeZone, onChanged, allowRecord = true }: CapturesTabProps) {
   const notify = useNotify();
-  const canCapture = useCanMutate(PERMISSIONS.tenantMeterCapture);
+  const canCapture = useCanMutate(PERMISSIONS.tenantMeterCapture) && allowRecord;
   const [recording, setRecording] = useState(false);
   const kind = readingKindFor(job);
   const load = useCallback(

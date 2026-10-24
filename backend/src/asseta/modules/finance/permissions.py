@@ -28,5 +28,14 @@ for menu in (
         "tenant.finance.report",
         group="tenant.finance",
     ),
+    MenuDef(
+        "tenant.field.cash",
+        S.TENANT,
+        "Cash",
+        "/tenant/field/cash",
+        15,
+        "tenant.collection.record",
+        group="tenant.field",
+    ),
 ):
     CATALOG.register_menu(menu)

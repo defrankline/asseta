@@ -1,0 +1,235 @@
+import { Box, Button, Paper, Stack, Tab, Tabs, Typography } from '@mui/material';
+import { useCallback, useState } from 'react';
+import { PERMISSIONS } from '../../../access/permissionCodes';
+import { CanMutate } from '../../../access/CanMutate';
+import { cashService } from '../../../api/services/cashService';
+import type { CashHandoverDto, CustomerPaymentDto } from '../../../api/types';
+import { ServerDataTable, type DataColumn } from '../../../components/data/ServerDataTable';
+import type { FetchPage } from '../../../components/data/useServerPage';
+import { MoneyText } from '../../../components/display/MoneyText';
+import { StatusChip } from '../../../components/display/StatusChip';
+import { AsyncContent } from '../../../components/feedback/AsyncContent';
+import { PageHeader } from '../../../components/feedback/PageHeader';
+import { StaticSelectFilter } from '../../../components/forms/StaticSelectFilter';
+import { useAsyncResource } from '../../../hooks/useAsyncResource';
+import { useDisplayTimeZone } from '../../../hooks/useDisplayTimeZone';
+import { useNotify } from '../../../notifications/useNotify';
+import { ENTITY } from '../../../realtime/entities';
+import { useLiveRefresh } from '../../../realtime/hooks';
+import { formatInstantIn } from '../../../utils/time';
+import { HandoverDialog } from '../finance/cash/CashDialogs';
+import { BalanceCard } from '../finance/cash/CustodyTab';
+import { FormulaCard, RECONCILIATION_FORMULA } from '../finance/cash/ReconciliationTab';
+import {
+  SETTLEMENT_LABELS,
+  SETTLEMENT_STATUS_OPTIONS,
+  SETTLEMENT_TONES,
+} from '../shared/financeDisplay';
+import { useCustomerLabels } from '../shared/useFinanceLabels';
+import { FieldCollectionDialog } from './FieldCollectionDialog';
+
+type TabKey = 'collections' | 'handovers';
+type Open = 'collection' | 'handover' | null;
+
+const settlement = (s: CustomerPaymentDto['status']) => (
+  <StatusChip status={s} tones={SETTLEMENT_TONES} label={SETTLEMENT_LABELS[s]} />
+);
+
+/** Today's custody and reconciliation for the caller (one entry per currency). */
+function MyCustody({ timeZone, reloadKey }: { timeZone: string; reloadKey: number }) {
+  const load = useCallback(async (signal: AbortSignal) => {
+    const [balances, reconciliation] = await Promise.all([
+      cashService.myCustody(signal),
+      cashService.myReconciliation(undefined, signal),
+    ]);
+    return { balances, reconciliation };
+  }, []);
+  const res = useAsyncResource(load, [reloadKey]);
+  return (
+    <AsyncContent
+      resource={res}
+      isEmpty={(d) => d.balances.length === 0 && d.reconciliation.length === 0}
+      emptyTitle="No cash in your custody"
+      emptyDescription="Floats the office issues to you and cash you collect appear here."
+      errorTitle="Could not load your cash custody"
+    >
+      {(d) => (
+        <Stack spacing={2}>
+          {d.balances.map((b) => (
+            <BalanceCard key={b.currency} b={b} timeZone={timeZone} />
+          ))}
+          <Typography variant="h6" component="h2">
+            Today’s reconciliation
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            {RECONCILIATION_FORMULA}
+          </Typography>
+          {d.reconciliation.flatMap((r) =>
+            r.days.map((day) => (
+              <FormulaCard key={`${r.currency}-${day.day}`} day={day} currency={r.currency} />
+            )),
+          )}
+        </Stack>
+      )}
+    </AsyncContent>
+  );
+}
+
+/** Supervisor cash (Field work): own custody, today's reconciliation, collections and handovers. */
+export function FieldCashPage() {
+  const timeZone = useDisplayTimeZone();
+  const notify = useNotify();
+  const customerLabel = useCustomerLabels();
+  const [tab, setTab] = useState<TabKey>('collections');
+  const [status, setStatus] = useState('');
+  const [open, setOpen] = useState<Open>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const reload = useCallback(() => {
+    setReloadKey((k) => k + 1);
+  }, []);
+  useLiveRefresh([ENTITY.customerPayment, ENTITY.cashHandover, ENTITY.expense], reload);
+  const fetchCollections = useCallback<FetchPage<CustomerPaymentDto>>(
+    (query, signal) => cashService.myCollections(query, signal),
+    [],
+  );
+  const fetchHandovers = useCallback<FetchPage<CashHandoverDto>>(
+    (query, signal) => cashService.myHandovers(query, signal),
+    [],
+  );
+  const collectionColumns: DataColumn<CustomerPaymentDto>[] = [
+    { id: 'at', header: 'Received', render: (p) => formatInstantIn(p.received_at, timeZone) },
+    { id: 'customer', header: 'Customer', render: (p) => customerLabel(p.customer_id) },
+    { id: 'ref', header: 'Reference', render: (p) => p.reference ?? '—' },
+    { id: 'status', header: 'Status', render: (p) => settlement(p.status) },
+    { id: 'note', header: 'Office note', render: (p) => p.decision_note ?? '—' },
+    {
+      id: 'amount',
+      header: 'Amount',
+      align: 'right',
+      render: (p) => <MoneyText amount={p.amount} currency={p.currency} />,
+    },
+  ];
+  const handoverColumns: DataColumn<CashHandoverDto>[] = [
+    { id: 'at', header: 'Handed over', render: (h) => formatInstantIn(h.handed_at, timeZone) },
+    { id: 'ref', header: 'Reference', render: (h) => h.reference ?? '—' },
+    { id: 'status', header: 'Status', render: (h) => settlement(h.status) },
+    { id: 'note', header: 'Office note', render: (h) => h.decision_note ?? '—' },
+    {
+      id: 'amount',
+      header: 'Amount',
+      align: 'right',
+      render: (h) => <MoneyText amount={h.amount} currency={h.currency} />,
+    },
+  ];
+  const done = (message: string) => {
+    notify.success(message);
+    reload();
+  };
+  const close = () => {
+    setOpen(null);
+  };
+  return (
+    <>
+      <PageHeader
+        title="Cash"
+        subtitle="Cash in your custody, today’s reconciliation, and the collections and handovers you recorded"
+        actions={
+          <CanMutate permission={PERMISSIONS.tenantCollectionRecord}>
+            <Button
+              variant="contained"
+              onClick={() => {
+                setOpen('collection');
+              }}
+            >
+              Record cash collection
+            </Button>
+            <Button
+              variant="outlined"
+              onClick={() => {
+                setOpen('handover');
+              }}
+            >
+              Hand over cash
+            </Button>
+          </CanMutate>
+        }
+      />
+      <Stack spacing={3}>
+        <MyCustody timeZone={timeZone} reloadKey={reloadKey} />
+        <Paper variant="outlined">
+          <Tabs
+            value={tab}
+            aria-label="Cash records"
+            onChange={(_e, v: TabKey) => {
+              setTab(v);
+              setStatus('');
+            }}
+          >
+            <Tab value="collections" label="My collections" />
+            <Tab value="handovers" label="My handovers" />
+          </Tabs>
+          <Box className="p-3">
+            {tab === 'collections' ? (
+              <ServerDataTable
+                columns={collectionColumns}
+                fetchPage={fetchCollections}
+                getRowId={(p) => p.id}
+                searchable={false}
+                reloadKey={reloadKey}
+                filters={{ status: status || undefined }}
+                emptyTitle="No cash collections"
+                isRowMuted={(p) => p.status === 'REJECTED'}
+                toolbar={
+                  <StaticSelectFilter
+                    label="Status"
+                    value={status}
+                    options={SETTLEMENT_STATUS_OPTIONS}
+                    onChange={setStatus}
+                  />
+                }
+              />
+            ) : (
+              <ServerDataTable
+                columns={handoverColumns}
+                fetchPage={fetchHandovers}
+                getRowId={(h) => h.id}
+                searchable={false}
+                reloadKey={reloadKey}
+                filters={{ status: status || undefined }}
+                emptyTitle="No handovers"
+                isRowMuted={(h) => h.status === 'REJECTED'}
+                toolbar={
+                  <StaticSelectFilter
+                    label="Status"
+                    value={status}
+                    options={SETTLEMENT_STATUS_OPTIONS}
+                    onChange={setStatus}
+                  />
+                }
+              />
+            )}
+          </Box>
+        </Paper>
+      </Stack>
+      {open === 'collection' && (
+        <FieldCollectionDialog
+          timeZone={timeZone}
+          onClose={close}
+          onRecorded={() => {
+            done('Cash collection recorded; it is claimed until the office verifies it.');
+          }}
+        />
+      )}
+      {open === 'handover' && (
+        <HandoverDialog
+          ownCustody
+          timeZone={timeZone}
+          onClose={close}
+          onRecorded={() => {
+            done('Handover recorded; it is claimed until the office verifies it.');
+          }}
+        />
+      )}
+    </>
+  );
+}

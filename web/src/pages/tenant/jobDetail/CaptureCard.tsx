@@ -146,6 +146,11 @@ export function CaptureCard({ capture: c, findings, timeZone }: CaptureCardProps
                     {f.blocking && <Chip size="small" variant="outlined" label="Blocks billing" />}
                   </Box>
                   <EvidenceKeyValues type={f.exception_type} evidence={f.evidence} columns={3} />
+                  {f.review_note !== null && (
+                    <Typography variant="body2">
+                      <strong>Reviewer note:</strong> {f.review_note}
+                    </Typography>
+                  )}
                 </Box>
               ))}
             </Stack>

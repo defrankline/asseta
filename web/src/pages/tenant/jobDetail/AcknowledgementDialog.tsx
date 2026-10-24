@@ -1,4 +1,4 @@
-import { Box, Typography } from '@mui/material';
+import { Box, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
 import { useState } from 'react';
 import { mixed, object, string, type ObjectSchema } from 'yup';
 import { newUuid } from '../../../api/ids';
@@ -17,6 +17,7 @@ import { FormikSelectField } from '../../../components/forms/FormikSelectField';
 import { FormikTextField } from '../../../components/forms/FormikTextField';
 import { StepperFormDialog, type FormStep } from '../../../components/forms/StepperFormDialog';
 import { AttachmentUpload } from '../../../components/meter/AttachmentUpload';
+import { SignaturePad } from '../../../components/meter/SignaturePad';
 import { useIdempotencyKey } from '../../../hooks/useIdempotencyKey';
 import { formatInstantIn } from '../../../utils/time';
 import { labelOf } from '../shared/display';
@@ -47,7 +48,7 @@ const schema: ObjectSchema<AckValues> = object({
   signature: mixed<AttachmentDto>()
     .nullable()
     .defined()
-    .test('signature', 'Upload the signature image', function (v) {
+    .test('signature', 'Add the signature: draw it on screen or upload an image', function (v) {
       return (this.parent as AckValues).method !== 'SIGNATURE' || v !== null;
     }),
 });
@@ -67,6 +68,7 @@ export function AcknowledgementDialog(props: AcknowledgementDialogProps) {
   const keyFor = useIdempotencyKey();
   const uploadKey = useIdempotencyKey();
   const [clientId] = useState(newUuid);
+  const [signatureSource, setSignatureSource] = useState<'draw' | 'upload'>('draw');
   const [initialValues] = useState<AckValues>(() => ({
     method: 'NAME_CONFIRMATION',
     signer_name: '',
@@ -111,16 +113,42 @@ export function AcknowledgementDialog(props: AcknowledgementDialogProps) {
             required
           />
           {formik.values.method === 'SIGNATURE' && (
-            <Box className="sm:col-span-2">
-              <AttachmentUpload
-                label="Signature image"
-                required
-                value={formik.values.signature}
-                onChange={(a) => {
-                  void formik.setFieldValue('signature', a);
+            <Box className="flex flex-col gap-2 sm:col-span-2">
+              <ToggleButtonGroup
+                size="small"
+                exclusive
+                value={signatureSource}
+                aria-label="Signature source"
+                onChange={(_e, v: 'draw' | 'upload' | null) => {
+                  if (v === null) return;
+                  setSignatureSource(v);
+                  void formik.setFieldValue('signature', null);
                 }}
-                upload={upload}
-              />
+              >
+                <ToggleButton value="draw">Sign on screen</ToggleButton>
+                <ToggleButton value="upload">Upload image</ToggleButton>
+              </ToggleButtonGroup>
+              {signatureSource === 'draw' ? (
+                <SignaturePad
+                  label="Customer signature"
+                  value={formik.values.signature}
+                  onChange={(a) => {
+                    void formik.setFieldValue('signature', a);
+                  }}
+                  upload={upload}
+                />
+              ) : (
+                <AttachmentUpload
+                  label="Signature image"
+                  required
+                  preview
+                  value={formik.values.signature}
+                  onChange={(a) => {
+                    void formik.setFieldValue('signature', a);
+                  }}
+                  upload={upload}
+                />
+              )}
               {typeof formik.errors.signature === 'string' && formik.touched.signature === true && (
                 <Typography variant="caption" color="error">
                   {formik.errors.signature}
