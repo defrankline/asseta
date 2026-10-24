@@ -51,6 +51,8 @@ public enum DeepLinkParser {
         case let ("case", id?): return .investigation(id)
         case let ("job", id?): return .job(id)
         case let ("meter_reset", id?): return .meterReset(id)
+        case ("meter_reset", nil): return .approvals
+        case ("exception", _): return .exceptions(jobID: nil)
         default: return path.flatMap(route(path:))
         }
     }
@@ -74,6 +76,9 @@ public enum DeepLinkParser {
         case ("alerts", nil): return .alerts
         case let ("approvals", id?): return .approval(id)
         case ("approvals", nil): return .approvals
+        case let ("meter-resets", id?): return .meterReset(id)
+        case ("meter-resets", nil): return .approvals
+        case ("exceptions", _): return .exceptions(jobID: nil)
         case ("fleet", _):
             if parts.count >= 4, parts[2] == "machines", let machine = UUID(uuidString: parts[3]) {
                 return .machine(machine)

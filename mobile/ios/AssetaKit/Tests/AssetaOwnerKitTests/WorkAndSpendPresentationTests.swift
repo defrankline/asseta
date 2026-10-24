@@ -182,6 +182,10 @@ struct WorkAndSpendPresentationTests {
         #expect(!none.allows(.cash) && !none.allows(.meterReset(UUID())) && !none.allows(.fieldSpend))
         let id = UUID()
         #expect(DeepLinkParser.route(entity: "meter_reset", id: id.uuidString, path: nil) == .meterReset(id))
+        #expect(DeepLinkParser.route(entity: "meter_reset", id: nil, path: nil) == .approvals)
+        #expect(DeepLinkParser.route(entity: "exception", id: nil, path: nil) == .exceptions(jobID: nil))
+        #expect(DeepLinkParser.route(path: "/tenant/meter-resets/\(id.uuidString)") == .meterReset(id))
+        #expect(DeepLinkParser.route(path: "/tenant/exceptions") == .exceptions(jobID: nil))
         #expect(OwnerRoute.meterReset(id).identifiesRecord && !OwnerRoute.cash.identifiesRecord)
     }
 
