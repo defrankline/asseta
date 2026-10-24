@@ -259,6 +259,12 @@
 - **Not yet verified:** the new flows on real phones against https://asseta.co.tz (needs deploy + new app builds).
 - **Next smallest action:** deploy, then walk request → approve → start → complete with the demo supervisor and owner accounts on both platforms.
 
+### 2026-10-25 — DEC-030 accountability controls built (configurable per tenant)
+- **Completed:** backend chains A customer hours (f3c8d2c), C cash custody + oversight (1e6986f), B engine hours (a305eef), opt-in defaults for baseline gate / daily report / full remittance (1ed721e); web engine hours (404e68b), customer hours + multi-select policies (1f96114, 67c86ba), cash + accountability dashboard + security events + sync conflicts (ca5afc1); Android (a4f2eb1, 0ad1f46, 9c9fc28); iOS (d85c12e, d160bfd, e33c02c, bf0c446). Policies CUSTOMER_HOURS, ENGINE_HOURS, CASH_CUSTODY, OVERSIGHT.
+- **Tests run on ca5afc1:** backend full pytest, ruff, format, mypy (391 files), export_openapi --check, single alembic head enghrs000001; web tsc, eslint, prettier, gen-api, vitest 119 files / 679 tests; Android testDebugUnitTest + core model/domain; iOS swift test 318.
+- **Not yet verified:** new screens on devices/simulator by hand; live deploy; user manual not yet updated for DEC-030.
+- **Next smallest action:** deploy; configure the founding tenant's policies (customer hours prepaid, expiry, engine-hours baseline + daily report, cash full remittance) and walk the three chains end to end.
+
 ## Release 1 completion sign-off
 
 - [ ] Gate 0–7 DONE with evidence.
