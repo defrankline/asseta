@@ -253,7 +253,7 @@ public enum AccountabilityDashboard {
                     rows.append(.init(item["machine_code"]?.stringValue ?? "—", line))
                 }
             }
-            out.append(DashboardTile(id: "unexplained_hours", title: T.dashUnexplained, rows: rows, route: nil))
+            out.append(DashboardTile(id: "unexplained_hours", title: T.dashUnexplained, rows: rows, route: .exceptions(jobID: nil)))
         }
         if let m = s.missingDailyReports {
             var rows: [DashboardTile.Row] = [.init(T.dashMissingReports, "\(m["count"]?.intValue ?? 0)")]

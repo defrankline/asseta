@@ -256,104 +256,93 @@ struct CustodyAdjustmentDTO: Codable, Sendable {
 extension PendingDecision {
     typealias T = OwnerAccountabilityTexts
 
-    /// Normalizes one server record of `kind` (nil when it does not decode).
-    public static func from(_ json: JSONValue, kind: DecisionKind, timeZone: TimeZone = .current) -> PendingDecision? {
-        func stamp(_ date: Date) -> String { OwnerFormat.stamp(date, timeZone: timeZone) }
-        func money(_ amount: DecimalString, _ currency: String) -> String { OwnerFormat.money(amount, currency: currency) }
-        switch kind {
-        case .discount:
-            guard let d = try? json.decode(as: DiscountDTO.self) else { return nil }
-            return PendingDecision(kind: kind, recordID: d.id, headline: T.rowDiscount(d.percent.description), status: d.status,
-                                   proposedBy: d.proposedBy, proposedByName: nil, proposedAt: d.proposedAt, reason: d.reason,
-                                   fields: [DecisionField(label: T.fieldDiscount, value: "\(d.percent.description)%"),
-                                            DecisionField(label: T.fieldEffectiveFrom, value: stamp(d.effectiveFrom))]
-                                       + (d.effectiveTo.map { [DecisionField(label: T.fieldEffectiveTo, value: stamp($0))] } ?? []),
-                                   machineID: nil, photoAttachmentID: nil)
-        case .credit:
-            guard let c = try? json.decode(as: CreditArrangementDTO.self) else { return nil }
-            var fields = [DecisionField(label: T.fieldCreditLimit, value: money(c.limitAmount, c.currency)),
-                          DecisionField(label: T.fieldEffectiveFrom, value: stamp(c.effectiveFrom))]
-            if let to = c.effectiveTo { fields.append(DecisionField(label: T.fieldEffectiveTo, value: stamp(to))) }
-            if let terms = c.terms, !terms.isEmpty { fields.append(DecisionField(label: T.fieldTerms, value: terms)) }
-            return PendingDecision(kind: kind, recordID: c.id, headline: T.rowCredit(money(c.limitAmount, c.currency)),
-                                   status: c.status, proposedBy: c.proposedBy, proposedByName: nil, proposedAt: c.proposedAt,
-                                   reason: c.reason, fields: fields, machineID: nil, photoAttachmentID: nil)
-        case .hoursTransfer:
-            guard let t = try? json.decode(as: HoursTransferDTO.self) else { return nil }
-            return PendingDecision(kind: kind, recordID: t.id, headline: T.rowHoursTransfer(OwnerFormat.hours(t.hours)),
-                                   status: t.status, proposedBy: t.requestedBy, proposedByName: nil, proposedAt: t.requestedAt,
-                                   reason: t.reason, fields: [DecisionField(label: T.fieldHours, value: OwnerFormat.hours(t.hours))],
-                                   machineID: t.fromMachineID, photoAttachmentID: nil)
-        case .cancellation:
-            guard let c = try? json.decode(as: CancellationDTO.self) else { return nil }
-            return PendingDecision(kind: kind, recordID: c.id, headline: T.rowCancellation, status: c.status,
-                                   proposedBy: c.requestedBy, proposedByName: nil, proposedAt: c.requestedAt, reason: c.reason,
-                                   fields: [], machineID: nil, photoAttachmentID: nil)
-        case .baseline:
-            guard let b = try? json.decode(as: BaselineDTO.self) else { return nil }
-            let machine = b.machineCode ?? b.machineName ?? ""
-            var fields = [DecisionField(label: T.fieldMachine, value: [b.machineCode, b.machineName].compactMap { $0 }.joined(separator: " · ")),
-                          DecisionField(label: T.fieldReading, value: OwnerFormat.hours(b.reading)),
-                          DecisionField(label: T.fieldSource, value: OwnerFormat.humanize(b.source))]
-            if let note = b.note, !note.isEmpty { fields.append(DecisionField(label: T.fieldNote, value: note)) }
-            return PendingDecision(kind: kind, recordID: b.id, headline: T.rowBaseline(reading: b.reading.description, machine: machine),
-                                   status: b.status, proposedBy: b.proposedBy, proposedByName: b.proposedByName,
-                                   proposedAt: b.proposedAt, reason: nil, fields: fields, machineID: b.machineID,
-                                   photoAttachmentID: b.photoAttachmentID)
-        case .classification:
-            guard let c = try? json.decode(as: ClassificationDTO.self) else { return nil }
-            let category = c.reasonName ?? OwnerFormat.humanize(c.outcome)
-            return PendingDecision(
-                kind: kind, recordID: c.id, headline: T.rowClassification(hours: c.hours.description, category: category),
-                status: c.status, proposedBy: c.proposedBy, proposedByName: c.proposedByName, proposedAt: c.proposedAt,
-                reason: c.note,
-                fields: [DecisionField(label: T.fieldMachine, value: c.machineCode ?? ""),
-                         DecisionField(label: T.fieldHours, value: OwnerFormat.hours(c.hours)),
-                         DecisionField(label: T.fieldPeriod, value: "\(stamp(c.startAt)) – \(stamp(c.endAt))"),
-                         DecisionField(label: T.fieldOutcome, value: T.outcome(c.outcome)),
-                         DecisionField(label: T.fieldCategory, value: category)],
-                machineID: c.machineID, photoAttachmentID: nil)
-        case .correction:
-            guard let c = try? json.decode(as: CorrectionDTO.self) else { return nil }
-            return PendingDecision(
-                kind: kind, recordID: c.id,
-                headline: T.rowCorrection(old: c.oldReading.description, new: c.newReading.description, machine: c.machineCode ?? ""),
-                status: c.status, proposedBy: c.proposedBy, proposedByName: c.proposedByName, proposedAt: c.proposedAt,
-                reason: c.reason,
-                fields: [DecisionField(label: T.fieldMachine, value: c.machineCode ?? ""),
-                         DecisionField(label: T.fieldOldReading, value: OwnerFormat.hours(c.oldReading)),
-                         DecisionField(label: T.fieldNewReading, value: OwnerFormat.hours(c.newReading))],
-                machineID: c.machineID, photoAttachmentID: nil)
-        case .writeOff:
-            guard let v = try? json.decode(as: CashVarianceDTO.self) else { return nil }
-            return PendingDecision(
-                kind: kind, recordID: v.id, headline: T.rowWriteOff(money(v.amount, v.currency)), status: v.status,
-                proposedBy: v.proposedBy, proposedByName: nil, proposedAt: v.proposedAt ?? v.openedAt, reason: v.proposalNote,
-                fields: [DecisionField(label: T.fieldSource, value: OwnerFormat.humanize(v.sourceType)),
-                         DecisionField(label: T.fieldDeclared, value: money(v.declaredAmount, v.currency)),
-                         DecisionField(label: T.fieldReceived, value: money(v.receivedAmount, v.currency)),
-                         DecisionField(label: T.fieldDifference, value: money(v.amount, v.currency))],
-                machineID: nil, photoAttachmentID: nil)
-        case .retention:
-            guard let r = try? json.decode(as: CashRetentionDTO.self) else { return nil }
-            var fields = [DecisionField(label: T.fieldAmount, value: money(r.amount, r.currency))]
-            if let until = r.validUntil { fields.append(DecisionField(label: T.fieldValidUntil, value: stamp(until))) }
-            return PendingDecision(kind: kind, recordID: r.id, headline: T.rowRetention(money(r.amount, r.currency)),
-                                   status: r.status, proposedBy: r.createdBy, proposedByName: nil, proposedAt: r.createdAt,
-                                   reason: r.reason, fields: fields, machineID: nil, photoAttachmentID: nil)
-        case .adjustment:
-            guard let a = try? json.decode(as: CustodyAdjustmentDTO.self) else { return nil }
-            return PendingDecision(
-                kind: kind, recordID: a.id, headline: T.rowAdjustment(kind: OwnerFormat.humanize(a.kind), money: money(a.amount, a.currency)),
-                status: a.status, proposedBy: a.createdBy, proposedByName: nil, proposedAt: a.createdAt, reason: a.reason,
-                fields: [DecisionField(label: T.fieldKind, value: OwnerFormat.humanize(a.kind)),
-                         DecisionField(label: T.fieldAmount, value: money(a.amount, a.currency))],
-                machineID: nil, photoAttachmentID: nil)
+    /// Labelled values, skipping empty ones (as Android `DecisionMapper.fields`).
+    static func fields(_ pairs: [(String, String?)]) -> [DecisionField] {
+        pairs.compactMap { label, value in
+            guard let value, !value.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
+            return DecisionField(label: label, value: value)
         }
     }
 
-    public static func list(_ page: Page<JSONValue>, kind: DecisionKind) -> [PendingDecision] {
-        page.items.compactMap { from($0, kind: kind) }
+    /// Plain number ("4521", "12.5").
+    static func num(_ value: DecimalString) -> String {
+        value.value.formatted(.number.precision(.fractionLength(0...2)).grouping(.never).locale(Locale(identifier: "en_US_POSIX")))
+    }
+
+    /// Normalizes one server record of `kind` (nil when it does not decode). `machines` names machines by id
+    /// (hours transfers carry ids only). Same mapping as Android `DecisionMapper`.
+    public static func from(_ json: JSONValue, kind: DecisionKind, machines: [UUID: String] = [:],
+                            timeZone: TimeZone = .current) -> PendingDecision? {
+        func date(_ d: Date) -> String { OwnerFormat.stamp(d, timeZone: timeZone) }
+        func money(_ amount: DecimalString, _ currency: String) -> String { OwnerFormat.money(amount, currency: currency) }
+        func item(_ id: UUID, _ headline: String, _ reason: String?, _ at: Date, _ by: UUID?, _ status: String,
+                  _ fields: [DecisionField], machine: UUID? = nil, photo: UUID? = nil, name: String? = nil) -> PendingDecision {
+            PendingDecision(kind: kind, recordID: id, headline: headline, status: status, proposedBy: by, proposedByName: name,
+                            proposedAt: at, reason: reason, fields: fields, machineID: machine, photoAttachmentID: photo)
+        }
+        switch kind {
+        case .discount:
+            guard let d = try? json.decode(as: DiscountDTO.self) else { return nil }
+            return item(d.id, T.rowDiscount(num(d.percent)), d.reason, d.proposedAt, d.proposedBy, d.status,
+                        fields([(T.fieldDiscount, "\(num(d.percent))%"), (T.fieldEffectiveFrom, date(d.effectiveFrom)),
+                                (T.fieldEffectiveTo, d.effectiveTo.map(date))]))
+        case .credit:
+            guard let c = try? json.decode(as: CreditArrangementDTO.self) else { return nil }
+            return item(c.id, T.rowCredit(money(c.limitAmount, c.currency)), c.reason, c.proposedAt, c.proposedBy, c.status,
+                        fields([(T.fieldCreditLimit, money(c.limitAmount, c.currency)), (T.fieldTerms, c.terms),
+                                (T.fieldEffectiveFrom, date(c.effectiveFrom)), (T.fieldEffectiveTo, c.effectiveTo.map(date))]))
+        case .hoursTransfer:
+            guard let t = try? json.decode(as: HoursTransferDTO.self) else { return nil }
+            return item(t.id, T.rowHoursTransfer(num(t.hours)), t.reason, t.requestedAt, t.requestedBy, t.status,
+                        fields([(T.fieldHours, num(t.hours)), (T.fieldFromMachine, machines[t.fromMachineID]),
+                                (T.fieldToMachine, machines[t.toMachineID])]), machine: t.fromMachineID)
+        case .cancellation:
+            guard let c = try? json.decode(as: CancellationDTO.self) else { return nil }
+            return item(c.id, T.rowCancellation, c.reason, c.requestedAt, c.requestedBy, c.status, [])
+        case .baseline:
+            guard let b = try? json.decode(as: BaselineDTO.self) else { return nil }
+            return item(b.id, T.rowBaseline(reading: num(b.reading), machine: b.machineCode ?? b.machineName ?? ""), b.note,
+                        b.proposedAt, b.proposedBy, b.status,
+                        fields([(T.fieldMachine, [b.machineCode, b.machineName].compactMap { $0 }.joined(separator: " · ")),
+                                (T.fieldReading, num(b.reading)), (T.fieldProposedBy, b.proposedByName),
+                                (T.fieldCaptured, date(b.capturedAt))]),
+                        machine: b.machineID, photo: b.photoAttachmentID, name: b.proposedByName)
+        case .classification:
+            guard let c = try? json.decode(as: ClassificationDTO.self) else { return nil }
+            return item(c.id, T.rowClassification(hours: num(c.hours), category: c.reasonName ?? OwnerFormat.humanize(c.outcome)),
+                        c.note, c.proposedAt, c.proposedBy, c.status,
+                        fields([(T.fieldMachine, c.machineCode), (T.fieldHours, num(c.hours)),
+                                (T.fieldPeriod, "\(date(c.startAt)) – \(date(c.endAt))"), (T.fieldCategory, c.reasonName),
+                                (T.fieldOutcome, T.outcome(c.outcome)), (T.fieldProposedBy, c.proposedByName)]),
+                        machine: c.machineID, name: c.proposedByName)
+        case .correction:
+            guard let c = try? json.decode(as: CorrectionDTO.self) else { return nil }
+            return item(c.id, T.rowCorrection(old: num(c.oldReading), new: num(c.newReading), machine: c.machineCode ?? ""), c.reason,
+                        c.proposedAt, c.proposedBy, c.status,
+                        fields([(T.fieldMachine, c.machineCode), (T.fieldOldReading, num(c.oldReading)),
+                                (T.fieldNewReading, num(c.newReading)), (T.fieldProposedBy, c.proposedByName)]),
+                        machine: c.machineID, name: c.proposedByName)
+        case .writeOff:
+            guard let v = try? json.decode(as: CashVarianceDTO.self) else { return nil }
+            return item(v.id, T.rowWriteOff(money(v.amount, v.currency)), v.proposalNote, v.proposedAt ?? v.openedAt, v.proposedBy,
+                        v.status,
+                        fields([(T.fieldSource, OwnerFormat.humanize(v.sourceType)), (T.fieldDeclared, money(v.declaredAmount, v.currency)),
+                                (T.fieldReceived, money(v.receivedAmount, v.currency)), (T.fieldDifference, money(v.amount, v.currency))]))
+        case .retention:
+            guard let r = try? json.decode(as: CashRetentionDTO.self) else { return nil }
+            return item(r.id, T.rowRetention(money(r.amount, r.currency)), r.reason, r.createdAt, r.createdBy, r.status,
+                        fields([(T.fieldAmount, money(r.amount, r.currency)), (T.fieldValidUntil, r.validUntil.map(date))]))
+        case .adjustment:
+            guard let a = try? json.decode(as: CustodyAdjustmentDTO.self) else { return nil }
+            return item(a.id, T.rowAdjustment(kind: OwnerFormat.humanize(a.kind), money: money(a.amount, a.currency)), a.reason,
+                        a.createdAt, a.createdBy, a.status,
+                        fields([(T.fieldKind, OwnerFormat.humanize(a.kind)), (T.fieldAmount, money(a.amount, a.currency)),
+                                (T.fieldWhen, date(a.occurredAt))]))
+        }
+    }
+
+    public static func list(_ page: Page<JSONValue>, kind: DecisionKind, machines: [UUID: String] = [:]) -> [PendingDecision] {
+        page.items.compactMap { from($0, kind: kind, machines: machines) }
     }
 }
 

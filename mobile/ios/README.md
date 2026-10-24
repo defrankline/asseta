@@ -43,6 +43,8 @@ mobile/ios/
 | 3 | `sync_state_entities_policies` | `sync_kv` (cursor, registration, offline grant, backoff, clock reference), `sync_entity` (server-owned JSON by tenant/type/id with `revision` + `version`), `policy_snapshot` |
 | 4 | `finance_receipts_cash_custody` | Non-destructive rebuild (row copy; child table renamed before its parent so `foreign_keys=ON` holds) of `local_attachment` (purpose `EXPENSE_RECEIPT`) and `operation_attachment` (field `receipt_upload_ids`); new `cash_custody_balance` (server custody per staff/currency, replaced on every bootstrap/changes response, older lists ignored). Expense categories live in `sync_entity` (`expense_category`) |
 
+| 7 | `accountability_evidence` | Non-destructive rebuild of `local_attachment` (purpose `PAYMENT_EVIDENCE`) and `operation_attachment` (fields `evidence_upload_ids`, `replacement.photo_attachment_id`) |
+
 `EncryptedDatabase.transaction` nests as savepoints, so composed repository calls stay atomic.
 
 ### Outbox state machine (`client_operation`)
@@ -111,6 +113,19 @@ Screens on the home list under **Money & fuel**, shown by `/me` permissions (`te
 - **Synced data**: `expense_categories` (inactive ones hidden; deltas carry `is_active=false`), customers (likewise), and `cash_custody` (current balance per currency).
 - **My cash**: the synced balance (as of the last sync) with pending handovers/spending from the server, kept apart from local unsynced collections/expenses/handovers, which are marked unverified; rejected/conflicting items are listed but not counted.
 - **Today (Money tab)**: the office's reconciliation (`GET /tenant/cash/custody/me/reconciliation?date=&currency=`) when online. Every successful fetch (all currencies, fetch time, local date) is saved in the encrypted store (`sync_kv` `cash_today_cache`, cleared with the tenant's state on account switch). Offline: a snapshot from today shows the full figures as **"Today (as of HH:mm)"** plus what this phone recorded since and the estimate; one from an earlier day shows **"Last office figures (22 Oct 2026)"** with that day's outstanding and the estimate; no snapshot shows **"Today (estimate)"** (`CashToday`, same rules as Android).
+
+## Accountability (customer hours, engine hours, cash custody)
+
+Same screens, rules and wording as Android (`docs/requirements/accountability-mobile-strings.md`; gating and deep-link
+tables there are authoritative). Supervisor: `FieldAccess` shows an entry only when the server advertises the sync
+capability, `/me` has the permission and the tenant policy (CASH_CUSTODY / CUSTOMER_HOURS read online, cached encrypted
+in `sync_kv`) enables it; an unknown policy hides it. Offline ops: `HOURS_PURCHASE` (walk-in, cash holder, payment
+evidence uploads), `HOURS_TRANSFER_REQUEST`, `CASH_TRANSFER`, `CASH_TRANSFER_ACKNOWLEDGEMENT`,
+`CASH_FLOAT_ACKNOWLEDGEMENT`, `METER_CAPTURE` kind DAILY (job_id null), `METER_BASELINE`, `METER_CORRECTION`. "Ask to keep
+cash" is online only. Owner: Approvals sections per decision kind (shown when the role may read it and something waits),
+one decision screen (own proposal cannot be decided), More → Accountability dashboard, remittance confirm with "Amount
+received", deep links for the new notification types (`AccountabilityDecisions.swift`, `AccountabilitySummary.swift`,
+`DeepLink.swift`).
 
 ## Gate 7: Owner app (`AssetaOwner`, `com.asseta.owner`)
 

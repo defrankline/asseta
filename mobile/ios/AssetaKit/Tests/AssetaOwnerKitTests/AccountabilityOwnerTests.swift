@@ -230,4 +230,52 @@ struct AccountabilityOwnerTests {
         #expect(partial?.route == .handover(rid))
         #expect(OwnerRoute.decision(.baseline, rid).identifiesRecord && !OwnerRoute.accountability.identifiesRecord)
     }
+
+    /// Partial mappings: every key a decision DTO maps exists on its contract schema (the DTOs map only what the app shows).
+    @Test func partialMappingsUseContractProperties() throws {
+        func keys<D: Codable>(_ type: D.Type, _ json: String) throws -> [String] {
+            let value = try AssetaJSON.decoder().decode(D.self, from: Data(json.utf8))
+            let data = try AssetaJSON.encoder().encode(value)
+            return Array((try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]).keys)
+        }
+        let samples = Dictionary(uniqueKeysWithValues: Self.samples.map { ($0.0, ($0.1, $0.2)) })
+        let mapped: [(DecisionKind, [String])] = [
+            (.discount, try keys(DiscountDTO.self, samples[.discount]!.1)),
+            (.credit, try keys(CreditArrangementDTO.self, samples[.credit]!.1)),
+            (.hoursTransfer, try keys(HoursTransferDTO.self, samples[.hoursTransfer]!.1)),
+            (.cancellation, try keys(CancellationDTO.self, samples[.cancellation]!.1)),
+            (.baseline, try keys(BaselineDTO.self, samples[.baseline]!.1)),
+            (.classification, try keys(ClassificationDTO.self, samples[.classification]!.1)),
+            (.correction, try keys(CorrectionDTO.self, samples[.correction]!.1)),
+            (.writeOff, try keys(CashVarianceDTO.self, samples[.writeOff]!.1)),
+            (.adjustment, try keys(CustodyAdjustmentDTO.self, samples[.adjustment]!.1)),
+        ]
+        for (kind, mappedKeys) in mapped {
+            let schema = samples[kind]!.0
+            let props = try #require((Contract.schemas[schema] as? [String: Any])?["properties"] as? [String: Any])
+            for key in mappedKeys { #expect(props[key] != nil, "\(schema).\(key)") }
+        }
+        let summaryProps = try #require((Contract.schemas["AccountabilitySummaryDto"] as? [String: Any])?["properties"] as? [String: Any])
+        let summary = try AssetaJSON.decoder().decode(AccountabilitySummaryDTO.self, from: Data(Self.summary.utf8))
+        let encoded = try #require(try JSONSerialization.jsonObject(with: try AssetaJSON.encoder().encode(summary)) as? [String: Any])
+        for key in encoded.keys { #expect(summaryProps[key] != nil, "AccountabilitySummaryDto.\(key)") }
+        let remittance = try #require((Contract.schemas["RemittanceDecisionIn"] as? [String: Any])?["properties"] as? [String: Any])
+        for key in ["verified", "note", "amount_received"] { #expect(remittance[key] != nil) }
+        for (schema, fields) in [("DecisionIn", ["approve", "note"]), ("MeterDecisionIn", ["decision", "note"])] {
+            let props = try #require((Contract.schemas[schema] as? [String: Any])?["properties"] as? [String: Any])
+            for key in fields { #expect(props[key] != nil, "\(schema).\(key)") }
+        }
+    }
+
+    @Test func machineNamesAndCapturedTimeOnTheDecisionScreen() throws {
+        let from = try #require(UUID(uuidString: Self.machine)), to = try #require(UUID(uuidString: Self.id(93)))
+        let transfer = try #require(PendingDecision.from(try JSONValue.parse(Self.samples[2].2), kind: .hoursTransfer,
+                                                         machines: [from: "EX-07 · CAT 320", to: "EX-09 · CAT 330"]))
+        #expect(transfer.fields.map(\.label) == ["Hours", "From machine", "To machine"])
+        #expect(transfer.fields.last?.value == "EX-09 · CAT 330")
+        let baseline = try #require(PendingDecision.from(try JSONValue.parse(Self.samples[4].2), kind: .baseline,
+                                                         timeZone: TimeZone(identifier: "UTC")!))
+        #expect(baseline.fields.map(\.label) == ["Machine", "Reading", "Proposed by", "Captured"])
+        #expect(baseline.fields.last?.value == "24 Oct 2026, 07:00" && baseline.reason == "New meter")
+    }
 }

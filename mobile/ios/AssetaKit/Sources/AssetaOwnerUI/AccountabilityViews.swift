@@ -13,14 +13,16 @@ struct DecisionKindSection: View {
     let kind: DecisionKind
     @State private var loader = Loader<Page<JSONValue>>()
 
+    /// Shown only when something waits (a capability the company does not use never adds an empty section).
     var body: some View {
-        Section(kind.sectionTitle) {
-            let items = loader.value.map { PendingDecision.list($0, kind: kind) } ?? []
-            if items.isEmpty {
-                Text(loader.value == nil ? (loader.error ?? "Loading…") : kind.emptyText).foregroundStyle(.secondary)
-            }
-            ForEach(items) { item in
-                NavigationLink(value: OwnerRoute.decision(kind, item.recordID)) { DecisionRow(item: item) }
+        let items = loader.value.map { PendingDecision.list($0, kind: kind).filter(\.isPending) } ?? []
+        Group {
+            if !items.isEmpty {
+                Section(kind.sectionTitle) {
+                    ForEach(items) { item in
+                        NavigationLink(value: OwnerRoute.decision(kind, item.recordID)) { DecisionRow(item: item) }
+                    }
+                }
             }
         }
         .task(id: model.changeTick) {
@@ -60,9 +62,10 @@ struct DecisionDetailView: View {
     @State private var message: String?
     @State private var confirmReject = false
     @State private var showPhoto = false
+    @State private var machines: [UUID: String] = [:]
 
     private func find(_ loader: Loader<Page<JSONValue>>) -> PendingDecision? {
-        loader.value.flatMap { PendingDecision.list($0, kind: kind).first { $0.recordID == recordID } }
+        loader.value.flatMap { PendingDecision.list($0, kind: kind, machines: machines).first { $0.recordID == recordID } }
     }
 
     private var item: PendingDecision? { decided ?? find(pending) ?? find(all) }
@@ -77,7 +80,6 @@ struct DecisionDetailView: View {
                         if !field.value.isEmpty { LabeledContent(field.label, value: field.value) }
                     }
                     if let reason = item.reason, !reason.isEmpty { LabeledContent(T.fieldReason, value: reason) }
-                    if let name = item.proposedByName { LabeledContent(T.fieldProposedBy, value: name) }
                     LabeledContent(T.fieldProposed, value: item.proposedAt.shortStamp)
                     LabeledContent(T.fieldStatus, value: OwnerFormat.humanize(item.status))
                     if let photo = item.photoAttachmentID {
@@ -143,7 +145,7 @@ struct DecisionDetailView: View {
         do {
             let result = try await repository.send(OwnerAPI.decide(kind, id: recordID, approve: approve, note: note,
                                                                    idempotencyKey: UUID()))
-            decided = PendingDecision.from(result, kind: kind)
+            decided = PendingDecision.from(result, kind: kind, machines: machines)
             decisionError = nil
             note = ""
             message = approve ? T.decisionApproved : T.decisionRejected
@@ -160,6 +162,7 @@ struct DecisionDetailView: View {
     }
 
     private func reload() async {
+        if kind == .hoursTransfer { machines = await OwnerLookups.machineNames(model) }
         await pending.load(model, .decisions(kind, pendingOnly: true), OwnerAPI.decisions(kind, pendingOnly: true))
         if find(pending) == nil {
             await all.load(model, .decisions(kind, pendingOnly: false), OwnerAPI.decisions(kind, pendingOnly: false, pageSize: 200))

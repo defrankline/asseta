@@ -31,7 +31,7 @@ public enum OwnerAccountabilityTexts {
     // Approvals: row headlines
     public static func rowDiscount(_ percent: String) -> String { "\(percent)% discount" }
     public static func rowCredit(_ money: String) -> String { "Credit limit \(money)" }
-    public static func rowHoursTransfer(_ hours: String) -> String { "Move \(hours) to another machine" }
+    public static func rowHoursTransfer(_ hours: String) -> String { "Move \(hours) h to another machine" }
     public static let rowCancellation = "Cancel an hours purchase"
     public static func rowBaseline(reading: String, machine: String) -> String { "Baseline \(reading) h · \(machine)" }
     public static func rowClassification(hours: String, category: String) -> String { "\(hours) h · \(category)" }
@@ -95,6 +95,8 @@ public enum OwnerAccountabilityTexts {
     public static let fieldProposed = "Proposed"
     public static let fieldStatus = "Status"
     public static let fieldSource = "Source"
+    public static let fieldCaptured = "Captured" // owner.field.captured
+    public static let fieldWhen = "When" // owner.field.when
 
     public static func outcome(_ raw: String) -> String {
         switch raw {

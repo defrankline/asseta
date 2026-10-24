@@ -266,8 +266,8 @@ public struct FieldRootView: View {
         Task {
             await model.refreshNotifications()
             guard let id = tap.notificationID, let notification = model.notifications.first(where: { $0.id == id }) else { return }
-            paths[.inbox] = [.notification(id)]
-            await model.markRead(notification)
+            // Exactly what tapping that notification in the Inbox does (its subject, else its detail).
+            openNotification(notification)
         }
     }
 
