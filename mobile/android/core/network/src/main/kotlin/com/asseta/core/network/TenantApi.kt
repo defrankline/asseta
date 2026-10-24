@@ -8,6 +8,9 @@ import com.asseta.core.model.owner.AnomalyCaseDetailDto
 import com.asseta.core.model.owner.AnomalyCaseDto
 import com.asseta.core.model.owner.ApprovalDecisionIn
 import com.asseta.core.model.owner.ApprovalRequestDto
+import com.asseta.core.model.owner.CashCustodyEntryDto
+import com.asseta.core.model.owner.CashFloatIn
+import com.asseta.core.model.owner.CashHandoverDto
 import com.asseta.core.model.owner.CashSupervisorSummaryDto
 import com.asseta.core.model.owner.ExceptionDto
 import com.asseta.core.model.owner.ExpenseDto
@@ -30,6 +33,7 @@ import com.asseta.core.model.owner.PageDto
 import com.asseta.core.model.owner.PhotoUrlDto
 import com.asseta.core.model.owner.PushDeviceDto
 import com.asseta.core.model.owner.PushDeviceIn
+import com.asseta.core.model.owner.SettlementDecisionIn
 import com.asseta.core.model.owner.TenantOverviewDto
 import com.asseta.core.model.owner.JobTransitionIn
 import com.asseta.core.model.sync.CashReconciliationDto
@@ -166,6 +170,10 @@ interface TenantApi {
         @Query("page_size") pageSize: Int = 50,
     ): PageDto<ExceptionDto>
 
+    /** reviewJobException (needs tenant.meter.review): EXPLAINED or CONFIRMED with a 5..2000 character note. */
+    @POST("api/v1/tenant/exceptions/{id}/review")
+    suspend fun reviewException(@Path("id") exceptionId: String, @Body body: MeterResetDecisionIn): ExceptionDto
+
     /** listMeterResets (plain list, newest first) */
     @GET("api/v1/tenant/meter-resets")
     suspend fun meterResets(@Query("status") status: String? = null): List<MeterResetDto>
@@ -177,6 +185,23 @@ interface TenantApi {
     /** listCashSupervisorSummaries: every custodian x currency over tenant-local days [from, to] (YYYY-MM-DD). */
     @GET("api/v1/tenant/cash/supervisor-summary")
     suspend fun cashSupervisorSummary(@Query("from") from: String, @Query("to") to: String): List<CashSupervisorSummaryDto>
+
+    /** listCashHandovers (newest first); [status] CLAIMED, VERIFIED or REJECTED. */
+    @GET("api/v1/tenant/cash/handovers")
+    suspend fun cashHandovers(
+        @Query("status") status: String? = null,
+        @Query("staff_member_id") staffMemberId: String? = null,
+        @Query("page") page: Int = 1,
+        @Query("page_size") pageSize: Int = 50,
+    ): PageDto<CashHandoverDto>
+
+    /** decideCashHandover (needs tenant.finance.verify; the recorder cannot decide it). */
+    @POST("api/v1/tenant/cash/handovers/{id}/decision")
+    suspend fun decideCashHandover(@Path("id") handoverId: String, @Body body: SettlementDecisionIn): CashHandoverDto
+
+    /** issueCashFloat (needs tenant.finance.cash): a float into a supervisor's custody. */
+    @POST("api/v1/tenant/cash/floats")
+    suspend fun issueCashFloat(@Body body: CashFloatIn): CashCustodyEntryDto
 
     /** listAnomalyCases */
     @GET("api/v1/tenant/cases")

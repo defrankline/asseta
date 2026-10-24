@@ -192,8 +192,24 @@ Read-mostly app for owners (prompt.md R1-I): login (shared AppAuth/PKCE flow, cl
 permitted section with each section's `latest_source_at` freshness), **Fleet** (MapLibre map + accessible list, search
 and connectivity filters, tap -> machine), **Jobs** (status filters; detail with meter vs billable hours, charges,
 readings with photos, customer acknowledgement), **Alerts** (acknowledge / resolve with a required note), **More**
-(Approvals with approve/reject + note, Investigations read-only, Notifications inbox, Settings). The only mutations are
-alert acknowledge/resolve, approval decisions, the user's push routing and push devices; nothing else changes data.
+(Approvals, Meter exceptions, Cash with supervisors, Investigations read-only, Notifications inbox, Settings).
+
+**Owner actions** (online only, never queued; each gated by `OwnerAction`/`MutationGate`: permission from `/me` +
+online + live data + tenant not read-only; every POST carries an `Idempotency-Key`):
+
+| Action | Where | Permission | Endpoint |
+|---|---|---|---|
+| Acknowledge / resolve an alert (resolve needs a note) | Alerts | `tenant.fleet.alert_manage` | `POST /tenant/alerts/{id}/action` |
+| Approve / reject an expense request (reject needs a note) | Approvals | `tenant.approval.expense` | `POST /tenant/approvals/{id}/decision` |
+| Approve / reject a meter reset (note >= 5 characters) | Approvals > Meter resets | `tenant.meter.approve` | `POST /tenant/meter-resets/{id}/decision` |
+| Approve a job (hourly rate when PENDING_PRICE) / decline with a reason | Approvals > Jobs, job detail | `tenant.job.approve` | `POST /tenant/jobs/{id}/transitions` |
+| Confirm received (optional note) / dispute (reason required) a claimed cash handover | Approvals > Cash handovers, Cash cards | `tenant.finance.verify` | `POST /tenant/cash/handovers/{id}/decision` |
+| Review a meter exception: outcome Explained / Discrepancy confirmed + review note (5..2000) | Approvals > Exceptions, Meter exceptions | `tenant.meter.review` | `POST /tenant/exceptions/{id}/review` |
+| Issue a cash float to a supervisor (amount in the card's currency, optional note) | Cash with supervisors | `tenant.finance.cash` | `POST /tenant/cash/floats` |
+| Push routing and push devices | Settings | (own) | `/tenant/notification-routing`, `/me/push-devices` |
+
+Nothing else changes data. Segregation of duties is enforced by the server (the recorder/requester cannot decide);
+refusals read in plain words (`OwnerErrors`, e.g. `HANDOVER_ALREADY_DECIDED`, `ALREADY_REVIEWED`, `NOT_CUSTODIAN`).
 
 - **Shared code**: DTOs in `:core:model` (`owner/`, checked field-by-field against `contracts/openapi.json` by
   `OwnerContractTest`), `TenantApi` + `RealtimeSocket` in `:core:network`, pure rules in `:core:domain` (`owner/`:
@@ -213,7 +229,8 @@ alert acknowledge/resolve, approval decisions, the user's push routing and push 
   STARTED; `notification`/`unread_count` update the inbox and badge, `entity.changed` reloads open screens (debounced);
   pings answered, fresh token on `reauth_required`, jittered reconnect (2 s .. 60 s), stops on 4403.
 - **Errors**: server codes get owner wording (`OwnerErrors`); `SEGREGATION_OF_DUTIES` is shown on the request itself
-  ("Not allowed: segregation of duties" + reference); `ALERT_CLOSED`/`APPROVAL_ALREADY_DECIDED` reload the list.
+  ("Not allowed: segregation of duties" + reference); `ALERT_CLOSED`/`APPROVAL_ALREADY_DECIDED`/`RESET_DECIDED`/
+  `HANDOVER_ALREADY_DECIDED`/`ALREADY_REVIEWED` reload the list.
 
 ### Push (FCM) — external input
 

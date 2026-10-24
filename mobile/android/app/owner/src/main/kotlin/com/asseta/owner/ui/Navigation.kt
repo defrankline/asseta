@@ -62,6 +62,8 @@ object OwnerNavigation {
         is OwnerDestination.Approvals -> if (d.approvalId == null) "Approvals" else "Approval"
         is OwnerDestination.MeterReset -> "Meter reset"
         is OwnerDestination.Exceptions -> "Meter exceptions"
+        is OwnerDestination.MeterException -> "Meter exception"
+        is OwnerDestination.Handover -> "Cash handover"
         OwnerDestination.FieldSpend -> "Field spend"
         OwnerDestination.Cash -> "Cash with supervisors"
         OwnerDestination.Cases -> "Investigations"

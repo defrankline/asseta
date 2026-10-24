@@ -53,6 +53,8 @@ import com.asseta.core.ui.theme.AssetaType
 import com.asseta.core.ui.theme.palette
 import com.asseta.owner.R
 import com.asseta.owner.data.ActionResult
+import com.asseta.owner.data.ExceptionList
+import com.asseta.owner.data.HandoverList
 import com.asseta.owner.data.OwnerData
 import com.asseta.owner.ui.OwnerSession
 import com.asseta.owner.ui.common.BlockedNote
@@ -61,7 +63,12 @@ import com.asseta.owner.ui.common.EvidencePhoto
 import com.asseta.owner.ui.common.FootNote
 import com.asseta.owner.ui.common.KeyValue
 import com.asseta.owner.ui.common.OwnerColors
+import com.asseta.owner.ui.cash.HandoverRow
+import com.asseta.owner.ui.cash.HandoverText
+import com.asseta.owner.ui.common.ScreenState
 import com.asseta.owner.ui.common.Section
+import com.asseta.owner.ui.exceptions.ExceptionApprovalRow
+import com.asseta.owner.ui.exceptions.ExceptionReviewText
 import com.asseta.owner.ui.common.SectionCard
 import com.asseta.owner.ui.common.SnapshotScaffold
 import com.asseta.owner.ui.common.SnapshotViewModel
@@ -111,13 +118,23 @@ class ApprovalsViewModel private constructor(
     refreshOn: Flow<Unit>,
     meterResets: Boolean,
     jobs: Boolean,
+    handovers: Boolean,
+    exceptions: Boolean,
 ) : SnapshotViewModel<PageDto<ApprovalRequestDto>>({ data.approvals(selected.value) }, refreshOn) {
     /**
      * [meterResets]: also list pending meter reset requests (`tenant.meter.read`); [jobs]: also list jobs waiting for
-     * approval, e.g. requested from the field by a supervisor (`tenant.job.read`).
+     * approval, e.g. requested from the field by a supervisor (`tenant.job.read`); [handovers]: cash handovers waiting
+     * to be confirmed (`tenant.finance.read`); [exceptions]: open meter exceptions (`tenant.meter.read`), named by their
+     * job number when [jobs] is allowed.
      */
-    constructor(data: OwnerData, refreshOn: Flow<Unit>, meterResets: Boolean = false, jobs: Boolean = false) :
-        this(data, MutableStateFlow(ApprovalText.DEFAULT_FILTER), refreshOn, meterResets, jobs)
+    constructor(
+        data: OwnerData,
+        refreshOn: Flow<Unit>,
+        meterResets: Boolean = false,
+        jobs: Boolean = false,
+        handovers: Boolean = false,
+        exceptions: Boolean = false,
+    ) : this(data, MutableStateFlow(ApprovalText.DEFAULT_FILTER), refreshOn, meterResets, jobs, handovers, exceptions)
 
     val status: StateFlow<String?> get() = selected
 
@@ -127,10 +144,17 @@ class ApprovalsViewModel private constructor(
     /** Jobs waiting for approval, loaded independently (null when the role cannot read jobs). */
     val pendingJobs: Section<PageDto<JobDto>>? = if (jobs) Section(viewModelScope) { data.jobs(JobApprovalText.PENDING_STATUS) } else null
 
+    /** Cash handovers waiting to be confirmed, loaded independently (null when the role cannot read finance). */
+    val claimedHandovers: Section<HandoverList>? = if (handovers) Section(viewModelScope) { data.handovers(HandoverText.CLAIMED) } else null
+
+    /** Open meter exceptions, loaded independently (null when the role cannot read meter evidence). */
+    val openExceptions: Section<ExceptionList>? = if (exceptions) Section(viewModelScope) { data.openExceptions(jobNumbers = jobs) } else null
+
+    private val sections get() = listOfNotNull(resets, pendingJobs, claimedHandovers, openExceptions)
+
     init {
-        resets?.refresh()
-        pendingJobs?.refresh()
-        viewModelScope.launch { refreshOn.collect { resets?.refresh(); pendingJobs?.refresh() } }
+        sections.forEach { it.refresh() }
+        viewModelScope.launch { refreshOn.collect { sections.forEach { it.refresh() } } }
     }
 
     fun filter(status: String?) {
@@ -140,8 +164,7 @@ class ApprovalsViewModel private constructor(
 
     fun refreshAll() {
         refresh()
-        resets?.refresh()
-        pendingJobs?.refresh()
+        sections.forEach { it.refresh() }
     }
 }
 
@@ -183,6 +206,8 @@ fun ApprovalsScreen(vm: ApprovalsViewModel, onOpen: (OwnerDestination) -> Unit) 
     val status by vm.status.collectAsStateWithLifecycle()
     val resets = vm.resets?.state?.collectAsStateWithLifecycle()?.value
     val jobs = vm.pendingJobs?.state?.collectAsStateWithLifecycle()?.value
+    val handovers = vm.claimedHandovers?.state?.collectAsStateWithLifecycle()?.value
+    val exceptions = vm.openExceptions?.state?.collectAsStateWithLifecycle()?.value
     Column(Modifier.fillMaxSize()) {
         FilterChipRow(ApprovalText.FILTERS.map { (s, l) -> s as String? to l }, status, vm::filter)
         SnapshotScaffold(state, vm::refreshAll) { page ->
@@ -221,12 +246,42 @@ fun ApprovalsScreen(vm: ApprovalsViewModel, onOpen: (OwnerDestination) -> Unit) 
                     }
                 }
             }
+            // Cash handovers a supervisor claimed, waiting to be confirmed received or disputed.
+            val handoverRows = handovers?.let { h ->
+                sectionRows(h, HandoverText.EMPTY) { list ->
+                    list.items.map { item ->
+                        GroupedItem(item.id.toString(), onClick = { onOpen(OwnerDestination.Handover(item.id.toString())) }) { HandoverRow(item, list.name(item), zone) }
+                    }
+                }
+            }
+            // Open meter exceptions, each opening its review.
+            val exceptionRows = exceptions?.let { x ->
+                sectionRows(x, ExceptionReviewText.EMPTY) { list ->
+                    list.items.map { e ->
+                        GroupedItem(e.id.toString(), onClick = { onOpen(OwnerDestination.MeterException(e.id.toString())) }) {
+                            ExceptionApprovalRow(e, list.jobNumber(e), zone)
+                        }
+                    }
+                }
+            }
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp)) {
                 groupedSection("approvals", rows)
                 jobRows?.let { groupedSection("jobs", it, header = JobApprovalText.SECTION) }
+                handoverRows?.let { groupedSection("handovers", it, header = HandoverText.SECTION) }
+                exceptionRows?.let { groupedSection("exceptions", it, header = ExceptionReviewText.SECTION) }
                 resetRows?.let { groupedSection("resets", it, header = MeterResetText.SECTION) }
             }
         }
+    }
+}
+
+/** Rows of an independently loaded section: nothing while first loading, the error, the empty line, or the items. */
+private fun <T> sectionRows(state: ScreenState<T>, empty: String, items: (T) -> List<GroupedItem>): List<GroupedItem> {
+    val data = state.data
+    return when {
+        data == null && state.loading -> emptyList()
+        data == null -> listOf(GroupedItem("error") { FootNote(state.error?.message.orEmpty()) })
+        else -> items(data).ifEmpty { listOf(GroupedItem("empty") { FootNote(empty) }) }
     }
 }
 

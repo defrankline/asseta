@@ -14,6 +14,10 @@ sealed interface OwnerDestination {
     data class MeterReset(val resetId: String) : OwnerDestination
     /** Meter exceptions, optionally only those of [jobId]. */
     data class Exceptions(val jobId: String? = null) : OwnerDestination
+    /** One meter exception with its review (REVIEW_EXCEPTION). */
+    data class MeterException(val exceptionId: String) : OwnerDestination
+    /** One cash handover a supervisor claimed, with confirm received / dispute. */
+    data class Handover(val handoverId: String) : OwnerDestination
     /** Expenses and fuel recorded in the field. */
     data object FieldSpend : OwnerDestination
     /** Cash held by each supervisor over a period. */

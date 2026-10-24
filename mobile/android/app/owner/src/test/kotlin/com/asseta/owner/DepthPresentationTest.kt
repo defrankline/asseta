@@ -135,7 +135,6 @@ class DepthPresentationTest {
         assertEquals(listOf("Open", "All"), ExceptionText.FILTERS.map { it.second })
         assertEquals("OPEN", ExceptionText.DEFAULT_FILTER)
         assertEquals("Blocking", ExceptionText.BLOCKING)
-        assertEquals("Exceptions are reviewed in the web console.", ExceptionText.FOOTER)
     }
 
     @Test

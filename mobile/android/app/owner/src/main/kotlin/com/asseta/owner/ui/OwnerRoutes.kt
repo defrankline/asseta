@@ -17,10 +17,14 @@ import com.asseta.owner.ui.approvals.MeterResetScreen
 import com.asseta.owner.ui.approvals.MeterResetViewModel
 import com.asseta.owner.ui.cash.CashScreen
 import com.asseta.owner.ui.cash.CashViewModel
+import com.asseta.owner.ui.cash.HandoverScreen
+import com.asseta.owner.ui.cash.HandoverViewModel
 import com.asseta.owner.ui.cases.CaseDetailScreen
 import com.asseta.owner.ui.cases.CaseDetailViewModel
 import com.asseta.owner.ui.cases.CasesScreen
 import com.asseta.owner.ui.cases.CasesViewModel
+import com.asseta.owner.ui.exceptions.ExceptionDetailScreen
+import com.asseta.owner.ui.exceptions.ExceptionDetailViewModel
 import com.asseta.owner.ui.exceptions.ExceptionsScreen
 import com.asseta.owner.ui.exceptions.ExceptionsViewModel
 import com.asseta.owner.ui.fleet.FleetScreen
@@ -97,8 +101,8 @@ fun OwnerRoutes(
             if (id == null) {
                 val vm: ApprovalsViewModel = viewModel(key = "approvals-$t") {
                     ApprovalsViewModel(
-                        data, graph.refreshTriggers("approval", "expense", "meter_reset", "job"), meterResets = features.meterEvidence,
-                        jobs = features.jobs,
+                        data, graph.refreshTriggers("approval", "expense", "meter_reset", "job", "cash_handover", "meter_exception", "exception"),
+                        meterResets = features.meterEvidence, jobs = features.jobs, handovers = features.finance, exceptions = features.meterEvidence,
                     )
                 }
                 ApprovalsScreen(vm, open)
@@ -115,15 +119,27 @@ fun OwnerRoutes(
             val vm: ExceptionsViewModel = viewModel(key = "exceptions-$t-${route.jobId ?: "all"}") {
                 ExceptionsViewModel(data, route.jobId, graph.refreshTriggers("exception", "job"))
             }
-            ExceptionsScreen(vm, features, open)
+            ExceptionsScreen(vm, open)
+        }
+        is OwnerDestination.MeterException -> {
+            val vm: ExceptionDetailViewModel = viewModel(key = "exception-$t-${route.exceptionId}") {
+                ExceptionDetailViewModel(data, route.exceptionId, graph.refreshTriggers("meter_exception", "exception"))
+            }
+            ExceptionDetailScreen(vm, session, online, open)
+        }
+        is OwnerDestination.Handover -> {
+            val vm: HandoverViewModel = viewModel(key = "handover-$t-${route.handoverId}") { HandoverViewModel(data, route.handoverId, graph.refreshTriggers("cash_handover")) }
+            HandoverScreen(vm, session, online)
         }
         OwnerDestination.FieldSpend -> {
             val vm: FieldSpendViewModel = viewModel(key = "spend-$t") { FieldSpendViewModel(data, graph.refreshTriggers("expense", "fuel_event")) }
             FieldSpendScreen(vm, features, open)
         }
         OwnerDestination.Cash -> {
-            val vm: CashViewModel = viewModel(key = "cash-$t") { CashViewModel(data, graph.refreshTriggers("cash", "expense")) }
-            CashScreen(vm)
+            val vm: CashViewModel = viewModel(key = "cash-$t") {
+                CashViewModel(data, graph.refreshTriggers("cash", "cash_handover", "expense"), handovers = features.finance)
+            }
+            CashScreen(vm, session, online, open)
         }
         OwnerDestination.Cases -> {
             val vm: CasesViewModel = viewModel(key = "cases-$t") { CasesViewModel(data, graph.refreshTriggers("case")) }

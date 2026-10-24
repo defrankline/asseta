@@ -25,7 +25,6 @@ import com.asseta.core.ui.theme.AssetaType
 import com.asseta.core.ui.theme.palette
 import com.asseta.owner.R
 import com.asseta.owner.data.OwnerData
-import com.asseta.owner.ui.OwnerFeatures
 import com.asseta.owner.ui.common.EmptyState
 import com.asseta.owner.ui.common.OwnerColors
 import com.asseta.owner.ui.common.SnapshotScaffold
@@ -37,13 +36,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.time.ZoneId
 
-/** Meter exception wording shared with iOS (`ExceptionsView`). Read-only: reviews happen in the web console. */
+/** Meter exception wording shared with iOS (`ExceptionsView`); a row opens the exception and its review. */
 object ExceptionText {
     /** Status chips; null = all. The list opens on open exceptions. */
     val FILTERS: List<Pair<String?, String>> = listOf("OPEN" to "Open", null to "All")
     const val DEFAULT_FILTER = "OPEN"
     const val BLOCKING = "Blocking"
-    const val FOOTER = "Exceptions are reviewed in the web console."
 
     fun title(e: ExceptionDto): String = OwnerFormat.humanize(e.exceptionType)
 
@@ -77,9 +75,9 @@ class ExceptionsViewModel private constructor(
     }
 }
 
-/** Meter exceptions (all, or one job's); a row linked to a job opens it. */
+/** Meter exceptions (all, or one job's); a row opens the exception (review, link to its job). */
 @Composable
-fun ExceptionsScreen(vm: ExceptionsViewModel, features: OwnerFeatures, onOpen: (OwnerDestination) -> Unit) {
+fun ExceptionsScreen(vm: ExceptionsViewModel, onOpen: (OwnerDestination) -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
     val status by vm.status.collectAsStateWithLifecycle()
     Column(Modifier.fillMaxSize()) {
@@ -89,12 +87,11 @@ fun ExceptionsScreen(vm: ExceptionsViewModel, features: OwnerFeatures, onOpen: (
             val rows = buildList {
                 if (page.items.isEmpty()) add(GroupedItem("empty") { EmptyState(ExceptionText.empty(status), icon = R.drawable.ic_warning) })
                 page.items.forEach { e ->
-                    val open = e.jobId?.takeIf { features.jobs }?.let { id -> { onOpen(OwnerDestination.Job(id.toString())) } }
-                    add(GroupedItem(e.id.toString(), onClick = open) { ExceptionRow(e, zone) })
+                    add(GroupedItem(e.id.toString(), onClick = { onOpen(OwnerDestination.MeterException(e.id.toString())) }) { ExceptionRow(e, zone) })
                 }
             }
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp)) {
-                groupedSection("exceptions", rows, footer = ExceptionText.FOOTER)
+                groupedSection("exceptions", rows)
             }
         }
     }

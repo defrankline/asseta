@@ -9,6 +9,15 @@ enum class OwnerAction(val permission: String) {
 
     /** Approve (pricing a field request without a rate card) or decline a job waiting for approval. */
     DECIDE_JOB("tenant.job.approve"),
+
+    /** Confirm (verify) or dispute (reject) a cash handover a supervisor claimed. */
+    DECIDE_HANDOVER("tenant.finance.verify"),
+
+    /** Record the review of a meter exception (EXPLAINED / CONFIRMED with a note). */
+    REVIEW_EXCEPTION("tenant.meter.review"),
+
+    /** Issue a cash float into a supervisor's custody. */
+    ISSUE_FLOAT("tenant.finance.cash"),
 }
 
 sealed interface MutationCheck {

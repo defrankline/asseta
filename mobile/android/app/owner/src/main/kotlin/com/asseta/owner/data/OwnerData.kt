@@ -8,6 +8,8 @@ import com.asseta.core.model.owner.AnomalyCaseDetailDto
 import com.asseta.core.model.owner.AnomalyCaseDto
 import com.asseta.core.model.owner.ApprovalDecisionIn
 import com.asseta.core.model.owner.ApprovalRequestDto
+import com.asseta.core.model.owner.CashFloatIn
+import com.asseta.core.model.owner.CashHandoverDto
 import com.asseta.core.model.owner.CashSupervisorSummaryDto
 import com.asseta.core.model.owner.ExceptionDto
 import com.asseta.core.model.owner.ExpenseDto
@@ -23,6 +25,7 @@ import com.asseta.core.model.owner.MeterResetDecisionIn
 import com.asseta.core.model.owner.MeterResetDto
 import com.asseta.core.model.owner.NotificationDto
 import com.asseta.core.model.owner.PageDto
+import com.asseta.core.model.owner.SettlementDecisionIn
 import com.asseta.core.model.owner.TenantOverviewDto
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
@@ -42,6 +45,21 @@ data class JobDetail(
     val expenses: List<ExpenseDto>? = null,
     val fuel: List<FuelEventDto>? = null,
 )
+
+/**
+ * Cash handovers with the custodians' names ([names] staff member id -> name, from the supervisor cash summary; a
+ * handover whose custodian is not there shows "A supervisor").
+ */
+@Serializable
+data class HandoverList(val items: List<CashHandoverDto>, val names: Map<String, String> = emptyMap()) {
+    fun name(h: CashHandoverDto): String? = names[h.staffMemberId.toString()]
+}
+
+/** Open meter exceptions with their jobs' numbers ([jobNumbers] job id -> number, when the role may read jobs). */
+@Serializable
+data class ExceptionList(val items: List<ExceptionDto>, val jobNumbers: Map<String, String> = emptyMap()) {
+    fun jobNumber(e: ExceptionDto): String? = e.jobId?.let { jobNumbers[it.toString()] }
+}
 
 /**
  * Typed owner reads for one tenant, each with a stable snapshot key (the offline cache), plus the few allowed
@@ -112,6 +130,37 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
     suspend fun cash(period: String, from: java.time.LocalDate, to: java.time.LocalDate): Load<List<CashSupervisorSummaryDto>> =
         repo.load(tenantId, "cash:$period", ListSerializer(CashSupervisorSummaryDto.serializer())) { cashSupervisorSummary(from.toString(), to.toString()) }
 
+    /**
+     * Cash handovers, [status] CLAIMED (waiting for a decision) or null (all), with the custodians' names. The names
+     * come from today's supervisor cash summary and are best effort.
+     */
+    suspend fun handovers(status: String?): Load<HandoverList> =
+        repo.load(tenantId, "handovers:${status ?: "ALL"}", HandoverList.serializer()) {
+            val items = cashHandovers(status = status, pageSize = LIST_PAGE).items
+            val today = java.time.LocalDate.ofInstant(Instant.ofEpochMilli(clock()), java.time.ZoneId.systemDefault()).toString()
+            val names = if (items.isEmpty()) {
+                emptyMap()
+            } else {
+                runCatching { cashSupervisorSummary(today, today) }.getOrDefault(emptyList())
+                    .associate { it.staffMemberId.toString() to it.staffName }
+            }
+            HandoverList(items, names)
+        }
+
+    /** Open exceptions for the Approvals section; [jobNumbers]: also look up their jobs' numbers (`tenant.job.read`). */
+    suspend fun openExceptions(jobNumbers: Boolean): Load<ExceptionList> =
+        repo.load(tenantId, "exceptions_open", ExceptionList.serializer()) {
+            val items = exceptions(status = "OPEN", pageSize = LIST_PAGE).items
+            val numbers = if (!jobNumbers) {
+                emptyMap()
+            } else {
+                items.mapNotNull { it.jobId?.toString() }.distinct().take(MAX_JOB_LOOKUPS).mapNotNull { id ->
+                    runCatching { id to jobSummary(id).job.jobNumber }.getOrNull()
+                }.toMap()
+            }
+            ExceptionList(items, numbers)
+        }
+
     suspend fun alerts(status: String?): Load<PageDto<AlertDto>> =
         repo.load(tenantId, "alerts:${status ?: "ALL"}", PageDto.serializer(AlertDto.serializer())) { alerts(status = status, pageSize = LIST_PAGE) }
 
@@ -134,7 +183,7 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
     suspend fun notifications(): Load<PageDto<NotificationDto>> =
         repo.load(tenantId, "notifications", PageDto.serializer(NotificationDto.serializer())) { notifications(pageSize = LIST_PAGE) }
 
-    // --- the only owner mutations (online only) ---------------------------------------------------------------
+    // --- owner mutations (online only, never queued) ---------------------------------------------------------------
     suspend fun acknowledgeAlert(id: String) = repo.act { alertAction(id, AlertActionIn(AlertActionIn.ACKNOWLEDGE)) }
 
     suspend fun resolveAlert(id: String, note: String) = repo.act { alertAction(id, AlertActionIn(AlertActionIn.RESOLVE, note.trim())) }
@@ -152,6 +201,19 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
 
     /** Decline a job waiting for approval (CANCEL with the reason the supervisor is told). */
     suspend fun declineJob(id: String, reason: String) = repo.act { transitionJob(id, JobTransitionIn(JobTransitionIn.CANCEL, reason = reason.trim())) }
+
+    /** Confirm ([verified]) or dispute a claimed cash handover; a dispute carries the reason. */
+    suspend fun decideHandover(id: String, verified: Boolean, note: String?) =
+        repo.act { decideCashHandover(id, SettlementDecisionIn(verified, note?.trim()?.takeIf { it.isNotEmpty() })) }
+
+    /** Record the review of a meter exception: [outcome] EXPLAINED or CONFIRMED, with the review note. */
+    suspend fun reviewException(id: String, outcome: String, note: String) =
+        repo.act { reviewException(id, MeterResetDecisionIn(outcome, note.trim())) }
+
+    /** Issue a cash float of [amount] [currency] to a supervisor. */
+    suspend fun issueFloat(staffMemberId: String, amount: String, currency: String, note: String?) = repo.act {
+        issueCashFloat(CashFloatIn(staffMemberId, amount.trim(), currency, note?.trim()?.takeIf { it.isNotEmpty() }))
+    }
 
     // --- online-only helpers (never cached) -------------------------------------------------------------------
     suspend fun attachmentUrl(attachmentId: String) = repo.act { attachmentUrl(attachmentId) }
@@ -173,5 +235,8 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
         /** List page size (same as iOS). */
         const val LIST_PAGE = 100
         const val DETAIL_PAGE = 200
+
+        /** Distinct jobs whose numbers are looked up for the open exceptions (bounded network work). */
+        const val MAX_JOB_LOOKUPS = 25
     }
 }

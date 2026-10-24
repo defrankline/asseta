@@ -66,6 +66,10 @@ class OwnerContractTest {
             "ResetDto" to MeterResetDto.serializer(),
             "ReviewIn" to MeterResetDecisionIn.serializer(),
             "CashSupervisorSummaryDto" to CashSupervisorSummaryDto.serializer(),
+            "CashHandoverDto" to com.asseta.core.model.owner.CashHandoverDto.serializer(),
+            "SettlementDecisionIn" to com.asseta.core.model.owner.SettlementDecisionIn.serializer(),
+            "CashFloatIn" to com.asseta.core.model.owner.CashFloatIn.serializer(),
+            "CashCustodyEntryDto" to com.asseta.core.model.owner.CashCustodyEntryDto.serializer(),
         ).forEach { (name, serializer) -> check(name, serializer.descriptor) }
     }
 
