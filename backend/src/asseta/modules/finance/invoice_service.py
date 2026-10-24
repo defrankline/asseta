@@ -32,6 +32,7 @@ from asseta.modules.jobs.charges import ChargeKind
 from asseta.modules.jobs.dto import JobChargesDto
 from asseta.modules.jobs.models import Customer, Job, JobStatus, RentalContract
 from asseta.modules.jobs.service import JobService
+from asseta.modules.policy.schemas import BillingMode
 
 TOPIC = "asseta.finance"
 
@@ -106,6 +107,10 @@ class HireInvoiceService:
         if contract is None or contract.customer_id != customer_id:
             raise BusinessRuleViolation(
                 f"Job {job.job_number} belongs to another customer", code="JOB_CUSTOMER_MISMATCH"
+            )
+        if job.billing_mode is BillingMode.PREPAID_HOURS:
+            raise BusinessRuleViolation(
+                f"Job {job.job_number} consumed prepaid customer hours; it is not invoiced", code="JOB_PREPAID_HOURS"
             )
         summary = jobs.summary(job_id)
         if job.status is not JobStatus.COMPLETED or not summary.billing_ready or summary.charges is None:

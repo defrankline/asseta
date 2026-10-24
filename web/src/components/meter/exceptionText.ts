@@ -23,6 +23,7 @@ export const EXCEPTION_TYPE_LABELS: Readonly<Record<ExceptionType, string>> = {
   TELEMETRY_MISMATCH: 'Differs from tracker engine hours',
   CLOCK_SKEW: 'Device clock ahead of server',
   POLICY_SNAPSHOT_UNVERIFIED: 'Offline policy not confirmed',
+  HOURS_OVERRUN: 'Hours beyond what the customer has active',
 };
 
 /** Labels (with units) for evidence keys; unknown keys fall back to a humanised key. */
@@ -116,6 +117,9 @@ const EXPLAIN: Readonly<Record<ExceptionType, Explainer>> = {
       ? `The offline policy the device applied was valid from ${g('issued_at')} until ${g('valid_until')}; ` +
         `the reading was taken at ${g('captured_at')}.`
       : `The offline policy the device applied was not issued to device ${g('device_id')}.`,
+  HOURS_OVERRUN: (g) =>
+    `${g('excess_hours')} of ${g('billable_hours')} billable hours were not covered by the customer's activated ` +
+    `hours on this machine; new activated hours cover them, or a reviewer records the outcome.`,
 };
 
 /** One-sentence, neutral explanation of an exception from its recorded evidence. */

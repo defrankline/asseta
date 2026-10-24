@@ -6,6 +6,7 @@ from asseta.modules.finance import models as finance_models  # noqa: F401
 from asseta.modules.fleet import models as fleet_models  # noqa: F401
 from asseta.modules.fleet import photos as fleet_photos  # noqa: F401
 from asseta.modules.geospatial import models as geospatial_models  # noqa: F401
+from asseta.modules.hours import models as hours_models  # noqa: F401
 from asseta.modules.identity import models as identity_models  # noqa: F401
 from asseta.modules.intelligence import ml_models as intelligence_ml_models  # noqa: F401
 from asseta.modules.intelligence import ml_monitoring_models as intelligence_ml_monitoring  # noqa: F401

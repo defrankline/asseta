@@ -92,6 +92,12 @@ _TYPES = (
     NotificationType("JOB_CANCELLED", "Job declined or cancelled", Category.INFO, Severity.WARNING, T),
     NotificationType("CUSTOMER_PAYMENT_TO_VERIFY", "Customer payment to verify", Category.ACTION, Severity.INFO, T),
     NotificationType("CASH_HANDOVER_TO_VERIFY", "Cash handover to verify", Category.ACTION, Severity.INFO, T),
+    NotificationType("HOURS_APPROVAL_REQUESTED", "Customer hours approval", Category.ACTION, Severity.INFO, T),
+    NotificationType(
+        "HOURS_APPROVAL_DECIDED", "Customer hours decision", Category.INFO, Severity.INFO, T, low_priority=True
+    ),
+    NotificationType("HOURS_EXPIRING", "Customer hours expiring", Category.REMINDER, Severity.WARNING, T),
+    NotificationType("HOURS_EXPIRED", "Customer hours expired", Category.INFO, Severity.INFO, T, low_priority=True),
     # Operations: reminders
     NotificationType("CASH_NOT_HANDED_OVER", "Cash not handed over", Category.REMINDER, Severity.WARNING, T, True),
     NotificationType(
@@ -106,6 +112,7 @@ _TYPES = (
     NotificationType(
         "METER_EXCEPTION", "Meter reading exception", Category.ANOMALY, Severity.WARNING, T, low_priority=True
     ),
+    NotificationType("HOURS_OVERRUN", "Hours used beyond purchase", Category.ANOMALY, Severity.WARNING, T, True),
     NotificationType("SYNC_ANOMALY", "Device sync anomaly", Category.ANOMALY, Severity.WARNING, T, low_priority=True),
     NotificationType(
         "SOD_VIOLATION_ATTEMPT", "Segregation-of-duties attempt", Category.ANOMALY, Severity.WARNING, T, True, IN_APP

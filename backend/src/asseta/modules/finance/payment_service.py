@@ -29,6 +29,8 @@ from asseta.modules.finance.models import (
     TenantHireInvoice,
 )
 from asseta.modules.fleet.models import StaffMember
+from asseta.modules.hours.engine import HoursEngine
+from asseta.modules.hours.ledger import active_allocated as hours_allocated
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.jobs.models import Customer
 
@@ -122,7 +124,10 @@ class CustomerPaymentService:
     def _allocate(self, payment: CustomerPayment, items: list[HireAllocationIn]) -> None:
         if payment.status is SettlementStatus.REJECTED:
             raise BusinessRuleViolation("A rejected payment cannot be allocated", code="PAYMENT_REJECTED")
-        allocated = self._active_allocated(HirePaymentAllocation.payment_id == payment.id)
+        # Money already linked to hours purchases counts too: a payment is never allocated twice.
+        allocated = self._active_allocated(HirePaymentAllocation.payment_id == payment.id) + hours_allocated(
+            self._s, payment_id=payment.id
+        )
         for item in sorted(items, key=lambda i: i.invoice_id):  # fixed lock order
             inv = self._s.execute(
                 select(TenantHireInvoice).where(TenantHireInvoice.id == item.invoice_id).with_for_update()
@@ -203,6 +208,8 @@ class CustomerPaymentService:
             ).scalars():
                 alloc.released_at, alloc.release_reason = self._now, "Payment rejected"
         self._s.flush()
+        # Linked hours purchases: verified money activates hours, a rejection releases the links.
+        HoursEngine(self._s, self._tid, self._ctx.audit_actor(), self._now).on_payment_decided(payment)
         self._audit.record(
             actor=self._ctx.audit_actor(),
             action=f"finance.payment.{payment.status.value.lower()}",

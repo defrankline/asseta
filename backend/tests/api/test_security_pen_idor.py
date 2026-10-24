@@ -25,7 +25,7 @@ from tests.support.finance import (
 )
 from tests.support.intelligence import cases, expense, feed_events, receipt
 from tests.support.jobs import capture, photo, unique_jpeg
-from tests.support.notify import drain
+from tests.support.notify import drain, sql
 from tests.support.routes import Kind, RouteSpec, concrete, inventory, params
 
 T = "/api/v1/tenant"
@@ -103,6 +103,7 @@ def _populate_b(api: Api) -> tuple[FinCtx, dict[tuple[str, str], str]]:
     feed_events(api, f.tid)
     ids[("/cases/", "case_id")] = cases(o)[0]["id"]
     drain(api)
+    ids.update(_customer_hours_b(api, f))
     optional = {
         ("/notifications/", "notification_id"): f"{T}/notifications",
         ("/assignments/", "assignment_id"): f"{T}/machines/{f.c.t.machine_id}/assignments",
@@ -116,6 +117,75 @@ def _populate_b(api: Api) -> tuple[FinCtx, dict[tuple[str, str], str]]:
         if found:
             ids[key] = found
     return f, ids
+
+
+def _customer_hours_b(api: Api, f: FinCtx) -> dict[tuple[str, str], str]:
+    """B's customer hours records: a reason code, discount and credit proposals, a verified purchase with a pending
+    transfer, a pending cancellation, payment evidence and a work execution allocation."""
+    o = f.owner
+    reason = o.post(f"{T}/hours-reason-codes", {"kind": "TRANSFER", "code": "BRK", "label": "Breakdown"})
+    assert reason.status_code == 201, reason.text
+    since = {"customer_id": f.customer_id, "effective_from": "2026-01-01"}
+    disc = o.post(f"{T}/customer-discounts", {**since, "percent": "5", "reason": "B discount"})
+    credit = o.post(f"{T}/credit-arrangements", {**since, "limit_amount": "100000", "reason": "B account"})
+    assert disc.status_code == credit.status_code == 201, disc.text + credit.text
+    now = api.clock.now.isoformat()
+    bought = f.accountant.post(
+        f"{T}/hours-purchases",
+        {
+            "customer_id": f.customer_id,
+            "machine_id": f.c.t.machine_id,
+            "hours": "2",
+            "payment": {"method": "BANK", "reference": "B-HP-1", "received_at": now},
+        },
+    )
+    assert bought.status_code == 201, bought.text
+    verified = f.accountant2.post(
+        f"{T}/customer-payments/{bought.json()['payment']['id']}/decision", {"verified": True}
+    )
+    assert verified.status_code == 200, verified.text
+    spare = o.post(f"{T}/machines", {"asset_code": "B-SPARE", "name": "B spare"}).json()["id"]
+    transfer = o.post(
+        f"{T}/hours-transfers",
+        {"purchase_id": bought.json()["id"], "to_machine_id": spare, "hours": "1", "reason": "B breakdown"},
+    )
+    assert transfer.status_code == 201, transfer.text
+    other = f.accountant.post(
+        f"{T}/hours-purchases", {"customer_id": f.customer_id, "machine_id": f.c.t.machine_id, "hours": "1"}
+    )
+    cancel = o.post(f"{T}/hours-purchases/{other.json()['id']}/cancellation", {"reason": "B changed plans"})
+    assert cancel.status_code == 201, cancel.text
+    up = api.client.post(
+        f"{T}/payment-evidence",
+        headers=f.accountant.headers(True, None),
+        files={"file": ("r.jpg", unique_jpeg(), "image/jpeg")},
+    )
+    pay = bought.json()["payment"]["id"]
+    assert (
+        f.accountant.post(f"{T}/customer-payments/{pay}/evidence", {"attachment_ids": [up.json()["id"]]}).status_code
+        == 201
+    )
+    allocation = str(uuid.uuid4())
+    sql(
+        "INSERT INTO work_execution_allocation (id, tenant_id, job_id, customer_id, machine_id, billable_hours,"
+        " policy_version, created_at) VALUES (:i, :t, :j, :c, :m, 0, 'test', now())",
+        i=allocation,
+        t=f.tid,
+        j=f.c.job_id,
+        c=f.customer_id,
+        m=f.c.t.machine_id,
+    )
+    return {
+        ("/hours-reason-codes/", "code_id"): reason.json()["id"],
+        ("/customer-discounts/", "discount_id"): disc.json()["id"],
+        ("/credit-arrangements/", "arrangement_id"): credit.json()["id"],
+        ("/hours-purchases/", "purchase_id"): bought.json()["id"],
+        ("/hours-transfers/", "transfer_id"): transfer.json()["id"],
+        ("/hours-cancellations/", "cancellation_id"): cancel.json()["id"],
+        ("/work-execution-allocations/", "allocation_id"): allocation,
+        ("/customer-payments/", "payment_id"): pay,
+        ("/evidence/", "attachment_id"): up.json()["id"],
+    }
 
 
 QUERY = {

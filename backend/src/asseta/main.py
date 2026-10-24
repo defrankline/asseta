@@ -23,6 +23,7 @@ from asseta.modules.finance import router as finance_router
 from asseta.modules.fleet import photos as fleet_photos
 from asseta.modules.fleet import router as fleet_router
 from asseta.modules.geospatial import router as geospatial_router
+from asseta.modules.hours import router as hours_router
 from asseta.modules.identity import access as identity_access
 from asseta.modules.identity import directory as identity_directory
 from asseta.modules.identity import router as identity_router
@@ -144,6 +145,7 @@ def create_app(
         managed_service_router.router,
         finance_router.router,
         finance_cash_router.router,
+        hours_router.router,
         expenses_router.router,
         intelligence_router.router,
         intelligence_ml_router.platform_router,

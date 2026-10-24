@@ -14,6 +14,7 @@ export function makeCustomer(overrides: Partial<CustomerDto> = {}): CustomerDto 
     contact_phone: '+255700000001',
     contact_email: null,
     payment_terms_days: 30,
+    kind: 'REGISTERED',
     ...ACTIVE_RECORD,
     version: 4,
     ...overrides,

@@ -38,6 +38,7 @@ CATALOG.register_menu(
 CAPTURE_POLICY_READERS = {
     PolicyType.METER_CAPTURE: "tenant.meter.capture",
     PolicyType.EXPENSE_CAPTURE: "tenant.expense.write",
+    PolicyType.CUSTOMER_HOURS: "tenant.hours.purchase",
 }
 EFFECTIVE_READ = requires_any(("tenant.policy.read", *CAPTURE_POLICY_READERS.values()), PermissionScope.TENANT)
 

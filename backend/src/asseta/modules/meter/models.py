@@ -69,6 +69,7 @@ class ExceptionType(StrEnum):
     TELEMETRY_MISMATCH = "TELEMETRY_MISMATCH"
     CLOCK_SKEW = "CLOCK_SKEW"
     POLICY_SNAPSHOT_UNVERIFIED = "POLICY_SNAPSHOT_UNVERIFIED"  # offline snapshot not issued to the device / not valid
+    HOURS_OVERRUN = "HOURS_OVERRUN"  # prepaid job used more hours than the customer had activated on the machine
 
 
 class ExceptionStatus(StrEnum):

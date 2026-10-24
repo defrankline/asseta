@@ -41,6 +41,9 @@ TENANT_TEMPLATES = (
             "tenant.case.",  # investigation cases (Gate 6)
             "tenant.signal.read",
             "tenant.audit.read",  # tenant audit log (Gate 7)
+            # Customer hours (DEC-030 / 3.1): managers record purchases and walk-ins for the field, propose and
+            # approve discounts/credit/transfers/cancellations (never their own: segregation of duties).
+            "tenant.hours.",
         ),
     ),
     RoleTemplate(
@@ -56,6 +59,9 @@ TENANT_TEMPLATES = (
             "tenant.customer.read",
             "tenant.expense.",
             "tenant.collection.",
+            "tenant.hours.read",  # customer hours: see balances, record walk-in purchases, request transfers
+            "tenant.hours.purchase",
+            "tenant.hours.transfer",
             "tenant.sync.",
             "tenant.fleet.read",
             "tenant.notification.read",
@@ -81,6 +87,9 @@ TENANT_TEMPLATES = (
             "tenant.staff.read",
             "tenant.case.read",  # read-only view of investigation cases and signals (Gate 6)
             "tenant.signal.read",
+            "tenant.hours.read",  # customer hours: link payments to purchases, activate on approved credit
+            "tenant.hours.purchase",
+            "tenant.hours.credit_activate",
         ),
     ),
     RoleTemplate(

@@ -5,8 +5,9 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
-from asseta.modules.jobs.models import ActivityType, ContractStatus, JobStatus, StandbyTreatment
+from asseta.modules.jobs.models import ActivityType, ContractStatus, CustomerKind, JobStatus, StandbyTreatment
 from asseta.modules.platform_billing.dto import Money
+from asseta.modules.policy.schemas import BillingMode
 
 Code = Annotated[str, StringConstraints(min_length=1, max_length=32, strip_whitespace=True)]
 Name = Annotated[str, StringConstraints(min_length=1, max_length=200, strip_whitespace=True)]
@@ -38,6 +39,7 @@ class CustomerDto(Dto):
     contact_phone: str | None
     contact_email: str | None
     payment_terms_days: int
+    kind: CustomerKind = CustomerKind.REGISTERED
     is_active: bool
     version: int = 1
     deactivated_at: datetime | None = None
@@ -117,6 +119,9 @@ class JobTermsIn(BaseModel):
     mobilization_fee: Amount = Decimal(0)
     discount_percent: Annotated[Decimal, Field(ge=0, le=100)] = Decimal(0)
     tax_rate_percent: Annotated[Decimal, Field(ge=0, le=100)] = Decimal(0)
+    billing_mode: BillingMode | None = Field(
+        default=None, description="INVOICE or PREPAID_HOURS; omit for the tenant policy default (CUSTOMER_HOURS)"
+    )
 
     @model_validator(mode="after")
     def _standby(self) -> "JobTermsIn":
@@ -158,6 +163,7 @@ class JobDto(Dto):
         description="RATE_CARD:<id> | NEGOTIATED | PENDING_PRICE (field request without a rate card: APPROVE needs "
         "hourly_rate) | OWNER_APPROVED (priced by the approver)"
     )
+    billing_mode: BillingMode = BillingMode.INVOICE
     approved_at: datetime | None
     started_at: datetime | None
     completed_at: datetime | None
@@ -180,6 +186,7 @@ class JobRequestIn(BaseModel):
     planned_start: datetime
     planned_end: datetime | None = None
     note: str | None = Field(default=None, max_length=1000, description="What the customer asked for")
+    billing_mode: BillingMode | None = Field(default=None, description="Omit for the tenant policy default")
 
     @model_validator(mode="after")
     def _dates(self) -> "JobRequestIn":

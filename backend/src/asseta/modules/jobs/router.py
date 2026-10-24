@@ -46,6 +46,7 @@ from asseta.modules.jobs.models import (
     ContractStatus,
     Customer,
     CustomerAcknowledgement,
+    CustomerKind,
     Job,
     JobActivity,
     JobStatus,
@@ -96,8 +97,12 @@ def customers(
     _: CustomerRead,
     paging: Annotated[PageParams, Depends(page_params)],
     include_inactive: IncludeInactive = False,
+    kind: CustomerKind | None = None,
 ) -> Page[CustomerDto]:
-    rows, total = paginate(session, customer_query(paging.q, include_inactive), paging)
+    stmt = customer_query(paging.q, include_inactive)
+    if kind is not None:
+        stmt = stmt.where(Customer.kind == kind)
+    rows, total = paginate(session, stmt, paging)
     return Page(
         items=[CustomerDto.model_validate(c) for c in rows], total=total, page=paging.page, page_size=paging.page_size
     )

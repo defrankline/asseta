@@ -24,6 +24,7 @@ from asseta.modules.finance.models import (
     TenantHireInvoice,
 )
 from asseta.modules.finance.payment_service import payment_dto
+from asseta.modules.hours.models import HoursPaymentAllocation
 from asseta.modules.jobs.models import Customer
 
 Kind = Literal["INVOICE", "REVERSAL", "PAYMENT"]
@@ -139,6 +140,13 @@ class ReceivablesService:
             .join(CustomerPayment, CustomerPayment.id == HirePaymentAllocation.payment_id)
             .where(
                 *pay, CustomerPayment.status == SettlementStatus.VERIFIED, HirePaymentAllocation.released_at.is_(None)
+            )
+        )
+        allocated += self._sum(  # verified money linked to hours purchases is not free credit either
+            select(func.coalesce(func.sum(HoursPaymentAllocation.amount), 0))
+            .join(CustomerPayment, CustomerPayment.id == HoursPaymentAllocation.payment_id)
+            .where(
+                *pay, CustomerPayment.status == SettlementStatus.VERIFIED, HoursPaymentAllocation.released_at.is_(None)
             )
         )
         issued = self._s.execute(

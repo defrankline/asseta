@@ -15,6 +15,7 @@ class PolicyType(StrEnum):
     DEVICE_SYNC = "DEVICE_SYNC"
     EXPENSE_CAPTURE = "EXPENSE_CAPTURE"
     FRAUD_CONTROLS = "FRAUD_CONTROLS"
+    CUSTOMER_HOURS = "CUSTOMER_HOURS"
 
 
 class PolicyScope(StrEnum):
@@ -145,6 +146,57 @@ class FraudControlsPolicy(BaseModel):
     detection_lookback_hours: int = Field(ge=1, le=24 * 90)  # how far back each periodic sweep re-examines facts
 
 
+class BillingMode(StrEnum):
+    PREPAID_HOURS = "PREPAID_HOURS"  # the job consumes the customer's activated purchased hours
+    INVOICE = "INVOICE"  # post-paid: the completed job is invoiced (the behaviour before customer hours)
+
+
+class ActivationBasis(StrEnum):
+    VERIFIED_PAYMENT = "VERIFIED_PAYMENT"  # hours activate only from independently verified money
+    CREDIT = "CREDIT"  # explicit, permissioned activation within an approved credit arrangement
+
+
+class OverConsumption(StrEnum):
+    BLOCK_START = "BLOCK_START"  # a prepaid job cannot start without remaining activated hours on its machine
+    FLAG_EXCESS = "FLAG_EXCESS"  # it may start; any excess on completion is flagged (never silently consumed)
+
+
+class CustomerHoursPolicy(BaseModel):
+    """Customer prepaid hours (accountability 3.1). Every rule a tenant may want differently is here; the platform
+    default is only a starting point. Segregation of duties on approvals is always enforced (never relaxable)."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    enabled: bool  # off => no new purchases/prepaid jobs; jobs keep the invoice flow
+    walk_in_allowed: bool
+    billing_modes: list[BillingMode] = Field(min_length=1)
+    default_billing_mode: BillingMode
+    activation_basis: list[ActivationBasis] = Field(min_length=1)
+    partial_activation: bool  # partial verified payments activate hours pro rata
+    hours_increment: Decimal = Field(gt=0, le=Decimal(1))  # activation rounds DOWN to this step
+    expiry_days: int | None = Field(default=None, ge=1, le=3660)  # None => activated hours never expire
+    expiry_warning_days: int = Field(ge=0, le=365)
+    over_consumption: OverConsumption
+    overrun_exception_blocking: bool  # the HOURS_OVERRUN exception blocks the job until reviewed/covered
+    transfer_requires_approval: bool
+    cancellation_requires_approval: bool
+    cancellation_after_consumption_allowed: bool  # cancel the remaining hours of a partly used purchase
+    discount_requires_approval: bool
+    max_discount_percent: Decimal = Field(ge=0, le=Decimal(100))
+    credit_allowed: bool
+    reason_code_required: bool  # approvals/proposals must cite a tenant reason code (tenant list)
+
+    @model_validator(mode="after")
+    def _consistent(self) -> "CustomerHoursPolicy":
+        if len(set(self.billing_modes)) != len(self.billing_modes):
+            raise ValueError("billing_modes must not repeat")
+        if self.default_billing_mode not in self.billing_modes:
+            raise ValueError("default_billing_mode must be one of billing_modes")
+        if len(set(self.activation_basis)) != len(self.activation_basis):
+            raise ValueError("activation_basis must not repeat")
+        return self
+
+
 SCHEMAS: dict[PolicyType, type[BaseModel]] = {
     PolicyType.TRACKING: TrackingPolicy,
     PolicyType.METER_CAPTURE: MeterCapturePolicy,
@@ -152,6 +204,7 @@ SCHEMAS: dict[PolicyType, type[BaseModel]] = {
     PolicyType.DEVICE_SYNC: DeviceSyncPolicy,
     PolicyType.EXPENSE_CAPTURE: ExpenseCapturePolicy,
     PolicyType.FRAUD_CONTROLS: FraudControlsPolicy,
+    PolicyType.CUSTOMER_HOURS: CustomerHoursPolicy,
 }
 
 # Fields a lower scope may override (platform/tenant may override any field).
@@ -194,6 +247,7 @@ OVERRIDABLE: dict[PolicyType, dict[PolicyScope, frozenset[str]]] = {
         ),
         PolicyScope.SITE: frozenset(),
     },
+    PolicyType.CUSTOMER_HOURS: {PolicyScope.MACHINE: frozenset(), PolicyScope.SITE: frozenset()},
 }
 
 SEED_DEFAULTS: dict[PolicyType, dict[str, object]] = {
@@ -252,5 +306,25 @@ SEED_DEFAULTS: dict[PolicyType, dict[str, object]] = {
         "duplicate_receipt_lookback_days": 90,
         "authorization_tolerance_minutes": 5,
         "detection_lookback_hours": 168,
+    },
+    PolicyType.CUSTOMER_HOURS: {
+        "enabled": True,
+        "walk_in_allowed": True,
+        "billing_modes": ["PREPAID_HOURS", "INVOICE"],
+        "default_billing_mode": "INVOICE",
+        "activation_basis": ["VERIFIED_PAYMENT", "CREDIT"],
+        "partial_activation": True,
+        "hours_increment": "0.01",
+        "expiry_days": None,
+        "expiry_warning_days": 7,
+        "over_consumption": "BLOCK_START",
+        "overrun_exception_blocking": True,
+        "transfer_requires_approval": True,
+        "cancellation_requires_approval": True,
+        "cancellation_after_consumption_allowed": False,
+        "discount_requires_approval": True,
+        "max_discount_percent": "100",
+        "credit_allowed": True,
+        "reason_code_required": False,
     },
 }

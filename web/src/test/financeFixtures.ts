@@ -27,6 +27,7 @@ export const CUSTOMER: CustomerDto = {
   contact_phone: null,
   contact_email: null,
   payment_terms_days: 30,
+  kind: 'REGISTERED',
   is_active: true,
   deactivated_at: null,
   deactivation_reason: null,

@@ -15,7 +15,13 @@ from asseta.modules.meter.dto import ExceptionDto, MeterCaptureDto, ResetDto
 
 PROTOCOL_VERSION = 1
 # Additive, optional features of protocol 1 (old clients ignore unknown fields; new clients check before relying).
-CAPABILITIES = ["SUPERVISOR_INBOX_V1", "OP_METER_RESET_REQUEST", "OP_JOB_REQUEST"]
+CAPABILITIES = [
+    "SUPERVISOR_INBOX_V1",
+    "OP_METER_RESET_REQUEST",
+    "OP_JOB_REQUEST",
+    "OP_HOURS_PURCHASE",  # walk-in/registered customer hours purchase (+ payment claim and evidence uploads)
+    "OP_HOURS_TRANSFER_REQUEST",
+]
 
 
 class DeviceRegisterIn(BaseModel):
@@ -148,6 +154,8 @@ OpType = Literal[
     "FUEL_EVENT",
     "METER_RESET_REQUEST",
     "JOB_REQUEST",
+    "HOURS_PURCHASE",  # customer hours purchase recorded in the field (payment stays CLAIMED until verified)
+    "HOURS_TRANSFER_REQUEST",  # request to move remaining hours to another machine (approved per tenant policy)
 ]
 
 
@@ -182,7 +190,7 @@ class PushResultDto(BaseModel):
 class BlobStartIn(BaseModel):
     sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     size_bytes: int = Field(gt=0)
-    purpose: Literal["METER_PHOTO", "SIGNATURE", "RESET_EVIDENCE", "EXPENSE_RECEIPT"]
+    purpose: Literal["METER_PHOTO", "SIGNATURE", "RESET_EVIDENCE", "EXPENSE_RECEIPT", "PAYMENT_EVIDENCE"]
 
 
 class BlobSessionDto(BaseModel):

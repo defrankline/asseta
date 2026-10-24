@@ -183,7 +183,7 @@ def test_sync_inbox_bootstrap_and_deltas(api: Api) -> None:
     _fuel(api, f.owner, f.c.job_id)  # office-recorded fuel is not the supervisor's own record
 
     boot = _bootstrap(api, sup)
-    assert boot["capabilities"] == ["SUPERVISOR_INBOX_V1", "OP_METER_RESET_REQUEST", "OP_JOB_REQUEST"]
+    assert {"SUPERVISOR_INBOX_V1", "OP_METER_RESET_REQUEST", "OP_JOB_REQUEST"} <= set(boot["capabilities"])
     d = boot["data"]
     assert {m["id"] for m in d["machines"]} == {f.c.t.machine_id, spare_machine}
     [c] = d["my_meter_captures"]

@@ -17,6 +17,8 @@ import type {
 import { bool, id, int, nullableId, nullableText, oneOf, text, lifecycleFields } from './schemaKit';
 
 export const CONTRACT_STATUSES: readonly ContractStatus[] = ['DRAFT', 'ACTIVE', 'CLOSED'];
+export const CUSTOMER_KINDS: readonly CustomerDto['kind'][] = ['REGISTERED', 'WALK_IN'];
+export const BILLING_MODES: readonly JobDto['billing_mode'][] = ['INVOICE', 'PREPAID_HOURS'];
 export const JOB_STATUSES: readonly JobStatus[] = [
   'DRAFT',
   'PENDING_APPROVAL',
@@ -47,6 +49,7 @@ export const customerSchema: Schema<CustomerDto> = object({
   contact_phone: nullableText(),
   contact_email: nullableText(),
   payment_terms_days: int(),
+  kind: oneOf(CUSTOMER_KINDS),
   is_active: bool(),
   ...lifecycleFields(),
 });
@@ -109,6 +112,7 @@ const jobFields = {
   discount_percent: text(),
   tax_rate_percent: text(),
   rate_source: text(),
+  billing_mode: oneOf(BILLING_MODES),
   approved_at: nullableText(),
   started_at: nullableText(),
   completed_at: nullableText(),

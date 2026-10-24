@@ -23,6 +23,9 @@ from asseta.modules.expenses.dto import ExpenseIn, FuelEventIn
 from asseta.modules.expenses.service import ExpenseService
 from asseta.modules.finance.cash_service import CashCustodyService
 from asseta.modules.finance.dto import CashCollectionIn, CashHandoverIn
+from asseta.modules.hours.approvals import HoursApprovals
+from asseta.modules.hours.dto import HoursPurchaseIn, TransferIn
+from asseta.modules.hours.service import HoursService
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.jobs.dto import AcknowledgementIn, ActivityIn, JobRequestIn
 from asseta.modules.jobs.models import Job
@@ -42,6 +45,9 @@ CONFLICT_CODES = {
     "JOB_NOT_ACTIVE",
     "STALE_VERSION",
     "DUPLICATE_PAYMENT_REFERENCE",
+    # customer hours: two field users drawing on the same remaining hours are serialised; the loser sees a conflict
+    "NO_AVAILABLE_HOURS",
+    "EXCEEDS_REMAINING_HOURS",
 }
 REQUIRED_PERMISSION = {
     "METER_CAPTURE": "tenant.meter.capture",
@@ -54,9 +60,15 @@ REQUIRED_PERMISSION = {
     "CASH_HANDOVER": "tenant.collection.record",
     "METER_RESET_REQUEST": "tenant.meter.capture",
     "JOB_REQUEST": "tenant.job.request",
+    "HOURS_PURCHASE": "tenant.hours.purchase",
+    "HOURS_TRANSFER_REQUEST": "tenant.hours.transfer",
 }
 # Ops whose payload names resumable blob uploads: the op is DEFERRED (not rejected) until they complete.
-UPLOAD_FIELDS = {"EXPENSE": "receipt_upload_ids", "METER_RESET_REQUEST": "evidence_upload_id"}
+UPLOAD_FIELDS = {
+    "EXPENSE": "receipt_upload_ids",
+    "METER_RESET_REQUEST": "evidence_upload_id",
+    "HOURS_PURCHASE": "evidence_upload_ids",
+}
 
 
 class JobTransitionOp(BaseModel):
@@ -77,6 +89,13 @@ class CashCollectionOp(CashCollectionIn):
 
 class CashHandoverOp(CashHandoverIn):
     client_id: uuid.UUID
+
+
+class HoursPurchaseOp(HoursPurchaseIn):
+    """Offline hours purchase (walk-in allowed). The operation id is the purchase's client id; payment evidence
+    references resumable blob uploads (purpose PAYMENT_EVIDENCE) and the op waits until they complete."""
+
+    evidence_upload_ids: list[uuid.UUID] = Field(default_factory=list, max_length=10)
 
 
 class FuelEventOp(FuelEventIn):
@@ -243,6 +262,12 @@ class PushService:
             ),
             "METER_RESET_REQUEST": lambda: self._meter_reset(MeterResetOp.model_validate(op.payload)),
             "JOB_REQUEST": lambda: JobService(self._s, self._ctx).request_job(JobRequestIn.model_validate(op.payload)),
+            "HOURS_PURCHASE": lambda: self._hours_purchase(
+                HoursPurchaseOp.model_validate({"client_id": op.id, **op.payload})
+            ),
+            "HOURS_TRANSFER_REQUEST": lambda: HoursApprovals(self._s, self._ctx, self._now).request_transfer(
+                TransferIn.model_validate({"client_id": op.id, **op.payload})
+            ),
         }
         try:
             with self._s.begin_nested():
@@ -287,6 +312,20 @@ class PushService:
             {**body.model_dump(exclude={"receipt_upload_ids"}), "receipt_attachment_ids": attachments}
         )
         return ExpenseService(self._s, self._ctx, self._now).submit(expense, "SYNC")
+
+    def _hours_purchase(self, body: HoursPurchaseOp) -> BaseModel:
+        evidence = []
+        for upload_id in body.evidence_upload_ids:
+            upload = self._s.get(BlobUploadSession, upload_id)
+            if upload is None or upload.attachment_id is None:
+                raise NotFound("Evidence upload not found", code="ATTACHMENT_NOT_FOUND")
+            evidence.append(upload.attachment_id)
+        purchase = HoursPurchaseIn.model_validate(body.model_dump(exclude={"evidence_upload_ids"}))
+        if evidence:
+            if purchase.payment is None:
+                raise ValueError("evidence_upload_ids need a payment")
+            purchase.payment.evidence_attachment_ids = [*purchase.payment.evidence_attachment_ids, *evidence]
+        return HoursService(self._s, self._ctx, self._now).create_purchase(purchase, "SYNC")
 
     def _meter_reset(self, body: MeterResetOp) -> BaseModel:
         evidence = body.evidence_attachment_id

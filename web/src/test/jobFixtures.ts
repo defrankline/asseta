@@ -32,6 +32,7 @@ export function makeJob(overrides: Partial<JobDto> = {}): JobDto {
     discount_percent: '0.00',
     tax_rate_percent: '18.00',
     rate_source: 'NEGOTIATED',
+    billing_mode: 'INVOICE',
     approved_at: null,
     started_at: null,
     completed_at: null,

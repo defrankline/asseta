@@ -15,6 +15,7 @@ from asseta.core.db import utcnow
 from asseta.core.errors import BusinessRuleViolation, Conflict, NotFound
 from asseta.core.outbox import OutboxWriter
 from asseta.modules.geospatial.models import JobSite
+from asseta.modules.hours.engine import HoursEngine, resolve_billing_mode
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.jobs.charges import JobCharges, job_charges
 from asseta.modules.jobs.dto import (
@@ -53,6 +54,7 @@ from asseta.modules.jobs.scope import own_staff
 from asseta.modules.meter.models import CaptureState, ExceptionStatus, JobException, MeterCapture, ReadingKind
 from asseta.modules.meter.rules import billable_hours
 from asseta.modules.platform_billing.models_commercial import Currency
+from asseta.modules.policy.schemas import BillingMode
 from asseta.modules.policy.service import PolicyService
 from asseta.modules.tenancy.models import TenantSettings
 
@@ -210,8 +212,9 @@ class JobService:
                 "No rate card for this machine category; provide a negotiated hourly_rate", code="NO_RATE"
             )
         minimum = body.minimum_hours if body.minimum_hours is not None else (card.minimum_hours if card else Decimal(0))
-        data = body.model_dump(exclude={"hourly_rate", "minimum_hours"})
+        data = body.model_dump(exclude={"hourly_rate", "minimum_hours", "billing_mode"})
         data["job_site_id"] = body.job_site_id or contract.job_site_id
+        data["billing_mode"] = resolve_billing_mode(self._s, self._tid, body.billing_mode, utcnow())
         job = Job(
             id=uuid.uuid4(),
             tenant_id=self._tid,
@@ -296,6 +299,7 @@ class JobService:
             discount_percent=Decimal(0),
             tax_rate_percent=Decimal(0),
             rate_source=source,
+            billing_mode=resolve_billing_mode(self._s, self._tid, body.billing_mode, utcnow()),
         )
         self._insert(job, "DUPLICATE_JOB", "Job number already exists")
         dto = job_dto(self._s, job)
@@ -354,6 +358,7 @@ class JobService:
             opening = self._reading(job.id, ReadingKind.OPENING)
             if opening is None:
                 raise BusinessRuleViolation("An opening meter reading is required to start", code="OPENING_REQUIRED")
+            HoursEngine(self._s, self._tid, self._ctx.audit_actor(), now).check_start(job)
             job.started_at = opening.captured_at
         elif action == "COMPLETE":
             closing = self._reading(job.id, ReadingKind.CLOSING)
@@ -377,6 +382,8 @@ class JobService:
             self._s.flush()
         except IntegrityError as exc:
             raise Conflict("Machine already has an approved or running job", code="MACHINE_BUSY") from exc
+        if action == "COMPLETE":
+            self._allocate_prepaid_hours(job, now)
         after: dict[str, Any] = {"status": target.value}
         if price_before is not None:
             after |= {"hourly_rate": str(job.hourly_rate), "rate_source": job.rate_source}
@@ -392,6 +399,13 @@ class JobService:
         )
         self._emit(job, target, reason)
         return job_dto(self._s, job)
+
+    def _allocate_prepaid_hours(self, job: Job, now: datetime) -> None:
+        """Work Execution Allocation of a completed PREPAID_HOURS job (no effect on INVOICE jobs)."""
+        if job.billing_mode is not BillingMode.PREPAID_HOURS:
+            return
+        billable = self.summary(job.id).billable_hours or Decimal(0)
+        HoursEngine(self._s, self._tid, self._ctx.audit_actor(), now).allocate_job(job, billable)
 
     def _reading(self, job_id: uuid.UUID, kind: ReadingKind) -> MeterCapture | None:
         return self._s.execute(

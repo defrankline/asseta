@@ -247,6 +247,74 @@ export const FRAUD_CONTROLS_FIELDS: readonly PolicyFieldDef[] = [
   },
 ];
 
+export const CUSTOMER_HOURS_FIELDS: readonly PolicyFieldDef[] = [
+  {
+    key: 'enabled',
+    label: 'Customer hours switched on',
+    kind: 'bool',
+    help: 'Off: no purchases or prepaid jobs; jobs are invoiced.',
+  },
+  { key: 'walk_in_allowed', label: 'Walk-in customers allowed', kind: 'bool' },
+  {
+    key: 'default_billing_mode',
+    label: 'Default billing of new jobs',
+    kind: 'enum',
+    options: [
+      { value: 'INVOICE', label: 'Invoice after the work' },
+      { value: 'PREPAID_HOURS', label: 'Prepaid customer hours' },
+    ],
+  },
+  { key: 'partial_activation', label: 'Partial payments activate hours pro rata', kind: 'bool' },
+  {
+    key: 'hours_increment',
+    label: 'Activation step',
+    kind: 'decimal',
+    unit: 'h',
+    help: 'Activated hours are rounded down to this step.',
+  },
+  {
+    key: 'expiry_days',
+    label: 'Unused hours expire after',
+    kind: 'nullableNumber',
+    unit: 'days',
+    help: 'Counted from activation; leave empty to never expire.',
+  },
+  { key: 'expiry_warning_days', label: 'Warn before expiry', kind: 'int', unit: 'days' },
+  {
+    key: 'over_consumption',
+    label: 'When a prepaid job has no hours left',
+    kind: 'enum',
+    options: [
+      { value: 'BLOCK_START', label: 'Do not let the job start' },
+      { value: 'FLAG_EXCESS', label: 'Allow it and flag the excess' },
+    ],
+  },
+  {
+    key: 'overrun_exception_blocking',
+    label: 'Excess hours block the job until reviewed',
+    kind: 'bool',
+  },
+  {
+    key: 'transfer_requires_approval',
+    label: 'Transfers between machines need a second person',
+    kind: 'bool',
+  },
+  {
+    key: 'cancellation_requires_approval',
+    label: 'Cancellations need a second person',
+    kind: 'bool',
+  },
+  {
+    key: 'cancellation_after_consumption_allowed',
+    label: 'Cancel the rest of a partly used purchase',
+    kind: 'bool',
+  },
+  { key: 'discount_requires_approval', label: 'Discounts need a second person', kind: 'bool' },
+  { key: 'max_discount_percent', label: 'Highest discount', kind: 'decimal', unit: '%' },
+  { key: 'credit_allowed', label: 'Credit arrangements allowed', kind: 'bool' },
+  { key: 'reason_code_required', label: 'A reason from the tenant list is required', kind: 'bool' },
+];
+
 export const POLICY_FIELDS: Readonly<Record<PolicyType, readonly PolicyFieldDef[]>> = {
   TRACKING: TRACKING_FIELDS,
   METER_CAPTURE: METER_CAPTURE_FIELDS,
@@ -254,6 +322,7 @@ export const POLICY_FIELDS: Readonly<Record<PolicyType, readonly PolicyFieldDef[
   DEVICE_SYNC: DEVICE_SYNC_FIELDS,
   EXPENSE_CAPTURE: EXPENSE_CAPTURE_FIELDS,
   FRAUD_CONTROLS: FRAUD_CONTROLS_FIELDS,
+  CUSTOMER_HOURS: CUSTOMER_HOURS_FIELDS,
 };
 
 export const POLICY_TYPE_LABELS: Readonly<Record<PolicyType, string>> = {
@@ -263,6 +332,7 @@ export const POLICY_TYPE_LABELS: Readonly<Record<PolicyType, string>> = {
   DEVICE_SYNC: 'Device sync',
   EXPENSE_CAPTURE: 'Expense capture',
   FRAUD_CONTROLS: 'Risk signals',
+  CUSTOMER_HOURS: 'Customer hours',
 };
 
 export type OverrideScope = 'TENANT' | 'MACHINE' | 'SITE';
@@ -302,6 +372,7 @@ const SCOPE_FIELDS: Readonly<
   HIRE_BILLING: null,
   DEVICE_SYNC: null,
   EXPENSE_CAPTURE: null,
+  CUSTOMER_HOURS: null,
   FRAUD_CONTROLS: {
     MACHINE: new Set([
       'engine_activity_min_minutes',

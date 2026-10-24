@@ -16,6 +16,7 @@ from asseta.core.outbox import OutboxWriter
 from asseta.core.search import ilike_any
 from asseta.modules.fleet.models import Machine, MachineStatus, StaffMember
 from asseta.modules.geospatial.models import JobSite
+from asseta.modules.hours.engine import resolve_billing_mode
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.jobs.dto import (
     ContractDto,
@@ -255,8 +256,10 @@ class RecordLifecycleService:
             rate, source = card.hourly_rate, f"RATE_CARD:{card.id}"
         minimum = body.minimum_hours if body.minimum_hours is not None else (card.minimum_hours if card else Decimal(0))
         before = JobDto.model_validate(job).model_dump(mode="json")
-        for key, value in body.model_dump(exclude={"version", "hourly_rate", "minimum_hours"}).items():
+        for key, value in body.model_dump(exclude={"version", "hourly_rate", "minimum_hours", "billing_mode"}).items():
             setattr(job, key, value)
+        if body.billing_mode is not None and body.billing_mode is not job.billing_mode:
+            job.billing_mode = resolve_billing_mode(self._s, self._tid, body.billing_mode, utcnow())
         job.job_site_id = body.job_site_id or contract.job_site_id
         job.hourly_rate, job.minimum_hours, job.rate_source = rate, minimum, source
         flush_versioned(self._s, "Job")

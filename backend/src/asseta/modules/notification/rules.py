@@ -416,6 +416,92 @@ def _handover(_: Session, e: DomainEvent) -> list[Intent]:
     ]
 
 
+# --- customer hours ------------------------------------------------------------------------------------------------
+HOURS_LINKS = {
+    "DISCOUNT": "/tenant/hours/discounts",
+    "CREDIT": "/tenant/hours/credit",
+    "TRANSFER": "/tenant/hours/transfers",
+    "CANCELLATION": "/tenant/hours/cancellations",
+}
+HOURS_ENTITIES = {
+    "DISCOUNT": "customer_discount",
+    "CREDIT": "credit_arrangement",
+    "TRANSFER": "hours_transfer",
+    "CANCELLATION": "hours_cancellation",
+}
+
+
+@rule("HoursApprovalRequested")
+def _hours_approval(_: Session, e: DomainEvent) -> list[Intent]:
+    p = e.payload
+    kind = str(p.get("kind", ""))
+    return [
+        Intent(
+            "HOURS_APPROVAL_REQUESTED",
+            (perm(p["audience_permission"]),),
+            "Customer hours: approval needed",
+            f"{p.get('summary', '')}. The requester cannot approve it themselves.",
+            _key(e),
+            HOURS_LINKS.get(kind, "/tenant/hours"),
+            HOURS_ENTITIES.get(kind),
+            p["entity_id"],
+        )
+    ]
+
+
+@rule("HoursApprovalDecided")
+def _hours_decided(_: Session, e: DomainEvent) -> list[Intent]:
+    p = e.payload
+    kind = str(p.get("kind", "")).replace("_", " ").lower()
+    return [
+        Intent(
+            "HOURS_APPROVAL_DECIDED",
+            (user(p["user_id"]),),
+            f"Your {kind} request was {str(p['outcome']).lower()}",
+            f"The {kind} you submitted is now {p['outcome']}.",
+            _key(e),
+            "/tenant/hours",
+            None,
+            p["entity_id"],
+        )
+    ]
+
+
+@rule("CustomerHoursOverrun")
+def _hours_overrun(session: Session, e: DomainEvent) -> list[Intent]:
+    p = e.payload
+    return [
+        Intent(
+            "HOURS_OVERRUN",
+            (perm("tenant.meter.review"), perm("tenant.hours.credit_activate")),
+            f"Hours beyond purchase — job {p.get('job_number', '')}",
+            f"{_machine_label(session, p.get('machine_id'))}: {p['excess_hours']} of {p['billable_hours']} billable "
+            "hours were not covered by activated customer hours. Activate more hours or review the exception.",
+            _key(e),
+            "/tenant/exceptions",
+            "job_exception",
+            p["exception_id"],
+        )
+    ]
+
+
+@rule("CustomerHoursExpired")
+def _hours_expired(_: Session, e: DomainEvent) -> list[Intent]:
+    p = e.payload
+    return [
+        Intent(
+            "HOURS_EXPIRED",
+            (perm("tenant.hours.read"),),
+            f"Hours expired — {p['purchase_number']}",
+            f"{p['hours']} unused hours of {p['purchase_number']} passed the tenant expiry period.",
+            _key(e),
+            f"/tenant/hours/purchases/{p['purchase_id']}",
+            "hours_purchase",
+            p["purchase_id"],
+        )
+    ]
+
+
 # --- anomalies -----------------------------------------------------------------------------------------------------
 @rule("TrackingAlertRaised")
 def _alert(session: Session, e: DomainEvent) -> list[Intent]:
@@ -544,6 +630,9 @@ ENTITY_CHANGES: dict[str, tuple[str, str, str]] = {
     "CashHandoverRecorded": ("cash_handover", "handover_id", "created"),
     "CashHandoverVerified": ("cash_handover", "handover_id", "verified"),
     "HireInvoiceIssued": ("hire_invoice", "invoice_id", "issued"),
+    "HoursPurchaseRecorded": ("hours_purchase", "purchase_id", "created"),
+    "CustomerHoursActivated": ("hours_purchase", "purchase_id", "updated"),
+    "CustomerHoursExpired": ("hours_purchase", "purchase_id", "updated"),
     "HireInvoiceVoided": ("hire_invoice", "invoice_id", "voided"),
     "MeterCaptured": ("meter_capture", "capture_id", "created"),
     "MeterExceptionRaised": ("meter_exception", "capture_id", "created"),

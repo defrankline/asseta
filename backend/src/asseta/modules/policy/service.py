@@ -22,6 +22,7 @@ from asseta.modules.policy.models import PolicyVersion
 from asseta.modules.policy.schemas import (
     OVERRIDABLE,
     SCHEMAS,
+    CustomerHoursPolicy,
     DeviceSyncPolicy,
     ExpenseCapturePolicy,
     FraudControlsPolicy,
@@ -138,6 +139,9 @@ class PolicyService:
             EffectivePolicy[FraudControlsPolicy],
             self.resolve(PolicyType.FRAUD_CONTROLS, tenant_id, machine_id=machine_id, at=at),
         )
+
+    def customer_hours(self, tenant_id: uuid.UUID, at: datetime | None = None) -> EffectivePolicy[CustomerHoursPolicy]:
+        return cast(EffectivePolicy[CustomerHoursPolicy], self.resolve(PolicyType.CUSTOMER_HOURS, tenant_id, at=at))
 
     def by_stamp(self, ptype: PolicyType, version_ids: list[uuid.UUID]) -> dict[str, Any]:
         """Re-materialize the policy snapshot a device enforced offline, from its version ids."""

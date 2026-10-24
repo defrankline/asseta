@@ -25,6 +25,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from asseta.core.db import Base, SyncRevisioned, Timestamps, UuidPk, utcnow
 from asseta.core.lifecycle import Deactivatable
+from asseta.modules.policy.schemas import BillingMode
 
 MONEY = Numeric(18, 4)
 HOURS = Numeric(12, 2)
@@ -55,6 +56,11 @@ class JobStatus(StrEnum):
     CANCELLED = "CANCELLED"
 
 
+class CustomerKind(StrEnum):
+    REGISTERED = "REGISTERED"
+    WALK_IN = "WALK_IN"  # display name (+ optional phone) only; code WALK-<nnnnn>; may be upgraded later
+
+
 class ActivityType(StrEnum):
     WORK = "WORK"
     STANDBY = "STANDBY"
@@ -75,6 +81,9 @@ class Customer(UuidPk, SyncRevisioned, Deactivatable, Timestamps, Base):
     contact_phone: Mapped[str | None] = mapped_column(String(40))
     contact_email: Mapped[str | None] = mapped_column(String(320))
     payment_terms_days: Mapped[int] = mapped_column(Integer, nullable=False, default=30)
+    kind: Mapped[CustomerKind] = mapped_column(
+        _enum(CustomerKind, 16), nullable=False, default=CustomerKind.REGISTERED, server_default="REGISTERED"
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     __mapper_args__ = {"version_id_col": version}  # noqa: RUF012
@@ -158,6 +167,10 @@ class Job(UuidPk, SyncRevisioned, Timestamps, Base):
     tax_rate_percent: Mapped[Decimal] = mapped_column(Numeric(7, 4), nullable=False)
     # RATE_CARD:<id> | NEGOTIATED | PENDING_PRICE (field request, no rate card) | OWNER_APPROVED (priced at approval)
     rate_source: Mapped[str] = mapped_column(String(64), nullable=False)
+    # INVOICE (post-paid, the original flow) | PREPAID_HOURS (consumes activated customer hours on COMPLETE)
+    billing_mode: Mapped[BillingMode] = mapped_column(
+        _enum(BillingMode, 16), nullable=False, default=BillingMode.INVOICE, server_default="INVOICE"
+    )
     approved_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

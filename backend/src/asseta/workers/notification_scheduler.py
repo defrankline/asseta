@@ -10,6 +10,7 @@ from asseta.core.clock import system_clock
 from asseta.core.config import get_settings
 from asseta.core.db import get_sessionmaker
 from asseta.core.logging import configure_logging
+from asseta.modules.hours.expiry import run_hours_expiry
 from asseta.modules.identity.authz_sync import AuthzSyncService
 from asseta.modules.notification.realtime import RedisBroker, SafePublisher
 from asseta.modules.notification.reminders import run_reminders
@@ -45,6 +46,10 @@ def run() -> None:
         if time.monotonic() >= next_mirror:
             refresh_mirror()
             next_mirror = time.monotonic() + cfg.mirror_refresh_seconds
+        try:  # customer hours expiry (tenant policy) before reminders, so warnings see the swept ledger
+            run_hours_expiry(get_sessionmaker(), system_clock())
+        except Exception:
+            log.exception("hours_expiry_cycle_failed")
         try:
             run_reminders(get_sessionmaker(), system_clock(), publisher, cfg)
         except Exception:
