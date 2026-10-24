@@ -220,6 +220,8 @@ encrypted on the phone) enables it. Unknown policy (never loaded) = hidden, so t
 | cash_transfer, supervisor_cash_custody | Money tab ("Cash to acknowledge" at the top) |
 | machine | The machine (Readings → machine), else the notification |
 
+A push tap opens the Inbox, then does exactly what tapping that notification in the Inbox does (above).
+
 ### Sync status titles (outbox)
 | Key | English |
 |---|---|
@@ -337,6 +339,8 @@ encrypted on the phone) enables it. Unknown policy (never loaded) = hidden, so t
 | owner.field.proposed | Proposed |
 | owner.field.status | Status |
 | owner.field.source | Source |
+| owner.field.captured | Captured |
+| owner.field.when | When |
 
 ### Remittance confirm (Cash handover screen)
 | Key | English |
@@ -418,3 +422,23 @@ encrypted on the phone) enables it. Unknown policy (never loaded) = hidden, so t
 | CASH_TRANSFER_TO_ACKNOWLEDGE, CASH_FLOAT_TO_ACKNOWLEDGE | Owner: Cash with supervisors. Supervisor: Money tab |
 | CASH_VARIANCE_OPENED | Approvals (cash write-offs) |
 | PARTIAL_REMITTANCE | The cash handover (remittance) |
+
+Rules shared by both apps (Owner):
+- An accountability section appears under Approvals only when the role may read it AND something waits (a capability the
+  company does not use never adds an empty section). Read permissions: hours lists `tenant.hours.read`; baselines,
+  classifications, corrections `tenant.meter.read`; write-offs and custody adjustments `tenant.finance.read`; retentions
+  `tenant.finance.read` or `tenant.collection.record`.
+- Decide permissions: discount `tenant.hours.discount_approve`, credit `tenant.hours.credit_approve`, hours transfer
+  `tenant.hours.transfer_approve`, cancellation `tenant.hours.cancel_approve`, baseline and correction
+  `tenant.meter.approve`, classification `tenant.meter.classify`, write-off `tenant.finance.writeoff`, retention
+  `tenant.finance.retention_approve`, custody adjustment `tenant.finance.adjustment_approve`.
+- Own request (proposed_by / requested_by / created_by = `/me` user_id): Approve and Reject are disabled and
+  `owner.decision.ownRequest` is shown. Meter decisions (baseline, classification, correction) need a note of at least
+  5 characters for both answers; the others need a note only to reject.
+- Remittance confirm: "Amount received" is pre-filled with the declared amount, must be a number >= 0, and is sent as
+  `amount_received` (RemittanceDecisionIn); expected balance, shortfall and received amount show on the card when set.
+- Dashboard (More → Accountability, `tenant.accountability.read`): tiles in this order — outstanding approvals, cash,
+  payments, discrepancies, investigations, refused attempts, customer hours, hours awaiting activation, engine hours,
+  unexplained engine hours, missing daily reports; null tiles are skipped; links: approvals/discrepancies → Approvals,
+  cash → Cash with supervisors (`tenant.finance.read`), investigations → Investigations, unexplained hours → Meter
+  exceptions (`tenant.meter.read`).

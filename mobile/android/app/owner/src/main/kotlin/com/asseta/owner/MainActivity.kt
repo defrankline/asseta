@@ -32,6 +32,7 @@ class MainActivity : ComponentActivity() {
                         readOnly = tenant.accessState == TenantAccessState.READ_ONLY,
                         userEmail = ready.me.email,
                         canSwitchTenant = ready.me.tenants.count { it.accessState.canEnter } > 1,
+                        userId = ready.me.userId.toString(),
                     )
                     OwnerHome(app.graph, session, modifier)
                 }

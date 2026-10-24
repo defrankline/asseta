@@ -45,6 +45,7 @@ import com.asseta.owner.data.HandoverList
 import com.asseta.owner.data.Load
 import com.asseta.owner.data.OwnerData
 import com.asseta.owner.ui.OwnerSession
+import com.asseta.owner.ui.accountability.OwnerAccountabilityTexts
 import com.asseta.owner.ui.common.BlockedNote
 import com.asseta.owner.ui.common.EmptyState
 import com.asseta.owner.ui.common.KeyValue
@@ -91,8 +92,16 @@ object HandoverText {
     /** "Claimed 24 Oct 2026, 08:00" (when the cash was handed over). */
     fun claimed(h: CashHandoverDto, zone: ZoneId): String = "Claimed ${OwnerFormat.dateTime(h.handedAt, zone)}"
 
-    /** A dispute must say why; confirming takes an optional note. */
-    fun canDecide(confirm: Boolean, note: String): Boolean = confirm || note.isNotBlank()
+    /** A dispute must say why; confirming takes an optional note and the amount actually received (0 or more). */
+    fun canDecide(confirm: Boolean, note: String, amountReceived: String? = null): Boolean =
+        if (confirm) amountReceived == null || receivedAmount(amountReceived) != null else note.isNotBlank()
+
+    /** The counted amount as an exact decimal string (",", spaces tolerated), or null when it is not a number >= 0. */
+    fun receivedAmount(text: String): String? {
+        val t = text.trim().replace(',', '.')
+        if (!Regex("^\\d+(\\.\\d+)?$").matches(t)) return null
+        return java.math.BigDecimal(t).toPlainString()
+    }
 
     fun done(confirm: Boolean): String = if (confirm) CONFIRMED else DISPUTED
 
@@ -136,12 +145,12 @@ class HandoverViewModel(val data: OwnerData, val handoverId: String, refreshOn: 
 
     fun handover(list: HandoverList): CashHandoverDto? = list.items.firstOrNull { it.id.toString() == handoverId }
 
-    fun decide(confirm: Boolean, note: String) {
-        if (_busy.value || !HandoverText.canDecide(confirm, note)) return
+    fun decide(confirm: Boolean, note: String, amountReceived: String? = null) {
+        if (_busy.value || !HandoverText.canDecide(confirm, note, amountReceived)) return
         _busy.value = true
         _error.value = null
         viewModelScope.launch {
-            when (val r = data.decideHandover(handoverId, confirm, note)) {
+            when (val r = data.decideHandover(handoverId, confirm, note, amountReceived?.let(HandoverText::receivedAmount))) {
                 is ActionResult.Done -> {
                     replaceData { list -> list.copy(items = list.items.map { if (it.id == r.value.id) r.value else it }) }
                     _message.value = HandoverText.done(confirm)
@@ -165,6 +174,7 @@ fun HandoverScreen(vm: HandoverViewModel, session: OwnerSession, online: Boolean
     var confirming by rememberSaveable { mutableStateOf(false) }
     var disputing by rememberSaveable { mutableStateOf(false) }
     var note by rememberSaveable { mutableStateOf("") }
+    var received by rememberSaveable { mutableStateOf("") }
     SnapshotScaffold(state, vm::refresh) { list ->
         val h = vm.handover(list)
         val zone = ZoneId.systemDefault()
@@ -180,6 +190,9 @@ fun HandoverScreen(vm: HandoverViewModel, session: OwnerSession, online: Boolean
                     h.reference?.let { KeyValue("Reference", it) }
                     h.note?.takeIf { it.isNotBlank() }?.let { KeyValue(HandoverText.NOTE, it) }
                     LabeledValue("Status") { StatusPill(OwnerFormat.humanize(h.status), OwnerColors.tone(HandoverText.statusTone(h.status))) }
+                    h.expectedBalance?.let { KeyValue(OwnerAccountabilityTexts.REMIT_EXPECTED, OwnerFormat.money(it.value, h.currency)) }
+                    h.partialShortfall?.let { KeyValue(OwnerAccountabilityTexts.REMIT_SHORTFALL, OwnerFormat.money(it.value, h.currency)) }
+                    h.amountReceived?.let { KeyValue(OwnerAccountabilityTexts.REMIT_RECEIVED, OwnerFormat.money(it.value, h.currency)) }
                     h.decisionNote?.let { KeyValue("Decision note", it) }
                 }
             }
@@ -191,7 +204,8 @@ fun HandoverScreen(vm: HandoverViewModel, session: OwnerSession, online: Boolean
                     } else {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Button(
-                                { note = ""; confirming = true }, enabled = !busy, modifier = Modifier.testTag("confirm-handover-${h.id}"),
+                                { note = ""; received = OwnerFormat.decimal(h.amount.value); confirming = true }, enabled = !busy,
+                                modifier = Modifier.testTag("confirm-handover-${h.id}"),
                                 colors = ButtonDefaults.buttonColors(containerColor = OwnerColors.Live, contentColor = Color.White),
                                 shape = RoundedCornerShape(8.dp),
                             ) { Text(HandoverText.CONFIRM) }
@@ -221,13 +235,29 @@ fun HandoverScreen(vm: HandoverViewModel, session: OwnerSession, online: Boolean
             onDismissRequest = close,
             title = { Text(if (confirm) HandoverText.CONFIRM_TITLE else HandoverText.DISPUTE_TITLE) },
             text = {
-                OutlinedTextField(
-                    note, { note = it.take(1000) }, Modifier.fillMaxWidth().testTag("handover-note"),
-                    label = { Text(if (confirm) HandoverText.NOTE else HandoverText.REASON) }, minLines = 2,
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (confirm) {
+                        // The office records what it actually counted; a different amount opens a cash difference.
+                        OutlinedTextField(
+                            received, { v -> received = v.filter { it.isDigit() || it == '.' || it == ',' }.take(24) },
+                            Modifier.fillMaxWidth().testTag("handover-received"), singleLine = true,
+                            label = { Text(OwnerAccountabilityTexts.REMIT_AMOUNT_RECEIVED) },
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal),
+                            isError = HandoverText.receivedAmount(received) == null,
+                            supportingText = {
+                                Text(if (HandoverText.receivedAmount(received) == null) OwnerAccountabilityTexts.REMIT_ERR_AMOUNT else OwnerAccountabilityTexts.REMIT_AMOUNT_FOOTER)
+                            },
+                        )
+                    }
+                    OutlinedTextField(
+                        note, { note = it.take(1000) }, Modifier.fillMaxWidth().testTag("handover-note"),
+                        label = { Text(if (confirm) HandoverText.NOTE else HandoverText.REASON) }, minLines = 2,
+                    )
+                }
             },
             confirmButton = {
-                TextButton({ close(); vm.decide(confirm, note) }, enabled = HandoverText.canDecide(confirm, note)) {
+                val amount = received.takeIf { confirm }
+                TextButton({ close(); vm.decide(confirm, note, amount) }, enabled = HandoverText.canDecide(confirm, note, amount)) {
                     if (confirm) Text(HandoverText.CONFIRM) else Text(HandoverText.DISPUTE, color = MaterialTheme.colorScheme.error)
                 }
             },

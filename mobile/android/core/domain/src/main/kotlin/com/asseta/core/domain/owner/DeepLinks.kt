@@ -28,6 +28,42 @@ sealed interface OwnerDestination {
     data object Settings : OwnerDestination
     /** Menu of the secondary screens (approvals, exceptions, field spend, cash, investigations, notifications, settings). */
     data object More : OwnerDestination
+
+    /** An accountability request to approve or reject ([kind] a [DecisionKinds] code), listed under Approvals. */
+    data class Decision(val kind: String, val id: String) : OwnerDestination
+
+    /** Accountability dashboard summary (tenant.accountability.read). */
+    data object Accountability : OwnerDestination
+}
+
+/** Codes of the accountability decisions the Owner app lists under Approvals (and their notification entities). */
+object DecisionKinds {
+    const val DISCOUNT = "DISCOUNT"
+    const val CREDIT = "CREDIT"
+    const val HOURS_TRANSFER = "HOURS_TRANSFER"
+    const val CANCELLATION = "CANCELLATION"
+    const val BASELINE = "BASELINE"
+    const val CLASSIFICATION = "CLASSIFICATION"
+    const val CORRECTION = "CORRECTION"
+    const val WRITE_OFF = "WRITE_OFF"
+    const val RETENTION = "RETENTION"
+    const val ADJUSTMENT = "ADJUSTMENT"
+
+    /** Notification target entity -> decision kind (backend notification rules). */
+    val BY_ENTITY = mapOf(
+        "customer_discount" to DISCOUNT,
+        "credit_arrangement" to CREDIT,
+        "hours_transfer" to HOURS_TRANSFER,
+        "hours_cancellation" to CANCELLATION,
+        "baseline" to BASELINE,
+        "meter_baseline" to BASELINE,
+        "classification" to CLASSIFICATION,
+        "correction" to CORRECTION,
+        "meter_correction" to CORRECTION,
+        "cash_variance" to WRITE_OFF,
+        "cash_retention" to RETENTION,
+        "custody_adjustment" to ADJUSTMENT,
+    )
 }
 
 /** A deep link resolved from a push payload: [tenantId] must be entered first when it differs from the current one. */
@@ -43,8 +79,11 @@ object DeepLinkRouter {
 
     private fun id(raw: String?): String? = raw?.takeIf { UUID.matches(it) }
 
-    fun fromTarget(entity: String?, id: String?, path: String?, notificationId: String? = null): OwnerDestination {
+    fun fromTarget(entity: String?, id: String?, path: String?, notificationId: String? = null, type: String? = null): OwnerDestination {
         val target = id(id)
+        // A cash difference just opened is not a decision yet: it is reviewed from Approvals (cash write-offs).
+        if (type == "CASH_VARIANCE_OPENED") return OwnerDestination.Approvals()
+        DecisionKinds.BY_ENTITY[entity]?.let { kind -> return target?.let { OwnerDestination.Decision(kind, it) } ?: OwnerDestination.Approvals() }
         return when (entity) {
             "alert" -> OwnerDestination.Alerts(target)
             "approval" -> OwnerDestination.Approvals(target)
@@ -53,6 +92,12 @@ object DeepLinkRouter {
             "job" -> target?.let { OwnerDestination.Job(it) } ?: OwnerDestination.Jobs
             "machine", "fleet.position" -> target?.let { OwnerDestination.Machine(it) } ?: OwnerDestination.Fleet
             "case" -> target?.let { OwnerDestination.Case(it) } ?: OwnerDestination.Cases
+            // HOURS_OVERRUN: the meter exception to review.
+            "job_exception" -> target?.let { OwnerDestination.MeterException(it) } ?: OwnerDestination.Exceptions()
+            // PARTIAL_REMITTANCE: the remittance (cash handover).
+            "cash_handover" -> target?.let { OwnerDestination.Handover(it) } ?: OwnerDestination.Approvals()
+            "cash_transfer", "supervisor_cash_custody" -> OwnerDestination.Cash
+            "hours_purchase" -> OwnerDestination.Accountability
             else -> fromPath(path) ?: OwnerDestination.Notifications(id(notificationId))
         }
     }
@@ -73,6 +118,17 @@ object DeepLinkRouter {
             "machines" -> second?.let { OwnerDestination.Machine(it) } ?: OwnerDestination.Fleet
             "fleet" -> id(rest.getOrNull(2))?.let { OwnerDestination.Machine(it) } ?: OwnerDestination.Fleet
             "notifications" -> OwnerDestination.Notifications(second)
+            // Accountability (customer hours, engine hours, cash custody chain).
+            "hours" -> if (rest.getOrNull(1) == "purchases") OwnerDestination.Accountability else OwnerDestination.Approvals()
+            "meter-baselines", "meter-corrections" -> OwnerDestination.Approvals()
+            "engine-hours" -> if (rest.getOrNull(1) == "machines") id(rest.getOrNull(2))?.let { OwnerDestination.Machine(it) } ?: OwnerDestination.Fleet
+            else OwnerDestination.Approvals()
+            "cash" -> when (rest.getOrNull(1)) {
+                "transfers", "floats" -> OwnerDestination.Cash
+                "handovers" -> id(rest.getOrNull(2))?.let { OwnerDestination.Handover(it) } ?: OwnerDestination.Approvals()
+                else -> OwnerDestination.Approvals()
+            }
+            "accountability" -> OwnerDestination.Accountability
             else -> null
         }
     }

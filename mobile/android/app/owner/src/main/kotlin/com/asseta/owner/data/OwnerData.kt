@@ -28,6 +28,12 @@ import com.asseta.core.model.owner.NotificationDto
 import com.asseta.core.model.owner.PageDto
 import com.asseta.core.model.owner.SettlementDecisionIn
 import com.asseta.core.model.owner.TenantOverviewDto
+import com.asseta.core.model.owner.AccountabilitySummaryDto
+import com.asseta.core.model.owner.DecisionIn
+import com.asseta.core.model.owner.MeterDecisionIn
+import com.asseta.owner.ui.accountability.DecisionItem
+import com.asseta.owner.ui.accountability.DecisionKind
+import com.asseta.owner.ui.accountability.DecisionMapper
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import java.time.Instant
@@ -184,6 +190,58 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
     suspend fun notifications(): Load<PageDto<NotificationDto>> =
         repo.load(tenantId, "notifications", PageDto.serializer(NotificationDto.serializer())) { notifications(pageSize = LIST_PAGE) }
 
+    // --- accountability (Approvals sections, decision screens, dashboard) ----------------------------------------
+    /** Requests of [kind] waiting for a decision, ready to show (cached per kind for offline viewing). */
+    suspend fun decisions(kind: DecisionKind): Load<List<DecisionItem>> {
+        val zone = java.time.ZoneId.systemDefault()
+        val status = kind.pendingStatus
+        return repo.load(tenantId, "decisions:${kind.code}", ListSerializer(DecisionItem.serializer())) {
+            when (kind) {
+                DecisionKind.DISCOUNT -> customerDiscounts(status).items.map { DecisionMapper.discount(it, zone) }
+                DecisionKind.CREDIT -> creditArrangements(status).items.map { DecisionMapper.credit(it, zone) }
+                DecisionKind.HOURS_TRANSFER -> {
+                    val items = hoursTransfers(status).items
+                    val ids = items.flatMap { listOf(it.fromMachineId, it.toMachineId) }.distinct().take(MAX_JOB_LOOKUPS)
+                    val names = ids.mapNotNull { id -> runCatching { id to machine(id).let { m -> "${m.assetCode} · ${m.name}" } }.getOrNull() }.toMap()
+                    items.map { DecisionMapper.hoursTransfer(it, names) }
+                }
+                DecisionKind.CANCELLATION -> hoursCancellations(status).items.map(DecisionMapper::cancellation)
+                DecisionKind.BASELINE -> meterBaselines(status).items.map { DecisionMapper.baseline(it, zone) }
+                DecisionKind.CLASSIFICATION -> engineHourClassifications(status).items.map { DecisionMapper.classification(it, zone) }
+                DecisionKind.CORRECTION -> meterCorrections(status).items.map(DecisionMapper::correction)
+                DecisionKind.WRITE_OFF -> cashVariances(status).items.map(DecisionMapper::writeOff)
+                DecisionKind.RETENTION -> cashRetentions(status).items.map { DecisionMapper.retention(it, zone) }
+                DecisionKind.ADJUSTMENT -> custodyAdjustments(status).items.map { DecisionMapper.adjustment(it, zone) }
+            }
+        }
+    }
+
+    /** Approve or reject a request of [kind] (online only); meter decisions carry their note as APPROVE/REJECT. */
+    suspend fun decide(kind: DecisionKind, id: String, approve: Boolean, note: String): ActionResult<Unit> {
+        val text = note.trim().takeIf { it.isNotEmpty() }
+        val decision = DecisionIn(approve, text)
+        val meter = MeterDecisionIn(if (approve) MeterDecisionIn.APPROVE else MeterDecisionIn.REJECT, note.trim())
+        return repo.act {
+            when (kind) {
+                DecisionKind.DISCOUNT -> decideCustomerDiscount(id, decision)
+                DecisionKind.CREDIT -> decideCreditArrangement(id, decision)
+                DecisionKind.HOURS_TRANSFER -> decideHoursTransfer(id, decision)
+                DecisionKind.CANCELLATION -> decideHoursCancellation(id, decision)
+                DecisionKind.BASELINE -> decideMeterBaseline(id, meter)
+                DecisionKind.CLASSIFICATION -> decideEngineHourClassification(id, meter)
+                DecisionKind.CORRECTION -> decideMeterCorrection(id, meter)
+                DecisionKind.WRITE_OFF -> decideCashWriteOff(id, decision)
+                DecisionKind.RETENTION -> decideCashRetention(id, decision)
+                DecisionKind.ADJUSTMENT -> decideCustodyAdjustment(id, decision)
+            }
+            Unit
+        }
+    }
+
+    /** The accountability dashboard summary (tiles the tenant hides come back null). */
+    suspend fun accountabilitySummary(): Load<AccountabilitySummaryDto> =
+        repo.load(tenantId, "accountability_summary", AccountabilitySummaryDto.serializer()) { accountabilitySummary() }
+
     // --- owner mutations (online only, never queued) ---------------------------------------------------------------
     suspend fun acknowledgeAlert(id: String) = repo.act { alertAction(id, AlertActionIn(AlertActionIn.ACKNOWLEDGE)) }
 
@@ -203,9 +261,14 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
     /** Decline a job waiting for approval (CANCEL with the reason the supervisor is told). */
     suspend fun declineJob(id: String, reason: String) = repo.act { transitionJob(id, JobTransitionIn(JobTransitionIn.CANCEL, reason = reason.trim())) }
 
-    /** Confirm ([verified]) or dispute a claimed cash handover; a dispute carries the reason. */
-    suspend fun decideHandover(id: String, verified: Boolean, note: String?) =
-        repo.act { decideCashHandover(id, SettlementDecisionIn(verified, note?.trim()?.takeIf { it.isNotEmpty() })) }
+    /**
+     * Confirm ([verified]) or dispute a claimed cash handover (remittance); a dispute carries the reason. Confirming
+     * records the [amountReceived] actually counted (null = the declared amount); a difference opens a cash variance.
+     */
+    suspend fun decideHandover(id: String, verified: Boolean, note: String?, amountReceived: String? = null) =
+        repo.act {
+            decideCashHandover(id, SettlementDecisionIn(verified, note?.trim()?.takeIf { it.isNotEmpty() }, amountReceived?.takeIf { verified }))
+        }
 
     /** Record the review of a meter exception: [outcome] EXPLAINED or CONFIRMED, with the review note. */
     suspend fun reviewException(id: String, outcome: String, note: String) =

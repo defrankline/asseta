@@ -24,6 +24,8 @@ data class OwnerSession(
     val userEmail: String = "",
     /** More than one enterable company, so "Switch company" is offered. */
     val canSwitchTenant: Boolean = false,
+    /** The signed-in user's id (`/me`): a request they proposed is never theirs to decide. */
+    val userId: String? = null,
 ) {
     val features: OwnerFeatures get() = OwnerFeatures(permissions)
 
@@ -54,6 +56,11 @@ data class OwnerFeatures(val permissions: Set<String>) {
     val issueFloats get() = "tenant.finance.cash" in permissions
     val reviewExceptions get() = "tenant.meter.review" in permissions
     val notifications get() = "tenant.notification.read" in permissions
+
+    // Accountability (each list needs its read permission; deciding needs the approve permission).
+    val hoursRead get() = "tenant.hours.read" in permissions
+    val custodyRead get() = finance || "tenant.collection.record" in permissions
+    val accountability get() = "tenant.accountability.read" in permissions
 }
 
 /**

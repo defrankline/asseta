@@ -88,7 +88,7 @@ fun OwnerHome(graph: OwnerGraph, session: OwnerSession, modifier: Modifier = Mod
         val resolved = link.notificationId?.let { id ->
             (data.notification(id) as? ActionResult.Done)?.value?.let { n ->
                 data.markRead(listOf(id))
-                DeepLinkRouter.fromTarget(n.target?.entity, n.target?.id, n.target?.path, id)
+                DeepLinkRouter.fromTarget(n.target?.entity, n.target?.id, n.target?.path, id, n.type)
             }
         }
         open(resolved ?: link.destination)

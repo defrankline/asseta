@@ -21,6 +21,18 @@ enum class OwnerAction(val permission: String) {
 
     /** Create a job and send it for approval (approving it right away also needs [DECIDE_JOB]'s permission). */
     CREATE_JOB("tenant.job.write"),
+
+    // Accountability decisions: whoever holds the permission; never the proposer (server-enforced).
+    DECIDE_DISCOUNT("tenant.hours.discount_approve"),
+    DECIDE_CREDIT("tenant.hours.credit_approve"),
+    DECIDE_HOURS_TRANSFER("tenant.hours.transfer_approve"),
+    DECIDE_HOURS_CANCELLATION("tenant.hours.cancel_approve"),
+    DECIDE_BASELINE("tenant.meter.approve"),
+    DECIDE_CLASSIFICATION("tenant.meter.classify"),
+    DECIDE_CORRECTION("tenant.meter.approve"),
+    DECIDE_WRITE_OFF("tenant.finance.writeoff"),
+    DECIDE_RETENTION("tenant.finance.retention_approve"),
+    DECIDE_ADJUSTMENT("tenant.finance.adjustment_approve"),
 }
 
 sealed interface MutationCheck {
@@ -49,6 +61,9 @@ object MutationGate {
     const val SHOWING_SAVED_DATA = "Showing saved data. Refresh while online before making changes."
     const val READ_ONLY_TENANT = "This company is read-only. Changes are disabled."
     const val NOT_PERMITTED = "Your role can view this but not change it."
+
+    /** The proposer of a request can never decide it (segregation of duties; the server refuses it too). */
+    const val OWN_REQUEST = "Someone else must decide your own request"
 
     /** A meter reset decision needs a note of at least 5 characters (server `ReviewIn`). */
     fun resetNoteValid(note: String): Boolean = note.trim().length >= RESET_NOTE_MIN

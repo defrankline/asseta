@@ -305,24 +305,6 @@ fun SupervisorHome(
         }
     }
 
-    // A tapped notification opens the Inbox (refreshed), then its own detail when the Inbox has it.
-    val tap by field.pushTap.collectAsStateWithLifecycle()
-    LaunchedEffect(tap) {
-        val opened = tap ?: return@LaunchedEffect
-        nav = nav.showRoot(SupervisorTab.INBOX)
-        try {
-            inbox.refreshNow()
-            val id = opened.notificationId ?: return@LaunchedEffect
-            inbox.notifications.value.firstOrNull { it.id.toString() == id }?.let { n ->
-                if (n.readAt == null) inbox.markRead(id)
-                push(Route.NotificationDetail(id))
-            }
-        } finally {
-            // Consumed only now: clearing it earlier would restart (cancel) this effect.
-            field.pushTap.compareAndSet(opened, null)
-        }
-    }
-
     fun refresh() {
         sync.syncNow()
         inbox.refreshNotifications()
@@ -359,6 +341,22 @@ fun SupervisorHome(
             AttentionItem.Kind.COLLECTION -> push(Route.CashDetail(item.refId, collection = true))
             AttentionItem.Kind.HANDOVER -> push(Route.CashDetail(item.refId, collection = false))
             AttentionItem.Kind.OPERATION, AttentionItem.Kind.UPLOAD -> push(Route.SyncStatus)
+        }
+    }
+
+    // A tapped notification opens the Inbox (refreshed), then its own detail when the Inbox has it.
+    val tap by field.pushTap.collectAsStateWithLifecycle()
+    LaunchedEffect(tap) {
+        val opened = tap ?: return@LaunchedEffect
+        nav = nav.showRoot(SupervisorTab.INBOX)
+        try {
+            inbox.refreshNow()
+            val id = opened.notificationId ?: return@LaunchedEffect
+            // What the notification is about (a transfer to acknowledge opens Money, a machine its detail), else its detail.
+            inbox.notifications.value.firstOrNull { it.id.toString() == id }?.let(::openNotification)
+        } finally {
+            // Consumed only now: clearing it earlier would restart (cancel) this effect.
+            field.pushTap.compareAndSet(opened, null)
         }
     }
 

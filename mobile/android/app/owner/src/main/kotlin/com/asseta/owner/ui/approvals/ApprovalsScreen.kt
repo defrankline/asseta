@@ -53,6 +53,9 @@ import com.asseta.core.ui.theme.AssetaType
 import com.asseta.core.ui.theme.palette
 import com.asseta.owner.R
 import com.asseta.owner.data.ActionResult
+import com.asseta.owner.ui.accountability.DecisionItem
+import com.asseta.owner.ui.accountability.DecisionKind
+import com.asseta.owner.ui.accountability.DecisionRow
 import com.asseta.owner.data.ExceptionList
 import com.asseta.owner.data.HandoverList
 import com.asseta.owner.data.OwnerData
@@ -120,6 +123,7 @@ class ApprovalsViewModel private constructor(
     jobs: Boolean,
     handovers: Boolean,
     exceptions: Boolean,
+    decisions: List<DecisionKind>,
 ) : SnapshotViewModel<PageDto<ApprovalRequestDto>>({ data.approvals(selected.value) }, refreshOn) {
     /**
      * [meterResets]: also list pending meter reset requests (`tenant.meter.read`); [jobs]: also list jobs waiting for
@@ -134,7 +138,8 @@ class ApprovalsViewModel private constructor(
         jobs: Boolean = false,
         handovers: Boolean = false,
         exceptions: Boolean = false,
-    ) : this(data, MutableStateFlow(ApprovalText.DEFAULT_FILTER), refreshOn, meterResets, jobs, handovers, exceptions)
+        decisions: List<DecisionKind> = emptyList(),
+    ) : this(data, MutableStateFlow(ApprovalText.DEFAULT_FILTER), refreshOn, meterResets, jobs, handovers, exceptions, decisions)
 
     val status: StateFlow<String?> get() = selected
 
@@ -150,7 +155,10 @@ class ApprovalsViewModel private constructor(
     /** Open meter exceptions, loaded independently (null when the role cannot read meter evidence). */
     val openExceptions: Section<ExceptionList>? = if (exceptions) Section(viewModelScope) { data.openExceptions(jobNumbers = jobs) } else null
 
-    private val sections get() = listOfNotNull(resets, pendingJobs, claimedHandovers, openExceptions)
+    /** Accountability requests waiting for a decision, one independently loaded section per kind the role may see. */
+    val decisionSections: List<Pair<DecisionKind, Section<List<DecisionItem>>>> = decisions.map { k -> k to Section(viewModelScope) { data.decisions(k) } }
+
+    private val sections get() = listOfNotNull(resets, pendingJobs, claimedHandovers, openExceptions) + decisionSections.map { it.second }
 
     init {
         sections.forEach { it.refresh() }
@@ -208,6 +216,7 @@ fun ApprovalsScreen(vm: ApprovalsViewModel, onOpen: (OwnerDestination) -> Unit) 
     val jobs = vm.pendingJobs?.state?.collectAsStateWithLifecycle()?.value
     val handovers = vm.claimedHandovers?.state?.collectAsStateWithLifecycle()?.value
     val exceptions = vm.openExceptions?.state?.collectAsStateWithLifecycle()?.value
+    val decisions = vm.decisionSections.map { (kind, section) -> kind to section.state.collectAsStateWithLifecycle().value }
     Column(Modifier.fillMaxSize()) {
         FilterChipRow(ApprovalText.FILTERS.map { (s, l) -> s as String? to l }, status, vm::filter)
         SnapshotScaffold(state, vm::refreshAll) { page ->
@@ -270,6 +279,18 @@ fun ApprovalsScreen(vm: ApprovalsViewModel, onOpen: (OwnerDestination) -> Unit) 
                 handoverRows?.let { groupedSection("handovers", it, header = HandoverText.SECTION) }
                 exceptionRows?.let { groupedSection("exceptions", it, header = ExceptionReviewText.SECTION) }
                 resetRows?.let { groupedSection("resets", it, header = MeterResetText.SECTION) }
+                // Accountability sections appear only when something waits (a capability the company does not use
+                // never adds an empty section): today's Approvals screen is unchanged for it.
+                decisions.forEach { (kind, st) ->
+                    val items = st.data.orEmpty().filter { it.pending }
+                    if (items.isNotEmpty()) {
+                        groupedSection(
+                            "decision-${kind.code}",
+                            items.map { d -> GroupedItem(d.id, onClick = { onOpen(OwnerDestination.Decision(kind.code, d.id)) }) { DecisionRow(d, zone) } },
+                            header = kind.header,
+                        )
+                    }
+                }
             }
         }
     }

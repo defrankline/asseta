@@ -16,11 +16,13 @@ import com.asseta.core.ui.components.NavigationRow
 import com.asseta.core.ui.session.LocalSessionActions
 import com.asseta.owner.R
 import com.asseta.owner.ui.common.FootNote
+import com.asseta.owner.ui.accountability.OwnerAccountabilityTexts
 import com.asseta.owner.ui.common.KeyValue
 
 /** Entries of the More tab the role may open (same gating and order as iOS `MoreView`). */
 fun moreEntries(features: OwnerFeatures): List<Pair<String, OwnerDestination>> = listOfNotNull(
     ("Approvals" to OwnerDestination.Approvals()).takeIf { features.approvals },
+    (OwnerAccountabilityTexts.MORE_ACCOUNTABILITY to OwnerDestination.Accountability).takeIf { features.accountability },
     ("Meter exceptions" to OwnerDestination.Exceptions()).takeIf { features.meterEvidence },
     ("Field spend" to OwnerDestination.FieldSpend).takeIf { features.expenses },
     ("Cash with supervisors" to OwnerDestination.Cash).takeIf { features.finance },
@@ -60,6 +62,7 @@ private fun moreIcon(d: OwnerDestination): Int = when (d) {
     is OwnerDestination.Exceptions -> R.drawable.ic_warning
     OwnerDestination.FieldSpend -> R.drawable.ic_receipt
     OwnerDestination.Cash -> R.drawable.ic_cash
+    OwnerDestination.Accountability -> R.drawable.ic_approval
     OwnerDestination.Cases -> R.drawable.ic_investigation
     is OwnerDestination.Notifications -> R.drawable.ic_bell
     else -> R.drawable.ic_settings

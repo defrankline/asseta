@@ -1,6 +1,8 @@
 package com.asseta.owner.ui
 
 import com.asseta.core.domain.owner.OwnerDestination
+import com.asseta.owner.ui.accountability.DecisionKind
+import com.asseta.owner.ui.accountability.OwnerAccountabilityTexts
 
 /** Bottom-bar tabs; opening a tab resets the back stack, any other destination is pushed. */
 enum class OwnerTab(val label: String, val root: OwnerDestination) {
@@ -71,5 +73,7 @@ object OwnerNavigation {
         is OwnerDestination.Notifications -> if (d.notificationId == null) "Notifications" else "Notification"
         OwnerDestination.Settings -> "Settings"
         OwnerDestination.More -> "More"
+        is OwnerDestination.Decision -> DecisionKind.of(d.kind)?.title ?: "Approval"
+        OwnerDestination.Accountability -> OwnerAccountabilityTexts.DASH_TITLE
     }
 }

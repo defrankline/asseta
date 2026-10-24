@@ -5,6 +5,12 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.asseta.core.domain.owner.OwnerDestination
 import com.asseta.owner.OwnerGraph
 import com.asseta.owner.data.OwnerData
+import com.asseta.owner.ui.accountability.AccountabilityScreen
+import com.asseta.owner.ui.accountability.AccountabilityViewModel
+import com.asseta.owner.ui.accountability.DecisionKind
+import com.asseta.owner.ui.accountability.DecisionScreen
+import com.asseta.owner.ui.accountability.DecisionViewModel
+import com.asseta.owner.ui.accountability.OwnerAccountabilityTexts
 import com.asseta.owner.ui.alerts.AlertDetailScreen
 import com.asseta.owner.ui.alerts.AlertDetailViewModel
 import com.asseta.owner.ui.alerts.AlertsScreen
@@ -46,6 +52,12 @@ import com.asseta.owner.ui.settings.SettingsScreen
 import com.asseta.owner.ui.settings.SettingsViewModel
 import com.asseta.owner.ui.spend.FieldSpendScreen
 import com.asseta.owner.ui.spend.FieldSpendViewModel
+
+/** Live-update entities of the accountability decisions (WebSocket "entity changed" frames). */
+private val ACCOUNTABILITY_ENTITIES = arrayOf(
+    "customer_discount", "credit_arrangement", "hours_transfer", "hours_cancellation", "meter_baseline", "meter_correction",
+    "engine_hour_classification", "cash_variance", "cash_retention", "custody_adjustment",
+)
 
 /** One screen per destination; view models are keyed by tenant (and id) so switching tenant never mixes data. */
 @Composable
@@ -101,8 +113,10 @@ fun OwnerRoutes(
             if (id == null) {
                 val vm: ApprovalsViewModel = viewModel(key = "approvals-$t") {
                     ApprovalsViewModel(
-                        data, graph.refreshTriggers("approval", "expense", "meter_reset", "job", "cash_handover", "meter_exception", "exception"),
+                        data,
+                        graph.refreshTriggers("approval", "expense", "meter_reset", "job", "cash_handover", "meter_exception", "exception", *ACCOUNTABILITY_ENTITIES),
                         meterResets = features.meterEvidence, jobs = features.jobs, handovers = features.finance, exceptions = features.meterEvidence,
+                        decisions = DecisionKind.visible(features),
                     )
                 }
                 ApprovalsScreen(vm, open)
@@ -171,5 +185,22 @@ fun OwnerRoutes(
             SettingsScreen(vm, session, online)
         }
         OwnerDestination.More -> MoreScreen(session, unread, open)
+        is OwnerDestination.Decision -> {
+            val kind = DecisionKind.of(route.kind)
+            if (kind == null) {
+                com.asseta.owner.ui.common.EmptyState(OwnerAccountabilityTexts.NOT_FOUND_TITLE, OwnerAccountabilityTexts.NOT_FOUND_MESSAGE)
+            } else {
+                val vm: DecisionViewModel = viewModel(key = "decision-$t-${route.kind}-${route.id}") {
+                    DecisionViewModel(data, kind, route.id, graph.refreshTriggers(*ACCOUNTABILITY_ENTITIES))
+                }
+                DecisionScreen(vm, session, online)
+            }
+        }
+        OwnerDestination.Accountability -> {
+            val vm: AccountabilityViewModel = viewModel(key = "accountability-$t") {
+                AccountabilityViewModel(data, graph.refreshTriggers(*ACCOUNTABILITY_ENTITIES, "cash_handover", "approval", "case"))
+            }
+            AccountabilityScreen(vm, features, open)
+        }
     }
 }
