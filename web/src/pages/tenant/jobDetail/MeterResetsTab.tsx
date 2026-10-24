@@ -13,10 +13,9 @@ import { useAsyncResource } from '../../../hooks/useAsyncResource';
 import { useNotify } from '../../../notifications/useNotify';
 import { useSession } from '../../../session/useSession';
 import { formatInstantIn } from '../../../utils/time';
+import { RESET_TONES } from '../shared/jobDisplay';
 import { DecideResetDialog } from './DecideResetDialog';
 import { RequestResetDialog } from './RequestResetDialog';
-
-const RESET_TONES = { PENDING: 'info', APPROVED: 'success', REJECTED: 'default' } as const;
 
 export const OWN_RESET_TEXT = 'You requested this reset; another approver must decide it.';
 

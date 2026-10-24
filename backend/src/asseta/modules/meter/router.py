@@ -66,6 +66,16 @@ for menu in (
     MenuDef(
         "tenant.exceptions", S.TENANT, "Exceptions", "/tenant/exceptions", 62, "tenant.meter.read", group="tenant.risk"
     ),
+    # Company-wide pending meter resets for approvers (decided one by one, never by the requester).
+    MenuDef(
+        "tenant.meter_resets",
+        S.TENANT,
+        "Meter resets",
+        "/tenant/meter-resets",
+        61,
+        "tenant.meter.approve",
+        group="tenant.risk",
+    ),
     MenuDef(
         "tenant.field.readings",
         S.TENANT,

@@ -9,6 +9,7 @@ import type {
   CashCustodyEntryDto,
   CashHandoverDto,
   CashReconciliationDto,
+  CashSupervisorSummaryDto,
   ChargeKind,
   CustodyEntryType,
   CustomerBalanceDto,
@@ -197,6 +198,23 @@ export const reconciliationSchema: Schema<CashReconciliationDto> = object({
       outstanding_if_claims_verified: text(),
     }),
   ).required(),
+});
+
+export const supervisorSummarySchema: Schema<CashSupervisorSummaryDto> = object({
+  staff_member_id: id(),
+  staff_name: text(),
+  currency: text(),
+  period_from: text(),
+  period_to: text(),
+  opening: text(),
+  floats_issued: text(),
+  collections: text(),
+  approved_spending: text(),
+  verified_handovers: text(),
+  closing_outstanding: text(),
+  claimed_unverified_handovers: text(),
+  pending_spending: text(),
+  unverified_collections: text(),
 });
 
 function isStringRecord(value: unknown): value is Record<string, string> {

@@ -63,6 +63,8 @@ export const ROUTES = {
   tenantJobs: '/tenant/jobs',
   tenantJobDetail: '/tenant/jobs/:jobId',
   tenantExceptions: '/tenant/exceptions',
+  /** Matches the backend `tenant.meter_resets` menu path (company-wide reset approvals). */
+  tenantMeterResets: '/tenant/meter-resets',
   /** Matches the backend `tenant.cases` menu path ("Investigations"). */
   tenantCases: '/tenant/cases',
   tenantCaseDetail: '/tenant/cases/:caseId',
@@ -121,7 +123,7 @@ export function caseDetailPath(caseId: string): string {
   return `${ROUTES.tenantCases}/${encodeURIComponent(caseId)}`;
 }
 
-/** Hire finance hub on a given tab (`invoices`, `payments`, `custody`, `handovers`, `reconciliation`). */
+/** Hire finance hub on a given tab (`invoices`, `payments`, `supervisors`, `custody`, `handovers`, `reconciliation`). */
 export function financeTabPath(tab: string): string {
   return `${ROUTES.tenantFinance}?tab=${encodeURIComponent(tab)}`;
 }

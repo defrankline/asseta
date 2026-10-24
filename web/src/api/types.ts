@@ -300,6 +300,7 @@ export type CashCustodyBalanceDto = Schemas['CashCustodyBalanceDto'];
 export type CashHandoverIn = Schemas['CashHandoverIn'];
 export type CashHandoverDto = Schemas['CashHandoverDto'];
 export type CashReconciliationDto = Schemas['CashReconciliationDto'];
+export type CashSupervisorSummaryDto = Schemas['CashSupervisorSummaryDto'];
 export type CashReconciliationDayDto = Schemas['CashReconciliationDayDto'];
 export type ProfitabilityDto = Schemas['ProfitabilityDto'];
 export type ProfitabilityRowDto = Schemas['ProfitabilityRowDto'];

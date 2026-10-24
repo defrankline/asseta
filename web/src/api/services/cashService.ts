@@ -6,6 +6,7 @@ import type {
   CashHandoverDto,
   CashHandoverIn,
   CashReconciliationDto,
+  CashSupervisorSummaryDto,
   CustomerPaymentDto,
   Page,
   SettlementDecisionIn,
@@ -16,6 +17,7 @@ import {
   customerPaymentSchema,
   handoverSchema,
   reconciliationSchema,
+  supervisorSummarySchema,
 } from './financeSchemas';
 import {
   seg,
@@ -29,6 +31,12 @@ import {
 
 const handoverPageSchema = tenantPageSchema(handoverSchema);
 const paymentPageSchema = tenantPageSchema(customerPaymentSchema);
+
+export interface SupervisorSummaryQuery {
+  from: string;
+  to: string;
+  currency?: string | undefined;
+}
 
 export interface ReconciliationQuery {
   staffMemberId: string;
@@ -128,6 +136,19 @@ export const cashService = {
       handoverSchema,
       'cash handover',
       idempotencyKey,
+    );
+  },
+  /** GET /tenant/cash/supervisor-summary (listCashSupervisorSummaries): every custodian x currency. */
+  supervisorSummary(
+    query: SupervisorSummaryQuery,
+    signal?: AbortSignal,
+  ): Promise<CashSupervisorSummaryDto[]> {
+    return tenantList(
+      '/tenant/cash/supervisor-summary',
+      supervisorSummarySchema,
+      'supervisor cash summary',
+      signal,
+      { from: query.from, to: query.to, currency: query.currency },
     );
   },
   /** GET /tenant/cash/reconciliation (getCashReconciliation): tenant-local days for one currency. */

@@ -31,6 +31,7 @@ import {
   CustomersPage,
   ExpenseCategoriesPage,
   ExceptionsPage,
+  MeterResetsPage,
   CasesPage,
   CaseDetailPage,
   InsightsPage,
@@ -265,6 +266,10 @@ export function AppRoutes() {
         <Route
           path={ROUTES.tenantExceptions}
           element={guard(PERMISSIONS.tenantMeterRead, <ExceptionsPage />)}
+        />
+        <Route
+          path={ROUTES.tenantMeterResets}
+          element={guard(PERMISSIONS.tenantMeterApprove, <MeterResetsPage />)}
         />
         <Route
           path={ROUTES.tenantCases}

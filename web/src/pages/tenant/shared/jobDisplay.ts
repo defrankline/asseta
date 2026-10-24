@@ -147,6 +147,14 @@ export const RESET_ERROR_HINTS: Readonly<Record<string, string>> = {
   RESET_DECIDED: 'This reset has already been decided.',
 };
 
+export const RESET_TONES = { PENDING: 'info', APPROVED: 'success', REJECTED: 'default' } as const;
+
+export const RESET_STATUS_OPTIONS = [
+  { value: 'PENDING', label: 'Pending' },
+  { value: 'APPROVED', label: 'Approved' },
+  { value: 'REJECTED', label: 'Rejected' },
+] as const;
+
 /** Contract number with the customer reference when present. */
 export const contractLabel = (c: ContractDto) =>
   c.reference === null ? c.contract_number : `${c.contract_number} · ${c.reference}`;

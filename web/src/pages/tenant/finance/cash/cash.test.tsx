@@ -16,10 +16,12 @@ import { renderWithProviders } from '../../../../test/renderWithProviders';
 import { CustodyTab } from './CustodyTab';
 import { HandoversTab } from './HandoversTab';
 import { RECONCILIATION_FORMULA, ReconciliationTab } from './ReconciliationTab';
+import { SupervisorsTab } from './SupervisorsTab';
 
 const mocks = vi.hoisted(() => ({
   custody: vi.fn<typeof cashService.custody>(),
   reconciliation: vi.fn<typeof cashService.reconciliation>(),
+  supervisorSummary: vi.fn<typeof cashService.supervisorSummary>(),
   listHandovers: vi.fn<typeof cashService.listHandovers>(),
   decideHandover: vi.fn<typeof cashService.decideHandover>(),
   issueFloat: vi.fn<typeof cashService.issueFloat>(),
@@ -85,6 +87,52 @@ describe('ReconciliationTab (§10 #8)', () => {
     });
     expect(screen.getByText('Choose a supervisor')).toBeInTheDocument();
     expect(mocks.reconciliation).not.toHaveBeenCalled();
+  });
+});
+
+describe('SupervisorsTab', () => {
+  it('lists every supervisor per currency from the API and opens the clicked one', async () => {
+    const user = userEvent.setup();
+    const row = {
+      staff_member_id: STAFF_ID,
+      staff_name: 'Juma Mwita',
+      currency: 'TZS',
+      period_from: '2026-10-21',
+      period_to: '2026-10-21',
+      opening: '100000.0000',
+      floats_issued: '0.0000',
+      collections: '0.0000',
+      approved_spending: '0.0000',
+      verified_handovers: '0.0000',
+      closing_outstanding: '250000.0000',
+      claimed_unverified_handovers: '90000.0000',
+      pending_spending: '15000.0000',
+      unverified_collections: '0.0000',
+    };
+    mocks.supervisorSummary.mockResolvedValue([row]);
+    const onOpen = vi.fn();
+    renderWithProviders(<SupervisorsTab onOpenSupervisor={onOpen} />, {
+      tenantPermissions: READ,
+    });
+    const table = await screen.findByRole('table', { name: 'Cash by supervisor' });
+    expect(within(table).getByText('Juma Mwita')).toBeInTheDocument();
+    expect(within(table).getByText('TZS 250,000.00')).toBeInTheDocument();
+    expect(within(table).getByText('TZS 90,000.00')).toBeInTheDocument();
+    expect(within(table).getByText('TZS 15,000.00')).toBeInTheDocument();
+    expect(within(table).getByText('21 Oct 2026')).toBeInTheDocument();
+    const call = mocks.supervisorSummary.mock.calls[0]?.[0];
+    expect(call?.from).toBe(call?.to);
+    expect(call?.currency).toBeUndefined();
+    await user.click(within(table).getByText('Juma Mwita'));
+    expect(onOpen).toHaveBeenCalledWith(row);
+  });
+
+  it('says so when no supervisor holds cash', async () => {
+    mocks.supervisorSummary.mockResolvedValue([]);
+    renderWithProviders(<SupervisorsTab onOpenSupervisor={vi.fn()} />, {
+      tenantPermissions: READ,
+    });
+    expect(await screen.findByText('No supervisor holds company cash')).toBeInTheDocument();
   });
 });
 
