@@ -1,6 +1,6 @@
-# Asseta user manual: Platform Owner
+# Asseta platform guide: Platform Owner
 
-> Part of the [Asseta user manual](README.md). Read the README first for signing in and the glossary.
+> Platform operations guide (not part of the tenant user manual). Signing in and the glossary: [user manual](../user-manual/README.md).
 
 ## Who this is for
 

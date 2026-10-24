@@ -6,13 +6,13 @@
 
 This manual is for machine operators: the people who drive and operate the excavators, loaders, graders and other equipment.
 
-In Asseta Release 1, an operator is mainly a **record**, not a daily user:
+In Asseta, an operator is mainly a **record**, not a daily user:
 
 - The office registers you as a **staff member** of kind *Operator* (**Operations → Staff**).
 - The office assigns you to machines with start and end dates (on the machine's **Staff assignments** tab).
 - Your name then appears on the fleet map and in the machine details as the machine's operator.
 
-You do **not** need to record readings, jobs, fuel or cash yourself. Your **supervisor** does that in the Asseta Supervisor app. There is no separate operator mobile app.
+You do **not** need to record readings, jobs, fuel or cash yourself. Your **supervisor** does that in the Asseta Supervisor app or the web console. There is no separate operator mobile app.
 
 Your company may also give you an Asseta login with the **Operator** role. This manual explains what that login lets you do.
 
@@ -77,4 +77,4 @@ Ask the owner or manager to correct your staff record or your machine assignment
 Ask your company's administrator (normally the owner) to reset it.
 
 **I want to record work myself.**
-In Release 1, field records are made by supervisors. If your company wants you to do this, the owner can give your login the Supervisor role.
+Field records are made by supervisors. If your company wants you to do this, the owner can give your login the Supervisor role.

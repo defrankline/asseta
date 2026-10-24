@@ -1,12 +1,12 @@
-# Asseta user manual: Platform Auditor
+# Asseta platform guide: Platform Auditor
 
-> Part of the [Asseta user manual](README.md). Read the README first for signing in and the glossary.
+> Platform operations guide (not part of the tenant user manual). Signing in and the glossary: [user manual](../user-manual/README.md).
 
 ## Who this is for
 
 This manual is for people who need to **inspect** the Asseta platform without changing anything. That includes internal or external auditors, finance reviewers and compliance staff.
 
-The **Platform Auditor** role sees the same platform console as the [Platform Owner](06-platform-owner.md), but **read-only**.
+The **Platform Auditor** role sees the same platform console as the [Platform Owner](platform-owner.md), but **read-only**.
 
 ## What you can do
 

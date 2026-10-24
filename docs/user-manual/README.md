@@ -1,17 +1,12 @@
 # Asseta user manual
 
-Welcome to Asseta. This manual explains how to use Asseta day to day, one chapter per role. Find your role in the table below and open its chapter. Read this page first: it covers signing in and the words Asseta uses.
+Welcome to Asseta. This manual is for the people who work in a tenant company. It explains how to use Asseta day to day, one chapter per role. Find your role in the table below and open its chapter. Read this page first: it covers signing in and the words Asseta uses.
 
 ## What Asseta is
 
-Asseta is a multi-tenant SaaS (software as a service) for companies that own and hire out heavy equipment, such as excavators, loaders, graders and trucks.
+Asseta is a subscription service for companies that own and hire out heavy equipment, such as excavators, loaders, graders and trucks. It is provided by the **Platform Owner** (Asseta). Your company subscribes, pays a fee per billable machine, and is set up on Asseta as a **tenant**. From then on your company uses Asseta to manage its own machines, jobs, people and money.
 
-**How it works:**
-
-1. The **Platform Owner** owns and runs Asseta. The Platform Owner onboards each equipment company as a **tenant**, agrees its subscription fee (charged per billable machine), and bills it.
-2. Once onboarded, the tenant uses Asseta to manage its own assets, jobs, people and money. Inside each tenant, the **Tenant Owner** runs the business and the **Supervisors** do the field work.
-
-For a tenant, Asseta helps the company:
+Asseta helps your company:
 
 - Know **where every machine is**, using GPS trackers fitted to the machines.
 - Run **hire jobs** from start to finish, with hour-meter readings photographed in the field, a work log, and the customer's acknowledgement.
@@ -40,13 +35,8 @@ Each company using Asseta has its own private account, called a **tenant**. Nobo
 | **Supervisor** | Field supervisor on site | Supervisor app (+ web **Field work**) | [03-supervisor.md](03-supervisor.md) |
 | **Accountant / Finance** | Accountant, bookkeeper, cashier | Web console | [04-accountant.md](04-accountant.md) |
 | **Operator** | Machine operator | Web console (notifications only) | [05-operator.md](05-operator.md) |
-| **Platform Owner** | The owner and operator of the Asseta SaaS: onboards tenants, sets their fees, bills them | Web console (platform) | [06-platform-owner.md](06-platform-owner.md) |
-| **Platform Auditor** | Auditors of the Asseta platform | Web console (platform, read-only) | [07-platform-auditor.md](07-platform-auditor.md) |
 
-There are two levels:
-
-- **Platform level:** the **Platform Owner** runs Asseta as a business and serves all tenants. The **Platform Auditor** can inspect the platform read-only.
-- **Tenant level:** within each tenant, the two most important users are the **Supervisor**, who records the field work, and the **Tenant Owner**, who runs the company.
+The two most important users are the **Supervisor**, who records the field work, and the **Tenant Owner**, who runs the company.
 
 Roles are examples set up for each company. Your company can adjust them, so you may see slightly more or fewer menus than described here. If a menu is missing, your role does not include it.
 

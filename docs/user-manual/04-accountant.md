@@ -67,7 +67,7 @@ If you try anyway, Asseta shows: *"The person who recorded or requested this can
 
 ### Hire finance is separate from your Asseta subscription
 
-**Hire finance** is the money your customers owe *your company* for hiring machines. **Subscription** is what your company pays *Asseta* for the software. They have separate invoices and payments and never mix.
+**Hire finance** is the money your customers owe *your company* for hiring machines. **Subscription** is the fee your company pays the *Platform Owner* for using Asseta. They have separate invoices and payments and never mix.
 
 ### Billing-ready jobs
 
