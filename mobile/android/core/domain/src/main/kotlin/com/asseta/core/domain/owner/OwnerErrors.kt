@@ -20,6 +20,7 @@ object OwnerErrors {
         "STAFF_INACTIVE" -> "The staff member is inactive."
         "STAFF_NOT_LINKED" -> "Your login is not linked to a staff record; pick the staff member explicitly."
         "CURRENCY_NOT_CONFIGURED" -> "Choose a configured currency."
+        "CURRENCY_MISMATCH" -> "All amounts on one record must share a single currency."
         "SUBSCRIPTION_READ_ONLY" -> "This company's subscription is read-only, so changes are not accepted right now."
         "PERMISSION_DENIED" -> "You do not have permission to do this."
         "TENANT_ACCESS_DENIED", "TENANT_ACCESS_BLOCKED", "MANDATE_ENDED", "MANDATE_REQUIRED" ->
