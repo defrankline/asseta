@@ -3,7 +3,6 @@ package com.asseta.supervisor.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.asseta.core.domain.capture.GpsOutcome
-import com.asseta.core.domain.capture.JobStateRules
 import com.asseta.core.domain.capture.OcrFlow
 import com.asseta.core.domain.capture.OcrStep
 import com.asseta.core.domain.capture.ReadingError
@@ -14,7 +13,12 @@ import com.asseta.core.domain.policy.CaptureMode
 import com.asseta.core.domain.policy.CapturePolicyDecision
 import com.asseta.core.domain.policy.MeterCapturePolicy
 import com.asseta.core.domain.policy.ReadingKind
+import com.asseta.core.domain.accountability.AccountabilityMessages
+import com.asseta.core.domain.accountability.AccountabilityRules
+import com.asseta.core.sync.usecase.CaptureMeterReading
 import com.asseta.core.sync.usecase.CaptureRequest
+import com.asseta.core.sync.usecase.CaptureTarget
+import com.asseta.core.sync.usecase.CaptureTargetRef
 import com.asseta.core.sync.usecase.CaptureResult
 import com.asseta.supervisor.FieldGraph
 import com.asseta.supervisor.capture.CapturedPhoto
@@ -52,6 +56,12 @@ data class CaptureUi(
     /** A refusal or failure to show in the "Not saved" alert. */
     val error: String? = null,
     val saved: Boolean = false,
+    /** What the reading is for (job reading, daily reading, baseline or correction). */
+    val target: CaptureTarget = CaptureTarget.Job,
+    /** Baseline note / correction reason. */
+    val extraText: String = "",
+    /** The reading being corrected (correction only). */
+    val correctionOf: String? = null,
 ) {
     /** The reading field is shown for MANUAL, after a confident OCR read (correction) or after recaptures ran out. */
     val readingEditable: Boolean
@@ -89,6 +99,9 @@ object CaptureIssues {
             }
         }
         if (ui.gps == null) add("A location attempt is required for every reading.")
+        if (ui.target is CaptureTarget.Correction && !AccountabilityRules.correctionReasonValid(ui.extraText)) {
+            add(AccountabilityMessages.CORRECTION_REASON)
+        }
     }
 
     fun reading(error: ReadingError, decimals: Int): String = when (error) {
@@ -106,11 +119,12 @@ object CaptureIssues {
 class CaptureViewModel(
     private val field: FieldGraph,
     private val tenantId: String,
-    private val jobId: String,
+    private val jobId: String?,
     kind: ReadingKind,
+    private val target: CaptureTarget = CaptureTarget.Job,
 ) : ViewModel() {
     private val captureId = UUID.randomUUID().toString()
-    private val _ui = MutableStateFlow(CaptureUi(kind))
+    private val _ui = MutableStateFlow(CaptureUi(kind, target = target))
     val ui: StateFlow<CaptureUi> = _ui.asStateFlow()
     private var gpsJob: Job? = null
 
@@ -119,28 +133,37 @@ class CaptureViewModel(
     }
 
     private suspend fun load() {
-        val job = field.repository.job(jobId) ?: return _ui.update { it.copy(loading = false, blocked = "It is no longer assigned to you on this device.") }
-        val machine = field.repository.machine(job.machineId)
-            ?: return _ui.update { it.copy(loading = false, blocked = "Machine details missing. Connect to refresh rules.") }
-        val state = field.repository.fieldState(tenantId, job)
-        if (!JobStateRules.readingAllowed(_ui.value.kind, state.effectiveStatus)) {
+        val (subject, refusal) = field.captureReading.subject(tenantId, CaptureTargetRef(jobId, _ui.value.kind, target))
+        if (subject == null) {
             val which = if (_ui.value.kind == ReadingKind.OPENING) "Opening" else "Closing"
-            return _ui.update { it.copy(loading = false, blocked = "$which reading is not allowed now.") }
+            val message = when {
+                target != CaptureTarget.Job -> refusal
+                refusal == CaptureMeterReading.JOB_GONE -> "It is no longer assigned to you on this device."
+                refusal == CaptureMeterReading.MACHINE_DETAILS_MISSING -> "Machine details missing. Connect to refresh rules."
+                else -> "$which reading is not allowed now."
+            } ?: "Not available."
+            return _ui.update { it.copy(loading = false, blocked = message) }
         }
+        val machine = subject.machine
+        val correctionOf = (target as? CaptureTarget.Correction)?.let { t -> field.inbox.readingValue(tenantId, t.readingId) }
         when (val decision = field.repository.capturePolicy(tenantId, machine.id)) {
             is CapturePolicyDecision.Blocked -> _ui.update { it.copy(loading = false, blocked = decision.message) }
             is CapturePolicyDecision.Allowed -> _ui.update {
                 it.copy(
                     loading = false,
+                    kind = subject.kind,
                     machineLabel = "${machine.assetCode} · ${machine.name}",
                     decimals = machine.meterDecimalPlaces,
-                    mode = decision.policy.requiredMode(it.kind),
+                    mode = decision.policy.requiredMode(subject.kind),
                     policy = decision.policy,
                     policyStamp = decision.snapshot.versionStamp,
+                    correctionOf = correctionOf,
                 )
             }
         }
     }
+
+    fun onExtraText(text: String) = _ui.update { it.copy(extraText = text.take(2000)) }
 
     /** Location permission answered (or declined): attempt a fresh fix, or record PERMISSION_DENIED honestly. */
     fun onLocationDecision(granted: Boolean) {
@@ -202,6 +225,11 @@ class CaptureViewModel(
                     mode = latest.mode!!, readingText = latest.readingText, photoJpeg = latest.photo?.jpeg,
                     ocrAttempts = latest.attempts.takeIf { latest.mode == CaptureMode.AUTOMATIC } ?: 0,
                     latestOcr = latest.ocr, gps = latest.gps, capturedAtMs = capturedAt,
+                    target = when (val t = target) {
+                        is CaptureTarget.Baseline -> t.copy(note = latest.extraText)
+                        is CaptureTarget.Correction -> t.copy(reason = latest.extraText)
+                        else -> t
+                    },
                 ),
             )
             _ui.update {

@@ -102,7 +102,8 @@ data class JobChargeLineDto(
 @Serializable
 data class MeterCaptureDto(
     val id: SerializableUuid,
-    @SerialName("job_id") val jobId: SerializableUuid,
+    /** Null for a DAILY reading taken outside a job. */
+    @SerialName("job_id") val jobId: SerializableUuid? = null,
     @SerialName("machine_id") val machineId: SerializableUuid,
     val kind: String,
     val reading: DecimalAmount,

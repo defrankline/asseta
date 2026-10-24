@@ -65,6 +65,8 @@ data class CashCollectionRequest(
     val reference: String,
     val note: String,
     val receivedAtMs: Long,
+    /** Another custodian holding the cash (recorders may record for others per tenant policy); null = me. */
+    val cashHolderId: String? = null,
 )
 
 data class CashHandoverRequest(
@@ -75,6 +77,8 @@ data class CashHandoverRequest(
     val reference: String,
     val note: String,
     val handedAtMs: Long,
+    /** Another custodian remitting (recorders may record for others per tenant policy); null = me. */
+    val cashHolderId: String? = null,
 )
 
 data class FuelEventRequest(
@@ -181,6 +185,7 @@ class FinanceCapture(
         val note = listOfNotNull(job?.let { "Job ${it.jobNumber}" }, values.note).joinToString(" · ").takeIf { it.isNotEmpty() }?.take(CashRules.MAX_NOTE)
         val payload = CashCollectionPayload(
             r.clientId, r.customerId, DecimalAmount.of(values.amount), values.currency, IsoTime.format(r.receivedAtMs), values.reference, note,
+            r.cashHolderId,
         )
         return queue(r.tenantId, OpTypes.CASH_COLLECTION, FieldOps.CASH_COLLECTION, r.clientId, CashCollectionPayload.serializer(), payload)
     }
@@ -192,6 +197,7 @@ class FinanceCapture(
         }
         val payload = CashHandoverPayload(
             r.clientId, DecimalAmount.of(values.amount), values.currency, IsoTime.format(r.handedAtMs), values.reference, values.note,
+            r.cashHolderId,
         )
         return queue(r.tenantId, OpTypes.CASH_HANDOVER, FieldOps.CASH_HANDOVER, r.clientId, CashHandoverPayload.serializer(), payload)
     }

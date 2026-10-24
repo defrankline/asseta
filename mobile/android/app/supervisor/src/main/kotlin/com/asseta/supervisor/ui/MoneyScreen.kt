@@ -23,7 +23,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.LaunchedEffect
+import com.asseta.core.domain.accountability.FieldAccess
 import com.asseta.core.domain.finance.CustodyLine
+import com.asseta.supervisor.ui.accountability.MoneyAccountability
+import com.asseta.supervisor.ui.accountability.cashToAcknowledgeSection
+import com.asseta.supervisor.ui.accountability.transfersSection
 import com.asseta.core.domain.inbox.InboxStatus
 import com.asseta.core.model.sync.CashReconciliationDayDto
 import com.asseta.core.sync.data.CashItem
@@ -51,7 +56,16 @@ import java.time.LocalDate
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MoneyScreen(field: FieldGraph, tenantId: String, snapshot: InboxSnapshot, syncing: Boolean, onRefresh: () -> Unit, onRoute: (Route) -> Unit) {
+fun MoneyScreen(
+    field: FieldGraph,
+    tenantId: String,
+    snapshot: InboxSnapshot,
+    syncing: Boolean,
+    onRefresh: () -> Unit,
+    onRoute: (Route) -> Unit,
+    permissions: Set<String> = emptySet(),
+    access: FieldAccess? = null,
+) {
     val view by remember(tenantId) { field.financeRepository.observeCashView(tenantId) }.collectAsStateWithLifecycle(CashView(emptyList(), emptyList(), null))
     val currencies = view.lines.map { it.currency }
     val today by produceState<OnlineResult<CashToday>?>(null, currencies, syncing) {
@@ -59,6 +73,17 @@ fun MoneyScreen(field: FieldGraph, tenantId: String, snapshot: InboxSnapshot, sy
         if (!syncing) value = field.online.todayCash(tenantId, currencies)
     }
     var segment by rememberSaveable { mutableStateOf(MoneySegment.EXPENSES) }
+    // Transfers and floats waiting for me, my transfers (online, saved on this phone for offline use).
+    val accountability by field.accountability.cache.collectAsStateWithLifecycle()
+    val me by produceState<String?>(null, tenantId) { value = field.accountability.myStaffId(tenantId) }
+    LaunchedEffect(tenantId, syncing) { if (!syncing) field.accountability.refresh(tenantId, permissions) }
+    val cashChain = access?.transferCash == true
+    val segments = MoneySegment.entries.filter { it != MoneySegment.TRANSFERS || cashChain }
+    val ackRows = if (access?.acknowledgeCash == true) {
+        MoneyAccountability.toAcknowledge(accountability, me, MoneyAccountability.answeredIds(snapshot.accountabilityOps))
+    } else {
+        emptyList()
+    }
     PullToRefreshBox(isRefreshing = syncing, onRefresh = onRefresh, modifier = Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp)) {
             if (view.lines.isEmpty()) {
@@ -72,8 +97,9 @@ fun MoneyScreen(field: FieldGraph, tenantId: String, snapshot: InboxSnapshot, sy
                     }
                 }
             }
+            cashToAcknowledgeSection(ackRows, onRoute)
             item(key = "segments") {
-                FilterChipRow(MoneySegment.entries.map { it to it.label }, segment, { segment = it }, Modifier.padding(bottom = 8.dp))
+                FilterChipRow(segments.map { it to it.label }, segment, { segment = it }, Modifier.padding(bottom = 8.dp))
             }
             when (segment) {
                 MoneySegment.EXPENSES -> {
@@ -89,6 +115,9 @@ fun MoneyScreen(field: FieldGraph, tenantId: String, snapshot: InboxSnapshot, sy
                 }
                 MoneySegment.COLLECTIONS -> cashList(snapshot.collections, snapshot.loaded, "No cash collections", "Cash you collect from customers appears here with the office's verification.", onRoute)
                 MoneySegment.HANDOVERS -> cashList(snapshot.handovers, snapshot.loaded, "No cash handovers", "Cash you hand over to the office appears here with its verification.", onRoute)
+                MoneySegment.TRANSFERS -> transfersSection(
+                    MoneyAccountability.transfers(accountability, me, snapshot.accountabilityOps, field.inbox::payloadText), snapshot.loaded,
+                )
             }
         }
     }

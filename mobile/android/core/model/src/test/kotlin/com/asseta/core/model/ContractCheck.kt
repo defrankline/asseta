@@ -24,16 +24,23 @@ object ContractCheck {
         json.parseToJsonElement(File(dir, "openapi.json").readText()).jsonObject["components"]!!.jsonObject["schemas"]!!.jsonObject
     }
 
-    fun check(schemaName: String, descriptor: SerialDescriptor) {
+    /**
+     * [extra]: device-only properties of a sync payload that the push dispatcher consumes before validating against
+     * [schemaName] (e.g. `evidence_upload_ids`); [subset]: the DTO deliberately maps only part of a large response;
+     * [request]: a body the app sends, which may always fill a property the contract makes optional.
+     */
+    fun check(schemaName: String, descriptor: SerialDescriptor, extra: Set<String> = emptySet(), subset: Boolean = false, request: Boolean = false) {
         val schema = schemas[schemaName]?.jsonObject ?: error("schema $schemaName missing from contract")
         val properties = schema["properties"]!!.jsonObject.keys
         val required = schema["required"]?.jsonArray?.map { it.jsonPrimitive.content }?.toSet().orEmpty()
         val names = (0 until descriptor.elementsCount).associate { descriptor.getElementName(it) to descriptor.isElementOptional(it) }
+            .filterKeys { it !in extra }
         names.keys.forEach { assertTrue("$schemaName has no property '$it'", it in properties) }
-        names.filterValues { !it }.keys.forEach { assertTrue("$schemaName.$it is mandatory in Kotlin but optional in the contract", it in required) }
-        required.forEach { assertTrue("$schemaName.$it required by the contract but not mapped", it in names) }
+        if (!request) names.filterValues { !it }.keys.forEach { assertTrue("$schemaName.$it is mandatory in Kotlin but optional in the contract", it in required) }
+        if (!subset) required.forEach { assertTrue("$schemaName.$it required by the contract but not mapped", it in names) }
         (0 until descriptor.elementsCount).forEach { i ->
             val name = descriptor.getElementName(i)
+            if (name in extra) return@forEach
             val items = arrayItems(schema["properties"]!!.jsonObject[name]!!.jsonObject) ?: return@forEach
             val element = descriptor.getElementDescriptor(i)
             assertEquals("$schemaName.$name is an array in the contract", StructureKind.LIST, element.kind)

@@ -21,7 +21,8 @@ data class GpsIn(
 @Serializable
 data class MeterCaptureIn(
     val id: String,
-    @SerialName("job_id") val jobId: String,
+    /** Required for OPENING/CLOSING; null for a DAILY reading outside a job (then [machineId] names the machine). */
+    @SerialName("job_id") val jobId: String? = null,
     val kind: String,
     @SerialName("capture_mode") val captureMode: String,
     val reading: String,
@@ -34,6 +35,8 @@ data class MeterCaptureIn(
     @SerialName("device_id") val deviceId: String,
     @SerialName("captured_at") val capturedAt: String,
     @SerialName("policy_version_ids") val policyVersionIds: List<String> = emptyList(),
+    /** The machine read: set for a DAILY reading outside a job (must match the job's machine when both are sent). */
+    @SerialName("machine_id") val machineId: String? = null,
 )
 
 @Serializable

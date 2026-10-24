@@ -23,7 +23,8 @@ enum class JobSegment(val label: String) {
     MACHINES("My machines"),
 }
 
-enum class MoneySegment(val label: String) { EXPENSES("Expenses"), COLLECTIONS("Collections"), HANDOVERS("Handovers") }
+/** TRANSFERS is shown only when the server accepts cash transfers and the user records cash. */
+enum class MoneySegment(val label: String) { EXPENSES("Expenses"), COLLECTIONS("Collections"), HANDOVERS("Handovers"), TRANSFERS("Transfers") }
 
 enum class FuelSegment(val code: String, val label: String) { PURCHASE("PURCHASE", "Purchase"), ISSUE("ISSUE", "Issue"), USAGE("USAGE", "Usage") }
 
@@ -57,7 +58,11 @@ object InboxTexts {
         JobSegment.MACHINES -> "No machines" to "Machines of your jobs appear here after a sync."
     }
 
-    fun readingKind(kind: String): String = if (kind == "OPENING") "Opening reading" else "Closing reading"
+    fun readingKind(kind: String): String = when (kind) {
+        "OPENING" -> "Opening reading"
+        "DAILY" -> "Daily reading"
+        else -> "Closing reading"
+    }
 
     fun captureMode(mode: String): String = when (mode) {
         "AUTOMATIC" -> "Camera (automatic)"

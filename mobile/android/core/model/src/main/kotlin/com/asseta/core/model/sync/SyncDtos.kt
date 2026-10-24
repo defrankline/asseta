@@ -158,6 +158,7 @@ object BlobPurpose {
     const val SIGNATURE = "SIGNATURE"
     const val EXPENSE_RECEIPT = "EXPENSE_RECEIPT"
     const val RESET_EVIDENCE = "RESET_EVIDENCE"
+    const val PAYMENT_EVIDENCE = "PAYMENT_EVIDENCE"
 }
 
 object SyncErrorCodes {

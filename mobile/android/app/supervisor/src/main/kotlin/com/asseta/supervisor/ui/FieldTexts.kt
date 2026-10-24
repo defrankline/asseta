@@ -3,7 +3,9 @@ package com.asseta.supervisor.ui
 import com.asseta.core.domain.capture.GpsOutcome
 import com.asseta.core.domain.capture.JobStatus
 import com.asseta.core.model.ClientOperationStatus
+import com.asseta.core.model.sync.AccountabilityOps
 import com.asseta.core.model.sync.OpTypes
+import com.asseta.supervisor.ui.accountability.FieldAccountabilityTexts
 import com.asseta.core.sync.data.JobSummary
 import com.asseta.core.sync.data.WaitingReason
 import kotlinx.serialization.json.JsonObject
@@ -71,7 +73,15 @@ object FieldTexts {
 
     /** Title of an item on the sync status screen. */
     fun outboxTitle(opType: String, payload: JsonObject?): String = when (opType) {
-        OpTypes.METER_CAPTURE -> "Meter reading"
+        OpTypes.METER_CAPTURE ->
+            if ((payload?.get("kind") as? JsonPrimitive)?.contentOrNull == "DAILY") FieldAccountabilityTexts.OUTBOX_DAILY else "Meter reading"
+        AccountabilityOps.HOURS_PURCHASE -> FieldAccountabilityTexts.OUTBOX_HOURS_SALE
+        AccountabilityOps.HOURS_TRANSFER_REQUEST -> FieldAccountabilityTexts.OUTBOX_HOURS_TRANSFER
+        AccountabilityOps.CASH_TRANSFER -> FieldAccountabilityTexts.OUTBOX_CASH_TRANSFER
+        AccountabilityOps.CASH_TRANSFER_ACKNOWLEDGEMENT -> FieldAccountabilityTexts.OUTBOX_TRANSFER_ACK
+        AccountabilityOps.CASH_FLOAT_ACKNOWLEDGEMENT -> FieldAccountabilityTexts.OUTBOX_FLOAT_ACK
+        AccountabilityOps.METER_BASELINE -> FieldAccountabilityTexts.OUTBOX_BASELINE
+        AccountabilityOps.METER_CORRECTION -> FieldAccountabilityTexts.OUTBOX_CORRECTION
         OpTypes.JOB_ACTIVITY -> "Work log entry"
         OpTypes.JOB_ACKNOWLEDGEMENT -> "Customer acknowledgement"
         OpTypes.JOB_TRANSITION ->

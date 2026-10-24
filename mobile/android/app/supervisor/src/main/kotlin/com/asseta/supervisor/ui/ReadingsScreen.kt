@@ -33,7 +33,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
+import com.asseta.core.domain.accountability.FieldAccess
 import com.asseta.core.domain.inbox.FindingTexts
+import com.asseta.core.sync.usecase.CaptureMeterReading
+import com.asseta.supervisor.ui.accountability.FieldAccountabilityTexts
 import com.asseta.core.sync.data.InboxSnapshot
 import com.asseta.core.sync.data.ReadingItem
 import com.asseta.core.sync.data.ResetItem
@@ -101,7 +104,7 @@ fun ReadingsScreen(snapshot: InboxSnapshot, syncing: Boolean, onRefresh: () -> U
 
 @Composable
 fun ReadingRow(snapshot: InboxSnapshot, r: ReadingItem) {
-    val job = snapshot.jobs[r.jobId]?.jobNumber
+    val job = r.jobId?.let(snapshot.jobs::get)?.jobNumber
     val machine = snapshot.machineOf(r)?.let(snapshot.machines::get)?.assetCode
     InboxRow(
         listOfNotNull(job, InboxTexts.readingKind(r.kind)).joinToString(" · "), r.status,
@@ -120,7 +123,7 @@ fun ResetRow(snapshot: InboxSnapshot, r: ResetItem) {
 
 /** One reading: photo, OCR vs entered, GPS, findings with review, sync state; "Request meter reset". */
 @Composable
-fun ReadingDetailScreen(field: FieldGraph, snapshot: InboxSnapshot, id: String, onRoute: (Route) -> Unit) {
+fun ReadingDetailScreen(field: FieldGraph, snapshot: InboxSnapshot, id: String, onRoute: (Route) -> Unit, access: FieldAccess? = null) {
     val r = snapshot.readings.firstOrNull { it.id == id }
     if (r == null) {
         if (snapshot.loaded) EmptyState("Reading not available", "It is no longer on this phone.")
@@ -134,7 +137,7 @@ fun ReadingDetailScreen(field: FieldGraph, snapshot: InboxSnapshot, id: String, 
         Section(null) {
             LabeledRow("Status", "") { StatusPill(r.status) }
             LabeledRow(InboxTexts.readingKind(r.kind), r.reading)
-            snapshot.jobs[r.jobId]?.let { j -> LabeledRow("Job", j.jobNumber) }
+            r.jobId?.let(snapshot.jobs::get)?.let { j -> LabeledRow("Job", j.jobNumber) }
             machine?.let { LabeledRow("Machine", InboxTexts.machine(it.assetCode, it.name)) }
             LabeledRow("Captured", LocalTime.format(r.atMs))
             LabeledRow("Capture mode", InboxTexts.captureMode(r.captureMode))
@@ -192,6 +195,13 @@ fun ReadingDetailScreen(field: FieldGraph, snapshot: InboxSnapshot, id: String, 
                 op.errorCode?.let { Text("$it: ${op.lastError.orEmpty()}", style = AssetaType.caption, color = palette.offline) }
             }
         }
+        // A live reading the server has can be corrected (a second person approves the replacement).
+        val correctable = s != null && s.state in CaptureMeterReading.LIVE_STATES
+        if (access?.proposeCorrection == true && correctable) {
+            Section(null, footer = FieldAccountabilityTexts.CORRECTION_FOOTER) {
+                ActionRow(FieldAccountabilityTexts.PROPOSE_CORRECTION, R.drawable.ic_gauge) { onRoute(Route.Correction(r.id)) }
+            }
+        }
         if (machine != null) {
             Section(null) {
                 ActionRow("Request meter reset", R.drawable.ic_wrench) { onRoute(Route.ResetRequest(machine.id, r.reading)) }
@@ -203,7 +213,7 @@ fun ReadingDetailScreen(field: FieldGraph, snapshot: InboxSnapshot, id: String, 
 
 /** A machine of mine: latest reading, active job, my readings and reset requests; "Request meter reset". */
 @Composable
-fun MachineDetailScreen(snapshot: InboxSnapshot, machineId: String, onRoute: (Route) -> Unit) {
+fun MachineDetailScreen(snapshot: InboxSnapshot, machineId: String, onRoute: (Route) -> Unit, access: FieldAccess? = null) {
     val machine = snapshot.machines[machineId]
     if (machine == null) {
         if (snapshot.loaded) EmptyState("Machine not available", "It is no longer assigned to you on this device.")
@@ -225,6 +235,12 @@ fun MachineDetailScreen(snapshot: InboxSnapshot, machineId: String, onRoute: (Ro
             }
         }
         Section(null) {
+            if (access?.dailyReading == true) {
+                ActionRow(FieldAccountabilityTexts.RECORD_DAILY, R.drawable.ic_gauge) { onRoute(Route.DailyReading(machineId)) }
+            }
+            if (access?.proposeBaseline == true) {
+                ActionRow(FieldAccountabilityTexts.PROPOSE_BASELINE, R.drawable.ic_check_seal) { onRoute(Route.Baseline(machineId)) }
+            }
             ActionRow("Request meter reset", R.drawable.ic_wrench) { onRoute(Route.ResetRequest(machineId, latest?.reading)) }
         }
         if (readings.isNotEmpty()) {

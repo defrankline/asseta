@@ -139,6 +139,8 @@ sealed interface InboxLink {
     data class Job(val jobId: String) : InboxLink
     data class Expense(val expenseId: String) : InboxLink
     data object Money : InboxLink
+    /** A machine of mine (missing daily report, unexplained engine hours). */
+    data class Machine(val machineId: String) : InboxLink
     data object None : InboxLink
 }
 
@@ -147,6 +149,9 @@ object InboxLinks {
         entity == "job" && id != null -> InboxLink.Job(id)
         entity == "expense" && id != null -> InboxLink.Expense(id)
         entity == "staff_member" || entity == "cash_custody" -> InboxLink.Money
+        // Cash transfers and floats to acknowledge are answered on the Money tab.
+        entity == "cash_transfer" || entity == "supervisor_cash_custody" -> InboxLink.Money
+        entity == "machine" && id != null -> InboxLink.Machine(id)
         else -> InboxLink.None
     }
 }
@@ -193,6 +198,11 @@ object FindingTexts {
         "TELEMETRY_MISMATCH" -> "Does not match the tracker"
         "CLOCK_SKEW" -> "Phone clock was wrong"
         "POLICY_SNAPSHOT_UNVERIFIED" -> "Capture rules could not be verified"
+        "HOURS_OVERRUN" -> "Hours beyond purchase"
+        "UNEXPLAINED_HOURS" -> "Engine hours not yet explained"
+        "MISSING_DAILY_REPORT" -> "Daily report missing"
+        "OVERLAPPING_ALLOCATION" -> "Overlaps another job's hours"
+        "OVERLAPPING_ACTIVITY" -> "Overlapping work log entries"
         else -> code.lowercase().replace('_', ' ').replaceFirstChar { it.uppercase() }
     }
 

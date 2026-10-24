@@ -6,6 +6,7 @@ import com.asseta.core.push.FcmPushTokenProvider
 import com.asseta.core.push.NoOpPushTokenProvider
 import com.asseta.core.push.PushRegistrar
 import com.asseta.core.sync.SystemSyncClock
+import com.asseta.core.sync.data.FieldAccountabilityData
 import com.asseta.core.sync.data.FieldOutbox
 import com.asseta.core.sync.data.FieldRepository
 import com.asseta.core.sync.data.FinanceRepository
@@ -15,6 +16,7 @@ import com.asseta.core.sync.engine.AccountSwitch
 import com.asseta.core.sync.engine.DeviceWipe
 import com.asseta.core.sync.engine.SyncEngine
 import com.asseta.core.sync.evidence.EncryptedEvidenceStore
+import com.asseta.core.sync.usecase.AccountabilityCapture
 import com.asseta.core.sync.usecase.CaptureMeterReading
 import com.asseta.core.sync.usecase.FinanceCapture
 import com.asseta.core.sync.usecase.JobRequests
@@ -102,6 +104,12 @@ class FieldGraph(context: Context, val container: AssetaAppContainer) {
     /** Job requests from the field (owner approval), queued offline like every field action. */
     val jobRequests = JobRequests({ tenantApi }, db, outbox, json, account, onQueued = { scheduler.syncNow() })
     val meterReset = RequestMeterReset(db, repository, outbox, evidence, json) { scheduler.syncNow() }
+
+    /** Accountability: hours sales/transfers and the cash custody chain, queued offline like every field action. */
+    val accountabilityCapture = AccountabilityCapture(db, repository, financeRepository, outbox, evidence, json) { scheduler.syncNow() }
+
+    /** Tenant policies, cash holders, transfers/floats waiting for me and open purchases (online, saved encrypted). */
+    val accountability = FieldAccountabilityData({ tenantApi }, db, json, account)
 
     val ocr by lazy { MeterOcr(appContext) }
     val gps by lazy { GpsLocator(appContext) }

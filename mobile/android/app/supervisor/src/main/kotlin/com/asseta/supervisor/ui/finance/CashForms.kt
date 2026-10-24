@@ -32,6 +32,7 @@ import com.asseta.supervisor.ui.DateTimeField
 import com.asseta.supervisor.ui.LabeledRow
 import com.asseta.supervisor.ui.Section
 import com.asseta.supervisor.ui.WarningColor
+import com.asseta.supervisor.ui.accountability.FieldAccountabilityTexts
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -58,6 +59,8 @@ data class CashForm(
     val note: String = "",
     /** When the cash was received / handed over or the fuel event happened (device time, not in the future). */
     val atMs: Long = 0,
+    /** Another cash holder (recorders may record for others per tenant policy); null = me. */
+    val holderId: String? = null,
 )
 
 /** Wording of the cash and fuel forms shared with iOS. */
@@ -84,7 +87,12 @@ object CashTexts {
 }
 
 /** Collection, handover and fuel forms share one view model; the client id is generated once per visit. */
-class CashFormViewModel(private val field: FieldGraph, private val tenantId: String, kind: String) : ViewModel() {
+class CashFormViewModel(
+    private val field: FieldGraph,
+    private val tenantId: String,
+    kind: String,
+    private val permissions: Set<String> = emptySet(),
+) : ViewModel() {
     private val clientId = UUID.randomUUID().toString()
     val form = MutableStateFlow(CashForm(kind = kind, atMs = field.clock.nowMs()))
     val save = MutableStateFlow(SaveState())
@@ -103,9 +111,21 @@ class CashFormViewModel(private val field: FieldGraph, private val tenantId: Str
     val custody: StateFlow<List<CustodyLine>> = repo.observeCashView(tenantId).map { it.lines }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    /** The cash holders a recorder may record for (empty unless the tenant policy allows it). */
+    val holders = MutableStateFlow<List<PickerOption>>(emptyList())
+    val me = MutableStateFlow<String?>(null)
+
     init {
         viewModelScope.launch { repo.baseCurrency(tenantId)?.let { c -> form.update { it.copy(currency = c) } } }
+        viewModelScope.launch {
+            me.value = field.accountability.myStaffId(tenantId)
+            if (field.accountability.access(tenantId, permissions).recordForOthers) {
+                holders.value = com.asseta.supervisor.ui.accountability.custodianOptions(field.accountability.cache.value.custodians, me.value)
+            }
+        }
     }
+
+    private fun holder(): String? = form.value.holderId?.takeIf { holders.value.isNotEmpty() && it != me.value }
 
     fun edit(change: (CashForm) -> CashForm) {
         form.update(change)
@@ -127,9 +147,9 @@ class CashFormViewModel(private val field: FieldGraph, private val tenantId: Str
             val at = f.atMs.coerceAtMost(field.clock.nowMs())
             val result: FinanceResult = when (f.kind) {
                 COLLECTION -> field.finance.cashCollection(
-                    CashCollectionRequest(tenantId, clientId, f.customerId, f.jobId, f.amount, f.currency, f.reference, f.note, at),
+                    CashCollectionRequest(tenantId, clientId, f.customerId, f.jobId, f.amount, f.currency, f.reference, f.note, at, holder()),
                 )
-                HANDOVER -> field.finance.cashHandover(CashHandoverRequest(tenantId, clientId, f.amount, f.currency, f.reference, f.note, at))
+                HANDOVER -> field.finance.cashHandover(CashHandoverRequest(tenantId, clientId, f.amount, f.currency, f.reference, f.note, at, holder()))
                 else -> field.finance.fuelEvent(
                     FuelEventRequest(tenantId, clientId, f.fuelType, f.amount, f.unitPrice, f.currency, f.machineId, f.jobId,
                         f.meter, if (f.fuelType == FuelEventType.PURCHASE) f.supplier else "", f.note, at),
@@ -154,7 +174,16 @@ fun CashFormScreen(vm: CashFormViewModel, onDone: () -> Unit) {
     val jobs by vm.jobs.collectAsStateWithLifecycle()
     val machines by vm.machines.collectAsStateWithLifecycle()
     val custody by vm.custody.collectAsStateWithLifecycle()
+    val holders by vm.holders.collectAsStateWithLifecycle()
+    val me by vm.me.collectAsStateWithLifecycle()
     val editable = !save.saved && !save.saving
+    // Recorders may record for another cash holder when the company allows it (operators hold cash without a login).
+    val holderPicker: @Composable () -> Unit = {
+        if (holders.isNotEmpty()) {
+            SearchablePickerField(FieldAccountabilityTexts.CASH_HOLDER, holders, form.holderId ?: me, { id -> vm.edit { it.copy(holderId = id) } },
+                emptyText = FieldAccountabilityTexts.CUSTODIANS_EMPTY, enabled = editable)
+        }
+    }
     val now = System.currentTimeMillis()
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         when (form.kind) {
@@ -163,6 +192,7 @@ fun CashFormScreen(vm: CashFormViewModel, onDone: () -> Unit) {
                     SearchablePickerField("Job (optional)", jobOptions(jobs), form.jobId, { vm.selectJob(it) }, noneLabel = "No job", enabled = editable)
                     SearchablePickerField("Customer", customers, form.customerId, { id -> vm.edit { it.copy(customerId = id) } },
                         emptyText = "Customers of your jobs appear here after a sync.", enabled = editable)
+                    holderPicker()
                 }
                 Section(null, footer = "The cash is added to your custody once the server accepts it. The office verifies it later.") {
                     DecimalField("Amount", form.amount, { v -> vm.edit { it.copy(amount = v) } }, editable)
@@ -180,6 +210,7 @@ fun CashFormScreen(vm: CashFormViewModel, onDone: () -> Unit) {
                     }
                 }
                 Section(null, footer = "Your custody goes down only when finance verifies the handover.") {
+                    holderPicker()
                     DecimalField("Amount handed over", form.amount, { v -> vm.edit { it.copy(amount = v) } }, editable)
                     TextInput("Currency", form.currency, { v -> vm.edit { it.copy(currency = v.uppercase().take(3)) } }, editable)
                     TextInput("Reference (deposit slip, receipt no.)", form.reference, { v -> vm.edit { it.copy(reference = v) } }, editable)

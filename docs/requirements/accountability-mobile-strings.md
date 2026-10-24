@@ -62,6 +62,8 @@ encrypted on the phone) enables it. Unknown policy (never loaded) = hidden, so t
 | field.common.serverTooOld | Your company's server does not accept this from the app yet. |
 | field.common.onlineOnly | Connect to the internet to send this request. |
 | field.common.lastUpdated | Last updated {time}. |
+| field.common.errCurrency | Enter a 3-letter currency code. |
+| field.common.send | Send |
 
 ### Sell customer hours (offline, `HOURS_PURCHASE`)
 | Key | English |
@@ -199,6 +201,24 @@ encrypted on the phone) enables it. Unknown policy (never loaded) = hidden, so t
 | field.meter.errCorrectionReason | Enter a reason of at least 10 characters. |
 | field.meter.correctionNotSynced | A reading can be corrected once the server has it. |
 | field.meter.correctionNotLive | Only a reading the server still counts can be corrected. |
+| field.meter.readingKindDaily | Daily reading |
+| field.meter.needsSync | Sync once while online before recording this. |
+| field.meter.machineMissing | This machine is not on this device. |
+
+### Finding (exception) names added by this wave (Readings detail, both apps)
+| Key | English |
+|---|---|
+| field.finding.HOURS_OVERRUN | Hours beyond purchase |
+| field.finding.UNEXPLAINED_HOURS | Engine hours not yet explained |
+| field.finding.MISSING_DAILY_REPORT | Daily report missing |
+| field.finding.OVERLAPPING_ALLOCATION | Overlaps another job's hours |
+| field.finding.OVERLAPPING_ACTIVITY | Overlapping work log entries |
+
+### Supervisor notification taps (Inbox)
+| Target entity | Opens |
+|---|---|
+| cash_transfer, supervisor_cash_custody | Money tab ("Cash to acknowledge" at the top) |
+| machine | The machine (Readings → machine), else the notification |
 
 ### Sync status titles (outbox)
 | Key | English |

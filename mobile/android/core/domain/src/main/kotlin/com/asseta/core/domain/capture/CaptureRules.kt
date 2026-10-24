@@ -27,6 +27,7 @@ object JobStateRules {
     fun readingAllowed(kind: ReadingKind, effectiveStatus: String): Boolean = when (kind) {
         ReadingKind.OPENING -> effectiveStatus == JobStatus.APPROVED
         ReadingKind.CLOSING -> effectiveStatus == JobStatus.IN_PROGRESS
+        ReadingKind.DAILY -> effectiveStatus == JobStatus.APPROVED || effectiveStatus == JobStatus.IN_PROGRESS
     }
 
     fun canLogWork(effectiveStatus: String): Boolean = effectiveStatus == JobStatus.APPROVED || effectiveStatus == JobStatus.IN_PROGRESS

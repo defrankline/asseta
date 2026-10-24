@@ -129,8 +129,9 @@ class FinanceRepository(
     )
 
     private fun cashKind(opType: String, payload: JsonObject): PendingCashKind? = when (opType) {
-        OpTypes.CASH_COLLECTION -> PendingCashKind.COLLECTION
-        OpTypes.CASH_HANDOVER -> PendingCashKind.HANDOVER
+        // Recorded for another cash holder (tenant policy): it never moves my own custody.
+        OpTypes.CASH_COLLECTION -> PendingCashKind.COLLECTION.takeIf { payload.text("staff_member_id") == null }
+        OpTypes.CASH_HANDOVER -> PendingCashKind.HANDOVER.takeIf { payload.text("staff_member_id") == null }
         OpTypes.EXPENSE -> PendingCashKind.CASH_EXPENSE.takeIf { payload.text("paid_from") == PaidFrom.CASH_CUSTODY.name }
         else -> null
     }

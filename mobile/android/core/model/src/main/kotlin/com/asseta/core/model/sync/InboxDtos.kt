@@ -15,6 +15,16 @@ object SyncCapabilities {
     const val SUPERVISOR_INBOX_V1 = "SUPERVISOR_INBOX_V1"
     const val OP_METER_RESET_REQUEST = "OP_METER_RESET_REQUEST"
     const val OP_JOB_REQUEST = "OP_JOB_REQUEST"
+
+    /** CASH_TRANSFER, CASH_TRANSFER_ACKNOWLEDGEMENT and CASH_FLOAT_ACKNOWLEDGEMENT. */
+    const val OP_CASH_TRANSFER = "OP_CASH_TRANSFER"
+    const val OP_HOURS_PURCHASE = "OP_HOURS_PURCHASE"
+    const val OP_HOURS_TRANSFER_REQUEST = "OP_HOURS_TRANSFER_REQUEST"
+
+    /** METER_CAPTURE accepts kind DAILY (no job, machine_id instead). */
+    const val METER_DAILY_READING = "METER_DAILY_READING"
+    const val OP_METER_BASELINE = "OP_METER_BASELINE"
+    const val OP_METER_CORRECTION = "OP_METER_CORRECTION"
 }
 
 /** `ExceptionDto`: a server finding on a reading (type, severity, blocking) and its review. */
@@ -39,7 +49,8 @@ data class FindingDto(
 data class SyncMeterCaptureDto(
     /** The device-generated capture id (also the local capture's id). */
     val id: String,
-    @SerialName("job_id") val jobId: String,
+    /** Null for a DAILY reading taken outside a job (METER_DAILY_READING): it names only its machine. */
+    @SerialName("job_id") val jobId: String? = null,
     @SerialName("machine_id") val machineId: String,
     val kind: String,
     @SerialName("capture_mode") val captureMode: String,

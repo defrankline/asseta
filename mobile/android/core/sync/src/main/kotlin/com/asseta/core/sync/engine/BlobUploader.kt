@@ -3,6 +3,7 @@ package com.asseta.core.sync.engine
 import com.asseta.core.database.AssetaDatabase
 import com.asseta.core.database.AttachmentEntity
 import com.asseta.core.database.inTransaction
+import com.asseta.core.model.sync.AccountabilityOps
 import com.asseta.core.model.sync.BlobPurpose
 import com.asseta.core.model.sync.BlobSessionDto
 import com.asseta.core.model.sync.BlobStartIn
@@ -185,6 +186,11 @@ class BlobUploader(
                     OpTypes.EXPENSE -> "receipt_upload_ids" to appendUploadId(op.payloadJson, dto.id)
                     // A meter reset request names its evidence photo by upload id, like expense receipts.
                     OpTypes.METER_RESET_REQUEST -> "evidence_upload_id" to JsonPrimitive(dto.id)
+                    // An hours sale names its payment evidence by upload ids (one per photo), like expense receipts.
+                    AccountabilityOps.HOURS_PURCHASE -> "evidence_upload_ids" to appendUploadId(op.payloadJson, dto.id, "evidence_upload_ids")
+                    AccountabilityOps.METER_BASELINE -> "photo_attachment_id" to JsonPrimitive(serverId)
+                    // A correction's photo belongs to its replacement reading.
+                    AccountabilityOps.METER_CORRECTION -> "replacement" to replacementWithPhoto(op.payloadJson, serverId)
                     else -> return@forEach
                 }
                 val payload = json.parseToJsonElement(op.payloadJson).jsonObject
@@ -194,8 +200,13 @@ class BlobUploader(
         return Attempt.Done
     }
 
-    private fun appendUploadId(payloadJson: String, uploadId: String): JsonElement {
-        val existing = (json.parseToJsonElement(payloadJson).jsonObject["receipt_upload_ids"] as? JsonArray).orEmpty()
+    private fun replacementWithPhoto(payloadJson: String, attachmentId: String): JsonElement {
+        val replacement = json.parseToJsonElement(payloadJson).jsonObject["replacement"]?.jsonObject ?: JsonObject(emptyMap())
+        return JsonObject(replacement + ("photo_attachment_id" to JsonPrimitive(attachmentId)))
+    }
+
+    private fun appendUploadId(payloadJson: String, uploadId: String, key: String = "receipt_upload_ids"): JsonElement {
+        val existing = (json.parseToJsonElement(payloadJson).jsonObject[key] as? JsonArray).orEmpty()
         return if (existing.any { it.jsonPrimitive.content == uploadId }) JsonArray(existing) else JsonArray(existing + JsonPrimitive(uploadId))
     }
 
@@ -208,7 +219,10 @@ class BlobUploader(
         const val FILE_TOO_LARGE = "FILE_TOO_LARGE"
         const val UNKNOWN_PURPOSE = "UNKNOWN_PURPOSE"
         const val LOCAL_EVIDENCE_UNAVAILABLE = "LOCAL_EVIDENCE_UNAVAILABLE"
-        val KNOWN_PURPOSES = setOf(BlobPurpose.METER_PHOTO, BlobPurpose.SIGNATURE, BlobPurpose.EXPENSE_RECEIPT, BlobPurpose.RESET_EVIDENCE)
+        val KNOWN_PURPOSES = setOf(
+            BlobPurpose.METER_PHOTO, BlobPurpose.SIGNATURE, BlobPurpose.EXPENSE_RECEIPT, BlobPurpose.RESET_EVIDENCE,
+            AccountabilityOps.PAYMENT_EVIDENCE,
+        )
         val OCTET_STREAM = "application/octet-stream".toMediaType()
     }
 }

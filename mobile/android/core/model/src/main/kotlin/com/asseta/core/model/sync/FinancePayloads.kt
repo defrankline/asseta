@@ -37,6 +37,8 @@ data class CashCollectionPayload(
     @SerialName("received_at") val receivedAt: String,
     val reference: String? = null,
     val note: String? = null,
+    /** The cash holder when a recorder records for another custodian (tenant policy); null = the recorder. */
+    @SerialName("staff_member_id") val staffMemberId: String? = null,
 )
 
 @Serializable
@@ -47,6 +49,8 @@ data class CashHandoverPayload(
     @SerialName("handed_at") val handedAt: String,
     val reference: String? = null,
     val note: String? = null,
+    /** The remitting custodian when a recorder records for another custodian (tenant policy); null = the recorder. */
+    @SerialName("staff_member_id") val staffMemberId: String? = null,
 )
 
 @Serializable

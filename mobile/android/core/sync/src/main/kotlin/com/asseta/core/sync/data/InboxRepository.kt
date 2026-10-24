@@ -14,12 +14,14 @@ import com.asseta.core.domain.inbox.InboxStatusRules
 import com.asseta.core.domain.inbox.LocalKey
 import com.asseta.core.model.ClientOperationStatus
 import com.asseta.core.model.SyncAccount
+import com.asseta.core.model.sync.AccountabilityOps
 import com.asseta.core.model.sync.AcknowledgementPayload
 import com.asseta.core.model.sync.CashCollectionPayload
 import com.asseta.core.model.sync.CashHandoverPayload
 import com.asseta.core.model.sync.ExpensePayload
 import com.asseta.core.model.sync.FindingDto
 import com.asseta.core.model.sync.FuelEventPayload
+import com.asseta.core.model.sync.MeterCaptureIn
 import com.asseta.core.model.sync.MeterResetPayload
 import com.asseta.core.model.sync.OpTypes
 import com.asseta.core.model.sync.SyncAcknowledgementDto
@@ -42,7 +44,8 @@ import kotlinx.serialization.json.jsonPrimitive
 /** A reading of mine: the server's copy (state, findings, review) and/or this phone's capture and its outbox state. */
 data class ReadingItem(
     val id: String,
-    val jobId: String,
+    /** Null for a DAILY reading taken outside a job (it names only its machine). */
+    val jobId: String?,
     val machineId: String?,
     val kind: String,
     val reading: String,
@@ -180,6 +183,8 @@ data class InboxSnapshot(
     val failedUploads: List<AttachmentEntity> = emptyList(),
     val machines: Map<String, MachineEntity> = emptyMap(),
     val jobs: Map<String, JobEntity> = emptyMap(),
+    /** This phone's accountability operations (hours sales/transfers, cash transfers and answers, baselines, corrections). */
+    val accountabilityOps: List<ClientOperationEntity> = emptyList(),
     val loaded: Boolean = false,
 ) {
     /** Newest first: rejected expenses, flagged/rejected readings, rejected cash, refused sync items, failed uploads. */
@@ -196,7 +201,7 @@ data class InboxSnapshot(
         }.sortedByDescending { it.atMs }
 
     fun readingsOfJob(jobId: String) = readings.filter { it.jobId == jobId }
-    fun machineOf(reading: ReadingItem): String? = reading.machineId ?: jobs[reading.jobId]?.machineId
+    fun machineOf(reading: ReadingItem): String? = reading.machineId ?: reading.jobId?.let(jobs::get)?.machineId
 
     /** Latest counted reading per machine (my captures). */
     fun latestReadingByMachine(): Map<String, ReadingItem> =
@@ -271,9 +276,26 @@ class InboxRepository(
                 s?.let { InboxStatusRules.reading(it.state, it.reviewStatus, it.findings.map { f -> f.status }) },
             )
             ReadingItem(
-                id = s?.id ?: c!!.id, jobId = s?.jobId ?: c!!.jobId, machineId = s?.machineId, kind = s?.kind ?: c!!.kind,
+                id = s?.id ?: c!!.id, jobId = s?.jobId ?: c?.jobId, machineId = s?.machineId, kind = s?.kind ?: c!!.kind,
                 reading = s?.reading ?: c!!.reading, captureMode = s?.captureMode ?: c!!.captureMode,
                 atMs = c?.capturedAt ?: ms(s!!.capturedAt), status = status, server = s, local = c, op = op,
+            )
+        }
+
+        // DAILY readings outside a job have no local capture row: their operation is this phone's copy.
+        val dailyType = FieldOps.captureEntityType(com.asseta.core.domain.policy.ReadingKind.DAILY)
+        val dailyOps = ops(OpTypes.METER_CAPTURE).filter { it.entityType == dailyType }.associateBy { it.entityId }
+        val readingIds = readings.map { it.id }.toSet()
+        val allReadings = readings.map { r ->
+            val op = dailyOps[r.id]?.takeIf { r.op == null } ?: return@map r
+            r.copy(op = op, status = InboxStatusRules.combined(op.status, r.server?.let {
+                InboxStatusRules.reading(it.state, it.reviewStatus, it.findings.map { f -> f.status })
+            }))
+        } + dailyOps.values.filter { it.entityId !in readingIds }.mapNotNull { op ->
+            val p = payload(op, MeterCaptureIn.serializer()) ?: return@mapNotNull null
+            ReadingItem(
+                id = op.entityId, jobId = null, machineId = p.machineId, kind = p.kind, reading = p.reading, captureMode = p.captureMode,
+                atMs = ms(p.capturedAt), status = InboxStatusRules.combined(op.status, null), server = null, local = null, op = op,
             )
         }
 
@@ -367,9 +389,9 @@ class InboxRepository(
         }
 
         // Refused job steps have no list of their own: they are listed under "Needs attention" as sync items.
-        val problems = operations.filter { it.opType in JOB_STEP_TYPES && it.status.isRefused() }
+        val problems = operations.filter { (it.opType in JOB_STEP_TYPES || it.opType in ACCOUNTABILITY_OP_TYPES) && it.status.isRefused() }
         return InboxSnapshot(
-            readings = readings.sortedByDescending { it.atMs },
+            readings = allReadings.sortedByDescending { it.atMs },
             resets = resets.sortedByDescending { it.atMs },
             expenses = expenses.sortedByDescending { it.atMs },
             fuel = fuel.sortedByDescending { it.atMs },
@@ -381,9 +403,20 @@ class InboxRepository(
             failedUploads = failedUploads,
             machines = machines.associateBy { it.id },
             jobs = jobs.associateBy { it.id },
+            accountabilityOps = operations.filter { it.opType in ACCOUNTABILITY_OP_TYPES }.sortedByDescending { it.createdAtDevice },
             loaded = true,
         )
     }
+
+    /** An operation's top-level payload values as text (for list rows of operations without a typed copy). */
+    fun payloadText(op: ClientOperationEntity): Map<String, String?> = runCatching {
+        json.parseToJsonElement(op.payloadJson).jsonObject.mapValues { (_, v) -> (v as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull }
+    }.getOrDefault(emptyMap())
+
+    /** The reading value of one of my readings as the server has it (shown on the correction form), or null. */
+    suspend fun readingValue(tenantId: String, id: String): String? =
+        db().inboxDao().kind(tenantId, InboxRecordEntity.METER_CAPTURE).firstOrNull { it.id == id }
+            ?.let { runCatching { json.decodeFromString(SyncMeterCaptureDto.serializer(), it.json).reading }.getOrNull() }
 
     /** Decrypted local evidence (meter photo, signature, reset evidence) of an attachment, or null. */
     suspend fun localEvidence(attachmentLocalId: String): ByteArray? {
@@ -415,9 +448,17 @@ class InboxRepository(
 
     companion object {
         private val JOB_STEP_TYPES = setOf(OpTypes.JOB_TRANSITION, OpTypes.JOB_ACTIVITY, OpTypes.JOB_ACKNOWLEDGEMENT)
+        val ACCOUNTABILITY_OP_TYPES = setOf(
+            AccountabilityOps.CASH_TRANSFER, AccountabilityOps.CASH_TRANSFER_ACKNOWLEDGEMENT, AccountabilityOps.CASH_FLOAT_ACKNOWLEDGEMENT,
+            AccountabilityOps.HOURS_PURCHASE, AccountabilityOps.HOURS_TRANSFER_REQUEST, AccountabilityOps.METER_BASELINE,
+            AccountabilityOps.METER_CORRECTION,
+        )
         val ALL_OP_TYPES = listOf(
             OpTypes.METER_CAPTURE, OpTypes.JOB_ACTIVITY, OpTypes.JOB_ACKNOWLEDGEMENT, OpTypes.JOB_TRANSITION, OpTypes.EXPENSE,
             OpTypes.CASH_COLLECTION, OpTypes.CASH_HANDOVER, OpTypes.FUEL_EVENT, OpTypes.METER_RESET_REQUEST,
+            AccountabilityOps.CASH_TRANSFER, AccountabilityOps.CASH_TRANSFER_ACKNOWLEDGEMENT, AccountabilityOps.CASH_FLOAT_ACKNOWLEDGEMENT,
+            AccountabilityOps.HOURS_PURCHASE, AccountabilityOps.HOURS_TRANSFER_REQUEST, AccountabilityOps.METER_BASELINE,
+            AccountabilityOps.METER_CORRECTION,
         )
     }
 }

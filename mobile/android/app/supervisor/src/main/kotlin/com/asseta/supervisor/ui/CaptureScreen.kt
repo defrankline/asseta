@@ -35,6 +35,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.asseta.core.domain.capture.GpsOutcome
 import com.asseta.core.domain.capture.OcrStep
 import com.asseta.core.domain.policy.CaptureMode
+import com.asseta.core.sync.usecase.CaptureTarget
+import com.asseta.supervisor.ui.accountability.FieldAccountabilityTexts
 import com.asseta.supervisor.capture.CameraCapture
 import com.asseta.supervisor.capture.GpsLocator
 import com.asseta.supervisor.capture.MeterOcr
@@ -69,6 +71,7 @@ fun CaptureScreen(vm: CaptureViewModel, onDone: () -> Unit, modifier: Modifier =
                     LabeledRow("Machine", ui.machineLabel)
                     LabeledRow("Method", if (ui.mode == CaptureMode.AUTOMATIC) "Camera + automatic reading" else "Manual entry")
                 }
+                TargetSection(ui, vm::onExtraText)
                 val openCamera = { cameraOpen = true }
                 if (ui.photoRequired || ui.mode == CaptureMode.MANUAL) {
                     Section(if (ui.photoRequired) "Meter photo (required)" else "Meter photo (optional)") {
@@ -187,5 +190,25 @@ fun Busy(text: String) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
         CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
         Text(text)
+    }
+}
+
+/** What a daily reading, baseline or correction is for (and the note / reason it needs). */
+@Composable
+private fun TargetSection(ui: CaptureUi, onText: (String) -> Unit) {
+    val t = FieldAccountabilityTexts
+    when (ui.target) {
+        CaptureTarget.Job -> Unit
+        is CaptureTarget.Daily -> Section(null) { Text(t.DAILY_FOOTER, style = MaterialTheme.typography.bodySmall) }
+        is CaptureTarget.Baseline -> Section(null, footer = t.BASELINE_FOOTER) {
+            OutlinedTextField(ui.extraText, onText, label = { Text(t.BASELINE_NOTE) }, enabled = !ui.saving, modifier = Modifier.fillMaxWidth())
+        }
+        is CaptureTarget.Correction -> Section(null, footer = t.CORRECTION_FOOTER) {
+            ui.correctionOf?.let { LabeledRow(t.CORRECTION_OF, it) }
+            OutlinedTextField(
+                ui.extraText, onText, label = { Text(t.CORRECTION_REASON) }, enabled = !ui.saving, minLines = 2,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
     }
 }

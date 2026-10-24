@@ -69,11 +69,24 @@ data class CashHandoverDto(
     @SerialName("verified_by") val verifiedBy: SerializableUuid? = null,
     @SerialName("verified_at") val verifiedAt: String? = null,
     @SerialName("decision_note") val decisionNote: String? = null,
+    /** What the office counted when verifying (null = the declared amount). */
+    @SerialName("amount_received") val amountReceived: DecimalAmount? = null,
+    /** The custodian's expected balance when the remittance was recorded. */
+    @SerialName("expected_balance") val expectedBalance: DecimalAmount? = null,
+    /** Unretained balance not remitted (PARTIAL_REMITTANCE); null = not flagged. */
+    @SerialName("partial_shortfall") val partialShortfall: DecimalAmount? = null,
 )
 
-/** `SettlementDecisionIn` for decideCashHandover: [verified] true confirms the cash was received, false disputes it. */
+/**
+ * `RemittanceDecisionIn` for decideCashHandover: [verified] true confirms the cash was received (with the
+ * [amountReceived] actually counted; null = the declared amount), false disputes it.
+ */
 @Serializable
-data class SettlementDecisionIn(val verified: Boolean, val note: String? = null)
+data class SettlementDecisionIn(
+    val verified: Boolean,
+    val note: String? = null,
+    @SerialName("amount_received") val amountReceived: String? = null,
+)
 
 /** `CashFloatIn` for issueCashFloat: [amount] as an exact decimal string; the server stamps the time when absent. */
 @Serializable

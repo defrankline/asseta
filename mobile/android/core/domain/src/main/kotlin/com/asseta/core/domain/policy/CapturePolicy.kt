@@ -9,7 +9,8 @@ import java.time.Instant
 
 enum class CaptureMode { AUTOMATIC, MANUAL }
 
-enum class ReadingKind { OPENING, CLOSING }
+/** DAILY: a reading outside a job (machine only; server capability METER_DAILY_READING). */
+enum class ReadingKind { OPENING, CLOSING, DAILY }
 
 /** The part of the server `MeterCapturePolicy` a device enforces offline (server re-validates every capture). */
 data class MeterCapturePolicy(
@@ -21,6 +22,7 @@ data class MeterCapturePolicy(
     val manualCorrectionRequiresReview: Boolean,
     val gpsEnforcement: String,
 ) {
+    /** A DAILY reading (and a baseline) carries the same evidence rules as a closing reading (server rule). */
     fun requiredMode(kind: ReadingKind): CaptureMode = if (kind == ReadingKind.OPENING) openingMode else closingMode
 
     companion object {

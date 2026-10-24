@@ -40,8 +40,29 @@ import com.asseta.core.model.owner.SettlementDecisionIn
 import com.asseta.core.model.owner.StaffDto
 import com.asseta.core.model.owner.TenantOverviewDto
 import com.asseta.core.model.owner.JobTransitionIn
+import com.asseta.core.model.owner.AccountabilitySummaryDto
+import com.asseta.core.model.owner.BaselineDto
+import com.asseta.core.model.owner.CashRetentionDto
+import com.asseta.core.model.owner.CashVarianceDto
+import com.asseta.core.model.owner.ClassificationDto
+import com.asseta.core.model.owner.CorrectionDto
+import com.asseta.core.model.owner.CreditArrangementDto
+import com.asseta.core.model.owner.CustodyAdjustmentDto
+import com.asseta.core.model.owner.DecisionIn
+import com.asseta.core.model.owner.DiscountDto
+import com.asseta.core.model.owner.HoursCancellationDto
+import com.asseta.core.model.owner.HoursTransferDto
+import com.asseta.core.model.owner.MeterDecisionIn
+import com.asseta.core.model.sync.CashReasonDto
 import com.asseta.core.model.sync.CashReconciliationDto
+import com.asseta.core.model.sync.CashRetentionIn
+import com.asseta.core.model.sync.CashTransferDto
+import com.asseta.core.model.sync.CustodianDto
+import com.asseta.core.model.sync.EffectivePolicyDto
 import com.asseta.core.model.sync.FieldContractDto
+import com.asseta.core.model.sync.FieldHoursPurchaseDto
+import com.asseta.core.model.sync.FloatEntryDto
+import com.asseta.core.model.sync.ReasonCodeDto
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
@@ -304,4 +325,120 @@ interface TenantApi {
     /** getMyCashReconciliation: the signed-in supervisor's day-by-day custody (Supervisor app, online only). */
     @GET("api/v1/tenant/cash/custody/me/reconciliation")
     suspend fun myCashReconciliation(@Query("date") date: String? = null, @Query("currency") currency: String? = null): List<CashReconciliationDto>
+
+    // --- accountability: field reads (Supervisor app; cached encrypted for offline use) ----------------------------
+
+    /** getEffectivePolicy: a field user may read CASH_CUSTODY / CUSTOMER_HOURS with the matching capture permission. */
+    @GET("api/v1/tenant/policies/{type}/effective")
+    suspend fun effectivePolicy(@Path("type") policyType: String): EffectivePolicyDto
+
+    /** listCashCustodians: staff who can hold company cash (a login is not required). */
+    @GET("api/v1/tenant/cash/custodians")
+    suspend fun cashCustodians(@Query("q") q: String? = null, @Query("page") page: Int = 1, @Query("page_size") pageSize: Int = 100): PageDto<CustodianDto>
+
+    /** listCashTransfers: [staffMemberId] as sender or receiver; [status] PENDING_ACKNOWLEDGEMENT, ACKNOWLEDGED or DISPUTED. */
+    @GET("api/v1/tenant/cash/transfers")
+    suspend fun cashTransfers(
+        @Query("status") status: String? = null,
+        @Query("staff_member_id") staffMemberId: String? = null,
+        @Query("page") page: Int = 1,
+        @Query("page_size") pageSize: Int = 100,
+    ): PageDto<CashTransferDto>
+
+    /** listCashFloats: floats with their acknowledgement state. */
+    @GET("api/v1/tenant/cash/floats")
+    suspend fun cashFloats(
+        @Query("staff_member_id") staffMemberId: String? = null,
+        @Query("awaiting_acknowledgement") awaitingAcknowledgement: Boolean? = null,
+        @Query("page") page: Int = 1,
+        @Query("page_size") pageSize: Int = 100,
+    ): PageDto<FloatEntryDto>
+
+    /** listHoursPurchases (open purchases; `cancelled=false`). */
+    @GET("api/v1/tenant/hours-purchases")
+    suspend fun hoursPurchases(
+        @Query("machine_id") machineId: String? = null,
+        @Query("cancelled") cancelled: Boolean? = false,
+        @Query("page") page: Int = 1,
+        @Query("page_size") pageSize: Int = 100,
+    ): PageDto<FieldHoursPurchaseDto>
+
+    /** listHoursReasonCodes: the tenant's reasons of [kind] (DISCOUNT, CREDIT, TRANSFER, CANCELLATION). */
+    @GET("api/v1/tenant/hours-reason-codes")
+    suspend fun hoursReasonCodes(@Query("kind") kind: String? = null, @Query("page_size") pageSize: Int = 100): PageDto<ReasonCodeDto>
+
+    /** listCashReasons: the tenant's cash reasons of [kind] (VARIANCE, WRITE_OFF, RETENTION, ADJUSTMENT). */
+    @GET("api/v1/tenant/cash/reasons")
+    suspend fun cashReasons(@Query("kind") kind: String? = null, @Query("page_size") pageSize: Int = 100): PageDto<CashReasonDto>
+
+    /** requestCashRetention (tenant.collection.record): ask to keep some cash instead of remitting it (online only). */
+    @POST("api/v1/tenant/cash/retentions")
+    suspend fun requestCashRetention(@Body body: CashRetentionIn, @Header(AssetaHeaders.IDEMPOTENCY_KEY) idempotencyKey: String): CashRetentionDto
+
+    // --- accountability: owner approvals and dashboard --------------------------------------------------------
+
+    /** getAccountabilitySummary (tenant.accountability.read). */
+    @GET("api/v1/tenant/accountability/summary")
+    suspend fun accountabilitySummary(): AccountabilitySummaryDto
+
+    @GET("api/v1/tenant/customer-discounts")
+    suspend fun customerDiscounts(@Query("status") status: String? = null, @Query("page_size") pageSize: Int = 100): PageDto<DiscountDto>
+
+    @POST("api/v1/tenant/customer-discounts/{id}/decision")
+    suspend fun decideCustomerDiscount(@Path("id") id: String, @Body body: DecisionIn): DiscountDto
+
+    @GET("api/v1/tenant/credit-arrangements")
+    suspend fun creditArrangements(@Query("status") status: String? = null, @Query("page_size") pageSize: Int = 100): PageDto<CreditArrangementDto>
+
+    @POST("api/v1/tenant/credit-arrangements/{id}/decision")
+    suspend fun decideCreditArrangement(@Path("id") id: String, @Body body: DecisionIn): CreditArrangementDto
+
+    @GET("api/v1/tenant/hours-transfers")
+    suspend fun hoursTransfers(@Query("status") status: String? = null, @Query("page_size") pageSize: Int = 100): PageDto<HoursTransferDto>
+
+    @POST("api/v1/tenant/hours-transfers/{id}/decision")
+    suspend fun decideHoursTransfer(@Path("id") id: String, @Body body: DecisionIn): HoursTransferDto
+
+    @GET("api/v1/tenant/hours-cancellations")
+    suspend fun hoursCancellations(@Query("status") status: String? = null, @Query("page_size") pageSize: Int = 100): PageDto<HoursCancellationDto>
+
+    @POST("api/v1/tenant/hours-cancellations/{id}/decision")
+    suspend fun decideHoursCancellation(@Path("id") id: String, @Body body: DecisionIn): HoursCancellationDto
+
+    @GET("api/v1/tenant/meter-baselines")
+    suspend fun meterBaselines(@Query("status") status: String? = null, @Query("page_size") pageSize: Int = 100): PageDto<BaselineDto>
+
+    @POST("api/v1/tenant/meter-baselines/{id}/decision")
+    suspend fun decideMeterBaseline(@Path("id") id: String, @Body body: MeterDecisionIn): BaselineDto
+
+    @GET("api/v1/tenant/engine-hours/classifications")
+    suspend fun engineHourClassifications(@Query("status") status: String? = null, @Query("page_size") pageSize: Int = 100): PageDto<ClassificationDto>
+
+    @POST("api/v1/tenant/engine-hours/classifications/{id}/decision")
+    suspend fun decideEngineHourClassification(@Path("id") id: String, @Body body: MeterDecisionIn): ClassificationDto
+
+    @GET("api/v1/tenant/meter-corrections")
+    suspend fun meterCorrections(@Query("status") status: String? = null, @Query("page_size") pageSize: Int = 100): PageDto<CorrectionDto>
+
+    @POST("api/v1/tenant/meter-corrections/{id}/decision")
+    suspend fun decideMeterCorrection(@Path("id") id: String, @Body body: MeterDecisionIn): CorrectionDto
+
+    @GET("api/v1/tenant/cash/variances")
+    suspend fun cashVariances(@Query("status") status: String? = null, @Query("page_size") pageSize: Int = 100): PageDto<CashVarianceDto>
+
+    /** decideCashVarianceWriteOff (tenant.finance.writeoff; not the proposer). */
+    @POST("api/v1/tenant/cash/variances/{id}/write-off-decision")
+    suspend fun decideCashWriteOff(@Path("id") id: String, @Body body: DecisionIn): CashVarianceDto
+
+    @GET("api/v1/tenant/cash/retentions")
+    suspend fun cashRetentions(@Query("status") status: String? = null, @Query("page_size") pageSize: Int = 100): PageDto<CashRetentionDto>
+
+    @POST("api/v1/tenant/cash/retentions/{id}/decision")
+    suspend fun decideCashRetention(@Path("id") id: String, @Body body: DecisionIn): CashRetentionDto
+
+    @GET("api/v1/tenant/cash/adjustments")
+    suspend fun custodyAdjustments(@Query("status") status: String? = null, @Query("page_size") pageSize: Int = 100): PageDto<CustodyAdjustmentDto>
+
+    @POST("api/v1/tenant/cash/adjustments/{id}/decision")
+    suspend fun decideCustodyAdjustment(@Path("id") id: String, @Body body: DecisionIn): CustodyAdjustmentDto
 }

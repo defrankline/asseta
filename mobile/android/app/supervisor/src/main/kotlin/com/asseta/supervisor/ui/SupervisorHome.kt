@@ -35,6 +35,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -75,6 +76,19 @@ import com.asseta.supervisor.push.NotificationPermission
 import com.asseta.supervisor.push.PhonePushStatus
 import com.asseta.supervisor.push.PushTexts
 import com.asseta.supervisor.push.SupervisorPush
+import com.asseta.core.domain.accountability.FieldAccess
+import com.asseta.core.sync.usecase.CaptureTarget
+import com.asseta.supervisor.ui.accountability.CashAckScreen
+import com.asseta.supervisor.ui.accountability.CashAckViewModel
+import com.asseta.supervisor.ui.accountability.CashTransferScreen
+import com.asseta.supervisor.ui.accountability.CashTransferViewModel
+import com.asseta.supervisor.ui.accountability.FieldAccountabilityTexts
+import com.asseta.supervisor.ui.accountability.HoursSaleScreen
+import com.asseta.supervisor.ui.accountability.HoursSaleViewModel
+import com.asseta.supervisor.ui.accountability.HoursTransferScreen
+import com.asseta.supervisor.ui.accountability.HoursTransferViewModel
+import com.asseta.supervisor.ui.accountability.RetentionScreen
+import com.asseta.supervisor.ui.accountability.RetentionViewModel
 import com.asseta.supervisor.ui.finance.CashFormScreen
 import com.asseta.supervisor.ui.finance.CashFormViewModel
 import com.asseta.supervisor.ui.finance.ExpenseScreen
@@ -110,6 +124,16 @@ sealed interface Route {
     data class CashDetail(val key: String, val collection: Boolean) : Route
     data class NotificationDetail(val id: String) : Route
     data object RequestJob : Route
+
+    // Accountability (each gated by server capability, permission and tenant policy)
+    data object HoursSale : Route
+    data object HoursTransfer : Route
+    data object CashTransfer : Route
+    data class CashAck(val id: String, val isFloat: Boolean) : Route
+    data object Retention : Route
+    data class DailyReading(val machineId: String) : Route
+    data class Baseline(val machineId: String) : Route
+    data class Correction(val readingId: String) : Route
 }
 
 val SupervisorTab.root: Route
@@ -148,12 +172,22 @@ fun Route.title(companyName: String): String = when (this) {
     is Route.CashDetail -> if (collection) "Cash collection" else "Cash handover"
     is Route.NotificationDetail -> "Notification"
     Route.RequestJob -> JobRequestTexts.FORM_TITLE
+    Route.HoursSale -> FieldAccountabilityTexts.TITLE_HOURS_SALE
+    Route.HoursTransfer -> FieldAccountabilityTexts.TITLE_HOURS_TRANSFER
+    Route.CashTransfer -> FieldAccountabilityTexts.TITLE_CASH_TRANSFER
+    is Route.CashAck -> if (isFloat) FieldAccountabilityTexts.TITLE_ACK_FLOAT else FieldAccountabilityTexts.TITLE_ACK_TRANSFER
+    Route.Retention -> FieldAccountabilityTexts.TITLE_RETENTION
+    is Route.DailyReading -> FieldAccountabilityTexts.TITLE_DAILY
+    is Route.Baseline -> FieldAccountabilityTexts.TITLE_BASELINE
+    is Route.Correction -> FieldAccountabilityTexts.TITLE_CORRECTION
 }
 
 /** Routes the iOS app presents as sheets (Cancel / Save in the navigation bar, no tab bar). */
 val Route.isForm: Boolean
     get() = this is Route.Capture || this is Route.Acknowledge || this is Route.WorkLogEntry || this == Route.RecordExpense ||
-        this is Route.CashForm || this is Route.ResetRequest || this == Route.RequestJob
+        this is Route.CashForm || this is Route.ResetRequest || this == Route.RequestJob || this == Route.HoursSale ||
+        this == Route.HoursTransfer || this == Route.CashTransfer || this is Route.CashAck || this == Route.Retention ||
+        this is Route.DailyReading || this is Route.Baseline || this is Route.Correction
 
 /** Back stacks of the five tabs; selecting the current tab again returns to its first screen (as on iOS). */
 data class TabStacks(val tab: SupervisorTab = SupervisorTab.JOBS, val stacks: Map<SupervisorTab, List<Route>> = SupervisorTab.entries.associateWith { listOf(it.root) }) {
@@ -246,6 +280,11 @@ fun SupervisorHome(
     val permissions = remember(tenant) { tenant.permissions.toSet() }
     val coroutines = rememberCoroutineScope()
     var blockedExpense by remember { mutableStateOf<String?>(null) }
+    // What the accountability entries need: server capabilities, permissions and the saved tenant policies.
+    val accountabilityCache by field.accountability.cache.collectAsStateWithLifecycle()
+    val access by produceState<FieldAccess?>(null, tenantId, syncing, accountabilityCache) {
+        value = field.accountability.access(tenantId, permissions)
+    }
 
     LaunchedEffect(tenantId) {
         // First login: register device + bootstrap; afterwards periodic delta pull and push in the background.
@@ -304,6 +343,7 @@ fun SupervisorHome(
         if (n.readAt == null) inbox.markRead(id)
         when (val link = InboxLinks.from(n.target?.entity, n.target?.id)) {
             is InboxLink.Job -> push(Route.JobDetail(link.jobId, snapshot.jobs[link.jobId]?.jobNumber ?: "Job"))
+            is InboxLink.Machine -> snapshot.machines[link.machineId]?.let { push(Route.MachineDetail(it.id, it.assetCode)) } ?: push(Route.NotificationDetail(id))
             is InboxLink.Expense -> push(Route.ExpenseDetail(snapshot.expenses.firstOrNull { it.serverId == link.expenseId }?.key ?: link.expenseId))
             InboxLink.Money -> if (nav.tab != SupervisorTab.MONEY) nav = nav.select(SupervisorTab.MONEY)
             InboxLink.None -> push(Route.NotificationDetail(id))
@@ -354,7 +394,7 @@ fun SupervisorHome(
                         Route.Fuel -> if ("tenant.expense.write" in permissions) {
                             BarIconButton(R.drawable.ic_add, "Record fuel event") { push(Route.CashForm(CashFormViewModel.FUEL)) }
                         }
-                        Route.Money -> MoneyAddMenu(permissions, onExpense = ::recordExpense, onRoute = ::push)
+                        Route.Money -> MoneyAddMenu(permissions, access, onExpense = ::recordExpense, onRoute = ::push)
                         Route.Jobs -> if (JobRequestTexts.PERMISSION in permissions) {
                             BarTextButton(JobRequestTexts.BUTTON) { push(Route.RequestJob) }
                         }
@@ -366,7 +406,7 @@ fun SupervisorHome(
         }
         Box(Modifier.weight(1f).fillMaxWidth()) {
             CompositionLocalProvider(LocalFormBar provides formBar) {
-                RouteContent(field, tenantId, scope, route, snapshot, syncing, ::refresh, ::push, ::pop, inbox, permissions,
+                RouteContent(field, tenantId, scope, route, snapshot, syncing, ::refresh, ::push, ::pop, inbox, permissions, access,
                     onRecordExpense = ::recordExpense, onNotification = ::openNotification, onAttention = ::openAttention)
             }
         }
@@ -415,6 +455,7 @@ private fun RouteContent(
     pop: () -> Unit,
     inbox: InboxViewModel,
     permissions: Set<String>,
+    access: FieldAccess?,
     onRecordExpense: () -> Unit,
     onNotification: (NotificationDto) -> Unit,
     onAttention: (AttentionItem) -> Unit,
@@ -423,7 +464,7 @@ private fun RouteContent(
         Route.Jobs -> JobsScreen(field, tenantId, snapshot, syncing, onRefresh, onOpen = { id, number -> push(Route.JobDetail(id, number)) }, onRoute = push)
         Route.Readings -> ReadingsScreen(snapshot, syncing, onRefresh, push)
         Route.Fuel -> FuelScreen(snapshot, syncing, onRefresh, push)
-        Route.Money -> MoneyScreen(field, tenantId, snapshot, syncing, onRefresh, push)
+        Route.Money -> MoneyScreen(field, tenantId, snapshot, syncing, onRefresh, push, permissions, access)
         Route.Inbox -> {
             AskNotificationsOnce(field.push, NOTIFICATION_READ in permissions)
             val notifications by inbox.notifications.collectAsStateWithLifecycle()
@@ -447,6 +488,38 @@ private fun RouteContent(
             val vm: CaptureViewModel = viewModel(key = "capture-$visit") { CaptureViewModel(field, tenantId, route.jobId, route.kind) }
             CaptureScreen(vm, onDone = pop)
         }
+        is Route.DailyReading, is Route.Baseline, is Route.Correction -> {
+            // The capture screen with its evidence rules, for a reading outside a job, a baseline or a correction.
+            val visit = remember(route) { System.nanoTime() }
+            val target = when (route) {
+                is Route.DailyReading -> CaptureTarget.Daily(route.machineId)
+                is Route.Baseline -> CaptureTarget.Baseline(route.machineId, "")
+                is Route.Correction -> CaptureTarget.Correction(route.readingId, "")
+                else -> CaptureTarget.Job
+            }
+            val vm: CaptureViewModel = viewModel(key = "capture-$visit") { CaptureViewModel(field, tenantId, null, ReadingKind.DAILY, target) }
+            CaptureScreen(vm, onDone = pop)
+        }
+        Route.HoursSale -> {
+            val visit = remember(route) { System.nanoTime() }
+            HoursSaleScreen(viewModel(key = "hours-sale-$visit") { HoursSaleViewModel(field, tenantId, permissions) }, onDone = pop)
+        }
+        Route.HoursTransfer -> {
+            val visit = remember(route) { System.nanoTime() }
+            HoursTransferScreen(viewModel(key = "hours-transfer-$visit") { HoursTransferViewModel(field, tenantId, permissions) }, onDone = pop)
+        }
+        Route.CashTransfer -> {
+            val visit = remember(route) { System.nanoTime() }
+            CashTransferScreen(viewModel(key = "cash-transfer-$visit") { CashTransferViewModel(field, tenantId, permissions) }, onDone = pop)
+        }
+        is Route.CashAck -> {
+            val visit = remember(route) { System.nanoTime() }
+            CashAckScreen(viewModel(key = "cash-ack-$visit") { CashAckViewModel(field, tenantId, permissions, route.id, route.isFloat) }, onDone = pop)
+        }
+        Route.Retention -> {
+            val visit = remember(route) { System.nanoTime() }
+            RetentionScreen(viewModel(key = "retention-$visit") { RetentionViewModel(field, tenantId, permissions) }, onDone = pop)
+        }
         is Route.Acknowledge -> AcknowledgementScreen(field, tenantId, route.jobId, onDone = pop)
         is Route.WorkLogEntry -> WorkLogEntryScreen(field, tenantId, route.jobId, onDone = pop)
         Route.RecordExpense -> {
@@ -457,15 +530,15 @@ private fun RouteContent(
         }
         is Route.CashForm -> {
             val visit = remember(route) { System.nanoTime() }
-            val vm: CashFormViewModel = viewModel(key = "cash-${route.kind}-$visit") { CashFormViewModel(field, tenantId, route.kind) }
+            val vm: CashFormViewModel = viewModel(key = "cash-${route.kind}-$visit") { CashFormViewModel(field, tenantId, route.kind, permissions) }
             CashFormScreen(vm, onDone = pop)
         }
         Route.SyncStatus -> {
             val vm: SyncStatusViewModel = viewModel(key = "sync-status-$scope") { SyncStatusViewModel(field, tenantId) }
             SyncStatusScreen(vm, syncing, onRefresh = onRefresh)
         }
-        is Route.ReadingDetail -> ReadingDetailScreen(field, snapshot, route.id, push)
-        is Route.MachineDetail -> MachineDetailScreen(snapshot, route.machineId, push)
+        is Route.ReadingDetail -> ReadingDetailScreen(field, snapshot, route.id, push, access)
+        is Route.MachineDetail -> MachineDetailScreen(snapshot, route.machineId, push, access)
         is Route.ResetRequest -> {
             val visit = remember(route) { System.nanoTime() }
             val vm: ResetRequestViewModel = viewModel(key = "reset-$visit") { ResetRequestViewModel(field, tenantId, route.machineId, route.oldReading) }
@@ -496,12 +569,16 @@ private fun SupervisorTab.icon(): Int = when (this) {
     SupervisorTab.INBOX -> R.drawable.ic_inbox
 }
 
-/** "+" on the Money tab: the existing expense, collection and handover forms, by permission. */
+/**
+ * "+" on the Money tab: the expense, collection and handover forms by permission, and the accountability forms when the
+ * server, the user's permissions and the company's policy all allow them.
+ */
 @Composable
-private fun MoneyAddMenu(permissions: Set<String>, onExpense: () -> Unit, onRoute: (Route) -> Unit) {
+private fun MoneyAddMenu(permissions: Set<String>, access: FieldAccess?, onExpense: () -> Unit, onRoute: (Route) -> Unit) {
     val expenses = "tenant.expense.write" in permissions
     val cash = "tenant.collection.record" in permissions
-    if (!expenses && !cash) return
+    val extra = access != null && (access.sellHours || access.requestHoursTransfer || access.transferCash || access.askToKeepCash)
+    if (!expenses && !cash && !extra) return
     var open by remember { mutableStateOf(false) }
     Box {
         BarIconButton(R.drawable.ic_add, "Record") { open = true }
@@ -510,6 +587,13 @@ private fun MoneyAddMenu(permissions: Set<String>, onExpense: () -> Unit, onRout
             if (cash) {
                 DropdownMenuItem(text = { Text("Record cash collection") }, onClick = { open = false; onRoute(Route.CashForm(CashFormViewModel.COLLECTION)) })
                 DropdownMenuItem(text = { Text("Hand over cash") }, onClick = { open = false; onRoute(Route.CashForm(CashFormViewModel.HANDOVER)) })
+            }
+            val t = FieldAccountabilityTexts
+            if (access?.transferCash == true) DropdownMenuItem(text = { Text(t.MENU_TRANSFER_CASH) }, onClick = { open = false; onRoute(Route.CashTransfer) })
+            if (access?.askToKeepCash == true) DropdownMenuItem(text = { Text(t.MENU_KEEP_CASH) }, onClick = { open = false; onRoute(Route.Retention) })
+            if (access?.sellHours == true) DropdownMenuItem(text = { Text(t.MENU_SELL_HOURS) }, onClick = { open = false; onRoute(Route.HoursSale) })
+            if (access?.requestHoursTransfer == true) {
+                DropdownMenuItem(text = { Text(t.MENU_HOURS_TRANSFER) }, onClick = { open = false; onRoute(Route.HoursTransfer) })
             }
         }
     }
