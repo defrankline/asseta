@@ -26,11 +26,11 @@ mobile/ios/
 | `AssetaStore` | `EncryptedDatabase` (SQLCipher, raw key, WAL, iOS file protection), versioned `Migrator` (`user_version` + `schema_migration`), the `client_operation` outbox and `ClientOperationRepository` |
 | `AssetaNetwork` | `APIClient`: `Authorization: Bearer`, `X-Tenant-ID`, a fresh `X-Correlation-ID` per request, and `Idempotency-Key` on mutations (a mutation can't be built without one). Decodes the error envelope into `APIError`. Retries once after a 401 by refreshing the token |
 | `AssetaAuth` | OIDC Authorization Code + PKCE (S256) against realm `asseta`, public client `asseta-mobile`. Each app has its own redirect scheme, set in its app target (see Configuration). The callback must match that app's scheme and path. Checks the discovered issuer, `state` and the ID-token `iss/aud/azp/exp/nonce`. Shares one token refresh between concurrent callers and logs out on `invalid_grant`. Being offline does not end the session. Logout calls the Keycloak end-session endpoint with the refresh token and always wipes local tokens |
-| `AssetaAppShell` | Brand, `AppConfiguration` (from Info.plist), `SessionModel` (state machine), and the login, `/me` and tenant-picker views shared by both apps. The browser step uses SwiftUI `WebAuthenticationSession` with an **ephemeral** session |
+| `AssetaAppShell` | Brand, `AppConfiguration` (from Info.plist), `SessionModel` (state machine), `PushRegistration` (APNs capability check, `/me/push-devices` body for app OWNER or SUPERVISOR, re-registration rule) and the login, `/me` and tenant-picker views shared by both apps. The browser step uses SwiftUI `WebAuthenticationSession` with an **ephemeral** session |
 | `AssetaCapture` | Gate 4 capture: shared-spec OCR text parser (`MeterReadingParser`), Vision OCR pipeline (`MeterOCR`, `GlyphSegmenter`, `GlyphRenderer`, `SevenSegmentDecoder`), capture rules and the recapture state machine (`CaptureRules`), one-shot GPS (`LocationCapturer`, pure `GpsAttempt`), protected evidence files with SHA-256 (`EvidenceStore`) |
 | `AssetaSync` | Gate 4 offline sync: Keychain device id, `/sync` client with `X-Device-Id`, `SyncEngine` (register → bootstrap → upload → push → pull), push outcome state machine, resumable `BlobUploader`, policy snapshot selection and capture gate, clock tamper monitor, backoff, `FieldRecorder` (outbox ops + dependency chain), `FieldDirectory` (read side), `DeviceWipe` |
-| `AssetaField` | Gate 4 Supervisor SwiftUI screens (iOS only): jobs, job detail, meter capture with AVFoundation camera, work log, acknowledgement with PencilKit signature, sync status; `NWPathMonitor` and `BGAppRefreshTask` triggers |
-| `AssetaOwnerKit` | Gate 7 Owner logic (no UIKit, tested on macOS): `OwnerAPI` requests, `SnapshotCache` (encrypted read-only snapshots), `OwnerRepository` (network-first, offline fallback, wipe on lost access), `MutationGuard`/`OwnerFeatures`, `DeepLinkParser`, `FleetPresentation`, `OwnerFormat`, `RoutingMatrix`, `PushRegistration`, `RealtimeClient` (`/api/v1/ws`) |
+| `AssetaField` | Gate 4 Supervisor SwiftUI screens (iOS only): jobs, job detail, meter capture with AVFoundation camera, work log, acknowledgement with PencilKit signature, sync status; `NWPathMonitor` and `BGAppRefreshTask` triggers; `SupervisorPush` + `SupervisorAppDelegate` |
+| `AssetaOwnerKit` | Gate 7 Owner logic (no UIKit, tested on macOS): `OwnerAPI` requests, `SnapshotCache` (encrypted read-only snapshots), `OwnerRepository` (network-first, offline fallback, wipe on lost access), `MutationGuard`/`OwnerFeatures`, `DeepLinkParser`, `FleetPresentation`, `OwnerFormat`, `RoutingMatrix`, `RealtimeClient` (`/api/v1/ws`) |
 | `AssetaOwnerUI` | Gate 7 Owner SwiftUI screens (iOS only), `OwnerModel`, `PushCenter` + `OwnerAppDelegate` |
 | `AssetaTestSupport` | Test doubles (`MockTransport`, `MockURLProtocol`, fixtures). Not a product |
 
@@ -109,6 +109,7 @@ Screens on the home list under **Money & fuel**, shown by `/me` permissions (`te
 - **Outbox**: `EXPENSE`, `CASH_COLLECTION`, `CASH_HANDOVER`, `FUEL_EVENT`, each with a device `client_id` fixed per form (exactly-once alongside the op id). Receipts are encrypted evidence files uploaded with purpose `EXPENSE_RECEIPT`; the expense is gated on every receipt upload and `COMPLETE` appends the upload session id to `receipt_upload_ids`. `DEFERRED ATTACHMENT_PENDING` is retried after 10 s, `RECEIPT_NOT_FOUND` is a rejection, `DUPLICATE_PAYMENT_REFERENCE` a conflict; all other outcomes as in the table above.
 - **Synced data**: `expense_categories` (inactive ones hidden; deltas carry `is_active=false`), customers (likewise), and `cash_custody` (current balance per currency).
 - **My cash**: the synced balance (as of the last sync) with pending handovers/spending from the server, kept apart from local unsynced collections/expenses/handovers, which are marked unverified; rejected/conflicting items are listed but not counted.
+- **Today (Money tab)**: the office's reconciliation (`GET /tenant/cash/custody/me/reconciliation?date=&currency=`) when online. Every successful fetch (all currencies, fetch time, local date) is saved in the encrypted store (`sync_kv` `cash_today_cache`, cleared with the tenant's state on account switch). Offline: a snapshot from today shows the full figures as **"Today (as of HH:mm)"** plus what this phone recorded since and the estimate; one from an earlier day shows **"Last office figures (22 Oct 2026)"** with that day's outstanding and the estimate; no snapshot shows **"Today (estimate)"** (`CashToday`, same rules as Android).
 
 ## Gate 7: Owner app (`AssetaOwner`, `com.asseta.owner`)
 
@@ -180,6 +181,24 @@ record in the latest 200 of the list, and older ones say "not found". Lists show
 (≤ 100) with "showing N of M". Evidence photos are online-only by design. The realtime feed runs in
 the foreground only. Investigations are read-only; review happens in the web console.
 
+## Supervisor push notifications
+
+Same mechanism as the Owner app (`PushRegistration` in `AssetaAppShell`), in `SupervisorPush` +
+`SupervisorAppDelegate` (`AssetaField`):
+- With `AssetaPushEnabled` YES and `tenant.notification.read`, once the field data of the open company
+  is ready the device registers with `POST /me/push-devices {platform: IOS, app: SUPERVISOR}` and
+  `X-Tenant-ID` (again after a company switch or a new APNs token). It never blocks sign-in or sync.
+- Permission is asked the first time the Inbox tab appears after sign-in; iOS never asks again after a
+  refusal. The account menu shows **Notifications on this phone**: "On", "Off — allow notifications in
+  Settings", "Not available on this build", or "Not registered yet" with **Turn on**.
+- A tap opens the Inbox tab, and that notification's detail when the Inbox has its `notification_id`.
+  A push arriving in the foreground shows the banner (as in the Owner app) and refreshes the Inbox.
+- Sign-out deactivates this device (best effort, `SessionModel.onSignOut`).
+
+External setup as for the Owner app, for App ID `com.asseta.supervisor`: Push Notifications enabled, a
+provisioning profile and entitlements file with `aps-environment`, and `ASSETA_PUSH_ENABLED=YES` on the
+`AssetaSupervisor` target. The backend needs `ASSETA_PUSH_APNS_SUPERVISOR_TOPIC=com.asseta.supervisor`.
+
 ## Pinned toolchain and dependencies
 
 - Xcode 26.6, Swift 6.3.3. The package uses swift-tools 6.0 and the Swift 6 language mode.
@@ -250,9 +269,9 @@ browser-based RP-initiated logout, which can be added if needed. The browser ses
 ephemeral, so no SSO cookie stays on the device.
 
 Supervisor Info.plist (from `project.yml`): `NSCameraUsageDescription` and
-`NSLocationWhenInUseUsageDescription` (both requested just in time), `UIBackgroundModes: fetch` and
-`BGTaskSchedulerPermittedIdentifiers: com.asseta.supervisor.sync`. There is no background location
-and no photo library access. Owner Info.plist adds `AssetaPushEnabled` (from `ASSETA_PUSH_ENABLED`,
+`NSLocationWhenInUseUsageDescription` (both requested just in time), `UIBackgroundModes: fetch, remote-notification`,
+`BGTaskSchedulerPermittedIdentifiers: com.asseta.supervisor.sync` and `AssetaPushEnabled` (from
+`ASSETA_PUSH_ENABLED`, default `NO`). There is no background location and no photo library access. Owner Info.plist adds `AssetaPushEnabled` (from `ASSETA_PUSH_ENABLED`,
 default `NO`) and `UIBackgroundModes: remote-notification`; it asks for no camera or location.
 
 ## Security notes

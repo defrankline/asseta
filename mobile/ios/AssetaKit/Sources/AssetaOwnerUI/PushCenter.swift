@@ -1,4 +1,5 @@
 #if os(iOS)
+import AssetaAppShell
 import AssetaModel
 import AssetaOwnerKit
 import Foundation
@@ -73,7 +74,7 @@ public final class PushCenter {
         guard let token = deviceToken, let model, let repository = model.repository else { return }
         guard PushRegistration.needsRegistration(token: token, tenantID: model.tenant.tenantID,
                                                  lastRegistered: lastRegistered),
-              let body = PushRegistration.request(token: token, appVersion: OwnerModel.appVersion,
+              let body = PushRegistration.request(token: token, app: .owner, appVersion: OwnerModel.appVersion,
                                                   deviceLabel: UIDevice.current.name) else { return }
         do {
             let device = try await repository.send(try OwnerAPI.registerPushDevice(body, idempotencyKey: UUID()))

@@ -19,7 +19,7 @@ public enum OnlineResult<T: Sendable>: Sendable {
 
 /// The Supervisor's optional online reads: server notifications (EXPENSE_DECIDED,
 /// CASH_NOT_HANDED_OVER, JOB_MISSING_READINGS, ...) cached in the encrypted store for offline viewing
-/// (cleared with the tenant's state when another user signs in), today's cash reconciliation and
+/// (cleared with the tenant's state when another user signs in), today's cash reconciliation (likewise saved) and
 /// short-lived evidence URLs. Conveniences on top of sync: the app works fully without them.
 /// Same behaviour as Android `SupervisorOnline`.
 public struct SupervisorOnline: Sendable {
@@ -79,11 +79,10 @@ public struct SupervisorOnline: Sendable {
     }
 
     /// Today's reconciliation per currency from the server (online only; nil when offline or refused).
+    /// Every successful fetch is saved for offline use (``cachedCashToday()``).
     public func todayReconciliation(currencies: [String], timeZone: TimeZone = .current) async -> [CashReconciliationDTO]? {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = timeZone
-        let parts = calendar.dateComponents([.year, .month, .day], from: now())
-        let day = String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
+        let fetchedAt = now()
+        let day = CashToday.localDay(fetchedAt, timeZone: timeZone)
         do {
             var out: [CashReconciliationDTO] = []
             for currency in currencies.isEmpty ? [nil] : currencies.map(Optional.some) {
@@ -92,10 +91,19 @@ public struct SupervisorOnline: Sendable {
                 out += try await client.send(APIRequest<[CashReconciliationDTO]>.get(
                     "\(Self.tenant)/cash/custody/me/reconciliation", query: query))
             }
+            if let data = try? AssetaJSON.encoder().encode(CashTodaySnapshot(rows: out, fetchedAt: fetchedAt, day: day)) {
+                try? store.syncState.setValue(String(decoding: data, as: UTF8.self), for: SyncKey.cashToday, tenant: tenantKey)
+            }
             return out
         } catch {
             return nil
         }
+    }
+
+    /// The last reconciliation saved on this phone (any day), for the offline "Today" figures.
+    public func cachedCashToday() -> CashTodaySnapshot? {
+        guard let text = try? store.syncState.value(SyncKey.cashToday, tenant: tenantKey) else { return nil }
+        return try? AssetaJSON.decoder().decode(CashTodaySnapshot.self, from: Data(text.utf8))
     }
 
     /// A short-lived URL of a server attachment (meter photo, signature, reset evidence), when online and allowed.

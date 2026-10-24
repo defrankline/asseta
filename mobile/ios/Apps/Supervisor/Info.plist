@@ -10,6 +10,8 @@
 	<string>$(ASSETA_OIDC_SCHEME):/logout</string>
 	<key>AssetaOIDCRedirectURI</key>
 	<string>$(ASSETA_OIDC_SCHEME):/oauth2redirect</string>
+	<key>AssetaPushEnabled</key>
+	<string>$(ASSETA_PUSH_ENABLED)</string>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
 		<string>com.asseta.supervisor.sync</string>
@@ -46,6 +48,7 @@
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>fetch</string>
+		<string>remote-notification</string>
 	</array>
 	<key>UILaunchScreen</key>
 	<dict>

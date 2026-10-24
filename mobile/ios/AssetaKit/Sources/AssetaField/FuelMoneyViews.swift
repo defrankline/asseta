@@ -88,12 +88,15 @@ struct FuelDetailView: View {
 }
 
 /// Money tab: my cash custody (synced balance apart from unsynced records), today's reconciliation
-/// (from the office when online, else a clearly labelled estimate), then my expenses, cash collections
-/// and handovers with the office's decisions. "+" opens the existing forms.
+/// (from the office when online, else the figures saved the last time this phone was online, else a
+/// clearly labelled estimate), then my expenses, cash collections and handovers with the office's
+/// decisions. "+" opens the existing forms.
 struct MoneyTabView: View {
     let model: FieldModel
     @State private var segment: MoneySegment = .expenses
+    /// The last fetch per currency; nil when it failed (the saved figures are used then).
     @State private var reconciliation: [String: CashReconciliationDayDTO]?
+    @State private var saved: CashTodaySnapshot?
 
     var body: some View {
         let summary = model.cashSummary()
@@ -101,7 +104,8 @@ struct MoneyTabView: View {
             if let summary, !summary.lines.isEmpty {
                 ForEach(summary.lines) { line in
                     CustodyLineSection(line: line, base: summary.baseCurrency)
-                    TodaySection(line: line, day: reconciliation?[line.currency])
+                    TodaySection(line: line, today: CashToday.select(live: reconciliation, snapshot: saved, currency: line.currency,
+                                                                     today: CashToday.localDay(Date())))
                 }
             } else {
                 ContentUnavailableView("No cash balance yet", systemImage: "banknote",
@@ -156,6 +160,7 @@ struct MoneyTabView: View {
 
     private func loadReconciliation(_ summary: CashSummary?) async {
         let currencies = summary?.lines.map(\.currency).filter { !$0.isEmpty } ?? []
+        defer { saved = model.online?.cachedCashToday() }
         guard let rows = await model.online?.todayReconciliation(currencies: currencies) else {
             reconciliation = nil
             return
@@ -164,14 +169,16 @@ struct MoneyTabView: View {
     }
 }
 
-/// Today's figures: the office's reconciliation when online, else the offline estimate (clearly labelled).
+/// Today's figures: the office's reconciliation when online, else the figures saved when this phone was
+/// last online (with what it recorded since), else the offline estimate (clearly labelled).
 struct TodaySection: View {
     let line: CashLine
-    let day: CashReconciliationDayDTO?
+    let today: CashToday
 
     var body: some View {
         let c = line.currency
-        if let day {
+        switch today {
+        case let .live(day), let .savedToday(day, _):
             Section {
                 LabeledContent("Opening balance", value: InboxTexts.money(day.opening, c))
                 LabeledContent("Floats issued", value: InboxTexts.money(day.floatsIssued, c))
@@ -188,13 +195,34 @@ struct TodaySection: View {
                 if nonZero(day.pendingSpending) {
                     LabeledContent("Expenses awaiting approval", value: InboxTexts.money(day.pendingSpending, c))
                 }
-            } header: { Text("Today") } footer: { Text(InboxTexts.reconciliationFooter) }
-        } else {
+            } header: { Text(today.header()) } footer: { Text(today.footer) }
+            if case .savedToday = today, line.hasUnsyncedCash {
+                Section {
+                    unsyncedRow("Collections", "+", line.pendingCollections)
+                    unsyncedRow("Handovers", "−", line.pendingHandovers)
+                    unsyncedRow("Cash expenses", "−", line.pendingCashExpenses)
+                    estimated
+                } header: { Text(CashToday.unsyncedHeader) }
+            }
+        case let .savedEarlier(day, _):
             Section {
-                LabeledContent("Estimated cash in hand") {
-                    Text(MyCashView.money(line.estimatedInHand, c)).foregroundStyle(Palette.warning).monospacedDigit()
-                }
-            } header: { Text("Today (estimate)") } footer: { Text(InboxTexts.estimateFooter) }
+                LabeledContent("Outstanding") { Text(InboxTexts.money(day.outstanding, c)).font(.title3.monospacedDigit().bold()) }
+                estimated
+            } header: { Text(today.header()) } footer: { Text(today.footer) }
+        case .estimate:
+            Section { estimated } header: { Text(today.header()) } footer: { Text(today.footer) }
+        }
+    }
+
+    private var estimated: some View {
+        LabeledContent("Estimated cash in hand") {
+            Text(MyCashView.money(line.estimatedInHand, line.currency)).foregroundStyle(Palette.warning).monospacedDigit()
+        }
+    }
+
+    @ViewBuilder private func unsyncedRow(_ title: String, _ sign: String, _ amount: Decimal) -> some View {
+        if amount != 0 {
+            LabeledContent(title) { Text(sign + MyCashView.money(amount, line.currency)).monospacedDigit() }
         }
     }
 

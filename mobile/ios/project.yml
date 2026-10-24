@@ -88,14 +88,17 @@ targets:
         NSCameraUsageDescription: "Asseta Field uses the camera to photograph hour meters as reading evidence."
         NSLocationWhenInUseUsageDescription: "Asseta Field records your location with every meter reading so the reading can be verified."
         # Opportunistic background refresh only (BGAppRefreshTask); iOS decides when, if at all.
-        UIBackgroundModes: [fetch]
+        # remote-notification: APNs (same capability check as the Owner app, see README "Supervisor push notifications").
+        UIBackgroundModes: [fetch, remote-notification]
         BGTaskSchedulerPermittedIdentifiers: [com.asseta.supervisor.sync]
+        AssetaPushEnabled: $(ASSETA_PUSH_ENABLED)
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.asseta.supervisor
         PRODUCT_NAME: AssetaSupervisor
         ASSETA_DISPLAY_NAME: Asseta Field
         ASSETA_OIDC_SCHEME: com.asseta.supervisor
+        ASSETA_PUSH_ENABLED: "NO"
 
   AssetaOwner:
     templates: [AssetaApp]

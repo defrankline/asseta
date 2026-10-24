@@ -54,6 +54,8 @@ enum SyncKey {
     static let capabilities = "capabilities"
     /// Cached server notifications of the signed-in user (JSON array; cleared with the tenant's state).
     static let notifications = "notifications_cache"
+    /// Last "Today" cash reconciliation of the signed-in user (``CashTodaySnapshot``; cleared with the tenant's state).
+    static let cashToday = "cash_today_cache"
     /// Device scope.
     static let clockReference = "clock_reference"
 }

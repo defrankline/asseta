@@ -35,6 +35,7 @@ public struct FieldRootView: View {
     @State private var paths: [SupervisorTab: [FieldRoute]] = [:]
     @State private var sheet: FieldSheet?
     @State private var blockedExpense: String?
+    private let push = SupervisorPush.shared
     private let showsSwitchCompany: Bool
 
     public init(context: HomeContext) {
@@ -59,9 +60,13 @@ public struct FieldRootView: View {
         }
         .task { await model.start() }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { Task { await model.sync(force: true) } }
+            if phase == .active { Task { await model.sync(force: true); await push.refresh() } }
             if phase == .background { BackgroundSync.schedule() }
         }
+        .onChange(of: tab) { _, new in if new == .inbox { Task { await push.inboxShown() } } }
+        .onChange(of: model.phase, initial: true) { openPushedNotification() }
+        .onChange(of: push.pendingTap) { openPushedNotification() }
+        .onChange(of: push.arrivals) { Task { await model.refreshNotifications() } }
         .confirmationDialog("Sign out?", isPresented: $confirmSignOut, titleVisibility: .visible) {
             Button("Sign out", role: .destructive) { Task { await model.signOut() } }
         } message: {
@@ -166,6 +171,12 @@ public struct FieldRootView: View {
             Menu {
                 if showsSwitchCompany { Button("Switch company") { model.stop(); model.session.clearTenantSelection() } }
                 ChangePasswordButton(session: model.session, isOnline: model.isOnline, showsFooter: true)
+                if model.canReadNotifications {
+                    Section(PushStatus.title) {
+                        Text(push.status.text)
+                        if push.status.canTurnOn { Button(PushStatus.turnOn) { Task { await push.turnOn() } } }
+                    }
+                }
                 Button("Sign out", role: .destructive) { confirmSignOut = true }
             } label: { Image(systemName: "person.crop.circle") }
         }
@@ -188,6 +199,20 @@ public struct FieldRootView: View {
         case let .expense(id): open(.expense(model.inbox.expenses.first { $0.serverID == id }?.id ?? id))
         case .money: tab = .money
         case .none: open(.notification(notification.id))
+        }
+    }
+
+    /// A tapped push: the Inbox tab, then that notification's detail when the Inbox has it.
+    private func openPushedNotification() {
+        guard model.phase == .ready, let tap = push.pendingTap else { return }
+        push.pendingTap = nil
+        tab = .inbox
+        paths[.inbox] = []
+        Task {
+            await model.refreshNotifications()
+            guard let id = tap.notificationID, let notification = model.notifications.first(where: { $0.id == id }) else { return }
+            paths[.inbox] = [.notification(id)]
+            await model.markRead(notification)
         }
     }
 

@@ -58,6 +58,7 @@ public final class FieldModel {
         }
         phase = .ready
         refresh()
+        SupervisorPush.shared.attach(client: client, tenantID: tenant.tenantID, allowed: canReadNotifications)
         BackgroundSync.runner = { [weak self] in await self?.sync(force: false) }
         BackgroundSync.schedule()
         connectivity.start { [weak self] online in
@@ -132,6 +133,8 @@ public final class FieldModel {
     }
 
     var online: SupervisorOnline? { services?.online }
+    /// Server notifications (and push for them) need `tenant.notification.read`; the server enforces it.
+    var canReadNotifications: Bool { tenant.permissions.contains("tenant.notification.read") }
     var unreadNotifications: Int { notifications.filter(\.isUnread).count }
 
     /// Decrypted local evidence of an attachment (meter photo, signature, reset evidence), or nil.

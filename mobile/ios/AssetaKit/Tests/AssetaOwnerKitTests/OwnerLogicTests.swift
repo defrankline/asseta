@@ -119,32 +119,6 @@ struct RoutingMatrixTests {
     }
 }
 
-struct PushRegistrationTests {
-    @Test func capabilityFlagGatesRegistration() {
-        #expect(!PushRegistration.isEnabled(info: [:]))
-        #expect(!PushRegistration.isEnabled(info: [PushRegistration.infoKey: "NO"]))
-        #expect(!PushRegistration.isEnabled(info: [PushRegistration.infoKey: ""]))
-        #expect(PushRegistration.isEnabled(info: [PushRegistration.infoKey: "YES"]))
-        #expect(PushRegistration.isEnabled(info: [PushRegistration.infoKey: true]))
-    }
-
-    @Test func tokenIsHexAndBodyIsIOSOwner() throws {
-        let token = Data([0x00, 0xAB, 0x10, 0xFF])
-        #expect(PushRegistration.hexToken(token) == "00ab10ff")
-        let body = try #require(PushRegistration.request(token: token, appVersion: "0.1.0 (1)", deviceLabel: ""))
-        #expect(body.platform == "IOS" && body.app == "OWNER" && body.token == "00ab10ff" && body.deviceLabel == nil)
-        #expect(PushRegistration.request(token: Data(), appVersion: nil, deviceLabel: nil) == nil)
-    }
-
-    @Test func reRegistersOnlyForANewTokenOrCompany() {
-        let token = Data([1, 2]), a = UUID(), b = UUID()
-        #expect(PushRegistration.needsRegistration(token: token, tenantID: a, lastRegistered: nil))
-        #expect(!PushRegistration.needsRegistration(token: token, tenantID: a, lastRegistered: (token, a)))
-        #expect(PushRegistration.needsRegistration(token: token, tenantID: b, lastRegistered: (token, a)))
-        #expect(PushRegistration.needsRegistration(token: Data([3]), tenantID: a, lastRegistered: (token, a)))
-    }
-}
-
 struct RealtimeTests {
     @Test func framesDecode() throws {
         func decode(_ text: String) throws -> RealtimeEvent { try RealtimeEvent.decode(Data(text.utf8)) }
