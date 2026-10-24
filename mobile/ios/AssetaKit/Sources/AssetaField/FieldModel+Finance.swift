@@ -8,6 +8,8 @@ import Foundation
 extension FieldModel {
     var canRecordExpenses: Bool { tenant.permissions.contains("tenant.expense.write") }
     var canRecordCash: Bool { tenant.permissions.contains("tenant.collection.record") }
+    /// Request a job from the field for owner approval (`tenant.job.request`; the server enforces it).
+    var canRequestJobs: Bool { tenant.permissions.contains("tenant.job.request") }
 
     var expenseCategories: [ExpenseCategoryDTO] { (try? services?.directory.expenseCategories()) ?? [] }
     var customers: [CustomerDTO] { (try? services?.directory.customers()) ?? [] }

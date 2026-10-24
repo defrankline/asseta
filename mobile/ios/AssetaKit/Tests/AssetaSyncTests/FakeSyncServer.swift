@@ -26,13 +26,16 @@ final class FakeSyncServer: @unchecked Sendable {
     var serverTime = Date(timeIntervalSince1970: 1_792_000_000)
     var cursor: Int64 = 100
     var jobs: [[String: Any]] = []
+    /// Whether an accepted JOB_REQUEST's job is delivered by the next pull (false: the pull misses it).
+    var deliverRequestedJobs = true
+    var requestedJobNumber = 104
     var machines: [[String: Any]] = []
     var snapshots: [[String: Any]] = []
     var customers: [[String: Any]] = []
     var expenseCategories: [[String: Any]] = []
     var cashCustody: [[String: Any]] = []
     /// Advertised protocol capabilities (nil: an older server that sends none).
-    var capabilities: [String]? = ["SUPERVISOR_INBOX_V1", "OP_METER_RESET_REQUEST"]
+    var capabilities: [String]? = ["SUPERVISOR_INBOX_V1", "OP_METER_RESET_REQUEST", "OP_JOB_REQUEST"]
     /// Supervisor inbox lists sent with every bootstrap/changes (`my_expenses` → rows); empty: not sent.
     var inbox: [String: [[String: Any]]] = [:]
     /// Meter reset requests received (payload by server id), resolved like the server's MeterResetOp.
@@ -180,6 +183,26 @@ final class FakeSyncServer: @unchecked Sendable {
             resets[reset] = payload
             let result: [String: Any] = ["entity": ["id": reset.uuidString.lowercased(), "status": "PENDING",
                                                     "evidence_attachment_id": attachment.uuidString.lowercased()]]
+            stored[id] = StoredOp(status: "ACKED", result: result, error: nil)
+            appliedPayloads[id] = payload
+            applyOrder.append(id)
+            return ["id": id.uuidString.lowercased(), "status": "ACKED", "result": result, "error": NSNull()]
+        }
+        if op["op_type"] as? String == "JOB_REQUEST" {
+            // Mirrors JobService.request_job: client_id becomes the job id, numbered by the server, PENDING_APPROVAL.
+            let jobID = payload["client_id"] as? String ?? id.uuidString.lowercased()
+            requestedJobNumber += 1
+            let job: [String: Any] = ["id": jobID, "contract_id": payload["contract_id"] ?? NSNull(),
+                                      "job_number": "J-2026-\(requestedJobNumber)", "machine_id": payload["machine_id"] ?? NSNull(),
+                                      "job_site_id": payload["job_site_id"] ?? NSNull(), "supervisor_id": NSNull(),
+                                      "status": "PENDING_APPROVAL", "planned_start": payload["planned_start"] ?? NSNull(),
+                                      "planned_end": payload["planned_end"] ?? NSNull(), "currency": "TZS", "hourly_rate": "0",
+                                      "minimum_hours": "0", "rate_source": "PENDING_PRICE", "approved_at": NSNull(),
+                                      "started_at": NSNull(), "completed_at": NSNull(), "version": 1,
+                                      "requested_by_staff_id": "dddddddd-0000-4000-8000-00000000000d",
+                                      "requested_by_name": "Juma Field", "request_note": payload["note"] ?? NSNull()]
+            if deliverRequestedJobs { jobs.append(job) }
+            let result: [String: Any] = ["entity": job]
             stored[id] = StoredOp(status: "ACKED", result: result, error: nil)
             appliedPayloads[id] = payload
             applyOrder.append(id)

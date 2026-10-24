@@ -56,6 +56,9 @@ enum SyncKey {
     static let notifications = "notifications_cache"
     /// Last "Today" cash reconciliation of the signed-in user (``CashTodaySnapshot``; cleared with the tenant's state).
     static let cashToday = "cash_today_cache"
+    /// Saved `/tenant/field/contracts` and `/tenant/field/machines` for the job request form (cleared with the tenant's state).
+    static let fieldContracts = "field_contracts_cache"
+    static let fieldMachines = "field_machines_cache"
     /// Device scope.
     static let clockReference = "clock_reference"
 }

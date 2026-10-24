@@ -28,6 +28,22 @@ public struct JobDTO: Codable, Hashable, Sendable, Identifiable {
     public let hourlyRate: DecimalString?
     public let minimumHours: DecimalString?
     public let approvedAt: Date?
+    /// `RATE_CARD:<id>`, `NEGOTIATED`, `OWNER_APPROVED`, or `PENDING_PRICE` for a field request no rate card covers.
+    public let rateSource: String?
+    /// What the customer asked for, written by the supervisor who requested the job from the field.
+    public let requestNote: String?
+    /// The staff member who requested the job from the field (nil for jobs created in the office).
+    public let requestedByStaffID: UUID?
+    /// Name of the supervisor who requested the job from the field.
+    public let requestedByName: String?
+    /// Why the job was cancelled (for a field request: why the owner declined it).
+    public let cancellationReason: String?
+
+    /// A job a supervisor requested from the field (``OperationType/jobRequest``).
+    public var isFieldRequest: Bool { requestedByStaffID != nil || requestNote != nil }
+    /// No rate card applied: the approver must set the hourly rate (`PRICE_REQUIRED` otherwise).
+    public var needsPrice: Bool { rateSource == JobDTO.pendingPrice }
+    public static let pendingPrice = "PENDING_PRICE"
 
     enum CodingKeys: String, CodingKey {
         case id, status, version
@@ -35,7 +51,9 @@ public struct JobDTO: Codable, Hashable, Sendable, Identifiable {
         case jobSiteID = "job_site_id", plannedStart = "planned_start", plannedEnd = "planned_end"
         case startedAt = "started_at", completedAt = "completed_at"
         case supervisorID = "supervisor_id", currency, hourlyRate = "hourly_rate", minimumHours = "minimum_hours"
-        case approvedAt = "approved_at"
+        case approvedAt = "approved_at", rateSource = "rate_source", requestNote = "request_note"
+        case requestedByStaffID = "requested_by_staff_id", requestedByName = "requested_by_name"
+        case cancellationReason = "cancellation_reason"
     }
 }
 
@@ -131,6 +149,8 @@ public enum OperationType: String, Codable, Sendable, CaseIterable {
     case fuelEvent = "FUEL_EVENT"
     /// Needs the server capability ``SyncCapability/meterResetRequest``.
     case meterResetRequest = "METER_RESET_REQUEST"
+    /// A job requested from the field for owner approval (permission `tenant.job.request`).
+    case jobRequest = "JOB_REQUEST"
 }
 
 public enum GpsStatus: String, Codable, Sendable, CaseIterable {
@@ -289,4 +309,69 @@ public struct JobTransitionPayload: Codable, Hashable, Sendable {
     }
 
     enum CodingKeys: String, CodingKey { case jobID = "job_id", action }
+}
+
+/// `JOB_REQUEST` payload (`JobRequestIn`): the supervisor asks the office for a job; the owner prices and
+/// approves it. `client_id` becomes the job id, so a replay returns the same job.
+public struct JobRequestPayload: Codable, Hashable, Sendable {
+    public let clientID: UUID
+    public let contractID: UUID
+    public let machineID: UUID
+    public let jobSiteID: UUID?
+    public let plannedStart: Date
+    public let plannedEnd: Date?
+    public let note: String?
+
+    public init(clientID: UUID, contractID: UUID, machineID: UUID, jobSiteID: UUID?, plannedStart: Date,
+                plannedEnd: Date?, note: String?) {
+        self.clientID = clientID
+        self.contractID = contractID
+        self.machineID = machineID
+        self.jobSiteID = jobSiteID
+        self.plannedStart = plannedStart
+        self.plannedEnd = plannedEnd
+        self.note = note
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case note
+        case clientID = "client_id", contractID = "contract_id", machineID = "machine_id", jobSiteID = "job_site_id"
+        case plannedStart = "planned_start", plannedEnd = "planned_end"
+    }
+}
+
+/// One active contract the requester may ask a job for (`GET /tenant/field/contracts`).
+public struct FieldContractDTO: Codable, Hashable, Sendable, Identifiable {
+    public let id: UUID
+    public let contractNumber: String
+    public let customerID: UUID?
+    public let customerName: String?
+    public let jobSiteID: UUID?
+    public let siteName: String?
+    public let currency: String?
+    public let startsOn: Date?
+    public let endsOn: Date?
+    /// The customer's own reference (searchable in the picker).
+    public let reference: String?
+
+    public init(id: UUID, contractNumber: String, customerID: UUID?, customerName: String?, jobSiteID: UUID?,
+                siteName: String?, currency: String?, startsOn: Date? = nil, endsOn: Date? = nil, reference: String? = nil) {
+        self.startsOn = startsOn
+        self.endsOn = endsOn
+        self.reference = reference
+        self.id = id
+        self.contractNumber = contractNumber
+        self.customerID = customerID
+        self.customerName = customerName
+        self.jobSiteID = jobSiteID
+        self.siteName = siteName
+        self.currency = currency
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, currency, reference
+        case startsOn = "starts_on", endsOn = "ends_on"
+        case contractNumber = "contract_number", customerID = "customer_id", customerName = "customer_name"
+        case jobSiteID = "job_site_id", siteName = "job_site_name"
+    }
 }

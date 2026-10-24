@@ -13,6 +13,7 @@ enum FieldRoute: Hashable {
 /// Forms presented as sheets (Cancel / Save), as before.
 enum FieldSheet: Identifiable {
     case expense(ExpensePolicySnapshot), collection, handover, fuel, reset(machineID: UUID, oldReading: String?)
+    case jobRequest
 
     var id: String {
         switch self {
@@ -20,6 +21,7 @@ enum FieldSheet: Identifiable {
         case .collection: "collection"
         case .handover: "handover"
         case .fuel: "fuel"
+        case .jobRequest: "job-request"
         case let .reset(machine, _): "reset-\(machine)"
         }
     }
@@ -79,6 +81,7 @@ public struct FieldRootView: View {
             case .handover: CashHandoverFormView(model: model)
             case .fuel: FuelFormView(model: model)
             case let .reset(machineID, oldReading): ResetRequestFormView(model: model, machineID: machineID, oldReading: oldReading)
+            case .jobRequest: JobRequestFormView(model: model)
             }
         }
         .alert("Can't record an expense now", isPresented: Binding(get: { blockedExpense != nil },
@@ -147,6 +150,11 @@ public struct FieldRootView: View {
     @ToolbarContentBuilder private func toolbar(_ item: SupervisorTab) -> some ToolbarContent {
         ToolbarItemGroup(placement: .topBarTrailing) {
             switch item {
+            case .jobs:
+                if model.canRequestJobs {
+                    Button(JobRequestText.button, systemImage: "plus") { sheet = .jobRequest }
+                        .accessibilityIdentifier("jobs.request")
+                }
             case .fuel:
                 if model.canRecordExpenses {
                     Button("Record fuel event", systemImage: "plus") { sheet = .fuel }.accessibilityIdentifier("fuel.add")
@@ -318,7 +326,11 @@ struct JobRow: View {
             HStack {
                 Text(job.job.jobNumber).font(.headline)
                 Spacer()
-                StatusBadge(status: progress.displayStatus, pendingSync: progress.displayStatus != job.job.status)
+                if let request = job.request {
+                    RequestBadge(state: request)
+                } else {
+                    StatusBadge(status: progress.displayStatus, pendingSync: progress.displayStatus != job.job.status)
+                }
             }
             Text([job.machine.map { "\($0.assetCode) · \($0.name)" }, job.site?.name, job.customer?.name]
                 .compactMap { $0 }.joined(separator: "\n"))
@@ -357,6 +369,28 @@ struct StatusBadge: View {
         case .approved: Palette.live
         case .cancelled: Palette.offline
         default: Palette.neutral
+        }
+    }
+}
+
+/// Chip of a job requested from the field: not yet sent, waiting for the owner, or declined.
+struct RequestBadge: View {
+    let state: JobRequestState
+
+    var body: some View {
+        Text(state.label)
+            .font(.caption.bold())
+            .padding(.horizontal, 8).padding(.vertical, 3)
+            .background(color.opacity(0.15), in: Capsule())
+            .foregroundStyle(color)
+            .accessibilityIdentifier("job.request.state")
+    }
+
+    private var color: Color {
+        switch state {
+        case .notSent: Palette.neutral
+        case .waiting: Palette.warning
+        case .declined, .problem: Palette.offline
         }
     }
 }

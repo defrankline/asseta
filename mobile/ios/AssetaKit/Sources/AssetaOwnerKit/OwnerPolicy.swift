@@ -9,6 +9,8 @@ public struct OwnerFeatures: Equatable, Sendable {
     public let fleet: Bool
     public let manageAlerts: Bool
     public let jobs: Bool
+    /// Approve (pricing it when needed) or decline jobs waiting for approval (`tenant.job.approve`).
+    public let approveJobs: Bool
     public let finance: Bool
     public let approvals: Bool
     public let decideApprovals: Bool
@@ -23,6 +25,7 @@ public struct OwnerFeatures: Equatable, Sendable {
         fleet = set.contains("tenant.fleet.read")
         manageAlerts = set.contains("tenant.fleet.alert_manage")
         jobs = set.contains("tenant.job.read")
+        approveJobs = set.contains("tenant.job.approve")
         finance = set.contains("tenant.finance.read")
         overview = fleet || jobs || finance
         approvals = set.contains("tenant.approval.read")
@@ -87,6 +90,8 @@ public enum DecisionErrorText {
             return MeterResetText.alreadyDecided
         case "SUBSCRIPTION_READ_ONLY":
             return "This company's subscription is read-only, so changes are not accepted right now."
+        case "PRICE_REQUIRED":
+            return JobApprovalText.priceRequired
         case "PERMISSION_DENIED":
             return "You do not have permission to do this."
         case "TENANT_ACCESS_DENIED", "TENANT_ACCESS_BLOCKED", "MANDATE_ENDED", "MANDATE_REQUIRED":

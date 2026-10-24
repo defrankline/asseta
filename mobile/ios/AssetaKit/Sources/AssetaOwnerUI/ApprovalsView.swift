@@ -12,6 +12,7 @@ struct ApprovalsView: View {
     @State private var status: ApprovalStatus = .pending
     @State private var loader = Loader<Page<ApprovalRequestDTO>>()
     @State private var resets = Loader<[MeterResetDTO]>()
+    @State private var pendingJobs = Loader<Page<JobDTO>>()
 
     var body: some View {
         List {
@@ -28,6 +29,18 @@ struct ApprovalsView: View {
                 LoadFailure(message: error) { await reload() }
             } else {
                 ProgressView().frame(maxWidth: .infinity)
+            }
+            if model.features.jobs {
+                Section(JobApprovalText.sectionTitle) {
+                    let items = pendingJobs.value?.items ?? []
+                    if items.isEmpty {
+                        Text(pendingJobs.value == nil ? (pendingJobs.error ?? "Loading…") : JobApprovalText.empty)
+                            .foregroundStyle(.secondary)
+                    }
+                    ForEach(items) { job in
+                        NavigationLink(value: OwnerRoute.job(job.id)) { PendingJobRow(job: job) }
+                    }
+                }
             }
             if model.features.meterEvidence {
                 Section(MeterResetText.sectionTitle) {
@@ -50,7 +63,13 @@ struct ApprovalsView: View {
     private func reload() async {
         async let a: Void = loader.load(model, .approvals(status), OwnerAPI.approvals(status: status, pageSize: 100))
         async let b: Void = loadResets()
-        _ = await (a, b)
+        async let c: Void = loadPendingJobs()
+        _ = await (a, b, c)
+    }
+
+    private func loadPendingJobs() async {
+        guard model.features.jobs else { return }
+        await pendingJobs.load(model, .jobs(.pendingApproval), OwnerAPI.jobs(status: .pendingApproval, pageSize: 100))
     }
 
     private func loadResets() async {

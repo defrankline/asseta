@@ -9,6 +9,7 @@ import Foundation
 public enum SyncCapability {
     public static let supervisorInbox = "SUPERVISOR_INBOX_V1"
     public static let meterResetRequest = "OP_METER_RESET_REQUEST"
+    public static let jobRequest = "OP_JOB_REQUEST"
 }
 
 /// `ExceptionDto`: a server finding on a reading (type, severity, blocking) and its review.

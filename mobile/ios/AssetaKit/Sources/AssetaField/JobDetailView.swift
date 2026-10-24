@@ -58,7 +58,12 @@ struct JobDetailView: View {
 
     private func details(_ job: FieldJob, _ progress: JobProgress) -> some View {
         Section {
-            LabeledContent("Status") { StatusBadge(status: progress.displayStatus, pendingSync: progress.displayStatus != job.job.status) }
+            if let request = job.request {
+                LabeledContent("Status") { RequestBadge(state: request) }
+                if case let .declined(reason?) = request { LabeledContent("Reason", value: reason) }
+            } else {
+                LabeledContent("Status") { StatusBadge(status: progress.displayStatus, pendingSync: progress.displayStatus != job.job.status) }
+            }
             if let machine = job.machine {
                 LabeledContent("Machine", value: "\(machine.assetCode) · \(machine.name)")
                 LabeledContent("Meter precision", value: machine.meterDecimalPlaces == 0 ? "Whole hours" : "\(machine.meterDecimalPlaces) decimal place(s)")
@@ -66,6 +71,10 @@ struct JobDetailView: View {
             if let site = job.site { LabeledContent("Site", value: site.name) }
             if let customer = job.customer { LabeledContent("Customer", value: customer.name) }
             LabeledContent("Planned start", value: job.job.plannedStart.formatted(date: .abbreviated, time: .shortened))
+            if let end = job.job.plannedEnd {
+                LabeledContent("Planned end", value: end.formatted(date: .abbreviated, time: .shortened))
+            }
+            if let note = job.job.requestNote { LabeledContent(JobRequestText.note, value: note) }
         }
     }
 
@@ -232,6 +241,7 @@ struct OperationRow: View {
         case .cashCollection: return "Cash collection \(payload?["amount"]?.stringValue ?? "")"
         case .cashHandover: return "Cash handover \(payload?["amount"]?.stringValue ?? "")"
         case .meterResetRequest: return "Meter reset request"
+        case .jobRequest: return JobRequestText.operation
         case nil: return operation.opType
         }
     }

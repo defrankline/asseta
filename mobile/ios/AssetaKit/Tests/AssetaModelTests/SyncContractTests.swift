@@ -130,6 +130,33 @@ struct SyncContractTests {
         try Self.check("CashReconciliationDayDto", encoded: Self.roundTrip(CashReconciliationDayDTO.self, Self.day), sample: Self.day)
     }
 
+    /// Field job requests: the `JOB_REQUEST` payload is `JobRequestIn`, the form's contracts come from
+    /// `FieldContractDto`, and `JobDto` carries the request fields both apps show.
+    @Test func jobRequestShapesMatchTheContract() throws {
+        let request: [String: Any] = ["client_id": Self.ids[0], "contract_id": Self.ids[1], "machine_id": Self.ids[2], "job_site_id": Self.ids[3],
+                                      "planned_start": "2026-10-24T06:00:00.000Z", "planned_end": "2026-10-25T06:00:00.000Z",
+                                      "note": "Clear the access road"]
+        try Self.check("JobRequestIn", encoded: Self.roundTrip(JobRequestPayload.self, request), sample: request)
+        let contract: [String: Any] = ["id": Self.ids[1], "contract_number": "RC-7", "customer_id": Self.ids[4], "customer_name": "Katavi Roads",
+                                       "job_site_id": Self.ids[3], "job_site_name": "Mpanda yard", "currency": "TZS",
+                                       "starts_on": "2026-01-01T00:00:00Z", "ends_on": NSNull(), "reference": NSNull()]
+        try Self.check("FieldContractDto", encoded: Self.roundTrip(FieldContractDTO.self, contract), sample: contract)
+        let job: [String: Any] = ["id": Self.ids[0], "contract_id": Self.ids[1], "job_number": "J-2026-105", "machine_id": Self.ids[2],
+                                  "job_site_id": Self.ids[3], "supervisor_id": Self.ids[5], "status": "PENDING_APPROVAL",
+                                  "planned_start": "2026-10-24T06:00:00.000Z", "planned_end": NSNull(), "currency": "TZS",
+                                  "hourly_rate": "0", "minimum_hours": "0", "standby_treatment": "EXCLUDED", "standby_rate": NSNull(),
+                                  "mobilization_fee": "0", "discount_percent": "0", "tax_rate_percent": "0",
+                                  "rate_source": "PENDING_PRICE", "approved_at": NSNull(), "started_at": NSNull(),
+                                  "completed_at": NSNull(), "version": 1, "cancellation_reason": "No operator",
+                                  "requested_by_staff_id": Self.ids[5], "requested_by_name": "Juma Field", "request_note": "Road"]
+        // JobDTO maps only what the apps show; every mapped key must exist on JobDto.
+        let jobProperties = try #require((Self.schemas["JobDto"] as? [String: Any])?["properties"] as? [String: Any])
+        for key in try Self.roundTrip(JobDTO.self, job).keys { #expect(jobProperties[key] != nil, "JobDto has no property '\(key)'") }
+        for key in ["request_note", "requested_by_staff_id", "requested_by_name", "cancellation_reason", "rate_source"] {
+            #expect(jobProperties[key] != nil, "JobDto lacks \(key)")
+        }
+    }
+
     @Test func syncDataListsAndCapabilitiesMatchTheContract() throws {
         let data: [String: Any] = ["jobs": [], "my_meter_captures": [Self.capture], "my_expenses": [Self.expense],
                                    "my_cash_collections": [Self.collection]]

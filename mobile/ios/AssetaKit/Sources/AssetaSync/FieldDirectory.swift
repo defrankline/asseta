@@ -11,6 +11,8 @@ public struct FieldJob: Sendable, Equatable, Identifiable {
     public let site: JobSiteDTO?
     public let customer: CustomerDTO?
     public let contract: ContractDTO?
+    /// Set for a job this supervisor requested from the field, until the owner approves it.
+    public var request: JobRequestState?
     public var id: UUID { job.id }
     /// Meter display precision (machine setting; default 1 like the server).
     public var decimalPlaces: Int { machine?.meterDecimalPlaces ?? 1 }
@@ -37,6 +39,7 @@ public struct OutboxItem: Sendable, Equatable, Identifiable {
         case .cashHandover: "Cash handover"
         case .fuelEvent: "Fuel event"
         case .meterResetRequest: "Meter reset request"
+        case .jobRequest: JobRequestText.operation
         case nil: operation.opType
         }
     }
@@ -82,21 +85,29 @@ public struct FieldDirectory: Sendable {
         return try? AssetaJSON.decoder().decode(T.self, from: Data(entity.json.utf8))
     }
 
+    /// Synced jobs plus this user's job requests the server has not delivered yet (shown right away).
     public func jobs() throws -> [FieldJob] {
-        try store.syncState.entities(type: "job", tenantID: tenantID)
+        let requests = try requestOperations()
+        let byID = Dictionary(requests.map { ($0.entityID, $0) }, uniquingKeysWith: { first, _ in first })
+        let server = try store.syncState.entities(type: "job", tenantID: tenantID)
             .compactMap { try? AssetaJSON.decoder().decode(JobDTO.self, from: Data($0.json.utf8)) }
-            .map(fieldJob)
+        let serverIDs = Set(server.map(\.id))
+        let local = pendingRequests(requests, serverIDs: serverIDs).compactMap(localRequestJob)
+        return (server.map { fieldJob($0, requestOp: byID[$0.id]) } + local)
             .sorted { ($0.job.plannedStart, $0.job.jobNumber) < ($1.job.plannedStart, $1.job.jobNumber) }
     }
 
     public func job(id: UUID) -> FieldJob? {
-        (decode("job", id) as JobDTO?).map(fieldJob)
+        let op = try? requestOperations().first { $0.entityID == id }
+        if let job = decode("job", id) as JobDTO? { return fieldJob(job, requestOp: op) }
+        return op.flatMap(localRequestJob)
     }
 
-    private func fieldJob(_ job: JobDTO) -> FieldJob {
+    private func fieldJob(_ job: JobDTO, requestOp: ClientOperation? = nil) -> FieldJob {
         let contract: ContractDTO? = decode("contract", job.contractID)
         return FieldJob(job: job, machine: decode("machine", job.machineID), site: decode("site", job.jobSiteID),
-                        customer: decode("customer", contract?.customerID), contract: contract)
+                        customer: decode("customer", contract?.customerID), contract: contract,
+                        request: JobRequestState.of(job: job, requestOp: requestOp))
     }
 
     public func meterSnapshots() throws -> [MeterPolicySnapshot] {

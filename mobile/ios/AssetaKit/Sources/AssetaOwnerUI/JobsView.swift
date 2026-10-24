@@ -80,7 +80,12 @@ struct JobRow: View {
                 Pill(text: job.status.label, color: job.status.color)
             }
             Text(JobsPresentation.datesLine(job)).font(.subheadline).foregroundStyle(.secondary)
-            if let rate = job.hourlyRate, let currency = job.currency {
+            if let requested = JobApprovalText.requestedBy(job), job.status == .pendingApproval {
+                Text(requested).font(.caption)
+            }
+            if job.needsPrice {
+                Text(JobApprovalText.pendingPriceHelper).font(.caption).foregroundStyle(Palette.warning)
+            } else if let rate = job.hourlyRate, let currency = job.currency {
                 Text("Rate \(OwnerFormat.money(rate, currency: currency)) / h").font(.caption).foregroundStyle(.secondary)
             }
         }
@@ -110,13 +115,23 @@ struct JobDetailView: View {
                     LabeledContent("Planned start", value: job.plannedStart.shortStamp)
                     if let started = job.startedAt { LabeledContent("Started", value: started.shortStamp) }
                     if let completed = job.completedAt { LabeledContent("Completed", value: completed.shortStamp) }
-                    if let rate = job.hourlyRate, let currency = job.currency {
+                    if job.needsPrice {
+                        LabeledContent("Hourly rate", value: "Not set")
+                    } else if let rate = job.hourlyRate, let currency = job.currency {
                         LabeledContent("Hourly rate", value: OwnerFormat.money(rate, currency: currency))
                     }
+                    if job.status == .cancelled, let reason = job.cancellationReason {
+                        LabeledContent(JobApprovalText.reason, value: reason)
+                    }
+
                     if let minimum = job.minimumHours { LabeledContent("Minimum hours", value: OwnerFormat.hours(minimum)) }
                     if model.features.fleet {
                         NavigationLink(value: OwnerRoute.machine(job.machineID)) { Text("Open machine") }
                     }
+                }
+                JobRequestSection(job: job)
+                if job.status == .pendingApproval {
+                    JobDecisionSection(model: model, job: job, showingCachedData: loader.isFromCache) { _ in await reload() }
                 }
                 Section("Hours") {
                     LabeledContent("Opening reading", value: summary.openingReading?.description ?? "—")
