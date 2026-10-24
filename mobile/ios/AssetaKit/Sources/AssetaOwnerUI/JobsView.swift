@@ -9,11 +9,17 @@ struct JobsView: View {
     let model: OwnerModel
     @State private var status: JobStatus? = JobsPresentation.defaultFilter
     @State private var loader = Loader<Page<JobDTO>>()
+    @State private var creating = false
+    @State private var message: String?
+    @State private var opened: CreatedJob?
 
     var body: some View {
         List {
             FilterChips(options: JobsPresentation.filters, selection: $status)
                 .listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
+            if let message {
+                Text(message).foregroundStyle(Brand.amber).accessibilityIdentifier("newjob.message")
+            }
             if let page = loader.value {
                 Text(JobsPresentation.countLine(shown: page.items.count, total: page.total))
                     .font(.caption).foregroundStyle(.secondary)
@@ -33,8 +39,36 @@ struct JobsView: View {
         }
         .staleBanner(loader, model: model)
         .navigationTitle("Jobs")
+        .toolbar {
+            if model.features.createJobs {
+                ToolbarItem(placement: .primaryAction) {
+                    Button(JobCreateText.action, systemImage: "plus") { creating = true }
+                        .labelStyle(.titleAndIcon)
+                        .accessibilityIdentifier("jobs.new")
+                }
+            }
+        }
+        .sheet(isPresented: $creating) {
+            NewJobSheet(model: model, showingCachedData: loader.isFromCache) { outcome in await created(outcome) }
+        }
+        .navigationDestination(item: $opened) { JobDetailView(model: model, jobID: $0.id, notice: $0.notice) }
         .refreshable { await reload() }
         .task(id: ReloadKey(tick: model.changeTick, filter: status?.rawValue)) { await reload() }
+    }
+
+    /// Done: the toast and a reload. Created but not submitted/approved: open the job with what failed.
+    private func created(_ outcome: JobCreateOutcome) async {
+        switch outcome {
+        case let .done(_, text):
+            message = text
+            UIAccessibility.post(notification: .announcement, argument: text)
+        case let .partly(job, text):
+            message = nil
+            opened = CreatedJob(id: job.id, notice: text)
+        case .notCreated:
+            return
+        }
+        await reload()
     }
 
     private func reload() async {
@@ -98,6 +132,8 @@ struct JobRow: View {
 struct JobDetailView: View {
     let model: OwnerModel
     let jobID: UUID
+    /// What went wrong right after "New job" created this job (shown at the top).
+    var notice: String?
     @State private var loader = Loader<JobSummaryDTO>()
     @State private var captures = Loader<[MeterCaptureDTO]>()
     @State private var acknowledgements = Loader<[AcknowledgementDTO]>()
@@ -107,6 +143,9 @@ struct JobDetailView: View {
 
     var body: some View {
         List {
+            if let notice {
+                Text(notice).foregroundStyle(Palette.offline).accessibilityIdentifier("job.notice")
+            }
             if let summary = loader.value {
                 let job = summary.job
                 Section("Job") {

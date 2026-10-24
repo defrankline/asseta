@@ -11,6 +11,10 @@ public struct OwnerFeatures: Equatable, Sendable {
     public let jobs: Bool
     /// Approve (pricing it when needed) or decline jobs waiting for approval (`tenant.job.approve`).
     public let approveJobs: Bool
+    /// Create a job and assign it to a supervisor (`tenant.job.write`, as the web "New job" dialog).
+    public let createJobs: Bool
+    /// Pick the job site on a new job (`tenant.geofence.read`, as the web form shows the site picker).
+    public let pickJobSites: Bool
     public let finance: Bool
     /// Confirm or dispute cash handovers (`tenant.finance.verify`, as the web Handovers tab).
     public let verifyHandovers: Bool
@@ -32,6 +36,8 @@ public struct OwnerFeatures: Equatable, Sendable {
         manageAlerts = set.contains("tenant.fleet.alert_manage")
         jobs = set.contains("tenant.job.read")
         approveJobs = set.contains("tenant.job.approve")
+        createJobs = set.contains("tenant.job.write")
+        pickJobSites = set.contains("tenant.geofence.read")
         finance = set.contains("tenant.finance.read")
         verifyHandovers = set.contains("tenant.finance.verify")
         issueFloats = set.contains("tenant.finance.cash")
