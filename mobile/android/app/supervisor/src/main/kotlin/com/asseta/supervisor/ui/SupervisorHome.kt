@@ -109,6 +109,7 @@ sealed interface Route {
     data class ExpenseDetail(val key: String) : Route
     data class CashDetail(val key: String, val collection: Boolean) : Route
     data class NotificationDetail(val id: String) : Route
+    data object RequestJob : Route
 }
 
 val SupervisorTab.root: Route
@@ -146,12 +147,13 @@ fun Route.title(companyName: String): String = when (this) {
     is Route.ExpenseDetail -> "Expense"
     is Route.CashDetail -> if (collection) "Cash collection" else "Cash handover"
     is Route.NotificationDetail -> "Notification"
+    Route.RequestJob -> JobRequestTexts.FORM_TITLE
 }
 
 /** Routes the iOS app presents as sheets (Cancel / Save in the navigation bar, no tab bar). */
 val Route.isForm: Boolean
     get() = this is Route.Capture || this is Route.Acknowledge || this is Route.WorkLogEntry || this == Route.RecordExpense ||
-        this is Route.CashForm || this is Route.ResetRequest
+        this is Route.CashForm || this is Route.ResetRequest || this == Route.RequestJob
 
 /** Back stacks of the five tabs; selecting the current tab again returns to its first screen (as on iOS). */
 data class TabStacks(val tab: SupervisorTab = SupervisorTab.JOBS, val stacks: Map<SupervisorTab, List<Route>> = SupervisorTab.entries.associateWith { listOf(it.root) }) {
@@ -334,7 +336,7 @@ fun SupervisorHome(
                 leading = { BarTextButton("Cancel", onClick = ::pop) },
                 actions = {
                     val save = formBar.save
-                    BarTextButton("Save", enabled = save?.enabled == true) { save?.onSave?.invoke() }
+                    BarTextButton(save?.label ?: "Save", enabled = save?.enabled == true) { save?.onSave?.invoke() }
                 },
             )
             stack.size > 1 -> AssetaTopBar(
@@ -353,6 +355,9 @@ fun SupervisorHome(
                             BarIconButton(R.drawable.ic_add, "Record fuel event") { push(Route.CashForm(CashFormViewModel.FUEL)) }
                         }
                         Route.Money -> MoneyAddMenu(permissions, onExpense = ::recordExpense, onRoute = ::push)
+                        Route.Jobs -> if (JobRequestTexts.PERMISSION in permissions) {
+                            BarTextButton(JobRequestTexts.BUTTON) { push(Route.RequestJob) }
+                        }
                         else -> Unit
                     }
                     SyncBadge(field, tenantId, syncing) { push(Route.SyncStatus) }
@@ -470,6 +475,12 @@ private fun RouteContent(
         is Route.FuelDetail -> FuelDetailScreen(snapshot, route.key, push)
         is Route.ExpenseDetail -> ExpenseDetailScreen(field, snapshot, route.key, permissions, onRecordExpense, push)
         is Route.CashDetail -> CashDetailScreen(field, tenantId, snapshot, route.key, route.collection, permissions, push)
+        Route.RequestJob -> {
+            // A new key per visit: each form gets its own client id (= the job id, exactly once).
+            val visit = remember(route) { System.nanoTime() }
+            val vm: JobRequestViewModel = viewModel(key = "job-request-$visit") { JobRequestViewModel(field, tenantId) }
+            JobRequestScreen(vm, onDone = pop)
+        }
         is Route.NotificationDetail -> {
             val notifications by inbox.notifications.collectAsStateWithLifecycle()
             NotificationDetailScreen(notifications.firstOrNull { it.id.toString() == route.id })

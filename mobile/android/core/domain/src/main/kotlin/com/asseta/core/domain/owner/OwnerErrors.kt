@@ -13,6 +13,7 @@ object OwnerErrors {
         "ALERT_CLOSED" -> "This alert was already closed by someone else. The list has been refreshed."
         "APPROVAL_ALREADY_DECIDED" -> "This request was already decided by someone else. The list has been refreshed."
         "RESET_DECIDED" -> RESET_DECIDED
+        "PRICE_REQUIRED" -> PRICE_REQUIRED
         "SUBSCRIPTION_READ_ONLY" -> "This company's subscription is read-only, so changes are not accepted right now."
         "PERMISSION_DENIED" -> "You do not have permission to do this."
         "TENANT_ACCESS_DENIED", "TENANT_ACCESS_BLOCKED", "MANDATE_ENDED", "MANDATE_REQUIRED" ->
@@ -29,6 +30,7 @@ object OwnerErrors {
     }
 
     const val RESET_DECIDED = "This reset was already decided."
+    const val PRICE_REQUIRED = "Set an hourly rate before approving this job."
     const val RESET_SEGREGATION = "You requested this reset, so someone else must decide it."
 
     /** Codes after which the shown list is out of date and must be reloaded. */

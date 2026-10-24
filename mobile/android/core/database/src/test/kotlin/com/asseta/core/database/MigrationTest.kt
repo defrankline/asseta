@@ -20,6 +20,7 @@ import org.robolectric.RobolectricTestRunner
  * v4 -> v5 moves queued single-attachment gates into `client_operation_attachment` (several receipts per expense).
  * v5 -> v6 records the owning user of sync state, outbox operations, attachments and work-log entries.
  * v6 -> v7 adds the supervisor inbox table `inbox_record` (server copies of the supervisor's own records).
+ * v7 -> v8 adds the nullable job request columns (`cancellation_reason`, `requested_by_staff_id`, `request_note`).
  */
 @RunWith(RobolectricTestRunner::class)
 class MigrationTest {
@@ -290,6 +291,24 @@ class MigrationTest {
             }
         } finally {
             room.close()
+        }
+    }
+
+    @Test
+    fun migrate7To8KeepsJobsAndAddsRequestColumns() {
+        helper.createDatabase(DB, 7).use { db ->
+            db.execSQL(
+                """INSERT INTO job (id, tenant_id, job_number, machine_id, contract_id, job_site_id, status, version,
+                   planned_start, planned_end, standby_treatment, currency) VALUES ('j', 't', 'J-1', 'm', 'c', NULL, 'APPROVED', 3,
+                   '2026-10-21T06:00:00Z', NULL, NULL, 'TZS')""",
+            )
+        }
+        helper.runMigrationsAndValidate(DB, 8, true).use { db ->
+            db.query("SELECT job_number, cancellation_reason, requested_by_staff_id, request_note FROM job").use { c ->
+                c.moveToFirst()
+                assertEquals("J-1", c.getString(0))
+                assertEquals(true, c.isNull(1) && c.isNull(2) && c.isNull(3))
+            }
         }
     }
 

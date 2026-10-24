@@ -68,6 +68,22 @@ data class JobTransitionPayload(
     val action: String,
 )
 
+/**
+ * `JOB_REQUEST` (`JobRequestIn`): a supervisor's job request from the field. [clientId] becomes the server job id (a
+ * replay returns the same job); the server numbers and prices it and sends it to the owner for approval.
+ */
+@Serializable
+data class JobRequestPayload(
+    @SerialName("client_id") val clientId: String,
+    @SerialName("contract_id") val contractId: String,
+    @SerialName("machine_id") val machineId: String,
+    @SerialName("job_site_id") val jobSiteId: String? = null,
+    @SerialName("planned_start") val plannedStart: String,
+    @SerialName("planned_end") val plannedEnd: String? = null,
+    /** What the customer asked for (at most 1000 characters). */
+    val note: String? = null,
+)
+
 object AckMethod {
     const val SIGNATURE = "SIGNATURE"
     const val NAME_CONFIRMATION = "NAME_CONFIRMATION"

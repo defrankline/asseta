@@ -17,6 +17,7 @@ import com.asseta.core.sync.engine.SyncEngine
 import com.asseta.core.sync.evidence.EncryptedEvidenceStore
 import com.asseta.core.sync.usecase.CaptureMeterReading
 import com.asseta.core.sync.usecase.FinanceCapture
+import com.asseta.core.sync.usecase.JobRequests
 import com.asseta.core.sync.usecase.JobWorkflow
 import com.asseta.core.sync.usecase.RequestMeterReset
 import com.asseta.core.sync.work.SyncScheduler
@@ -98,6 +99,8 @@ class FieldGraph(context: Context, val container: AssetaAppContainer) {
     /** The supervisor's own records (server copies merged with this phone's) behind every tab. */
     val inbox = InboxRepository(db, json, evidence, account)
     val online = SupervisorOnline({ tenantApi }, db, json, account)
+    /** Job requests from the field (owner approval), queued offline like every field action. */
+    val jobRequests = JobRequests({ tenantApi }, db, outbox, json, account, onQueued = { scheduler.syncNow() })
     val meterReset = RequestMeterReset(db, repository, outbox, evidence, json) { scheduler.syncNow() }
 
     val ocr by lazy { MeterOcr(appContext) }

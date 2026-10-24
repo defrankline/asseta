@@ -15,6 +15,7 @@ import com.asseta.core.model.owner.FuelEventDto
 import com.asseta.core.model.owner.HistoryDto
 import com.asseta.core.model.owner.JobDto
 import com.asseta.core.model.owner.JobSummaryDto
+import com.asseta.core.model.owner.JobTransitionIn
 import com.asseta.core.model.owner.MachineDto
 import com.asseta.core.model.owner.MachineMapDto
 import com.asseta.core.model.owner.MeterCaptureDto
@@ -144,6 +145,13 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
     suspend fun decideMeterReset(id: String, approve: Boolean, note: String) = repo.act {
         decideMeterReset(id, MeterResetDecisionIn(if (approve) MeterResetDecisionIn.APPROVE else MeterResetDecisionIn.REJECT, note.trim()))
     }
+
+    /** Approve a job waiting for approval; [hourlyRate] prices a field request without a rate card (PENDING_PRICE). */
+    suspend fun approveJob(id: String, hourlyRate: String?) =
+        repo.act { transitionJob(id, JobTransitionIn(JobTransitionIn.APPROVE, hourlyRate = hourlyRate?.trim()?.takeIf { it.isNotEmpty() })) }
+
+    /** Decline a job waiting for approval (CANCEL with the reason the supervisor is told). */
+    suspend fun declineJob(id: String, reason: String) = repo.act { transitionJob(id, JobTransitionIn(JobTransitionIn.CANCEL, reason = reason.trim())) }
 
     // --- online-only helpers (never cached) -------------------------------------------------------------------
     suspend fun attachmentUrl(attachmentId: String) = repo.act { attachmentUrl(attachmentId) }

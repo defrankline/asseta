@@ -66,7 +66,7 @@ class FakeSyncServer(private val now: () -> Instant) : Dispatcher() {
     /** `Authorization` header of every push, in order (whose token sent which batch). */
     val pushAuthorizations = mutableListOf<String?>()
     /** Advertised protocol capabilities (null: an older server that sends none). */
-    @Volatile var capabilities: List<String>? = listOf("SUPERVISOR_INBOX_V1", "OP_METER_RESET_REQUEST")
+    @Volatile var capabilities: List<String>? = listOf("SUPERVISOR_INBOX_V1", "OP_METER_RESET_REQUEST", "OP_JOB_REQUEST")
 
     /** Supervisor inbox lists sent with the next bootstrap/changes (`my_expenses` -> rows); empty: not sent. */
     var inbox: Map<String, List<JsonObject>> = emptyMap()

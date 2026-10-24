@@ -148,6 +148,9 @@ object OpTypes {
 
     /** Needs the server capability [SyncCapabilities.OP_METER_RESET_REQUEST]. */
     const val METER_RESET_REQUEST = "METER_RESET_REQUEST"
+
+    /** A supervisor's job request from the field (owner approval; permission tenant.job.request). */
+    const val JOB_REQUEST = "JOB_REQUEST"
 }
 
 object BlobPurpose {

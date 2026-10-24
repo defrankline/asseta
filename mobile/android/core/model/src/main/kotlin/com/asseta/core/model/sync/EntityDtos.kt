@@ -26,6 +26,29 @@ data class JobDto(
     @SerialName("standby_treatment") val standbyTreatment: String? = null,
     /** Contract currency of the job (rates); a hint for the tenant currency on the device. */
     val currency: String? = null,
+    /** Why the job was cancelled (a declined field request carries the owner's reason). */
+    @SerialName("cancellation_reason") val cancellationReason: String? = null,
+    /** Set when a supervisor requested the job from the field (`JOB_REQUEST`). */
+    @SerialName("requested_by_staff_id") val requestedByStaffId: String? = null,
+    @SerialName("request_note") val requestNote: String? = null,
+)
+
+/**
+ * `FieldContractDto` (listFieldContracts, `GET /tenant/field/contracts`): an active contract a supervisor can request
+ * a job under, with the customer and site names.
+ */
+@Serializable
+data class FieldContractDto(
+    val id: String,
+    @SerialName("contract_number") val contractNumber: String,
+    @SerialName("customer_id") val customerId: String,
+    @SerialName("customer_name") val customerName: String,
+    @SerialName("job_site_id") val jobSiteId: String? = null,
+    @SerialName("job_site_name") val jobSiteName: String? = null,
+    val currency: String? = null,
+    @SerialName("starts_on") val startsOn: String? = null,
+    @SerialName("ends_on") val endsOn: String? = null,
+    val reference: String? = null,
 )
 
 @Serializable

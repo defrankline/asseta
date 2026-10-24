@@ -45,6 +45,7 @@ class OwnerContractTest {
             "MachineMapDto" to MachineMapDto.serializer(),
             "HistoryDto" to HistoryDto.serializer(),
             "JobDto" to JobDto.serializer(),
+            "JobTransitionIn" to com.asseta.core.model.owner.JobTransitionIn.serializer(),
             "JobSummaryDto" to JobSummaryDto.serializer(),
             "MeterCaptureDto" to MeterCaptureDto.serializer(),
             "AlertDto" to AlertDto.serializer(),

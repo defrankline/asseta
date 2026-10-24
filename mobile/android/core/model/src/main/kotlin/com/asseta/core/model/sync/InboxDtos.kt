@@ -14,6 +14,7 @@ import kotlinx.serialization.json.JsonObject
 object SyncCapabilities {
     const val SUPERVISOR_INBOX_V1 = "SUPERVISOR_INBOX_V1"
     const val OP_METER_RESET_REQUEST = "OP_METER_RESET_REQUEST"
+    const val OP_JOB_REQUEST = "OP_JOB_REQUEST"
 }
 
 /** `ExceptionDto`: a server finding on a reading (type, severity, blocking) and its review. */

@@ -29,7 +29,20 @@ import com.asseta.core.ui.theme.AssetaType
 import com.asseta.core.ui.theme.palette
 import com.asseta.owner.data.JobDetail
 import com.asseta.owner.data.OwnerData
-import com.asseta.owner.ui.OwnerFeatures
+import com.asseta.core.domain.owner.OwnerAction
+import com.asseta.core.ui.components.GroupedSection
+import com.asseta.owner.data.ActionResult
+import com.asseta.owner.ui.OwnerSession
+import com.asseta.owner.ui.approvals.JobApprovalText
+import com.asseta.owner.ui.approvals.JobDecisionCard
+import com.asseta.owner.ui.approvals.JobRequestCard
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import com.asseta.owner.ui.common.EvidencePhoto
 import com.asseta.owner.ui.common.KeyValue
 import com.asseta.owner.ui.common.OwnerColors
@@ -50,8 +63,42 @@ import java.time.Instant
 import java.time.ZoneId
 
 /** [spend]: the role may read expenses, so the job's expenses and fuel are loaded too. */
-class JobDetailViewModel(val data: OwnerData, jobId: String, spend: Boolean, refreshOn: Flow<Unit>) :
-    SnapshotViewModel<JobDetail>({ data.job(jobId, spend) }, refreshOn)
+class JobDetailViewModel(val data: OwnerData, private val jobId: String, spend: Boolean, refreshOn: Flow<Unit>) :
+    SnapshotViewModel<JobDetail>({ data.job(jobId, spend) }, refreshOn) {
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error.asStateFlow()
+    private val _message = MutableStateFlow<String?>(null)
+    val message: StateFlow<String?> = _message.asStateFlow()
+    private val _busy = MutableStateFlow(false)
+    val busy: StateFlow<Boolean> = _busy.asStateFlow()
+
+    /** Approve (with [hourlyRate] for a job without a rate card) and reload the job. */
+    fun approve(hourlyRate: String?) = decide(JobApprovalText.APPROVED) { data.approveJob(jobId, hourlyRate) }
+
+    /** Decline with the reason the supervisor is told (CANCEL). */
+    fun decline(reason: String) {
+        if (JobApprovalText.canDecline(reason)) decide(JobApprovalText.DECLINED) { data.declineJob(jobId, reason) }
+    }
+
+    private fun decide(done: String, call: suspend () -> ActionResult<*>) {
+        if (_busy.value) return
+        _busy.value = true
+        _error.value = null
+        viewModelScope.launch {
+            when (val r = call()) {
+                is ActionResult.Done -> {
+                    _message.value = done
+                    refresh()
+                }
+                is ActionResult.Refused -> {
+                    _error.value = JobApprovalText.error(r.code, r.error.message)
+                    if (r.reload) refresh()
+                }
+            }
+            _busy.value = false
+        }
+    }
+}
 
 /** Job detail wording shared with iOS (`JobDetailView`). */
 object JobDetailText {
@@ -90,8 +137,12 @@ object JobDetailText {
  * (when the role may read expenses), customer acknowledgement.
  */
 @Composable
-fun JobDetailScreen(vm: JobDetailViewModel, features: OwnerFeatures, online: Boolean, onOpen: (OwnerDestination) -> Unit) {
+fun JobDetailScreen(vm: JobDetailViewModel, session: OwnerSession, online: Boolean, onOpen: (OwnerDestination) -> Unit) {
+    val features = session.features
     val state by vm.state.collectAsStateWithLifecycle()
+    val error by vm.error.collectAsStateWithLifecycle()
+    val message by vm.message.collectAsStateWithLifecycle()
+    val busy by vm.busy.collectAsStateWithLifecycle()
     SnapshotScaffold(state, vm::refresh) { d ->
         val s = d.summary
         val job = s.job
@@ -112,6 +163,17 @@ fun JobDetailScreen(vm: JobDetailViewModel, features: OwnerFeatures, online: Boo
                     }
                 }
             }
+            item { JobRequestCard(job) }
+            if (job.status == "CANCELLED") job.cancellationReason?.takeIf { it.isNotBlank() }?.let { reason ->
+                item { SectionCard(null) { KeyValue(JobApprovalText.REASON, reason) } }
+            }
+            if (job.status == "PENDING_APPROVAL" && features.approveJobs) item {
+                JobDecisionCard(
+                    job, session.can(OwnerAction.DECIDE_JOB, online, state.snapshot?.source), busy, error,
+                    onApprove = vm::approve, onDecline = vm::decline,
+                )
+            }
+            message?.let { item { GroupedSection { Text(it, color = palette.accent, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) } } }
             item {
                 SectionCard("Hours") {
                     KeyValue("Opening reading", s.openingReading?.toPlainString() ?: "—")

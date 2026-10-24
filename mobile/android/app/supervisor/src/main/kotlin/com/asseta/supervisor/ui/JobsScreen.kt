@@ -40,6 +40,10 @@ import com.asseta.core.database.MachineEntity
 import com.asseta.core.sync.data.InboxSnapshot
 import com.asseta.core.sync.data.JobSummary
 import com.asseta.core.sync.data.ReadingItem
+import com.asseta.core.domain.jobs.JobRequestRules
+import com.asseta.core.domain.jobs.JobRequestState
+import com.asseta.core.sync.usecase.JobRequestItem
+import com.asseta.core.sync.usecase.JobRequestLookups
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.asseta.core.ui.components.FilterChipRow
 import com.asseta.core.ui.components.GroupedItem
@@ -75,6 +79,9 @@ fun JobsScreen(
             jobs.map { it to field.repository.fieldState(it.job, ops[it.job.id].orEmpty()).effectiveStatus }
         }
     }.collectAsStateWithLifecycle(null)
+    // My job requests: those whose job is not on the phone yet are listed on their own (Ready to start).
+    val requests by remember(tenantId) { field.jobRequests.observe(tenantId) }.collectAsStateWithLifecycle(emptyList())
+    val lookups by produceState(JobRequestLookups(), tenantId, requests.size) { value = field.jobRequests.savedLookups(tenantId) }
     var segment by rememberSaveable { mutableStateOf(JobSegment.IN_PROGRESS) }
     var chosen by rememberSaveable { mutableStateOf(false) } // the user picked a segment: stop auto-selecting
     PullToRefreshBox(isRefreshing = syncing, onRefresh = onRefresh, modifier = Modifier.fillMaxSize()) {
@@ -86,7 +93,11 @@ fun JobsScreen(
             }
             return@PullToRefreshBox
         }
-        LaunchedEffect(list.isEmpty()) { if (!chosen) segment = InboxTexts.defaultSegment(list.map { it.second }) }
+        val pending = JobRequestTexts.pending(requests, list.map { it.first.job.id }.toSet(), System.currentTimeMillis())
+        val requestedHere = requests.map { it.clientId }.toSet()
+        LaunchedEffect(list.isEmpty(), pending.isEmpty()) {
+            if (!chosen) segment = InboxTexts.defaultSegment(list.map { it.second } + pending.map { JobRequestRules.PENDING_APPROVAL })
+        }
         val status = list.toMap()
         val inSegment = list.filter { InboxTexts.segment(it.second) == segment }.map { it.first }
             .let { jobs -> if (segment == JobSegment.CLOSED) jobs.sortedByDescending { it.job.plannedStart } else jobs }
@@ -113,14 +124,26 @@ fun JobsScreen(
                     },
                 )
             } else {
-                if (inSegment.isEmpty()) {
+                val requestRows = if (segment == JobSegment.READY) pending else emptyList()
+                if (requestRows.isNotEmpty()) {
+                    groupedSection(
+                        keyPrefix = "requests",
+                        items = requestRows.map { r ->
+                            val state = JobRequestRules.state(r.operationStatus, null)
+                            GroupedItem(r.clientId, onClick = if (state == JobRequestState.PROBLEM) ({ onRoute(Route.SyncStatus) }) else null) {
+                                RequestRow(r, state, lookups)
+                            }
+                        },
+                    )
+                }
+                if (inSegment.isEmpty() && requestRows.isEmpty()) {
                     item(key = "empty") { InboxTexts.jobsEmpty(segment).let { (t, m) -> EmptyState(t, if (syncing) "Syncing…" else m) } }
                 }
                 groupedSection(
                     keyPrefix = "jobs-${segment.name}",
                     items = inSegment.map { summary ->
                         GroupedItem(summary.job.id, onClick = { onOpen(summary.job.id, summary.job.jobNumber) }) {
-                            JobRow(summary, status[summary] ?: summary.job.status)
+                            JobRow(summary, status[summary] ?: summary.job.status, summary.job.id in requestedHere)
                         }
                     },
                 )
@@ -141,17 +164,48 @@ fun machineRows(snapshot: InboxSnapshot, jobs: List<JobSummary>, status: Map<Job
 }
 
 @Composable
-private fun JobRow(summary: JobSummary, displayStatus: String) {
+private fun JobRow(summary: JobSummary, displayStatus: String, requestedHere: Boolean) {
+    val requestChip = JobRequestTexts.jobChip(summary.job, requestedHere)
     Column(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(summary.job.jobNumber, style = AssetaType.headline, modifier = Modifier.weight(1f))
-            StatusBadge(displayStatus, summary.job.status)
+            if (requestChip != null) RequestChip(requestChip) else StatusBadge(displayStatus, summary.job.status)
         }
         val lines = listOfNotNull(FieldTexts.machine(summary), summary.siteName, summary.customerName)
         if (lines.isNotEmpty()) {
             Text(lines.joinToString("\n"), style = AssetaType.subheadline, color = palette.secondaryText)
         }
+        if (requestChip == JobRequestTexts.DECLINED) {
+            summary.job.cancellationReason?.takeIf { it.isNotBlank() }?.let { Text(it, style = AssetaType.footnote, color = palette.offline) }
+        }
     }
+}
+
+/** A job request not on the phone as a job yet: its number once accepted, machine and customer, and where it stands. */
+@Composable
+private fun RequestRow(r: JobRequestItem, state: JobRequestState, lookups: JobRequestLookups) {
+    Column(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(r.jobNumber ?: JobRequestTexts.REQUESTED_JOB, style = AssetaType.headline, modifier = Modifier.weight(1f))
+            JobRequestTexts.chip(state, r.operationStatus)?.let { RequestChip(it) }
+        }
+        JobRequestTexts.requestLine(r, lookups).takeIf { it.isNotEmpty() }?.let {
+            Text(it, style = AssetaType.subheadline, color = palette.secondaryText)
+        }
+        Text(LocalTime.formatIso(r.payload.plannedStart), style = AssetaType.footnote, color = palette.secondaryText)
+        if (state == JobRequestState.PROBLEM) r.errorMessage?.let { Text(it, style = AssetaType.footnote, color = palette.offline) }
+    }
+}
+
+/** Request chips: not sent grey, waiting amber, declined (or refused) red. */
+@Composable
+private fun RequestChip(text: String) {
+    val color = when (text) {
+        JobRequestTexts.NOT_SENT -> palette.neutral
+        JobRequestTexts.WAITING -> WarningColor
+        else -> palette.offline
+    }
+    Pill(text, color)
 }
 
 /** Status capsule (same colours as iOS: in progress blue, approved green, cancelled red, others grey). */

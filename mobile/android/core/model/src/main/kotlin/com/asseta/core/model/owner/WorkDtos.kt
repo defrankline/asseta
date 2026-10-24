@@ -30,7 +30,36 @@ data class JobDto(
     @SerialName("approved_at") val approvedAt: String? = null,
     @SerialName("job_site_id") val jobSiteId: SerializableUuid? = null,
     @SerialName("supervisor_id") val supervisorId: SerializableUuid? = null,
-)
+    @SerialName("cancellation_reason") val cancellationReason: String? = null,
+    /** Set when a supervisor requested the job from the field; [requestedByName] is their name. */
+    @SerialName("requested_by_staff_id") val requestedByStaffId: SerializableUuid? = null,
+    @SerialName("requested_by_name") val requestedByName: String? = null,
+    /** What the customer asked for, as the supervisor wrote it. */
+    @SerialName("request_note") val requestNote: String? = null,
+) {
+    /** A field request without a rate card: approving it needs an hourly rate. */
+    val pendingPrice: Boolean get() = rateSource == RATE_PENDING_PRICE
+
+    companion object {
+        const val RATE_PENDING_PRICE = "PENDING_PRICE"
+    }
+}
+
+/**
+ * `JobTransitionIn` (transitionJob). [hourlyRate] only with APPROVE (required when the job's rate source is
+ * PENDING_PRICE, `422 PRICE_REQUIRED`); CANCEL takes a [reason] (a declined field request).
+ */
+@Serializable
+data class JobTransitionIn(
+    val action: String,
+    val reason: String? = null,
+    @SerialName("hourly_rate") val hourlyRate: String? = null,
+) {
+    companion object {
+        const val APPROVE = "APPROVE"
+        const val CANCEL = "CANCEL"
+    }
+}
 
 /** `JobSummaryDto` (getJobSummary): meter vs billable hours and charges, computed by the server (single source). */
 @Serializable

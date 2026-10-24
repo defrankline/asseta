@@ -1,5 +1,7 @@
 package com.asseta.supervisor.ui
 
+import com.asseta.core.domain.capture.JobStatus
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -75,6 +77,8 @@ fun JobDetailScreen(
             ui.summary?.siteName?.let { LabeledRow("Site", it) }
             ui.summary?.customerName?.let { LabeledRow("Customer", it) }
             LabeledRow("Planned start", LocalTime.formatIso(job.plannedStart))
+            job.requestNote?.takeIf { it.isNotBlank() }?.let { LabeledRow(JobRequestTexts.NOTE, it) }
+            if (job.status == JobStatus.CANCELLED) job.cancellationReason?.takeIf { it.isNotBlank() }?.let { LabeledRow("Reason", it) }
         }
 
         JobSummarySection(snapshot, job.id)

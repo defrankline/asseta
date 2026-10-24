@@ -40,6 +40,7 @@ import com.asseta.core.domain.owner.OwnerDestination
 import com.asseta.core.domain.owner.OwnerFormat
 import com.asseta.core.model.owner.ApprovalRequestDto
 import com.asseta.core.model.owner.ExpenseDto
+import com.asseta.core.model.owner.JobDto
 import com.asseta.core.model.owner.MeterResetDto
 import com.asseta.core.model.owner.PageDto
 import com.asseta.core.ui.components.ButtonRow
@@ -109,19 +110,27 @@ class ApprovalsViewModel private constructor(
     private val selected: MutableStateFlow<String?>,
     refreshOn: Flow<Unit>,
     meterResets: Boolean,
+    jobs: Boolean,
 ) : SnapshotViewModel<PageDto<ApprovalRequestDto>>({ data.approvals(selected.value) }, refreshOn) {
-    /** [meterResets]: also list pending meter reset requests (`tenant.meter.read`). */
-    constructor(data: OwnerData, refreshOn: Flow<Unit>, meterResets: Boolean = false) :
-        this(data, MutableStateFlow(ApprovalText.DEFAULT_FILTER), refreshOn, meterResets)
+    /**
+     * [meterResets]: also list pending meter reset requests (`tenant.meter.read`); [jobs]: also list jobs waiting for
+     * approval, e.g. requested from the field by a supervisor (`tenant.job.read`).
+     */
+    constructor(data: OwnerData, refreshOn: Flow<Unit>, meterResets: Boolean = false, jobs: Boolean = false) :
+        this(data, MutableStateFlow(ApprovalText.DEFAULT_FILTER), refreshOn, meterResets, jobs)
 
     val status: StateFlow<String?> get() = selected
 
     /** Pending meter resets, loaded independently of the expense requests (null when the role cannot see them). */
     val resets: Section<List<MeterResetDto>>? = if (meterResets) Section(viewModelScope) { data.meterResets("PENDING") } else null
 
+    /** Jobs waiting for approval, loaded independently (null when the role cannot read jobs). */
+    val pendingJobs: Section<PageDto<JobDto>>? = if (jobs) Section(viewModelScope) { data.jobs(JobApprovalText.PENDING_STATUS) } else null
+
     init {
         resets?.refresh()
-        viewModelScope.launch { refreshOn.collect { resets?.refresh() } }
+        pendingJobs?.refresh()
+        viewModelScope.launch { refreshOn.collect { resets?.refresh(); pendingJobs?.refresh() } }
     }
 
     fun filter(status: String?) {
@@ -132,6 +141,7 @@ class ApprovalsViewModel private constructor(
     fun refreshAll() {
         refresh()
         resets?.refresh()
+        pendingJobs?.refresh()
     }
 }
 
@@ -172,6 +182,7 @@ fun ApprovalsScreen(vm: ApprovalsViewModel, onOpen: (OwnerDestination) -> Unit) 
     val state by vm.state.collectAsStateWithLifecycle()
     val status by vm.status.collectAsStateWithLifecycle()
     val resets = vm.resets?.state?.collectAsStateWithLifecycle()?.value
+    val jobs = vm.pendingJobs?.state?.collectAsStateWithLifecycle()?.value
     Column(Modifier.fillMaxSize()) {
         FilterChipRow(ApprovalText.FILTERS.map { (s, l) -> s as String? to l }, status, vm::filter)
         SnapshotScaffold(state, vm::refreshAll) { page ->
@@ -196,8 +207,23 @@ fun ApprovalsScreen(vm: ApprovalsViewModel, onOpen: (OwnerDestination) -> Unit) 
                     }
                 }
             }
+            // Jobs waiting for approval (office-created or requested from the field), as their own section.
+            val jobRows = jobs?.let { j ->
+                buildList {
+                    val list = j.data?.items
+                    when {
+                        list == null && j.loading -> Unit
+                        list == null -> add(GroupedItem("error") { FootNote(j.error?.message.orEmpty()) })
+                        list.isEmpty() -> add(GroupedItem("empty") { FootNote(JobApprovalText.EMPTY) })
+                        else -> list.forEach { job ->
+                            add(GroupedItem(job.id.toString(), onClick = { onOpen(OwnerDestination.Job(job.id.toString())) }) { JobApprovalRow(job, zone) })
+                        }
+                    }
+                }
+            }
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp)) {
                 groupedSection("approvals", rows)
+                jobRows?.let { groupedSection("jobs", it, header = JobApprovalText.SECTION) }
                 resetRows?.let { groupedSection("resets", it, header = MeterResetText.SECTION) }
             }
         }

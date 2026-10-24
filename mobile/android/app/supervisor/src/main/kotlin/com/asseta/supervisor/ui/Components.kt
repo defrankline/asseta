@@ -74,8 +74,8 @@ fun EmptyState(title: String, message: String, @DrawableRes icon: Int = CoreR.dr
     CoreEmptyState(title, message, icon = icon)
 }
 
-/** What the navigation bar of a form shows on the right: "Save", enabled or not (the iOS sheet's confirmation action). */
-class FormSave(val enabled: Boolean, val onSave: () -> Unit)
+/** What the navigation bar of a form shows on the right: [label] ("Save"), enabled or not (the iOS sheet's confirmation action). */
+class FormSave(val enabled: Boolean, val label: String = "Save", val onSave: () -> Unit)
 
 /** Holder the shell reads to draw a form's "Save" bar button; forms publish into it with [FormSaveAction]. */
 @Stable
@@ -90,15 +90,18 @@ val LocalFormBar = staticCompositionLocalOf<FormBarState?> { null }
  * shown outside the shell.
  */
 @Composable
-fun FormSaveAction(enabled: Boolean, saving: Boolean = false, onSave: () -> Unit) {
+fun FormSaveAction(enabled: Boolean, saving: Boolean = false, label: String = "Save", onSave: () -> Unit) {
     val bar = LocalFormBar.current
     val latest by rememberUpdatedState(onSave)
     if (bar == null) {
-        Button(onClick = onSave, enabled = enabled && !saving, modifier = Modifier.fillMaxWidth()) { Text(if (saving) "Saving…" else "Save") }
+        Button(onClick = onSave, enabled = enabled && !saving, modifier = Modifier.fillMaxWidth()) { Text(if (saving) "Saving…" else label) }
         return
     }
     val enabledNow = enabled && !saving
-    SideEffect { if (bar.save?.enabled != enabledNow || bar.save == null) bar.save = FormSave(enabledNow) { latest() } }
+    SideEffect {
+        val current = bar.save
+        if (current == null || current.enabled != enabledNow || current.label != label) bar.save = FormSave(enabledNow, label) { latest() }
+    }
     DisposableEffect(bar) { onDispose { bar.save = null } }
 }
 

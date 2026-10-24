@@ -62,10 +62,10 @@ fun SaveState.after(result: FinanceResult): SaveState = when (result) {
 
 /** Refusal messages + the Save button; a saved form closes (like the iOS sheets). */
 @Composable
-fun SaveSection(state: SaveState, onSave: () -> Unit, onDone: () -> Unit, enabled: Boolean = true) {
+fun SaveSection(state: SaveState, onSave: () -> Unit, onDone: () -> Unit, enabled: Boolean = true, label: String = "Save") {
     LaunchedEffect(state.saved) { if (state.saved) onDone() }
     state.messages.forEach { Text(it, color = palette.offline) }
-    FormSaveAction(enabled = enabled, saving = state.saving || state.saved, onSave = onSave)
+    FormSaveAction(enabled = enabled, saving = state.saving || state.saved, label = label, onSave = onSave)
 }
 
 @Composable

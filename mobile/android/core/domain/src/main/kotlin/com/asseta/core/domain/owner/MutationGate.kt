@@ -6,6 +6,9 @@ enum class OwnerAction(val permission: String) {
     RESOLVE_ALERT("tenant.fleet.alert_manage"),
     DECIDE_APPROVAL("tenant.approval.expense"),
     DECIDE_METER_RESET("tenant.meter.approve"),
+
+    /** Approve (pricing a field request without a rate card) or decline a job waiting for approval. */
+    DECIDE_JOB("tenant.job.approve"),
 }
 
 sealed interface MutationCheck {

@@ -31,6 +31,7 @@ import androidx.room.TypeConverters
         AutoMigration(from = 3, to = 4),
         AutoMigration(from = 4, to = 5, spec = AssetaMigrations.V4ToV5::class),
         AutoMigration(from = 6, to = 7),
+        AutoMigration(from = 7, to = 8),
     ],
 )
 @TypeConverters(Converters::class)
@@ -44,7 +45,7 @@ abstract class AssetaDatabase : RoomDatabase() {
     abstract fun inboxDao(): InboxDao
 
     companion object {
-        const val VERSION = 7
+        const val VERSION = 8
         const val FILE_NAME = "asseta.db"
     }
 }

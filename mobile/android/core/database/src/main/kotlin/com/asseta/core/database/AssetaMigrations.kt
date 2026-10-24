@@ -39,6 +39,12 @@ object AssetaMigrations {
      * table fills on the next pull.
      */
 
+    /*
+     * v7 -> v8 (job requests from the field): nullable `job.cancellation_reason`, `job.requested_by_staff_id` and
+     * `job.request_note` so the Jobs tab shows a declined request's reason. Purely additive AutoMigration; the columns
+     * fill as the server re-sends jobs.
+     */
+
     /**
      * v1 -> v2 (Gate 4): outbox columns (job, error code, server result, attachment gate, last attempt), multi-parent
      * dependency table, cached server data, policy snapshots, sync state and local evidence tables. Room generates the

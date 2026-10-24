@@ -21,6 +21,12 @@ data class JobEntity(
     @ColumnInfo(name = "standby_treatment") val standbyTreatment: String?,
     /** Contract currency (v3, nullable): the device's hint for the tenant currency of field-finance forms. */
     @ColumnInfo(name = "currency") val currency: String? = null,
+    /** v8: why the job was cancelled (a declined field request shows the owner's reason). */
+    @ColumnInfo(name = "cancellation_reason") val cancellationReason: String? = null,
+    /** v8: the supervisor's staff id when the job was requested from the field (`JOB_REQUEST`). */
+    @ColumnInfo(name = "requested_by_staff_id") val requestedByStaffId: String? = null,
+    /** v8: what the customer asked for, as written in the field request. */
+    @ColumnInfo(name = "request_note") val requestNote: String? = null,
 )
 
 @Entity(tableName = "machine", indices = [Index(value = ["tenant_id"])])

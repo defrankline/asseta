@@ -31,7 +31,9 @@ import com.asseta.core.model.owner.PhotoUrlDto
 import com.asseta.core.model.owner.PushDeviceDto
 import com.asseta.core.model.owner.PushDeviceIn
 import com.asseta.core.model.owner.TenantOverviewDto
+import com.asseta.core.model.owner.JobTransitionIn
 import com.asseta.core.model.sync.CashReconciliationDto
+import com.asseta.core.model.sync.FieldContractDto
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
@@ -76,6 +78,10 @@ interface TenantApi {
         @Query("page_size") pageSize: Int = 50,
         @Query("sort") sort: String? = null,
     ): PageDto<JobDto>
+
+    /** transitionJob: APPROVE (with hourly_rate for a PENDING_PRICE job) or CANCEL with a reason (needs tenant.job.approve). */
+    @POST("api/v1/tenant/jobs/{id}/transitions")
+    suspend fun transitionJob(@Path("id") jobId: String, @Body body: JobTransitionIn): JobDto
 
     /** getJobSummary */
     @GET("api/v1/tenant/jobs/{id}")
@@ -219,6 +225,14 @@ interface TenantApi {
     /** deactivatePushDevice */
     @DELETE("api/v1/me/push-devices/{id}")
     suspend fun deactivatePushDevice(@Path("id") deviceId: String): PushDeviceDto
+
+    /** listFieldContracts: active contracts a supervisor can request a job under (Supervisor app). */
+    @GET("api/v1/tenant/field/contracts")
+    suspend fun fieldContracts(): List<FieldContractDto>
+
+    /** listMyFieldMachines: machines the supervisor works on (Supervisor app). */
+    @GET("api/v1/tenant/field/machines")
+    suspend fun fieldMachines(): List<com.asseta.core.model.sync.MachineDto>
 
     /** getMyCashReconciliation: the signed-in supervisor's day-by-day custody (Supervisor app, online only). */
     @GET("api/v1/tenant/cash/custody/me/reconciliation")

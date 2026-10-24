@@ -46,6 +46,8 @@ class SyncContractTest {
             "SyncCashHandoverDto" to SyncCashHandoverDto.serializer(),
             "CashReconciliationDto" to CashReconciliationDto.serializer(),
             "CashReconciliationDayDto" to CashReconciliationDayDto.serializer(),
+            "FieldContractDto" to com.asseta.core.model.sync.FieldContractDto.serializer(),
+            "JobRequestIn" to com.asseta.core.model.sync.JobRequestPayload.serializer(),
         ).forEach { (name, serializer) -> ContractCheck.check(name, serializer.descriptor) }
     }
 

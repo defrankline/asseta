@@ -80,7 +80,7 @@ fun OwnerRoutes(
             val vm: JobDetailViewModel = viewModel(key = "job-$t-${route.jobId}") {
                 JobDetailViewModel(data, route.jobId, features.expenses, graph.refreshTriggers("job", "meter_capture", "exception", "expense", "fuel_event"))
             }
-            JobDetailScreen(vm, features, online, open)
+            JobDetailScreen(vm, session, online, open)
         }
         is OwnerDestination.Alerts -> {
             val id = route.alertId
@@ -96,7 +96,10 @@ fun OwnerRoutes(
             val id = route.approvalId
             if (id == null) {
                 val vm: ApprovalsViewModel = viewModel(key = "approvals-$t") {
-                    ApprovalsViewModel(data, graph.refreshTriggers("approval", "expense", "meter_reset"), meterResets = features.meterEvidence)
+                    ApprovalsViewModel(
+                        data, graph.refreshTriggers("approval", "expense", "meter_reset", "job"), meterResets = features.meterEvidence,
+                        jobs = features.jobs,
+                    )
                 }
                 ApprovalsScreen(vm, open)
             } else {

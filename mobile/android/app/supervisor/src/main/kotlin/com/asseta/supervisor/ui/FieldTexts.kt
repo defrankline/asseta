@@ -64,6 +64,7 @@ object FieldTexts {
             OpTypes.CASH_COLLECTION -> "Cash collection ${text("amount")}"
             OpTypes.CASH_HANDOVER -> "Cash handover ${text("amount")}"
             OpTypes.METER_RESET_REQUEST -> "Meter reset request"
+            OpTypes.JOB_REQUEST -> JobRequestTexts.OPERATION
             else -> opType
         }
     }
@@ -80,6 +81,7 @@ object FieldTexts {
         OpTypes.CASH_HANDOVER -> "Cash handover"
         OpTypes.FUEL_EVENT -> "Fuel event"
         OpTypes.METER_RESET_REQUEST -> "Meter reset request"
+        OpTypes.JOB_REQUEST -> JobRequestTexts.OPERATION
         else -> opType
     }
 

@@ -102,7 +102,8 @@ class ServerDataWriter(private val db: () -> AssetaDatabase, private val json: J
         field.upsertJobs(
             data.jobs.map {
                 JobEntity(it.id, tenantId, it.jobNumber, it.machineId, it.contractId, it.jobSiteId, it.status, it.version,
-                    it.plannedStart, it.plannedEnd, it.standbyTreatment, it.currency)
+                    it.plannedStart, it.plannedEnd, it.standbyTreatment, it.currency, it.cancellationReason, it.requestedByStaffId,
+                    it.requestNote)
             },
         )
         field.upsertMachines(
