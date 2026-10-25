@@ -14,28 +14,39 @@ public struct FieldAccess: Sendable, Equatable {
     public let permissions: Set<String>
     public let cash: CashCustodyPolicyValues?
     public let hours: CustomerHoursPolicyValues?
+    /// Tenant capabilities switched off by policy (`/me` `tenants[].disabled_capabilities`, e.g. CUSTOMER_HOURS).
+    public let disabledCapabilities: Set<String>
 
     public init(capabilities: Set<String>?, permissions: Set<String>, cash: CashCustodyPolicyValues? = nil,
-                hours: CustomerHoursPolicyValues? = nil) {
+                hours: CustomerHoursPolicyValues? = nil, disabledCapabilities: Set<String> = []) {
         self.capabilities = capabilities
         self.permissions = permissions
         self.cash = cash
         self.hours = hours
+        self.disabledCapabilities = disabledCapabilities
+    }
+
+    /// Customer hours are on: not switched off in `/me` and the cached CUSTOMER_HOURS policy enables them.
+    public var customerHoursOn: Bool {
+        !disabledCapabilities.contains(TenantCapability.customerHours) && hours?.enabled == true
     }
 
     private func supports(_ capability: String) -> Bool { capabilities?.contains(capability) == true }
     private func can(_ permission: String) -> Bool { permissions.contains(permission) }
 
-    public var sellHours: Bool { supports(SyncCapability.hoursPurchase) && can(Self.hoursPurchase) && hours?.enabled == true }
+    public var sellHours: Bool { supports(SyncCapability.hoursPurchase) && can(Self.hoursPurchase) && customerHoursOn }
     public var walkIn: Bool { sellHours && hours?.walkInAllowed == true }
     public var requestHoursTransfer: Bool {
-        supports(SyncCapability.hoursTransferRequest) && can(Self.hoursTransfer) && hours?.enabled == true
+        supports(SyncCapability.hoursTransferRequest) && can(Self.hoursTransfer) && customerHoursOn
     }
     public var transferCash: Bool { supports(SyncCapability.cashTransfer) && can(Self.collectionRecord) }
     public var acknowledgeCash: Bool { transferCash }
     /// A recorder may name another cash holder (collections, remittances, sales, transfers).
     public var recordForOthers: Bool { can(Self.collectionRecord) && cash?.recordersMayRecordForOthers == true }
     public var askToKeepCash: Bool { can(Self.collectionRecord) && cash?.retentionAllowed == true }
+    /// "Ask to keep cash" is queued in the outbox (works offline) when the server takes `CASH_RETENTION_REQUEST`;
+    /// otherwise it is sent online as before.
+    public var retentionOffline: Bool { askToKeepCash && supports(SyncCapability.cashRetentionRequest) }
     public var dailyReading: Bool { supports(SyncCapability.meterDailyReading) && can(Self.meterCapture) }
     public var proposeBaseline: Bool { supports(SyncCapability.meterBaseline) && can(Self.meterCapture) }
     public var proposeCorrection: Bool { supports(SyncCapability.meterCorrection) && can(Self.meterCapture) }
@@ -362,6 +373,27 @@ extension FieldRecorder {
                                                  acknowledged: acknowledge, amountReceived: values.received, note: values.note)
         return try enqueue(type, entityType: isFloat ? "cash_float" : "cash_transfer_ack", entityID: targetID,
                            payload: payload, dependsOn: [], createdAt: date)
+    }
+
+    /// Queues a `CASH_RETENTION_REQUEST` (ask to keep cash; someone else decides). `clientID` (one per form visit) is
+    /// the request's idempotency key, so a replay returns the same request. `staffMemberID` nil = me.
+    @discardableResult
+    public func requestRetention(amountText: String, currency: String, reason: String, reasonID: UUID?,
+                                 staffMemberID: UUID?, validUntil: Date?, at date: Date = Date(),
+                                 clientID: UUID = UUID()) throws -> ClientOperation {
+        try requireCapability(SyncCapability.cashRetentionRequest)
+        let values: (amount: Decimal, currency: String, reason: String)
+        switch AccountabilityRules.retention(amountText: amountText, currency: currency, reason: reason) {
+        case let .failure(problems): throw Self.invalid(problems)
+        case let .success(checked): values = checked
+        }
+        if try alreadySaved(.cashRetentionRequest, clientID: clientID) {
+            throw FieldRecorderError.notAllowed(FieldAccountabilityTexts.alreadySaved)
+        }
+        let payload = CashRetentionIn(amount: values.amount, currency: values.currency, reason: values.reason, reasonID: reasonID,
+                                      staffMemberID: staffMemberID, validUntil: validUntil, clientID: clientID)
+        return try enqueue(.cashRetentionRequest, entityType: "cash_retention", entityID: clientID, payload: payload,
+                           dependsOn: [], createdAt: date)
     }
 
     // MARK: - Meter (engine hours)

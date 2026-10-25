@@ -93,12 +93,11 @@ extension Loader where Value == Page<CashHandoverDTO> {
     }
 }
 
-/// One handover (found among the waiting ones, else the latest 200): Confirm received or Dispute when permitted.
+/// One handover, read by id (exact-record links): Confirm received or Dispute when permitted.
 struct HandoverDetailView: View {
     let model: OwnerModel
     let handoverID: UUID
-    @State private var claimed = Loader<Page<CashHandoverDTO>>()
-    @State private var all = Loader<Page<CashHandoverDTO>>()
+    @State private var record = Loader<CashHandoverDTO>()
     @State private var decided: CashHandoverDTO?
     @State private var names: [UUID: String] = [:]
     @State private var sheet: Mode?
@@ -106,11 +105,7 @@ struct HandoverDetailView: View {
 
     enum Mode: String, Identifiable { case confirm, dispute; var id: String { rawValue } }
 
-    private var inClaimed: Bool { claimed.value?.items.contains { $0.id == handoverID } == true }
-
-    private var handover: CashHandoverDTO? {
-        decided ?? claimed.value?.items.first { $0.id == handoverID } ?? all.value?.items.first { $0.id == handoverID }
-    }
+    private var handover: CashHandoverDTO? { decided ?? record.value }
 
     var body: some View {
         Form {
@@ -124,6 +119,8 @@ struct HandoverDetailView: View {
                         Pill(text: OwnerFormat.humanize(handover.status), color: HandoverText.statusTone(handover.status).color)
                     }
                     if let note = handover.decisionNote { LabeledContent("Decision note", value: note) }
+                    if let name = handover.recordedByName { LabeledContent(OwnerAccountabilityTexts.fieldRecordedBy, value: name) }
+                    if let name = handover.verifiedByName { LabeledContent(OwnerAccountabilityTexts.fieldDecidedBy, value: name) }
                     if let expected = handover.expectedBalance {
                         LabeledContent(OwnerAccountabilityTexts.remitExpected,
                                        value: OwnerFormat.money(expected, currency: handover.currency))
@@ -140,15 +137,13 @@ struct HandoverDetailView: View {
                 }
                 if handover.status == HandoverText.claimedStatus { decision(handover) }
                 if let message { Text(message).foregroundStyle(Brand.amber).accessibilityIdentifier("handover.message") }
-            } else if let error = claimed.error ?? all.error {
+            } else if let error = record.error {
                 LoadFailure(message: error) { await reload() }
-            } else if claimed.value != nil && (inClaimed || all.value != nil) {
-                EmptyState(title: HandoverText.notFound, systemImage: "questionmark")
             } else {
                 ProgressView()
             }
         }
-        .staleBanner(inClaimed ? claimed : all, model: model)
+        .staleBanner(record, model: model)
         .navigationTitle(HandoverText.screenTitle)
         .refreshable { await reload() }
         .task(id: model.changeTick) { await reload() }
@@ -168,7 +163,7 @@ struct HandoverDetailView: View {
     @ViewBuilder private func decision(_ handover: CashHandoverDTO) -> some View {
         Section(JobApprovalText.decisionTitle) {
             if let block = model.mutationBlock(permitted: model.features.verifyHandovers,
-                                               showingCachedData: inClaimed ? claimed.isFromCache : all.isFromCache) {
+                                               showingCachedData: record.isFromCache) {
                 BlockedNote(block: block)
             } else {
                 HStack {
@@ -185,11 +180,9 @@ struct HandoverDetailView: View {
     }
 
     private func reload() async {
-        await claimed.loadClaimed(model)
-        if !inClaimed && decided == nil {
-            await all.load(model, .cashHandovers(claimedOnly: false), OwnerAPI.cashHandovers(pageSize: 200))
-        }
-        names = await OwnerLookups.supervisorNames(model)
+        await record.load(model, .handover(handoverID), OwnerAPI.cashHandover(handoverID))
+        if record.error == nil && !record.isFromCache { decided = nil }
+        if record.value?.staffMemberName == nil { names = await OwnerLookups.supervisorNames(model) }
     }
 }
 

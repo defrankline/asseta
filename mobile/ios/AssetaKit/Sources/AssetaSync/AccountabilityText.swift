@@ -146,6 +146,40 @@ public enum FieldAccountabilityTexts {
     public static let retentionErrAmount = "Enter the amount to keep (more than 0)."
     public static let retentionErrReason = "Enter a reason (at least 3 characters)."
     public static let retentionOff = "Your company does not allow keeping cash."
+    // Gap pass: offline request and its status
+    public static let retentionSaved = "Saved. It is sent when the phone syncs." // field.retention.saved
+    public static let retentionViewStatus = "View request status" // field.retention.viewStatus
+    public static let titleRetentionStatus = "Request to keep cash" // field.title.retentionStatus
+    public static let retentionStatusPending = "Waiting for approval" // field.retention.statusPending
+    public static let retentionStatusApproved = "Approved" // field.retention.statusApproved
+    public static let retentionStatusRejected = "Rejected" // field.retention.statusRejected
+    public static let retentionNotSynced = "This request has not reached the server yet." // field.retention.notSynced
+    public static let retentionOffline = "Connect to the internet to see whether it was approved." // field.retention.offline
+    public static let retentionNotFound = "This request is not on this phone." // field.retention.notFound
+    public static let retentionRequested = "Requested" // field.retention.requested
+    public static let retentionDecidedBy = "Decided by" // field.retention.decidedBy
+    public static let retentionDecisionNote = "Decision note" // field.retention.decisionNote
+    public static let retentionStatus = "Status" // field.retention.status
+    public static let moneyRetentions = "Requests to keep cash" // field.money.retentions
+
+    /// A retention's server status in plain words (unknown statuses humanized).
+    public static func retentionStatusText(_ status: String) -> String {
+        switch status {
+        case "PENDING": retentionStatusPending
+        case "APPROVED": retentionStatusApproved
+        case "REJECTED": retentionStatusRejected
+        default: status.replacingOccurrences(of: "_", with: " ").capitalized
+        }
+    }
+
+    /// Conflicts and refusals of the accountability ops in plain words (`field.conflict.*`); nil = show the code.
+    public static func conflictText(_ code: String?) -> String? {
+        switch code {
+        case "RETENTION_NOT_ALLOWED": "Your company does not allow keeping cash, so this request was not accepted."
+        case "DUPLICATE_RETENTION": "This request to keep cash was already sent."
+        default: nil
+        }
+    }
 
     // Readings
     public static let meterRecordDaily = "Record daily reading"
@@ -175,6 +209,7 @@ public enum FieldAccountabilityTexts {
     public static let outboxBaseline = "Meter baseline proposal"
     public static let outboxCorrection = "Reading correction proposal"
     public static let outboxDailyReading = "Daily reading"
+    public static let outboxRetention = "Request to keep cash" // field.outbox.retention
 
     /// Messages of the recorder (same wording as Android `AccountabilityCapture`).
     public static let tooManyEvidence = "At most 10 evidence photos per sale."
@@ -192,6 +227,7 @@ public enum FieldAccountabilityTexts {
         case .cashFloatAcknowledgement: outboxFloatAck
         case .meterBaseline: outboxBaseline
         case .meterCorrection: outboxCorrection
+        case .cashRetentionRequest: outboxRetention
         case .meterCapture where payload?["kind"]?.stringValue == ReadingKind.daily.rawValue: outboxDailyReading
         default: nil
         }

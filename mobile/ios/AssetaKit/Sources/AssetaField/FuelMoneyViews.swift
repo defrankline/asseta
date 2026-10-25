@@ -114,7 +114,7 @@ struct MoneyTabView: View {
                                        description: Text("Your cash custody appears here after a sync."))
             }
             CashToAcknowledgeSection(model: model, open: acknowledge)
-            FilterChips(options: MoneySegment.allCases.filter { $0 != .transfers || model.access.transferCash }.map { ($0, $0.label) },
+            FilterChips(options: MoneySegment.allCases.filter { $0 != .transfers || model.access.transferCash || model.access.askToKeepCash }.map { ($0, $0.label) },
                         selection: $segment)
             switch segment {
             case .expenses:
@@ -141,6 +141,7 @@ struct MoneyTabView: View {
                                                         "Cash you hand over to the office appears here with its verification."))
             case .transfers:
                 TransfersSegment(model: model)
+                RetentionsSection(model: model)
             }
         }
         .refreshable { await model.sync(force: true); await model.refreshAccountability(); await loadReconciliation(summary) }

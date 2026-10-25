@@ -49,8 +49,13 @@ public struct AccountabilitySummaryDTO: Codable, Hashable, Sendable {
         public let floatsAwaitingAcknowledgement: [CountAmount]
         public let remittancesAwaitingConfirmation: [CountAmount]
         public let partialRemittancesInWindow: Int
+        /// Tenant-local daily remittance cut-off; nil = no cut-off.
+        public let remittanceCutoffHour: Int?
+        /// Custodians flagged today for unremitted cash past the cut-off; nil = no cut-off configured.
+        public let remittancesOverdueToday: Int?
 
         enum CodingKeys: String, CodingKey {
+            case remittanceCutoffHour = "remittance_cutoff_hour", remittancesOverdueToday = "remittances_overdue_today"
             case custodians, transfersAwaitingAcknowledgement = "transfers_awaiting_acknowledgement"
             case floatsAwaitingAcknowledgement = "floats_awaiting_acknowledgement"
             case remittancesAwaitingConfirmation = "remittances_awaiting_confirmation"
@@ -142,11 +147,14 @@ public struct DashboardTile: Hashable, Sendable, Identifiable {
         public let label: String
         public let value: String
         public let detail: String?
+        /// Where this row leads, when it has its own screen (e.g. the overdue remittances of today).
+        public let route: OwnerRoute?
 
-        public init(_ label: String, _ value: String, detail: String? = nil) {
+        public init(_ label: String, _ value: String, detail: String? = nil, route: OwnerRoute? = nil) {
             self.label = label
             self.value = value
             self.detail = detail
+            self.route = route
         }
     }
 
@@ -170,8 +178,10 @@ public enum AccountabilityDashboard {
         return OwnerFormat.hours(decimal)
     }
 
-    /// The summary as tiles in the dashboard order (hidden or unavailable tiles are simply absent).
-    public static func tiles(_ s: AccountabilitySummaryDTO, timeZone: TimeZone = .current) -> [DashboardTile] {
+    /// The summary as tiles in the dashboard order (hidden or unavailable tiles are simply absent). `customerHours`
+    /// false (the capability is switched off for the tenant) leaves out the customer-hours tiles.
+    public static func tiles(_ s: AccountabilitySummaryDTO, customerHours: Bool = true,
+                             timeZone: TimeZone = .current) -> [DashboardTile] {
         var out: [DashboardTile] = []
         if let a = s.outstandingApprovals {
             out.append(DashboardTile(id: "outstanding_approvals", title: T.dashApprovals, rows: [
@@ -188,6 +198,11 @@ public enum AccountabilityDashboard {
                 .init(T.dashRemittancesAwaiting, counts(c.remittancesAwaitingConfirmation)),
                 .init(T.dashPartialRemittances, "\(c.partialRemittancesInWindow)"),
             ]
+            // Only when the tenant has a remittance cut-off (null = no cut-off).
+            if let overdue = c.remittancesOverdueToday {
+                rows.append(.init(T.dashRemittancesOverdue, "\(overdue)", detail: c.remittanceCutoffHour.map(T.dashCutoff),
+                                  route: .overdueRemittances))
+            }
             for custodian in c.custodians {
                 let outstanding = T.dashCustodianLine(OwnerFormat.money(custodian.outstanding, currency: custodian.currency))
                 let transit = custodian.inTransitOut.value == 0 ? nil
@@ -217,7 +232,7 @@ public enum AccountabilityDashboard {
                 .init(T.dashSod, "\(a.segregationOfDuties)", detail: T.dashWindow(a.windowDays)),
             ], route: nil))
         }
-        if let h = s.customerHours {
+        if customerHours, let h = s.customerHours {
             var rows: [DashboardTile.Row] = [
                 .init(T.dashHoursActivated, hours(h["activated"])), .init(T.dashHoursConsumed, hours(h["consumed"])),
                 .init(T.dashHoursRemaining, hours(h["remaining"])), .init(T.dashHoursAwaiting, hours(h["awaiting_activation"])),
@@ -226,7 +241,7 @@ public enum AccountabilityDashboard {
             if let overruns = h["open_overruns"]?.intValue { rows.append(.init(T.dashOpenOverruns, "\(overruns)")) }
             out.append(DashboardTile(id: "customer_hours", title: T.dashCustomerHours, rows: rows, route: nil))
         }
-        if let h = s.hoursAwaitingActivation {
+        if customerHours, let h = s.hoursAwaitingActivation {
             out.append(DashboardTile(id: "hours_awaiting_activation", title: T.dashHoursAwaitingTile, rows: [
                 .init(T.dashHoursAwaiting, hours(h["hours"])),
                 .init(T.dashPurchasesAwaitingPayment, "\(h["purchases_awaiting_payment"]?.intValue ?? 0)"),

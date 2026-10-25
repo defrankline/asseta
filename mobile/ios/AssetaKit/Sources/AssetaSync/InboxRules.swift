@@ -1,3 +1,4 @@
+import AssetaModel
 import AssetaStore
 import Foundation
 
@@ -184,15 +185,40 @@ public enum JobFigures {
 public enum InboxLink: Sendable, Equatable {
     /// `machine`: a machine of mine (missing daily report, unexplained engine hours).
     case job(UUID), expense(UUID), money, machine(UUID), none
+    /// A transfer (`isFloat` false) or float sent to me: its answer when still waiting, else the Money tab.
+    case cashToAcknowledge(UUID, isFloat: Bool)
+    /// One of my requests to keep cash (its status).
+    case retention(UUID)
+
+    /// The exact record when the notification names one (`data.kind` + `record_id`), else its target.
+    public static func from(_ notification: NotificationDTO) -> InboxLink {
+        if let record = notification.dataRecord, let link = from(record: record) { return link }
+        return from(entity: notification.target?.entity, id: notification.target?.id)
+    }
+
+    /// The field app's screen of an accountability record; nil for kinds it does not show (the caller falls back).
+    public static func from(record: RecordRef) -> InboxLink? {
+        switch record.kind {
+        case .cashTransfer: .cashToAcknowledge(record.id, isFloat: false)
+        case .cashFloat: .cashToAcknowledge(record.id, isFloat: true)
+        case .cashRetention: .retention(record.id)
+        case .remittanceOverdue: .money
+        default: nil
+        }
+    }
 
     public static func from(entity: String?, id: String?) -> InboxLink {
+        if let record = RecordKind.resolve(kind: nil, recordID: nil, entity: entity, entityID: id),
+           let link = from(record: record) {
+            return link
+        }
         let uuid = id.flatMap(UUID.init(uuidString:))
         switch entity {
         case "job": return uuid.map(InboxLink.job) ?? .none
         case "expense": return uuid.map(InboxLink.expense) ?? .none
         case "staff_member", "cash_custody": return .money
         // Cash transfers and floats to acknowledge are answered on the Money tab.
-        case "cash_transfer", "supervisor_cash_custody": return .money
+        case "cash_transfer", "supervisor_cash_custody", "cash_remittance_overdue": return .money
         case "machine": return uuid.map(InboxLink.machine) ?? .none
         default: return .none
         }

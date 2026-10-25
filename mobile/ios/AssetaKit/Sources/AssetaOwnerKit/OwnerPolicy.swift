@@ -35,17 +35,26 @@ public struct OwnerFeatures: Equatable, Sendable {
     public let decisionKinds: [DecisionKind]
     /// The `/me` permission hints (decide permissions per decision kind).
     public let permissions: [String]
+    /// Tenant capabilities switched off by policy (`/me` `disabled_capabilities`): their entry points are hidden.
+    public let disabledCapabilities: Set<String>
+
+    /// Customer hours are in use (not switched off by the tenant's policy).
+    public var customerHours: Bool { !disabledCapabilities.contains(TenantCapability.customerHours) }
 
     /// The Approvals screen shows approval requests or at least one kind of accountability decision.
     public var approvalsScreen: Bool { approvals || !decisionKinds.isEmpty }
 
     public func canDecide(_ kind: DecisionKind) -> Bool { kind.decidable(permissions: permissions) }
 
-    public init(permissions: [String]) {
+    public init(permissions: [String], disabledCapabilities: [String] = []) {
         let set = Set(permissions)
+        let disabled = Set(disabledCapabilities)
         self.permissions = permissions
+        self.disabledCapabilities = disabled
         accountability = set.contains("tenant.accountability.read")
-        decisionKinds = DecisionKind.allCases.filter { $0.visible(permissions: permissions) }
+        decisionKinds = DecisionKind.allCases.filter {
+            $0.visible(permissions: permissions) && !($0.capability.map(disabled.contains) ?? false)
+        }
         fleet = set.contains("tenant.fleet.read")
         manageAlerts = set.contains("tenant.fleet.alert_manage")
         jobs = set.contains("tenant.job.read")
@@ -66,7 +75,9 @@ public struct OwnerFeatures: Equatable, Sendable {
         notifications = set.contains("tenant.notification.read")
     }
 
-    public init(_ tenant: TenantMembership) { self.init(permissions: tenant.permissions) }
+    public init(_ tenant: TenantMembership) {
+        self.init(permissions: tenant.permissions, disabledCapabilities: tenant.disabledCapabilities)
+    }
 }
 
 /// Why a mutation (alert action, approval decision, settings change) is not offered right now.

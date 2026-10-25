@@ -32,6 +32,14 @@ public enum OwnerRoute: Hashable, Sendable {
     case decision(DecisionKind, UUID)
     /// The accountability dashboard summary.
     case accountability
+    /// One cash transfer between custodians (read-only).
+    case cashTransfer(UUID)
+    /// One cash float issued to a custodian (read-only).
+    case cashFloat(UUID)
+    /// Today's overdue remittances (custodians still holding cash past the cut-off).
+    case overdueRemittances
+    /// One overdue-remittance flag (read-only).
+    case overdueRemittance(UUID)
 }
 
 /// A route plus the tenant it belongs to (a push may concern another company the user belongs to).
@@ -50,10 +58,35 @@ public struct DeepLink: Hashable, Sendable {
 /// Turns notification targets, console paths and APNs payloads into Owner routes. Anything not
 /// recognised falls back to the inbox; nothing is executed from a payload, it only navigates.
 public enum DeepLinkParser {
+    /// The screen of one accountability record (`kind` + `record_id`). Every kind has its own screen.
+    public static func route(record: RecordRef) -> OwnerRoute {
+        let id = record.id
+        switch record.kind {
+        case .cashTransfer: return .cashTransfer(id)
+        case .cashFloat: return .cashFloat(id)
+        case .cashVariance: return .decision(.writeOff, id)
+        case .cashRetention: return .decision(.retention, id)
+        case .custodyAdjustment: return .decision(.adjustment, id)
+        case .cashRemittance: return .handover(id)
+        case .remittanceOverdue: return .overdueRemittance(id)
+        case .hoursDiscount: return .decision(.discount, id)
+        case .hoursCredit: return .decision(.credit, id)
+        case .hoursTransfer: return .decision(.hoursTransfer, id)
+        case .hoursCancellation: return .decision(.cancellation, id)
+        case .meterBaseline: return .decision(.baseline, id)
+        case .meterCorrection: return .decision(.correction, id)
+        case .engineHoursClassification: return .decision(.classification, id)
+        }
+    }
+
     /// From a notification's `target` (`entity`, `id`, console `path`).
     public static func route(entity: String, id: String?, path: String?) -> OwnerRoute? {
         let uuid = id.flatMap(UUID.init(uuidString:))
+        if let record = RecordKind.resolve(kind: nil, recordID: nil, entity: entity, entityID: id) {
+            return route(record: record)
+        }
         switch (entity, uuid) {
+        case ("cash_remittance_overdue", nil): return .overdueRemittances
         case let ("machine", id?): return .machine(id)
         case let ("alert", id?): return .alert(id)
         case let ("approval", id?): return .approval(id)
@@ -78,11 +111,15 @@ public enum DeepLinkParser {
         case "CASH_VARIANCE_OPENED": .approvals
         case "HOURS_EXPIRING": .accountability
         case "CASH_TRANSFER_TO_ACKNOWLEDGE", "CASH_FLOAT_TO_ACKNOWLEDGE": .cash
+        case "REMITTANCE_OVERDUE": .overdueRemittances
         default: nil
         }
     }
 
+    /// The exact record when the notification names one (`data.kind`/`record_id`, else its target), then the fixed
+    /// screen of its type, then its target or link; anything else opens the inbox.
     public static func route(for notification: NotificationDTO) -> OwnerRoute {
+        if let record = notification.dataRecord { return route(record: record) }
         if let fixed = route(type: notification.type) { return fixed }
         guard let target = notification.target else { return .notifications }
         return route(entity: target.entity, id: target.id, path: target.path) ?? .notifications
@@ -114,7 +151,22 @@ public enum DeepLinkParser {
         case ("customer-discounts", nil), ("credit-arrangements", nil), ("hours-transfers", nil), ("hours-cancellations", nil),
              ("meter-baselines", nil), ("meter-corrections", nil):
             return .approvals
-        case ("hours", _): return .accountability
+        case ("hours", _):
+            // Web detail routes /tenant/hours/<discounts|credit|transfers|cancellations>/<id>.
+            if parts.count >= 4, let record = UUID(uuidString: parts[3]) {
+                switch parts[2] {
+                case "discounts": return .decision(.discount, record)
+                case "credit": return .decision(.credit, record)
+                case "transfers": return .decision(.hoursTransfer, record)
+                case "cancellations": return .decision(.cancellation, record)
+                default: break
+                }
+            }
+            return .accountability
+        case ("finance", _):
+            // Web cash detail routes /tenant/finance/cash/<segment>/<id> (and their lists).
+            guard parts.count >= 4, parts[2] == "cash" else { return nil }
+            return cashPath(parts[3], parts.count >= 5 ? UUID(uuidString: parts[4]) : nil)
         case ("engine-hours", _):
             if parts.count >= 4, parts[2] == "machines", let machine = UUID(uuidString: parts[3]) { return .machine(machine) }
             if parts.count >= 4, parts[2] == "classifications", let record = UUID(uuidString: parts[3]) {
@@ -123,8 +175,9 @@ public enum DeepLinkParser {
             return .approvals
         case ("cash", _):
             if parts.count >= 4, parts[2] == "handovers", let handover = UUID(uuidString: parts[3]) { return .handover(handover) }
-            if parts.count >= 3, parts[2] == "variances" { return .approvals }
-            return .cash
+            if parts.count >= 3, parts[2] == "handovers" { return .approvals }
+            guard parts.count >= 3 else { return .cash }
+            return cashPath(parts[2], parts.count >= 4 ? UUID(uuidString: parts[3]) : nil)
         case ("accountability", _): return .accountability
         case ("fleet", _):
             if parts.count >= 4, parts[2] == "machines", let machine = UUID(uuidString: parts[3]) {
@@ -139,6 +192,21 @@ public enum DeepLinkParser {
         }
     }
 
+    /// A cash custody segment (`transfers`, `floats`, `variances`, ...) with a record id; its list when there is none.
+    static func cashPath(_ segment: String, _ id: UUID?) -> OwnerRoute {
+        let kinds: [String: RecordKind] = [
+            "transfers": .cashTransfer, "floats": .cashFloat, "variances": .cashVariance, "retentions": .cashRetention,
+            "adjustments": .custodyAdjustment, "remittances": .cashRemittance, "remittance-overdue": .remittanceOverdue,
+        ]
+        let kind = kinds[segment]
+        if let kind, let id { return route(record: RecordRef(kind: kind, id: id)) }
+        switch kind {
+        case .cashTransfer, .cashFloat, nil: return .cash
+        case .remittanceOverdue: return .overdueRemittances
+        default: return .approvals
+        }
+    }
+
     /// From an APNs `userInfo` dictionary. The server's push `data` carries `notification_id`,
     /// `type`, `severity`, `tenant_id` and `link` (a console path, often without an id); when the
     /// link names no record, the notification itself is opened and resolved via its `target`.
@@ -149,6 +217,9 @@ public enum DeepLinkParser {
         }
         let tenant = string("tenant_id").flatMap(UUID.init(uuidString:))
         let notificationID = string("notification_id").flatMap(UUID.init(uuidString:))
+        if let record = RecordKind.resolve(kind: string("kind"), recordID: string("record_id"), entity: nil, entityID: nil) {
+            return DeepLink(tenantID: tenant, route: route(record: record), notificationID: notificationID)
+        }
         if let fixed = route(type: string("type")) {
             return DeepLink(tenantID: tenant, route: fixed, notificationID: notificationID)
         }
@@ -172,9 +243,10 @@ extension OwnerRoute {
     /// Whether the route opens one specific record (as opposed to a list).
     public var identifiesRecord: Bool {
         switch self {
-        case .machine, .alert, .approval, .investigation, .job, .meterReset, .handover, .exception, .notification, .decision: true
+        case .machine, .alert, .approval, .investigation, .job, .meterReset, .handover, .exception, .notification, .decision,
+             .cashTransfer, .cashFloat, .overdueRemittance: true
         case .fleet, .jobs, .investigations, .alerts, .approvals, .exceptions, .fieldSpend, .cash, .notifications,
-             .accountability: false
+             .accountability, .overdueRemittances: false
         }
     }
 }

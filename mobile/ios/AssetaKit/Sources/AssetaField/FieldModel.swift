@@ -116,7 +116,8 @@ public final class FieldModel {
         jobs = (try? services.directory.jobs()) ?? []
         overview = try? services.directory.overview()
         inbox = (try? services.inbox.snapshot()) ?? InboxSnapshot()
-        access = services.accountability.access(permissions: tenant.permissions)
+        access = services.accountability.access(permissions: tenant.permissions,
+                                                disabledCapabilities: tenant.disabledCapabilities)
         accountabilityTick += 1
         if notifications.isEmpty { notifications = services.online.cachedNotifications()?.items ?? [] }
     }

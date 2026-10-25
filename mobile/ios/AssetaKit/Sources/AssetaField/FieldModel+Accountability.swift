@@ -30,9 +30,11 @@ extension FieldModel {
             .map { PickerOption(id: $0.staffMemberID, title: $0.fullName, subtitle: $0.employeeCode) }
     }
 
-    func custodianName(_ id: UUID?) -> String {
+    /// The server's name for a custodian, else the saved custodian list, else the short id (names, not ids).
+    func custodianName(_ id: UUID?, server name: String? = nil) -> String {
+        if let name = name?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty { return name }
         guard let id else { return FieldAccountabilityTexts.ackSomeone }
-        return services?.accountability.custodians.first { $0.staffMemberID == id }?.fullName ?? FieldAccountabilityTexts.ackSomeone
+        return services?.accountability.custodians.first { $0.staffMemberID == id }?.fullName ?? DisplayName.shortID(id)
     }
 
     /// A machine's capture gate (policy snapshot, offline grant, trusted time).

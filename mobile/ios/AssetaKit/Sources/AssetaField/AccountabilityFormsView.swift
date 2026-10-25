@@ -419,7 +419,7 @@ struct CashAckFormView: View {
                         NoticeSection(title: title, message: unavailableMessage(a))
                     } else {
                         Section {
-                            Text(float != nil ? T.ackFloatFromOffice : T.ackTransferFrom(model.custodianName(transfer?.fromStaffID)))
+                            Text(float != nil ? T.ackFloatFromOffice : T.ackTransferFrom(model.custodianName(transfer?.fromStaffID, server: transfer?.fromStaffName)))
                                 .font(.headline)
                             LabeledContent(T.ackDeclared, value: InboxTexts.money(declared.description, currency))
                             LabeledContent(float != nil ? T.ackIssued : T.ackSent,
@@ -467,11 +467,15 @@ struct CashAckFormView: View {
     }
 }
 
-// MARK: - Ask to keep cash (online)
+// MARK: - Ask to keep cash (`CASH_RETENTION_REQUEST` offline when the server takes it, else online)
 
 struct RetentionFormView: View {
     let model: FieldModel
+    /// Opens the status screen of the request just saved (client id).
+    var viewStatus: (UUID) -> Void = { _ in }
     @Environment(\.dismiss) private var dismiss
+    /// One per form visit: the request's idempotency key (a replay returns the same request).
+    @State private var clientID = UUID()
     @State private var holderID: UUID?
     @State private var amount = ""
     @State private var currency = ""
@@ -479,6 +483,7 @@ struct RetentionFormView: View {
     @State private var reason = ""
     @State private var sending = false
     @State private var sent: String?
+    @State private var savedID: UUID?
     @State private var messages: [String] = []
 
     var body: some View {
@@ -509,11 +514,20 @@ struct RetentionFormView: View {
                         TextField(T.reason, text: $reason, axis: .vertical)
                     }
                     if let sent {
-                        Section { Text(sent).foregroundStyle(Brand.amber) }
+                        Section {
+                            Text(sent).foregroundStyle(Brand.amber)
+                            if let savedID {
+                                Button(T.retentionViewStatus) {
+                                    dismiss()
+                                    viewStatus(savedID)
+                                }
+                                .accessibilityIdentifier("retention.viewStatus")
+                            }
+                        }
                     } else {
                         Section {
                             ForEach(messages, id: \.self) { Text($0).foregroundStyle(Palette.offline) }
-                            Text(T.onlineOnly).font(.footnote).foregroundStyle(.secondary)
+                            if !a.retentionOffline { Text(T.onlineOnly).font(.footnote).foregroundStyle(.secondary) }
                         }
                     }
                 }
@@ -527,7 +541,7 @@ struct RetentionFormView: View {
                 if sent == nil {
                     ToolbarItem(placement: .confirmationAction) {
                         Button(T.send) { Task { await send() } }
-                            .disabled(!a.askToKeepCash || !check.isValid || sending || !model.isOnline)
+                            .disabled(!a.askToKeepCash || !check.isValid || sending || (!a.retentionOffline && !model.isOnline))
                     }
                 }
             }
@@ -535,18 +549,144 @@ struct RetentionFormView: View {
     }
 
     private func send() async {
+        let holder = holderID.flatMap { model.access.recordForOthers && $0 != model.myStaffID ? $0 : nil }
+        if model.access.retentionOffline {
+            // Queued in the outbox: works offline, sent with the next sync.
+            do {
+                try model.perform {
+                    try $0.requestRetention(amountText: amount, currency: currency, reason: reason, reasonID: reasonID,
+                                            staffMemberID: holder, validUntil: nil, clientID: clientID)
+                }
+                sent = T.retentionSaved
+                savedID = clientID
+                messages = []
+            } catch {
+                messages = [JobDetailView.describe(error)]
+            }
+            return
+        }
         guard let online = model.online else { return }
         sending = true
         defer { sending = false }
-        let holder = holderID.flatMap { model.access.recordForOthers && $0 != model.myStaffID ? $0 : nil }
         do {
-            _ = try await online.requestRetention(amountText: amount, currency: currency, reason: reason, reasonID: reasonID,
-                                                  staffMemberID: holder, validUntil: nil)
+            let created = try await online.requestRetention(amountText: amount, currency: currency, reason: reason,
+                                                            reasonID: reasonID, staffMemberID: holder, validUntil: nil)
             sent = T.retentionSent
+            savedID = created.id
             messages = []
+            model.refresh()
         } catch {
             messages = [AccountabilityErrors.message(error)]
         }
+    }
+}
+
+/// "Requests to keep cash" (Money → Transfers): this phone's retention requests, newest first.
+struct RetentionsSection: View {
+    let model: FieldModel
+
+    var body: some View {
+        let _ = model.accountabilityTick
+        let items = model.accountabilityData?.myRetentions() ?? []
+        if !items.isEmpty {
+            Section(T.moneyRetentions) {
+                ForEach(items) { item in
+                    NavigationLink(value: FieldRoute.retention(item.id)) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack {
+                                Text(InboxTexts.money(AccountabilityRules.plain(item.amount), item.currency ?? "")).font(.subheadline)
+                                Spacer()
+                                RetentionStatusView.pill(item)
+                            }
+                            Text(item.reason).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                            Text(item.at.listText).font(.caption).foregroundStyle(.secondary)
+                        }
+                        .accessibilityElement(children: .combine)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// "Request to keep cash": one request's status (the server's, read online by id; the sync state until it has it).
+struct RetentionStatusView: View {
+    let model: FieldModel
+    /// Client id (queued here) or server id (from a notification).
+    let id: UUID
+    @State private var loading = false
+    @State private var fetchFailed = false
+
+    private var item: RetentionItem? { model.accountabilityData?.myRetentions().first { $0.matches(id) } }
+
+    var body: some View {
+        let _ = model.accountabilityTick
+        List {
+            if let item {
+                Section {
+                    LabeledContent(T.amount, value: InboxTexts.money(AccountabilityRules.plain(item.amount), item.currency ?? ""))
+                    LabeledContent(T.retentionStatus) { Self.pill(item) }
+                    LabeledContent(T.retentionRequested, value: item.at.listText)
+                    if let until = item.validUntil { LabeledContent(T.retentionValidUntil, value: until.listText) }
+                    LabeledContent(T.reason, value: item.reason)
+                    if let name = item.decidedByName { LabeledContent(T.retentionDecidedBy, value: name) }
+                    if let note = item.decisionNote, !note.isEmpty { LabeledContent(T.retentionDecisionNote, value: note) }
+                }
+                Section {
+                    if item.serverID == nil {
+                        Text(item.syncStatus == .conflict || item.syncStatus == .failed
+                             ? (FieldAccountabilityTexts.conflictText(item.errorCode) ?? T.retentionNotSynced) : T.retentionNotSynced)
+                    } else if !model.isOnline || fetchFailed {
+                        Text(T.retentionOffline)
+                    }
+                }
+                .font(.footnote).foregroundStyle(.secondary)
+            } else if loading {
+                ProgressView().frame(maxWidth: .infinity)
+            } else {
+                ContentUnavailableView(T.titleRetentionStatus, systemImage: "hand.raised",
+                                       description: Text(model.isOnline ? T.retentionNotFound : T.retentionOffline))
+            }
+        }
+        .navigationTitle(T.titleRetentionStatus)
+        .refreshable { await load() }
+        .task { await load() }
+    }
+
+    /// Reads the request online by its server id (or by `id` when it is not on the phone: a notification's record).
+    private func load() async {
+        guard model.isOnline, let online = model.online else { return }
+        let known = item
+        guard let serverID = known?.serverID ?? (known == nil ? id : nil) else { return }
+        loading = true
+        defer { loading = false }
+        do {
+            try await online.refreshRetention(serverID)
+            fetchFailed = false
+            model.refresh()
+        } catch {
+            fetchFailed = true
+        }
+    }
+
+    static func status(_ item: RetentionItem) -> InboxStatus {
+        if let sync = item.syncStatus { return InboxStatusRules.local(sync) }
+        return switch item.status {
+        case "APPROVED": .approved
+        case "REJECTED": .rejected
+        default: .pendingApproval
+        }
+    }
+
+    static func statusText(_ item: RetentionItem) -> String? {
+        if item.syncStatus != nil { return nil }
+        return item.status.map(FieldAccountabilityTexts.retentionStatusText)
+    }
+
+    /// The sync state until the server has it, then the server's status in the strings-doc wording.
+    static func pill(_ item: RetentionItem) -> some View {
+        let status = status(item)
+        return Pill(text: statusText(item) ?? status.label, color: status.tone.color)
     }
 }
 
@@ -571,7 +711,7 @@ struct CashToAcknowledgeSection: View {
     var body: some View {
         let _ = model.accountabilityTick
         if model.access.acknowledgeCash, let pending = model.accountabilityData?.toAcknowledge(myStaffID: model.myStaffID) {
-            let rows = pending.transfers.map { (id: $0.id, isFloat: false, title: T.ackTransferFrom(model.custodianName($0.fromStaffID)),
+            let rows = pending.transfers.map { (id: $0.id, isFloat: false, title: T.ackTransferFrom(model.custodianName($0.fromStaffID, server: $0.fromStaffName)),
                                                 amount: $0.amountDeclared.description, currency: $0.currency, at: $0.transferredAt) }
                 + pending.floats.map { (id: $0.id, isFloat: true, title: T.ackFloatFromOffice, amount: $0.amount.description,
                                         currency: $0.currency, at: $0.occurredAt) }
@@ -617,7 +757,8 @@ struct TransfersSegment: View {
         let saved = model.accountabilityData?.transfers.items ?? []
         let server = saved.map { t -> Row in
             let outgoing = t.fromStaffID == me
-            let title = outgoing ? T.moneyTransferTo(model.custodianName(t.toStaffID)) : T.moneyTransferFrom(model.custodianName(t.fromStaffID))
+            let title = outgoing ? T.moneyTransferTo(model.custodianName(t.toStaffID, server: t.toStaffName))
+                : T.moneyTransferFrom(model.custodianName(t.fromStaffID, server: t.fromStaffName))
             let (status, text): (InboxStatus, String?) = switch t.status {
             case "ACKNOWLEDGED": (.accepted, T.moneyStatusAcknowledged)
             case "DISPUTED": (.rejected, T.moneyStatusDisputed)

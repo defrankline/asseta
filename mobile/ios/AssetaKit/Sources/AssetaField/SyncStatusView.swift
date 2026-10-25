@@ -93,7 +93,9 @@ struct SyncStatusView: View {
                         Text(item.operation.createdAtDevice.formatted(date: .abbreviated, time: .standard))
                             .font(.caption).foregroundStyle(.secondary)
                         if let code = item.operation.errorCode, status != .pending {
-                            Text("\(code): \(item.operation.lastError ?? "")").font(.caption).foregroundStyle(Palette.offline)
+                            // Plain words for the accountability conflicts (strings doc `field.conflict.*`).
+                            Text(FieldAccountabilityTexts.conflictText(code) ?? "\(code): \(item.operation.lastError ?? "")")
+                                .font(.caption).foregroundStyle(Palette.offline)
                         }
                         if let state = item.serverState { Text("Server state: \(state)").font(.caption.monospaced()) }
                         if let waiting = item.waitingFor { Text(waiting).font(.caption).foregroundStyle(.secondary) }

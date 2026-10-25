@@ -21,6 +21,10 @@ public struct PushOutcomeApplier: Sendable {
     static let conflictCodes: Set<String> = [
         "INVALID_JOB_TRANSITION", "READING_NOT_ALLOWED", "MACHINE_BUSY", "CAPTURE_ID_CONFLICT", "JOB_NOT_ACTIVE",
         "STALE_VERSION", "DUPLICATE_PAYMENT_REFERENCE",
+        // Accountability ops (same set as the server's sync CONFLICT_CODES).
+        "TRANSFER_ALREADY_DECIDED", "FLOAT_ALREADY_ACKNOWLEDGED", "NO_AVAILABLE_HOURS", "EXCEEDS_REMAINING_HOURS",
+        "BASELINE_REQUIRED", "OVERLAPPING_ALLOCATION", "OVERLAPPING_ACTIVITY", "BASELINE_PENDING", "CORRECTION_PENDING",
+        "RETENTION_NOT_ALLOWED", "DUPLICATE_RETENTION",
     ]
 
     let outbox: any ClientOperationRepository

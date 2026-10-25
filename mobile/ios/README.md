@@ -121,11 +121,21 @@ tables there are authoritative). Supervisor: `FieldAccess` shows an entry only w
 capability, `/me` has the permission and the tenant policy (CASH_CUSTODY / CUSTOMER_HOURS read online, cached encrypted
 in `sync_kv`) enables it; an unknown policy hides it. Offline ops: `HOURS_PURCHASE` (walk-in, cash holder, payment
 evidence uploads), `HOURS_TRANSFER_REQUEST`, `CASH_TRANSFER`, `CASH_TRANSFER_ACKNOWLEDGEMENT`,
-`CASH_FLOAT_ACKNOWLEDGEMENT`, `METER_CAPTURE` kind DAILY (job_id null), `METER_BASELINE`, `METER_CORRECTION`. "Ask to keep
-cash" is online only. Owner: Approvals sections per decision kind (shown when the role may read it and something waits),
-one decision screen (own proposal cannot be decided), More → Accountability dashboard, remittance confirm with "Amount
-received", deep links for the new notification types (`AccountabilityDecisions.swift`, `AccountabilitySummary.swift`,
-`DeepLink.swift`).
+`CASH_FLOAT_ACKNOWLEDGEMENT`, `METER_CAPTURE` kind DAILY (job_id null), `METER_BASELINE`, `METER_CORRECTION`,
+`CASH_RETENTION_REQUEST` ("Ask to keep cash", `client_id` = the form visit; when the server lacks
+`OP_CASH_RETENTION_REQUEST` the old online request is used). Owner: Approvals sections per decision kind (shown when the
+role may read it and something waits), one decision screen (own proposal cannot be decided), More → Accountability
+dashboard, remittance confirm with "Amount received", deep links for the new notification types
+(`AccountabilityDecisions.swift`, `AccountabilitySummary.swift`, `DeepLink.swift`).
+
+Gap pass (strings doc "Gap pass"): `/me` `tenants[].disabled_capabilities` hides customer-hours entry points in both apps
+(`FieldAccess.customerHoursOn`, `OwnerFeatures.customerHours`); every accountability DTO decodes the nullable `*_name`
+fields and screens show names, else the first 8 characters of the id (`DisplayName`); Money → Transfers lists "Requests
+to keep cash" with a status screen read online by id (`AccountabilityDirectory.myRetentions`,
+`SupervisorOnline.refreshRetention`); `RETENTION_NOT_ALLOWED` / `DUPLICATE_RETENTION` conflicts read in plain words; the
+Owner dashboard cash tile shows "Remittances overdue today" when the tenant has a cut-off and opens Overdue remittances
+(`CashRecords.swift`); push and inbox taps open the exact record from `kind` + `record_id` (`RecordKind`), decision and
+handover screens read their record by id, and unknown kinds fall back as before.
 
 ## Gate 7: Owner app (`AssetaOwner`, `com.asseta.owner`)
 

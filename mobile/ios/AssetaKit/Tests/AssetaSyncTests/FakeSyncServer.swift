@@ -38,6 +38,8 @@ final class FakeSyncServer: @unchecked Sendable {
     var capabilities: [String]? = ["SUPERVISOR_INBOX_V1", "OP_METER_RESET_REQUEST", "OP_JOB_REQUEST"]
     /// Supervisor inbox lists sent with every bootstrap/changes (`my_expenses` → rows); empty: not sent.
     var inbox: [String: [[String: Any]]] = [:]
+    /// The tenant's `cash.retention_allowed` (false: CASH_RETENTION_REQUEST is a RETENTION_NOT_ALLOWED conflict).
+    var retentionAllowed = true
     /// Meter reset requests received (payload by server id), resolved like the server's MeterResetOp.
     private(set) var resets: [UUID: [String: Any]] = [:]
 
@@ -206,6 +208,31 @@ final class FakeSyncServer: @unchecked Sendable {
             let error: [String: Any] = ["code": "NOT_FOUND", "message": "Photo attachment not found"]
             stored[id] = StoredOp(status: "REJECTED", result: ["error": error], error: error)
             return ["id": id.uuidString.lowercased(), "status": "REJECTED", "result": ["error": error], "error": error]
+        }
+        if op["op_type"] as? String == "CASH_RETENTION_REQUEST" {
+            // Mirrors push.py + CashCustodyControls.request_retention: client_id required; policy off is a conflict.
+            guard let clientID = payload["client_id"] as? String else {
+                let error: [String: Any] = ["code": "VALIDATION_FAILED", "message": "client_id: required"]
+                stored[id] = StoredOp(status: "REJECTED", result: ["error": error], error: error)
+                return ["id": id.uuidString.lowercased(), "status": "REJECTED", "result": ["error": error], "error": error]
+            }
+            if !retentionAllowed {
+                let error: [String: Any] = ["code": "RETENTION_NOT_ALLOWED", "message": "Retention is not allowed"]
+                stored[id] = StoredOp(status: "CONFLICT", result: ["error": error], error: error)
+                return ["id": id.uuidString.lowercased(), "status": "CONFLICT", "result": ["error": error], "error": error]
+            }
+            let entity: [String: Any] = [
+                "id": UUID().uuidString.lowercased(), "client_id": clientID,
+                "staff_member_id": payload["staff_member_id"] ?? "dddddddd-0000-4000-8000-00000000000d",
+                "staff_member_name": "Juma Field", "amount": payload["amount"] ?? "0", "currency": payload["currency"] ?? "TZS",
+                "reason_id": payload["reason_id"] ?? NSNull(), "reason": payload["reason"] ?? "", "valid_until": NSNull(),
+                "status": "PENDING", "created_by": NSNull(), "created_by_name": "Juma Field", "created_at": iso(serverTime),
+                "decided_by": NSNull(), "decided_by_name": NSNull(), "decided_at": NSNull(), "decision_note": NSNull()]
+            let result: [String: Any] = ["entity": entity]
+            stored[id] = StoredOp(status: "ACKED", result: result, error: nil)
+            appliedPayloads[id] = payload
+            applyOrder.append(id)
+            return ["id": id.uuidString.lowercased(), "status": "ACKED", "result": result, "error": NSNull()]
         }
         if op["op_type"] as? String == "JOB_REQUEST" {
             // Mirrors JobService.request_job: client_id becomes the job id, numbered by the server, PENDING_APPROVAL.

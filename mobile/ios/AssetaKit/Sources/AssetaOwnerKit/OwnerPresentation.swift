@@ -155,7 +155,7 @@ extension OwnerFeatures {
         case .accountability: accountability
         case .exceptions, .meterReset, .exception: meterEvidence
         case .fieldSpend: expenses
-        case .cash, .handover: finance
+        case .cash, .handover, .cashTransfer, .cashFloat, .overdueRemittances, .overdueRemittance: finance
         case .investigations, .investigation: cases
         case .notifications, .notification: notifications
         }

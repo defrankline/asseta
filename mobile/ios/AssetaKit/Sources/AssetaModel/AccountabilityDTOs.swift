@@ -14,6 +14,8 @@ extension SyncCapability {
     public static let meterDailyReading = "METER_DAILY_READING"
     public static let meterBaseline = "OP_METER_BASELINE"
     public static let meterCorrection = "OP_METER_CORRECTION"
+    /// `CASH_RETENTION_REQUEST` (ask to keep cash, queued offline; decided by another person).
+    public static let cashRetentionRequest = "OP_CASH_RETENTION_REQUEST"
 }
 
 // MARK: - Operation payloads
@@ -214,8 +216,11 @@ public struct MeterCorrectionPayload: Codable, Hashable, Sendable {
     enum CodingKeys: String, CodingKey { case reason, replacement, supersededCaptureID = "superseded_capture_id" }
 }
 
-/// `CashRetentionIn`: ask to keep some cash instead of remitting it (online; decided by another person).
+/// `CashRetentionIn`: ask to keep some cash instead of remitting it (decided by another person). Online it is a
+/// `POST /cash/retentions`; offline it is the `CASH_RETENTION_REQUEST` payload, where `client_id` is required and makes
+/// a replay return the same request.
 public struct CashRetentionIn: Codable, Hashable, Sendable {
+    public let clientID: UUID?
     public let amount: DecimalString
     public let currency: String?
     public let reason: String
@@ -223,7 +228,9 @@ public struct CashRetentionIn: Codable, Hashable, Sendable {
     public let staffMemberID: UUID?
     public let validUntil: Date?
 
-    public init(amount: Decimal, currency: String?, reason: String, reasonID: UUID?, staffMemberID: UUID?, validUntil: Date?) {
+    public init(amount: Decimal, currency: String?, reason: String, reasonID: UUID?, staffMemberID: UUID?, validUntil: Date?,
+                clientID: UUID? = nil) {
+        self.clientID = clientID
         self.reasonID = reasonID
         self.validUntil = validUntil
         self.amount = DecimalString(amount)
@@ -234,6 +241,7 @@ public struct CashRetentionIn: Codable, Hashable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case amount, currency, reason, reasonID = "reason_id", staffMemberID = "staff_member_id", validUntil = "valid_until"
+        case clientID = "client_id"
     }
 }
 
@@ -285,8 +293,15 @@ public struct CashTransferDTO: Codable, Hashable, Sendable, Identifiable {
     public let acknowledgedAt: Date?
     public let ackNote: String?
     public let varianceID: UUID?
+    // Display names beside the ids (nullable; show the short id only when missing).
+    public let fromStaffName: String?
+    public let toStaffName: String?
+    public let recordedByName: String?
+    public let acknowledgedByName: String?
 
     enum CodingKeys: String, CodingKey {
+        case fromStaffName = "from_staff_name", toStaffName = "to_staff_name", recordedByName = "recorded_by_name"
+        case acknowledgedByName = "acknowledged_by_name"
         case id, currency, note, status, source, clientID = "client_id", fromStaffID = "from_staff_id"
         case toStaffID = "to_staff_id", amountDeclared = "amount_declared", transferredAt = "transferred_at"
         case recordedBy = "recorded_by", recordedAt = "recorded_at", amountReceived = "amount_received"
@@ -309,8 +324,12 @@ public struct CashFloatDTO: Codable, Hashable, Sendable, Identifiable {
     public let ackStatus: String?
     public let amountReceived: DecimalString?
     public let acknowledgedAt: Date?
+    public let staffMemberName: String?
+    public let createdByName: String?
+    public let acknowledgedByName: String?
 
     enum CodingKeys: String, CodingKey {
+        case staffMemberName = "staff_member_name", createdByName = "created_by_name", acknowledgedByName = "acknowledged_by_name"
         case id, amount, currency, reference, note, staffMemberID = "staff_member_id", entryType = "entry_type"
         case occurredAt = "occurred_at", ackRequired = "ack_required", ackStatus = "ack_status"
         case amountReceived = "amount_received", acknowledgedAt = "acknowledged_at"
@@ -332,8 +351,15 @@ public struct CashRetentionDTO: Codable, Hashable, Sendable, Identifiable {
     public let decidedBy: UUID?
     public let decidedAt: Date?
     public let decisionNote: String?
+    /// The device's client id when it was asked from the app (offline idempotency).
+    public let clientID: UUID?
+    public let staffMemberName: String?
+    public let createdByName: String?
+    public let decidedByName: String?
 
     enum CodingKeys: String, CodingKey {
+        case clientID = "client_id", staffMemberName = "staff_member_name", createdByName = "created_by_name"
+        case decidedByName = "decided_by_name"
         case id, amount, currency, reason, status, staffMemberID = "staff_member_id", reasonID = "reason_id"
         case validUntil = "valid_until", createdBy = "created_by", createdAt = "created_at", decidedBy = "decided_by"
         case decidedAt = "decided_at", decisionNote = "decision_note"
@@ -348,6 +374,10 @@ public struct HoursPurchaseDTO: Codable, Hashable, Sendable, Identifiable {
     public let customerID: UUID
     public let customerName: String?
     public let machineID: UUID
+    public let machineCode: String?
+    public let machineName: String?
+    public let jobSiteName: String?
+    public let createdByName: String?
     public let hours: DecimalString
     public let currency: String
     public let amount: DecimalString
@@ -382,6 +412,8 @@ public struct HoursPurchaseDTO: Codable, Hashable, Sendable, Identifiable {
     enum CodingKeys: String, CodingKey {
         case id, hours, currency, amount, status, totals, machines, purchaseNumber = "purchase_number", clientID = "client_id"
         case customerID = "customer_id", customerName = "customer_name", machineID = "machine_id", createdAt = "created_at"
+        case machineCode = "machine_code", machineName = "machine_name", jobSiteName = "job_site_name"
+        case createdByName = "created_by_name"
     }
 }
 
@@ -464,4 +496,27 @@ public struct CashReasonDTO: Codable, Hashable, Sendable, Identifiable {
     public let isActive: Bool
 
     enum CodingKeys: String, CodingKey { case id, kind, label, description, isActive = "is_active" }
+}
+
+/// A display name from the server, else a short form of the id ("3f2a9c1e"), never empty.
+public enum DisplayName {
+    public static func or(_ name: String?, id: UUID?) -> String {
+        if let name = name?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty { return name }
+        return id.map(shortID) ?? "—"
+    }
+
+    /// The name, else the short id, else nil (a missing person or record is left out).
+    public static func optional(_ name: String?, id: UUID?) -> String? {
+        if let name = name?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty { return name }
+        return id.map(shortID)
+    }
+
+    /// "CODE · Name" for a machine (either part may be missing), else the short id.
+    public static func machine(code: String?, name: String?, id: UUID?) -> String {
+        let parts = [code, name].compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        return parts.isEmpty ? (id.map(shortID) ?? "—") : parts.joined(separator: " · ")
+    }
+
+    /// The first 8 characters of the id, lower case.
+    public static func shortID(_ id: UUID) -> String { String(id.uuidString.lowercased().prefix(8)) }
 }

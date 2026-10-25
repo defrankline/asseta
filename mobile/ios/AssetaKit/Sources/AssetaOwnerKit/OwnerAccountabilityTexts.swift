@@ -97,6 +97,38 @@ public enum OwnerAccountabilityTexts {
     public static let fieldSource = "Source"
     public static let fieldCaptured = "Captured" // owner.field.captured
     public static let fieldWhen = "When" // owner.field.when
+    // Gap pass (names, records, overdue remittances)
+    public static let fieldCustomer = "Customer" // owner.field.customer
+    public static let fieldPurchase = "Purchase" // owner.field.purchase
+    public static let fieldJob = "Job" // owner.field.job
+    public static let fieldCustodian = "Cash held by" // owner.field.custodian
+    public static let fieldCounterparty = "Other custodian" // owner.field.counterparty
+    public static let fieldRequestedBy = "Requested by" // owner.field.requestedBy
+    public static let fieldDecidedBy = "Decided by" // owner.field.decidedBy
+    public static let fieldDecisionNote = "Decision note" // owner.field.decisionNote
+    public static let fieldFrom = "From" // owner.field.from
+    public static let fieldTo = "To" // owner.field.to
+    public static let fieldRecordedBy = "Recorded by" // owner.field.recordedBy
+    public static let fieldAcknowledgedBy = "Acknowledged by" // owner.field.acknowledgedBy
+    public static let fieldTransferred = "Transferred" // owner.field.transferred
+    public static let fieldIssued = "Issued" // owner.field.issued
+    public static let fieldDay = "Day" // owner.field.day
+    public static let fieldCutoff = "Cut-off" // owner.field.cutoff
+    public static let fieldNotRemitted = "Not remitted" // owner.field.notRemitted
+    public static let fieldFlagged = "Flagged" // owner.field.flagged
+    public static func approvalsProposedBy(_ time: String, _ name: String) -> String { "Proposed \(time) by \(name)" } // owner.approvals.proposedBy
+    public static let recordTransferTitle = "Cash transfer" // owner.record.transferTitle
+    public static let recordFloatTitle = "Cash float" // owner.record.floatTitle
+    public static let recordNotFoundTitle = "Record not found" // owner.record.notFoundTitle
+    public static let recordNotFoundMessage = "It may have been removed, or you may not have access to it." // owner.record.notFoundMessage
+    public static let overdueTitle = "Overdue remittances" // owner.overdue.title
+    public static let overdueDetailTitle = "Overdue remittance" // owner.overdue.detailTitle
+    public static let overdueEmpty = "No overdue remittances today." // owner.overdue.empty
+    /// "Still held after the 18:00 cut-off on 2026-10-25." (`hour` two digits).
+    public static func overdueLine(hour: Int, day: String) -> String { // owner.overdue.line
+        "Still held after the \(twoDigits(hour)):00 cut-off on \(day)."
+    }
+    static func twoDigits(_ hour: Int) -> String { hour < 10 ? "0\(hour)" : "\(hour)" }
 
     public static func outcome(_ raw: String) -> String {
         switch raw {
@@ -169,6 +201,8 @@ public enum OwnerAccountabilityTexts {
     public static func dashMissingLine(machine: String, day: String) -> String { "\(machine) · \(day)" }
     public static func dashCount(_ count: Int, _ money: String) -> String { "\(count) · \(money)" }
     public static let dashNone = "None"
+    public static let dashRemittancesOverdue = "Remittances overdue today" // owner.dash.remittancesOverdue
+    public static func dashCutoff(_ hour: Int) -> String { "Cut-off \(twoDigits(hour)):00" } // owner.dash.cutoff
 
     /// Engine-hour reconciliation statuses with their dashboard labels (unknown ones humanized).
     public static func engineStatus(_ raw: String) -> String {

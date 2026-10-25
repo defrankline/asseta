@@ -131,6 +131,11 @@ public struct OwnerRootView: View {
             target = .more; path.append(MoreItem.fieldSpend)
         case .cash where model.features.finance:
             target = .more; path.append(MoreItem.cash)
+        case .cashTransfer where model.features.finance, .cashFloat where model.features.finance,
+             .overdueRemittances where model.features.finance:
+            target = .more; path.append(MoreItem.cash); path.append(route)
+        case .overdueRemittance where model.features.finance:
+            target = .more; path.append(MoreItem.cash); path.append(OwnerRoute.overdueRemittances); path.append(route)
         case .investigation:
             target = .more; path.append(MoreItem.investigations); path.append(route)
         case .notification:
@@ -170,6 +175,10 @@ struct RouteView: View {
         case .investigations: CasesView(model: model)
         case let .decision(kind, id): DecisionDetailView(model: model, kind: kind, recordID: id)
         case .accountability: AccountabilityDashboardView(model: model)
+        case let .cashTransfer(id): CashTransferRecordView(model: model, transferID: id)
+        case let .cashFloat(id): CashFloatRecordView(model: model, floatID: id)
+        case .overdueRemittances: OverdueRemittancesView(model: model)
+        case let .overdueRemittance(id): OverdueRemittanceView(model: model, overdueID: id)
         }
     }
 }

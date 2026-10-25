@@ -8,6 +8,8 @@ import SwiftUI
 enum FieldRoute: Hashable {
     case job(UUID), reading(UUID), machine(UUID), resetDetail(UUID), fuel(UUID), expense(UUID)
     case cash(UUID, collection: Bool), notification(UUID), syncStatus
+    /// A request to keep cash (client id or server id).
+    case retention(UUID)
 }
 
 /// Forms presented as sheets (Cancel / Save), as before.
@@ -95,7 +97,7 @@ public struct FieldRootView: View {
             case .hoursSale: HoursSaleFormView(model: model)
             case .hoursTransfer: HoursTransferFormView(model: model)
             case .cashTransfer: CashTransferFormView(model: model)
-            case .retention: RetentionFormView(model: model)
+            case .retention: RetentionFormView(model: model) { id in openOnMoney(.retention(id)) }
             case let .cashAck(id, isFloat): CashAckFormView(model: model, targetID: id, isFloat: isFloat)
             case let .capture(target, snapshot): MeterCaptureView(model: model, target: target, snapshot: snapshot)
             }
@@ -164,6 +166,7 @@ public struct FieldRootView: View {
         case let .cash(id, collection): CashDetailView(model: model, id: id, collection: collection, record: { sheet = $0 })
         case let .notification(id): NotificationDetailView(notification: model.notifications.first { $0.id == id })
         case .syncStatus: SyncStatusView(model: model)
+        case let .retention(id): RetentionStatusView(model: model, id: id)
         }
     }
 
@@ -247,14 +250,33 @@ public struct FieldRootView: View {
     /// Opens what a notification is about (marking it read), or its own detail when it points nowhere on the phone.
     private func openNotification(_ notification: NotificationDTO) {
         Task { await model.markRead(notification) }
-        switch InboxLink.from(entity: notification.target?.entity, id: notification.target?.id) {
+        follow(InboxLink.from(notification), notificationID: notification.id)
+    }
+
+    /// Opens a notification's subject; `notificationID` is the fallback detail (nil: the Inbox list).
+    private func follow(_ link: InboxLink, notificationID: UUID?) {
+        func fallback() { if let notificationID { open(.notification(notificationID)) } }
+        switch link {
         case let .job(id): open(.job(id))
         case let .expense(id): open(.expense(model.inbox.expenses.first { $0.serverID == id }?.id ?? id))
         case .money: tab = .money
         case let .machine(id):
-            if model.inbox.machines[id] != nil { open(.machine(id)) } else { open(.notification(notification.id)) }
-        case .none: open(.notification(notification.id))
+            if model.inbox.machines[id] != nil { open(.machine(id)) } else { fallback() }
+        case let .cashToAcknowledge(id, isFloat):
+            // The answer screen while it still waits for me, else the Money tab.
+            tab = .money
+            let waiting = model.accountabilityData?.toAcknowledge(myStaffID: model.myStaffID)
+            let pending = isFloat ? waiting?.floats.contains { $0.id == id } : waiting?.transfers.contains { $0.id == id }
+            if pending == true && model.access.acknowledgeCash { sheet = .cashAck(id, isFloat: isFloat) }
+        case let .retention(id): openOnMoney(.retention(id))
+        case .none: fallback()
         }
+    }
+
+    /// Shows `route` on the Money tab (its first screen underneath).
+    private func openOnMoney(_ route: FieldRoute) {
+        tab = .money
+        paths[.money] = [route]
     }
 
     /// A tapped push: the Inbox tab, then that notification's detail when the Inbox has it.
@@ -265,7 +287,11 @@ public struct FieldRootView: View {
         paths[.inbox] = []
         Task {
             await model.refreshNotifications()
-            guard let id = tap.notificationID, let notification = model.notifications.first(where: { $0.id == id }) else { return }
+            guard let id = tap.notificationID, let notification = model.notifications.first(where: { $0.id == id }) else {
+                // Not in the Inbox (yet): the exact record the push names, when the app shows that kind.
+                if let record = tap.record, let link = InboxLink.from(record: record) { follow(link, notificationID: nil) }
+                return
+            }
             // Exactly what tapping that notification in the Inbox does (its subject, else its detail).
             openNotification(notification)
         }

@@ -55,10 +55,31 @@ public struct AccountabilityDirectory: Sendable {
     }
     public var retentions: [CashRetentionDTO] { SavedOnline<[CashRetentionDTO]>.read(store, tenantID, AccountabilityKey.retentions)?.value ?? [] }
 
-    public func access(permissions: [String]) -> FieldAccess {
+    /// My requests to keep cash, newest first: the server's copies (last online read) merged with the requests this
+    /// phone queued (`CASH_RETENTION_REQUEST`), matched by client id. A queued one shows its sync state until the
+    /// server has it; an acknowledged one shows the server's status.
+    public func myRetentions() -> [RetentionItem] {
+        let server = retentions
+        var items: [RetentionItem] = []
+        var seen = Set<UUID>()
+        let ops = (try? store.outbox.operations(tenantID: tenantID, owner: owner?.subject,
+                                                statuses: Set(ClientOperationStatus.allCases))) ?? []
+        for op in ops where op.opType == OperationType.cashRetentionRequest.rawValue {
+            guard let payload = try? JSONValue.parse(op.payloadJSON).decode(as: CashRetentionIn.self) else { continue }
+            let acked = Self.ackedEntity(op).flatMap { try? $0.decode(as: CashRetentionDTO.self) }
+            let dto = server.first { $0.clientID == op.entityID || $0.id == acked?.id } ?? acked
+            if let dto { seen.insert(dto.id) }
+            items.append(RetentionItem(local: op, payload: payload, server: dto))
+        }
+        items += server.filter { !seen.contains($0.id) }.map(RetentionItem.init(server:))
+        return items.sorted { $0.at > $1.at }
+    }
+
+    public func access(permissions: [String], disabledCapabilities: [String] = []) -> FieldAccess {
         let capabilities = (try? store.syncState.value(SyncKey.capabilities, tenant: tenantID.uuidString.lowercased()))
             .map { Set($0.split(separator: ",").map(String.init)) }
-        return FieldAccess(capabilities: capabilities, permissions: Set(permissions), cash: cashPolicy, hours: hoursPolicy?.value)
+        return FieldAccess(capabilities: capabilities, permissions: Set(permissions), cash: cashPolicy, hours: hoursPolicy?.value,
+                           disabledCapabilities: Set(disabledCapabilities))
     }
 
     public var transferReasons: [ReasonCodeDTO] {
@@ -92,6 +113,12 @@ public struct AccountabilityDirectory: Sendable {
         return (pendingTransfers, pendingFloats, transfers?.fetchedAt ?? floats?.fetchedAt)
     }
 
+    /// The server entity an acknowledged operation returned (stored as `{status, result: {entity}}`).
+    static func ackedEntity(_ op: ClientOperation) -> JSONValue? {
+        guard let value = op.serverResultJSON.flatMap({ try? JSONValue.parse($0) }) else { return nil }
+        return value["result"]?["entity"] ?? value["entity"]
+    }
+
     /// Hours purchases a transfer may draw from: the office list when this user may read it, plus the purchases this
     /// phone recorded (acknowledged by the server).
     public func purchases() -> [HoursPurchaseDTO] {
@@ -99,7 +126,7 @@ public struct AccountabilityDirectory: Sendable {
         for p in SavedOnline<[HoursPurchaseDTO]>.read(store, tenantID, AccountabilityKey.purchases)?.value ?? [] { byID[p.id] = p }
         let ops = (try? store.outbox.operations(tenantID: tenantID, owner: owner?.subject, statuses: [.acked])) ?? []
         for op in ops where op.opType == OperationType.hoursPurchase.rawValue {
-            guard let entity = op.serverResultJSON.flatMap({ try? JSONValue.parse($0) })?["entity"],
+            guard let entity = Self.ackedEntity(op),
                   let dto = try? entity.decode(as: HoursPurchaseDTO.self), byID[dto.id] == nil else { continue }
             byID[dto.id] = dto
         }
@@ -148,7 +175,20 @@ extension SupervisorOnline {
         }
     }
 
-    /// Asks to keep some cash instead of remitting it (online only; someone else decides). Throws
+    /// Re-reads one of my retention requests (`GET /cash/retentions/{id}`) and saves it with the others.
+    @discardableResult
+    public func refreshRetention(_ id: UUID) async throws -> CashRetentionDTO {
+        let dto = try await client.send(APIRequest<CashRetentionDTO>.get("\(Self.tenant)/cash/retentions/\(id.lowercased)"))
+        let saved = SavedOnline<[CashRetentionDTO]>.read(store, tenantID, AccountabilityKey.retentions)?.value ?? []
+        let merged = saved.contains { $0.id == dto.id } ? saved.map { $0.id == dto.id ? dto : $0 } : [dto] + saved
+        try? SavedOnline.write(SavedOnline(value: merged, forbidden: false, fetchedAt: now()), store, tenantID,
+                               AccountabilityKey.retentions)
+        return dto
+    }
+
+    /// Asks to keep some cash instead of remitting it, online (servers that do not take `CASH_RETENTION_REQUEST`
+    /// yet; otherwise ``FieldRecorder/requestRetention(amountText:currency:reason:reasonID:staffMemberID:validUntil:at:clientID:)``
+    /// queues it). Someone else decides. Throws
     /// ``FieldRecorderError/invalid(_:)`` with every form problem, or the server's ``APIError``.
     public func requestRetention(amountText: String, currency: String, reason: String, reasonID: UUID?,
                                  staffMemberID: UUID?, validUntil: Date?) async throws -> CashRetentionDTO {
@@ -158,7 +198,7 @@ extension SupervisorOnline {
         case let .success(checked): values = checked
         }
         let body = CashRetentionIn(amount: values.amount, currency: values.currency, reason: values.reason, reasonID: reasonID,
-                                   staffMemberID: staffMemberID, validUntil: validUntil)
+                                   staffMemberID: staffMemberID, validUntil: validUntil, clientID: UUID())
         let created = try await client.send(try APIRequest<CashRetentionDTO>.mutation(
             .post, "\(Self.tenant)/cash/retentions", body: body, idempotencyKey: UUID()))
         let saved = SavedOnline<[CashRetentionDTO]>.read(store, tenantID, AccountabilityKey.retentions)?.value ?? []
@@ -183,4 +223,56 @@ extension SupervisorOnline {
     static func page(_ size: Int) -> [URLQueryItem] {
         [URLQueryItem(name: "page", value: "1"), URLQueryItem(name: "page_size", value: String(size))]
     }
+}
+
+/// One request to keep cash as the field app lists it (server copy and/or the queued operation).
+public struct RetentionItem: Identifiable, Sendable, Equatable {
+    /// The client id when queued on this phone, else the server id.
+    public let id: UUID
+    public let serverID: UUID?
+    public let amount: Decimal
+    public let currency: String?
+    public let reason: String
+    public let validUntil: Date?
+    public let at: Date
+    /// Server status (`PENDING`, `APPROVED`, `REJECTED`, ...) once the server has it.
+    public let status: String?
+    public let decisionNote: String?
+    public let decidedByName: String?
+    /// The outbox state while it is not yet acknowledged (nil = from the server).
+    public let syncStatus: ClientOperationStatus?
+    public let errorCode: String?
+
+    init(local op: ClientOperation, payload: CashRetentionIn, server: CashRetentionDTO?) {
+        id = op.entityID
+        serverID = server?.id
+        amount = server?.amount.value ?? payload.amount.value
+        currency = server?.currency ?? payload.currency
+        reason = server?.reason ?? payload.reason
+        validUntil = server?.validUntil ?? payload.validUntil
+        at = server?.createdAt ?? op.createdAtDevice
+        status = server?.status
+        decisionNote = server?.decisionNote
+        decidedByName = server?.decidedByName
+        syncStatus = op.status == .acked ? nil : op.status
+        errorCode = op.errorCode
+    }
+
+    init(server: CashRetentionDTO) {
+        id = server.id
+        serverID = server.id
+        amount = server.amount.value
+        currency = server.currency
+        reason = server.reason
+        validUntil = server.validUntil
+        at = server.createdAt
+        status = server.status
+        decisionNote = server.decisionNote
+        decidedByName = server.decidedByName
+        syncStatus = nil
+        errorCode = nil
+    }
+
+    /// Whether `id` names this request (client id or server id; push links carry the server id).
+    public func matches(_ id: UUID) -> Bool { self.id == id || serverID == id }
 }

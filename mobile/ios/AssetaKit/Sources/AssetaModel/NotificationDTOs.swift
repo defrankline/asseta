@@ -203,3 +203,91 @@ public enum RealtimeEvent: Hashable, Sendable {
         }
     }
 }
+
+// MARK: - Exact-record links (DEC-030 G5)
+
+/// The accountability record a notification is about. The server puts `kind` + `record_id` in the notification
+/// `data` and in the push payload; older notifications only have `target.entity` + `target.id`, mapped here the same
+/// way as the server's `RECORDS` table. Unknown kinds are nil, so the apps fall back to the list.
+public enum RecordKind: String, CaseIterable, Sendable, Hashable {
+    case cashTransfer = "CASH_TRANSFER"
+    case cashFloat = "CASH_FLOAT"
+    case cashVariance = "CASH_VARIANCE"
+    case cashRetention = "CASH_RETENTION"
+    case custodyAdjustment = "CUSTODY_ADJUSTMENT"
+    case cashRemittance = "CASH_REMITTANCE"
+    case remittanceOverdue = "REMITTANCE_OVERDUE"
+    case hoursDiscount = "HOURS_DISCOUNT"
+    case hoursCredit = "HOURS_CREDIT"
+    case hoursTransfer = "HOURS_TRANSFER"
+    case hoursCancellation = "HOURS_CANCELLATION"
+    case meterBaseline = "METER_BASELINE"
+    case meterCorrection = "METER_CORRECTION"
+    case engineHoursClassification = "ENGINE_HOURS_CLASSIFICATION"
+
+    /// From a notification target entity (`cash_transfer`, `supervisor_cash_custody`, `baseline`, ...).
+    public init?(entity: String?) {
+        switch entity {
+        case "cash_transfer": self = .cashTransfer
+        case "supervisor_cash_custody", "cash_float": self = .cashFloat
+        case "cash_variance": self = .cashVariance
+        case "cash_retention": self = .cashRetention
+        case "custody_adjustment": self = .custodyAdjustment
+        case "cash_handover": self = .cashRemittance
+        case "cash_remittance_overdue": self = .remittanceOverdue
+        case "customer_discount": self = .hoursDiscount
+        case "credit_arrangement": self = .hoursCredit
+        case "hours_transfer": self = .hoursTransfer
+        case "hours_cancellation": self = .hoursCancellation
+        case "baseline", "meter_baseline": self = .meterBaseline
+        case "correction", "meter_correction": self = .meterCorrection
+        case "classification", "engine_hours_classification": self = .engineHoursClassification
+        default: return nil
+        }
+    }
+
+    /// `kind` + `record_id` (else `entity` + `entity_id`) as strings, e.g. from a push payload or notification data.
+    public static func resolve(kind: String?, recordID: String?, entity: String?, entityID: String?) -> RecordRef? {
+        if let kind = kind.flatMap(RecordKind.init(rawValue:)), let id = recordID.flatMap(UUID.init(uuidString:)) {
+            return RecordRef(kind: kind, id: id)
+        }
+        if let kind = RecordKind(entity: entity), let id = entityID.flatMap(UUID.init(uuidString:)) {
+            return RecordRef(kind: kind, id: id)
+        }
+        return nil
+    }
+}
+
+/// One accountability record: its kind and id.
+public struct RecordRef: Hashable, Sendable {
+    public let kind: RecordKind
+    public let id: UUID
+
+    public init(kind: RecordKind, id: UUID) {
+        self.kind = kind
+        self.id = id
+    }
+}
+
+extension NotificationDTO {
+    /// The record named by `data.kind` + `data.record_id` only (DEC-030 G5 notifications).
+    public var dataRecord: RecordRef? {
+        RecordKind.resolve(kind: data["kind"]?.stringValue, recordID: data["record_id"]?.stringValue, entity: nil, entityID: nil)
+    }
+
+    /// The exact record this notification is about (`data.kind`/`data.record_id`, else its target), when known.
+    public var record: RecordRef? {
+        RecordKind.resolve(kind: data["kind"]?.stringValue, recordID: data["record_id"]?.stringValue,
+                           entity: target?.entity, entityID: target?.id)
+    }
+}
+
+extension RecordRef {
+    /// From an APNs payload: `kind` + `record_id`, else `entity` + `entity_id` (strings).
+    public init?(pushPayload info: [AnyHashable: Any]) {
+        func string(_ key: String) -> String? { (info[key] as? String).flatMap { $0.isEmpty ? nil : $0 } }
+        guard let ref = RecordKind.resolve(kind: string("kind"), recordID: string("record_id"), entity: string("entity"),
+                                           entityID: string("entity_id")) else { return nil }
+        self = ref
+    }
+}

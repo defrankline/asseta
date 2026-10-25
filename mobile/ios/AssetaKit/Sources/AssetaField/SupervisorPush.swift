@@ -24,6 +24,8 @@ public final class SupervisorPush {
     struct Tap: Equatable {
         let id = UUID()
         let notificationID: UUID?
+        /// The exact record the push names (`kind` + `record_id`), used when the Inbox does not have the notification.
+        var record: RecordRef? = nil
     }
 
     let isEnabled = PushRegistration.isEnabled(info: Bundle.main.infoDictionary ?? [:])
@@ -98,7 +100,8 @@ public final class SupervisorPush {
     }
 
     func handleTap(userInfo: [AnyHashable: Any]) {
-        pendingTap = Tap(notificationID: PushRegistration.notificationID(pushPayload: userInfo))
+        pendingTap = Tap(notificationID: PushRegistration.notificationID(pushPayload: userInfo),
+                         record: RecordRef(pushPayload: userInfo))
     }
 
     func didArrive() { arrivals += 1 }

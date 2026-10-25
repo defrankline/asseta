@@ -46,6 +46,9 @@ public struct TenantMembership: Codable, Hashable, Sendable, Identifiable {
     public let accessState: TenantAccessState
     public let permissions: [String]
     public let menus: [MenuEntry]
+    /// Tenant capabilities switched off by policy (e.g. `CUSTOMER_HOURS`); their entry points are hidden.
+    /// Missing on older servers = nothing switched off.
+    public let disabledCapabilities: [String]
 
     public var id: UUID { tenantID }
 
@@ -55,7 +58,8 @@ public struct TenantMembership: Codable, Hashable, Sendable, Identifiable {
         status: TenantStatus,
         accessState: TenantAccessState,
         permissions: [String],
-        menus: [MenuEntry]
+        menus: [MenuEntry],
+        disabledCapabilities: [String] = []
     ) {
         self.tenantID = tenantID
         self.name = name
@@ -63,16 +67,37 @@ public struct TenantMembership: Codable, Hashable, Sendable, Identifiable {
         self.accessState = accessState
         self.permissions = permissions
         self.menus = menus
+        self.disabledCapabilities = disabledCapabilities
     }
 
     /// Menus in server-defined order (ties broken by key for determinism).
     public var orderedMenus: [MenuEntry] { menus.inServerOrder }
 
+    /// Whether the tenant's policy switched `capability` off (`TenantCapability`).
+    public func isDisabled(_ capability: String) -> Bool { disabledCapabilities.contains(capability) }
+
     enum CodingKeys: String, CodingKey {
         case tenantID = "tenant_id"
         case accessState = "access_state"
+        case disabledCapabilities = "disabled_capabilities"
         case name, status, permissions, menus
     }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        tenantID = try c.decode(UUID.self, forKey: .tenantID)
+        name = try c.decode(String.self, forKey: .name)
+        status = try c.decode(TenantStatus.self, forKey: .status)
+        accessState = try c.decode(TenantAccessState.self, forKey: .accessState)
+        permissions = try c.decode([String].self, forKey: .permissions)
+        menus = try c.decode([MenuEntry].self, forKey: .menus)
+        disabledCapabilities = (try? c.decodeIfPresent([String].self, forKey: .disabledCapabilities)) ?? []
+    }
+}
+
+/// Tenant capabilities a policy can switch off (`TenantAccessDto.disabled_capabilities`).
+public enum TenantCapability {
+    public static let customerHours = "CUSTOMER_HOURS"
 }
 
 /// Server-computed access level for a tenant membership (subscription/entitlement driven).

@@ -40,7 +40,8 @@ struct DecisionRow: View {
             if let reason = item.reason, !reason.isEmpty {
                 Text(reason).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
             }
-            Text(T.approvalsProposed(item.proposedAt.shortStamp) + (item.proposedByName.map { " · \($0)" } ?? ""))
+            Text(item.proposedByName.map { T.approvalsProposedBy(item.proposedAt.shortStamp, $0) }
+                ?? T.approvalsProposed(item.proposedAt.shortStamp))
                 .font(.caption).foregroundStyle(.secondary)
         }
         .accessibilityElement(children: .combine)
@@ -53,8 +54,8 @@ struct DecisionDetailView: View {
     let model: OwnerModel
     let kind: DecisionKind
     let recordID: UUID
-    @State private var pending = Loader<Page<JSONValue>>()
-    @State private var all = Loader<Page<JSONValue>>()
+    /// The record read by id (`GET .../{id}`), so a decided request shows its status and decision.
+    @State private var record = Loader<JSONValue>()
     @State private var decided: PendingDecision?
     @State private var note = ""
     @State private var working = false
@@ -64,12 +65,10 @@ struct DecisionDetailView: View {
     @State private var showPhoto = false
     @State private var machines: [UUID: String] = [:]
 
-    private func find(_ loader: Loader<Page<JSONValue>>) -> PendingDecision? {
-        loader.value.flatMap { PendingDecision.list($0, kind: kind, machines: machines).first { $0.recordID == recordID } }
+    private var item: PendingDecision? {
+        decided ?? record.value.flatMap { PendingDecision.from($0, kind: kind, machines: machines) }
     }
-
-    private var item: PendingDecision? { decided ?? find(pending) ?? find(all) }
-    private var showingCachedData: Bool { find(pending) != nil ? pending.isFromCache : all.isFromCache }
+    private var showingCachedData: Bool { record.isFromCache }
 
     var body: some View {
         Form {
@@ -94,15 +93,15 @@ struct DecisionDetailView: View {
                 }
                 if item.isPending && model.features.canDecide(kind) { decision(item) }
                 if let message { Text(message).foregroundStyle(Brand.amber).accessibilityIdentifier("decision.message") }
-            } else if let error = pending.error ?? all.error {
+            } else if let error = record.error {
                 LoadFailure(message: error) { await reload() }
-            } else if pending.value != nil && all.value != nil {
+            } else if record.value != nil {
                 EmptyState(title: T.decisionNotFoundTitle, message: T.decisionNotFoundMessage, systemImage: "questionmark")
             } else {
                 ProgressView()
             }
         }
-        .staleBanner(find(pending) != nil ? pending : all, model: model)
+        .staleBanner(record, model: model)
         .navigationTitle(kind.decisionTitle)
         .refreshable { await reload() }
         .task(id: model.changeTick) { await reload() }
@@ -162,10 +161,11 @@ struct DecisionDetailView: View {
     }
 
     private func reload() async {
-        if kind == .hoursTransfer { machines = await OwnerLookups.machineNames(model) }
-        await pending.load(model, .decisions(kind, pendingOnly: true), OwnerAPI.decisions(kind, pendingOnly: true))
-        if find(pending) == nil {
-            await all.load(model, .decisions(kind, pendingOnly: false), OwnerAPI.decisions(kind, pendingOnly: false, pageSize: 200))
+        await record.load(model, .decision(kind, id: recordID), OwnerAPI.decision(kind, id: recordID))
+        if record.error == nil && !record.isFromCache { decided = nil }
+        // Older servers send hours transfers without machine names.
+        if kind == .hoursTransfer, record.value?["from_machine_name"]?.stringValue == nil {
+            machines = await OwnerLookups.machineNames(model)
         }
     }
 }
@@ -179,7 +179,7 @@ struct AccountabilityDashboardView: View {
     var body: some View {
         List {
             if let summary = loader.value {
-                let tiles = AccountabilityDashboard.tiles(summary)
+                let tiles = AccountabilityDashboard.tiles(summary, customerHours: model.features.customerHours)
                 if AccountabilityDashboard.showsHiddenNote(summary) {
                     Text(T.dashHiddenNote).font(.footnote).foregroundStyle(.secondary)
                 }
@@ -187,15 +187,11 @@ struct AccountabilityDashboardView: View {
                 ForEach(tiles) { tile in
                     Section {
                         ForEach(Array(tile.rows.enumerated()), id: \.offset) { _, row in
-                            VStack(alignment: .leading, spacing: 2) {
-                                if row.value.isEmpty {
-                                    Text(row.label)
-                                } else {
-                                    LabeledContent(row.label) { Text(row.value).multilineTextAlignment(.trailing) }
-                                }
-                                if let detail = row.detail { Text(detail).font(.caption).foregroundStyle(.secondary) }
+                            if let route = row.route, model.features.allows(route) {
+                                NavigationLink(value: route) { TileRow(row: row) }
+                            } else {
+                                TileRow(row: row)
                             }
-                            .accessibilityElement(children: .combine)
                         }
                         if let route = tile.route, model.features.allows(route) {
                             NavigationLink(value: route) { Text(tile.title).foregroundStyle(Color.accentColor) }
@@ -216,5 +212,137 @@ struct AccountabilityDashboardView: View {
     }
 
     private func reload() async { await loader.load(model, .accountability, OwnerAPI.accountabilitySummary()) }
+}
+/// One label/value line of a dashboard tile.
+private struct TileRow: View {
+    let row: DashboardTile.Row
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            if row.value.isEmpty {
+                Text(row.label)
+            } else {
+                LabeledContent(row.label) { Text(row.value).multilineTextAlignment(.trailing) }
+            }
+            if let detail = row.detail { Text(detail).font(.caption).foregroundStyle(.secondary) }
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+// MARK: - Cash records (exact-record links) and overdue remittances
+
+/// Labelled values of a read-only record.
+private struct FieldRows: View {
+    let fields: [DecisionField]
+
+    var body: some View {
+        ForEach(fields, id: \.self) { field in
+            LabeledContent(field.label) { Text(field.value).multilineTextAlignment(.trailing) }
+        }
+    }
+}
+
+/// One cash transfer between custodians (read-only).
+struct CashTransferRecordView: View {
+    let model: OwnerModel
+    let transferID: UUID
+    @State private var loader = Loader<CashTransferDTO>()
+
+    var body: some View {
+        RecordForm(loader: loader, model: model, title: T.recordTransferTitle,
+                   fields: { CashRecordPresentation.transfer($0) }) {
+            await loader.load(model, .cashTransfer(transferID), OwnerAPI.cashTransfer(transferID))
+        }
+    }
+}
+
+/// One cash float issued to a custodian (read-only).
+struct CashFloatRecordView: View {
+    let model: OwnerModel
+    let floatID: UUID
+    @State private var loader = Loader<CashFloatDTO>()
+
+    var body: some View {
+        RecordForm(loader: loader, model: model, title: T.recordFloatTitle, fields: { CashRecordPresentation.float($0) }) {
+            await loader.load(model, .cashFloat(floatID), OwnerAPI.cashFloat(floatID))
+        }
+    }
+}
+
+/// One overdue-remittance flag (read-only).
+struct OverdueRemittanceView: View {
+    let model: OwnerModel
+    let overdueID: UUID
+    @State private var loader = Loader<RemittanceOverdueDTO>()
+
+    var body: some View {
+        RecordForm(loader: loader, model: model, title: T.overdueDetailTitle, fields: { CashRecordPresentation.overdue($0) }) {
+            await loader.load(model, .overdueRemittance(overdueID), OwnerAPI.remittanceOverdue(overdueID))
+        }
+    }
+}
+
+/// A read-only record screen: its fields, a load failure, or progress.
+private struct RecordForm<Value: Codable & Sendable>: View {
+    let loader: Loader<Value>
+    let model: OwnerModel
+    let title: String
+    let fields: (Value) -> [DecisionField]
+    let reload: () async -> Void
+
+    var body: some View {
+        Form {
+            if let value = loader.value {
+                Section { FieldRows(fields: fields(value)) }
+            } else if let error = loader.error {
+                LoadFailure(message: error) { await reload() }
+            } else {
+                ProgressView()
+            }
+        }
+        .staleBanner(loader, model: model)
+        .navigationTitle(title)
+        .refreshable { await reload() }
+        .task(id: model.changeTick) { await reload() }
+    }
+}
+
+/// Today's overdue remittances: custodians still holding cash after the tenant's cut-off.
+struct OverdueRemittancesView: View {
+    let model: OwnerModel
+    @State private var loader = Loader<Page<RemittanceOverdueDTO>>()
+
+    var body: some View {
+        let day = CashRecordPresentation.localDay(Date())
+        List {
+            if let page = loader.value {
+                if page.items.isEmpty { EmptyState(title: T.overdueEmpty, systemImage: "checkmark.circle") }
+                ForEach(page.items) { item in
+                    let row = CashRecordPresentation.overdueRow(item)
+                    NavigationLink(value: OwnerRoute.overdueRemittance(item.id)) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(row.title).font(.headline)
+                            Text(row.amounts).font(.subheadline.monospacedDigit())
+                            Text(row.line).font(.caption).foregroundStyle(.secondary)
+                        }
+                        .accessibilityElement(children: .combine)
+                    }
+                }
+            } else if let error = loader.error {
+                LoadFailure(message: error) { await reload(day) }
+            } else {
+                ProgressView().frame(maxWidth: .infinity)
+            }
+        }
+        .staleBanner(loader, model: model)
+        .navigationTitle(T.overdueTitle)
+        .refreshable { await reload(day) }
+        .task(id: model.changeTick) { await reload(day) }
+    }
+
+    private func reload(_ day: String) async {
+        await loader.load(model, .overdueRemittances(day: day), OwnerAPI.remittanceOverdue(day: day))
+    }
 }
 #endif

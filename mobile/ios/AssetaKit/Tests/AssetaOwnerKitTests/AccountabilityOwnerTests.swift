@@ -217,8 +217,9 @@ struct AccountabilityOwnerTests {
         #expect(DeepLinkParser.route(entity: "job_exception", id: r, path: nil) == .exception(rid))
         #expect(DeepLinkParser.route(entity: "machine", id: r, path: nil) == .machine(rid))
         #expect(DeepLinkParser.route(entity: "cash_handover", id: r, path: nil) == .handover(rid))
-        #expect(DeepLinkParser.route(entity: "cash_transfer", id: r, path: nil) == .cash)
-        #expect(DeepLinkParser.route(entity: "supervisor_cash_custody", id: r, path: nil) == .cash)
+        #expect(DeepLinkParser.route(entity: "cash_transfer", id: r, path: nil) == .cashTransfer(rid))
+        #expect(DeepLinkParser.route(entity: "supervisor_cash_custody", id: r, path: nil) == .cashFloat(rid))
+        #expect(DeepLinkParser.route(entity: "cash_transfer", id: nil, path: nil) == .cash)
         #expect(DeepLinkParser.route(entity: "hours_purchase", id: r, path: nil) == .accountability)
         #expect(DeepLinkParser.route(type: "CASH_VARIANCE_OPENED") == .approvals)
         #expect(DeepLinkParser.route(type: "HOURS_EXPIRING") == .accountability)
@@ -271,8 +272,9 @@ struct AccountabilityOwnerTests {
         let from = try #require(UUID(uuidString: Self.machine)), to = try #require(UUID(uuidString: Self.id(93)))
         let transfer = try #require(PendingDecision.from(try JSONValue.parse(Self.samples[2].2), kind: .hoursTransfer,
                                                          machines: [from: "EX-07 · CAT 320", to: "EX-09 · CAT 330"]))
-        #expect(transfer.fields.map(\.label) == ["Hours", "From machine", "To machine"])
-        #expect(transfer.fields.last?.value == "EX-09 · CAT 330")
+        #expect(transfer.fields.map(\.label) == ["Purchase", "Hours", "From machine", "To machine", "Requested by"])
+        #expect(transfer.fields.first?.value == "00000092" && transfer.proposedByName == "22222222")
+        #expect(transfer.fields[3].value == "EX-09 · CAT 330")
         let baseline = try #require(PendingDecision.from(try JSONValue.parse(Self.samples[4].2), kind: .baseline,
                                                          timeZone: TimeZone(identifier: "UTC")!))
         #expect(baseline.fields.map(\.label) == ["Machine", "Reading", "Proposed by", "Captured"])

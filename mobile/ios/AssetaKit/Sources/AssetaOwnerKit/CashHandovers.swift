@@ -27,8 +27,13 @@ public struct CashHandoverDTO: Codable, Hashable, Sendable, Identifiable {
     /// (non-null = flagged as a partial remittance).
     public let expectedBalance: DecimalString?
     public let partialShortfall: DecimalString?
+    /// Display names beside the ids (nullable).
+    public let staffMemberName: String?
+    public let recordedByName: String?
+    public let verifiedByName: String?
 
     enum CodingKeys: String, CodingKey {
+        case staffMemberName = "staff_member_name", recordedByName = "recorded_by_name", verifiedByName = "verified_by_name"
         case id, amount, currency, reference, note, status, source
         case clientID = "client_id", staffMemberID = "staff_member_id", handedAt = "handed_at"
         case recordedBy = "recorded_by", recordedAt = "recorded_at", verifiedBy = "verified_by"
@@ -153,10 +158,11 @@ public enum HandoverText {
     /// The server keeps notes of at most 1000 characters.
     public static let maxNoteLength = 1000
 
-    /// "<supervisor> handed over TZS 150,000.00".
+    /// "<supervisor> handed over TZS 150,000.00". The server's `staff_member_name` wins over `supervisor` (a name
+    /// looked up from today's cash summary).
     public static func title(_ h: CashHandoverDTO, supervisor: String?,
                              money: (DecimalString, String) -> String = { OwnerFormat.money($0, currency: $1) }) -> String {
-        let name = supervisor?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = (h.staffMemberName ?? supervisor)?.trimmingCharacters(in: .whitespacesAndNewlines)
         return "\((name?.isEmpty ?? true) ? unknownSupervisor : name!) handed over \(money(h.amount, h.currency))"
     }
 
