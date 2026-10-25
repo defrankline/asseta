@@ -287,4 +287,32 @@ describe('HandoversTab', () => {
       );
     });
   });
+
+  it('confirms at the declared amount, with no amount received, when cash custody controls are off', async () => {
+    const user = userEvent.setup();
+    custody.decideRemittance.mockResolvedValue(makeHandover({ status: 'VERIFIED' }));
+    renderWithProviders(<HandoversTab timeZone="UTC" />, {
+      tenantPermissions: [...READ, P.tenantFinanceVerify],
+      disabledCapabilities: ['CASH_CUSTODY'],
+    });
+    const actions = await screen.findByRole('button', { name: 'Actions for remittance SLIP-9' });
+    expect(screen.getByRole('columnheader', { name: 'Received' })).toBeInTheDocument();
+    expect(
+      screen.queryByRole('columnheader', { name: 'Short of full balance' }),
+    ).not.toBeInTheDocument();
+    await user.click(actions);
+    await user.click(screen.getByRole('menuitem', { name: 'Confirm / reject' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('combobox', { name: /Decision/ }));
+    await user.click(await screen.findByRole('option', { name: 'Confirm (cash counted)' }));
+    expect(within(dialog).queryByRole('textbox', { name: /Amount received/ })).toBeNull();
+    await user.click(within(dialog).getByRole('button', { name: 'Record decision' }));
+    await waitFor(() => {
+      expect(custody.decideRemittance).toHaveBeenCalledWith(
+        makeHandover().id,
+        { verified: true, note: null },
+        expect.any(String),
+      );
+    });
+  });
 });

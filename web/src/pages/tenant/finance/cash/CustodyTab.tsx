@@ -1,5 +1,6 @@
 import { Alert, Box, Button, Paper, Typography } from '@mui/material';
 import { useCallback, useState } from 'react';
+import { CAPABILITY, useCapabilityEnabled } from '../../../../access/capabilities';
 import { PERMISSIONS } from '../../../../access/permissionCodes';
 import { useMutationGuard } from '../../../../access/useCanMutate';
 import { cashService } from '../../../../api/services/cashService';
@@ -21,6 +22,8 @@ import { useLiveRefresh } from '../../../../realtime/hooks';
 type Open = 'float' | 'collection' | 'handover' | null;
 
 export function BalanceCard({ b, timeZone }: { b: CashCustodyBalanceDto; timeZone: string }) {
+  /** Transfers in transit, floats awaiting acknowledgement and retentions are cash custody controls. */
+  const controlsOn = useCapabilityEnabled(CAPABILITY.cashCustody);
   return (
     <Paper
       variant="outlined"
@@ -46,22 +49,26 @@ export function BalanceCard({ b, timeZone }: { b: CashCustodyBalanceDto; timeZon
             label: 'Expenses pending approval',
             value: <MoneyText amount={b.pending_spending} currency={b.currency} />,
           },
-          {
-            label: 'Sent, not yet acknowledged (still held)',
-            value: <MoneyText amount={b.in_transit_out} currency={b.currency} />,
-          },
-          {
-            label: 'Incoming, not yet acknowledged',
-            value: <MoneyText amount={b.in_transit_in} currency={b.currency} />,
-          },
-          {
-            label: 'Floats awaiting acknowledgement',
-            value: <MoneyText amount={b.pending_floats} currency={b.currency} />,
-          },
-          {
-            label: 'Approved to keep (retention)',
-            value: <MoneyText amount={b.approved_retention} currency={b.currency} />,
-          },
+          ...(controlsOn
+            ? [
+                {
+                  label: 'Sent, not yet acknowledged (still held)',
+                  value: <MoneyText amount={b.in_transit_out} currency={b.currency} />,
+                },
+                {
+                  label: 'Incoming, not yet acknowledged',
+                  value: <MoneyText amount={b.in_transit_in} currency={b.currency} />,
+                },
+                {
+                  label: 'Floats awaiting acknowledgement',
+                  value: <MoneyText amount={b.pending_floats} currency={b.currency} />,
+                },
+                {
+                  label: 'Approved to keep (retention)',
+                  value: <MoneyText amount={b.approved_retention} currency={b.currency} />,
+                },
+              ]
+            : []),
         ]}
       />
       <Typography variant="caption" color="text.secondary">

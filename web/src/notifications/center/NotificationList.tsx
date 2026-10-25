@@ -10,6 +10,7 @@ import {
   Typography,
 } from '@mui/material';
 import { useNavigate } from 'react-router';
+import { useDisabledCapabilities } from '../../access/capabilities';
 import type { NotificationDto } from '../../api/types';
 import { AgeText } from '../../components/display/AgeText';
 import { EmptyState } from '../../components/feedback/EmptyState';
@@ -38,6 +39,7 @@ export function NotificationList({
 }: NotificationListProps) {
   const navigate = useNavigate();
   const notify = useNotify();
+  const disabled = useDisabledCapabilities();
   const now = useNow();
   const timeZone = useDisplayTimeZone();
 
@@ -67,7 +69,7 @@ export function NotificationList({
         {feed.items.map((n) => {
           const meta = SEVERITY_META[n.severity];
           const unread = n.read_at === null;
-          const path = notificationTargetPath(n.target, n.data);
+          const path = notificationTargetPath(n.target, n.data, disabled);
           const body = (
             <Box className="flex min-w-0 flex-1 gap-3">
               <Box sx={{ color: `${meta.color}.main`, pt: 0.25 }} aria-hidden>

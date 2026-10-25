@@ -140,12 +140,19 @@ export const remittanceDecisionSchema: ObjectSchema<RemittanceDecisionValues> = 
     }),
 });
 
-export function toRemittanceDecisionPayload(v: RemittanceDecisionValues): RemittanceDecisionIn {
+/**
+ * `withAmount` false (cash custody controls switched off): no amount received — the remittance is
+ * confirmed at the declared amount, as before those controls.
+ */
+export function toRemittanceDecisionPayload(
+  v: RemittanceDecisionValues,
+  withAmount = true,
+): RemittanceDecisionIn {
   const verified = v.decision === 'CONFIRM';
   return {
     verified,
     note: orNull(v.note),
-    ...(verified ? { amount_received: v.amount_received.trim() } : {}),
+    ...(verified && withAmount ? { amount_received: v.amount_received.trim() } : {}),
   };
 }
 

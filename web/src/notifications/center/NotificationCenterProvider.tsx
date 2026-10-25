@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
+import { useDisabledCapabilities } from '../../access/capabilities';
 import { isCancelled } from '../../api/ApiError';
 import { newIdempotencyKey } from '../../api/ids';
 import type { NotificationService } from '../../api/services/notificationService';
@@ -39,6 +40,7 @@ export function NotificationCenterProvider({
   children,
 }: NotificationCenterProviderProps) {
   const notify = useNotify();
+  const disabled = useDisabledCapabilities();
   const navigate = useNavigate();
   const [tick, setTick] = useState(0);
   const [state, setState] = useState<CountState>({ key: '', count: null });
@@ -92,7 +94,7 @@ export function NotificationCenterProvider({
     if (!enabled || n.read_at !== null) return;
     adjust(1);
     if (!isHighPriority(n)) return;
-    const path = notificationTargetPath(n.target, n.data);
+    const path = notificationTargetPath(n.target, n.data, disabled);
     notify.notify(
       n.title,
       SEVERITY_META[n.severity].toast,

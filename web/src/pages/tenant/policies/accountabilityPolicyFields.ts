@@ -3,6 +3,12 @@ import type { FieldOption, PolicyFieldDef } from './policyFields';
 
 export const CASH_CUSTODY_FIELDS: readonly PolicyFieldDef[] = [
   {
+    key: 'enabled',
+    label: 'Cash custody controls switched on',
+    kind: 'bool',
+    help: 'Off: transfers, acknowledgements, variances, retentions, adjustments, cash reasons and the remittance cut-off are hidden; collections, floats, remittances and reconciliation stay.',
+  },
+  {
     key: 'recorders_may_record_for_others',
     label: 'Recorders record for any custodian',
     kind: 'bool',

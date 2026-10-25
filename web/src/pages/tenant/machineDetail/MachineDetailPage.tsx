@@ -1,6 +1,7 @@
 import { Box, Paper, Tab, Tabs } from '@mui/material';
 import { useCallback, useState } from 'react';
 import { useParams } from 'react-router';
+import { CAPABILITY, useCapabilityEnabled } from '../../../access/capabilities';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import { machineService } from '../../../api/services/machineService';
 import type { AreaDto, CategoryDto, MachineDto } from '../../../api/types';
@@ -35,6 +36,7 @@ interface Loaded {
 
 function MachineTabs({ machineId, timeZone }: { machineId: string; timeZone: string }) {
   const { hasPermission } = useSession();
+  const engineHoursOn = useCapabilityEnabled(CAPABILITY.engineHours);
   const available: { key: TabKey; label: string }[] = [
     ...(hasPermission(PERMISSIONS.tenantFleetRead)
       ? [
@@ -48,7 +50,7 @@ function MachineTabs({ machineId, timeZone }: { machineId: string; timeZone: str
     ...(hasPermission(PERMISSIONS.tenantTrackerRead)
       ? [{ key: 'trackers' as const, label: 'Tracker history' }]
       : []),
-    ...(hasPermission(PERMISSIONS.tenantMeterRead)
+    ...(engineHoursOn && hasPermission(PERMISSIONS.tenantMeterRead)
       ? [{ key: 'engineHours' as const, label: 'Engine hours' }]
       : []),
   ];

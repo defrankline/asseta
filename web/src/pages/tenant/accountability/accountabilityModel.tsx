@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { CAPABILITY } from '../../../access/capabilities';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import type { AccountabilitySummaryDto, CountAmountDto } from '../../../api/custodyTypes';
 import { MoneyText } from '../../../components/display/MoneyText';
@@ -14,6 +15,7 @@ import { withQuery } from '../../../navigation/urlFilters';
 import { formatMoney } from '../../../utils/money';
 import { humanize } from '../../../utils/text';
 import type { KpiRow } from '../dashboard/KpiCard';
+import { disabledCapabilities, type TileOptions } from './tileCapabilities';
 
 export type Can = (permission: string) => boolean;
 
@@ -85,23 +87,17 @@ export interface Tile {
   rows?: KpiRow[];
 }
 
-/** Tiles of the customer hours capability (not shown when the tenant switched it off). */
-export const CUSTOMER_HOURS_TILES: ReadonlySet<string> = new Set([
-  'customer_hours',
-  'hours_awaiting_activation',
-]);
-
-export interface TileOptions {
-  /** False when the tenant's policy switches customer hours off (`/me` disabled_capabilities). */
-  customerHours?: boolean;
-}
-
 /** The tiles the summary returned (hidden or unavailable ones are null and skipped), each linking to its list. */
 export function buildTiles(
   s: AccountabilitySummaryDto,
   can: Can,
-  { customerHours = true }: TileOptions = {},
+  options: TileOptions = {},
 ): Tile[] {
+  const off = disabledCapabilities(s, options);
+  const customerHours = !off.has(CAPABILITY.customerHours);
+  const engineHours = !off.has(CAPABILITY.engineHours);
+  /** Off: the cash tiles keep the basics; the DEC-030 sub-figures (empty from the server) are dropped. */
+  const cashControls = !off.has(CAPABILITY.cashCustody);
   const tiles: Tile[] = [];
   const hoursRead = can(HOURS_READ);
   const machineRead = can(PERMISSIONS.tenantMachineRead);
@@ -186,7 +182,7 @@ export function buildTiles(
       ],
     });
   }
-  if (s.engine_hours) {
+  if (engineHours && s.engine_hours) {
     const e = asRecord(s.engine_hours);
     const to = engineList(ENGINE_HOURS);
     tiles.push({
@@ -201,7 +197,7 @@ export function buildTiles(
         .map(([status, n]) => count(status, humanize(status), asNumber(n), to)),
     });
   }
-  if (s.unexplained_hours) {
+  if (engineHours && s.unexplained_hours) {
     const u = asRecord(s.unexplained_hours);
     tiles.push({
       key: 'unexplained_hours',
@@ -221,7 +217,7 @@ export function buildTiles(
         })),
     });
   }
-  if (s.missing_daily_reports) {
+  if (engineHours && s.missing_daily_reports) {
     const m = asRecord(s.missing_daily_reports);
     tiles.push({
       key: 'missing_daily_reports',
@@ -283,49 +279,60 @@ export function buildTiles(
         to: linkIf(finance, cashTabPath('custody', { staff_member_id: r.staff_member_id })),
       })),
     });
-    tiles.push({
-      key: 'cash_pending',
-      title: 'Cash awaiting acknowledgement or confirmation',
-      value:
-        totalCount(c.transfers_awaiting_acknowledgement) +
-        totalCount(c.floats_awaiting_acknowledgement) +
-        totalCount(c.remittances_awaiting_confirmation),
-      valueText: 'items',
-      rows: [
-        ...perCurrency(
-          'transfers',
-          c.transfers_awaiting_acknowledgement,
-          linkIf(finance, cashTabPath('transfers', { status: 'PENDING_ACKNOWLEDGEMENT' })),
-        ).map((r) => ({ ...r, label: `Transfers: ${r.label}` })),
-        ...perCurrency(
-          'floats',
-          c.floats_awaiting_acknowledgement,
-          linkIf(finance, cashTabPath('floats')),
-        ).map((r) => ({ ...r, label: `Floats: ${r.label}` })),
-        ...perCurrency(
-          'remittances',
-          c.remittances_awaiting_confirmation,
-          linkIf(finance, cashTabPath('handovers')),
-        ).map((r) => ({ ...r, label: `Remittances: ${r.label}` })),
-        count(
-          'partial',
-          'Partial remittances (window)',
-          c.partial_remittances_in_window,
-          linkIf(finance, cashTabPath('handovers')),
-        ),
-        // Only when the tenant set a remittance cut-off (cash.remittance_cutoff_hour).
-        ...(c.remittance_cutoff_hour == null || c.remittances_overdue_today == null
-          ? []
-          : [
-              count(
-                'overdue',
-                `Remittances overdue today (cut-off ${String(c.remittance_cutoff_hour).padStart(2, '0')}:00)`,
-                c.remittances_overdue_today,
-                linkIf(finance, RECORD_LIST_ROUTES.REMITTANCE_OVERDUE),
-              ),
-            ]),
-      ],
-    });
+    const transfers = perCurrency(
+      'transfers',
+      c.transfers_awaiting_acknowledgement,
+      linkIf(finance, cashTabPath('transfers', { status: 'PENDING_ACKNOWLEDGEMENT' })),
+    ).map((r) => ({ ...r, label: `Transfers: ${r.label}` }));
+    const floats = perCurrency(
+      'floats',
+      c.floats_awaiting_acknowledgement,
+      linkIf(finance, cashTabPath('floats')),
+    ).map((r) => ({ ...r, label: `Floats: ${r.label}` }));
+    const remittances = perCurrency(
+      'remittances',
+      c.remittances_awaiting_confirmation,
+      linkIf(finance, cashTabPath('handovers')),
+    ).map((r) => ({ ...r, label: `Remittances: ${r.label}` }));
+    const controlRows: KpiRow[] = [
+      count(
+        'partial',
+        'Partial remittances (window)',
+        c.partial_remittances_in_window,
+        linkIf(finance, cashTabPath('handovers')),
+      ),
+      // Only when the tenant set a remittance cut-off (cash.remittance_cutoff_hour).
+      ...(c.remittance_cutoff_hour == null || c.remittances_overdue_today == null
+        ? []
+        : [
+            count(
+              'overdue',
+              `Remittances overdue today (cut-off ${String(c.remittance_cutoff_hour).padStart(2, '0')}:00)`,
+              c.remittances_overdue_today,
+              linkIf(finance, RECORD_LIST_ROUTES.REMITTANCE_OVERDUE),
+            ),
+          ]),
+    ];
+    tiles.push(
+      cashControls
+        ? {
+            key: 'cash_pending',
+            title: 'Cash awaiting acknowledgement or confirmation',
+            value:
+              totalCount(c.transfers_awaiting_acknowledgement) +
+              totalCount(c.floats_awaiting_acknowledgement) +
+              totalCount(c.remittances_awaiting_confirmation),
+            valueText: 'items',
+            rows: [...transfers, ...floats, ...remittances, ...controlRows],
+          }
+        : {
+            key: 'cash_pending',
+            title: 'Remittances awaiting confirmation',
+            value: totalCount(c.remittances_awaiting_confirmation),
+            valueText: 'items',
+            rows: remittances,
+          },
+    );
   }
   if (s.payments) {
     const p = s.payments;
@@ -342,24 +349,29 @@ export function buildTiles(
   if (s.discrepancies) {
     const d = s.discrepancies;
     const variances = linkIf(finance, cashTabPath('variances', { status: 'OPEN' }));
+    const total =
+      (cashControls ? totalCount(d.open_variances) + d.write_offs_proposed : 0) +
+      d.sync_conflicts_unresolved;
     tiles.push({
       key: 'discrepancies',
       title: TILE_LABELS.discrepancies ?? '',
-      value: totalCount(d.open_variances) + d.write_offs_proposed + d.sync_conflicts_unresolved,
-      valueText: String(
-        totalCount(d.open_variances) + d.write_offs_proposed + d.sync_conflicts_unresolved,
-      ),
+      value: total,
+      valueText: String(total),
       rows: [
-        ...perCurrency('variances', d.open_variances, variances).map((r) => ({
-          ...r,
-          label: `Open variances: ${r.label}`,
-        })),
-        count(
-          'writeoffs',
-          'Write-offs proposed',
-          d.write_offs_proposed,
-          linkIf(finance, cashTabPath('variances', { status: 'WRITE_OFF_PROPOSED' })),
-        ),
+        ...(cashControls
+          ? [
+              ...perCurrency('variances', d.open_variances, variances).map((r) => ({
+                ...r,
+                label: `Open variances: ${r.label}`,
+              })),
+              count(
+                'writeoffs',
+                'Write-offs proposed',
+                d.write_offs_proposed,
+                linkIf(finance, cashTabPath('variances', { status: 'WRITE_OFF_PROPOSED' })),
+              ),
+            ]
+          : []),
         count(
           'sync',
           'Offline operations to review',
@@ -421,24 +433,28 @@ export function buildTiles(
           o.remittances_to_verify,
           linkIf(finance, cashTabPath('handovers')),
         ),
-        count(
-          'retentions',
-          'Cash retentions',
-          o.cash_retentions,
-          linkIf(finance, cashTabPath('retentions', { status: 'PENDING' })),
-        ),
-        count(
-          'adjustments',
-          'Custody adjustments',
-          o.custody_adjustments,
-          linkIf(finance, cashTabPath('adjustments', { status: 'PENDING' })),
-        ),
-        count(
-          'writeoffs',
-          'Write-offs',
-          o.write_offs,
-          linkIf(finance, cashTabPath('variances', { status: 'WRITE_OFF_PROPOSED' })),
-        ),
+        ...(cashControls
+          ? [
+              count(
+                'retentions',
+                'Cash retentions',
+                o.cash_retentions,
+                linkIf(finance, cashTabPath('retentions', { status: 'PENDING' })),
+              ),
+              count(
+                'adjustments',
+                'Custody adjustments',
+                o.custody_adjustments,
+                linkIf(finance, cashTabPath('adjustments', { status: 'PENDING' })),
+              ),
+              count(
+                'writeoffs',
+                'Write-offs',
+                o.write_offs,
+                linkIf(finance, cashTabPath('variances', { status: 'WRITE_OFF_PROPOSED' })),
+              ),
+            ]
+          : []),
       ],
     });
   }

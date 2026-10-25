@@ -1,4 +1,5 @@
 import { Alert, Box, ToggleButton, ToggleButtonGroup } from '@mui/material';
+import { CAPABILITY, useCapabilityEnabled } from '../../../../access/capabilities';
 import { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { cashService } from '../../../../api/services/cashService';
@@ -22,7 +23,20 @@ type View = SettlementStatus | 'ALL';
  * Remittances (cash handed to the company): claimed vs confirmed; the office confirms with the amount
  * actually received (a difference opens a variance) or rejects. Never your own.
  */
+const shortfallColumn: DataColumn<CashHandoverDto> = {
+  id: 'shortfall',
+  header: 'Short of full balance',
+  align: 'right',
+  render: (h) =>
+    h.partial_shortfall === null || h.partial_shortfall === undefined ? (
+      '—'
+    ) : (
+      <MoneyText amount={h.partial_shortfall} currency={h.currency} />
+    ),
+};
+
 export function HandoversTab({ timeZone }: { timeZone: string }) {
+  const controlsOn = useCapabilityEnabled(CAPABILITY.cashCustody);
   const navigate = useNavigate();
   const [view, setView] = useState<View>('CLAIMED');
   const [staff, setStaff] = useState<CustodianDto | null>(null);
@@ -66,17 +80,8 @@ export function HandoversTab({ timeZone }: { timeZone: string }) {
           <MoneyText amount={h.amount_received} currency={h.currency} />
         ),
     },
-    {
-      id: 'shortfall',
-      header: 'Short of full balance',
-      align: 'right',
-      render: (h) =>
-        h.partial_shortfall === null || h.partial_shortfall === undefined ? (
-          '—'
-        ) : (
-          <MoneyText amount={h.partial_shortfall} currency={h.currency} />
-        ),
-    },
+    // The partial-remittance flag is a cash custody control.
+    ...(controlsOn ? [shortfallColumn] : []),
     { id: 'note', header: 'Decision note', render: (h) => h.decision_note ?? '—' },
     {
       id: 'actions',

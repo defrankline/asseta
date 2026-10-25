@@ -3,6 +3,12 @@ import type { PolicyFieldDef } from './policyFields';
 
 export const ENGINE_HOURS_FIELDS: readonly PolicyFieldDef[] = [
   {
+    key: 'enabled',
+    label: 'Engine-hour controls switched on',
+    kind: 'bool',
+    help: 'Off: engine-hour pages, baselines, corrections, daily readings and flags are hidden; job meter readings work as before.',
+  },
+  {
     key: 'baseline_required_before_start',
     label: 'Approved meter baseline before a job starts',
     kind: 'bool',

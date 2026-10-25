@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react';
+import { CAPABILITY, useCapabilityEnabled } from '../../../../access/capabilities';
 import { PERMISSIONS } from '../../../../access/permissionCodes';
 import { useMutationGuard } from '../../../../access/useCanMutate';
 import { custodyService } from '../../../../api/services/custodyService';
@@ -37,7 +38,9 @@ export function useFloatActions(onChanged: (e: CashCustodyEntryDto) => void) {
   const timeZone = useDisplayTimeZone();
   const me = useMyUserId();
   const can = useMutationGuard();
-  const canAnswer = can(PERMISSIONS.tenantCollectionRecord);
+  // Float acknowledgement is a cash custody control: none while the tenant switches it off.
+  const ackOn = useCapabilityEnabled(CAPABILITY.cashCustody);
+  const canAnswer = ackOn && can(PERMISSIONS.tenantCollectionRecord);
   const [answering, setAnswering] = useState<CashCustodyEntryDto | null>(null);
   const actionsFor = (e: CashCustodyEntryDto): RowAction[] => [
     {

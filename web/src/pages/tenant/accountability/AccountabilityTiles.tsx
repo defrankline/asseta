@@ -1,17 +1,19 @@
 import { Alert, Box, Typography } from '@mui/material';
-import { CAPABILITY, useCapabilityEnabled } from '../../../access/capabilities';
+import { useDisabledCapabilities } from '../../../access/capabilities';
 import type { AccountabilitySummaryDto } from '../../../api/custodyTypes';
 import { humanize } from '../../../utils/text';
 import { KpiCard } from '../dashboard/KpiCard';
-import { buildTiles, CUSTOMER_HOURS_TILES, TILE_LABELS, type Can } from './accountabilityModel';
+import { buildTiles, TILE_LABELS, type Can } from './accountabilityModel';
+import { disabledCapabilities, tileOfDisabledCapability } from './tileCapabilities';
 
 /** The accountability tiles plus a note of tiles hidden by policy or unavailable here. */
 export function AccountabilityTiles({ data, can }: { data: AccountabilitySummaryDto; can: Can }) {
-  const customerHours = useCapabilityEnabled(CAPABILITY.customerHours);
-  const tiles = buildTiles(data, can, { customerHours });
+  const options = { disabled: useDisabledCapabilities() };
+  const off = disabledCapabilities(data, options);
+  const tiles = buildTiles(data, can, options);
   /** Tiles of a capability the tenant switched off are not mentioned at all. */
   const mentioned = (keys: readonly string[]) =>
-    customerHours ? keys : keys.filter((k) => !CUSTOMER_HOURS_TILES.has(k));
+    keys.filter((k) => !tileOfDisabledCapability(k, off));
   const hidden = mentioned(data.hidden_tiles);
   const unavailable = mentioned(data.unavailable_tiles);
   const names = (keys: readonly string[]) =>

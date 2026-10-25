@@ -1,6 +1,7 @@
 import { Alert } from '@mui/material';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
+import { CAPABILITY, useCapabilityEnabled } from '../../../../access/capabilities';
 import { newUuid } from '../../../../api/ids';
 import { custodyService } from '../../../../api/services/custodyService';
 import type { CashHandoverDto } from '../../../../api/types';
@@ -257,6 +258,8 @@ export function RemittanceDecisionDialog({
   onClose,
 }: RemittanceDecisionDialogProps) {
   const keyFor = useIdempotencyKey();
+  /** The amount received (and the variance it opens) is a cash custody control. */
+  const withAmount = useCapabilityEnabled(CAPABILITY.cashCustody);
   return (
     <FormDialog<RemittanceDecisionValues>
       open
@@ -266,7 +269,7 @@ export function RemittanceDecisionDialog({
       submitLabel="Record decision"
       onClose={onClose}
       onSubmit={async (v) => {
-        const body = toRemittanceDecisionPayload(v);
+        const body = toRemittanceDecisionPayload(v, withAmount);
         try {
           onDone(await custodyService.decideRemittance(h.id, body, keyFor(body)));
         } catch (err) {
@@ -289,12 +292,12 @@ export function RemittanceDecisionDialog({
             ]}
           />
           <Alert severity="info">
-            Confirm only after counting the cash or seeing the deposit. Enter the amount actually
-            received; a difference from the declared amount opens a variance. A rejected remittance
-            never reduces the custodian’s outstanding cash.
+            {withAmount
+              ? 'Confirm only after counting the cash or seeing the deposit. Enter the amount actually received; a difference from the declared amount opens a variance. A rejected remittance never reduces the custodian’s outstanding cash.'
+              : 'Confirm only after counting the cash or seeing the deposit. A rejected remittance never reduces the custodian’s outstanding cash.'}
           </Alert>
           <FormikSelectField name="decision" label="Decision" options={REMIT_OPTIONS} required />
-          {f.values.decision === 'CONFIRM' && (
+          {withAmount && f.values.decision === 'CONFIRM' && (
             <FormikTextField
               name="amount_received"
               label="Amount received"

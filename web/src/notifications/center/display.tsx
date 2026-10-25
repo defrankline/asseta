@@ -2,6 +2,7 @@ import ErrorOutline from '@mui/icons-material/ErrorOutlined';
 import InfoOutlined from '@mui/icons-material/InfoOutlined';
 import WarningAmber from '@mui/icons-material/WarningAmber';
 import type { ReactNode } from 'react';
+import { CAPABILITY, pathCapability } from '../../access/capabilities';
 import type { NotificationDto, NotificationSeverity, NotificationTarget } from '../../api/types';
 import type { SelectOption } from '../../components/forms/FormikSelectField';
 import {
@@ -83,6 +84,15 @@ function exactRecordPath(data: Readonly<Record<string, unknown>> | undefined): s
 export function notificationTargetPath(
   target: NotificationTarget | null,
   data?: Readonly<Record<string, unknown>>,
+  disabled: ReadonlySet<string> = new Set(),
+): string | null {
+  const path = rawTargetPath(target, data);
+  return path === null ? null : enabledPath(path, disabled);
+}
+
+function rawTargetPath(
+  target: NotificationTarget | null,
+  data?: Readonly<Record<string, unknown>>,
 ): string | null {
   const exact = exactRecordPath(data);
   if (exact !== null) return exact;
@@ -91,4 +101,19 @@ export function notificationTargetPath(
   const kind = RECORD_KIND_BY_ENTITY[target.entity];
   if (kind !== undefined && target.id !== null) return recordPath(kind, target.id);
   return BY_ENTITY[target.entity]?.(target.id) ?? null;
+}
+
+const ENGINE_MACHINE = /^\/tenant\/engine-hours\/machines\/([^/?#]+)/;
+
+/**
+ * A page of a capability the tenant switched off falls back: a machine's engine-hour ledger to the
+ * machine page, a cash custody control record to Cash custody, anything else to no link.
+ */
+function enabledPath(path: string, disabled: ReadonlySet<string>): string | null {
+  const capability = pathCapability(path);
+  if (capability === null || !disabled.has(capability)) return path;
+  const machine = ENGINE_MACHINE.exec(path)?.[1];
+  if (machine !== undefined) return machineDetailPath(decodeURIComponent(machine));
+  if (capability === CAPABILITY.cashCustody) return ROUTES.tenantCashCustody;
+  return null;
 }

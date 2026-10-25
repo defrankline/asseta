@@ -1,6 +1,8 @@
 import { Suspense, type ReactNode } from 'react';
 import { Route, Routes } from 'react-router';
+import { CAPABILITY, CAPABILITY_FEATURE } from '../access/capabilities';
 import { PERMISSIONS } from '../access/permissionCodes';
+import { RequireCapability } from '../access/RequireCapability';
 import { RequirePermission } from '../access/RequirePermission';
 import { LoadingState } from '../components/feedback/LoadingState';
 import { AppShell } from '../layout/AppShell';
@@ -100,6 +102,18 @@ function guard(permission: string, page: ReactNode) {
     <RequirePermission permission={permission}>
       <Suspense fallback={<LoadingState label="Loading page" />}>{page}</Suspense>
     </RequirePermission>
+  );
+}
+
+/** Engine-hour pages: shown only while the tenant's ENGINE_HOURS capability is on. */
+function engineGuard(permission: string, page: ReactNode) {
+  return (
+    <RequireCapability
+      capability={CAPABILITY.engineHours}
+      feature={CAPABILITY_FEATURE[CAPABILITY.engineHours]}
+    >
+      {guard(permission, page)}
+    </RequireCapability>
   );
 }
 
@@ -308,31 +322,31 @@ export function AppRoutes() {
         />
         <Route
           path={ROUTES.tenantEngineHours}
-          element={guard(PERMISSIONS.tenantMeterRead, <EngineHoursMachinesPage />)}
+          element={engineGuard(PERMISSIONS.tenantMeterRead, <EngineHoursMachinesPage />)}
         />
         <Route
           path={ROUTES.tenantEngineHoursMachine}
-          element={guard(PERMISSIONS.tenantMeterRead, <MachineEngineHoursPage />)}
+          element={engineGuard(PERMISSIONS.tenantMeterRead, <MachineEngineHoursPage />)}
         />
         <Route
           path={ROUTES.tenantEngineHoursUnallocated}
-          element={guard(PERMISSIONS.tenantMeterRead, <UnallocatedHoursPage />)}
+          element={engineGuard(PERMISSIONS.tenantMeterRead, <UnallocatedHoursPage />)}
         />
         <Route
           path={ROUTES.tenantEngineHourClassifications}
-          element={guard(PERMISSIONS.tenantMeterRead, <ClassificationsPage />)}
+          element={engineGuard(PERMISSIONS.tenantMeterRead, <ClassificationsPage />)}
         />
         <Route
           path={ROUTES.tenantMeterBaselines}
-          element={guard(PERMISSIONS.tenantMeterRead, <MeterBaselinesPage />)}
+          element={engineGuard(PERMISSIONS.tenantMeterRead, <MeterBaselinesPage />)}
         />
         <Route
           path={ROUTES.tenantMeterCorrections}
-          element={guard(PERMISSIONS.tenantMeterRead, <MeterCorrectionsPage />)}
+          element={engineGuard(PERMISSIONS.tenantMeterRead, <MeterCorrectionsPage />)}
         />
         <Route
           path={ROUTES.tenantEngineHourReasons}
-          element={guard(PERMISSIONS.tenantMeterRead, <EngineHourReasonsPage />)}
+          element={engineGuard(PERMISSIONS.tenantMeterRead, <EngineHourReasonsPage />)}
         />
         <Route
           path={ROUTES.tenantCases}
@@ -377,7 +391,7 @@ export function AppRoutes() {
         />
         {cashRecordRouteElements(guard, guardAny)}
         {hoursRouteElements(guard)}
-        {engineHoursDetailRouteElements(guard)}
+        {engineHoursDetailRouteElements(engineGuard)}
         <Route path={ROUTES.forbidden} element={<ForbiddenPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>

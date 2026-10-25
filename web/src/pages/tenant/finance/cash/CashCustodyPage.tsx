@@ -1,6 +1,7 @@
 import { Box, Paper, Tab, Tabs } from '@mui/material';
 import { useEffect, useState } from 'react';
 import { Navigate, useNavigate, useSearchParams } from 'react-router';
+import { CAPABILITY, useCapabilityEnabled } from '../../../../access/capabilities';
 import { staffService } from '../../../../api/services/staffService';
 import type { CashSupervisorSummaryDto, StaffDto } from '../../../../api/types';
 import { PageHeader } from '../../../../components/feedback/PageHeader';
@@ -42,6 +43,16 @@ const CASH_TABS = [
 export type CashTabKey = (typeof CASH_TABS)[number]['key'];
 type TabKey = CashTabKey;
 
+/** Tabs of the cash custody controls (DEC-030): hidden while the tenant switches CASH_CUSTODY off. */
+const CONTROL_TABS: ReadonlySet<TabKey> = new Set([
+  'transfers',
+  'overdue',
+  'variances',
+  'retentions',
+  'adjustments',
+  'reasons',
+]);
+
 /** Old `?tab=…&id=…` links (e.g. reconciliation drill-downs) open the record's own page. */
 const RECORD_OF_TAB: Partial<Record<TabKey, RecordKind>> = {
   transfers: 'CASH_TRANSFER',
@@ -53,7 +64,9 @@ const RECORD_OF_TAB: Partial<Record<TabKey, RecordKind>> = {
   adjustments: 'CUSTODY_ADJUSTMENT',
 };
 
-const isTab = (v: string | null): v is TabKey => CASH_TABS.some((t) => t.key === v);
+/** The tabs shown: the cash basics always, the controls only while CASH_CUSTODY is on. */
+const cashTabsFor = (controlsOn: boolean) =>
+  CASH_TABS.filter((t) => controlsOn || !CONTROL_TABS.has(t.key));
 
 /**
  * Cash custody chain (accountability design C): custody per custodian, transfers, floats,
@@ -66,8 +79,11 @@ export function CashCustodyPage({ tab: fixedTab }: { tab?: CashTabKey } = {}) {
   const notify = useNotify();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
+  const controlsOn = useCapabilityEnabled(CAPABILITY.cashCustody);
+  const tabs = cashTabsFor(controlsOn);
   const raw = params.get('tab');
-  const tab: TabKey = fixedTab ?? (isTab(raw) ? raw : 'supervisors');
+  const fromUrl = tabs.find((t) => t.key === raw)?.key;
+  const tab: TabKey = fixedTab ?? fromUrl ?? 'supervisors';
   const focusId = params.get('id');
   const focusKind = RECORD_OF_TAB[tab];
   /** A status filter from the URL, only when it is one of the tab's options (else the tab's default). */
@@ -121,7 +137,7 @@ export function CashCustodyPage({ tab: fixedTab }: { tab?: CashTabKey } = {}) {
             changeTab(v);
           }}
         >
-          {CASH_TABS.map((t) => (
+          {tabs.map((t) => (
             <Tab key={t.key} value={t.key} label={t.label} />
           ))}
         </Tabs>

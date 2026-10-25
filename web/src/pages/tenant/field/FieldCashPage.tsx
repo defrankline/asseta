@@ -1,5 +1,6 @@
 import { Box, Button, Paper, Stack, Tab, Tabs, Typography } from '@mui/material';
 import { useCallback, useState } from 'react';
+import { CAPABILITY, useCapabilityEnabled } from '../../../access/capabilities';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import { CanMutate } from '../../../access/CanMutate';
 import { useCanMutate } from '../../../access/useCanMutate';
@@ -36,6 +37,9 @@ import { FieldCollectionDialog } from './FieldCollectionDialog';
 
 type TabKey = 'collections' | 'handovers' | 'transfers' | 'floats' | 'retentions';
 type Open = 'collection' | 'handover' | null;
+
+/** Tabs of the cash custody controls (DEC-030). */
+const CONTROL_TABS: ReadonlySet<TabKey> = new Set(['transfers', 'retentions']);
 
 const settlement = (s: CustomerPaymentDto['status']) => (
   <StatusChip status={s} tones={SETTLEMENT_TONES} label={SETTLEMENT_LABELS[s]} />
@@ -107,12 +111,15 @@ export function FieldCashPage() {
   const timeZone = useDisplayTimeZone();
   const notify = useNotify();
   const customerLabel = useCustomerLabels();
-  const [tab, setTab] = useState<TabKey>('collections');
+  /** Off: transfers, keep-cash requests and recording for another custodian are hidden. */
+  const controlsOn = useCapabilityEnabled(CAPABILITY.cashCustody);
+  const [chosenTab, setTab] = useState<TabKey>('collections');
+  const tab: TabKey = !controlsOn && CONTROL_TABS.has(chosenTab) ? 'collections' : chosenTab;
   const [status, setStatus] = useState('');
   const [open, setOpen] = useState<Open>(null);
   const policy = useCashPolicy();
   const canOffice = useCanMutate(PERMISSIONS.tenantFinanceCash);
-  const forOthers = canOffice || policy?.recordersMayRecordForOthers === true;
+  const forOthers = canOffice || (controlsOn && policy?.recordersMayRecordForOthers === true);
   const [reloadKey, setReloadKey] = useState(0);
   const reload = useCallback(() => {
     setReloadKey((k) => k + 1);
@@ -201,9 +208,9 @@ export function FieldCashPage() {
           >
             <Tab value="collections" label="My collections" />
             <Tab value="handovers" label="My remittances" />
-            <Tab value="transfers" label="Transfers" />
+            {controlsOn && <Tab value="transfers" label="Transfers" />}
             <Tab value="floats" label="Floats" />
-            <Tab value="retentions" label="Keep cash requests" />
+            {controlsOn && <Tab value="retentions" label="Keep cash requests" />}
           </Tabs>
           <Box className="p-3">
             {tab === 'transfers' && <TransfersTab timeZone={timeZone} field />}

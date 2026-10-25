@@ -17,6 +17,7 @@ import { ENTITY } from '../../../realtime/entities';
 import { useLiveRefresh } from '../../../realtime/hooks';
 import { humanize } from '../../../utils/text';
 import { formatInstantIn } from '../../../utils/time';
+import { CAPABILITY, useCapabilityEnabled } from '../../../access/capabilities';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import { useCanMutate } from '../../../access/useCanMutate';
 import { useNotify } from '../../../notifications/useNotify';
@@ -35,6 +36,7 @@ const STATE_OPTIONS: readonly { value: CaptureState; label: string }[] = [
   { value: 'SUPERSEDED', label: 'Superseded' },
 ];
 
+/** Daily readings stay filterable when engine-hour controls are off (earlier ones remain listed). */
 const KIND_OPTIONS = [
   { value: 'OPENING', label: 'Opening' },
   { value: 'CLOSING', label: 'Closing' },
@@ -114,6 +116,8 @@ export function FieldReadingsPage() {
   const [recording, setRecording] = useState<'daily' | 'baseline' | null>(null);
   const notify = useNotify();
   const canCapture = useCanMutate(PERMISSIONS.tenantMeterCapture);
+  /** Off: no daily readings, baselines or corrections; job readings work as before. */
+  const engineHoursOn = useCapabilityEnabled(CAPABILITY.engineHours);
   const [reloadKey, setReloadKey] = useState(0);
   const liveReload = useCallback(() => {
     setReloadKey((k) => k + 1);
@@ -153,7 +157,7 @@ export function FieldReadingsPage() {
         title="Readings"
         subtitle="Your meter readings (job and daily), how the policy judged them, and any review notes"
         actions={
-          canCapture ? (
+          canCapture && engineHoursOn ? (
             <Box className="flex flex-wrap gap-2">
               <Button
                 variant="contained"
@@ -210,7 +214,7 @@ export function FieldReadingsPage() {
           machineLabel={machineLabel(viewing.machine_id)}
           timeZone={timeZone}
           onCorrect={
-            canCapture
+            canCapture && engineHoursOn
               ? () => {
                   setCorrecting(viewing);
                   setViewing(null);
