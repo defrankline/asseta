@@ -21,14 +21,6 @@ enum OwnerLookups {
         return repository.cached(.cash(.today), as: [CashSupervisorSummaryDTO].self).map { HandoverText.names($0.value) } ?? [:]
     }
 
-    /// "EX-07 · CAT 320" by machine id, from the fleet map (best effort; saved data offline).
-    static func machineNames(_ model: OwnerModel) async -> [UUID: String] {
-        guard let repository = model.repository, model.features.fleet else { return [:] }
-        let machines = (try? await repository.load(.fleetMap, OwnerAPI.fleetMap()))?.value
-            ?? repository.cached(.fleetMap, as: [MachineMapDTO].self)?.value ?? []
-        return Dictionary(machines.map { ($0.machineID, "\($0.assetCode) · \($0.name)") }, uniquingKeysWith: { a, _ in a })
-    }
-
     /// Job numbers by job id (job summaries, saved for offline like the job screen).
     static func jobNumbers(_ model: OwnerModel, ids: [UUID?]) async -> [UUID: String] {
         guard let repository = model.repository, model.features.jobs else { return [:] }

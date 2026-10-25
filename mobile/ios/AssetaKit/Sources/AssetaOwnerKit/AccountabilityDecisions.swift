@@ -182,8 +182,9 @@ public struct PendingDecision: Codable, Hashable, Sendable, Identifiable {
 struct DiscountDTO: Codable, Sendable {
     let id: UUID, customerID: UUID, percent: DecimalString, effectiveFrom: Date, effectiveTo: Date?, reason: String
     let status: String, proposedBy: UUID?, proposedAt: Date
-    let customerName: String?, proposedByName: String?, decidedByName: String?
+    let customerName: String?, proposedByName: String?, decidedByName: String?, decidedBy: UUID?, decisionNote: String?
     enum CodingKeys: String, CodingKey {
+        case decidedBy = "decided_by", decisionNote = "decision_note"
         case customerName = "customer_name", proposedByName = "proposed_by_name", decidedByName = "decided_by_name"
         case id, percent, reason, status, customerID = "customer_id", effectiveFrom = "effective_from"
         case effectiveTo = "effective_to", proposedBy = "proposed_by", proposedAt = "proposed_at"
@@ -193,8 +194,9 @@ struct DiscountDTO: Codable, Sendable {
 struct CreditArrangementDTO: Codable, Sendable {
     let id: UUID, customerID: UUID, limitAmount: DecimalString, currency: String, effectiveFrom: Date, effectiveTo: Date?
     let terms: String?, reason: String, status: String, proposedBy: UUID?, proposedAt: Date
-    let customerName: String?, proposedByName: String?, decidedByName: String?
+    let customerName: String?, proposedByName: String?, decidedByName: String?, decidedBy: UUID?, decisionNote: String?
     enum CodingKeys: String, CodingKey {
+        case decidedBy = "decided_by", decisionNote = "decision_note"
         case customerName = "customer_name", proposedByName = "proposed_by_name", decidedByName = "decided_by_name"
         case id, currency, terms, reason, status, customerID = "customer_id", limitAmount = "limit_amount"
         case effectiveFrom = "effective_from", effectiveTo = "effective_to", proposedBy = "proposed_by", proposedAt = "proposed_at"
@@ -205,8 +207,9 @@ struct HoursTransferDTO: Codable, Sendable {
     let id: UUID, purchaseID: UUID, fromMachineID: UUID, toMachineID: UUID, hours: DecimalString, reason: String
     let status: String, requestedBy: UUID?, requestedAt: Date
     let customerName: String?, purchaseNumber: String?, fromMachineName: String?, toMachineName: String?
-    let requestedByName: String?, decidedByName: String?
+    let requestedByName: String?, decidedByName: String?, fromMachineCode: String?, toMachineCode: String?, decidedBy: UUID?, decisionNote: String?
     enum CodingKeys: String, CodingKey {
+        case fromMachineCode = "from_machine_code", toMachineCode = "to_machine_code", decidedBy = "decided_by", decisionNote = "decision_note"
         case customerName = "customer_name", purchaseNumber = "purchase_number", fromMachineName = "from_machine_name"
         case toMachineName = "to_machine_name", requestedByName = "requested_by_name", decidedByName = "decided_by_name"
         case id, hours, reason, status, purchaseID = "purchase_id", fromMachineID = "from_machine_id"
@@ -216,8 +219,9 @@ struct HoursTransferDTO: Codable, Sendable {
 
 struct CancellationDTO: Codable, Sendable {
     let id: UUID, purchaseID: UUID, reason: String, status: String, requestedBy: UUID?, requestedAt: Date
-    let customerName: String?, purchaseNumber: String?, requestedByName: String?, decidedByName: String?
+    let customerName: String?, purchaseNumber: String?, requestedByName: String?, decidedByName: String?, decidedBy: UUID?, decisionNote: String?
     enum CodingKeys: String, CodingKey {
+        case decidedBy = "decided_by", decisionNote = "decision_note"
         case customerName = "customer_name", purchaseNumber = "purchase_number", requestedByName = "requested_by_name"
         case decidedByName = "decided_by_name"
         case id, reason, status, purchaseID = "purchase_id", requestedBy = "requested_by", requestedAt = "requested_at"
@@ -227,9 +231,9 @@ struct CancellationDTO: Codable, Sendable {
 struct BaselineDTO: Codable, Sendable {
     let id: UUID, machineID: UUID, machineCode: String?, machineName: String?, reading: DecimalString, capturedAt: Date
     let source: String, photoAttachmentID: UUID?, note: String?, status: String, proposedBy: UUID?, proposedByName: String?
-    let proposedAt: Date, decidedByName: String?
+    let proposedAt: Date, decidedByName: String?, decidedBy: UUID?, decisionNote: String?
     enum CodingKeys: String, CodingKey {
-        case decidedByName = "decided_by_name"
+        case decidedByName = "decided_by_name", decidedBy = "decided_by", decisionNote = "decision_note"
         case id, reading, source, note, status, machineID = "machine_id", machineCode = "machine_code"
         case machineName = "machine_name", capturedAt = "captured_at", photoAttachmentID = "photo_attachment_id"
         case proposedBy = "proposed_by", proposedByName = "proposed_by_name", proposedAt = "proposed_at"
@@ -239,9 +243,9 @@ struct BaselineDTO: Codable, Sendable {
 struct ClassificationDTO: Codable, Sendable {
     let id: UUID, machineID: UUID, machineCode: String?, startAt: Date, endAt: Date, hours: DecimalString, outcome: String
     let reasonName: String?, note: String, status: String, proposedBy: UUID?, proposedByName: String?, proposedAt: Date
-    let machineName: String?, decidedByName: String?
+    let machineName: String?, decidedByName: String?, decidedBy: UUID?, decisionNote: String?
     enum CodingKeys: String, CodingKey {
-        case machineName = "machine_name", decidedByName = "decided_by_name"
+        case machineName = "machine_name", decidedByName = "decided_by_name", decidedBy = "decided_by", decisionNote = "decision_note"
         case id, hours, outcome, note, status, machineID = "machine_id", machineCode = "machine_code", startAt = "start_at"
         case endAt = "end_at", reasonName = "reason_name", proposedBy = "proposed_by", proposedByName = "proposed_by_name"
         case proposedAt = "proposed_at"
@@ -251,9 +255,9 @@ struct ClassificationDTO: Codable, Sendable {
 struct CorrectionDTO: Codable, Sendable {
     let id: UUID, machineID: UUID, machineCode: String?, oldReading: DecimalString, newReading: DecimalString, reason: String
     let status: String, proposedBy: UUID?, proposedByName: String?, proposedAt: Date
-    let machineName: String?, jobNumber: String?, decidedByName: String?
+    let machineName: String?, jobNumber: String?, decidedByName: String?, jobID: UUID?, decidedBy: UUID?, decisionNote: String?
     enum CodingKeys: String, CodingKey {
-        case machineName = "machine_name", jobNumber = "job_number", decidedByName = "decided_by_name"
+        case machineName = "machine_name", jobNumber = "job_number", decidedByName = "decided_by_name", jobID = "job_id", decidedBy = "decided_by", decisionNote = "decision_note"
         case id, reason, status, machineID = "machine_id", machineCode = "machine_code", oldReading = "old_reading"
         case newReading = "new_reading", proposedBy = "proposed_by", proposedByName = "proposed_by_name"
         case proposedAt = "proposed_at"
@@ -264,7 +268,10 @@ struct CashVarianceDTO: Codable, Sendable {
     let id: UUID, sourceType: String, currency: String, declaredAmount: DecimalString, receivedAmount: DecimalString
     let amount: DecimalString, status: String, proposedBy: UUID?, proposedAt: Date?, proposalNote: String?, openedAt: Date
     let staffMemberID: UUID?, staffMemberName: String?, counterpartyStaffName: String?, proposedByName: String?
+    let counterpartyStaffID: UUID?, resolvedBy: UUID?, resolvedByName: String?, resolutionNote: String?
     enum CodingKeys: String, CodingKey {
+        case counterpartyStaffID = "counterparty_staff_id", resolvedBy = "resolved_by", resolvedByName = "resolved_by_name"
+        case resolutionNote = "resolution_note"
         case staffMemberID = "staff_member_id", staffMemberName = "staff_member_name"
         case counterpartyStaffName = "counterparty_staff_name", proposedByName = "proposed_by_name"
         case id, currency, amount, status, sourceType = "source_type", declaredAmount = "declared_amount"
@@ -277,7 +284,9 @@ struct CustodyAdjustmentDTO: Codable, Sendable {
     let id: UUID, kind: String, amount: DecimalString, currency: String, occurredAt: Date, reason: String, status: String
     let createdBy: UUID?, createdAt: Date
     let staffMemberID: UUID?, staffMemberName: String?, createdByName: String?, decidedByName: String?, decisionNote: String?
+    let decidedBy: UUID?
     enum CodingKeys: String, CodingKey {
+        case decidedBy = "decided_by"
         case staffMemberID = "staff_member_id", staffMemberName = "staff_member_name", createdByName = "created_by_name"
         case decidedByName = "decided_by_name", decisionNote = "decision_note"
         case id, kind, amount, currency, reason, status, occurredAt = "occurred_at", createdBy = "created_by"
@@ -302,9 +311,9 @@ extension PendingDecision {
     }
 
     /// Normalizes one server record of `kind` (nil when it does not decode). Names come from the server's `*_name`
-    /// fields; only when one is null the short id stands in (`DisplayName`). `machines` names machines by id for older
-    /// servers whose hours transfers carry ids only. Same mapping as Android `DecisionMapper`.
-    public static func from(_ json: JSONValue, kind: DecisionKind, machines: [UUID: String] = [:],
+    /// fields; only when one is null the short id stands in (`DisplayName`). Same labels and order as Android
+    /// `DecisionMapper`.
+    public static func from(_ json: JSONValue, kind: DecisionKind,
                             timeZone: TimeZone = .current) -> PendingDecision? {
         func date(_ d: Date) -> String { OwnerFormat.stamp(d, timeZone: timeZone) }
         func money(_ amount: DecimalString, _ currency: String) -> String { OwnerFormat.money(amount, currency: currency) }
@@ -316,13 +325,18 @@ extension PendingDecision {
                             proposedByName: who(name, by), proposedAt: at, reason: reason, fields: fields, machineID: machine,
                             photoAttachmentID: photo)
         }
+        /// Decided by (name, else short id) and the decision note, as Android `DecisionMapper.decided`.
+        func decided(_ name: String?, _ id: UUID?, _ note: String?) -> [(String, String?)] {
+            [(T.fieldDecidedBy, who(name, id)), (T.fieldDecisionNote, note)]
+        }
         switch kind {
         case .discount:
             guard let d = try? json.decode(as: DiscountDTO.self) else { return nil }
             return item(d.id, T.rowDiscount(num(d.percent)), d.reason, d.proposedAt, d.proposedBy, d.status,
                         fields([(T.fieldCustomer, who(d.customerName, d.customerID)), (T.fieldDiscount, "\(num(d.percent))%"),
                                 (T.fieldEffectiveFrom, date(d.effectiveFrom)), (T.fieldEffectiveTo, d.effectiveTo.map(date)),
-                                (T.fieldProposedBy, who(d.proposedByName, d.proposedBy)), (T.fieldDecidedBy, d.decidedByName)]),
+                                (T.fieldProposedBy, who(d.proposedByName, d.proposedBy))]
+                               + decided(d.decidedByName, d.decidedBy, d.decisionNote)),
                         name: d.proposedByName)
         case .credit:
             guard let c = try? json.decode(as: CreditArrangementDTO.self) else { return nil }
@@ -330,31 +344,34 @@ extension PendingDecision {
                         fields([(T.fieldCustomer, who(c.customerName, c.customerID)),
                                 (T.fieldCreditLimit, money(c.limitAmount, c.currency)), (T.fieldTerms, c.terms),
                                 (T.fieldEffectiveFrom, date(c.effectiveFrom)), (T.fieldEffectiveTo, c.effectiveTo.map(date)),
-                                (T.fieldProposedBy, who(c.proposedByName, c.proposedBy)), (T.fieldDecidedBy, c.decidedByName)]),
+                                (T.fieldProposedBy, who(c.proposedByName, c.proposedBy))]
+                               + decided(c.decidedByName, c.decidedBy, c.decisionNote)),
                         name: c.proposedByName)
         case .hoursTransfer:
             guard let t = try? json.decode(as: HoursTransferDTO.self) else { return nil }
             return item(t.id, T.rowHoursTransfer(num(t.hours)), t.reason, t.requestedAt, t.requestedBy, t.status,
                         fields([(T.fieldCustomer, t.customerName), (T.fieldPurchase, who(t.purchaseNumber, t.purchaseID)),
                                 (T.fieldHours, num(t.hours)),
-                                (T.fieldFromMachine, who(t.fromMachineName ?? machines[t.fromMachineID], t.fromMachineID)),
-                                (T.fieldToMachine, who(t.toMachineName ?? machines[t.toMachineID], t.toMachineID)),
-                                (T.fieldRequestedBy, who(t.requestedByName, t.requestedBy)), (T.fieldDecidedBy, t.decidedByName)]),
+                                (T.fieldFromMachine, DisplayName.machine(code: t.fromMachineCode, name: t.fromMachineName, id: t.fromMachineID)),
+                                (T.fieldToMachine, DisplayName.machine(code: t.toMachineCode, name: t.toMachineName, id: t.toMachineID)),
+                                (T.fieldRequestedBy, who(t.requestedByName, t.requestedBy))]
+                               + decided(t.decidedByName, t.decidedBy, t.decisionNote)),
                         machine: t.fromMachineID, name: t.requestedByName)
         case .cancellation:
             guard let c = try? json.decode(as: CancellationDTO.self) else { return nil }
             return item(c.id, T.rowCancellation, c.reason, c.requestedAt, c.requestedBy, c.status,
                         fields([(T.fieldCustomer, c.customerName), (T.fieldPurchase, who(c.purchaseNumber, c.purchaseID)),
-                                (T.fieldRequestedBy, who(c.requestedByName, c.requestedBy)), (T.fieldDecidedBy, c.decidedByName)]),
+                                (T.fieldRequestedBy, who(c.requestedByName, c.requestedBy))]
+                               + decided(c.decidedByName, c.decidedBy, c.decisionNote)),
                         name: c.requestedByName)
         case .baseline:
             guard let b = try? json.decode(as: BaselineDTO.self) else { return nil }
-            let machine = DisplayName.machine(code: b.machineCode, name: b.machineName, id: b.machineID)
-            return item(b.id, T.rowBaseline(reading: num(b.reading), machine: b.machineCode ?? b.machineName ?? machine), b.note,
-                        b.proposedAt, b.proposedBy, b.status,
-                        fields([(T.fieldMachine, machine), (T.fieldReading, num(b.reading)),
-                                (T.fieldProposedBy, who(b.proposedByName, b.proposedBy)), (T.fieldCaptured, date(b.capturedAt)),
-                                (T.fieldDecidedBy, b.decidedByName)]),
+            return item(b.id, T.rowBaseline(reading: num(b.reading), machine: b.machineCode ?? b.machineName ?? DisplayName.shortID(b.machineID)),
+                        b.note, b.proposedAt, b.proposedBy, b.status,
+                        fields([(T.fieldMachine, DisplayName.machine(code: b.machineCode, name: b.machineName, id: b.machineID)),
+                                (T.fieldReading, num(b.reading)), (T.fieldProposedBy, who(b.proposedByName, b.proposedBy)),
+                                (T.fieldCaptured, date(b.capturedAt))]
+                               + decided(b.decidedByName, b.decidedBy, b.decisionNote)),
                         machine: b.machineID, photo: b.photoAttachmentID, name: b.proposedByName)
         case .classification:
             guard let c = try? json.decode(as: ClassificationDTO.self) else { return nil }
@@ -363,33 +380,36 @@ extension PendingDecision {
                         fields([(T.fieldMachine, DisplayName.machine(code: c.machineCode, name: c.machineName, id: c.machineID)),
                                 (T.fieldHours, num(c.hours)), (T.fieldPeriod, "\(date(c.startAt)) – \(date(c.endAt))"),
                                 (T.fieldCategory, c.reasonName), (T.fieldOutcome, T.outcome(c.outcome)),
-                                (T.fieldProposedBy, who(c.proposedByName, c.proposedBy)), (T.fieldDecidedBy, c.decidedByName)]),
+                                (T.fieldProposedBy, who(c.proposedByName, c.proposedBy))]
+                               + decided(c.decidedByName, c.decidedBy, c.decisionNote)),
                         machine: c.machineID, name: c.proposedByName)
         case .correction:
             guard let c = try? json.decode(as: CorrectionDTO.self) else { return nil }
-            let machine = DisplayName.machine(code: c.machineCode, name: c.machineName, id: c.machineID)
-            return item(c.id, T.rowCorrection(old: num(c.oldReading), new: num(c.newReading), machine: c.machineCode ?? machine),
+            return item(c.id, T.rowCorrection(old: num(c.oldReading), new: num(c.newReading),
+                                              machine: c.machineCode ?? c.machineName ?? DisplayName.shortID(c.machineID)),
                         c.reason, c.proposedAt, c.proposedBy, c.status,
-                        fields([(T.fieldMachine, machine), (T.fieldJob, c.jobNumber), (T.fieldOldReading, num(c.oldReading)),
-                                (T.fieldNewReading, num(c.newReading)), (T.fieldProposedBy, who(c.proposedByName, c.proposedBy)),
-                                (T.fieldDecidedBy, c.decidedByName)]),
+                        fields([(T.fieldMachine, DisplayName.machine(code: c.machineCode, name: c.machineName, id: c.machineID)),
+                                (T.fieldJob, who(c.jobNumber, c.jobID)), (T.fieldOldReading, num(c.oldReading)),
+                                (T.fieldNewReading, num(c.newReading)), (T.fieldProposedBy, who(c.proposedByName, c.proposedBy))]
+                               + decided(c.decidedByName, c.decidedBy, c.decisionNote)),
                         machine: c.machineID, name: c.proposedByName)
         case .writeOff:
             guard let v = try? json.decode(as: CashVarianceDTO.self) else { return nil }
             return item(v.id, T.rowWriteOff(money(v.amount, v.currency)), v.proposalNote, v.proposedAt ?? v.openedAt, v.proposedBy,
                         v.status,
                         fields([(T.fieldCustodian, who(v.staffMemberName, v.staffMemberID)),
-                                (T.fieldCounterparty, v.counterpartyStaffName),
+                                (T.fieldCounterparty, who(v.counterpartyStaffName, v.counterpartyStaffID)),
                                 (T.fieldSource, OwnerFormat.humanize(v.sourceType)), (T.fieldDeclared, money(v.declaredAmount, v.currency)),
                                 (T.fieldReceived, money(v.receivedAmount, v.currency)), (T.fieldDifference, money(v.amount, v.currency)),
-                                (T.fieldProposedBy, who(v.proposedByName, v.proposedBy))]),
+                                (T.fieldProposedBy, who(v.proposedByName, v.proposedBy))]
+                               + decided(v.resolvedByName, v.resolvedBy, v.resolutionNote)),
                         name: v.proposedByName)
         case .retention:
             guard let r = try? json.decode(as: CashRetentionDTO.self) else { return nil }
             return item(r.id, T.rowRetention(money(r.amount, r.currency)), r.reason, r.createdAt, r.createdBy, r.status,
                         fields([(T.fieldCustodian, who(r.staffMemberName, r.staffMemberID)), (T.fieldAmount, money(r.amount, r.currency)),
-                                (T.fieldValidUntil, r.validUntil.map(date)), (T.fieldRequestedBy, who(r.createdByName, r.createdBy)),
-                                (T.fieldDecidedBy, r.decidedByName), (T.fieldDecisionNote, r.decisionNote)]),
+                                (T.fieldValidUntil, r.validUntil.map(date)), (T.fieldRequestedBy, who(r.createdByName, r.createdBy))]
+                               + decided(r.decidedByName, r.decidedBy, r.decisionNote)),
                         name: r.createdByName)
         case .adjustment:
             guard let a = try? json.decode(as: CustodyAdjustmentDTO.self) else { return nil }
@@ -397,14 +417,14 @@ extension PendingDecision {
                         a.createdAt, a.createdBy, a.status,
                         fields([(T.fieldCustodian, who(a.staffMemberName, a.staffMemberID)), (T.fieldKind, OwnerFormat.humanize(a.kind)),
                                 (T.fieldAmount, money(a.amount, a.currency)), (T.fieldWhen, date(a.occurredAt)),
-                                (T.fieldRequestedBy, who(a.createdByName, a.createdBy)), (T.fieldDecidedBy, a.decidedByName),
-                                (T.fieldDecisionNote, a.decisionNote)]),
+                                (T.fieldProposedBy, who(a.createdByName, a.createdBy))]
+                               + decided(a.decidedByName, a.decidedBy, a.decisionNote)),
                         name: a.createdByName)
         }
     }
 
-    public static func list(_ page: Page<JSONValue>, kind: DecisionKind, machines: [UUID: String] = [:]) -> [PendingDecision] {
-        page.items.compactMap { from($0, kind: kind, machines: machines) }
+    public static func list(_ page: Page<JSONValue>, kind: DecisionKind) -> [PendingDecision] {
+        page.items.compactMap { from($0, kind: kind) }
     }
 }
 

@@ -71,6 +71,7 @@ struct AccountabilityGapOwnerTests {
         #expect(try Contract.missingRequired(schema: "CashRetentionDto", json: retention) == [])
         let r = try #require(PendingDecision.from(try JSONValue.parse(retention), kind: .retention))
         #expect(!r.isPending)
+        #expect(r.fields.map(\.label) == ["Cash held by", "Amount", "Requested by", "Decided by", "Decision note"])
         #expect(r.fields.first == DecisionField(label: "Cash held by", value: "Juma Field"))
         #expect(r.fields.contains(DecisionField(label: "Requested by", value: "22222222")))
         #expect(r.fields.contains(DecisionField(label: "Decided by", value: "Owner One")))
@@ -84,19 +85,44 @@ struct AccountabilityGapOwnerTests {
         #expect(HandoverText.title(h, supervisor: "Old name", money: { _, _ in "TZS 1" }) == "Asha Mrema handed over TZS 1")
     }
 
+    /// Labels and order of every kind, as Android `DecisionMapper` (decided ones end with Decided by + Decision note).
+    @Test func decisionFieldsMatchAndroidOrder() throws {
+        var labels: [DecisionKind: [String]] = [:]
+        for (kind, _, json) in S.samples {
+            let decided = json.replacingOccurrences(of: "\"decided_by\":null", with: "\"decided_by\":\"\(S.me)\"")
+                .replacingOccurrences(of: "\"decision_note\":null", with: "\"decision_note\":\"Checked\"")
+                .replacingOccurrences(of: "\"resolved_by\":null", with: "\"resolved_by\":\"\(S.me)\"")
+                .replacingOccurrences(of: "\"resolution_note\":null", with: "\"resolution_note\":\"Checked\"")
+            labels[kind] = try #require(PendingDecision.from(try JSONValue.parse(decided), kind: kind)).fields.map(\.label)
+        }
+        #expect(labels[.discount] == ["Customer", "Discount", "Effective from", "Proposed by", "Decided by", "Decision note"])
+        #expect(labels[.credit] == ["Customer", "Credit limit", "Terms", "Effective from", "Effective to", "Proposed by", "Decided by",
+                                    "Decision note"])
+        #expect(labels[.hoursTransfer] == ["Purchase", "Hours", "From machine", "To machine", "Requested by", "Decided by", "Decision note"])
+        #expect(labels[.cancellation] == ["Purchase", "Requested by", "Decided by", "Decision note"])
+        #expect(labels[.baseline] == ["Machine", "Reading", "Proposed by", "Captured", "Decided by", "Decision note"])
+        #expect(labels[.adjustment]?.prefix(5) == ["Cash held by", "Kind", "Amount", "When", "Proposed by"])
+        for kind in DecisionKind.allCases { #expect(labels[kind]?.suffix(2) == ["Decided by", "Decision note"], "\(kind)") }
+    }
+
     // MARK: - G4
 
     @Test func cashTileShowsOverdueRemittancesOnlyWithACutoff() throws {
         var summary = try AssetaJSON.decoder().decode(AccountabilitySummaryDTO.self, from: Data(S.summary.utf8))
         #expect(summary.cash?.remittancesOverdueToday == nil)
-        #expect(AccountabilityDashboard.tiles(summary).first { $0.id == "cash" }?.rows.contains { $0.label == "Remittances overdue today" } == false)
+        let plain = try #require(AccountabilityDashboard.tiles(summary).first { $0.id == "cash" })
+        #expect(!plain.rows.contains { $0.label == "Remittances overdue today" } && plain.footer == nil && plain.moreLinks.isEmpty)
 
         let withCutoff = S.summary.replacingOccurrences(of: "\"partial_remittances_in_window\":1",
                                                         with: "\"partial_remittances_in_window\":1,\"remittance_cutoff_hour\":7,\"remittances_overdue_today\":2")
         #expect(try Contract.missingRequired(schema: "AccountabilitySummaryDto", json: withCutoff) == [])
         summary = try AssetaJSON.decoder().decode(AccountabilitySummaryDTO.self, from: Data(withCutoff.utf8))
-        let row = try #require(AccountabilityDashboard.tiles(summary).first { $0.id == "cash" }?.rows.first { $0.label == "Remittances overdue today" })
-        #expect(row.value == "2" && row.detail == "Cut-off 07:00" && row.route == .overdueRemittances)
+        let tile = try #require(AccountabilityDashboard.tiles(summary).first { $0.id == "cash" })
+        let row = try #require(tile.rows.first { $0.label == "Remittances overdue today" })
+        #expect(row.value == "2" && row.detail == nil)
+        // As Android: the cut-off under the tile, and a second link after "Cash" to today's flagged custodians.
+        #expect(tile.footer == "Cut-off 07:00" && tile.route == .cash)
+        #expect(tile.moreLinks == [DashboardTile.Link(label: "Remittances overdue today", route: .overdueRemittances)])
     }
 
     @Test func overdueRemittanceDecodesAndReads() throws {

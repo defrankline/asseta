@@ -147,15 +147,18 @@ public struct DashboardTile: Hashable, Sendable, Identifiable {
         public let label: String
         public let value: String
         public let detail: String?
-        /// Where this row leads, when it has its own screen (e.g. the overdue remittances of today).
-        public let route: OwnerRoute?
 
-        public init(_ label: String, _ value: String, detail: String? = nil, route: OwnerRoute? = nil) {
+        public init(_ label: String, _ value: String, detail: String? = nil) {
             self.label = label
             self.value = value
             self.detail = detail
-            self.route = route
         }
+    }
+
+    /// A further list the tile opens (label + screen), after the tile's own link.
+    public struct Link: Hashable, Sendable {
+        public let label: String
+        public let route: OwnerRoute
     }
 
     public let id: String
@@ -163,6 +166,10 @@ public struct DashboardTile: Hashable, Sendable, Identifiable {
     public let rows: [Row]
     /// Where the tile leads (filtered list), when the app has that screen.
     public let route: OwnerRoute?
+    /// A note under the tile (e.g. "Cut-off 07:00").
+    public var footer: String? = nil
+    /// Further lists the tile opens, e.g. today's overdue remittances from the cash tile (Android `moreLinks`).
+    public var moreLinks: [Link] = []
 }
 
 public enum AccountabilityDashboard {
@@ -198,18 +205,19 @@ public enum AccountabilityDashboard {
                 .init(T.dashRemittancesAwaiting, counts(c.remittancesAwaitingConfirmation)),
                 .init(T.dashPartialRemittances, "\(c.partialRemittancesInWindow)"),
             ]
-            // Only when the tenant has a remittance cut-off (null = no cut-off).
-            if let overdue = c.remittancesOverdueToday {
-                rows.append(.init(T.dashRemittancesOverdue, "\(overdue)", detail: c.remittanceCutoffHour.map(T.dashCutoff),
-                                  route: .overdueRemittances))
-            }
+            // Remittance cut-off (null = the tenant has none): today's overdue count, the cut-off under the tile, and a
+            // link to the flagged custodians (as Android).
+            if let overdue = c.remittancesOverdueToday { rows.append(.init(T.dashRemittancesOverdue, "\(overdue)")) }
             for custodian in c.custodians {
                 let outstanding = T.dashCustodianLine(OwnerFormat.money(custodian.outstanding, currency: custodian.currency))
                 let transit = custodian.inTransitOut.value == 0 ? nil
                     : T.dashInTransit(OwnerFormat.money(custodian.inTransitOut, currency: custodian.currency))
                 rows.append(.init(custodian.staffName, outstanding, detail: transit))
             }
-            out.append(DashboardTile(id: "cash", title: T.dashCash, rows: rows, route: .cash))
+            let overdue = c.remittancesOverdueToday != nil
+            out.append(DashboardTile(id: "cash", title: T.dashCash, rows: rows, route: .cash,
+                                     footer: overdue ? c.remittanceCutoffHour.map(T.dashCutoff) : nil,
+                                     moreLinks: overdue ? [.init(label: T.dashRemittancesOverdue, route: .overdueRemittances)] : []))
         }
         if let p = s.payments {
             out.append(DashboardTile(id: "payments", title: T.dashPayments, rows: [.init(T.dashPayments, counts(p.awaitingConfirmation))],

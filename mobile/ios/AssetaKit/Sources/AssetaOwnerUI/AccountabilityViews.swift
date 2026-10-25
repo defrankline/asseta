@@ -63,10 +63,9 @@ struct DecisionDetailView: View {
     @State private var message: String?
     @State private var confirmReject = false
     @State private var showPhoto = false
-    @State private var machines: [UUID: String] = [:]
 
     private var item: PendingDecision? {
-        decided ?? record.value.flatMap { PendingDecision.from($0, kind: kind, machines: machines) }
+        decided ?? record.value.flatMap { PendingDecision.from($0, kind: kind) }
     }
     private var showingCachedData: Bool { record.isFromCache }
 
@@ -144,7 +143,7 @@ struct DecisionDetailView: View {
         do {
             let result = try await repository.send(OwnerAPI.decide(kind, id: recordID, approve: approve, note: note,
                                                                    idempotencyKey: UUID()))
-            decided = PendingDecision.from(result, kind: kind, machines: machines)
+            decided = PendingDecision.from(result, kind: kind)
             decisionError = nil
             note = ""
             message = approve ? T.decisionApproved : T.decisionRejected
@@ -163,10 +162,6 @@ struct DecisionDetailView: View {
     private func reload() async {
         await record.load(model, .decision(kind, id: recordID), OwnerAPI.decision(kind, id: recordID))
         if record.error == nil && !record.isFromCache { decided = nil }
-        // Older servers send hours transfers without machine names.
-        if kind == .hoursTransfer, record.value?["from_machine_name"]?.stringValue == nil {
-            machines = await OwnerLookups.machineNames(model)
-        }
     }
 }
 
@@ -186,17 +181,14 @@ struct AccountabilityDashboardView: View {
                 if tiles.isEmpty { EmptyState(title: T.dashEmpty, systemImage: "checkmark.shield") }
                 ForEach(tiles) { tile in
                     Section {
-                        ForEach(Array(tile.rows.enumerated()), id: \.offset) { _, row in
-                            if let route = row.route, model.features.allows(route) {
-                                NavigationLink(value: route) { TileRow(row: row) }
-                            } else {
-                                TileRow(row: row)
-                            }
-                        }
+                        ForEach(Array(tile.rows.enumerated()), id: \.offset) { _, row in TileRow(row: row) }
                         if let route = tile.route, model.features.allows(route) {
                             NavigationLink(value: route) { Text(tile.title).foregroundStyle(Color.accentColor) }
                         }
-                    } header: { Text(tile.title) }
+                        ForEach(tile.moreLinks.filter { model.features.allows($0.route) }, id: \.self) { link in
+                            NavigationLink(value: link.route) { Text(link.label).foregroundStyle(Color.accentColor) }
+                        }
+                    } header: { Text(tile.title) } footer: { if let footer = tile.footer { Text(footer) } }
                 }
                 Section { Text(AccountabilityDashboard.footer(summary)).font(.footnote).foregroundStyle(.secondary) }
             } else if let error = loader.error {

@@ -270,11 +270,12 @@ struct AccountabilityOwnerTests {
 
     @Test func machineNamesAndCapturedTimeOnTheDecisionScreen() throws {
         let from = try #require(UUID(uuidString: Self.machine)), to = try #require(UUID(uuidString: Self.id(93)))
-        let transfer = try #require(PendingDecision.from(try JSONValue.parse(Self.samples[2].2), kind: .hoursTransfer,
-                                                         machines: [from: "EX-07 · CAT 320", to: "EX-09 · CAT 330"]))
+        _ = (from, to)
+        let transfer = try #require(PendingDecision.from(try JSONValue.parse(Self.samples[2].2), kind: .hoursTransfer))
         #expect(transfer.fields.map(\.label) == ["Purchase", "Hours", "From machine", "To machine", "Requested by"])
         #expect(transfer.fields.first?.value == "00000092" && transfer.proposedByName == "22222222")
-        #expect(transfer.fields[3].value == "EX-09 · CAT 330")
+        // An older server without machine names: the short ids stand in (as Android).
+        #expect(transfer.fields[2].value == "bbbbbbbb" && transfer.fields[3].value == "00000093")
         let baseline = try #require(PendingDecision.from(try JSONValue.parse(Self.samples[4].2), kind: .baseline,
                                                          timeZone: TimeZone(identifier: "UTC")!))
         #expect(baseline.fields.map(\.label) == ["Machine", "Reading", "Proposed by", "Captured"])
