@@ -259,6 +259,13 @@
 - **Not yet verified:** the new flows on real phones against https://asseta.co.tz (needs deploy + new app builds).
 - **Next smallest action:** deploy, then walk request → approve → start → complete with the demo supervisor and owner accounts on both platforms.
 
+### 2026-10-25 — DEC-030 follow-up: master switches, Supervisor overdue screen, hand test
+- **Completed:** `enabled` master switch (default on) on ENGINE_HOURS and CASH_CUSTODY policies, capabilities ENGINE_HOURS / CASH_CUSTODY beside CUSTOMER_HOURS (menus, pages, endpoints 422 *_DISABLED, sync ops not announced + CONFLICT *_DISABLED, sweeps skipped, dashboard tiles/sub-figures hidden; cash basics stay when cash controls are off); field users read their own overdue-remittance record; Supervisor "Overdue remittance" screen on Android and iOS; user manual (repo + Claude Doc) updated.
+- **Commits:** d15effc backend (migration capsw0000001), dda53b4 strings, 960c199 Android, 54600cd iOS, 661a71e/532bec6/6657394 web, 96e52fd manual.
+- **Hand test (local stack, demo tenant, web):** switched engine hours off → menu group and three tiles gone, direct URL shows "not enabled"; cash custody off → only basic tabs, transfers URL shows "not enabled", dashboard cash tiles reduced, no console errors; both switched back on. Found and fixed the Cash custody subtitle still mentioning transfers (6657394).
+- **Verified on 96e52fd:** backend full pytest, ruff, format, mypy (397 files), openapi check, single head capsw0000001; web tsc, eslint, prettier, gen-api no diff, vitest 125 files / 718 tests; Android unit tests exit 0; iOS swift test 346.
+- **Open:** apps not yet hand-tested on a device or simulator; iOS opens overdue/retention screens on the Money tab (Android on the current tab); system-proposed baselines show "Proposed by —".
+
 ### 2026-10-25 — DEC-030 gap pass closed
 - **Completed:** G1 menus/pages/app entry points follow tenant capabilities (`/me` `disabled_capabilities`; today CUSTOMER_HOURS); G2 display names beside ids on all accountability DTOs (batched `@named`) shown on web + both apps, hours ledger purchase/job numbers; G3 offline retention request (sync op CASH_RETENTION_REQUEST, capability OP_CASH_RETENTION_REQUEST); G4 `cash.remittance_cutoff_hour` sweep → REMITTANCE_OVERDUE notification, overdue list/detail, dashboard count; G5 exact-record links (notification `data.kind`/`record_id`, GET-by-id endpoints, web `/:id` detail routes, app deep links); G6 user manual (repo + Claude Doc) covers DEC-030.
 - **Commits:** 41ba5c6 backend, 358bab4 strings, 1fd005f Android, 97b0c1c/8c6235b/c42436c iOS, 7d0c305 web, cd8f149 ledger numbers, 275d68c/9f7f7f5 manual.
