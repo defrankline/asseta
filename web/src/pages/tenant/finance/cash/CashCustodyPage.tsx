@@ -126,7 +126,11 @@ export function CashCustodyPage({ tab: fixedTab }: { tab?: CashTabKey } = {}) {
     <>
       <PageHeader
         title="Cash custody"
-        subtitle="Cash held by custodians, transfers between them, remittances to the company and their reconciliation"
+        subtitle={
+          controlsOn
+            ? 'Cash held by custodians, transfers between them, remittances to the company and their reconciliation'
+            : 'Cash held by custodians, remittances to the company and their reconciliation'
+        }
       />
       <Paper variant="outlined">
         <Tabs
