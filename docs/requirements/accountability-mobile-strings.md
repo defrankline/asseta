@@ -442,3 +442,106 @@ Rules shared by both apps (Owner):
   unexplained engine hours, missing daily reports; null tiles are skipped; links: approvals/discrepancies → Approvals,
   cash → Cash with supervisors (`tenant.finance.read`), investigations → Investigations, unexplained hours → Meter
   exceptions (`tenant.meter.read`).
+
+## Gap pass (DEC-030 G1–G5)
+
+Rules shared by both apps:
+- **Capabilities (G1):** `/me` `tenants[].disabled_capabilities` (today only `CUSTOMER_HOURS`). When `CUSTOMER_HOURS` is
+  listed: Supervisor hides "Sell customer hours" and "Request hours transfer" (and does not read the CUSTOMER_HOURS
+  policy); Owner hides the discount / credit / hours transfer / cancellation Approvals sections and the "Customer
+  hours" and "Hours awaiting activation" dashboard tiles. Missing field = nothing disabled (today's behaviour).
+- **Names (G2):** every row and detail shows the server's `*_name` (customer_name, machine_code/machine_name,
+  staff_member_name, from/to staff names, proposed_by_name / requested_by_name / created_by_name, decided_by_name,
+  purchase_number, job_number). Only when the name is null the first 8 characters of the id are shown.
+- **Offline retention (G3):** when the server announces `OP_CASH_RETENTION_REQUEST`, "Ask to keep cash" is queued in
+  the outbox as `CASH_RETENTION_REQUEST` (`client_id` = the form visit's id) and works offline; otherwise the old
+  online request is used. Status is read online with `GET /cash/retentions/{id}` (id from the acked op result).
+- **Exact records (G5):** a push tap or inbox row uses `kind` + `record_id` (inbox: `data.kind` / `data.record_id`,
+  else `target.entity` / `target.id`, else the link path). Unknown kinds open the list as before.
+
+### Supervisor
+| Key | English |
+|---|---|
+| field.retention.saved | Saved. It is sent when the phone syncs. |
+| field.retention.viewStatus | View request status |
+| field.title.retentionStatus | Request to keep cash |
+| field.retention.statusPending | Waiting for approval |
+| field.retention.statusApproved | Approved |
+| field.retention.statusRejected | Rejected |
+| field.retention.notSynced | This request has not reached the server yet. |
+| field.retention.offline | Connect to the internet to see whether it was approved. |
+| field.retention.notFound | This request is not on this phone. |
+| field.retention.requested | Requested |
+| field.retention.decidedBy | Decided by |
+| field.retention.decisionNote | Decision note |
+| field.retention.status | Status |
+| field.money.retentions | Requests to keep cash |
+| field.outbox.retention | Request to keep cash |
+| field.conflict.RETENTION_NOT_ALLOWED | Your company does not allow keeping cash, so this request was not accepted. |
+| field.conflict.DUPLICATE_RETENTION | This request to keep cash was already sent. |
+
+Sync status: a CONFLICT/REJECTED item with one of the `field.conflict.*` codes shows that sentence instead of
+"CODE: server message". The "Requests to keep cash" section (Money → Transfers) lists this phone's retention requests
+(newest first; amount, sync state or server status); a row opens "Request to keep cash" (status screen).
+
+Supervisor notification taps (replaces the earlier table):
+| kind / target entity | Opens |
+|---|---|
+| CASH_TRANSFER / cash_transfer | That transfer's acknowledge screen while it waits for me, else the Money tab |
+| CASH_FLOAT / supervisor_cash_custody | That float's acknowledge screen while it waits for me, else the Money tab |
+| CASH_RETENTION / cash_retention | The retention status screen |
+| REMITTANCE_OVERDUE / cash_remittance_overdue | Money tab |
+| machine | The machine, else the notification |
+
+### Owner
+| Key | English |
+|---|---|
+| owner.field.customer | Customer |
+| owner.field.purchase | Purchase |
+| owner.field.job | Job |
+| owner.field.custodian | Cash held by |
+| owner.field.counterparty | Other custodian |
+| owner.field.requestedBy | Requested by |
+| owner.field.decidedBy | Decided by |
+| owner.field.decisionNote | Decision note |
+| owner.field.from | From |
+| owner.field.to | To |
+| owner.field.recordedBy | Recorded by |
+| owner.field.acknowledgedBy | Acknowledged by |
+| owner.field.transferred | Transferred |
+| owner.field.issued | Issued |
+| owner.field.day | Day |
+| owner.field.cutoff | Cut-off |
+| owner.field.notRemitted | Not remitted |
+| owner.field.flagged | Flagged |
+| owner.approvals.proposedBy | Proposed {time} by {name} |
+| owner.record.transferTitle | Cash transfer |
+| owner.record.floatTitle | Cash float |
+| owner.record.notFoundTitle | Record not found |
+| owner.record.notFoundMessage | It may have been removed, or you may not have access to it. |
+| owner.dash.remittancesOverdue | Remittances overdue today |
+| owner.dash.cutoff | Cut-off {hour}:00 |
+| owner.overdue.title | Overdue remittances |
+| owner.overdue.detailTitle | Overdue remittance |
+| owner.overdue.empty | No overdue remittances today. |
+| owner.overdue.line | Still held after the {hour}:00 cut-off on {day}. |
+
+`{hour}` is two digits (`07`, `18`). The dashboard cash tile shows "Remittances overdue today" with the count (and
+"Cut-off {hour}:00" beneath) only when `remittances_overdue_today` is not null; tapping it opens "Overdue remittances"
+(`GET /cash/remittance-overdue?day_from=today&day_to=today`, `tenant.finance.read`); a row ("{name}" with the amounts)
+opens "Overdue remittance" (`GET /cash/remittance-overdue/{id}`). Decision screens load their record by id
+(`GET .../{id}`), so a decided request shows its status and decision instead of "Request not found".
+
+Owner notification taps (push and inbox), by `kind`:
+| kind | Opens |
+|---|---|
+| CASH_TRANSFER | Cash transfer (record screen) |
+| CASH_FLOAT | Cash float (record screen) |
+| CASH_VARIANCE | Cash write-off decision screen of that variance |
+| CASH_RETENTION | Cash retention decision screen |
+| CUSTODY_ADJUSTMENT | Custody adjustment decision screen |
+| CASH_REMITTANCE | Cash handover (remittance) screen |
+| REMITTANCE_OVERDUE | Overdue remittance |
+| HOURS_DISCOUNT, HOURS_CREDIT, HOURS_TRANSFER, HOURS_CANCELLATION | That decision screen |
+| METER_BASELINE, METER_CORRECTION, ENGINE_HOURS_CLASSIFICATION | That decision screen |
+| anything else | As before (entity / link), else the notification |
