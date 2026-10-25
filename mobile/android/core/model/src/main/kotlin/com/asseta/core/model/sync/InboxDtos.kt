@@ -19,6 +19,9 @@ object SyncCapabilities {
     /** CASH_TRANSFER, CASH_TRANSFER_ACKNOWLEDGEMENT and CASH_FLOAT_ACKNOWLEDGEMENT. */
     const val OP_CASH_TRANSFER = "OP_CASH_TRANSFER"
     const val OP_HOURS_PURCHASE = "OP_HOURS_PURCHASE"
+
+    /** CASH_RETENTION_REQUEST ("Ask to keep cash" offline). */
+    const val OP_CASH_RETENTION_REQUEST = "OP_CASH_RETENTION_REQUEST"
     const val OP_HOURS_TRANSFER_REQUEST = "OP_HOURS_TRANSFER_REQUEST"
 
     /** METER_CAPTURE accepts kind DAILY (no job, machine_id instead). */

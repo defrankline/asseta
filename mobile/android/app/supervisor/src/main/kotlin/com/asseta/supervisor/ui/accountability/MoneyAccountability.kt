@@ -21,12 +21,18 @@ data class AckRow(val id: String, val isFloat: Boolean, val title: String, val a
 /** A row of the Transfers segment: the server's transfer, or this phone's transfer not yet synced. */
 data class TransferRow(val key: String, val title: String, val amount: String, val currency: String, val status: InboxStatus, val statusText: String?, val atMs: Long)
 
+/** A row of "Requests to keep cash": [key] is the form's client id (the outbox entity id). */
+data class RetentionRow(val key: String, val amount: String, val currency: String, val reason: String, val status: InboxStatus, val atMs: Long)
+
+private val T = FieldAccountabilityTexts
+
 /** Pure presentation of the accountability parts of the Money tab (unit-tested). */
 object MoneyAccountability {
     /** Transfers to me and floats waiting for my answer, minus those this phone already answered. */
     fun toAcknowledge(cache: FieldAccountabilityCache, me: String?, answered: Set<String>): List<AckRow> {
         val transfers = cache.transfersToAcknowledge(me).filter { it.id !in answered }.map {
-            AckRow(it.id, false, FieldAccountabilityTexts.transferFrom(cache.custodianName(it.fromStaffId)), it.amountDeclared, it.currency, it.transferredAt)
+            AckRow(it.id, false, FieldAccountabilityTexts.transferFrom(T.colleague(it.fromStaffName, cache.custodianName(it.fromStaffId), it.fromStaffId)),
+                it.amountDeclared, it.currency, it.transferredAt)
         }
         val floats = cache.floats.filter { it.ackRequired && it.id !in answered && it.ackStatus != "ACKNOWLEDGED" && it.ackStatus != "DISPUTED" }.map {
             AckRow(it.id, true, FieldAccountabilityTexts.FLOAT_FROM_OFFICE, it.amount, it.currency, it.occurredAt)
@@ -43,7 +49,11 @@ object MoneyAccountability {
     fun transfers(cache: FieldAccountabilityCache, me: String?, ops: List<ClientOperationEntity>, payloadOf: (ClientOperationEntity) -> Map<String, String?>): List<TransferRow> {
         val server = cache.transfers.map { t ->
             val outgoing = t.fromStaffId == me
-            val title = if (outgoing) FieldAccountabilityTexts.transferTo(cache.custodianName(t.toStaffId)) else FieldAccountabilityTexts.transferFromRow(cache.custodianName(t.fromStaffId))
+            val title = if (outgoing) {
+                T.transferTo(T.colleague(t.toStaffName, cache.custodianName(t.toStaffId), t.toStaffId))
+            } else {
+                T.transferFromRow(T.colleague(t.fromStaffName, cache.custodianName(t.fromStaffId), t.fromStaffId))
+            }
             val status = when (t.status) {
                 CashTransferDto.ACKNOWLEDGED -> InboxStatus.ACCEPTED
                 CashTransferDto.DISPUTED -> InboxStatus.REJECTED
@@ -54,11 +64,18 @@ object MoneyAccountability {
         val known = cache.transfers.mapNotNull { it.clientId }.toSet()
         val local = ops.filter { it.opType == AccountabilityOps.CASH_TRANSFER && it.entityId !in known }.map { op ->
             val p = payloadOf(op)
-            TransferRow(op.id, FieldAccountabilityTexts.transferTo(cache.custodianName(p["to_staff_id"])), p["amount"].orEmpty(), p["currency"].orEmpty(),
+            TransferRow(op.id, T.transferTo(T.colleague(null, cache.custodianName(p["to_staff_id"]), p["to_staff_id"])), p["amount"].orEmpty(), p["currency"].orEmpty(),
                 InboxStatusRules.combined(op.status, null), null, op.createdAtDevice)
         }
         return (local + server).sortedByDescending { it.atMs }
     }
+
+    /** This phone's requests to keep cash (newest first): amount, and the sync state until the server has it. */
+    fun retentions(ops: List<ClientOperationEntity>, payloadOf: (ClientOperationEntity) -> Map<String, String?>): List<RetentionRow> =
+        ops.filter { it.opType == AccountabilityOps.CASH_RETENTION_REQUEST }.map { op ->
+            val p = payloadOf(op)
+            RetentionRow(op.entityId, p["amount"].orEmpty(), p["currency"].orEmpty(), p["reason"].orEmpty(), InboxStatusRules.combined(op.status, null), op.createdAtDevice)
+        }.sortedByDescending { it.atMs }
 
     private fun ms(iso: String): Long = runCatching { java.time.OffsetDateTime.parse(iso).toInstant().toEpochMilli() }.getOrDefault(0L)
 }
@@ -85,6 +102,18 @@ fun LazyListScope.transfersSection(rows: List<TransferRow>, loaded: Boolean) {
         items = rows.map { r ->
             GroupedItem("t-${r.key}") {
                 InboxRow(r.title, r.status, InboxTexts.money(r.amount, r.currency), listOfNotNull(r.statusText, LocalTime.format(r.atMs)).joinToString(" · "))
+            }
+        },
+    )
+}
+
+fun LazyListScope.retentionsSection(rows: List<RetentionRow>, onRoute: (Route) -> Unit) {
+    if (rows.isEmpty()) return
+    groupedSection(
+        keyPrefix = "retentions", header = T.MONEY_RETENTIONS,
+        items = rows.map { r ->
+            GroupedItem("ret-${r.key}", onClick = { onRoute(Route.RetentionStatus(r.key)) }) {
+                InboxRow(InboxTexts.money(r.amount, r.currency), r.status, r.reason, LocalTime.format(r.atMs))
             }
         },
     )

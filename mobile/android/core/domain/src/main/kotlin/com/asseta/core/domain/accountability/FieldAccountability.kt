@@ -4,6 +4,7 @@ import com.asseta.core.domain.finance.AmountParser
 import com.asseta.core.domain.finance.CurrencyCode
 import com.asseta.core.domain.finance.DecimalLimit
 import com.asseta.core.domain.finance.FormCheck
+import com.asseta.core.model.TenantAccess
 import com.asseta.core.model.sync.SyncCapabilities
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -71,20 +72,28 @@ data class FieldAccess(
     val permissions: Set<String>,
     val cash: CashCustodyPolicy? = null,
     val hours: CustomerHoursPolicy? = null,
+    /** Tenant capabilities switched off by policy (`/me` `disabled_capabilities`, e.g. CUSTOMER_HOURS). */
+    val disabled: Set<String> = emptySet(),
 ) {
     private fun supports(capability: String) = capabilities?.contains(capability) == true
     private fun can(permission: String) = permission in permissions
 
-    val sellHours: Boolean get() = supports(SyncCapabilities.OP_HOURS_PURCHASE) && can(HOURS_PURCHASE) && hours?.enabled == true
+    /** The tenant uses customer hours (not switched off in `/me`) and its CUSTOMER_HOURS policy is enabled. */
+    private val customerHours: Boolean get() = TenantAccess.CUSTOMER_HOURS !in disabled && hours?.enabled == true
+
+    val sellHours: Boolean get() = supports(SyncCapabilities.OP_HOURS_PURCHASE) && can(HOURS_PURCHASE) && customerHours
     val walkIn: Boolean get() = sellHours && hours?.walkInAllowed == true
     val requestHoursTransfer: Boolean
-        get() = supports(SyncCapabilities.OP_HOURS_TRANSFER_REQUEST) && can(HOURS_TRANSFER) && hours?.enabled == true
+        get() = supports(SyncCapabilities.OP_HOURS_TRANSFER_REQUEST) && can(HOURS_TRANSFER) && customerHours
     val transferCash: Boolean get() = supports(SyncCapabilities.OP_CASH_TRANSFER) && can(COLLECTION_RECORD)
     val acknowledgeCash: Boolean get() = transferCash
 
     /** A recorder may name another cash holder (collections, remittances, sales, transfers). */
     val recordForOthers: Boolean get() = can(COLLECTION_RECORD) && cash?.recordersMayRecordForOthers == true
     val askToKeepCash: Boolean get() = can(COLLECTION_RECORD) && cash?.retentionAllowed == true
+
+    /** "Ask to keep cash" goes through the outbox (works offline) when the server accepts CASH_RETENTION_REQUEST. */
+    val retentionOffline: Boolean get() = supports(SyncCapabilities.OP_CASH_RETENTION_REQUEST)
     val dailyReading: Boolean get() = supports(SyncCapabilities.METER_DAILY_READING) && can(METER_CAPTURE)
     val proposeBaseline: Boolean get() = supports(SyncCapabilities.OP_METER_BASELINE) && can(METER_CAPTURE)
     val proposeCorrection: Boolean get() = supports(SyncCapabilities.OP_METER_CORRECTION) && can(METER_CAPTURE)

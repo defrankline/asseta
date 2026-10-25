@@ -30,7 +30,14 @@ data class TenantAccess(
     val permissions: List<String> = emptyList(),
     val menus: List<MenuEntry> = emptyList(),
     @SerialName("menu_groups") val menuGroups: List<MenuGroup> = emptyList(),
-)
+    /** Tenant capabilities switched off by policy (e.g. `CUSTOMER_HOURS`); their entry points are hidden. */
+    @SerialName("disabled_capabilities") val disabledCapabilities: List<String> = emptyList(),
+) {
+    companion object {
+        /** The tenant's customer-hours capability (CUSTOMER_HOURS policy `enabled`). */
+        const val CUSTOMER_HOURS = "CUSTOMER_HOURS"
+    }
+}
 
 /** Server-driven menu entry (`MenuDto`): grouped navigation hints, never authorization. */
 @Serializable

@@ -65,8 +65,9 @@ import com.asseta.core.ui.R as CoreR
 private val T = OwnerAccountabilityTexts
 
 /** One accountability request (found among the waiting ones of its kind) with approve / reject. */
+/** One accountability request, loaded by id (the exact record: decided ones show their status), with approve / reject. */
 class DecisionViewModel(val data: OwnerData, val kind: DecisionKind, val id: String, refreshOn: Flow<Unit>) :
-    SnapshotViewModel<List<DecisionItem>>({ data.decisions(kind) }, refreshOn) {
+    SnapshotViewModel<List<DecisionItem>>({ data.decision(kind, id) }, refreshOn) {
     private val _error = MutableStateFlow<DecisionError?>(null)
     val error: StateFlow<DecisionError?> = _error.asStateFlow()
     private val _message = MutableStateFlow<String?>(null)
@@ -177,6 +178,9 @@ fun DecisionRow(item: DecisionItem, zone: ZoneId) {
     Column(Modifier.semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(item.headline, style = AssetaType.headline)
         item.reason?.takeIf { it.isNotBlank() }?.let { Text(it, style = AssetaType.subheadline, color = palette.secondaryText, maxLines = 2) }
-        item.proposedAt?.let { FootNote(T.proposed(OwnerFormat.dateTime(it, zone))) }
+        item.proposedAt?.let {
+            val time = OwnerFormat.dateTime(it, zone)
+            FootNote(item.proposedByName?.let { name -> T.proposedBy(time, name) } ?: T.proposed(time))
+        }
     }
 }

@@ -3,6 +3,7 @@ package com.asseta.owner
 import com.asseta.core.domain.owner.DataSource
 import com.asseta.core.domain.owner.DeepLinkRouter
 import com.asseta.core.domain.owner.DecisionKinds
+import com.asseta.core.domain.owner.RecordKinds
 import com.asseta.core.domain.owner.MutationCheck
 import com.asseta.core.domain.owner.OwnerAction
 import com.asseta.core.domain.owner.OwnerDestination
@@ -142,7 +143,7 @@ class AccountabilityOwnerTest {
         assertEquals(OwnerDestination.Approvals(), DeepLinkRouter.fromTarget("cash_variance", ID1, "/tenant/cash/variances", type = "CASH_VARIANCE_OPENED"))
         assertEquals(OwnerDestination.MeterException(ID1), DeepLinkRouter.fromTarget("job_exception", ID1, "/tenant/exceptions"))
         assertEquals(OwnerDestination.Handover(ID1), DeepLinkRouter.fromTarget("cash_handover", ID1, "/tenant/cash/handovers"))
-        assertEquals(OwnerDestination.Cash, DeepLinkRouter.fromTarget("cash_transfer", ID1, "/tenant/cash/transfers"))
+        assertEquals(OwnerDestination.CashRecord(RecordKinds.CASH_TRANSFER, ID1), DeepLinkRouter.fromTarget("cash_transfer", ID1, "/tenant/cash/transfers"))
         assertEquals(OwnerDestination.Accountability, DeepLinkRouter.fromTarget("hours_purchase", ID1, "/tenant/hours/purchases/$ID1"))
         assertEquals(OwnerDestination.Machine(ID1), DeepLinkRouter.fromTarget("machine", ID1, "/tenant/engine-hours/machines/$ID1"))
         // Push taps carry only the link.

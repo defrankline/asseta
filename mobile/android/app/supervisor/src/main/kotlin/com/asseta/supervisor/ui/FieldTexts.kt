@@ -82,6 +82,7 @@ object FieldTexts {
         AccountabilityOps.CASH_FLOAT_ACKNOWLEDGEMENT -> FieldAccountabilityTexts.OUTBOX_FLOAT_ACK
         AccountabilityOps.METER_BASELINE -> FieldAccountabilityTexts.OUTBOX_BASELINE
         AccountabilityOps.METER_CORRECTION -> FieldAccountabilityTexts.OUTBOX_CORRECTION
+        AccountabilityOps.CASH_RETENTION_REQUEST -> FieldAccountabilityTexts.OUTBOX_RETENTION
         OpTypes.JOB_ACTIVITY -> "Work log entry"
         OpTypes.JOB_ACKNOWLEDGEMENT -> "Customer acknowledgement"
         OpTypes.JOB_TRANSITION ->

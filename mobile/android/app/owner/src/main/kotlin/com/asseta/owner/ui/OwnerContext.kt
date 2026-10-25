@@ -4,6 +4,7 @@ import com.asseta.core.domain.owner.DataSource
 import com.asseta.core.domain.owner.MutationCheck
 import com.asseta.core.domain.owner.MutationGate
 import com.asseta.core.domain.owner.OwnerAction
+import com.asseta.core.model.TenantAccess
 import com.asseta.core.network.RealtimeEvent
 import com.asseta.owner.OwnerGraph
 import kotlinx.coroutines.FlowPreview
@@ -26,8 +27,10 @@ data class OwnerSession(
     val canSwitchTenant: Boolean = false,
     /** The signed-in user's id (`/me`): a request they proposed is never theirs to decide. */
     val userId: String? = null,
+    /** Tenant capabilities switched off by policy (`/me` `disabled_capabilities`, e.g. CUSTOMER_HOURS). */
+    val disabledCapabilities: Set<String> = emptySet(),
 ) {
-    val features: OwnerFeatures get() = OwnerFeatures(permissions)
+    val features: OwnerFeatures get() = OwnerFeatures(permissions, disabledCapabilities)
 
     fun can(action: OwnerAction, online: Boolean, source: DataSource?): MutationCheck =
         MutationGate.check(action, online, source ?: DataSource.CACHE, permissions, readOnly)
@@ -37,7 +40,7 @@ data class OwnerSession(
  * What the Owner app shows for a membership, from the `/me` permission hints (same rules as the iOS `OwnerFeatures`).
  * Only hides UI; the server re-authorizes every call.
  */
-data class OwnerFeatures(val permissions: Set<String>) {
+data class OwnerFeatures(val permissions: Set<String>, val disabled: Set<String> = emptySet()) {
     val fleet get() = "tenant.fleet.read" in permissions
     val manageAlerts get() = "tenant.fleet.alert_manage" in permissions
     val jobs get() = "tenant.job.read" in permissions
@@ -59,6 +62,9 @@ data class OwnerFeatures(val permissions: Set<String>) {
 
     // Accountability (each list needs its read permission; deciding needs the approve permission).
     val hoursRead get() = "tenant.hours.read" in permissions
+
+    /** Customer hours are in use (not switched off by the tenant's policy) and the role may read them. */
+    val customerHours get() = hoursRead && TenantAccess.CUSTOMER_HOURS !in disabled
     val custodyRead get() = finance || "tenant.collection.record" in permissions
     val accountability get() = "tenant.accountability.read" in permissions
 }

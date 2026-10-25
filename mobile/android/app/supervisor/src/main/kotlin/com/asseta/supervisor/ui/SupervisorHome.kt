@@ -88,6 +88,8 @@ import com.asseta.supervisor.ui.accountability.HoursSaleViewModel
 import com.asseta.supervisor.ui.accountability.HoursTransferScreen
 import com.asseta.supervisor.ui.accountability.HoursTransferViewModel
 import com.asseta.supervisor.ui.accountability.RetentionScreen
+import com.asseta.supervisor.ui.accountability.RetentionStatusScreen
+import com.asseta.supervisor.ui.accountability.RetentionStatusViewModel
 import com.asseta.supervisor.ui.accountability.RetentionViewModel
 import com.asseta.supervisor.ui.finance.CashFormScreen
 import com.asseta.supervisor.ui.finance.CashFormViewModel
@@ -131,6 +133,8 @@ sealed interface Route {
     data object CashTransfer : Route
     data class CashAck(val id: String, val isFloat: Boolean) : Route
     data object Retention : Route
+    /** A request to keep cash ([key]: this phone's form id or the server's request id). */
+    data class RetentionStatus(val key: String) : Route
     data class DailyReading(val machineId: String) : Route
     data class Baseline(val machineId: String) : Route
     data class Correction(val readingId: String) : Route
@@ -177,6 +181,7 @@ fun Route.title(companyName: String): String = when (this) {
     Route.CashTransfer -> FieldAccountabilityTexts.TITLE_CASH_TRANSFER
     is Route.CashAck -> if (isFloat) FieldAccountabilityTexts.TITLE_ACK_FLOAT else FieldAccountabilityTexts.TITLE_ACK_TRANSFER
     Route.Retention -> FieldAccountabilityTexts.TITLE_RETENTION
+    is Route.RetentionStatus -> FieldAccountabilityTexts.TITLE_RETENTION_STATUS
     is Route.DailyReading -> FieldAccountabilityTexts.TITLE_DAILY
     is Route.Baseline -> FieldAccountabilityTexts.TITLE_BASELINE
     is Route.Correction -> FieldAccountabilityTexts.TITLE_CORRECTION
@@ -277,7 +282,11 @@ fun SupervisorHome(
     val inbox: InboxViewModel = viewModel(key = "inbox-$scope") { InboxViewModel(field, tenantId) }
     val snapshot by inbox.snapshot.collectAsStateWithLifecycle()
     val notifications by inbox.notifications.collectAsStateWithLifecycle()
-    val permissions = remember(tenant) { tenant.permissions.toSet() }
+    val permissions = remember(tenant) {
+        // Capabilities the tenant switched off (CUSTOMER_HOURS) hide their entries and are not read (DEC-030 G1).
+        field.accountability.setDisabledCapabilities(tenantId, tenant.disabledCapabilities)
+        tenant.permissions.toSet()
+    }
     val coroutines = rememberCoroutineScope()
     var blockedExpense by remember { mutableStateOf<String?>(null) }
     // What the accountability entries need: server capabilities, permissions and the saved tenant policies.
@@ -319,17 +328,31 @@ fun SupervisorHome(
         }
     }
 
+    /** Opens what a link points at; [notificationId] is shown when the phone has nothing for it. */
+    fun openLink(link: InboxLink, notificationId: String?) {
+        val id = notificationId
+        fun fallback() { if (id != null) push(Route.NotificationDetail(id)) else if (nav.tab != SupervisorTab.MONEY) nav = nav.select(SupervisorTab.MONEY) }
+        when (link) {
+            is InboxLink.Job -> push(Route.JobDetail(link.jobId, snapshot.jobs[link.jobId]?.jobNumber ?: "Job"))
+            is InboxLink.Machine -> snapshot.machines[link.machineId]?.let { push(Route.MachineDetail(it.id, it.assetCode)) } ?: fallback()
+            is InboxLink.Expense -> push(Route.ExpenseDetail(snapshot.expenses.firstOrNull { it.serverId == link.expenseId }?.key ?: link.expenseId))
+            InboxLink.Money -> if (nav.tab != SupervisorTab.MONEY) nav = nav.select(SupervisorTab.MONEY)
+            // The exact transfer / float while it still waits for my answer, else the Money tab.
+            is InboxLink.CashAck -> {
+                val waiting = if (link.isFloat) accountabilityCache.floats.any { it.id == link.id } else accountabilityCache.transfers.any { it.id == link.id && it.status == com.asseta.core.model.sync.CashTransferDto.PENDING }
+                if (waiting && access?.acknowledgeCash == true) push(Route.CashAck(link.id, link.isFloat))
+                else if (nav.tab != SupervisorTab.MONEY) nav = nav.select(SupervisorTab.MONEY)
+            }
+            is InboxLink.Retention -> push(Route.RetentionStatus(link.id))
+            InboxLink.None -> fallback()
+        }
+    }
+
     /** Opens what a notification is about (marking it read), or its own detail when it points nowhere on the phone. */
     fun openNotification(n: NotificationDto) {
         val id = n.id.toString()
         if (n.readAt == null) inbox.markRead(id)
-        when (val link = InboxLinks.from(n.target?.entity, n.target?.id)) {
-            is InboxLink.Job -> push(Route.JobDetail(link.jobId, snapshot.jobs[link.jobId]?.jobNumber ?: "Job"))
-            is InboxLink.Machine -> snapshot.machines[link.machineId]?.let { push(Route.MachineDetail(it.id, it.assetCode)) } ?: push(Route.NotificationDetail(id))
-            is InboxLink.Expense -> push(Route.ExpenseDetail(snapshot.expenses.firstOrNull { it.serverId == link.expenseId }?.key ?: link.expenseId))
-            InboxLink.Money -> if (nav.tab != SupervisorTab.MONEY) nav = nav.select(SupervisorTab.MONEY)
-            InboxLink.None -> push(Route.NotificationDetail(id))
-        }
+        openLink(InboxLinks.from(n.target?.entity, n.target?.id, n.recordKind, n.recordId), id)
     }
 
     fun openAttention(item: AttentionItem) {
@@ -351,9 +374,15 @@ fun SupervisorHome(
         nav = nav.showRoot(SupervisorTab.INBOX)
         try {
             inbox.refreshNow()
-            val id = opened.notificationId ?: return@LaunchedEffect
+            val id = opened.notificationId
             // What the notification is about (a transfer to acknowledge opens Money, a machine its detail), else its detail.
-            inbox.notifications.value.firstOrNull { it.id.toString() == id }?.let(::openNotification)
+            val n = inbox.notifications.value.firstOrNull { it.id.toString() == id }
+            if (n != null) {
+                openNotification(n)
+            } else if (opened.recordId != null || opened.entityId != null) {
+                // Not in the Inbox (yet): the push itself names the record (kind / record_id, entity / entity_id).
+                openLink(InboxLinks.from(opened.entity, opened.entityId, opened.kind, opened.recordId), null)
+            }
         } finally {
             // Consumed only now: clearing it earlier would restart (cancel) this effect.
             field.pushTap.compareAndSet(opened, null)
@@ -516,8 +545,10 @@ private fun RouteContent(
         }
         Route.Retention -> {
             val visit = remember(route) { System.nanoTime() }
-            RetentionScreen(viewModel(key = "retention-$visit") { RetentionViewModel(field, tenantId, permissions) }, onDone = pop)
+            RetentionScreen(viewModel(key = "retention-$visit") { RetentionViewModel(field, tenantId, permissions) }, onDone = pop,
+                onStatus = { key -> pop(); push(Route.RetentionStatus(key)) })
         }
+        is Route.RetentionStatus -> RetentionStatusScreen(viewModel(key = "retention-status-$scope-${route.key}") { RetentionStatusViewModel(field, tenantId, route.key) })
         is Route.Acknowledge -> AcknowledgementScreen(field, tenantId, route.jobId, onDone = pop)
         is Route.WorkLogEntry -> WorkLogEntryScreen(field, tenantId, route.jobId, onDone = pop)
         Route.RecordExpense -> {

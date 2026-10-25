@@ -56,6 +56,7 @@ data class CashSupervisorSummaryDto(
 data class CashHandoverDto(
     val id: SerializableUuid,
     @SerialName("staff_member_id") val staffMemberId: SerializableUuid,
+    @SerialName("staff_member_name") val staffMemberName: String? = null,
     val amount: DecimalAmount,
     val currency: String,
     @SerialName("handed_at") val handedAt: String,
@@ -66,7 +67,9 @@ data class CashHandoverDto(
     val reference: String? = null,
     val note: String? = null,
     @SerialName("recorded_by") val recordedBy: SerializableUuid? = null,
+    @SerialName("recorded_by_name") val recordedByName: String? = null,
     @SerialName("verified_by") val verifiedBy: SerializableUuid? = null,
+    @SerialName("verified_by_name") val verifiedByName: String? = null,
     @SerialName("verified_at") val verifiedAt: String? = null,
     @SerialName("decision_note") val decisionNote: String? = null,
     /** What the office counted when verifying (null = the declared amount). */
@@ -107,10 +110,20 @@ data class CashFloatIn(
 data class CashCustodyEntryDto(
     val id: SerializableUuid,
     @SerialName("staff_member_id") val staffMemberId: SerializableUuid,
+    @SerialName("staff_member_name") val staffMemberName: String? = null,
     @SerialName("entry_type") val entryType: String,
     val amount: DecimalAmount,
     val currency: String,
     @SerialName("occurred_at") val occurredAt: String,
     val reference: String? = null,
     val note: String? = null,
+    /** A float needing acknowledgement counts in custody only once ACKNOWLEDGED (getCashFloat). */
+    @SerialName("ack_required") val ackRequired: Boolean = false,
+    @SerialName("ack_status") val ackStatus: String = "NOT_REQUIRED",
+    @SerialName("acknowledged_at") val acknowledgedAt: String? = null,
+    @SerialName("acknowledged_by") val acknowledgedBy: SerializableUuid? = null,
+    @SerialName("acknowledged_by_name") val acknowledgedByName: String? = null,
+    @SerialName("amount_received") val amountReceived: DecimalAmount? = null,
+    @SerialName("created_by") val createdBy: SerializableUuid? = null,
+    @SerialName("created_by_name") val createdByName: String? = null,
 )

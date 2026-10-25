@@ -1,5 +1,7 @@
 package com.asseta.supervisor.ui
 
+import com.asseta.supervisor.ui.accountability.FieldAccountabilityTexts
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -168,7 +170,7 @@ private fun ItemRow(item: OutboxItem, onRetry: (ClientOperationEntity) -> Unit) 
         Text(LocalTime.formatSeconds(op.createdAtDevice), style = MaterialTheme.typography.bodySmall, color = palette.secondaryText)
         val code = op.errorCode
         if (code != null && op.status != ClientOperationStatus.PENDING) {
-            Text("$code: ${op.lastError.orEmpty()}", style = MaterialTheme.typography.bodySmall, color = palette.offline)
+            Text(FieldAccountabilityTexts.conflict(code) ?: "$code: ${op.lastError.orEmpty()}", style = MaterialTheme.typography.bodySmall, color = palette.offline)
         }
         item.serverState?.let { Text("Server state: $it", style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace)) }
         item.waiting?.let { Text(FieldTexts.waiting(it), style = MaterialTheme.typography.bodySmall, color = palette.secondaryText) }

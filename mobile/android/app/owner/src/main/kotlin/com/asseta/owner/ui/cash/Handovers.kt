@@ -130,10 +130,13 @@ fun HandoverRow(h: CashHandoverDto, name: String?, zone: ZoneId) {
 class HandoverViewModel(val data: OwnerData, val handoverId: String, refreshOn: Flow<Unit>) :
     SnapshotViewModel<HandoverList>({
         val claimed = data.handovers(HandoverText.CLAIMED)
-        if (claimed is Load.Ok && claimed.snapshot.data.items.any { it.id.toString() == handoverId }) {
+        fun Load<HandoverList>.has() = this is Load.Ok && snapshot.data.items.any { it.id.toString() == handoverId }
+        if (claimed.has()) {
             claimed
         } else {
-            data.handovers(null).let { all -> if (all is Load.Ok) all else claimed }
+            val all = data.handovers(null)
+            // A notification may name a remittance in neither list (older, or another status): read it by id.
+            if (all.has()) all else data.handover(handoverId).let { one -> if (one is Load.Ok) one else if (all is Load.Ok) all else claimed }
         }
     }, refreshOn) {
     private val _error = MutableStateFlow<String?>(null)

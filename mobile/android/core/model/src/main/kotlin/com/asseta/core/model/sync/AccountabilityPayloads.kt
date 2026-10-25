@@ -18,6 +18,9 @@ object AccountabilityOps {
     const val CASH_TRANSFER = "CASH_TRANSFER"
     const val CASH_TRANSFER_ACKNOWLEDGEMENT = "CASH_TRANSFER_ACKNOWLEDGEMENT"
     const val CASH_FLOAT_ACKNOWLEDGEMENT = "CASH_FLOAT_ACKNOWLEDGEMENT"
+
+    /** Ask to keep cash (`CashRetentionIn` with `client_id`), when the server announces OP_CASH_RETENTION_REQUEST. */
+    const val CASH_RETENTION_REQUEST = "CASH_RETENTION_REQUEST"
     const val METER_BASELINE = "METER_BASELINE"
     const val METER_CORRECTION = "METER_CORRECTION"
 
@@ -176,6 +179,11 @@ data class CashTransferDto(
     val note: String? = null,
     val source: String,
     @SerialName("variance_id") val varianceId: String? = null,
+    // Display names (DEC-030 G2; null on older servers).
+    @SerialName("from_staff_name") val fromStaffName: String? = null,
+    @SerialName("to_staff_name") val toStaffName: String? = null,
+    @SerialName("recorded_by_name") val recordedByName: String? = null,
+    @SerialName("acknowledged_by_name") val acknowledgedByName: String? = null,
 ) {
     companion object {
         const val PENDING = "PENDING_ACKNOWLEDGEMENT"
@@ -201,6 +209,9 @@ data class FloatEntryDto(
     @SerialName("acknowledged_by") val acknowledgedBy: String? = null,
     @SerialName("amount_received") val amountReceived: String? = null,
     @SerialName("created_by") val createdBy: String? = null,
+    @SerialName("staff_member_name") val staffMemberName: String? = null,
+    @SerialName("created_by_name") val createdByName: String? = null,
+    @SerialName("acknowledged_by_name") val acknowledgedByName: String? = null,
 )
 
 /** `PurchaseTotalsDto` (the part the field app shows). */
@@ -254,7 +265,10 @@ data class CashReasonDto(
     val description: String? = null,
 )
 
-/** `CashRetentionIn` (requestCashRetention, online only). */
+/**
+ * `CashRetentionIn`: the online request (requestCashRetention) and the offline `CASH_RETENTION_REQUEST` sync op, where
+ * [clientId] (the form visit's id) is required and makes a replay return the original request.
+ */
 @Serializable
 data class CashRetentionIn(
     val amount: DecimalAmount,
@@ -263,4 +277,5 @@ data class CashRetentionIn(
     @SerialName("reason_id") val reasonId: String? = null,
     @SerialName("staff_member_id") val staffMemberId: String? = null,
     @SerialName("valid_until") val validUntil: String? = null,
+    @SerialName("client_id") val clientId: String? = null,
 )

@@ -10,6 +10,7 @@ import com.asseta.core.domain.finance.FormCheck
 import com.asseta.core.model.DecimalAmount
 import com.asseta.core.model.sync.AccountabilityOps
 import com.asseta.core.model.sync.CashFloatAckPayload
+import com.asseta.core.model.sync.CashRetentionIn
 import com.asseta.core.model.sync.CashTransferAckPayload
 import com.asseta.core.model.sync.CashTransferPayload
 import com.asseta.core.model.sync.HoursPurchasePayload
@@ -80,6 +81,18 @@ data class CashAckRequest(
     val acknowledge: Boolean,
     val receivedText: String,
     val note: String,
+)
+
+/** "Ask to keep cash" from the field form; [clientId] is generated once per form visit (the request's idempotency key). */
+data class RetentionRequest(
+    val tenantId: String,
+    val clientId: String,
+    val amountText: String,
+    val currency: String,
+    val reason: String,
+    val reasonId: String?,
+    /** The cash holder when the recorder asks for another custodian; null = the recorder. */
+    val staffMemberId: String?,
 )
 
 /**
@@ -215,6 +228,27 @@ class AccountabilityCapture(
             queue(r.tenantId, AccountabilityOps.CASH_TRANSFER_ACKNOWLEDGEMENT, FieldOps.CASH_TRANSFER_ACK, r.targetId,
                 CashTransferAckPayload.serializer(), CashTransferAckPayload(r.targetId, r.acknowledge, received, values.note))
         }
+    }
+
+    /**
+     * Ask to keep cash (`CASH_RETENTION_REQUEST`, capability OP_CASH_RETENTION_REQUEST): queued once per form visit;
+     * the server dedupes by client id and answers RETENTION_NOT_ALLOWED / DUPLICATE_RETENTION as conflicts.
+     */
+    suspend fun retention(r: RetentionRequest): FinanceResult {
+        unavailable(r.tenantId, SyncCapabilities.OP_CASH_RETENTION_REQUEST)?.let { return FinanceResult.Blocked(it) }
+        val values = when (val check = AccountabilityRules.retention(r.amountText, r.currency, r.reason)) {
+            is FormCheck.Invalid -> return FinanceResult.Invalid(check.messages)
+            is FormCheck.Valid -> check.value
+        }
+        val payload = CashRetentionIn(
+            amount = DecimalAmount.of(values.amount),
+            currency = values.currency,
+            reason = values.reason,
+            reasonId = r.reasonId,
+            staffMemberId = r.staffMemberId,
+            clientId = r.clientId,
+        )
+        return queue(r.tenantId, AccountabilityOps.CASH_RETENTION_REQUEST, FieldOps.CASH_RETENTION, r.clientId, CashRetentionIn.serializer(), payload)
     }
 
     /** This phone already queued an answer to the transfer / float [targetId]. */

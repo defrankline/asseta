@@ -150,4 +150,36 @@ object FieldAccountabilityTexts {
     const val OUTBOX_BASELINE = "Meter baseline proposal"
     const val OUTBOX_CORRECTION = "Reading correction proposal"
     const val OUTBOX_DAILY = "Daily reading"
+
+    // --- Gap pass (DEC-030 G2/G3) ------------------------------------------------------------------------------------
+    const val RETENTION_SAVED = "Saved. It is sent when the phone syncs."
+    const val RETENTION_VIEW_STATUS = "View request status"
+    const val TITLE_RETENTION_STATUS = "Request to keep cash"
+    const val RETENTION_NOT_SYNCED = "This request has not reached the server yet."
+    const val RETENTION_OFFLINE = "Connect to the internet to see whether it was approved."
+    const val RETENTION_NOT_FOUND = "This request is not on this phone."
+    const val RETENTION_REQUESTED = "Requested"
+    const val RETENTION_DECIDED_BY = "Decided by"
+    const val RETENTION_DECISION_NOTE = "Decision note"
+    const val RETENTION_STATUS = "Status"
+    const val MONEY_RETENTIONS = "Requests to keep cash"
+    const val OUTBOX_RETENTION = "Request to keep cash"
+
+    fun retentionStatus(status: String): String = when (status) {
+        "PENDING" -> "Waiting for approval"
+        "APPROVED" -> "Approved"
+        "REJECTED" -> "Rejected"
+        else -> status.lowercase().replace('_', ' ').replaceFirstChar { it.uppercase() }
+    }
+
+    /** Plain words for the server's conflict codes on accountability operations (null: show the server's message). */
+    fun conflict(code: String?): String? = when (code) {
+        "RETENTION_NOT_ALLOWED" -> "Your company does not allow keeping cash, so this request was not accepted."
+        "DUPLICATE_RETENTION" -> "This request to keep cash was already sent."
+        else -> null
+    }
+
+    /** A colleague's name from the server, else from the saved cash holders, else the short id (DEC-030 G2). */
+    fun colleague(name: String?, savedName: String?, id: String?): String? =
+        com.asseta.core.domain.accountability.DisplayNames.of(name ?: savedName, id)
 }

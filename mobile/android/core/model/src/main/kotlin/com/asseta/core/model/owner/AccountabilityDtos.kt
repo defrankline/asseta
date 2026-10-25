@@ -27,6 +27,7 @@ data class MeterDecisionIn(val decision: String, val note: String) {
 data class DiscountDto(
     val id: String,
     @SerialName("customer_id") val customerId: String,
+    @SerialName("customer_name") val customerName: String? = null,
     val percent: String,
     @SerialName("effective_from") val effectiveFrom: String,
     @SerialName("effective_to") val effectiveTo: String? = null,
@@ -34,11 +35,14 @@ data class DiscountDto(
     @SerialName("reason_code_id") val reasonCodeId: String? = null,
     val status: String,
     @SerialName("proposed_by") val proposedBy: String? = null,
+    @SerialName("proposed_by_name") val proposedByName: String? = null,
     @SerialName("proposed_at") val proposedAt: String,
     @SerialName("decided_by") val decidedBy: String? = null,
+    @SerialName("decided_by_name") val decidedByName: String? = null,
     @SerialName("decided_at") val decidedAt: String? = null,
     @SerialName("decision_note") val decisionNote: String? = null,
     @SerialName("revoked_by") val revokedBy: String? = null,
+    @SerialName("revoked_by_name") val revokedByName: String? = null,
     @SerialName("revoked_at") val revokedAt: String? = null,
     @SerialName("revoke_reason") val revokeReason: String? = null,
     val version: Long,
@@ -49,6 +53,7 @@ data class DiscountDto(
 data class CreditArrangementDto(
     val id: String,
     @SerialName("customer_id") val customerId: String,
+    @SerialName("customer_name") val customerName: String? = null,
     @SerialName("limit_amount") val limitAmount: String,
     val currency: String,
     @SerialName("effective_from") val effectiveFrom: String,
@@ -58,11 +63,14 @@ data class CreditArrangementDto(
     @SerialName("reason_code_id") val reasonCodeId: String? = null,
     val status: String,
     @SerialName("proposed_by") val proposedBy: String? = null,
+    @SerialName("proposed_by_name") val proposedByName: String? = null,
     @SerialName("proposed_at") val proposedAt: String,
     @SerialName("decided_by") val decidedBy: String? = null,
+    @SerialName("decided_by_name") val decidedByName: String? = null,
     @SerialName("decided_at") val decidedAt: String? = null,
     @SerialName("decision_note") val decisionNote: String? = null,
     @SerialName("revoked_by") val revokedBy: String? = null,
+    @SerialName("revoked_by_name") val revokedByName: String? = null,
     @SerialName("revoked_at") val revokedAt: String? = null,
     @SerialName("revoke_reason") val revokeReason: String? = null,
     val version: Long,
@@ -74,15 +82,23 @@ data class HoursTransferDto(
     val id: String,
     @SerialName("client_id") val clientId: String? = null,
     @SerialName("purchase_id") val purchaseId: String,
+    @SerialName("purchase_number") val purchaseNumber: String? = null,
+    @SerialName("customer_name") val customerName: String? = null,
     @SerialName("from_machine_id") val fromMachineId: String,
+    @SerialName("from_machine_code") val fromMachineCode: String? = null,
+    @SerialName("from_machine_name") val fromMachineName: String? = null,
     @SerialName("to_machine_id") val toMachineId: String,
+    @SerialName("to_machine_code") val toMachineCode: String? = null,
+    @SerialName("to_machine_name") val toMachineName: String? = null,
     val hours: String,
     val reason: String,
     @SerialName("reason_code_id") val reasonCodeId: String? = null,
     val status: String,
     @SerialName("requested_by") val requestedBy: String? = null,
+    @SerialName("requested_by_name") val requestedByName: String? = null,
     @SerialName("requested_at") val requestedAt: String,
     @SerialName("decided_by") val decidedBy: String? = null,
+    @SerialName("decided_by_name") val decidedByName: String? = null,
     @SerialName("decided_at") val decidedAt: String? = null,
     @SerialName("decision_note") val decisionNote: String? = null,
 )
@@ -92,12 +108,16 @@ data class HoursTransferDto(
 data class HoursCancellationDto(
     val id: String,
     @SerialName("purchase_id") val purchaseId: String,
+    @SerialName("purchase_number") val purchaseNumber: String? = null,
+    @SerialName("customer_name") val customerName: String? = null,
     val reason: String,
     @SerialName("reason_code_id") val reasonCodeId: String? = null,
     val status: String,
     @SerialName("requested_by") val requestedBy: String? = null,
+    @SerialName("requested_by_name") val requestedByName: String? = null,
     @SerialName("requested_at") val requestedAt: String,
     @SerialName("decided_by") val decidedBy: String? = null,
+    @SerialName("decided_by_name") val decidedByName: String? = null,
     @SerialName("decided_at") val decidedAt: String? = null,
     @SerialName("decision_note") val decisionNote: String? = null,
 )
@@ -134,6 +154,7 @@ data class ClassificationDto(
     val id: String,
     @SerialName("machine_id") val machineId: String,
     @SerialName("machine_code") val machineCode: String? = null,
+    @SerialName("machine_name") val machineName: String? = null,
     @SerialName("start_at") val startAt: String,
     @SerialName("end_at") val endAt: String,
     @SerialName("start_ref") val startRef: String,
@@ -160,7 +181,9 @@ data class CorrectionDto(
     val id: String,
     @SerialName("machine_id") val machineId: String,
     @SerialName("machine_code") val machineCode: String? = null,
+    @SerialName("machine_name") val machineName: String? = null,
     @SerialName("job_id") val jobId: String? = null,
+    @SerialName("job_number") val jobNumber: String? = null,
     @SerialName("superseded_capture_id") val supersededCaptureId: String,
     @SerialName("replacement_capture_id") val replacementCaptureId: String,
     @SerialName("old_reading") val oldReading: String,
@@ -184,7 +207,9 @@ data class CashVarianceDto(
     @SerialName("source_type") val sourceType: String,
     @SerialName("source_id") val sourceId: String,
     @SerialName("staff_member_id") val staffMemberId: String? = null,
+    @SerialName("staff_member_name") val staffMemberName: String? = null,
     @SerialName("counterparty_staff_id") val counterpartyStaffId: String? = null,
+    @SerialName("counterparty_staff_name") val counterpartyStaffName: String? = null,
     val currency: String,
     @SerialName("declared_amount") val declaredAmount: String,
     @SerialName("received_amount") val receivedAmount: String,
@@ -195,10 +220,13 @@ data class CashVarianceDto(
     @SerialName("case_id") val caseId: String? = null,
     @SerialName("opened_at") val openedAt: String,
     @SerialName("opened_by") val openedBy: String? = null,
+    @SerialName("opened_by_name") val openedByName: String? = null,
     @SerialName("proposed_by") val proposedBy: String? = null,
+    @SerialName("proposed_by_name") val proposedByName: String? = null,
     @SerialName("proposed_at") val proposedAt: String? = null,
     @SerialName("proposal_note") val proposalNote: String? = null,
     @SerialName("resolved_by") val resolvedBy: String? = null,
+    @SerialName("resolved_by_name") val resolvedByName: String? = null,
     @SerialName("resolved_at") val resolvedAt: String? = null,
     @SerialName("resolution_note") val resolutionNote: String? = null,
 )
@@ -208,6 +236,7 @@ data class CashVarianceDto(
 data class CashRetentionDto(
     val id: String,
     @SerialName("staff_member_id") val staffMemberId: String,
+    @SerialName("staff_member_name") val staffMemberName: String? = null,
     val amount: String,
     val currency: String,
     val reason: String,
@@ -215,10 +244,14 @@ data class CashRetentionDto(
     @SerialName("valid_until") val validUntil: String? = null,
     val status: String,
     @SerialName("created_by") val createdBy: String? = null,
+    @SerialName("created_by_name") val createdByName: String? = null,
     @SerialName("created_at") val createdAt: String,
     @SerialName("decided_by") val decidedBy: String? = null,
+    @SerialName("decided_by_name") val decidedByName: String? = null,
     @SerialName("decided_at") val decidedAt: String? = null,
     @SerialName("decision_note") val decisionNote: String? = null,
+    /** The field form's id when the request came from the app (offline CASH_RETENTION_REQUEST). */
+    @SerialName("client_id") val clientId: String? = null,
 )
 
 /** `CustodyAdjustmentDto` (a reversal or adjustment of a custodian's expected balance). */
@@ -226,6 +259,7 @@ data class CashRetentionDto(
 data class CustodyAdjustmentDto(
     val id: String,
     @SerialName("staff_member_id") val staffMemberId: String,
+    @SerialName("staff_member_name") val staffMemberName: String? = null,
     val kind: String,
     val amount: String,
     val currency: String,
@@ -236,10 +270,29 @@ data class CustodyAdjustmentDto(
     @SerialName("reverses_entity_id") val reversesEntityId: String? = null,
     val status: String,
     @SerialName("created_by") val createdBy: String? = null,
+    @SerialName("created_by_name") val createdByName: String? = null,
     @SerialName("created_at") val createdAt: String,
     @SerialName("decided_by") val decidedBy: String? = null,
+    @SerialName("decided_by_name") val decidedByName: String? = null,
     @SerialName("decided_at") val decidedAt: String? = null,
     @SerialName("decision_note") val decisionNote: String? = null,
+)
+
+/** `OverdueAmountDto`: cash still unremitted when the custodian was flagged. */
+@Serializable
+data class OverdueAmountDto(val currency: String, val amount: String)
+
+/** `RemittanceOverdueDto` (REMITTANCE_OVERDUE): a custodian still holding unremitted cash past the daily cut-off. */
+@Serializable
+data class RemittanceOverdueDto(
+    val id: String,
+    @SerialName("staff_member_id") val staffMemberId: String,
+    @SerialName("staff_member_name") val staffMemberName: String? = null,
+    @SerialName("local_day") val localDay: String,
+    @SerialName("cutoff_hour") val cutoffHour: Int,
+    val amounts: List<OverdueAmountDto> = emptyList(),
+    @SerialName("flagged_at") val flaggedAt: String,
+    @SerialName("policy_version") val policyVersion: String,
 )
 
 // --- accountability dashboard (getAccountabilitySummary) -------------------------------------------------------
@@ -283,6 +336,10 @@ data class CashTileDto(
     @SerialName("floats_awaiting_acknowledgement") val floatsAwaitingAcknowledgement: List<CountAmountDto> = emptyList(),
     @SerialName("remittances_awaiting_confirmation") val remittancesAwaitingConfirmation: List<CountAmountDto> = emptyList(),
     @SerialName("partial_remittances_in_window") val partialRemittancesInWindow: Int = 0,
+    /** Tenant-local daily remittance cut-off hour; null = no cut-off. */
+    @SerialName("remittance_cutoff_hour") val remittanceCutoffHour: Int? = null,
+    /** Custodians flagged today for cash not remitted by the cut-off; null = no cut-off configured. */
+    @SerialName("remittances_overdue_today") val remittancesOverdueToday: Int? = null,
 )
 
 @Serializable

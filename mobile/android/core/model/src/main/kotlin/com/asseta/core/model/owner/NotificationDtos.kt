@@ -20,7 +20,16 @@ data class NotificationDto(
     val target: NotificationTargetDto? = null,
     @SerialName("tenant_id") val tenantId: SerializableUuid? = null,
     val data: Map<String, JsonElement> = emptyMap(),
-)
+) {
+    /** Accountability record kind (`data.kind`, DEC-030 G5), e.g. CASH_TRANSFER; null for other notifications. */
+    val recordKind: String? get() = text("kind")
+
+    /** The exact record's id (`data.record_id`). */
+    val recordId: String? get() = text("record_id")
+
+    private fun text(key: String): String? = (data[key] as? kotlinx.serialization.json.JsonPrimitive)
+        ?.takeIf { it.isString }?.content?.takeIf { it.isNotBlank() }
+}
 
 @Serializable
 data class NotificationTargetDto(val entity: String, val id: String? = null, val path: String? = null)

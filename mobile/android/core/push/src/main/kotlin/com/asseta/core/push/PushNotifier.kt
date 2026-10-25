@@ -60,6 +60,6 @@ class PushNotifier(
     }
 
     companion object {
-        val DATA_KEYS = listOf("notification_id", "type", "severity", "tenant_id", "link")
+        val DATA_KEYS = listOf("notification_id", "type", "severity", "tenant_id", "link", "entity", "entity_id", "kind", "record_id")
     }
 }

@@ -34,6 +34,8 @@ class MainActivity : ComponentActivity() {
     private fun handleNotificationTap(intent: Intent?) {
         val extras = intent?.extras ?: return
         if (PushNotifier.DATA_KEYS.none { extras.getString(it) != null }) return
-        (application as SupervisorApplication).field.pushTap.value = PushTap(extras.getString("notification_id")?.takeIf { it.isNotBlank() })
+        fun extra(key: String) = extras.getString(key)?.takeIf { it.isNotBlank() }
+        (application as SupervisorApplication).field.pushTap.value =
+            PushTap(extra("notification_id"), extra("kind"), extra("record_id"), extra("entity"), extra("entity_id"))
     }
 }

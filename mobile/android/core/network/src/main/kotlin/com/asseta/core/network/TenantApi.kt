@@ -11,6 +11,7 @@ import com.asseta.core.model.owner.ApprovalRequestDto
 import com.asseta.core.model.owner.CashCustodyEntryDto
 import com.asseta.core.model.owner.CashFloatIn
 import com.asseta.core.model.owner.CashHandoverDto
+import com.asseta.core.model.owner.RemittanceOverdueDto
 import com.asseta.core.model.owner.CashSupervisorSummaryDto
 import com.asseta.core.model.owner.ContractDto
 import com.asseta.core.model.owner.ExceptionDto
@@ -441,4 +442,57 @@ interface TenantApi {
 
     @POST("api/v1/tenant/cash/adjustments/{id}/decision")
     suspend fun decideCustodyAdjustment(@Path("id") id: String, @Body body: DecisionIn): CustodyAdjustmentDto
+    // --- accountability: one record by id (DEC-030 G5, notification taps open the exact record) -------------------
+
+    @GET("api/v1/tenant/customer-discounts/{id}")
+    suspend fun customerDiscount(@Path("id") id: String): DiscountDto
+
+    @GET("api/v1/tenant/credit-arrangements/{id}")
+    suspend fun creditArrangement(@Path("id") id: String): CreditArrangementDto
+
+    @GET("api/v1/tenant/hours-transfers/{id}")
+    suspend fun hoursTransfer(@Path("id") id: String): HoursTransferDto
+
+    @GET("api/v1/tenant/hours-cancellations/{id}")
+    suspend fun hoursCancellation(@Path("id") id: String): HoursCancellationDto
+
+    @GET("api/v1/tenant/meter-baselines/{id}")
+    suspend fun meterBaseline(@Path("id") id: String): BaselineDto
+
+    @GET("api/v1/tenant/engine-hours/classifications/{id}")
+    suspend fun engineHourClassification(@Path("id") id: String): ClassificationDto
+
+    @GET("api/v1/tenant/meter-corrections/{id}")
+    suspend fun meterCorrection(@Path("id") id: String): CorrectionDto
+
+    @GET("api/v1/tenant/cash/variances/{id}")
+    suspend fun cashVariance(@Path("id") id: String): CashVarianceDto
+
+    /** getCashRetention (custody read: office readers any, field recorders their own). */
+    @GET("api/v1/tenant/cash/retentions/{id}")
+    suspend fun cashRetention(@Path("id") id: String): CashRetentionDto
+
+    @GET("api/v1/tenant/cash/adjustments/{id}")
+    suspend fun custodyAdjustment(@Path("id") id: String): CustodyAdjustmentDto
+
+    @GET("api/v1/tenant/cash/transfers/{id}")
+    suspend fun cashTransfer(@Path("id") id: String): CashTransferDto
+
+    /** getCashFloat: one float with its acknowledgement state. */
+    @GET("api/v1/tenant/cash/floats/{id}")
+    suspend fun cashFloat(@Path("id") id: String): CashCustodyEntryDto
+
+    @GET("api/v1/tenant/cash/handovers/{id}")
+    suspend fun cashHandover(@Path("id") id: String): CashHandoverDto
+
+    /** listCashRemittanceOverdue (tenant.finance.read): custodians flagged past the daily cut-off, latest day first. */
+    @GET("api/v1/tenant/cash/remittance-overdue")
+    suspend fun remittanceOverdue(
+        @Query("day_from") dayFrom: String? = null,
+        @Query("day_to") dayTo: String? = null,
+        @Query("page_size") pageSize: Int = 100,
+    ): PageDto<RemittanceOverdueDto>
+
+    @GET("api/v1/tenant/cash/remittance-overdue/{id}")
+    suspend fun remittanceOverdueFlag(@Path("id") id: String): RemittanceOverdueDto
 }

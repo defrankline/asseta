@@ -139,18 +139,38 @@ sealed interface InboxLink {
     data class Job(val jobId: String) : InboxLink
     data class Expense(val expenseId: String) : InboxLink
     data object Money : InboxLink
+    /** A cash transfer ([isFloat] false) or float sent to me: its acknowledge screen while it waits, else Money. */
+    data class CashAck(val id: String, val isFloat: Boolean) : InboxLink
+    /** My request to keep cash (status read online). */
+    data class Retention(val id: String) : InboxLink
     /** A machine of mine (missing daily report, unexplained engine hours). */
     data class Machine(val machineId: String) : InboxLink
     data object None : InboxLink
 }
 
 object InboxLinks {
-    fun from(entity: String?, id: String?): InboxLink = when {
+    /** [kind] / [recordId] (notification `data`, DEC-030 G5) name the exact record and win over the target. */
+    fun from(entity: String?, id: String?, kind: String? = null, recordId: String? = null): InboxLink {
+        if (recordId != null) {
+            when (kind) {
+                "CASH_TRANSFER" -> return InboxLink.CashAck(recordId, isFloat = false)
+                "CASH_FLOAT" -> return InboxLink.CashAck(recordId, isFloat = true)
+                "CASH_RETENTION" -> return InboxLink.Retention(recordId)
+                "REMITTANCE_OVERDUE" -> return InboxLink.Money
+            }
+        }
+        return fromTarget(entity, id)
+    }
+
+    private fun fromTarget(entity: String?, id: String?): InboxLink = when {
         entity == "job" && id != null -> InboxLink.Job(id)
         entity == "expense" && id != null -> InboxLink.Expense(id)
         entity == "staff_member" || entity == "cash_custody" -> InboxLink.Money
-        // Cash transfers and floats to acknowledge are answered on the Money tab.
-        entity == "cash_transfer" || entity == "supervisor_cash_custody" -> InboxLink.Money
+        // Cash transfers and floats to acknowledge are answered on their own screen (else the Money tab).
+        entity == "cash_transfer" && id != null -> InboxLink.CashAck(id, isFloat = false)
+        entity == "supervisor_cash_custody" && id != null -> InboxLink.CashAck(id, isFloat = true)
+        entity == "cash_transfer" || entity == "supervisor_cash_custody" || entity == "cash_remittance_overdue" -> InboxLink.Money
+        entity == "cash_retention" && id != null -> InboxLink.Retention(id)
         entity == "machine" && id != null -> InboxLink.Machine(id)
         else -> InboxLink.None
     }

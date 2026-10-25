@@ -40,6 +40,7 @@ import com.asseta.core.sync.usecase.CashAckRequest
 import com.asseta.core.sync.usecase.CashTransferRequest
 import com.asseta.core.sync.usecase.HoursSaleRequest
 import com.asseta.core.sync.usecase.HoursTransferRequest
+import com.asseta.core.sync.usecase.RetentionRequest
 import com.asseta.core.ui.theme.palette
 import com.asseta.supervisor.FieldGraph
 import com.asseta.supervisor.capture.CameraCapture
@@ -485,7 +486,7 @@ fun CashAckScreen(vm: CashAckViewModel, onDone: () -> Unit) {
             return@FormColumn
         }
         Section(null) {
-            Text(if (float != null) T.FLOAT_FROM_OFFICE else T.transferFrom(cache.custodianName(transfer?.fromStaffId)))
+            Text(if (float != null) T.FLOAT_FROM_OFFICE else T.transferFrom(T.colleague(transfer?.fromStaffName, cache.custodianName(transfer?.fromStaffId), transfer?.fromStaffId)))
             LabeledRow(T.DECLARED, "$declared $currency")
             LabeledRow(if (float != null) T.ISSUED else T.SENT, LocalTime.formatIso(transfer?.transferredAt ?: float!!.occurredAt))
             (transfer?.note ?: float?.note)?.takeIf { it.isNotBlank() }?.let { Text(it, color = palette.secondaryText) }
@@ -537,6 +538,15 @@ class RetentionViewModel(field: FieldGraph, tenantId: String, permissions: Set<S
         if (saving()) return
         viewModelScope.launch {
             val holder = f.holderId?.takeIf { access.value?.recordForOthers == true && it != me.value }
+            if (access.value?.retentionOffline == true) {
+                // Offline-capable: queued in the outbox (CASH_RETENTION_REQUEST, idempotent by this visit's client id).
+                val result = field.accountabilityCapture.retention(
+                    RetentionRequest(tenantId, clientId, f.amount, f.currency, f.reason, f.reasonId, holder),
+                )
+                _save.update { it.after(result) }
+                if (_save.value.saved) _sent.value = T.RETENTION_SAVED
+                return@launch
+            }
             when (val r = field.accountability.requestRetention(values.amount, values.currency, values.reason, f.reasonId, holder, clientId)) {
                 is RetentionResult.Sent -> {
                     _sent.value = T.RETENTION_SENT
@@ -546,10 +556,13 @@ class RetentionViewModel(field: FieldGraph, tenantId: String, permissions: Set<S
             }
         }
     }
+
+    /** The key the status screen opens: this visit's client id (queued) or the server id (sent online). */
+    val statusKey: String get() = clientId
 }
 
 @Composable
-fun RetentionScreen(vm: RetentionViewModel, onDone: () -> Unit) {
+fun RetentionScreen(vm: RetentionViewModel, onDone: () -> Unit, onStatus: (String) -> Unit = {}) {
     val form by vm.form.collectAsStateWithLifecycle()
     val save by vm.save.collectAsStateWithLifecycle()
     val access by vm.access.collectAsStateWithLifecycle()
@@ -581,13 +594,74 @@ fun RetentionScreen(vm: RetentionViewModel, onDone: () -> Unit) {
         val sent by vm.sent.collectAsStateWithLifecycle()
         if (sent != null) {
             Section(null) { Text(sent!!, color = palette.accent) }
+            if (a.retentionOffline) TextButton(onClick = { onStatus(vm.statusKey) }) { Text(T.RETENTION_VIEW_STATUS) }
             return@FormColumn
         }
-        Text(T.ONLINE_ONLY, color = palette.secondaryText)
+        if (!a.retentionOffline) Text(T.ONLINE_ONLY, color = palette.secondaryText)
         save.messages.forEach { Text(it, color = palette.offline) }
         FormSaveAction(
             enabled = AccountabilityRules.retention(form.amount, form.currency, form.reason) is FormCheck.Valid && editable,
             saving = save.saving, label = T.SEND, onSave = vm::send,
         )
+    }
+}
+
+// --- Status of a request to keep cash ----------------------------------------------------------------------------
+
+/** [key]: this phone's form id (outbox entity) or the server's request id (notification). Read online when possible. */
+class RetentionStatusViewModel(private val field: FieldGraph, private val tenantId: String, private val key: String) : ViewModel() {
+    private val _status = MutableStateFlow<com.asseta.core.sync.data.RetentionStatus?>(null)
+    val status: StateFlow<com.asseta.core.sync.data.RetentionStatus?> = _status.asStateFlow()
+
+    init { refresh() }
+
+    fun refresh() {
+        viewModelScope.launch { _status.value = field.accountability.retentionStatus(tenantId, key) }
+    }
+}
+
+/** Pure wording of the retention status screen (unit-tested; same lines on iOS). */
+object RetentionStatusText {
+    /** The status line: the server's decision, else why it is not known yet. */
+    fun line(s: com.asseta.core.sync.data.RetentionStatus): String {
+        val server = s.server
+        val op = s.operation
+        return when {
+            server != null -> T.retentionStatus(server.status)
+            op != null && s.retentionId == null -> T.conflict(op.errorCode) ?: T.RETENTION_NOT_SYNCED
+            s.offline -> T.RETENTION_OFFLINE
+            else -> T.RETENTION_NOT_FOUND
+        }
+    }
+}
+
+@Composable
+fun RetentionStatusScreen(vm: RetentionStatusViewModel) {
+    val status by vm.status.collectAsStateWithLifecycle()
+    val s = status ?: return
+    val server = s.server
+    val payload = s.operation?.payloadJson?.let { raw ->
+        runCatching { kotlinx.serialization.json.Json.parseToJsonElement(raw) as kotlinx.serialization.json.JsonObject }.getOrNull()
+    }
+    fun text(key: String) = (payload?.get(key) as? kotlinx.serialization.json.JsonPrimitive)?.content
+    FormColumn {
+        if (server == null && s.operation == null && !s.offline) {
+            EmptyState(T.TITLE_RETENTION_STATUS, T.RETENTION_NOT_FOUND)
+            return@FormColumn
+        }
+        Section(null) {
+            val amount = server?.amount ?: text("amount")
+            val currency = server?.currency ?: text("currency")
+            if (amount != null) LabeledRow(T.AMOUNT, "$amount ${currency.orEmpty()}".trim())
+            (server?.reason ?: text("reason"))?.let { LabeledRow(T.REASON, it) }
+            server?.createdAt?.let { LabeledRow(T.RETENTION_REQUESTED, LocalTime.formatIso(it)) }
+                ?: s.operation?.let { LabeledRow(T.RETENTION_REQUESTED, LocalTime.format(it.createdAtDevice)) }
+            LabeledRow(T.RETENTION_STATUS, RetentionStatusText.line(s))
+            server?.let { r ->
+                com.asseta.core.domain.accountability.DisplayNames.of(r.decidedByName, r.decidedBy)?.let { LabeledRow(T.RETENTION_DECIDED_BY, it) }
+                r.decisionNote?.takeIf { it.isNotBlank() }?.let { LabeledRow(T.RETENTION_DECISION_NOTE, it) }
+            }
+        }
+        if (server == null && s.retentionId != null) OutlinedButton(onClick = vm::refresh) { Text("Retry") }
     }
 }

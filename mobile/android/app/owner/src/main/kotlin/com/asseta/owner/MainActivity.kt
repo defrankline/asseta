@@ -33,6 +33,7 @@ class MainActivity : ComponentActivity() {
                         userEmail = ready.me.email,
                         canSwitchTenant = ready.me.tenants.count { it.accessState.canEnter } > 1,
                         userId = ready.me.userId.toString(),
+                        disabledCapabilities = tenant.disabledCapabilities.toSet(),
                     )
                     OwnerHome(app.graph, session, modifier)
                 }

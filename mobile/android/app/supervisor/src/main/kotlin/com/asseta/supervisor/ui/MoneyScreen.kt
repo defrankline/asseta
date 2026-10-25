@@ -28,6 +28,7 @@ import com.asseta.core.domain.accountability.FieldAccess
 import com.asseta.core.domain.finance.CustodyLine
 import com.asseta.supervisor.ui.accountability.MoneyAccountability
 import com.asseta.supervisor.ui.accountability.cashToAcknowledgeSection
+import com.asseta.supervisor.ui.accountability.retentionsSection
 import com.asseta.supervisor.ui.accountability.transfersSection
 import com.asseta.core.domain.inbox.InboxStatus
 import com.asseta.core.model.sync.CashReconciliationDayDto
@@ -115,9 +116,10 @@ fun MoneyScreen(
                 }
                 MoneySegment.COLLECTIONS -> cashList(snapshot.collections, snapshot.loaded, "No cash collections", "Cash you collect from customers appears here with the office's verification.", onRoute)
                 MoneySegment.HANDOVERS -> cashList(snapshot.handovers, snapshot.loaded, "No cash handovers", "Cash you hand over to the office appears here with its verification.", onRoute)
-                MoneySegment.TRANSFERS -> transfersSection(
-                    MoneyAccountability.transfers(accountability, me, snapshot.accountabilityOps, field.inbox::payloadText), snapshot.loaded,
-                )
+                MoneySegment.TRANSFERS -> {
+                    transfersSection(MoneyAccountability.transfers(accountability, me, snapshot.accountabilityOps, field.inbox::payloadText), snapshot.loaded)
+                    retentionsSection(MoneyAccountability.retentions(snapshot.accountabilityOps, field.inbox::payloadText), onRoute)
+                }
             }
         }
     }

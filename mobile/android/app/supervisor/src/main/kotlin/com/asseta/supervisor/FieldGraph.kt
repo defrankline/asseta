@@ -35,7 +35,14 @@ import kotlinx.coroutines.launch
 import java.io.File
 
 /** A tapped push notification: opens the Inbox, and the notification's detail when the Inbox has it. */
-data class PushTap(val notificationId: String?)
+data class PushTap(
+    val notificationId: String?,
+    /** The record the push is about (DEC-030 G5): `kind` / `record_id`, else `entity` / `entity_id`. */
+    val kind: String? = null,
+    val recordId: String? = null,
+    val entity: String? = null,
+    val entityId: String? = null,
+)
 
 /**
  * Supervisor field-app graph on top of the shared container (manual DI). Every database access goes through

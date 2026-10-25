@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.asseta.core.domain.owner.OwnerDestination
+import com.asseta.core.model.TenantAccess
 import com.asseta.core.domain.owner.OwnerFormat
 import com.asseta.core.model.owner.AccountabilitySummaryDto
 import com.asseta.core.model.owner.CountAmountDto
@@ -32,7 +33,15 @@ import java.time.ZoneId
 private val T = OwnerAccountabilityTexts
 
 /** One dashboard tile: its rows and the list it opens (when the Owner app has one and the role may open it). */
-data class DashboardTile(val key: String, val title: String, val rows: List<Pair<String, String>>, val link: OwnerDestination? = null, val footer: String? = null)
+data class DashboardTile(
+    val key: String,
+    val title: String,
+    val rows: List<Pair<String, String>>,
+    val link: OwnerDestination? = null,
+    val footer: String? = null,
+    /** Further lists the tile opens (label -> destination), e.g. today's overdue remittances from the cash tile. */
+    val moreLinks: List<Pair<String, OwnerDestination>> = emptyList(),
+)
 
 /** Pure presentation of `AccountabilitySummaryDto` (unit-tested): null tiles (hidden / unavailable) are skipped. */
 object DashboardPresentation {
@@ -47,7 +56,8 @@ object DashboardPresentation {
     private fun JsonObject.items(): List<JsonObject> = (this["items"] as? JsonArray).orEmpty().mapNotNull { it as? JsonObject }
 
     fun tiles(s: AccountabilitySummaryDto, features: OwnerFeatures): List<DashboardTile> = buildList {
-        val approvals = OwnerDestination.Approvals().takeIf { features.approvals || features.finance || features.meterEvidence || features.hoursRead }
+        val approvals = OwnerDestination.Approvals().takeIf { features.approvals || features.finance || features.meterEvidence || features.customerHours }
+        val hoursOff = TenantAccess.CUSTOMER_HOURS in features.disabled
         s.outstandingApprovals?.let { a ->
             add(
                 DashboardTile(
@@ -67,12 +77,20 @@ object DashboardPresentation {
                 T.DASH_FLOATS_AWAITING to amounts(c.floatsAwaitingAcknowledgement),
                 T.DASH_REMITTANCES_AWAITING to amounts(c.remittancesAwaitingConfirmation),
                 T.DASH_PARTIAL_REMITTANCES to "${c.partialRemittancesInWindow}",
-            ) + c.custodians.map { k ->
+            ) + listOfNotNull(c.remittancesOverdueToday?.let { T.DASH_REMITTANCES_OVERDUE to "$it" }) + c.custodians.map { k ->
                 val line = k.outstanding.toBigDecimalOrNull()?.let { OwnerFormat.money(it, k.currency) } ?: k.outstanding
                 val transit = k.inTransitOut.toBigDecimalOrNull()?.takeIf { it.signum() != 0 }?.let { T.inTransit(OwnerFormat.money(it, k.currency)) }
                 k.staffName to listOfNotNull(T.custodianLine(line), transit).joinToString(" · ")
             }
-            add(DashboardTile("cash", T.DASH_CASH, rows, OwnerDestination.Cash.takeIf { features.finance }))
+            // Remittance cut-off (null = the tenant has none): today's overdue count opens the flagged custodians.
+            val overdue = c.remittancesOverdueToday?.takeIf { features.finance }?.let { listOf(T.DASH_REMITTANCES_OVERDUE to OwnerDestination.RemittanceOverdue()) }
+            add(
+                DashboardTile(
+                    "cash", T.DASH_CASH, rows, OwnerDestination.Cash.takeIf { features.finance },
+                    footer = c.remittanceCutoffHour?.takeIf { c.remittancesOverdueToday != null }?.let(T::dashCutoff),
+                    moreLinks = overdue.orEmpty(),
+                ),
+            )
         }
         s.payments?.let { add(DashboardTile("payments", T.DASH_PAYMENTS, listOf(T.DASH_PAYMENTS to amounts(it.awaitingConfirmation)))) }
         s.discrepancies?.let { d ->
@@ -93,7 +111,7 @@ object DashboardPresentation {
             add(DashboardTile("attempts", T.DASH_ATTEMPTS, listOf(T.DASH_PERMISSION_DENIED to "${a.permissionDenied}", T.DASH_SOD to "${a.segregationOfDuties}"),
                 footer = T.window(a.windowDays)))
         }
-        s.customerHours?.let { h ->
+        s.customerHours?.takeUnless { hoursOff }?.let { h ->
             add(
                 DashboardTile(
                     "customer_hours", T.DASH_CUSTOMER_HOURS,
@@ -105,7 +123,7 @@ object DashboardPresentation {
                 ),
             )
         }
-        s.hoursAwaitingActivation?.let { h ->
+        s.hoursAwaitingActivation?.takeUnless { hoursOff }?.let { h ->
             add(
                 DashboardTile(
                     "hours_awaiting_activation", T.DASH_HOURS_AWAITING_TILE,
@@ -149,6 +167,7 @@ fun AccountabilityScreen(vm: AccountabilityViewModel, features: OwnerFeatures, o
                     SectionCard(tile.title, footer = tile.footer) {
                         tile.rows.forEach { (label, value) -> KeyValue(label, value) }
                         tile.link?.let { dest -> NavigationRow(tile.title) { onOpen(dest) } }
+                        tile.moreLinks.forEach { (label, dest) -> NavigationRow(label) { onOpen(dest) } }
                     }
                 }
             }

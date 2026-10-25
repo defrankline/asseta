@@ -31,6 +31,9 @@ import com.asseta.core.model.owner.TenantOverviewDto
 import com.asseta.core.model.owner.AccountabilitySummaryDto
 import com.asseta.core.model.owner.DecisionIn
 import com.asseta.core.model.owner.MeterDecisionIn
+import com.asseta.core.model.owner.RemittanceOverdueDto
+import com.asseta.owner.ui.accountability.CashRecord
+import com.asseta.owner.ui.accountability.CashRecords
 import com.asseta.owner.ui.accountability.DecisionItem
 import com.asseta.owner.ui.accountability.DecisionKind
 import com.asseta.owner.ui.accountability.DecisionMapper
@@ -59,7 +62,7 @@ data class JobDetail(
  */
 @Serializable
 data class HandoverList(val items: List<CashHandoverDto>, val names: Map<String, String> = emptyMap()) {
-    fun name(h: CashHandoverDto): String? = names[h.staffMemberId.toString()]
+    fun name(h: CashHandoverDto): String? = h.staffMemberName ?: names[h.staffMemberId.toString()]
 }
 
 /** Open meter exceptions with their jobs' numbers ([jobNumbers] job id -> number, when the role may read jobs). */
@@ -199,12 +202,7 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
             when (kind) {
                 DecisionKind.DISCOUNT -> customerDiscounts(status).items.map { DecisionMapper.discount(it, zone) }
                 DecisionKind.CREDIT -> creditArrangements(status).items.map { DecisionMapper.credit(it, zone) }
-                DecisionKind.HOURS_TRANSFER -> {
-                    val items = hoursTransfers(status).items
-                    val ids = items.flatMap { listOf(it.fromMachineId, it.toMachineId) }.distinct().take(MAX_JOB_LOOKUPS)
-                    val names = ids.mapNotNull { id -> runCatching { id to machine(id).let { m -> "${m.assetCode} · ${m.name}" } }.getOrNull() }.toMap()
-                    items.map { DecisionMapper.hoursTransfer(it, names) }
-                }
+                DecisionKind.HOURS_TRANSFER -> hoursTransfers(status).items.map(DecisionMapper::hoursTransfer)
                 DecisionKind.CANCELLATION -> hoursCancellations(status).items.map(DecisionMapper::cancellation)
                 DecisionKind.BASELINE -> meterBaselines(status).items.map { DecisionMapper.baseline(it, zone) }
                 DecisionKind.CLASSIFICATION -> engineHourClassifications(status).items.map { DecisionMapper.classification(it, zone) }
@@ -215,6 +213,51 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
             }
         }
     }
+
+    /**
+     * One request of [kind] by id (any status; the exact record a notification names), as a one-item list so the
+     * decision screen keeps its shape. Cached per record for offline viewing.
+     */
+    suspend fun decision(kind: DecisionKind, id: String): Load<List<DecisionItem>> {
+        val zone = java.time.ZoneId.systemDefault()
+        return repo.load(tenantId, "decision:${kind.code}:$id", ListSerializer(DecisionItem.serializer())) {
+            listOf(
+                when (kind) {
+                    DecisionKind.DISCOUNT -> DecisionMapper.discount(customerDiscount(id), zone)
+                    DecisionKind.CREDIT -> DecisionMapper.credit(creditArrangement(id), zone)
+                    DecisionKind.HOURS_TRANSFER -> DecisionMapper.hoursTransfer(hoursTransfer(id))
+                    DecisionKind.CANCELLATION -> DecisionMapper.cancellation(hoursCancellation(id))
+                    DecisionKind.BASELINE -> DecisionMapper.baseline(meterBaseline(id), zone)
+                    DecisionKind.CLASSIFICATION -> DecisionMapper.classification(engineHourClassification(id), zone)
+                    DecisionKind.CORRECTION -> DecisionMapper.correction(meterCorrection(id))
+                    DecisionKind.WRITE_OFF -> DecisionMapper.writeOff(cashVariance(id))
+                    DecisionKind.RETENTION -> DecisionMapper.retention(cashRetention(id), zone)
+                    DecisionKind.ADJUSTMENT -> DecisionMapper.adjustment(custodyAdjustment(id), zone)
+                },
+            )
+        }
+    }
+
+    /** One cash transfer or float ([float]) as a read-only record (DEC-030 G5). */
+    suspend fun cashRecord(float: Boolean, id: String): Load<CashRecord> {
+        val zone = java.time.ZoneId.systemDefault()
+        return repo.load(tenantId, "cash_record:${if (float) "float" else "transfer"}:$id", CashRecord.serializer()) {
+            if (float) CashRecords.float(cashFloat(id), zone) else CashRecords.transfer(cashTransfer(id), zone)
+        }
+    }
+
+    /** Custodians flagged for cash not remitted by the cut-off on the local day [day] (tenant.finance.read). */
+    suspend fun remittanceOverdue(day: java.time.LocalDate): Load<List<RemittanceOverdueDto>> =
+        repo.load(tenantId, "remittance_overdue:$day", ListSerializer(RemittanceOverdueDto.serializer())) {
+            remittanceOverdue(dayFrom = day.toString(), dayTo = day.toString(), pageSize = LIST_PAGE).items
+        }
+
+    suspend fun remittanceOverdueFlag(id: String): Load<RemittanceOverdueDto> =
+        repo.load(tenantId, "remittance_overdue_flag:$id", RemittanceOverdueDto.serializer()) { remittanceOverdueFlag(id) }
+
+    /** One remittance by id (a notification may name one that is in neither list). */
+    suspend fun handover(id: String): Load<HandoverList> =
+        repo.load(tenantId, "handover:$id", HandoverList.serializer()) { HandoverList(listOf(cashHandover(id))) }
 
     /** Approve or reject a request of [kind] (online only); meter decisions carry their note as APPROVE/REJECT. */
     suspend fun decide(kind: DecisionKind, id: String, approve: Boolean, note: String): ActionResult<Unit> {

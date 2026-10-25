@@ -1,6 +1,7 @@
 package com.asseta.owner.ui
 
 import com.asseta.core.domain.owner.OwnerDestination
+import com.asseta.core.domain.owner.RecordKinds
 import com.asseta.owner.ui.accountability.DecisionKind
 import com.asseta.owner.ui.accountability.OwnerAccountabilityTexts
 
@@ -75,5 +76,9 @@ object OwnerNavigation {
         OwnerDestination.More -> "More"
         is OwnerDestination.Decision -> DecisionKind.of(d.kind)?.title ?: "Approval"
         OwnerDestination.Accountability -> OwnerAccountabilityTexts.DASH_TITLE
+        is OwnerDestination.CashRecord ->
+            if (d.kind == RecordKinds.CASH_FLOAT) OwnerAccountabilityTexts.RECORD_FLOAT_TITLE else OwnerAccountabilityTexts.RECORD_TRANSFER_TITLE
+        is OwnerDestination.RemittanceOverdue ->
+            if (d.id == null) OwnerAccountabilityTexts.OVERDUE_TITLE else OwnerAccountabilityTexts.OVERDUE_DETAIL_TITLE
     }
 }

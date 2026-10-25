@@ -7,6 +7,12 @@ import com.asseta.owner.OwnerGraph
 import com.asseta.owner.data.OwnerData
 import com.asseta.owner.ui.accountability.AccountabilityScreen
 import com.asseta.owner.ui.accountability.AccountabilityViewModel
+import com.asseta.owner.ui.accountability.CashRecordScreen
+import com.asseta.owner.ui.accountability.CashRecordViewModel
+import com.asseta.owner.ui.accountability.RemittanceOverdueListScreen
+import com.asseta.owner.ui.accountability.RemittanceOverdueListViewModel
+import com.asseta.owner.ui.accountability.RemittanceOverdueScreen
+import com.asseta.owner.ui.accountability.RemittanceOverdueViewModel
 import com.asseta.owner.ui.accountability.DecisionKind
 import com.asseta.owner.ui.accountability.DecisionScreen
 import com.asseta.owner.ui.accountability.DecisionViewModel
@@ -196,9 +202,29 @@ fun OwnerRoutes(
                 DecisionScreen(vm, session, online)
             }
         }
+        is OwnerDestination.CashRecord -> {
+            val vm: CashRecordViewModel = viewModel(key = "cash-record-$t-${route.kind}-${route.id}") {
+                CashRecordViewModel(data, route.kind, route.id, graph.refreshTriggers("cash_transfer", "supervisor_cash_custody"))
+            }
+            CashRecordScreen(vm)
+        }
+        is OwnerDestination.RemittanceOverdue -> {
+            val id = route.id
+            if (id == null) {
+                val vm: RemittanceOverdueListViewModel = viewModel(key = "overdue-$t") {
+                    RemittanceOverdueListViewModel(data, graph.refreshTriggers("cash_remittance_overdue", "cash_handover"))
+                }
+                RemittanceOverdueListScreen(vm, open)
+            } else {
+                val vm: RemittanceOverdueViewModel = viewModel(key = "overdue-$t-$id") {
+                    RemittanceOverdueViewModel(data, id, graph.refreshTriggers("cash_remittance_overdue"))
+                }
+                RemittanceOverdueScreen(vm)
+            }
+        }
         OwnerDestination.Accountability -> {
             val vm: AccountabilityViewModel = viewModel(key = "accountability-$t") {
-                AccountabilityViewModel(data, graph.refreshTriggers(*ACCOUNTABILITY_ENTITIES, "cash_handover", "approval", "case"))
+                AccountabilityViewModel(data, graph.refreshTriggers(*ACCOUNTABILITY_ENTITIES, "cash_handover", "approval", "case", "cash_remittance_overdue"))
             }
             AccountabilityScreen(vm, features, open)
         }

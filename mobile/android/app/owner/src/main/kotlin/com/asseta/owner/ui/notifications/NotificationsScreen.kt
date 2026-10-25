@@ -94,7 +94,7 @@ class NotificationsViewModel(private val data: OwnerData, private val live: Live
                 replaceData { p -> p.copy(items = p.items.map { if (it.id == n.id) it.copy(readAt = it.createdAt) else it }) }
             }
         }
-        return DeepLinkRouter.fromTarget(n.target?.entity, n.target?.id, n.target?.path, n.id.toString(), n.type)
+        return DeepLinkRouter.fromTarget(n.target?.entity, n.target?.id, n.target?.path, n.id.toString(), n.type, n.recordKind, n.recordId)
     }
 
     fun markAllRead() {

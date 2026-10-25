@@ -5,7 +5,9 @@ import com.asseta.core.database.ReadSnapshotEntity
 import com.asseta.core.domain.accountability.CashCustodyPolicy
 import com.asseta.core.domain.accountability.CustomerHoursPolicy
 import com.asseta.core.domain.accountability.FieldAccess
+import com.asseta.core.database.ClientOperationEntity
 import com.asseta.core.model.DecimalAmount
+import com.asseta.core.model.TenantAccess
 import com.asseta.core.model.SyncAccount
 import com.asseta.core.model.owner.CashRetentionDto
 import com.asseta.core.model.sync.CashReasonDto
@@ -26,6 +28,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import java.math.BigDecimal
 
 /**
@@ -67,6 +72,18 @@ sealed interface RetentionResult {
     data class Refused(val message: String) : RetentionResult
 }
 
+/** A request to keep cash as the field app shows it: this phone's outbox copy and/or the server's record. */
+data class RetentionStatus(
+    /** The outbox operation (null when the request was not made on this phone, e.g. opened from a notification). */
+    val operation: ClientOperationEntity?,
+    /** The server's request id (from the acked operation's result, or the notification). */
+    val retentionId: String?,
+    /** The server's record, read online; null offline or before the request reached the server. */
+    val server: CashRetentionDto?,
+    /** The online read failed (offline, or refused). */
+    val offline: Boolean,
+)
+
 class FieldAccountabilityData(
     private val api: () -> TenantApi,
     private val db: () -> AssetaDatabase,
@@ -76,6 +93,16 @@ class FieldAccountabilityData(
 ) {
     private val _cache = MutableStateFlow(FieldAccountabilityCache())
     private var loadedFor: String? = null
+
+    /** Tenant capabilities switched off (`/me` `disabled_capabilities`), per tenant; set when the tenant is opened. */
+    private val disabled = java.util.concurrent.ConcurrentHashMap<String, Set<String>>()
+
+    /** Records the tenant's switched-off capabilities from `/me` (their entry points are hidden, their data not read). */
+    fun setDisabledCapabilities(tenantId: String, capabilities: Collection<String>) {
+        disabled[tenantId] = capabilities.toSet()
+    }
+
+    private fun disabledFor(tenantId: String): Set<String> = disabled[tenantId].orEmpty()
 
     /** The saved data of the signed-in user (empty until [load] or [refresh]). */
     val cache: StateFlow<FieldAccountabilityCache> = _cache.asStateFlow()
@@ -103,7 +130,7 @@ class FieldAccountabilityData(
         load(tenantId)
         val capabilities = db().syncStateDao().get(tenantId)?.capabilities?.split(',')?.filter { it.isNotBlank() }?.toSet()
         val c = _cache.value
-        return FieldAccess(capabilities, permissions, c.cash, c.hours)
+        return FieldAccess(capabilities, permissions, c.cash, c.hours, disabledFor(tenantId))
     }
 
     /**
@@ -126,11 +153,13 @@ class FieldAccountabilityData(
             }
         }
         val record = FieldAccess.COLLECTION_RECORD in permissions
-        val hoursRead = FieldAccess.HOURS_READ in permissions
+        // A capability the tenant switched off is not read at all (its entry points are hidden).
+        val hoursOn = TenantAccess.CUSTOMER_HOURS !in disabledFor(tenantId)
+        val hoursRead = hoursOn && FieldAccess.HOURS_READ in permissions
         val next = FieldAccountabilityCache(
             fetchedAtMs = old.fetchedAtMs,
             cashPolicy = part(record, old.cashPolicy, null) { effectivePolicy(CashCustodyPolicy.TYPE) },
-            hoursPolicy = part(FieldAccess.HOURS_PURCHASE in permissions, old.hoursPolicy, null) { effectivePolicy(CustomerHoursPolicy.TYPE) },
+            hoursPolicy = part(hoursOn && FieldAccess.HOURS_PURCHASE in permissions, old.hoursPolicy, null) { effectivePolicy(CustomerHoursPolicy.TYPE) },
             custodians = part(record, old.custodians, emptyList()) { cashCustodians(pageSize = PAGE).items.filter { it.isActive } },
             transfers = part(record && me != null, old.transfers, emptyList()) { cashTransfers(staffMemberId = me, pageSize = PAGE).items },
             floats = part(record && me != null, old.floats, emptyList()) {
@@ -164,6 +193,31 @@ class FieldAccountabilityData(
         throw e
     } catch (e: Exception) {
         RetentionResult.Refused(e.message ?: "The request could not be sent.")
+    }
+
+    /**
+     * Status of a request to keep cash: [key] is this phone's form id (the outbox entity id) or the server's request
+     * id (a notification). Once the operation is acked, the server's record is read online (GET /cash/retentions/{id}).
+     */
+    suspend fun retentionStatus(tenantId: String, key: String): RetentionStatus {
+        val op = db().clientOperationDao().findByEntity(tenantId, FieldOps.CASH_RETENTION, key)
+        val id = if (op == null) key else retentionIdOf(op)
+        if (id == null) return RetentionStatus(op, null, null, offline = false)
+        return try {
+            RetentionStatus(op, id, api().cashRetention(id), offline = false)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            RetentionStatus(op, id, null, offline = true)
+        }
+    }
+
+    /** The server request id from an acked `CASH_RETENTION_REQUEST` result (`{"entity": CashRetentionDto}`). */
+    fun retentionIdOf(op: ClientOperationEntity): String? = op.resultJson?.let { raw ->
+        runCatching {
+            val entity = json.parseToJsonElement(raw).jsonObject["entity"]?.jsonObject
+            entity?.get("id")?.jsonPrimitive?.contentOrNull
+        }.getOrNull()
     }
 
     /** Clears the in-memory copy (sign-out / another user); the store is cleared by the account switch. */
