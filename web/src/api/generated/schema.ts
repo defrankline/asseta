@@ -10848,6 +10848,8 @@ export interface components {
             id: string;
             /** Job Id */
             job_id: string | null;
+            /** Job Number */
+            job_number?: string | null;
             /** Machine Code */
             machine_code?: string | null;
             /**
@@ -10871,6 +10873,8 @@ export interface components {
              * Format: uuid
              */
             purchase_id: string;
+            /** Purchase Number */
+            purchase_number?: string | null;
             /** Reason */
             reason: string | null;
             /**

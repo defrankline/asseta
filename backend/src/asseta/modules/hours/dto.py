@@ -354,6 +354,7 @@ class HoursPurchaseDto(BaseModel):
 class LedgerEntryDto(Dto):
     id: uuid.UUID
     purchase_id: uuid.UUID
+    purchase_number: str | None = None
     customer_id: uuid.UUID
     customer_name: str | None = None
     machine_id: uuid.UUID
@@ -367,6 +368,7 @@ class LedgerEntryDto(Dto):
     expires_at: datetime | None
     payment_id: uuid.UUID | None
     job_id: uuid.UUID | None
+    job_number: str | None = None
     allocation_id: uuid.UUID | None
     transfer_id: uuid.UUID | None
     cancellation_id: uuid.UUID | None

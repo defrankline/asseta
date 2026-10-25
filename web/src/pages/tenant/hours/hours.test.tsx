@@ -1,7 +1,12 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { DiscountDto, HoursPurchaseDto, TransferDto } from '../../../api/hoursTypes';
+import type {
+  DiscountDto,
+  HoursPurchaseDto,
+  LedgerEntryDto,
+  TransferDto,
+} from '../../../api/hoursTypes';
 import type {
   discountService,
   hoursRequestService,
@@ -10,6 +15,7 @@ import type {
 import type { policyService } from '../../../api/services/policyService';
 import { renderWithProviders } from '../../../test/renderWithProviders';
 import { CustomerDiscountsPage } from './CustomerDiscountsPage';
+import { HoursLedgerPage } from './HoursLedgerPage';
 import { HoursPurchasesPage } from './HoursPurchasesPage';
 import { HoursTransfersPage } from './HoursTransfersPage';
 import { emptyPurchaseValues, toPurchasePayload } from './purchaseForm';
@@ -21,6 +27,7 @@ const OTHER = '44444444-4444-4444-8444-444444444444';
 const mocks = vi.hoisted(() => ({
   effective: vi.fn<typeof policyService.effective>(),
   listPurchases: vi.fn<typeof hoursService.listPurchases>(),
+  listLedger: vi.fn<typeof hoursService.listLedger>(),
   listTransfers: vi.fn<typeof hoursRequestService.listTransfers>(),
   withdrawTransfer: vi.fn<typeof hoursRequestService.withdrawTransfer>(),
   listDiscounts: vi.fn<typeof discountService.list>(),
@@ -30,7 +37,7 @@ vi.mock('../../../api/services/policyService', () => ({
   policyService: { effective: mocks.effective },
 }));
 vi.mock('../../../api/services/hoursService', () => ({
-  hoursService: { listPurchases: mocks.listPurchases },
+  hoursService: { listPurchases: mocks.listPurchases, listLedger: mocks.listLedger },
   hoursRequestService: {
     listTransfers: mocks.listTransfers,
     withdrawTransfer: mocks.withdrawTransfer,
@@ -285,5 +292,50 @@ describe('HoursTransfersPage', () => {
         expect.any(String),
       );
     });
+  });
+});
+
+const ledgerEntry = (over: Partial<LedgerEntryDto>): LedgerEntryDto => ({
+  id: 'e1',
+  purchase_id: 'aaaaaaaa-0000-4000-8000-000000000001',
+  purchase_number: 'HP-2026-00001',
+  customer_id: 'c1',
+  customer_name: 'Juma',
+  machine_id: 'm1',
+  machine_code: 'EXC-1',
+  machine_name: 'Excavator',
+  entry_type: 'CONSUMED',
+  hours: '4',
+  signed_hours: '-4',
+  occurred_at: '2026-10-20T08:00:00Z',
+  activation_source: null,
+  expires_at: null,
+  payment_id: null,
+  job_id: 'bbbbbbbb-0000-4000-8000-000000000002',
+  job_number: 'P-1',
+  allocation_id: null,
+  transfer_id: null,
+  cancellation_id: null,
+  reason: null,
+  policy_version: null,
+  created_by: null,
+  created_at: '2026-10-20T08:00:00Z',
+  ...over,
+});
+
+describe('HoursLedgerPage', () => {
+  it('links each entry to its purchase and job by number, short id when unnamed', async () => {
+    mocks.listLedger.mockResolvedValue(
+      page([ledgerEntry({}), ledgerEntry({ id: 'e2', purchase_number: null, job_number: null })]),
+    );
+    renderWithProviders(<HoursLedgerPage />, { tenantPermissions: ['tenant.hours.read'] });
+    const purchase = await screen.findByRole('link', { name: 'HP-2026-00001' });
+    expect(purchase).toHaveAttribute('href', expect.stringContaining('aaaaaaaa-0000'));
+    expect(screen.getByRole('link', { name: 'P-1' })).toHaveAttribute(
+      'href',
+      expect.stringContaining('bbbbbbbb-0000'),
+    );
+    expect(screen.getByRole('link', { name: 'aaaaaaaa…' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'bbbbbbbb…' })).toBeInTheDocument();
   });
 });

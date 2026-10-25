@@ -1,4 +1,4 @@
-import { Box, Button, Chip, Stack } from '@mui/material';
+import { Box, Chip, Link, Stack } from '@mui/material';
 import { useCallback, useState } from 'react';
 import { Link as RouterLink, useSearchParams } from 'react-router';
 import type { LedgerEntryDto } from '../../../api/hoursTypes';
@@ -62,9 +62,9 @@ export function HoursLedgerPage() {
       id: 'purchase',
       header: 'Purchase',
       render: (e) => (
-        <Button component={RouterLink} to={hoursPurchasePath(e.purchase_id)} size="small">
-          Open
-        </Button>
+        <Link component={RouterLink} to={hoursPurchasePath(e.purchase_id)}>
+          {nameOr(e.purchase_number, e.purchase_id)}
+        </Link>
       ),
     },
     {
@@ -74,9 +74,9 @@ export function HoursLedgerPage() {
         e.job_id === null ? (
           '—'
         ) : (
-          <Button component={RouterLink} to={jobDetailPath(e.job_id)} size="small">
-            Open job
-          </Button>
+          <Link component={RouterLink} to={jobDetailPath(e.job_id)}>
+            {nameOr(e.job_number, e.job_id)}
+          </Link>
         ),
     },
     {

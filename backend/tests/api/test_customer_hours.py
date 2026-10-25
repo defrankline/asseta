@@ -71,6 +71,8 @@ def test_walk_in_cash_purchase_activates_only_after_independent_verification(api
     ledger = f.owner.get("/api/v1/tenant/hours-ledger", purchase_id=p["id"]).json()
     assert [e["entry_type"] for e in ledger["items"]] == ["ACTIVATED"]
     assert ledger["items"][0]["payment_id"] == pay_id
+    assert ledger["items"][0]["purchase_number"] == p["purchase_number"]  # names, not ids
+    assert ledger["items"][0]["job_id"] is None and ledger["items"][0]["job_number"] is None
 
     # Upgrade the walk-in later (audited); history stays on the same customer.
     reg = f.owner.post(
@@ -247,6 +249,12 @@ def test_prepaid_job_start_gate_work_execution_allocation_and_overrun(api: Api) 
         (first["purchase_number"], Decimal(4)),
         (second["purchase_number"], Decimal(3)),
     ]  # FIFO: the oldest purchase first
+    used = f.owner.get("/api/v1/tenant/hours-ledger", job_id=job).json()["items"]
+    job_number = f.owner.get(f"/api/v1/tenant/jobs/{job}").json()["job"]["job_number"]
+    assert used and {(e["purchase_number"], e["job_number"]) for e in used} == {
+        (first["purchase_number"], job_number),
+        (second["purchase_number"], job_number),
+    }
     assert get_purchase(f.owner, first["id"])["status"] == "CONSUMED"
     summary = f.owner.get(f"/api/v1/tenant/jobs/{job}").json()
     assert summary["blocking_exceptions"] == 1 and summary["billing_ready"] is False

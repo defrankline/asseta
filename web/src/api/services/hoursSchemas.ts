@@ -161,6 +161,7 @@ export const hoursBalanceSchema: Schema<HoursBalanceDto> = object({
 export const ledgerEntrySchema: Schema<LedgerEntryDto> = object({
   id: id(),
   purchase_id: id(),
+  purchase_number: optionalText(),
   customer_id: id(),
   machine_id: id(),
   entry_type: oneOf(LEDGER_ENTRY_TYPES),
@@ -175,6 +176,7 @@ export const ledgerEntrySchema: Schema<LedgerEntryDto> = object({
   transfer_id: nullableId(),
   payment_id: nullableId(),
   job_id: nullableId(),
+  job_number: optionalText(),
   expires_at: nullableText(),
   policy_version: nullableText(),
   reason: nullableText(),

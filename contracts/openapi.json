@@ -13745,6 +13745,17 @@
             ],
             "title": "Job Id"
           },
+          "job_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Number"
+          },
           "machine_code": {
             "anyOf": [
               {
@@ -13804,6 +13815,17 @@
             "format": "uuid",
             "title": "Purchase Id",
             "type": "string"
+          },
+          "purchase_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purchase Number"
           },
           "reason": {
             "anyOf": [
