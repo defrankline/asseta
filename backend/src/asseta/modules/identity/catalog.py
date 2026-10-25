@@ -116,7 +116,7 @@ for _group in (
     # Prepaid customer hours (accountability design A): purchases, balances, approvals and reason lists.
     MenuGroupDef("tenant.hours", PermissionScope.TENANT, "Customer hours", 35, capability="CUSTOMER_HOURS"),
     # Engine-hour accountability (design B): reconciliation, explanations, baselines, corrections, reason lists.
-    MenuGroupDef("tenant.engine_hours", PermissionScope.TENANT, "Engine hours", 37),
+    MenuGroupDef("tenant.engine_hours", PermissionScope.TENANT, "Engine hours", 37, capability="ENGINE_HOURS"),
     MenuGroupDef("tenant.finance", PermissionScope.TENANT, "Finance", 40),
     MenuGroupDef("tenant.risk", PermissionScope.TENANT, "Risk & review", 50),
     MenuGroupDef("tenant.admin", PermissionScope.TENANT, "Administration", 90),

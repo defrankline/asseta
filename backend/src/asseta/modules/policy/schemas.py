@@ -210,6 +210,9 @@ class CashCustodyPolicy(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
+    # Master switch (capability CASH_CUSTODY). Off: only the cash basics that predate these controls remain
+    # (collections, floats, remittances and their confirmation, reconciliation); every switch below reads as off.
+    enabled: bool = True
     # Recorders (`tenant.collection.record`) may record collections/transfers/remittances for any active staff
     # member (custodians need no login). Off: only the office cash permission may name another custodian.
     recorders_may_record_for_others: bool
@@ -221,6 +224,25 @@ class CashCustodyPolicy(BaseModel):
     variance_case_threshold: Decimal | None = Field(default=None, ge=0)  # |variance| above -> case; null = never
     writeoff_requires_approval: bool  # on: a write-off is proposed then approved by another permission holder
     retention_allowed: bool  # off: no retention may be requested (everything must be remitted)
+
+    def in_force(self) -> "CashCustodyPolicy":
+        """The rules actually enforced: as configured when enabled; switched off as a whole otherwise (the cash
+        behaviour before these controls: own-custody recording, floats counted when issued, no acknowledgement,
+        no variances, retentions, cut-off or partial-remittance flag)."""
+        if self.enabled:
+            return self
+        return self.model_copy(
+            update={
+                "recorders_may_record_for_others": False,
+                "transfer_ack_required": False,
+                "recorder_receiver_counts_as_ack": False,
+                "float_ack_required": False,
+                "remit_full_balance": False,
+                "remittance_cutoff_hour": None,
+                "variance_case_threshold": None,
+                "retention_allowed": False,
+            }
+        )
 
 
 class OversightPolicy(BaseModel):
@@ -353,6 +375,7 @@ SEED_DEFAULTS: dict[PolicyType, dict[str, object]] = {
         "detection_lookback_hours": 168,
     },
     PolicyType.CASH_CUSTODY: {
+        "enabled": True,
         "recorders_may_record_for_others": True,
         "transfer_ack_required": True,
         "recorder_receiver_counts_as_ack": True,

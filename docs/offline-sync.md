@@ -33,6 +33,18 @@ client only queues an op the server understands:
 request (one effect). The result entity is the `CashRetentionDto` (status `PENDING` until someone other than the
 requester decides it).
 
+Tenant capability switches: a protocol capability that belongs to a tenant capability is **not announced** while the
+tenant has it switched off (`/me` `disabled_capabilities` names the same codes), and such an operation still queued on
+a device is refused as `CONFLICT` (kept for review, never applied):
+
+| Tenant capability (policy `enabled`) | Protocol capabilities withheld | Ops refused (conflict code) |
+|---|---|---|
+| `ENGINE_HOURS` | `OP_METER_BASELINE`, `OP_METER_CORRECTION`, `METER_DAILY_READING` | `METER_BASELINE`, `METER_CORRECTION`, `METER_CAPTURE` of kind `DAILY` (`ENGINE_HOURS_DISABLED`) |
+| `CASH_CUSTODY` | `OP_CASH_TRANSFER`, `OP_CASH_RETENTION_REQUEST` | `CASH_TRANSFER`, `CASH_TRANSFER_ACKNOWLEDGEMENT`, `CASH_FLOAT_ACKNOWLEDGEMENT`, `CASH_RETENTION_REQUEST` (`CASH_CUSTODY_DISABLED`) |
+| `CUSTOMER_HOURS` | `OP_HOURS_PURCHASE`, `OP_HOURS_TRANSFER_REQUEST` | refused by the hours services (`HOURS_DISABLED`, rejected) |
+
+Job meter readings (OPENING/CLOSING), cash collections and remittances are never withheld.
+
 ## Guarantees
 * **Idempotency:** the device-generated operation id is the key (`client_operation`). A retry returns the stored
   outcome (`DUPLICATE`); the same id with different content is `OPERATION_ID_REUSED`. Domain ids (capture id,

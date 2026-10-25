@@ -16,7 +16,7 @@ from asseta.core.paging import Page, PageParams, page_params, paginate
 from asseta.modules.accountability.names import named
 from asseta.modules.identity.catalog import CATALOG, MenuDef
 from asseta.modules.identity.catalog import PermissionScope as S
-from asseta.modules.identity.dependencies import requires
+from asseta.modules.identity.dependencies import gated, requires
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.meter.engine_dto import (
     BaselineDto,
@@ -38,12 +38,25 @@ from asseta.modules.meter.engine_dto import (
 from asseta.modules.meter.engine_models import EngineHourReasonKind, MeterProposalStatus
 from asseta.modules.meter.engine_service import EngineHoursService
 from asseta.modules.meter.ledger import SegmentClassification
-from asseta.modules.meter.router import APPROVE, CAPTURE, METER_READ, REVIEW
+from asseta.modules.meter.router import APPROVE as _APPROVE
+from asseta.modules.meter.router import CAPTURE as _CAPTURE
+from asseta.modules.meter.router import METER_READ as _METER_READ
+from asseta.modules.meter.router import REVIEW as _REVIEW
+from asseta.modules.policy.capabilities import ENGINE_HOURS
 
-CLASSIFY = requires(
-    "tenant.meter.classify", S.TENANT, "Approve classifications of unallocated engine hours (second person)"
+# Every endpoint here needs the tenant's ENGINE_HOURS capability (refused with ENGINE_HOURS_DISABLED when off).
+METER_READ = gated(_METER_READ, ENGINE_HOURS)
+CAPTURE = gated(_CAPTURE, ENGINE_HOURS)
+REVIEW = gated(_REVIEW, ENGINE_HOURS)
+APPROVE = gated(_APPROVE, ENGINE_HOURS)
+CLASSIFY = gated(
+    requires("tenant.meter.classify", S.TENANT, "Approve classifications of unallocated engine hours (second person)"),
+    ENGINE_HOURS,
 )
-REASONS = requires("tenant.meter.reasons", S.TENANT, "Manage engine-hour activity categories and variance reasons")
+REASONS = gated(
+    requires("tenant.meter.reasons", S.TENANT, "Manage engine-hour activity categories and variance reasons"),
+    ENGINE_HOURS,
+)
 # Engine hours group: reconcile, explain, decide, configure (server-scoped: field users see their machines only).
 for _menu in (
     MenuDef(

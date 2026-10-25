@@ -3,7 +3,9 @@ acknowledgement, variances and write-offs, retentions, custody adjustments, reas
 drill-down. Rule switches are the tenant's CASH_CUSTODY policy; approvals are permissions."""
 
 import uuid
+from collections.abc import Callable
 from datetime import date, datetime
+from functools import cache
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, Query
@@ -64,7 +66,9 @@ from asseta.modules.finance.permissions import (
     VARIANCE,
     WRITEOFF,
 )
+from asseta.modules.identity.dependencies import gated
 from asseta.modules.identity.principal import RequestContext
+from asseta.modules.policy.capabilities import CASH_CUSTODY
 
 router = APIRouter(prefix="/api/v1/tenant/cash", tags=["finance"], responses=ERROR_RESPONSES)
 DbSession = Annotated[Session, Depends(get_session)]
@@ -72,6 +76,15 @@ Now = Annotated[datetime, Depends(get_now)]
 IdemKey = Annotated[str | None, Header()]
 Paging = Annotated[PageParams, Depends(page_params)]
 Currency = Annotated[str | None, Query(pattern=r"^[A-Z]{3}$")]
+
+
+@cache
+def _cash(permission: Callable[..., RequestContext]) -> Callable[..., RequestContext]:
+    """The DEC-030 cash additions (transfers, acknowledgements, variances and write-offs, retentions, the remittance
+    cut-off, custody adjustments, cash reasons) need the tenant's CASH_CUSTODY capability: refused with
+    CASH_CUSTODY_DISABLED when it is off. The cash basics here (custodians, remittance and float records, the
+    reconciliation drill-down) do not."""
+    return gated(permission, CASH_CUSTODY)
 
 
 def _page[T](items: list[T], total: int, paging: PageParams) -> Page[T]:
@@ -101,7 +114,7 @@ def record_transfer(
     body: CashTransferIn,
     session: DbSession,
     now: Now,
-    ctx: Annotated[RequestContext, Depends(COLLECT)],
+    ctx: Annotated[RequestContext, Depends(_cash(COLLECT))],
     idempotency_key: IdemKey = None,
 ) -> CashTransferDto:
     """Field-to-field transfer (never a company receipt). Pending the receiver's acknowledgement unless the tenant
@@ -119,7 +132,7 @@ def record_transfer(
 def list_transfers(
     session: DbSession,
     now: Now,
-    ctx: Annotated[RequestContext, Depends(CUSTODY_READ)],
+    ctx: Annotated[RequestContext, Depends(_cash(CUSTODY_READ))],
     paging: Paging,
     status: CashTransferStatus | None = None,
     staff_member_id: uuid.UUID | None = None,
@@ -132,7 +145,7 @@ def list_transfers(
 @router.get("/transfers/{transfer_id}", response_model=CashTransferDto, operation_id="getCashTransfer")
 @named
 def get_transfer(
-    transfer_id: uuid.UUID, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(CUSTODY_READ)]
+    transfer_id: uuid.UUID, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(_cash(CUSTODY_READ))]
 ) -> CashTransferDto:
     svc = CashCustodyControls(session, ctx, now)
     row = session.execute(
@@ -154,7 +167,7 @@ def acknowledge_transfer(
     body: CashAcknowledgementIn,
     session: DbSession,
     now: Now,
-    ctx: Annotated[RequestContext, Depends(COLLECT)],
+    ctx: Annotated[RequestContext, Depends(_cash(COLLECT))],
 ) -> CashTransferDto:
     """The receiver (or, when the tenant allows, a recorder on their behalf) acknowledges the amount actually
     received or disputes the transfer. Never the sender; a different amount opens a cash variance."""
@@ -209,7 +222,7 @@ def acknowledge_float(
     body: CashAcknowledgementIn,
     session: DbSession,
     now: Now,
-    ctx: Annotated[RequestContext, Depends(COLLECT)],
+    ctx: Annotated[RequestContext, Depends(_cash(COLLECT))],
 ) -> CashCustodyEntryDto:
     """Acknowledge (amount actually received) or dispute a float that the tenant requires to be acknowledged. Until
     then it does not count in the receiver's custody."""
@@ -222,7 +235,7 @@ def acknowledge_float(
 def list_variances(
     session: DbSession,
     now: Now,
-    ctx: Annotated[RequestContext, Depends(FINANCE_READ)],
+    ctx: Annotated[RequestContext, Depends(_cash(FINANCE_READ))],
     paging: Paging,
     status: VarianceStatus | None = None,
     staff_member_id: uuid.UUID | None = None,
@@ -236,7 +249,7 @@ def list_variances(
 @router.get("/variances/{variance_id}", response_model=CashVarianceDto, operation_id="getCashVariance")
 @named
 def get_variance(
-    variance_id: uuid.UUID, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(FINANCE_READ)]
+    variance_id: uuid.UUID, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(_cash(FINANCE_READ))]
 ) -> CashVarianceDto:
     return CashVarianceDto.model_validate(CashCustodyControls(session, ctx, now).variance(variance_id))
 
@@ -248,7 +261,7 @@ def resolve_variance(
     body: VarianceResolutionIn,
     session: DbSession,
     now: Now,
-    ctx: Annotated[RequestContext, Depends(VARIANCE)],
+    ctx: Annotated[RequestContext, Depends(_cash(VARIANCE))],
 ) -> CashVarianceDto:
     """Resolve an open variance as RECOVERED or CORRECTED_ERROR (reason required). WRITTEN_OFF directly only when
     the tenant does not require write-off approval, and then only with the write-off permission."""
@@ -266,7 +279,7 @@ def propose_writeoff(
     body: WriteOffProposalIn,
     session: DbSession,
     now: Now,
-    ctx: Annotated[RequestContext, Depends(VARIANCE)],
+    ctx: Annotated[RequestContext, Depends(_cash(VARIANCE))],
 ) -> CashVarianceDto:
     return CashCustodyControls(session, ctx, now).propose_writeoff(variance_id, body)
 
@@ -282,7 +295,7 @@ def decide_writeoff(
     body: DecisionIn,
     session: DbSession,
     now: Now,
-    ctx: Annotated[RequestContext, Depends(WRITEOFF)],
+    ctx: Annotated[RequestContext, Depends(_cash(WRITEOFF))],
 ) -> CashVarianceDto:
     """Approve (resolves as WRITTEN_OFF; the accountable custodian's expected balance drops by the difference) or
     reject (back to OPEN) a proposed write-off. Never by the proposer."""
@@ -293,7 +306,7 @@ def decide_writeoff(
 @router.post("/retentions", response_model=CashRetentionDto, status_code=201, operation_id="requestCashRetention")
 @named
 def request_retention(
-    body: CashRetentionIn, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(CUSTODY_RECORD)]
+    body: CashRetentionIn, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(_cash(CUSTODY_RECORD))]
 ) -> CashRetentionDto:
     """Ask that a custodian may keep some cash instead of remitting it (exception to full remittance)."""
     return CashCustodyControls(session, ctx, now).request_retention(body)
@@ -303,7 +316,7 @@ def request_retention(
 @named
 def list_retentions(
     session: DbSession,
-    ctx: Annotated[RequestContext, Depends(CUSTODY_READ)],
+    ctx: Annotated[RequestContext, Depends(_cash(CUSTODY_READ))],
     paging: Paging,
     status: CashDecisionStatus | None = None,
     staff_member_id: uuid.UUID | None = None,
@@ -320,7 +333,7 @@ def list_retentions(
 @router.get("/retentions/{retention_id}", response_model=CashRetentionDto, operation_id="getCashRetention")
 @named
 def get_retention(
-    retention_id: uuid.UUID, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(CUSTODY_READ)]
+    retention_id: uuid.UUID, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(_cash(CUSTODY_READ))]
 ) -> CashRetentionDto:
     return CashRetentionDto.model_validate(CashCustodyControls(session, ctx, now).retention(retention_id))
 
@@ -332,7 +345,7 @@ def decide_retention(
     body: DecisionIn,
     session: DbSession,
     now: Now,
-    ctx: Annotated[RequestContext, Depends(RETENTION_APPROVE)],
+    ctx: Annotated[RequestContext, Depends(_cash(RETENTION_APPROVE))],
 ) -> CashRetentionDto:
     return CashCustodyControls(session, ctx, now).decide_retention(retention_id, body)
 
@@ -342,7 +355,7 @@ def decide_retention(
 @named
 def list_remittance_overdue(
     session: DbSession,
-    ctx: Annotated[RequestContext, Depends(FINANCE_READ)],
+    ctx: Annotated[RequestContext, Depends(_cash(FINANCE_READ))],
     paging: Paging,
     staff_member_id: uuid.UUID | None = None,
     day_from: date | None = None,
@@ -365,12 +378,11 @@ def list_remittance_overdue(
 )
 @named
 def get_remittance_overdue(
-    overdue_id: uuid.UUID, session: DbSession, ctx: Annotated[RequestContext, Depends(FINANCE_READ)]
+    overdue_id: uuid.UUID, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(_cash(CUSTODY_READ))]
 ) -> RemittanceOverdueDto:
-    row = session.get(RemittanceOverdue, overdue_id)
-    if row is None:
-        raise NotFound("Overdue remittance flag not found", code="REMITTANCE_OVERDUE_NOT_FOUND")
-    return RemittanceOverdueDto.model_validate(row)
+    """One overdue-remittance flag. Office readers open any; field recorders only their own (they are the custodian,
+    or they recorded that custodian's cash collections on the flagged day)."""
+    return RemittanceOverdueDto.model_validate(CashCustodyControls(session, ctx, now).remittance_overdue(overdue_id))
 
 
 # --- custody adjustments --------------------------------------------------------------------------------------
@@ -379,7 +391,7 @@ def get_remittance_overdue(
 )
 @named
 def propose_adjustment(
-    body: CustodyAdjustmentIn, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(CASH_OFFICE)]
+    body: CustodyAdjustmentIn, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(_cash(CASH_OFFICE))]
 ) -> CustodyAdjustmentDto:
     """Propose a reversal or adjustment of a custodian's expected balance (reason required); counts once approved
     by someone else."""
@@ -390,7 +402,7 @@ def propose_adjustment(
 @named
 def list_adjustments(
     session: DbSession,
-    ctx: Annotated[RequestContext, Depends(FINANCE_READ)],
+    ctx: Annotated[RequestContext, Depends(_cash(FINANCE_READ))],
     paging: Paging,
     status: CashDecisionStatus | None = None,
     staff_member_id: uuid.UUID | None = None,
@@ -407,7 +419,7 @@ def list_adjustments(
 @router.get("/adjustments/{adjustment_id}", response_model=CustodyAdjustmentDto, operation_id="getCustodyAdjustment")
 @named
 def get_adjustment(
-    adjustment_id: uuid.UUID, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(FINANCE_READ)]
+    adjustment_id: uuid.UUID, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(_cash(FINANCE_READ))]
 ) -> CustodyAdjustmentDto:
     return CustodyAdjustmentDto.model_validate(CashCustodyControls(session, ctx, now).adjustment(adjustment_id))
 
@@ -423,7 +435,7 @@ def decide_adjustment(
     body: DecisionIn,
     session: DbSession,
     now: Now,
-    ctx: Annotated[RequestContext, Depends(ADJUSTMENT_APPROVE)],
+    ctx: Annotated[RequestContext, Depends(_cash(ADJUSTMENT_APPROVE))],
 ) -> CustodyAdjustmentDto:
     return CashCustodyControls(session, ctx, now).decide_adjustment(adjustment_id, body)
 
@@ -434,7 +446,7 @@ def decide_adjustment(
 def list_reasons(
     session: DbSession,
     now: Now,
-    ctx: Annotated[RequestContext, Depends(CUSTODY_READ)],
+    ctx: Annotated[RequestContext, Depends(_cash(CUSTODY_READ))],
     paging: Paging,
     kind: CashReasonKind | None = None,
     include_inactive: IncludeInactive = False,
@@ -447,7 +459,7 @@ def list_reasons(
 @router.post("/reasons", response_model=CashReasonDto, status_code=201, operation_id="createCashReason")
 @named
 def create_reason(
-    body: CashReasonIn, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(REASON_MANAGE)]
+    body: CashReasonIn, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(_cash(REASON_MANAGE))]
 ) -> CashReasonDto:
     return CashCustodyControls(session, ctx, now).create_reason(body)
 
@@ -455,7 +467,7 @@ def create_reason(
 @router.get("/reasons/{reason_id}", response_model=CashReasonDto, operation_id="getCashReason")
 @named
 def get_reason(
-    reason_id: uuid.UUID, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(CUSTODY_READ)]
+    reason_id: uuid.UUID, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(_cash(CUSTODY_READ))]
 ) -> CashReasonDto:
     return CashReasonDto.model_validate(CashCustodyControls(session, ctx, now).reason(reason_id))
 
@@ -467,7 +479,7 @@ def update_reason(
     body: CashReasonUpdateIn,
     session: DbSession,
     now: Now,
-    ctx: Annotated[RequestContext, Depends(REASON_MANAGE)],
+    ctx: Annotated[RequestContext, Depends(_cash(REASON_MANAGE))],
 ) -> CashReasonDto:
     return CashCustodyControls(session, ctx, now).update_reason(reason_id, body)
 
@@ -479,7 +491,7 @@ def deactivate_reason(
     body: LifecycleChangeIn,
     session: DbSession,
     now: Now,
-    ctx: Annotated[RequestContext, Depends(REASON_MANAGE)],
+    ctx: Annotated[RequestContext, Depends(_cash(REASON_MANAGE))],
 ) -> CashReasonDto:
     return CashCustodyControls(session, ctx, now).set_reason_active(reason_id, body, active=False)
 
@@ -491,7 +503,7 @@ def reactivate_reason(
     body: LifecycleChangeIn,
     session: DbSession,
     now: Now,
-    ctx: Annotated[RequestContext, Depends(REASON_MANAGE)],
+    ctx: Annotated[RequestContext, Depends(_cash(REASON_MANAGE))],
 ) -> CashReasonDto:
     return CashCustodyControls(session, ctx, now).set_reason_active(reason_id, body, active=True)
 

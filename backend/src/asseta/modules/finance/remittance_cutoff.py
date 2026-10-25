@@ -9,7 +9,7 @@ Unremitted = outstanding custody - remittances already claimed (awaiting confirm
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, time, timedelta
+from datetime import datetime, time
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
@@ -22,12 +22,11 @@ from asseta.core.audit import AuditActor, AuditService
 from asseta.core.db import DbScope, apply_scope
 from asseta.modules.finance.cash_service import CashCustodyService
 from asseta.modules.finance.custody_models import RemittanceOverdue
-from asseta.modules.finance.models import CustomerPayment, HirePaymentMethod
+from asseta.modules.finance.custody_rules import cash_policy, cutoff_window, day_collection_recorders
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.notification.engine import NotificationEngine
 from asseta.modules.notification.rules import Audience, Intent, perm, record_link, staff, user
 from asseta.modules.notification.settings import get_notification_settings
-from asseta.modules.policy.service import PolicyService
 from asseta.modules.tenancy.models import Tenant, TenantSettings, TenantStatus
 
 log = structlog.get_logger()
@@ -50,7 +49,7 @@ def _money(value: Decimal) -> str:
 def sweep_tenant(s: Session, tenant_id: uuid.UUID, now: datetime) -> list[Intent]:
     """Flag this tenant's overdue custodians for today (inside its RLS scope); returns the notification intents of
     the rows created by this run (none when the policy is off, before the cut-off, or already flagged today)."""
-    eff = PolicyService(s).cash_custody(tenant_id, at=now)
+    eff = cash_policy(s, tenant_id, now)  # CASH_CUSTODY switched off: no cut-off (sweep skipped)
     cutoff = eff.policy.remittance_cutoff_hour
     if cutoff is None:
         return []
@@ -104,17 +103,7 @@ def sweep_tenant(s: Session, tenant_id: uuid.UUID, now: datetime) -> list[Intent
             after={"staff_member_id": str(member.id), "day": day.isoformat(), "amounts": amounts},
             policy_version=eff.version_stamp[:64],
         )
-        recorders = s.execute(
-            select(CustomerPayment.recorded_by)
-            .where(
-                CustomerPayment.received_by_staff_id == member.id,
-                CustomerPayment.method == HirePaymentMethod.CASH,
-                CustomerPayment.recorded_by.is_not(None),
-                CustomerPayment.received_at >= cutoff_at - timedelta(hours=cutoff),
-                CustomerPayment.received_at < cutoff_at,
-            )
-            .distinct()
-        ).scalars()
+        recorders = sorted(day_collection_recorders(s, member.id, *cutoff_window(s, tenant_id, day, cutoff)))
         audiences: list[Audience] = [perm(APPROVE_PERMISSION), staff(member.id), *(user(u) for u in recorders)]
         held = ", ".join(f"{a['currency']} {a['amount']}" for a in amounts)
         intents.append(

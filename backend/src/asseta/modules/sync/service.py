@@ -26,6 +26,7 @@ from asseta.modules.jobs.dto import ContractDto, CustomerDto
 from asseta.modules.jobs.lifecycle import job_dtos
 from asseta.modules.jobs.models import Customer, Job, JobStatus, RentalContract
 from asseta.modules.jobs.scope import job_filter, own_staff
+from asseta.modules.policy.capabilities import disabled_capabilities
 from asseta.modules.policy.schemas import PolicyType
 from asseta.modules.policy.service import PolicyService
 from asseta.modules.sync.dto import (
@@ -35,6 +36,7 @@ from asseta.modules.sync.dto import (
     DeviceSessionDto,
     PolicySnapshotDto,
     SyncData,
+    announced_capabilities,
 )
 from asseta.modules.sync.inbox import OPEN_JOB_STATES, InboxReader
 from asseta.modules.sync.models import DevicePolicySnapshot, DeviceSession, DeviceStatus
@@ -256,12 +258,17 @@ class SyncService:
         self._s.flush()
         return out
 
+    def capabilities(self) -> list[str]:
+        """Protocol capabilities, less those of tenant capabilities the tenant switched off."""
+        return announced_capabilities(disabled_capabilities(self._s, self._tid, self._now))
+
     # --- endpoints ----------------------------------------------------------------------------------
     def bootstrap(self, device_id: str | None) -> BootstrapDto:
         device = self.active_device(device_id)
         data, cursor, _ = self._data(None)
         self.touch(device)
         return BootstrapDto(
+            capabilities=self.capabilities(),
             server_time=self._now,
             cursor=cursor,
             device_session=DeviceSessionDto.model_validate(device),
@@ -275,6 +282,7 @@ class SyncService:
         self.touch(device)
         machine_ids = {m.id for m in data.machines} | {j.machine_id for j in data.jobs}
         return ChangesDto(
+            capabilities=self.capabilities(),
             server_time=self._now,
             cursor=max(new_cursor, cursor),
             has_more=has_more,

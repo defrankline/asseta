@@ -155,13 +155,20 @@ class ApprovalsTileDto(BaseModel):
 
 
 class AccountabilitySummaryDto(BaseModel):
-    """The 3.6 oversight list. A tile is null when hidden by the tenant's OVERSIGHT policy or when the capability
-    behind it is not available in this deployment (`unavailable_tiles` names those)."""
+    """The 3.6 oversight list. A tile is null when hidden (`hidden_tiles`: by the tenant's OVERSIGHT policy, or
+    because the tenant switched its capability off) or when the capability behind it is not available in this
+    deployment (`unavailable_tiles` names those)."""
 
     as_of: datetime
     policy_version: str
     hidden_tiles: list[str]
     unavailable_tiles: list[str]
+    disabled_capabilities: list[str] = Field(
+        default_factory=list,
+        description="Tenant capabilities switched off by policy (CUSTOMER_HOURS, ENGINE_HOURS, CASH_CUSTODY); their "
+        "tiles are hidden and, for CASH_CUSTODY, the cash-control figures of the cash/discrepancy/approval tiles are "
+        "empty",
+    )
     customer_hours: dict[str, Any] | None = Field(
         default=None, description="[3.6.2] purchased/activated/consumed/remaining (customer hours module)"
     )

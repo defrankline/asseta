@@ -45,6 +45,7 @@ from asseta.modules.meter.rules import (
     sequence_findings,
     telemetry_findings,
 )
+from asseta.modules.policy.capabilities import ENGINE_HOURS, require_capability
 from asseta.modules.policy.schemas import CaptureMode, MeterCapturePolicy, PolicyType
 from asseta.modules.policy.service import PolicyService
 from asseta.modules.sync.models import DevicePolicySnapshot, DeviceSession
@@ -201,6 +202,9 @@ class MeterService:
             if existing.reading != body.reading or existing.job_id != body.job_id or existing.kind != body.kind:
                 raise Conflict("Capture id reused with different content", code="CAPTURE_ID_CONFLICT")
             return self._result(existing)
+        if body.kind is ReadingKind.DAILY and correction_of is None:
+            # Daily operational readings belong to the engine-hour controls (refused while ENGINE_HOURS is off).
+            require_capability(self._s, self._tid, ENGINE_HOURS, self._now)
         job, machine_id, site_id = self._target(body, correction_of is not None)
         now = self._now  # injected clock: server receive time and skew checks are deterministic
         policy, stamp = self._policy(body, machine_id, site_id)
@@ -379,7 +383,7 @@ class MeterService:
         """Inline supersession (the behaviour before two-person corrections), only when the tenant's policy does not
         require a second person; otherwise corrections go through `POST /meter-corrections`."""
         eff = PolicyService(self._s).engine_hours(self._tid, machine_id, at=self._now)
-        if eff.policy.correction_requires_second_person:
+        if eff.policy.in_force().correction_requires_second_person:
             raise BusinessRuleViolation(
                 "Reading corrections need a second person's approval: propose a correction instead",
                 code="CORRECTION_APPROVAL_REQUIRED",

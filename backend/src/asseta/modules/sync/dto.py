@@ -27,6 +27,22 @@ CAPABILITIES = [
     "OP_METER_CORRECTION",
     "OP_CASH_RETENTION_REQUEST",  # CASH_RETENTION_REQUEST (ask to keep field cash; approved by another person)
 ]
+# Protocol capabilities that belong to a tenant capability (`asseta.modules.policy.capabilities`): not announced
+# while the tenant has it switched off, and their operations are then refused (CONFLICT, the capability's code).
+TENANT_CAPABILITY_OF = {
+    "OP_HOURS_PURCHASE": "CUSTOMER_HOURS",
+    "OP_HOURS_TRANSFER_REQUEST": "CUSTOMER_HOURS",
+    "METER_DAILY_READING": "ENGINE_HOURS",
+    "OP_METER_BASELINE": "ENGINE_HOURS",
+    "OP_METER_CORRECTION": "ENGINE_HOURS",
+    "OP_CASH_TRANSFER": "CASH_CUSTODY",
+    "OP_CASH_RETENTION_REQUEST": "CASH_CUSTODY",
+}
+
+
+def announced_capabilities(disabled: frozenset[str]) -> list[str]:
+    """The protocol capabilities this tenant's devices may rely on, given its switched-off tenant capabilities."""
+    return [c for c in CAPABILITIES if TENANT_CAPABILITY_OF.get(c) not in disabled]
 
 
 class DeviceRegisterIn(BaseModel):

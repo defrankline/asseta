@@ -22,6 +22,7 @@ from asseta.modules.identity.principal import RequestContext, TokenClaims
 from asseta.modules.identity.repository import IdentityRepository
 from asseta.modules.identity.tokens import TokenVerifier, parse_group_grants
 from asseta.modules.managed_service.gate import MandateGrant, active_grant, has_assignment_history
+from asseta.modules.policy.capabilities import require_capability
 from asseta.modules.tenancy.models import TenantAccessState
 
 READ_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
@@ -189,4 +190,22 @@ def requires_any(codes: tuple[str, ...], scope: PermissionScope) -> Callable[...
         return _bind(session, ctx)
 
     dependency.__name__ = "requires_any_" + "_".join(c.replace(".", "_") for c in codes)
+    return dependency
+
+
+def gated(permission: Callable[..., RequestContext], capability: str) -> Callable[..., RequestContext]:
+    """A permission dependency that also needs a tenant capability (`asseta.modules.policy.capabilities`) to be on.
+    Authentication and the permission are checked first; a switched-off capability is then refused with its
+    REFUSALS code (422)."""
+
+    def dependency(
+        request: Request,
+        ctx: Annotated[RequestContext, Depends(permission)],
+        session: Annotated[Session, Depends(get_session)],
+    ) -> RequestContext:
+        if ctx.tenant_id is not None:
+            require_capability(session, ctx.tenant_id, capability, get_now(request))
+        return ctx
+
+    dependency.__name__ = f"capability_gate_{capability.lower()}"  # not a permission guard (route inventory)
     return dependency

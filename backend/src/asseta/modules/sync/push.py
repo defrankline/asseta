@@ -37,6 +37,7 @@ from asseta.modules.meter.dto import MeterCaptureIn, ResetIn
 from asseta.modules.meter.engine_dto import BaselineIn, CorrectionIn
 from asseta.modules.meter.engine_service import EngineHoursService
 from asseta.modules.meter.service import MeterService
+from asseta.modules.policy.capabilities import CASH_CUSTODY, ENGINE_HOURS, require_capability
 from asseta.modules.policy.service import PolicyService
 from asseta.modules.sync.dto import OperationIn, OperationResultDto, PushIn, PushResultDto
 from asseta.modules.sync.models import BlobUploadSession, ClientOperation, DeviceSession, OperationStatus
@@ -64,6 +65,19 @@ CONFLICT_CODES = {
     # cash retention: the tenant switched retention off after the device's snapshot, or a concurrent duplicate
     "RETENTION_NOT_ALLOWED",
     "DUPLICATE_RETENTION",
+    # the tenant switched a capability off after the device queued the operation (kept for review, never applied)
+    "ENGINE_HOURS_DISABLED",
+    "CASH_CUSTODY_DISABLED",
+}
+# Operations that belong to a tenant capability (sync capabilities: dto.TENANT_CAPABILITY_OF). A DAILY meter capture
+# is refused by the meter service itself (same code). Customer-hours operations keep their service refusal.
+OP_CAPABILITY = {
+    "METER_BASELINE": ENGINE_HOURS,
+    "METER_CORRECTION": ENGINE_HOURS,
+    "CASH_TRANSFER": CASH_CUSTODY,
+    "CASH_TRANSFER_ACKNOWLEDGEMENT": CASH_CUSTODY,
+    "CASH_FLOAT_ACKNOWLEDGEMENT": CASH_CUSTODY,
+    "CASH_RETENTION_REQUEST": CASH_CUSTODY,
 }
 REQUIRED_PERMISSION = {
     "METER_CAPTURE": "tenant.meter.capture",
@@ -333,6 +347,8 @@ class PushService:
         }
         try:
             with self._s.begin_nested():
+                if capability := OP_CAPABILITY.get(op.op_type):
+                    require_capability(self._s, self._tid, capability, self._now)
                 dto = handlers[op.op_type]()
                 return OperationStatus.ACKED, {"entity": dto.model_dump(mode="json")}
         except DependencyUnavailable:

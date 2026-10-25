@@ -2480,7 +2480,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Remittance Overdue */
+        /**
+         * Get Remittance Overdue
+         * @description One overdue-remittance flag. Office readers open any; field recorders only their own (they are the custodian,
+         *     or they recorded that custodian's cash collections on the flagged day).
+         */
         get: operations["getCashRemittanceOverdue"];
         put?: never;
         post?: never;
@@ -6063,8 +6067,9 @@ export interface components {
     schemas: {
         /**
          * AccountabilitySummaryDto
-         * @description The 3.6 oversight list. A tile is null when hidden by the tenant's OVERSIGHT policy or when the capability
-         *     behind it is not available in this deployment (`unavailable_tiles` names those).
+         * @description The 3.6 oversight list. A tile is null when hidden (`hidden_tiles`: by the tenant's OVERSIGHT policy, or
+         *     because the tenant switched its capability off) or when the capability behind it is not available in this
+         *     deployment (`unavailable_tiles` names those).
          */
         AccountabilitySummaryDto: {
             /**
@@ -6080,6 +6085,11 @@ export interface components {
             customer_hours?: {
                 [key: string]: unknown;
             } | null;
+            /**
+             * Disabled Capabilities
+             * @description Tenant capabilities switched off by policy (CUSTOMER_HOURS, ENGINE_HOURS, CASH_CUSTODY); their tiles are hidden and, for CASH_CUSTODY, the cash-control figures of the cash/discrepancy/approval tiles are empty
+             */
+            disabled_capabilities?: string[];
             discrepancies?: components["schemas"]["DiscrepanciesTileDto"] | null;
             /**
              * Engine Hours

@@ -191,11 +191,16 @@ def job_spans(s: Session, machine_id: uuid.UUID, exclude: uuid.UUID | None = Non
     return spans
 
 
+def engine_hours_on(s: Session, tenant_id: uuid.UUID, at: datetime) -> bool:
+    """The tenant's ENGINE_HOURS capability (master switch; tenant level only)."""
+    return PolicyService(s).engine_hours(tenant_id, at=at).policy.enabled
+
+
 # --- job gates ---------------------------------------------------------------------------------------------------
 def ensure_job_can_start(s: Session, tenant_id: uuid.UUID, job: Job, opening: MeterCapture, now: datetime) -> None:
     """START controls, each a tenant policy switch: an approved baseline must exist [3.2.1], and the opening reading
-    must not fall inside another job's engine interval in time or meter range [3.2.5]."""
-    policy = PolicyService(s).engine_hours(tenant_id, job.machine_id, at=now).policy
+    must not fall inside another job's engine interval in time or meter range [3.2.5]. Both off with ENGINE_HOURS."""
+    policy = PolicyService(s).engine_hours(tenant_id, job.machine_id, at=now).policy.in_force()
     if policy.baseline_required_before_start and approved_baseline(s, job.machine_id) is None:
         raise BusinessRuleViolation(
             "This machine has no approved meter baseline yet; propose one and have it approved before starting",
@@ -207,7 +212,7 @@ def ensure_job_can_start(s: Session, tenant_id: uuid.UUID, job: Job, opening: Me
 
 def ensure_job_can_complete(s: Session, tenant_id: uuid.UUID, job: Job, closing: MeterCapture, now: datetime) -> None:
     """COMPLETE control: the job's whole interval must not overlap another job's [3.2.5]."""
-    policy = PolicyService(s).engine_hours(tenant_id, job.machine_id, at=now).policy
+    policy = PolicyService(s).engine_hours(tenant_id, job.machine_id, at=now).policy.in_force()
     if not policy.prevent_overlapping_allocation:
         return
     opening = s.execute(
@@ -252,7 +257,7 @@ def ensure_no_activity_overlap(
     Notes and entries without an end are points in time and never overlap. Policy switch per machine."""
     if activity_type == ActivityType.NOTE.value or end is None:
         return
-    if not PolicyService(s).engine_hours(tenant_id, job.machine_id).policy.prevent_overlapping_activity:
+    if not PolicyService(s).engine_hours(tenant_id, job.machine_id).policy.in_force().prevent_overlapping_activity:
         return
     clash = s.execute(
         select(JobActivity.id).where(
@@ -291,8 +296,14 @@ def unexplained_dedupe(machine_id: uuid.UUID, start_ref: uuid.UUID, end_ref: uui
 
 
 class EngineHoursMonitor:
+    """Machine-level engine-hour flags. Nothing is flagged, aged or reminded while the tenant's ENGINE_HOURS
+    capability is switched off (job meter readings then work as before these controls)."""
+
     def __init__(self, s: Session, tenant_id: uuid.UUID, now: datetime):
         self._s, self._tid, self._now = s, tenant_id, now
+
+    def enabled(self) -> bool:
+        return engine_hours_on(self._s, self._tid, self._now)
 
     def _flag(
         self,
@@ -344,7 +355,7 @@ class EngineHoursMonitor:
         """UNEXPLAINED_HOURS for each verified unexplained segment and OVERLAPPING_ALLOCATION for each pair of jobs
         sharing engine hours, once each (dedupe). Only after reconciliation began (approved baseline)."""
         machine = self._s.get(Machine, machine_id)
-        if machine is None or approved_baseline(self._s, machine_id) is None:
+        if machine is None or not self.enabled() or approved_baseline(self._s, machine_id) is None:
             return 0
         ml = load_machine_ledger(self._s, self._tid, machine, self._now)
         raised = 0
@@ -368,6 +379,8 @@ class EngineHoursMonitor:
         return raised
 
     def baselined_machines(self) -> list[Machine]:
+        if not self.enabled():
+            return []
         return list(
             self._s.execute(
                 select(Machine).where(
@@ -413,6 +426,8 @@ def missing_daily_reports(s: Session, tenant_id: uuid.UUID, now: datetime) -> li
     or engine-on reported by its tracker in it. Per-machine policy may switch the requirement off."""
     svc = PolicyService(s)
     tenant_policy = svc.engine_hours(tenant_id, at=now).policy
+    if not tenant_policy.enabled:
+        return []  # ENGINE_HOURS switched off: no daily-report requirement
     settings = s.get(TenantSettings, tenant_id)
     tz = ZoneInfo(settings.timezone if settings else "UTC")
     local = now.astimezone(tz)

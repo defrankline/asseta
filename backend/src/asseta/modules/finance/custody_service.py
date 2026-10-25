@@ -48,6 +48,7 @@ from asseta.modules.finance.custody_models import (
     CashTransferStatus,
     CashVariance,
     CustodyAdjustment,
+    RemittanceOverdue,
     VarianceOutcome,
     VarianceSource,
     VarianceStatus,
@@ -57,6 +58,8 @@ from asseta.modules.finance.custody_rules import (
     TOPIC,
     cash_policy,
     check_reason,
+    cutoff_window,
+    day_collection_recorders,
     may_record_for_others,
     open_variance,
     own_staff,
@@ -159,6 +162,19 @@ class CashCustodyControls:
         row = self._s.get(CashRetention, retention_id)
         if row is None or not self._party((row.staff_member_id,), (row.created_by,)):
             raise NotFound("Retention not found", code="RETENTION_NOT_FOUND")
+        return row
+
+    def remittance_overdue(self, overdue_id: uuid.UUID) -> RemittanceOverdue:
+        """Field readers open a flag when they are its custodian or recorded that custodian's cash collections on the
+        flagged day (before its cut-off) — the people the REMITTANCE_OVERDUE notification went to."""
+        row = self._s.get(RemittanceOverdue, overdue_id)
+        if row is not None and not self._sees_all():
+            start, end = cutoff_window(self._s, self._tid, row.local_day, row.cutoff_hour)
+            recorders = tuple(day_collection_recorders(self._s, row.staff_member_id, start, end))
+            if not self._party((row.staff_member_id,), recorders):
+                row = None
+        if row is None:
+            raise NotFound("Overdue remittance flag not found", code="REMITTANCE_OVERDUE_NOT_FOUND")
         return row
 
     def adjustment(self, adjustment_id: uuid.UUID) -> CustodyAdjustment:

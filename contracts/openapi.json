@@ -2,7 +2,7 @@
   "components": {
     "schemas": {
       "AccountabilitySummaryDto": {
-        "description": "The 3.6 oversight list. A tile is null when hidden by the tenant's OVERSIGHT policy or when the capability\nbehind it is not available in this deployment (`unavailable_tiles` names those).",
+        "description": "The 3.6 oversight list. A tile is null when hidden (`hidden_tiles`: by the tenant's OVERSIGHT policy, or\nbecause the tenant switched its capability off) or when the capability behind it is not available in this\ndeployment (`unavailable_tiles` names those).",
         "properties": {
           "as_of": {
             "format": "date-time",
@@ -31,6 +31,14 @@
             ],
             "description": "[3.6.2] purchased/activated/consumed/remaining (customer hours module)",
             "title": "Customer Hours"
+          },
+          "disabled_capabilities": {
+            "description": "Tenant capabilities switched off by policy (CUSTOMER_HOURS, ENGINE_HOURS, CASH_CUSTODY); their tiles are hidden and, for CASH_CUSTODY, the cash-control figures of the cash/discrepancy/approval tiles are empty",
+            "items": {
+              "type": "string"
+            },
+            "title": "Disabled Capabilities",
+            "type": "array"
           },
           "discrepancies": {
             "anyOf": [
@@ -53567,6 +53575,7 @@
     },
     "/api/v1/tenant/cash/remittance-overdue/{overdue_id}": {
       "get": {
+        "description": "One overdue-remittance flag. Office readers open any; field recorders only their own (they are the custodian,\nor they recorded that custodian's cash collections on the flagged day).",
         "operationId": "getCashRemittanceOverdue",
         "parameters": [
           {

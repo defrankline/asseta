@@ -2,8 +2,9 @@
 reason-list validation, and opening a cash variance (with an investigation case above the policy threshold)."""
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime, time
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -12,7 +13,7 @@ from asseta.core.audit import AuditService
 from asseta.core.errors import BusinessRuleViolation, NotFound, PermissionDenied
 from asseta.core.outbox import OutboxWriter
 from asseta.core.signals import sod_violation
-from asseta.modules.finance.common import OFFICE_CASH_PERMISSION, resolve_staff
+from asseta.modules.finance.common import OFFICE_CASH_PERMISSION, resolve_staff, tenant_settings
 from asseta.modules.finance.custody_models import (
     CashReason,
     CashReasonKind,
@@ -20,6 +21,7 @@ from asseta.modules.finance.custody_models import (
     VarianceSource,
     VarianceStatus,
 )
+from asseta.modules.finance.models import CustomerPayment, HirePaymentMethod
 from asseta.modules.fleet.models import StaffMember
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.intelligence.linking import CaseItem, CaseLinker
@@ -33,7 +35,33 @@ VARIANCE_TITLE = "Cash received differs from the amount declared"
 
 
 def cash_policy(session: Session, tenant_id: uuid.UUID, at: datetime) -> EffectivePolicy[CashCustodyPolicy]:
-    return PolicyService(session).cash_custody(tenant_id, at=at)
+    """The cash custody rules in force: with the CASH_CUSTODY capability switched off every chain-control switch
+    reads as off (the cash behaviour before those controls); the version stamp is the configured one."""
+    eff = PolicyService(session).cash_custody(tenant_id, at=at)
+    return EffectivePolicy(eff.policy.in_force(), eff.version_stamp, eff.version_ids)
+
+
+def cutoff_window(session: Session, tenant_id: uuid.UUID, day: date, cutoff_hour: int) -> tuple[datetime, datetime]:
+    """Tenant-local [midnight, cut-off) of `day`: the collections a remittance cut-off is about."""
+    tz = ZoneInfo(tenant_settings(session, tenant_id).timezone)
+    start = datetime.combine(day, time(), tz)
+    return start, datetime.combine(day, time(hour=cutoff_hour), tz)
+
+
+def day_collection_recorders(session: Session, staff_id: uuid.UUID, start: datetime, end: datetime) -> set[uuid.UUID]:
+    """Users who recorded cash collections received by this custodian in [start, end)."""
+    rows = session.execute(
+        select(CustomerPayment.recorded_by)
+        .where(
+            CustomerPayment.received_by_staff_id == staff_id,
+            CustomerPayment.method == HirePaymentMethod.CASH,
+            CustomerPayment.recorded_by.is_not(None),
+            CustomerPayment.received_at >= start,
+            CustomerPayment.received_at < end,
+        )
+        .distinct()
+    ).scalars()
+    return {r for r in rows if r is not None}
 
 
 def own_staff(session: Session, ctx: RequestContext) -> StaffMember | None:
@@ -111,6 +139,8 @@ def open_variance(
     assert ctx.tenant_id is not None
     tid = ctx.tenant_id
     eff = cash_policy(session, tid, now)
+    if not eff.policy.enabled:
+        return None  # cash custody controls switched off: no variance records (the behaviour before them)
     variance_id = uuid.uuid4()
     case_id = None
     threshold = eff.policy.variance_case_threshold

@@ -12,6 +12,9 @@ from pydantic import BaseModel, ConfigDict, Field
 class EngineHoursPolicy(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
+    # Master switch (capability ENGINE_HOURS). Off: job meter readings work as before these controls (no baseline
+    # gate, overlap refusals, daily reports, unexplained-hour flags or ageing); every switch below reads as off.
+    enabled: bool = True
     # [3.2.1] A job may only START on a machine with an approved meter baseline. Off: jobs start as before.
     baseline_required_before_start: bool
     # [3.2.7] A working machine (running job or engine activity that day) needs a DAILY or job reading by the
@@ -38,8 +41,24 @@ class EngineHoursPolicy(BaseModel):
     # [3.2.5] Refuse a job activity (work log) entry that overlaps another timed entry of the same job.
     prevent_overlapping_activity: bool
 
+    def in_force(self) -> "EngineHoursPolicy":
+        """The rules actually enforced: as configured when enabled; switched off as a whole otherwise."""
+        if self.enabled:
+            return self
+        return self.model_copy(
+            update={
+                "baseline_required_before_start": False,
+                "daily_report_required": False,
+                "unexplained_investigation_after_days": None,
+                "correction_requires_second_person": False,
+                "prevent_overlapping_allocation": False,
+                "prevent_overlapping_activity": False,
+            }
+        )
+
 
 ENGINE_HOURS_SEED: dict[str, object] = {
+    "enabled": True,
     "baseline_required_before_start": False,  # off: existing tenants keep starting jobs; switch on per tenant
     "daily_report_required": False,  # off: no new reminders until a tenant opts in
     "daily_report_cutoff_hour": 18,
