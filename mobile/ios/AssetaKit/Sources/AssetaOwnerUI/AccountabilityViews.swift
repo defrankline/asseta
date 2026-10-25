@@ -174,7 +174,7 @@ struct AccountabilityDashboardView: View {
     var body: some View {
         List {
             if let summary = loader.value {
-                let tiles = AccountabilityDashboard.tiles(summary, customerHours: model.features.customerHours)
+                let tiles = AccountabilityDashboard.tiles(summary, disabled: model.features.disabledCapabilities)
                 if AccountabilityDashboard.showsHiddenNote(summary) {
                     Text(T.dashHiddenNote).font(.footnote).foregroundStyle(.secondary)
                 }

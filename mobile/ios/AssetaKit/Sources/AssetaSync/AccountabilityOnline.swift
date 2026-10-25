@@ -136,10 +136,14 @@ public struct AccountabilityDirectory: Sendable {
 
 extension SupervisorOnline {
     /// Refreshes the tenant policies and lists the accountability screens use and saves them for offline use. Each
-    /// read is independent: a refusal (403) is saved as such, any other failure keeps the saved copy.
-    public func refreshAccountability(permissions: [String], myStaffID: UUID?) async {
+    /// read is independent: a refusal (403) is saved as such, any other failure keeps the saved copy. Capabilities the
+    /// tenant switched off (`/me` `disabled_capabilities`) are not read: their screens are hidden.
+    public func refreshAccountability(permissions: [String], myStaffID: UUID?, disabledCapabilities: [String] = []) async {
         let has = Set(permissions)
-        let record = has.contains(FieldAccess.collectionRecord)
+        let disabled = Set(disabledCapabilities)
+        // CASH_CUSTODY off: the DEC-030 cash additions (policy, holders, transfers, floats to acknowledge, reasons,
+        // retentions) are not read.
+        let record = has.contains(FieldAccess.collectionRecord) && !disabled.contains(TenantCapability.cashCustody)
         if record {
             await save(AccountabilityKey.cashPolicy,
                        APIRequest<EffectivePolicyDTO<CashCustodyPolicyValues>>.get("\(Self.tenant)/policies/CASH_CUSTODY/effective")) { $0.values }
@@ -163,6 +167,7 @@ extension SupervisorOnline {
             await save(AccountabilityKey.retentions,
                        APIRequest<Page<CashRetentionDTO>>.get("\(Self.tenant)/cash/retentions", query: retentionQuery)) { $0.items }
         }
+        guard !disabled.contains(TenantCapability.customerHours) else { return }
         if has.contains(FieldAccess.hoursPurchase) || has.contains(FieldAccess.hoursTransfer) {
             await save(AccountabilityKey.hoursPolicy,
                        APIRequest<EffectivePolicyDTO<CustomerHoursPolicyValues>>.get("\(Self.tenant)/policies/CUSTOMER_HOURS/effective")) { $0.values }
@@ -173,6 +178,12 @@ extension SupervisorOnline {
             await save(AccountabilityKey.transferReasons, APIRequest<Page<ReasonCodeDTO>>.get(
                 "\(Self.tenant)/hours-reason-codes", query: Self.page(100) + [URLQueryItem(name: "kind", value: "TRANSFER")])) { $0.items }
         }
+    }
+
+    /// Reads one overdue-remittance flag (`GET /cash/remittance-overdue/{id}`): mine as the custodian, or of a
+    /// custodian whose collections I recorded that day. Online only; a 404 means it is not mine to see.
+    public func remittanceOverdue(_ id: UUID) async throws -> RemittanceOverdueDTO {
+        try await client.send(APIRequest<RemittanceOverdueDTO>.get("\(Self.tenant)/cash/remittance-overdue/\(id.lowercased)"))
     }
 
     /// Re-reads one of my retention requests (`GET /cash/retentions/{id}`) and saves it with the others.

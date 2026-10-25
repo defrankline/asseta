@@ -520,3 +520,27 @@ public enum DisplayName {
     /// The first 8 characters of the id, lower case.
     public static func shortID(_ id: UUID) -> String { String(id.uuidString.lowercased().prefix(8)) }
 }
+
+/// `RemittanceOverdueDto`: a custodian still holding unremitted cash after the tenant's daily cut-off (one per
+/// custodian per tenant-local day; evidence, never edited).
+public struct RemittanceOverdueDTO: Codable, Hashable, Sendable, Identifiable {
+    public struct Amount: Codable, Hashable, Sendable {
+        public let currency: String
+        public let amount: DecimalString
+    }
+
+    public let id: UUID
+    public let staffMemberID: UUID
+    public let staffMemberName: String?
+    /// Tenant-local day (`YYYY-MM-DD`).
+    public let localDay: String
+    public let cutoffHour: Int
+    public let amounts: [Amount]
+    public let flaggedAt: Date
+    public let policyVersion: String
+
+    enum CodingKeys: String, CodingKey {
+        case id, amounts, staffMemberID = "staff_member_id", staffMemberName = "staff_member_name", localDay = "local_day"
+        case cutoffHour = "cutoff_hour", flaggedAt = "flagged_at", policyVersion = "policy_version"
+    }
+}

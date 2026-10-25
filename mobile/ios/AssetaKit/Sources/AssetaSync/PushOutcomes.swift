@@ -25,6 +25,8 @@ public struct PushOutcomeApplier: Sendable {
         "TRANSFER_ALREADY_DECIDED", "FLOAT_ALREADY_ACKNOWLEDGED", "NO_AVAILABLE_HOURS", "EXCEEDS_REMAINING_HOURS",
         "BASELINE_REQUIRED", "OVERLAPPING_ALLOCATION", "OVERLAPPING_ACTIVITY", "BASELINE_PENDING", "CORRECTION_PENDING",
         "RETENTION_NOT_ALLOWED", "DUPLICATE_RETENTION",
+        // A capability the tenant's policy switched off (F1).
+        "ENGINE_HOURS_DISABLED", "CASH_CUSTODY_DISABLED",
     ]
 
     let outbox: any ClientOperationRepository

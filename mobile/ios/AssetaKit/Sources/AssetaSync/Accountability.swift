@@ -31,6 +31,13 @@ public struct FieldAccess: Sendable, Equatable {
         !disabledCapabilities.contains(TenantCapability.customerHours) && hours?.enabled == true
     }
 
+    /// Engine-hour controls are on (not switched off in `/me`): daily readings, baselines, corrections.
+    public var engineHoursOn: Bool { !disabledCapabilities.contains(TenantCapability.engineHours) }
+
+    /// The DEC-030 cash additions are on (not switched off in `/me`): transfers, acknowledgements, retentions,
+    /// recording for others. Collections, remittances and floats stay either way.
+    public var cashCustodyOn: Bool { !disabledCapabilities.contains(TenantCapability.cashCustody) }
+
     private func supports(_ capability: String) -> Bool { capabilities?.contains(capability) == true }
     private func can(_ permission: String) -> Bool { permissions.contains(permission) }
 
@@ -39,17 +46,19 @@ public struct FieldAccess: Sendable, Equatable {
     public var requestHoursTransfer: Bool {
         supports(SyncCapability.hoursTransferRequest) && can(Self.hoursTransfer) && customerHoursOn
     }
-    public var transferCash: Bool { supports(SyncCapability.cashTransfer) && can(Self.collectionRecord) }
+    public var transferCash: Bool { supports(SyncCapability.cashTransfer) && can(Self.collectionRecord) && cashCustodyOn }
     public var acknowledgeCash: Bool { transferCash }
     /// A recorder may name another cash holder (collections, remittances, sales, transfers).
-    public var recordForOthers: Bool { can(Self.collectionRecord) && cash?.recordersMayRecordForOthers == true }
-    public var askToKeepCash: Bool { can(Self.collectionRecord) && cash?.retentionAllowed == true }
+    public var recordForOthers: Bool {
+        can(Self.collectionRecord) && cashCustodyOn && cash?.recordersMayRecordForOthers == true
+    }
+    public var askToKeepCash: Bool { can(Self.collectionRecord) && cashCustodyOn && cash?.retentionAllowed == true }
     /// "Ask to keep cash" is queued in the outbox (works offline) when the server takes `CASH_RETENTION_REQUEST`;
     /// otherwise it is sent online as before.
     public var retentionOffline: Bool { askToKeepCash && supports(SyncCapability.cashRetentionRequest) }
-    public var dailyReading: Bool { supports(SyncCapability.meterDailyReading) && can(Self.meterCapture) }
-    public var proposeBaseline: Bool { supports(SyncCapability.meterBaseline) && can(Self.meterCapture) }
-    public var proposeCorrection: Bool { supports(SyncCapability.meterCorrection) && can(Self.meterCapture) }
+    public var dailyReading: Bool { supports(SyncCapability.meterDailyReading) && can(Self.meterCapture) && engineHoursOn }
+    public var proposeBaseline: Bool { supports(SyncCapability.meterBaseline) && can(Self.meterCapture) && engineHoursOn }
+    public var proposeCorrection: Bool { supports(SyncCapability.meterCorrection) && can(Self.meterCapture) && engineHoursOn }
 
     public static let hoursPurchase = "tenant.hours.purchase"
     public static let hoursTransfer = "tenant.hours.transfer"

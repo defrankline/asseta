@@ -40,6 +40,11 @@ public struct OwnerFeatures: Equatable, Sendable {
 
     /// Customer hours are in use (not switched off by the tenant's policy).
     public var customerHours: Bool { !disabledCapabilities.contains(TenantCapability.customerHours) }
+    /// Engine-hour controls are in use (baselines, corrections, classifications, unexplained hours).
+    public var engineHours: Bool { !disabledCapabilities.contains(TenantCapability.engineHours) }
+    /// The DEC-030 cash additions are in use (transfers, acknowledgements, write-offs, retentions, adjustments,
+    /// remittance cut-off, amount received on a remittance).
+    public var cashCustody: Bool { !disabledCapabilities.contains(TenantCapability.cashCustody) }
 
     /// The Approvals screen shows approval requests or at least one kind of accountability decision.
     public var approvalsScreen: Bool { approvals || !decisionKinds.isEmpty }

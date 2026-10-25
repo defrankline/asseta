@@ -22,8 +22,9 @@ struct NotificationsView: View {
                     EmptyState(title: InboxText.emptyTitle, systemImage: "bell.slash")
                 }
                 ForEach(items) { note in
-                    NavigationLink(value: DeepLinkParser.route(for: note) == .notifications
-                        ? OwnerRoute.notification(note.id) : DeepLinkParser.route(for: note)) {
+                    // A record of a capability the tenant switched off opens its list (follow-up F1).
+                    let route = model.features.route(DeepLinkParser.route(for: note))
+                    NavigationLink(value: route == .notifications ? OwnerRoute.notification(note.id) : route) {
                         NotificationRow(note: note)
                     }
                     .simultaneousGesture(TapGesture().onEnded { Task { await markRead(note) } })
@@ -94,7 +95,7 @@ struct NotificationResolverView: View {
     var body: some View {
         Group {
             if let note {
-                let route = DeepLinkParser.route(for: note)
+                let route = model.features.route(DeepLinkParser.route(for: note))
                 if route == .notifications || route == .notification(notificationID) {
                     List {
                         Section { NotificationRow(note: note) }

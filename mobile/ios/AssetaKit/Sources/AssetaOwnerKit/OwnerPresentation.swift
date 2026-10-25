@@ -144,6 +144,19 @@ extension OwnerFeatures {
         }
     }
 
+    /// `route`, or the list it falls back to when it belongs to a capability the tenant switched off (a deep link to a
+    /// hidden kind opens the list instead: Approvals for a decision, Cash with supervisors for a cash record; as
+    /// Android `OwnerFeatures.route`).
+    public func route(_ route: OwnerRoute) -> OwnerRoute {
+        switch route {
+        case let .decision(kind, _):
+            kind.capability.map(disabledCapabilities.contains) == true ? .approvals : route
+        case .cashTransfer, .cashFloat, .overdueRemittances, .overdueRemittance:
+            cashCustody ? route : .cash
+        default: route
+        }
+    }
+
     /// Whether the role can open the screen a route leads to (links to other screens are hidden otherwise).
     public func allows(_ route: OwnerRoute) -> Bool {
         switch route {
@@ -155,7 +168,9 @@ extension OwnerFeatures {
         case .accountability: accountability
         case .exceptions, .meterReset, .exception: meterEvidence
         case .fieldSpend: expenses
-        case .cash, .handover, .cashTransfer, .cashFloat, .overdueRemittances, .overdueRemittance: finance
+        case .cash, .handover: finance
+        // DEC-030 cash records: hidden when the tenant switched CASH_CUSTODY off.
+        case .cashTransfer, .cashFloat, .overdueRemittances, .overdueRemittance: finance && cashCustody
         case .investigations, .investigation: cases
         case .notifications, .notification: notifications
         }

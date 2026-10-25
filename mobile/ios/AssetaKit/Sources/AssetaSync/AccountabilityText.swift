@@ -172,11 +172,30 @@ public enum FieldAccountabilityTexts {
         }
     }
 
+    // Follow-up F2: overdue remittance
+    public static let titleRemittanceOverdue = "Overdue remittance" // field.title.remittanceOverdue
+    public static let overdueCustodian = "Cash held by" // field.overdue.custodian
+    public static let overdueNotRemitted = "Not remitted" // field.overdue.notRemitted
+    public static let overdueDay = "Day" // field.overdue.day
+    public static let overdueCutoff = "Cut-off" // field.overdue.cutoff
+    public static let overdueFlagged = "Flagged" // field.overdue.flagged
+    public static let overdueHint = "Remit this cash to the office as soon as you can." // field.overdue.hint
+
+    /// "07:00" (two-digit hour).
+    public static func hour(_ h: Int) -> String { String(format: "%02d:00", h) }
+
+    /// "Still held after the 18:00 cut-off on 2026-10-25." (field.overdue.line)
+    public static func overdueLine(cutoffHour: Int, day: String) -> String {
+        "Still held after the \(hour(cutoffHour)) cut-off on \(day)."
+    }
+
     /// Conflicts and refusals of the accountability ops in plain words (`field.conflict.*`); nil = show the code.
     public static func conflictText(_ code: String?) -> String? {
         switch code {
         case "RETENTION_NOT_ALLOWED": "Your company does not allow keeping cash, so this request was not accepted."
         case "DUPLICATE_RETENTION": "This request to keep cash was already sent."
+        case "ENGINE_HOURS_DISABLED": "Your company has switched off engine-hour controls, so this was not accepted."
+        case "CASH_CUSTODY_DISABLED": "Your company has switched off cash custody controls, so this was not accepted."
         default: nil
         }
     }
@@ -237,4 +256,41 @@ public enum FieldAccountabilityTexts {
     public static let paymentMethods: [(wire: String, label: String)] = [
         ("CASH", hoursMethodCash), ("BANK", hoursMethodBank), ("MOBILE_MONEY", hoursMethodMobileMoney),
     ]
+}
+
+/// "Overdue remittance" (Supervisor, follow-up F2): wording and rows in the Android order
+/// (`RemittanceOverdueText`).
+public enum RemittanceOverduePresentation {
+    typealias T = FieldAccountabilityTexts
+
+    /// The custodian's name, else the short id.
+    public static func name(_ o: RemittanceOverdueDTO) -> String { DisplayName.or(o.staffMemberName, id: o.staffMemberID) }
+
+    /// "TZS 50,000.00, USD 20.00" (the amounts still held when flagged).
+    public static func amounts(_ o: RemittanceOverdueDTO) -> String {
+        o.amounts.map { money($0.amount.value, currency: $0.currency) }.joined(separator: ", ")
+    }
+
+    /// Label/value rows in screen order (`flagged` formats the server timestamp); blank values are left out.
+    public static func rows(_ o: RemittanceOverdueDTO, flagged: (Date) -> String) -> [(label: String, value: String)] {
+        [(T.overdueCustodian, name(o)),
+         (T.overdueNotRemitted, amounts(o)),
+         (T.overdueDay, o.localDay),
+         (T.overdueCutoff, T.hour(o.cutoffHour)),
+         (T.overdueFlagged, flagged(o.flaggedAt))]
+            .filter { !$0.1.trimmingCharacters(in: .whitespaces).isEmpty }
+            .map { (label: $0.0, value: $0.1) }
+    }
+
+    /// "Still held after the 18:00 cut-off on 2026-10-25. Remit this cash to the office as soon as you can."
+    public static func footer(_ o: RemittanceOverdueDTO) -> String {
+        "\(T.overdueLine(cutoffHour: o.cutoffHour, day: o.localDay)) \(T.overdueHint)"
+    }
+
+    /// "TZS 50,000.00": the currency code, then the amount with grouping and two decimals (as Android).
+    static func money(_ amount: Decimal, currency: String) -> String {
+        let number = amount.formatted(.number.precision(.fractionLength(2)).grouping(.automatic)
+            .locale(Locale(identifier: "en_US")))
+        return "\(currency) \(number)"
+    }
 }

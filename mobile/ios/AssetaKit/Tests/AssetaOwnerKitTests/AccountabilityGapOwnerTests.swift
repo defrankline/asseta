@@ -41,7 +41,7 @@ struct AccountabilityGapOwnerTests {
         let summary = try AssetaJSON.decoder().decode(AccountabilitySummaryDTO.self, from: Data(S.summary.utf8))
         let all = AccountabilityDashboard.tiles(summary).map(\.id)
         #expect(all.contains("customer_hours") && all.contains("hours_awaiting_activation"))
-        let hidden = AccountabilityDashboard.tiles(summary, customerHours: false).map(\.id)
+        let hidden = AccountabilityDashboard.tiles(summary, disabled: [TenantCapability.customerHours]).map(\.id)
         #expect(!hidden.contains("customer_hours") && !hidden.contains("hours_awaiting_activation") && hidden.contains("engine_hours"))
     }
 

@@ -784,4 +784,35 @@ struct TransfersSegment: View {
 extension Result where Failure == AccountabilityRules.Problems {
     var isValid: Bool { if case .success = self { true } else { false } }
 }
+
+/// "Overdue remittance" (follow-up F2): one overdue-remittance flag of mine, read online by id
+/// (`GET /cash/remittance-overdue/{id}`). The tap reads it first (``FieldModel/remittanceOverdue(_:)``) and opens the
+/// Money tab when it cannot (offline, not mine: 404), as Android.
+struct RemittanceOverdueView: View {
+    let model: FieldModel
+    let id: UUID
+    @State private var record: RemittanceOverdueDTO?
+
+    var body: some View {
+        List {
+            if let o = record ?? model.savedOverdue[id] {
+                Section {
+                    Text(RemittanceOverduePresentation.name(o)).font(.headline)
+                    ForEach(RemittanceOverduePresentation.rows(o, flagged: { $0.listText }), id: \.label) { row in
+                        LabeledContent(row.label, value: row.value)
+                    }
+                } footer: {
+                    Text(RemittanceOverduePresentation.footer(o))
+                }
+            }
+        }
+        .navigationTitle(T.titleRemittanceOverdue)
+        .refreshable { await load() }
+        .task { await load() }
+    }
+
+    private func load() async {
+        if let fresh = await model.remittanceOverdue(id) { record = fresh }
+    }
+}
 #endif

@@ -177,7 +177,7 @@ struct AccountabilityGapTests {
         #expect(InboxLink.from(try note(kind: "CASH_FLOAT", record: id, entity: "supervisor_cash_custody", target: UUID()))
             == .cashToAcknowledge(id, isFloat: true))
         #expect(InboxLink.from(try note(kind: "CASH_RETENTION", record: id, entity: nil, target: nil)) == .retention(id))
-        #expect(InboxLink.from(try note(kind: "REMITTANCE_OVERDUE", record: id, entity: nil, target: nil)) == .money)
+        #expect(InboxLink.from(try note(kind: "REMITTANCE_OVERDUE", record: id, entity: nil, target: nil)) == .remittanceOverdue(id))
         // Older notifications: the target names the record.
         #expect(InboxLink.from(try note(kind: nil, record: nil, entity: "cash_retention", target: id)) == .retention(id))
         #expect(InboxLink.from(try note(kind: nil, record: nil, entity: "supervisor_cash_custody", target: id))

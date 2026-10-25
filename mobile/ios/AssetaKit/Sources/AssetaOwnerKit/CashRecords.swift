@@ -6,30 +6,6 @@ import Foundation
 // Cash records the Owner app opens exactly from a notification or the dashboard (DEC-030 G4/G5): one transfer, one
 // float, the overdue-remittance flags of the tenant's daily cut-off (contracts/openapi.json).
 
-/// `RemittanceOverdueDto`: a custodian still holding unremitted cash after the tenant's daily cut-off (one per
-/// custodian per tenant-local day; evidence, never edited).
-public struct RemittanceOverdueDTO: Codable, Hashable, Sendable, Identifiable {
-    public struct Amount: Codable, Hashable, Sendable {
-        public let currency: String
-        public let amount: DecimalString
-    }
-
-    public let id: UUID
-    public let staffMemberID: UUID
-    public let staffMemberName: String?
-    /// Tenant-local day (`YYYY-MM-DD`).
-    public let localDay: String
-    public let cutoffHour: Int
-    public let amounts: [Amount]
-    public let flaggedAt: Date
-    public let policyVersion: String
-
-    enum CodingKeys: String, CodingKey {
-        case id, amounts, staffMemberID = "staff_member_id", staffMemberName = "staff_member_name", localDay = "local_day"
-        case cutoffHour = "cutoff_hour", flaggedAt = "flagged_at", policyVersion = "policy_version"
-    }
-}
-
 extension SnapshotKey {
     public static func overdueRemittances(day: String) -> SnapshotKey { SnapshotKey("remittance_overdue.\(day)") }
     public static func overdueRemittance(_ id: UUID) -> SnapshotKey { SnapshotKey("remittance_overdue.\(id.lowercased)") }

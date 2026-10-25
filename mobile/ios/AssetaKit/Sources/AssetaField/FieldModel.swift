@@ -29,6 +29,8 @@ public final class FieldModel {
     public private(set) var access = FieldAccess(capabilities: nil, permissions: [])
     /// Bumped whenever the saved accountability lists change (views re-read them).
     public private(set) var accountabilityTick = 0
+    /// Overdue-remittance flags read online this session (shown while the screen re-reads them).
+    var savedOverdue: [UUID: RemittanceOverdueDTO] = [:]
 
     let session: SessionModel
     let tenant: TenantMembership

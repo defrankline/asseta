@@ -78,7 +78,8 @@ public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
     public var capability: String? {
         switch self {
         case .discount, .credit, .hoursTransfer, .cancellation: TenantCapability.customerHours
-        default: nil
+        case .baseline, .correction, .classification: TenantCapability.engineHours
+        case .writeOff, .retention, .adjustment: TenantCapability.cashCustody
         }
     }
 

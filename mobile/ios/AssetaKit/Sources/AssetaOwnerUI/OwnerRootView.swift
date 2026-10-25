@@ -97,7 +97,9 @@ public struct OwnerRootView: View {
         navigate(to: link.route)
     }
 
-    private func navigate(to route: OwnerRoute) {
+    private func navigate(to link: OwnerRoute) {
+        // A destination of a capability the tenant switched off falls back to its list (follow-up F1).
+        let route = model.features.route(link)
         var path = NavigationPath()
         let target: OwnerTab
         switch route {
@@ -131,10 +133,10 @@ public struct OwnerRootView: View {
             target = .more; path.append(MoreItem.fieldSpend)
         case .cash where model.features.finance:
             target = .more; path.append(MoreItem.cash)
-        case .cashTransfer where model.features.finance, .cashFloat where model.features.finance,
-             .overdueRemittances where model.features.finance:
+        case .cashTransfer where model.features.allows(route), .cashFloat where model.features.allows(route),
+             .overdueRemittances where model.features.allows(route):
             target = .more; path.append(MoreItem.cash); path.append(route)
-        case .overdueRemittance where model.features.finance:
+        case .overdueRemittance where model.features.allows(route):
             target = .more; path.append(MoreItem.cash); path.append(OwnerRoute.overdueRemittances); path.append(route)
         case .investigation:
             target = .more; path.append(MoreItem.investigations); path.append(route)

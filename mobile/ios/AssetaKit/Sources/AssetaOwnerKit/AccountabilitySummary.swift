@@ -9,6 +9,8 @@ public struct AccountabilitySummaryDTO: Codable, Hashable, Sendable {
     public let policyVersion: String
     public let hiddenTiles: [String]
     public let unavailableTiles: [String]
+    /// Capabilities the tenant switched off (CUSTOMER_HOURS, ENGINE_HOURS, CASH_CUSTODY): their tiles/rows are hidden.
+    public let disabledCapabilities: [String]
     public let customerHours: JSONValue?
     public let hoursAwaitingActivation: JSONValue?
     public let engineHours: JSONValue?
@@ -111,6 +113,7 @@ public struct AccountabilitySummaryDTO: Codable, Hashable, Sendable {
     enum CodingKeys: String, CodingKey {
         case cash, payments, discrepancies, investigations, asOf = "as_of", policyVersion = "policy_version"
         case hiddenTiles = "hidden_tiles", unavailableTiles = "unavailable_tiles", customerHours = "customer_hours"
+        case disabledCapabilities = "disabled_capabilities"
         case hoursAwaitingActivation = "hours_awaiting_activation", engineHours = "engine_hours"
         case unexplainedHours = "unexplained_hours", missingDailyReports = "missing_daily_reports"
         case unauthorizedAttempts = "unauthorized_attempts", outstandingApprovals = "outstanding_approvals"
@@ -122,6 +125,7 @@ public struct AccountabilitySummaryDTO: Codable, Hashable, Sendable {
         policyVersion = try c.decode(String.self, forKey: .policyVersion)
         hiddenTiles = try c.decodeIfPresent([String].self, forKey: .hiddenTiles) ?? []
         unavailableTiles = try c.decodeIfPresent([String].self, forKey: .unavailableTiles) ?? []
+        disabledCapabilities = (try? c.decodeIfPresent([String].self, forKey: .disabledCapabilities)) ?? []
         func open(_ key: CodingKeys) -> JSONValue? {
             let value = try? c.decodeIfPresent(JSONValue.self, forKey: key)
             return value == .null ? nil : value ?? nil
@@ -185,29 +189,42 @@ public enum AccountabilityDashboard {
         return OwnerFormat.hours(decimal)
     }
 
-    /// The summary as tiles in the dashboard order (hidden or unavailable tiles are simply absent). `customerHours`
-    /// false (the capability is switched off for the tenant) leaves out the customer-hours tiles.
-    public static func tiles(_ s: AccountabilitySummaryDTO, customerHours: Bool = true,
+    /// The summary as tiles in the dashboard order (hidden or unavailable tiles are simply absent). Capabilities
+    /// switched off in `/me` (`disabled`) or in the summary's own `disabled_capabilities` leave out their tiles and
+    /// rows (follow-up F1, as Android): CUSTOMER_HOURS the customer-hours tiles, ENGINE_HOURS the engine-hour tiles,
+    /// CASH_CUSTODY the custody additions (transfers, floats to acknowledge, partial and overdue remittances,
+    /// retentions, adjustments, write-offs, variances); the cash basics stay.
+    public static func tiles(_ s: AccountabilitySummaryDTO, disabled: Set<String> = [],
                              timeZone: TimeZone = .current) -> [DashboardTile] {
+        let off = disabled.union(s.disabledCapabilities)
+        let customerHours = !off.contains(TenantCapability.customerHours)
+        let engineOn = !off.contains(TenantCapability.engineHours)
+        let cashOn = !off.contains(TenantCapability.cashCustody)
         var out: [DashboardTile] = []
         if let a = s.outstandingApprovals {
-            out.append(DashboardTile(id: "outstanding_approvals", title: T.dashApprovals, rows: [
+            var rows: [DashboardTile.Row] = [
                 .init(T.dashTotal, "\(a.total)"),
                 .init(T.dashApprovalRequests, "\(a.approvalRequests)"), .init(T.dashPaymentsToVerify, "\(a.paymentsToVerify)"),
-                .init(T.dashRemittancesToVerify, "\(a.remittancesToVerify)"), .init(T.dashCashRetentions, "\(a.cashRetentions)"),
-                .init(T.dashCustodyAdjustments, "\(a.custodyAdjustments)"), .init(T.dashWriteOffs, "\(a.writeOffs)"),
-            ], route: .approvals))
+                .init(T.dashRemittancesToVerify, "\(a.remittancesToVerify)"),
+            ]
+            if cashOn {
+                rows += [.init(T.dashCashRetentions, "\(a.cashRetentions)"), .init(T.dashCustodyAdjustments, "\(a.custodyAdjustments)"),
+                         .init(T.dashWriteOffs, "\(a.writeOffs)")]
+            }
+            out.append(DashboardTile(id: "outstanding_approvals", title: T.dashApprovals, rows: rows, route: .approvals))
         }
         if let c = s.cash {
-            var rows: [DashboardTile.Row] = [
+            // CASH_CUSTODY off: only the cash basics (remittances awaiting confirmation, what each custodian holds).
+            var rows: [DashboardTile.Row] = cashOn ? [
                 .init(T.dashTransfersAwaiting, counts(c.transfersAwaitingAcknowledgement)),
                 .init(T.dashFloatsAwaiting, counts(c.floatsAwaitingAcknowledgement)),
-                .init(T.dashRemittancesAwaiting, counts(c.remittancesAwaitingConfirmation)),
-                .init(T.dashPartialRemittances, "\(c.partialRemittancesInWindow)"),
-            ]
+            ] : []
+            rows.append(.init(T.dashRemittancesAwaiting, counts(c.remittancesAwaitingConfirmation)))
+            if cashOn { rows.append(.init(T.dashPartialRemittances, "\(c.partialRemittancesInWindow)")) }
             // Remittance cut-off (null = the tenant has none): today's overdue count, the cut-off under the tile, and a
             // link to the flagged custodians (as Android).
-            if let overdue = c.remittancesOverdueToday { rows.append(.init(T.dashRemittancesOverdue, "\(overdue)")) }
+            let overdueToday = cashOn ? c.remittancesOverdueToday : nil
+            if let overdue = overdueToday { rows.append(.init(T.dashRemittancesOverdue, "\(overdue)")) }
             for custodian in c.custodians {
                 let outstanding = T.dashCustodianLine(OwnerFormat.money(custodian.outstanding, currency: custodian.currency))
                 let transit = custodian.inTransitOut.value == 0 ? nil
@@ -215,7 +232,7 @@ public enum AccountabilityDashboard {
                 // On one line, as Android: "TZS 150,000.00 outstanding · TZS 20,000.00 in transit".
                 rows.append(.init(custodian.staffName, [outstanding, transit].compactMap { $0 }.joined(separator: " · ")))
             }
-            let overdue = c.remittancesOverdueToday != nil
+            let overdue = overdueToday != nil
             out.append(DashboardTile(id: "cash", title: T.dashCash, rows: rows, route: .cash,
                                      footer: overdue ? c.remittanceCutoffHour.map(T.dashCutoff) : nil,
                                      moreLinks: overdue ? [.init(label: T.dashRemittancesOverdue, route: .overdueRemittances)] : []))
@@ -225,10 +242,11 @@ public enum AccountabilityDashboard {
                                      route: nil))
         }
         if let d = s.discrepancies {
-            out.append(DashboardTile(id: "discrepancies", title: T.dashDiscrepancies, rows: [
+            let custody: [DashboardTile.Row] = cashOn ? [
                 .init(T.dashOpenVariances, counts(d.openVariances)), .init(T.dashWriteOffsProposed, "\(d.writeOffsProposed)"),
-                .init(T.dashSyncConflicts, "\(d.syncConflictsUnresolved)"),
-            ], route: .approvals))
+            ] : []
+            out.append(DashboardTile(id: "discrepancies", title: T.dashDiscrepancies,
+                                     rows: custody + [.init(T.dashSyncConflicts, "\(d.syncConflictsUnresolved)")], route: .approvals))
         }
         if let i = s.investigations {
             out.append(DashboardTile(id: "investigations", title: T.dashInvestigations,
@@ -256,7 +274,7 @@ public enum AccountabilityDashboard {
                 .init(T.dashPurchasesPartlyActive, "\(h["purchases_partly_active"]?.intValue ?? 0)"),
             ], route: nil))
         }
-        if let e = s.engineHours {
+        if engineOn, let e = s.engineHours {
             var rows: [DashboardTile.Row] = [.init(T.dashMachines, "\(e["machines"]?.intValue ?? 0)")]
             if case let .object(byStatus)? = e["by_status"] {
                 for key in ["NO_BASELINE", "RECONCILED", "PENDING_REVIEW", "UNEXPLAINED"] + byStatus.keys.sorted()
@@ -266,7 +284,7 @@ public enum AccountabilityDashboard {
             }
             out.append(DashboardTile(id: "engine_hours", title: T.dashEngineHours, rows: rows, route: nil))
         }
-        if let u = s.unexplainedHours {
+        if engineOn, let u = s.unexplainedHours {
             var rows: [DashboardTile.Row] = [.init(T.dashMachines, "\(u["machines"]?.intValue ?? 0)"),
                                              .init(T.fieldHours, hours(u["hours"]))]
             if case let .array(items)? = u["items"] {
@@ -278,7 +296,7 @@ public enum AccountabilityDashboard {
             }
             out.append(DashboardTile(id: "unexplained_hours", title: T.dashUnexplained, rows: rows, route: .exceptions(jobID: nil)))
         }
-        if let m = s.missingDailyReports {
+        if engineOn, let m = s.missingDailyReports {
             var rows: [DashboardTile.Row] = [.init(T.dashMissingReports, "\(m["count"]?.intValue ?? 0)")]
             if case let .array(items)? = m["items"] {
                 for item in items {

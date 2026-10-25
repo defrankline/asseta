@@ -194,8 +194,10 @@ struct HandoverDecisionSheet: View {
     @State private var idempotencyKey = UUID()
 
     private var receivedText: String { received ?? HandoverText.prefill(handover) }
+    /// CASH_CUSTODY off: no "Amount received" (no variance / partial flag); confirming sends no amount (follow-up F1).
+    private var askAmount: Bool { confirm && model.features.cashCustody }
     private var canSubmit: Bool {
-        confirm ? HandoverText.canConfirm(amountReceived: receivedText, text: text) : HandoverText.canDecide(confirm: false, text: text)
+        askAmount ? HandoverText.canConfirm(amountReceived: receivedText, text: text) : HandoverText.canDecide(confirm: confirm, text: text)
     }
 
     var body: some View {
@@ -205,7 +207,7 @@ struct HandoverDecisionSheet: View {
                     Text(HandoverText.title(handover, supervisor: supervisor))
                     Text(HandoverText.claimed(handover)).foregroundStyle(.secondary)
                 }
-                if confirm {
+                if askAmount {
                     Section {
                         TextField(OwnerAccountabilityTexts.remitAmountReceived,
                                   text: Binding(get: { receivedText }, set: { received = $0 }))
@@ -246,7 +248,7 @@ struct HandoverDecisionSheet: View {
         do {
             let updated = try await repository.send(
                 OwnerAPI.decideHandover(handover.id, confirm: confirm, note: text,
-                                        amountReceived: confirm ? HandoverText.parseReceived(receivedText) : nil,
+                                        amountReceived: askAmount ? HandoverText.parseReceived(receivedText) : nil,
                                         idempotencyKey: idempotencyKey))
             dismiss()
             await done(updated, HandoverText.done(confirm: confirm))

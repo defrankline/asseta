@@ -189,6 +189,8 @@ public enum InboxLink: Sendable, Equatable {
     case cashToAcknowledge(UUID, isFloat: Bool)
     /// One of my requests to keep cash (its status).
     case retention(UUID)
+    /// An overdue-remittance flag of mine ("Overdue remittance"; the Money tab when it cannot be read).
+    case remittanceOverdue(UUID)
 
     /// The exact record when the notification names one (`data.kind` + `record_id`), else its target.
     public static func from(_ notification: NotificationDTO) -> InboxLink {
@@ -202,7 +204,7 @@ public enum InboxLink: Sendable, Equatable {
         case .cashTransfer: .cashToAcknowledge(record.id, isFloat: false)
         case .cashFloat: .cashToAcknowledge(record.id, isFloat: true)
         case .cashRetention: .retention(record.id)
-        case .remittanceOverdue: .money
+        case .remittanceOverdue: .remittanceOverdue(record.id)
         default: nil
         }
     }

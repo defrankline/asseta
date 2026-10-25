@@ -8,8 +8,17 @@ extension FieldModel {
     /// Fetches the tenant policies and lists the accountability screens use (saved for offline), then re-reads them.
     func refreshAccountability() async {
         guard let services, isOnline else { return }
-        await services.online.refreshAccountability(permissions: tenant.permissions, myStaffID: myStaffID)
+        await services.online.refreshAccountability(permissions: tenant.permissions, myStaffID: myStaffID,
+                                                    disabledCapabilities: tenant.disabledCapabilities)
         refresh()
+    }
+
+    /// My overdue-remittance flag, read online (kept for this session); nil offline or when the server does not show
+    /// it to me (404).
+    func remittanceOverdue(_ id: UUID) async -> RemittanceOverdueDTO? {
+        guard isOnline, let online = services?.online, let dto = try? await online.remittanceOverdue(id) else { return nil }
+        savedOverdue[id] = dto
+        return dto
     }
 
     var accountabilityData: AccountabilityDirectory? { services?.accountability }

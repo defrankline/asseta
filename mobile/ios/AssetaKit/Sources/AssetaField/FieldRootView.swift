@@ -10,6 +10,8 @@ enum FieldRoute: Hashable {
     case cash(UUID, collection: Bool), notification(UUID), syncStatus
     /// A request to keep cash (client id or server id).
     case retention(UUID)
+    /// An overdue-remittance flag of mine (read online).
+    case remittanceOverdue(UUID)
 }
 
 /// Forms presented as sheets (Cancel / Save), as before.
@@ -167,6 +169,7 @@ public struct FieldRootView: View {
         case let .notification(id): NotificationDetailView(notification: model.notifications.first { $0.id == id })
         case .syncStatus: SyncStatusView(model: model)
         case let .retention(id): RetentionStatusView(model: model, id: id)
+        case let .remittanceOverdue(id): RemittanceOverdueView(model: model, id: id)
         }
     }
 
@@ -268,7 +271,15 @@ public struct FieldRootView: View {
             let waiting = model.accountabilityData?.toAcknowledge(myStaffID: model.myStaffID)
             let pending = isFloat ? waiting?.floats.contains { $0.id == id } : waiting?.transfers.contains { $0.id == id }
             if pending == true && model.access.acknowledgeCash { sheet = .cashAck(id, isFloat: isFloat) }
-        case let .retention(id): openOnMoney(.retention(id))
+        // CASH_CUSTODY switched off: its records are hidden, so their taps open the Money tab (follow-up F1).
+        case let .retention(id):
+            if model.access.cashCustodyOn { openOnMoney(.retention(id)) } else { tab = .money }
+        case let .remittanceOverdue(id):
+            // Read online first: a flag the server does not show me (404), offline or switched off opens the Money tab.
+            guard model.access.cashCustodyOn else { tab = .money; return }
+            Task {
+                if await model.remittanceOverdue(id) != nil { openOnMoney(.remittanceOverdue(id)) } else { tab = .money }
+            }
         case .none: fallback()
         }
     }

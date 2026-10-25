@@ -98,6 +98,10 @@ public struct TenantMembership: Codable, Hashable, Sendable, Identifiable {
 /// Tenant capabilities a policy can switch off (`TenantAccessDto.disabled_capabilities`).
 public enum TenantCapability {
     public static let customerHours = "CUSTOMER_HOURS"
+    /// Engine-hour controls (baselines, corrections, daily readings, unexplained-hours flags).
+    public static let engineHours = "ENGINE_HOURS"
+    /// The DEC-030 cash additions (transfers, acknowledgements, variances, retentions, adjustments, cut-off).
+    public static let cashCustody = "CASH_CUSTODY"
 }
 
 /// Server-computed access level for a tenant membership (subscription/entitlement driven).
