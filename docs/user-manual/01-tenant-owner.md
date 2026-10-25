@@ -188,7 +188,6 @@ The most important settings:
 | Risk signals | **Engine activity without a running job**, **Fuel allowance**, **Weekly spending per machine** | Thresholds for automatic review signals |
 | | **Cash held at most** / **Cash held up to** | When cash not handed over is flagged |
 | | **Duplicate receipt lookback**, **Case grouping window**, and others | How signals are found and grouped |
-
 | Customer hours | **Customer hours switched on** | The master switch for prepaid hours. Off: no purchases or prepaid jobs; jobs are invoiced, and the **Customer hours** menus and app buttons are hidden |
 | | **Walk-in customers allowed** | Whether hours can be sold to walk-in customers without full registration |
 | | **Billing methods allowed on jobs**, **Default billing of new jobs** | **Invoice after the work** and/or **Prepaid customer hours**, and which one a new job uses unless changed |
