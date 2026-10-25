@@ -26,6 +26,17 @@ With an Operator login you can:
 
 You cannot see jobs, machines, money or reports. If you need any of these, ask your supervisor or the owner.
 
+### If you hold company cash
+
+You may collect cash from customers, or receive cash from a colleague, even without an Asseta login. If your company uses the cash accountability controls, Asseta still keeps your own record as a **cash custodian**:
+
+- Your supervisor or manager records each collection, transfer and handover **on your behalf**, under your name.
+- When you hand cash to someone, they record the transfer and the **amount they actually received**. Until then the cash is still counted as yours.
+- When cash reaches the office, the office counts it and records the amount received. Only then does your balance go down.
+- If you need to keep some cash (for example for a working float), ask your supervisor to send a **request to keep cash** for approval. Without an approved request, the whole balance is expected to be handed over.
+
+Ask for a receipt or check with your supervisor that every amount was recorded. A difference between what was declared and what was counted is reviewed by the office; it is a check, not an accusation.
+
 ## Where you work
 
 | Place | What you'll see |
@@ -64,6 +75,8 @@ Click the **Sign out** icon in the top bar. Always sign out on a shared computer
 - Do not share your login. Each person has their own.
 - Tell your supervisor about breakdowns, standby and downtime as they happen, so they can log them on the job. This is how the customer is billed fairly.
 - Make sure your supervisor takes the hour-meter photo before you start and after you finish a job.
+- If your company asks for daily readings, make sure the meter is read every working day, including days without a job.
+- Hand over company cash promptly and only to the person your company names, and check it is recorded.
 
 ## Troubleshooting and FAQ
 

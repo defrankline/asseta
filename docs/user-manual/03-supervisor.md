@@ -35,7 +35,17 @@ You can do all of your work in either of two places:
 - Read **office decisions and reminders** in your inbox.
 - See the **exceptions** on your readings and the office's review notes.
 
-What you cannot do: approve jobs (including the ones you request) or set their price, approve your own expenses, verify your own cash, or decide meter resets. The office does those. This separation protects you as much as the company.
+If your company has switched these controls on, you can also:
+
+- **Sell customer hours** (prepaid hours for one machine), including to walk-in customers, and **request an hours transfer** to another machine.
+- Record cash **on behalf of a colleague** who has no login (for example an operator), choosing who holds it under **Cash held by**.
+- **Transfer cash to a colleague**, and **acknowledge** cash transfers and floats you receive.
+- **Ask to keep cash** instead of remitting all of it.
+- Take **daily readings** outside jobs, **propose a meter baseline**, and **propose a correction** of a wrong reading.
+
+Each of these appears only when your company's policies switch it on and your role has the permission. If you don't see one, it is not used in your company.
+
+What you cannot do: approve jobs (including the ones you request) or set their price, approve your own expenses, verify your own cash, decide meter resets, activate customer hours, or approve your own transfers, baselines, corrections or requests to keep cash. The office does those. This separation protects you as much as the company.
 
 ## Where you work
 
@@ -46,7 +56,7 @@ What you cannot do: approve jobs (including the ones you request) or set their p
 | **Jobs** | Your jobs: **In progress**, **Ready to start**, **Recently closed**, **My machines**, and **Request job** |
 | **Readings** | Every meter reading you captured and your meter reset requests, with the office's review |
 | **Fuel** | Your fuel events (Purchase / Issue / Usage) |
-| **Money** | Your cash, today's figures, expenses, collections and handovers |
+| **Money** | Your cash, today's figures, cash to acknowledge, expenses, collections, handovers and transfers |
 | **Inbox** | Items that need your attention and notifications from the office |
 
 At the top of each tab's first screen:
@@ -62,9 +72,10 @@ At the top of each tab's first screen:
 | Group | Menus |
 |---|---|
 | Overview | Dashboard, Fleet map |
-| **Field work** | **My jobs**, **Readings**, **Fuel**, **Expenses**, **Cash** |
+| **Field work** | **My jobs**, **Readings**, **Fuel**, **Expenses**, **Cash**, **Customer hours** |
 | Operations | Jobs, Customers (to look things up) |
 | Fleet | Alerts |
+| Engine hours | Reconciliation, Hours to explain, Hour explanations, Meter baselines, Reading corrections (your machines, to look things up) |
 | Risk & review | Exceptions, Insights (read-only for you) |
 | Finance | Expenses & fuel |
 | Administration | Notifications, My access |
@@ -239,7 +250,9 @@ You cannot start a job while it is waiting for approval.
 
 The Supervisor app is built for sites with no signal.
 
-**What works offline:** everything in this manual. That includes jobs, job requests, readings with photos, starting and completing jobs, the work log, acknowledgements, fuel, expenses, cash collections and handovers. Everything is saved **encrypted on the phone** and sent later.
+**What works offline:** everything in this manual. That includes jobs, job requests, readings with photos, starting and completing jobs, the work log, acknowledgements, fuel, expenses, cash collections and handovers, and (when switched on) hours sales, hours transfer requests, cash transfers, acknowledgements of transfers and floats, requests to keep cash, daily readings, baseline proposals and correction proposals.
+
+Offline work never skips a check. The server applies every rule when the item arrives, and anything that needs a second person still waits for one. Everything is saved **encrypted on the phone** and sent later.
 
 **What you'll see when offline:** a banner reading "Offline. You can keep working; everything is saved on this phone and syncs when you are back online."
 
@@ -263,6 +276,8 @@ Nothing is marked "Synced" until Asseta's server has confirmed it. Sending the s
   - **Needs attention: rejected**: the server refused an item. The reason is shown as a code and message. Your original evidence stays on the phone. Fix the cause and tap **Retry**, or ask your office.
   - **Needs attention: conflicts**: the job changed on the server while you were offline, for example it was cancelled or reassigned. Nothing was overwritten. Your record is kept for the office to review.
   - **Held: subscription read-only**: your company's Asseta subscription is restricted. The items are kept and sent automatically after reactivation. Nothing is lost.
+
+  Some refusals are explained in plain words, for example "Your company does not allow keeping cash, so this request was not accepted." or "This request to keep cash was already sent." The office sees conflicts and refused items on its **Sync conflicts** page and decides what happens to them.
 
 An item may show "Waiting for an earlier item" or "Waiting for its photo/receipt/signature upload". That is normal ordering. A reading, for example, is sent after its photo.
 
@@ -320,9 +335,10 @@ A **rejected** expense stays rejected. If the office asks for a correction, tap 
 1. **Money** tab → **+** → **Record cash collection**.
 2. Choose the **Job (optional)**. This fills in its customer. Or choose the **Customer** directly.
 3. Enter **Amount**, **Currency**, **Receipt / reference number (optional)**, **Received** (date and time) and a **Note (optional)**.
-4. Tap **Save**.
+4. If you are recording for a colleague, choose them under **Cash held by** (it starts at **Me**). This appears only if your company allows recorders to record for others.
+5. Tap **Save**.
 
-The cash is added to your custody once the server accepts it. It stays **Awaiting verification** until the office verifies it. Until then it does not reduce the customer's balance.
+The cash is added to your custody (or your colleague's) once the server accepts it. It stays **Awaiting verification** until the office verifies it. Until then it does not reduce the customer's balance.
 
 #### Hand cash over to the office
 
@@ -332,6 +348,40 @@ The cash is added to your custody once the server accepts it. It stays **Awaitin
 4. Tap **Save**.
 
 **Your custody goes down only when finance verifies the handover.** A handover shows **Awaiting verification** until then, and **Verified** or **Rejected** after. If it is rejected, read the office note and use **Hand over cash again** if needed.
+
+The office counts the cash and records the **amount actually received**. Only that amount reduces your custody. If it differs from what you declared, a **cash difference** is opened for the office to review; this is a check, not an accusation. If your company expects the **full balance** to be handed over, handing over less than you hold (without an approved request to keep cash) is flagged as a partial remittance. If your company sets a **daily remittance cut-off**, cash still held after that hour is listed as an overdue remittance, and you get a "Remittance overdue" notification.
+
+#### Transfer cash to a colleague
+
+Use this when cash moves between field people, for example an operator handing collected cash to you. A transfer is **never** money received by the company; the company receives cash only through a handover.
+
+1. **Money** tab → **+** → **Transfer cash to a colleague**.
+2. Check **From** (you, or a colleague you record for) and choose **To**.
+3. Enter **Amount handed over**, **Currency** and **Transferred** (time), and a **Note (optional)**.
+4. If you are the receiver, enter the **Amount you received**. "Recording a transfer you receive counts as your acknowledgement."
+5. Tap **Save**.
+
+*What you'll see:* the transfer under **Money → Transfers**, "To <name>" or "From <name>", with status **Awaiting acknowledgement**, **Acknowledged** or **Disputed**. If your company requires acknowledgement: "The cash stays with the sender until the receiver acknowledges it."
+
+#### Acknowledge a transfer or a float
+
+Cash sent to you appears at the top of the **Money** tab under **Cash to acknowledge** ("Transfer from <name>" or "Float from the office"). You also get a notification, and tapping it opens the item.
+
+1. Tap the item. Check the **Declared amount** and when it was **Sent** or **Issued**.
+2. Count the cash and enter the **Amount received**.
+3. Tap **Acknowledge**. If you did not receive it, tap **Dispute** and say **Why you dispute it**.
+
+"A different amount opens a cash difference for the office to review." Offline, your answer is saved and sent at the next sync ("Your answer is waiting to sync.").
+
+#### Ask to keep cash
+
+Normally you hand over all the cash you hold. If you need to keep some (for example as a working float), ask first:
+
+1. **Money** tab → **+** → **Ask to keep cash**.
+2. Enter the **Amount to keep** and **Currency**, choose a **Reason category** if your company has a list, write the **Reason**, and optionally **Keep until (optional)**.
+3. Tap **Send**.
+
+"Someone else approves this. Until then the full balance is expected when you remit." This works offline: "Saved. It is sent when the phone syncs." Follow it under **Money → Transfers → Requests to keep cash**: each request shows **Waiting for approval**, **Approved** or **Rejected**, with who decided and the **Decision note** (you need a connection to see the latest status). If your company does not allow it, the app says "Your company does not allow keeping cash."
 
 #### Your cash figures
 
@@ -357,7 +407,7 @@ The calculation is:
 
 Offline, the section is headed **Today (as of HH:mm)** or **Today (estimate)**. It then uses the last office figures plus what you recorded since. These are estimates until you sync.
 
-Below the figures, the chips **Expenses / Collections / Handovers** list your records, grouped as On this phone, Pending approval, Awaiting verification, Approved, Verified and Rejected. Rows show any **Office note**.
+Below the figures, the chips **Expenses / Collections / Handovers / Transfers** list your records, grouped as On this phone, Pending approval, Awaiting verification, Approved, Verified and Rejected. Rows show any **Office note**.
 
 ### A8. Request a meter reset
 
@@ -401,6 +451,10 @@ Finding names you may see:
 | Photo used before | The same photo was already used | Always take a new photo |
 | Phone clock was wrong | Phone time differs from Asseta's time | Set the date and time to automatic |
 | Capture rules could not be verified | The rules on the phone could not be confirmed | Sync regularly |
+| Hours beyond purchase | A prepaid job used more hours than the customer had active | Nothing; the office arranges more hours or reviews it |
+| Engine hours not yet explained | Engine hours outside any job are not yet explained | Tell the office what the machine did (maintenance, moving and so on) |
+| Daily report missing | The machine worked but no reading was taken by the cut-off | Take the daily reading every working day |
+| Overlaps another job's hours / Overlapping work log entries | The same hours appear twice | Check the job times and work log |
 
 **Findings are not accusations.** They are notes for the office to check. Many are explained in seconds, for example "meter replaced". The office records the outcome as **Explained** or **Confirmed**.
 
@@ -414,9 +468,12 @@ The **Inbox** tab has two parts:
   - "Job J-… approved" / "Job J-… declined" for your job requests, and "New job J-… assigned to you"
   - "Job J-…: opening/closing reading missing"
   - "Cash not handed over"
+  - "Cash transfer to acknowledge" / "Cash float to acknowledge"
+  - "Remittance overdue"
+  - "Daily report missing" for your machines
   - Tracking alerts on your machines
 
-Tap a notification to open the related job, expense or Money screen. Use **Mark all as read** to clear the unread badge. Offline, you see the notifications saved on the phone.
+Tap a notification to open the exact record: a transfer or float waiting for you opens its acknowledge screen, a request to keep cash opens its status screen, an overdue remittance opens the Money tab, and a machine notification opens the machine. Others open the related job, expense or Money screen. Use **Mark all as read** to clear the unread badge. Offline, you see the notifications saved on the phone.
 
 ### A11. Account menu
 
@@ -426,6 +483,59 @@ Tap the person icon (top-left of the first screen of each tab):
 - **Notifications on this phone**: shows **On**, **Off — allow notifications in Settings**, or **Not registered yet** (tap **Turn on**).
 - **Change password**: opens the secure Asseta sign-in page. You need a connection, and you stay signed in. *What you'll see:* "Password changed."
 - **Sign out**: asks **Sign out?** first, and warns you if items are not synced.
+
+### A12. Daily readings, baselines and corrections
+
+These buttons appear when your company uses engine-hour accountability. Asseta accounts for every hour the engine runs, including hours outside jobs, so the meter must be read regularly.
+
+**Record a daily reading** (for example at the end of each working day):
+
+1. **Jobs → My machines** → tap the machine → **Record daily reading**.
+2. Take the photo and check the number, as for a job reading. "A daily reading outside a job keeps the machine's engine hours accounted for."
+3. Tap **Save**.
+
+If your company requires a daily report, a machine that worked without a reading by the cut-off hour is flagged **Daily report missing**, and you get a notification.
+
+**Propose a meter baseline** (the machine's approved starting reading):
+
+1. **Jobs → My machines** → tap the machine → **Propose meter baseline**.
+2. Photograph the meter, check the reading, add a **Note (optional)** and tap **Save**.
+
+"Someone else approves the baseline before it counts." If your company requires it, jobs on that machine cannot start until the baseline is approved.
+
+**Propose a correction** of a wrong reading:
+
+1. Open the reading (**Readings** tab) and tap **Propose a correction**. A reading can be corrected only once the server has it and still counts it.
+2. Take the corrected reading with a photo and write the **Reason for the correction** (at least 10 characters).
+3. Tap **Save**.
+
+"The corrected reading replaces the old one only after someone else approves it." The original stays on record and shows **Superseded** once replaced.
+
+### A13. Sell customer hours and request transfers
+
+These buttons appear when your company sells prepaid hours. A customer buys hours **for one specific machine**. The hours can be used only after the office verifies the payment, or approves credit.
+
+**Sell customer hours:**
+
+1. **Money** tab → **+** → **Sell customer hours**.
+2. **Customer**: choose **Registered** and pick the **Customer**, or **Walk-in** and enter the **Customer name** and **Phone (optional)**. "The office gives a walk-in customer a code. A phone number helps find them again."
+3. **Hours**: choose the **Machine** and enter the **Hours**. "The price comes from your company's rate card and any approved discount." You never type a price.
+4. **Payment**: choose **Paid now** or **Not paid yet**.
+   - **Paid now**: choose **Cash**, **Bank** or **Mobile money**, and enter the **Amount received**, the **Reference (required for bank and mobile money)** and **Received**. If you record for a colleague, choose them under **Cash held by**. "Hours become available only after someone else verifies this payment."
+   - **Not paid yet**: "The hours stay inactive until a payment is verified or credit is approved by the office."
+5. Optionally add **Payment evidence (optional)**: tap **Photograph evidence** to photograph a receipt or mobile-money screenshot. It is evidence only; it is not proof that the company has the money.
+6. Tap **Save**.
+
+This works offline. The sale is sent at the next sync and the office gives it a purchase number (HP-…). Cash you take is in your custody as claimed money until the office verifies it.
+
+**Request an hours transfer** when the machine the hours were bought for cannot do the work:
+
+1. **Money** tab → **+** → **Request hours transfer**.
+2. Choose the **Purchase** ("<number> · <hours> h left"), check **From machine**, and choose the **To machine**.
+3. Enter the **Hours to move**, choose a **Reason category** if asked, and write the **Reason**.
+4. Tap **Save**.
+
+"Someone else approves the transfer before the hours move." The purchase list appears after you connect once.
 
 ---
 
@@ -515,14 +625,19 @@ Lower on the page you see the job's details (rate, minimum hours, standby terms,
 
 ### B3. Readings, Fuel, Expenses, Cash pages
 
-- **Field work → Readings**: your readings with filters for **State** and **Reading** (Opening/Closing). Click a reading to see its photo, GPS, findings and the office's review note, and **Open job**.
+- **Field work → Readings** ("Your meter readings (job and daily), how the policy judged them, and any review notes"): filters for **State** and **Reading** (**Opening**, **Closing**, **Daily (no job)**). Click a reading to see its photo, GPS, findings and the office's review note, **Open job**, and **Propose correction**. The buttons **Record daily reading** and **Propose baseline** work as in [A12](#a12-daily-readings-baselines-and-corrections); the browser does not read the meter, so type the value from the photo.
 - **Field work → Fuel**: your fuel events. Click **Record fuel** to add one.
 - **Field work → Expenses**: grouped into **Waiting for approval**, **Rejected** and **Approved**, with the **Office note**. Click **Submit expense** to add one.
 - **Field work → Cash**:
   - Your custody per currency and **Today's reconciliation**, using the same calculation as the phone.
   - Tabs **My collections** and **My handovers**, with status and office notes.
   - **Record cash collection**. Three steps: Collection, Details, then Review. Choosing a job fills its customer. Afterwards you see: "Cash collection recorded; it is claimed until the office verifies it."
-  - **Hand over cash**. Afterwards you see: "Handover recorded; it is claimed until the office verifies it."
+  - **Remit cash** (hand over cash). Afterwards you see: "Remittance recorded; it is awaiting confirmation until the office counts it."
+  - With the accountability controls on, the page also shows the tabs **My remittances**, **Transfers**, **Floats** and **Keep cash requests**, and your custody card shows **Sent, not yet acknowledged (still held)**, **Incoming, not yet acknowledged**, **Floats awaiting acknowledgement** and **Approved to keep (retention)**. Every figure in **Today's reconciliation** can be clicked to see the transactions behind it.
+  - If you may record for others, **Record cash collection** asks **Collected by (custodian)** and **Remit cash** asks **Handed over by (custodian)**. Leave them empty for your own cash.
+  - On **Transfers**, use **Record transfer** (**Received by (receiver)**, **Amount handed over**) and **Acknowledge / dispute** on a transfer sent to you (**Acknowledge (cash received)** with the **Amount actually received**, or **Dispute (not received)** with a note). Floats are acknowledged the same way on **Floats**.
+  - On **Keep cash requests**, use **Request to keep cash** (**Amount to keep**, **Why the cash is kept**, **Valid until (optional)**, then **Send request**).
+- **Field work → Customer hours** ("Record hours a customer buys (with the cash you collect) and request transfers"): **Record customer hours** opens the same steps as [A13](#a13-sell-customer-hours-and-request-transfers) (**Customer**, **Hours**, **Payment**, then **Record purchase**), and **Request transfer** asks for the purchase, **To machine**, **Hours** and **Reason**. "Cash you record stays in your custody as claimed until the office verifies it; only then do the customer's hours activate."
 
 ---
 
@@ -561,6 +676,11 @@ Each finding is shown as **Waiting for review**, **Explained** (a legitimate rea
 | Expense | Pending approval → Approved / Rejected (small amounts are approved automatically) |
 | Cash collection, handover | Awaiting verification (web: "Claimed (unverified)") → Verified / Rejected |
 | Meter reset request | Pending → Approved / Rejected |
+| Cash transfer | Awaiting acknowledgement → Acknowledged / Disputed |
+| Float (when acknowledgement is required) | Awaiting acknowledgement → Acknowledged / Disputed |
+| Request to keep cash | Waiting for approval (web: "Awaiting decision") → Approved / Rejected |
+| Baseline, correction proposal | Awaiting decision → Approved / Rejected |
+| Hours purchase | Awaiting payment → Partly active → Active → Used up; Expired; Cancelled |
 
 ### Sync status (phone)
 
@@ -583,6 +703,9 @@ Each finding is shown as **Waiting for review**, **Explained** (a legitimate rea
 - **Hand over cash regularly** and keep the deposit slip or receipt number as your reference.
 - **Don't sign out with unsent items** unless you must.
 - **Read your Inbox daily.** It is where office decisions and reminders arrive.
+- **Acknowledge cash you receive straight away**, with the amount you actually counted.
+- **Take the daily reading** on every machine that worked, before the cut-off.
+- **Sell hours for the right machine.** Hours bought for one machine can move only through an approved transfer.
 
 ## Troubleshooting and FAQ
 
@@ -630,6 +753,21 @@ Your administrator revoked this phone (for example, it was reported lost), and i
 
 **"The photo is not on this phone. Connect to view it."**
 Older photos are fetched from the server when you are online.
+
+**"Sell customer hours" or "Transfer cash to a colleague" is missing.**
+Your company has not switched that control on, or your role does not include it. If the app says "Connect once so this phone can load your company's rules for this.", sync once while online.
+
+**"Walk-in customers are turned off for your company."**
+Choose a registered customer, or ask the office to register the customer.
+
+**"Only {hours} h are left on this purchase."**
+You asked to move more hours than remain. Enter a smaller number.
+
+**"This item is no longer waiting for you."**
+The transfer or float was already answered (perhaps by a recorder on your behalf) or withdrawn.
+
+**"A reading can be corrected once the server has it."**
+Sync first, then propose the correction.
 
 **I forgot my password.**
 Ask your company's administrator (normally the owner) to reset it. You will then set a new password at your next sign-in.

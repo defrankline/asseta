@@ -13,7 +13,10 @@ You work in the **web console** at <https://asseta.co.tz> on a laptop or desktop
 - **Bill customers.** Turn completed, billing-ready jobs into hire invoices. Issue them, print them and void them if needed.
 - **Record customer payments** and allocate them to invoices. Payments can be cash, bank transfer or mobile money, and can be partial or advance.
 - **Verify or reject** payments and cash handovers that other people recorded.
-- **Manage supervisor cash.** Issue cash floats, record opening balances, and run the daily cash reconciliation for each supervisor.
+- **Manage custodians' cash.** Issue cash floats, record opening balances, confirm remittances with the amount actually received, and run the daily cash reconciliation for each custodian (any staff member who holds cash, with or without a login).
+- **Follow the cash chain** (when your company switches it on): transfers between custodians and their acknowledgement, cash differences (variances) and write-offs, requests to keep cash (retentions), custody adjustments, overdue remittances and the cash reason lists.
+- **Customer hours**: link payments to hours purchases, verify those payments (which activates the hours), and activate hours on approved credit.
+- **See the Accountability dashboard.**
 - **Track expenses and fuel.** See every field expense and fuel event, manage expense categories, and record your own expenses and fuel purchases.
 - **Report on profitability** by machine, job or customer for any period.
 - **Look up** jobs, machines, customers and staff (read-only) so invoices and cash records show real names.
@@ -24,7 +27,9 @@ What you cannot do as an accountant:
 
 - You cannot approve expenses. Expenses above the approval limit go to an owner or manager in **Approvals**.
 - You cannot create or approve jobs, change machines, or review meter exceptions.
-- You cannot verify a payment or handover that you recorded yourself (see [Segregation of duties](#segregation-of-duties)).
+- You cannot verify a payment or handover that you recorded yourself, or decide a write-off, retention or adjustment you proposed (see [Segregation of duties](#segregation-of-duties)).
+
+Approvals follow permissions, not job titles. In the example role set-up the accountant holds the cash approval permissions (write-offs, retentions, custody adjustments); your company may give them to others.
 
 ## Where you work
 
@@ -32,12 +37,16 @@ These are your side-menu groups in the web console. The exact menus depend on yo
 
 | Menu group | Menus | Used for |
 |---|---|---|
-| Field work | Fuel, Expenses, Cash | Your own fuel events, expenses and cash collections, the same screens a supervisor uses |
+| Overview | Accountability | The accountability dashboard |
+| Field work | Fuel, Expenses, Cash, Customer hours | Your own fuel events, expenses and cash collections, the same screens a supervisor uses |
 | Operations | Jobs, Customers, Staff | Looking up jobs, customers (balances, statements) and staff (read-only) |
 | Fleet | Machines | Looking up machines (read-only) |
-| Finance | Hire finance, Expenses & fuel, Profitability | Your main daily work |
+| Customer hours | Hours purchases, Balances, Hours ledger, Work allocations, and the other hours pages (read) | Linking payments to purchases and activating hours on credit |
+| Finance | Hire finance, Cash custody, Expenses & fuel, Profitability | Your main daily work |
 | Risk & review | Investigations | Reading investigation cases (read-only) |
 | Administration | Subscription, Notifications, My access | Your company's Asseta subscription, your inbox, your sign-in settings |
+
+**Hire finance** holds **Hire invoices** and **Customer payments**. Everything about cash held by people is under **Finance → Cash custody** ("Cash held by custodians, transfers between them, remittances to the company and their reconciliation"). Its tabs are **All custodians**, **Custody**, **Transfers**, **Floats**, **Remittances**, **Overdue remittances**, **Variances**, **Retentions**, **Adjustments**, **Reconciliation** and **Reason lists**. Old links to the cash tabs of Hire finance open Cash custody.
 
 **Tip:** Many lists have an **Export** button that downloads CSV or PDF. You will find it on the Jobs list, Expenses, Machines, Cash custody and Reconciliation, among others.
 
@@ -63,7 +72,17 @@ The person who records or requests something cannot also decide it:
 - If you recorded a cash handover, someone else must verify it.
 - If you submitted an expense, someone else must approve it.
 
-If you try anyway, Asseta shows: *"The person who recorded or requested this cannot decide it. Ask another authorised colleague."*
+If you try anyway, Asseta shows: *"The person who recorded or requested this cannot decide it. Ask another authorised colleague."* On your own records the menu item reads, for example, **Confirm / reject (Someone else must decide your own request)** and is disabled. The attempt is recorded as a security event for oversight.
+
+### Field cash is not company money until confirmed
+
+- Cash a customer pays in the field is in a **custodian's** hands, not the company's.
+- A **transfer** between two custodians moves accountability between them; it is never a company receipt.
+- Only a **remittance** you confirm, at the **amount actually received**, is company money. A difference opens a **variance** for review.
+
+### Opening a record directly
+
+Notifications about a transfer, float, remittance, overdue remittance, variance, retention or custody adjustment open that record's own page, with its history (who recorded, acknowledged, proposed and decided it, and when). From there you can act on it.
 
 ### Hire finance is separate from your Asseta subscription
 
@@ -151,19 +170,19 @@ Rules Asseta checks for you:
    - **Balance due**
 3. The **Statement** tab shows a period's **Opening balance**, each debit and credit, and the **Closing balance**. Choose the period with **From** and **To**, and the **Statement currency**.
 
-### 6. See all supervisors' cash at once
+### 6. See all custodians' cash at once
 
-1. Go to **Finance → Hire finance → All supervisors**.
+1. Go to **Finance → Cash custody → All custodians**.
 2. Choose the **As of** day and, optionally, the **Currency**.
 3. Each row shows the **Supervisor**, **Currency**, **Outstanding accountability**, **Claimed handovers (not yet verified)**, **Expenses pending approval** and **As of**.
 
-Outstanding = floats + collections − approved cash expenses − verified handovers, at the end of the chosen day. Claims do not reduce it until verified. Click a row to open that supervisor's **Cash custody**.
+Outstanding = floats + collections − approved cash expenses − verified handovers, at the end of the chosen day. Claims do not reduce it until verified. Click a row to open that person's **Custody** tab.
 
 ### 7. Issue a cash float to a supervisor
 
-1. Go to **Finance → Hire finance → Cash custody**.
-2. Choose the **Supervisor**.
-3. Click **Record float**. The **Record cash float** dialog opens.
+1. Go to **Finance → Cash custody → Custody**.
+2. Choose the **Custodian**.
+3. Click **Record float**. The **Record cash float** dialog opens. Choose the **Supervisor (custodian)**.
 4. Choose the **Entry** type:
    - **Float issued**: cash the office gives the supervisor.
    - **Opening balance**: cash the supervisor already held when tracking started.
@@ -172,40 +191,54 @@ Outstanding = floats + collections − approved cash expenses − verified hando
 
    *What you'll see:* "Float recorded." The supervisor's custody card updates.
 
-Each supervisor's custody card (one per currency) shows:
+Each custodian's custody card (one per currency) shows:
 
-- **Outstanding accountability**: what the supervisor should be holding.
+- **Outstanding accountability**: what the custodian should be holding.
 - **Claimed handovers (not yet verified)**
 - **Expenses pending approval**
+- With the controls on: **Sent, not yet acknowledged (still held)**, **Incoming, not yet acknowledged**, **Floats awaiting acknowledgement** and **Approved to keep (retention)**.
 
-### 8. Verify a cash handover
+If your company has **Receiver acknowledges floats** on, the float counts in the custodian's cash only once they acknowledge it (see [Task 15](#15-cash-transfers-and-float-acknowledgements)).
 
-When a supervisor hands cash to the office, they record a handover in their app or the web console. It arrives as **Claimed (unverified)**.
+### 8. Confirm a remittance (cash handover)
+
+When a custodian hands cash to the company, they (or a recorder on their behalf) record a **remittance**, called a handover in the apps. It arrives **Awaiting confirmation**. "Remittances awaiting confirmation do not reduce a custodian's outstanding cash until someone other than the recorder confirms the amount received."
 
 1. Count the cash, or check the bank deposit slip.
-2. Go to **Finance → Hire finance → Handovers**. Filter **Handover status** to Claimed.
-3. Click **Verify / reject** on the handover. The **Verify cash handover** dialog opens.
-4. Verify it if the money matches. Reject it with a note if it does not.
+2. Go to **Finance → Cash custody → Remittances**. It shows **Awaiting confirmation** by default; you can switch to **Confirmed**, **Rejected** or **All**, and filter by **Custodian**. The columns include **Declared**, **Received** and **Short of full balance**.
+3. Click **Confirm / reject** on the remittance. The **Confirm remittance** dialog opens.
+4. Choose the **Decision**:
+   - **Confirm (cash counted)**: enter the **Amount received**, the amount you actually counted.
+   - **Reject (not received)**: a **Note / reason** is required.
+5. Click **Record decision**.
 
-   *What you'll see:* "Handover verified." or "Handover rejected." The supervisor sees your note in their **Office note** column.
+   *What you'll see:* "Remittance confirmed." or "Remittance rejected." The custodian sees your note in their **Office note** column.
+
+"Enter the amount actually received; a difference from the declared amount opens a variance. A rejected remittance never reduces the custodian's outstanding cash." If your company expects the full balance to be remitted (**Remit the full balance**), a remittance that leaves cash not covered by an approved retention is flagged as a **Partial remittance**, and the people who confirm remittances are notified.
 
 Handovers can also be confirmed (verified) or disputed (rejected) in the Asseta Owner app by people with verify permission, often the owner when away from the office. The result is the same, and the same segregation-of-duties rule applies.
 
-You can also record a handover on someone's behalf (**Record handover** on the Cash custody tab, with **Handed over by (custodian)**). This needs office cash permission. Another person must then verify it.
+You can also record a remittance on someone's behalf: **Record remittance** on the **Custody** tab, with **Handed over by (custodian)**. This needs office cash permission (or your company's permission for recorders). Another person must then confirm it.
 
 ### 9. Run the daily cash reconciliation
 
-1. Go to **Finance → Hire finance → Reconciliation**.
-2. Choose the **Supervisor**, the **Currency** and the period (**From** / **To**).
-3. Each day shows the calculation:
+1. Go to **Finance → Cash custody → Reconciliation**.
+2. Choose the **Custodian**, the period (**From** / **To**) and the **Currency**.
+3. The card for the last day shows the calculation:
 
-   **Opening + floats + collections − approved cash expenses − verified handovers = outstanding**
+   **Opening + floats + collections + transfers received − transfers sent − approved cash expenses − confirmed remittances ± approved adjustments − written off = outstanding**
 
-4. Below the main figure, Asseta lists what is still uncertain:
-   - **Unverified collections** (included above)
-   - **Claimed handovers** awaiting verification
-   - **Pending expenses** (cash expenses pending approval)
-   - **Outstanding if claims verified**: what the outstanding would be once the claims are confirmed.
+4. Beside it, under **Claims not yet counted (shown separately)**, Asseta lists what is still uncertain:
+   - **Remittances awaiting confirmation**
+   - **Cash expenses pending approval**
+   - **Collections not yet verified (included above)**
+   - **Sent, not yet acknowledged (still held)** and **Incoming, not yet acknowledged**
+   - **Floats awaiting acknowledgement**
+   - **Adjustments awaiting decision**
+   - **Outstanding if claimed remittances are confirmed**
+5. The daily table below shows the same columns for each day.
+
+**Drill down to the evidence.** Click any figure (except Opening and the totals) to open the transactions behind it for that day. Each row shows **When**, **Record**, **Status**, **Other custodian**, **Recorded by**, **Note** and **Amount**, and the record links to its own page. Use **Copy id** when you need a record's id, for example for a reversal.
 
 **How to read it:** if **Outstanding** is higher than the supervisor says they hold, first verify any pending handovers and ask an approver to decide pending expenses. Then compare again. Use **Export** to keep a CSV or PDF copy.
 
@@ -236,7 +269,7 @@ You have the same **Field work** screens as a supervisor:
 
 - **Field work → Expenses → Submit expense**
 - **Field work → Fuel → Record fuel**
-- **Field work → Cash → Record cash collection** / **Hand over cash**
+- **Field work → Cash → Record cash collection** / **Remit cash**
 
 The steps are described in the [Supervisor manual](03-supervisor.md#working-from-a-laptop-web-console). The same rules apply: your own submissions must be approved or verified by someone else.
 
@@ -251,6 +284,72 @@ Revenue means **issued invoices, excluding tax**. Voided invoices reverse their 
 ### 14. Check the company's Asseta subscription
 
 Go to **Administration → Subscription** to see your company's subscription with the Platform Owner, the billable machines and the Platform Owner's invoices to your company. This is read-only for you.
+
+### 15. Cash transfers and float acknowledgements
+
+**Transfers** are cash handed from one custodian to another in the field, for example an operator to a manager. They are recorded in the apps or in **Finance → Cash custody → Transfers** (**Record transfer**).
+
+- With **Receiver acknowledges transfers** on (your company policy), a transfer stays **Awaiting acknowledgement** and the cash stays in the sender's custody ("in transit") until the receiver acknowledges the amount actually received. A recorder who is the receiver acknowledges by recording it, if your policy allows.
+- To answer on the receiver's behalf, click **Acknowledge / dispute**, count the cash, choose **Acknowledge (cash received)** with the **Amount actually received**, or **Dispute (not received)** with a **Note**, and click **Record answer**. The person who recorded the transfer cannot answer it: "You recorded this transfer; the receiver must answer it."
+- A different amount opens a variance: "Transfer acknowledged; the difference was opened as a variance." A disputed transfer stays with the sender.
+
+**Floats** work the same way on the **Floats** tab when **Receiver acknowledges floats** is on (filter **Awaiting acknowledgement** / **All**). The person who issued a float cannot answer it.
+
+### 16. Cash differences (variances) and write-offs
+
+A **variance** opens automatically whenever the amount received differs from the amount declared on a transfer, remittance or float. It names the **Accountable custodian**. A variance is a fact to follow up, not an accusation. If your policy sets **Open a case for differences above**, larger differences also open an investigation, and the people with variance permission get a "Cash difference to review" notification.
+
+1. Go to **Finance → Cash custody → Variances** (shows **Open** by default). Filter by **From** (**Transfer**, **Remittance**, **Float**) or **Custodian**.
+2. To close one, click **Resolve**. Choose the **Outcome**: **Recovered**, **Corrected error** (or **Written off**, only if your company does not require write-off approval and you hold the write-off permission). Choose a **Reason (from the tenant's list)** if your company keeps one, write the **Explanation**, and click **Resolve**.
+3. To write the difference off, click **Propose write-off**, choose the **Write-off reason (from the tenant's list)**, write the **Explanation**, and click **Propose write-off**. *What you'll see:* "Write-off proposed; someone else with the write-off permission decides."
+4. A colleague with the write-off permission clicks **Approve / reject write-off**, chooses **Approve** or **Reject** with a **Note / reason**, and clicks **Record decision**. "Approving resolves the variance as written off and lowers the custodian's expected balance by the difference. Rejecting returns it to open."
+
+### 17. Requests to keep cash (retentions)
+
+Normally the whole balance is remitted. A custodian who needs to keep some cash asks for a **retention** (from the apps, **Field work → Cash → Keep cash requests**, or **Finance → Cash custody → Retentions → Request to keep cash**). Requests made offline arrive when the phone syncs.
+
+1. Go to **Finance → Cash custody → Retentions** (shows **Awaiting decision** by default).
+2. Click **Approve / reject**. Check the **Custodian**, **Amount to keep**, **Reason** and **Requested by**.
+3. Choose **Approve** or **Reject**, write a note (required to reject) and click **Record decision**.
+
+*What you'll see:* "Retention approved." "An approved retention lets the custodian keep this amount instead of remitting it; the full-remittance check allows for it." If your policy has **Approved retentions allowed** off, the tab says "Your organisation does not allow keeping cash: everything collected is remitted."
+
+### 18. Custody adjustments
+
+Cash records are never edited or deleted. A mistake is corrected with a **custody adjustment** that a second person approves.
+
+1. Go to **Finance → Cash custody → Adjustments** and click **Propose adjustment**.
+2. Choose the **Custodian** and the **Kind**: **Adjustment** or **Reversal of a record**.
+3. Enter the **Amount** ("Positive raises the expected balance; negative (e.g. -5000) lowers it.") and **Currency**.
+4. Choose a **Reason (from the tenant's list)** if your company keeps one, and write the **Reason**.
+5. For a reversal, choose the **Record reversed** type and paste its **Record id** ("Copy it from the reconciliation drill-down.").
+6. Click **Propose adjustment**. *What you'll see:* "Adjustment proposed; it counts once someone else approves it."
+
+A colleague with the adjustment permission clicks **Approve / reject** and records the decision. "An approved adjustment changes the custodian's expected balance by the signed amount; a rejected one never counts."
+
+### 19. Overdue remittances
+
+If your company sets a **Daily remittance cut-off** (Cash custody policy), Asseta checks every day, after that local hour, which custodians still hold cash they have not remitted. Each one is flagged once per day, and a "Remittance overdue" notification goes to the people who confirm remittances, the custodian, and whoever recorded the cash for them.
+
+Go to **Finance → Cash custody → Overdue remittances** ("Custodians still holding cash not remitted after your organisation's daily cut-off. Flags appear only when a remittance cut-off is set in the cash custody policy."). Filter by **Custodian**, **From day** and **To day**. Each row shows the **Day**, **Custodian**, **Cut-off**, **Flagged** time and **Cash still held**. Use **Open custody** to see the custodian's cash.
+
+### 20. Cash reason lists
+
+**Finance → Cash custody → Reason lists** holds your company's reasons for **Variance**, **Write-off**, **Retention** and **Adjustment**. Click **New reason**, choose the **List**, enter a **Label** and **Description (optional)**, and click **Create**. Once a list has entries, people must choose from it; "Without a list, people explain variances, write-offs, retentions and adjustments in free text." A deactivated reason "can no longer be chosen; records that used it keep it."
+
+### 21. Customer hours: payments and credit
+
+When your company sells prepaid customer hours, finance makes the hours usable:
+
+- **Verify the payment.** A payment linked to an hours purchase is verified like any other ([Task 3](#3-verify-or-reject-a-payment)). Once verified, the purchase's hours activate (partly, for a part-payment, if your policy allows). Rejecting a payment reverses hours not yet used.
+- **Link a payment to a purchase.** Open the purchase (**Customer hours → Hours purchases**) and click **Allocate payment**. See the [Manager manual, Task 16](02-manager-dispatcher.md#16-record-an-hours-purchase-and-link-its-payment).
+- **Activate on credit.** For a customer with an approved credit arrangement, click **Activate on credit** on the purchase, enter the **Hours to activate** and the **Reason**. It is allowed only within the customer's available credit.
+
+You cannot verify a payment you recorded yourself, including one recorded with an hours sale.
+
+### 22. Accountability dashboard
+
+**Overview → Accountability** shows the cash tiles that matter to finance: **Cash per custodian**, **Cash awaiting acknowledgement or confirmation** (including **Remittances overdue today**), **Payments awaiting confirmation**, **Open discrepancies** and **Outstanding approvals**. Click a line to open the matching list. See the [Tenant Owner manual, Task 14](01-tenant-owner.md#14-accountability-dashboard).
 
 ---
 
@@ -269,6 +368,12 @@ Go to **Administration → Subscription** to see your company's subscription wit
 | | Approved | Counts as cost (and against custody if paid from cash) |
 | | Rejected | Kept as evidence; never counts as cost or custody |
 | Job (for billing) | Billing ready / Not billing ready | Not ready means readings are missing or blocking exceptions are not yet reviewed |
+| Remittance | Awaiting confirmation (Claimed) | Recorded; does not reduce custody yet |
+| | Confirmed (Verified) | Counted; reduces custody by the amount received |
+| | Rejected | Not received; never reduces custody |
+| Cash transfer, float acknowledgement | Awaiting acknowledgement / Acknowledged / Disputed | Floats show **Not required** when your policy does not ask for acknowledgement |
+| Variance | Open → Write-off proposed → Resolved | Outcomes: Recovered, Corrected error, Written off |
+| Retention, custody adjustment | Awaiting decision → Approved / Rejected | Only approved ones count |
 
 ## Good practice
 
@@ -277,6 +382,8 @@ Go to **Administration → Subscription** to see your company's subscription wit
 - **Never edit around a mistake.** Void the invoice or reject the payment, and record it again correctly. Asseta keeps the full trail.
 - **Keep different currencies apart.** Asseta never adds TZS and USD together, so check the currency before saving.
 - **Export month-end reports** (Reconciliation, Cash custody, Expenses) for your records.
+- **Always enter the amount you counted** when confirming a remittance or acknowledging a transfer, even when it differs. A recorded difference is better than a hidden one.
+- **Resolve variances with a clear explanation**, and keep at least two people with the write-off permission.
 
 ## Troubleshooting and FAQ
 
@@ -300,6 +407,18 @@ Check the **Claimed handovers** and **Pending expenses** lines. Verify the hando
 
 **"Your login is not linked to a staff record; pick the staff member explicitly."**
 To record cash in your own custody, your login must be linked to a staff record. Ask the owner to link it in **Operations → Staff** (App login), or choose the staff member explicitly.
+
+**I can't find All supervisors, Handovers or Reconciliation in Hire finance.**
+They moved to **Finance → Cash custody** (All custodians, Remittances, Reconciliation).
+
+**"You recorded this transfer; the receiver must answer it."**
+Only the receiver, or a recorder on their behalf, may acknowledge a transfer.
+
+**"This tenant requires write-offs to be proposed and then approved by someone else."**
+Use **Propose write-off**; a colleague with the write-off permission decides it.
+
+**A figure in the reconciliation looks wrong.**
+Click it to see the transactions behind it. Correct a mistake with a custody adjustment ([Task 18](#18-custody-adjustments)), never by editing.
 
 **The page says the company is read-only.**
 Your company's Asseta subscription is restricted. You can view everything but cannot make changes. Contact your account owner.

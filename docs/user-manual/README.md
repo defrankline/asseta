@@ -13,6 +13,7 @@ Asseta helps your company:
 - **Bill customers** for the right hours and follow their payments.
 - Control **fuel, field expenses and cash** held by supervisors.
 - Spot readings, movements and money that **need review**, with the evidence attached.
+- Keep a **chain of accountability** for every customer hour, every engine hour and every amount of cash, with the controls your company switches on (see **Accountability controls** in [Common concepts](#common-concepts)).
 
 Asseta works in three places:
 
@@ -20,7 +21,7 @@ Asseta works in three places:
 |---|---|---|
 | **Web console**, <https://asseta.co.tz> | Everyone with a login | The full system, on a laptop or desktop. Needs an internet connection. |
 | **Asseta Supervisor** app (Android and iPhone) | Field supervisors | Works **offline** and syncs when a connection is available. |
-| **Asseta Owner** app (Android and iPhone) | Owners and managers | Dashboard, fleet map, jobs, alerts and approvals on the go. The boss can approve or create jobs, confirm cash handovers, review exceptions and issue cash floats from far away. Keeps read-only copies for offline viewing. |
+| **Asseta Owner** app (Android and iPhone) | Owners and managers | Dashboard, fleet map, jobs, alerts and approvals on the go. The boss can approve or create jobs, confirm cash handovers, review exceptions and issue cash floats from far away, decide accountability requests and follow the accountability summary. Keeps read-only copies for offline viewing. |
 
 The Android and iPhone versions of each app look and work the same.
 
@@ -109,14 +110,31 @@ A company may show **Read only**. Its Asseta subscription is restricted, and you
 | **Meter reset** | A documented change of the hour meter (replaced or rolled over). It must be approved by someone other than the person who requested it. |
 | **Approval** | A decision by a second person. Examples: an expense above the auto-approval limit, or a job's price. |
 | **Segregation of duties** | Nobody decides their own request. The person who records a payment, handover or expense cannot verify or approve it. |
-| **Custody / cash in hand** | Cash a supervisor is accountable for. **Opening + floats + collections − approved cash expenses − verified handovers = outstanding.** |
+| **Custody / cash in hand** | Cash a supervisor (or any cash custodian) is accountable for. **Opening + floats + collections − approved cash expenses − verified handovers = outstanding.** With the accountability controls on, acknowledged transfers in and out, approved adjustments and the amount actually received on remittances also count. |
 | **Claimed vs verified** | Money recorded by one person is **Claimed (unverified)** until a second person confirms it. Only **Verified** money changes balances. |
 | **Policy** | Your company's rules, for example reading mode (Automatic photo + on-device reading, or Manual), GPS strictness, expense limits and tracking thresholds. Policies are versioned; old records keep the version that applied. |
 | **Offline and sync** | The Supervisor app saves everything on the phone, encrypted, and **syncs** when a connection returns. Nothing is marked synced until the server confirms it, and retries never create duplicates. The Owner app keeps **read-only** copies, clearly marked stale. |
 | **Investigation** | A case grouping related signals for human review. Possible outcomes are **Issue confirmed**, **Unconfirmed** and **Legitimate explanation**. |
 | **Alert** | A tracking event, such as leaving a geofence, moving outside working hours, or a tracker going offline or losing power. Alerts are **Open**, then **Acknowledged**, then **Resolved**. |
-| **Notifications** | Messages in your in-app **inbox** (the bell). Depending on settings and severity, they can also reach you by phone **push**, **SMS** (uses your company's SMS credits) or **e-mail**. Some important ones are required and cannot be switched off. |
+| **Notifications** | Messages in your in-app **inbox** (the bell). Depending on settings and severity, they can also reach you by phone **push**, **SMS** (uses your company's SMS credits) or **e-mail**. Some important ones are required and cannot be switched off. Clicking a notification (or tapping it in an app) opens the exact record it is about, such as a cash transfer, a remittance or a request awaiting your decision. |
 | **Audit log** | A permanent record of who changed what, and when. |
+| **Accountability controls** | Extra checks that let management trace every customer hour, every engine hour and every amount of cash. Each control is **switched on or off by your company's policies** (see [Set company policies](01-tenant-owner.md#3-set-company-policies)). A control that is off keeps the usual behaviour, and its menus and buttons are hidden. |
+| **Approvals by permission** | Every accountability decision (discounts, credit, transfers, baselines, corrections, write-offs, retentions and so on) goes to **whoever holds the matching permission**, whatever their role. The roles in this manual are examples. **Nobody decides their own request.** |
+| **Customer hours (prepaid)** | Hours a customer buys in advance for **one specific machine**. A purchase gets a unique number (HP-…), uses the standard rate card and any approved discount, and is **separate from its payment**. Hours become usable (**activated**) only after the payment is **verified** by another person, or on **approved credit**. |
+| **Walk-in customer** | A customer served without full registration: a name and, optionally, a phone number. Asseta gives them a WALK-… code. |
+| **Hours ledger** | The permanent list of hour movements on each purchase: activated, consumed, moved between machines, expired, reversed. Balances are always worked out from it, never typed in. |
+| **Work allocation** | When a prepaid job is completed, its billable hours are taken from the customer's activated hours for that machine. Hours beyond what is available are not taken; they are flagged as **Hours beyond purchase** for review. |
+| **Meter baseline** | The approved starting hour-meter reading of a machine, proposed by one person and approved by another. Engine-hour reconciliation starts from it. |
+| **Daily reading** | A meter reading taken outside a job (for example at the end of the day), so every engine hour is accounted for. |
+| **Engine-hour reconciliation** | Every engine hour between two accepted readings is either **customer work** (inside a job) or **not yet explained**. Unexplained hours are later explained as approved non-customer work (maintenance, relocation and so on) or an identified difference. Time alone never changes how hours are classified; after a set number of days an investigation is opened instead. |
+| **Cash custodian** | Any staff member who holds company cash, **with or without an Asseta login**. People who may record cash (recorders, such as supervisors and managers) can record collections, transfers and remittances on a custodian's behalf if your company allows it. |
+| **Cash transfer** | Cash handed from one custodian to another in the field. The receiver **acknowledges** the amount actually received. A transfer is never money received by the company. |
+| **Remittance** | Cash handed over to the company (shown in the apps as a **handover**). The office records the **amount actually received**. Only that confirmed amount reduces the custodian's balance. |
+| **Cash difference (variance)** | Opened automatically when the amount declared and the amount received differ. It is resolved with an outcome (recovered, corrected error or written off). A difference is a fact to review, **not an accusation**. |
+| **Retention** | An approved permission for a custodian to keep part of their cash instead of remitting everything. |
+| **Custody adjustment** | A correcting entry on a custodian's cash (a reversal or an adjustment), with a reason, approved by a second person. Records are never edited or deleted. |
+| **Security event** | A refused attempt: someone tried an action without the permission, or tried to decide their own request. Recorded for oversight, not as a verdict. |
+| **Sync conflict** | A field record sent offline that the server could not apply (for example two people using the same remaining hours). It is kept with its evidence for the office to resolve. |
 | **Managed service** | An arrangement, with your written consent, under which the Platform Owner operates your account for you. Everything they do is recorded and visible to you, and you can revoke it. |
 
 ## Getting help
