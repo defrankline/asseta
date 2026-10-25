@@ -349,7 +349,7 @@ The cash is added to your custody (or your colleague's) once the server accepts 
 
 **Your custody goes down only when finance verifies the handover.** A handover shows **Awaiting verification** until then, and **Verified** or **Rejected** after. If it is rejected, read the office note and use **Hand over cash again** if needed.
 
-The office counts the cash and records the **amount actually received**. Only that amount reduces your custody. If it differs from what you declared, a **cash difference** is opened for the office to review; this is a check, not an accusation. If your company expects the **full balance** to be handed over, handing over less than you hold (without an approved request to keep cash) is flagged as a partial remittance. If your company sets a **daily remittance cut-off**, cash still held after that hour is listed as an overdue remittance, and you get a "Remittance overdue" notification.
+The office counts the cash and records the **amount actually received**. Only that amount reduces your custody. If it differs from what you declared, a **cash difference** is opened for the office to review; this is a check, not an accusation. If your company expects the **full balance** to be handed over, handing over less than you hold (without an approved request to keep cash) is flagged as a partial remittance. If your company sets a **daily remittance cut-off**, cash still held after that hour is listed as an overdue remittance, and you get a "Remittance overdue" notification. Some of these cash controls may be switched off by your company; then their buttons do not appear.
 
 #### Transfer cash to a colleague
 
@@ -473,7 +473,7 @@ The **Inbox** tab has two parts:
   - "Daily report missing" for your machines
   - Tracking alerts on your machines
 
-Tap a notification to open the exact record: a transfer or float waiting for you opens its acknowledge screen, a request to keep cash opens its status screen, an overdue remittance opens the Money tab, and a machine notification opens the machine. Others open the related job, expense or Money screen. Use **Mark all as read** to clear the unread badge. Offline, you see the notifications saved on the phone.
+Tap a notification to open the exact record: a transfer or float waiting for you opens its acknowledge screen, a request to keep cash opens its status screen, an overdue remittance opens its **Overdue remittance** screen (**Cash held by**, **Not remitted**, **Day**, **Cut-off**, **Flagged**, and "Remit this cash to the office as soon as you can."; offline it opens the Money tab), and a machine notification opens the machine. Others open the related job, expense or Money screen. Use **Mark all as read** to clear the unread badge. Offline, you see the notifications saved on the phone.
 
 ### A11. Account menu
 

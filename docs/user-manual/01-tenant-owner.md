@@ -62,7 +62,7 @@ By default the owner role holds every permission, so you can also make every dec
 | Risk & review | Exceptions, Meter resets, Investigations, Insights, Security events, Sync conflicts |
 | Administration | Policies, Users & roles, Audit log, Subscription, Managed service, Notifications, My access |
 
-When a control is switched off in your policies, its menus are left out. For example, with **Customer hours switched on** set to No, the whole **Customer hours** group and **Field work → Customer hours** disappear. Opening such a page by its address shows "Customer hours is not enabled for your company".
+When a control is switched off in your policies, its menus are left out. For example, with **Customer hours switched on** set to No, the whole **Customer hours** group and **Field work → Customer hours** disappear. Opening such a page by its address shows "Customer hours is not enabled for your company". **Engine-hour controls switched on** works the same way for the **Engine hours** group. With **Cash custody controls switched on** set to No, **Finance → Cash custody** stays (custodians, custody, floats, remittances and reconciliation), but its Transfers, Overdue remittances, Variances, Retentions, Adjustments and Reason lists tabs disappear.
 
 The top bar has:
 
@@ -200,14 +200,16 @@ The most important settings:
 | | **Cancel the rest of a partly used purchase** | Whether the unused part of a purchase can be cancelled once some hours are used |
 | | **Highest discount**, **Credit arrangements allowed** | The largest discount that can be proposed, and whether customers can get credit |
 | | **A reason from the tenant list is required** | Whether requests must pick a reason from your [reason lists](#switching-on-the-controls) |
-| Engine hours | **Approved meter baseline before a job starts** | Off: jobs start without an approved baseline (reconciliation still begins at the baseline) |
+| Engine hours | **Engine-hour controls switched on** | The master switch for engine-hour accountability. Off: engine-hour pages, baselines, corrections, daily readings and flags are hidden; job meter readings work as before |
+| | **Approved meter baseline before a job starts** | Off: jobs start without an approved baseline (reconciliation still begins at the baseline) |
 | | **Daily report required**, **Daily report cut-off** | A working machine needs a meter reading every day by the cut-off hour (local time) |
 | | **Open an investigation for unexplained hours after** | Days after which unexplained hours open an investigation (empty = never). Time never changes how the hours are classified |
 | | **Flag unexplained hours above** | Ignore very small unexplained amounts |
 | | **Classifications need a second person**, **Reading corrections need a second person** | Whether explanations of engine hours and meter corrections wait for a second person |
 | | **Count readings still under review** | Whether provisional readings count in the engine-hour ledger |
 | | **Refuse overlapping job intervals**, **Refuse overlapping work-log entries** | Stop the same engine hour being counted twice |
-| Cash custody | **Recorders record for any custodian** | Field recorders may record cash for staff without a login (otherwise own custody only) |
+| Cash custody | **Cash custody controls switched on** | The master switch for the cash controls. Off: transfers, acknowledgements, variances, retentions, adjustments, cash reasons and the remittance cut-off are hidden; collections, floats, remittances and reconciliation stay |
+| | **Recorders record for any custodian** | Field recorders may record cash for staff without a login (otherwise own custody only) |
 | | **Receiver acknowledges transfers**, **Recording a transfer you receive acknowledges it** | Whether a cash transfer waits for the receiver to confirm the amount |
 | | **Receiver acknowledges floats** | Whether a float waits for the receiver to confirm it |
 | | **Remit the full balance** | A remittance leaving unretained cash with the custodian is flagged |
@@ -672,8 +674,8 @@ Approvals go to **whoever holds the permission**, not to a fixed role. Before sw
 2. **Register every cash custodian** in **Operations → Staff**, including operators who hold cash but have no login. They do not need a login to be a custodian.
 3. **Fill in your reason lists**: **Customer hours → Reason lists**, **Engine hours → Engine-hour reasons**, and **Finance → Cash custody → Reason lists**. To make people always pick a customer-hours reason, switch on **A reason from the tenant list is required**. Cash reasons become required once a list has entries; engine-hour explanations always need a category or reason.
 4. **Customer hours** policy: check **Customer hours switched on**, **Walk-in customers allowed**, **Billing methods allowed on jobs** and **Default billing of new jobs**, **Hours activate from**, **Unused hours expire after**, **When a prepaid job has no hours left**, **Highest discount** and **Credit arrangements allowed**. Make sure every machine category has a rate card.
-5. **Engine hours** policy: have supervisors propose a **meter baseline** for every machine and approve them ([Task 16](#16-meter-baselines)). Then switch on **Approved meter baseline before a job starts** and, if you want daily readings, **Daily report required** with its **Daily report cut-off**. Set **Open an investigation for unexplained hours after**.
-6. **Cash custody** policy: choose **Recorders record for any custodian**, **Receiver acknowledges transfers**, **Receiver acknowledges floats**, **Remit the full balance**, **Daily remittance cut-off**, **Open a case for differences above**, **Write-offs need a second approver** and **Approved retentions allowed**.
+5. **Engine hours** policy: check **Engine-hour controls switched on**. Have supervisors propose a **meter baseline** for every machine and approve them ([Task 16](#16-meter-baselines)). Then switch on **Approved meter baseline before a job starts** and, if you want daily readings, **Daily report required** with its **Daily report cut-off**. Set **Open an investigation for unexplained hours after**.
+6. **Cash custody** policy: check **Cash custody controls switched on**, then choose **Recorders record for any custodian**, **Receiver acknowledges transfers**, **Receiver acknowledges floats**, **Remit the full balance**, **Daily remittance cut-off**, **Open a case for differences above**, **Write-offs need a second approver** and **Approved retentions allowed**.
 7. **Oversight** policy: hide dashboard tiles you do not use and set the **Refused-attempts window**.
 8. **Tell your people**, and ask supervisors to **sync their phones** so the apps pick up the new rules.
 9. **Watch the Accountability dashboard** daily for the first weeks ([Task 14](#14-accountability-dashboard)).
@@ -724,6 +726,9 @@ A baseline is set once. If the meter was replaced, use a meter reset.
 
 **The Customer hours menus are missing.**
 **Customer hours switched on** is No in your Customer hours policy, or your role lacks the permission.
+
+**The Engine hours menus, or some Cash custody tabs, are missing.**
+**Engine-hour controls switched on** or **Cash custody controls switched on** is No in that policy, or your role lacks the permission.
 
 **I can't make changes in the Owner app.**
 The app shows why:
