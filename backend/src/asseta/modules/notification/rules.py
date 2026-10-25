@@ -62,6 +62,40 @@ def staff(staff_id: object) -> Audience:
     return Audience("tenant_staff", str(staff_id))
 
 
+# Accountability records a notification opens exactly (DEC-030 G5): entity_type -> (kind, console detail route).
+# Every notification about one of them carries `data.kind` + `data.record_id` (and the push payload carries them
+# too), and its link is the record's own detail route `<route>/<id>`.
+CASH = "/tenant/finance/cash"
+RECORDS: dict[str, tuple[str, str]] = {
+    "cash_transfer": ("CASH_TRANSFER", f"{CASH}/transfers"),
+    "supervisor_cash_custody": ("CASH_FLOAT", f"{CASH}/floats"),
+    "cash_variance": ("CASH_VARIANCE", f"{CASH}/variances"),
+    "cash_retention": ("CASH_RETENTION", f"{CASH}/retentions"),
+    "custody_adjustment": ("CUSTODY_ADJUSTMENT", f"{CASH}/adjustments"),
+    "cash_handover": ("CASH_REMITTANCE", f"{CASH}/remittances"),
+    "cash_remittance_overdue": ("REMITTANCE_OVERDUE", f"{CASH}/remittance-overdue"),
+    "customer_discount": ("HOURS_DISCOUNT", "/tenant/hours/discounts"),
+    "credit_arrangement": ("HOURS_CREDIT", "/tenant/hours/credit"),
+    "hours_transfer": ("HOURS_TRANSFER", "/tenant/hours/transfers"),
+    "hours_cancellation": ("HOURS_CANCELLATION", "/tenant/hours/cancellations"),
+    "baseline": ("METER_BASELINE", "/tenant/meter-baselines"),
+    "correction": ("METER_CORRECTION", "/tenant/meter-corrections"),
+    "classification": ("ENGINE_HOURS_CLASSIFICATION", "/tenant/engine-hours/classifications"),
+}
+
+
+def record_link(entity_type: str | None, entity_id: object, fallback: str) -> str:
+    """The record's own detail route, or `fallback` for records without one."""
+    spec = RECORDS.get(entity_type or "")
+    return f"{spec[1]}/{entity_id}" if spec and entity_id else fallback
+
+
+def record_data(entity_type: str | None, entity_id: object) -> dict[str, Any]:
+    """`{kind, record_id}` for an accountability record (empty for anything else)."""
+    spec = RECORDS.get(entity_type or "")
+    return {"kind": spec[0], "record_id": str(entity_id)} if spec and entity_id else {}
+
+
 Rule = Callable[[Session, DomainEvent], list[Intent]]
 RULES: dict[str, Rule] = {}
 
@@ -409,7 +443,7 @@ def _handover(_: Session, e: DomainEvent) -> list[Intent]:
             "Cash handover to verify",
             f"A supervisor handed over {p['currency']} {p['amount']}; confirm receipt.",
             _key(e),
-            "/tenant/cash/handovers",
+            record_link("cash_handover", p["handover_id"], "/tenant/cash/handovers"),
             "cash_handover",
             p["handover_id"],
         )
@@ -442,7 +476,7 @@ def _hours_approval(_: Session, e: DomainEvent) -> list[Intent]:
             "Customer hours: approval needed",
             f"{p.get('summary', '')}. The requester cannot approve it themselves.",
             _key(e),
-            HOURS_LINKS.get(kind, "/tenant/hours"),
+            record_link(HOURS_ENTITIES.get(kind), p["entity_id"], HOURS_LINKS.get(kind, "/tenant/hours")),
             HOURS_ENTITIES.get(kind),
             p["entity_id"],
         )
@@ -453,6 +487,7 @@ def _hours_approval(_: Session, e: DomainEvent) -> list[Intent]:
 def _hours_decided(_: Session, e: DomainEvent) -> list[Intent]:
     p = e.payload
     kind = str(p.get("kind", "")).replace("_", " ").lower()
+    entity = HOURS_ENTITIES.get(str(p.get("kind", "")))
     return [
         Intent(
             "HOURS_APPROVAL_DECIDED",
@@ -460,8 +495,8 @@ def _hours_decided(_: Session, e: DomainEvent) -> list[Intent]:
             f"Your {kind} request was {str(p['outcome']).lower()}",
             f"The {kind} you submitted is now {p['outcome']}.",
             _key(e),
-            "/tenant/hours",
-            None,
+            record_link(entity, p["entity_id"], "/tenant/hours"),
+            entity,
             p["entity_id"],
         )
     ]
@@ -515,7 +550,7 @@ def _cash_transfer(session: Session, e: DomainEvent) -> list[Intent]:
             "Cash transfer to acknowledge",
             f"{sender} handed you {p['currency']} {p['amount']}; confirm the amount you received.",
             _key(e),
-            "/tenant/cash/transfers",
+            record_link("cash_transfer", p["transfer_id"], "/tenant/cash/transfers"),
             "cash_transfer",
             p["transfer_id"],
         )
@@ -532,7 +567,7 @@ def _cash_float(_: Session, e: DomainEvent) -> list[Intent]:
             "Cash float to acknowledge",
             f"A float of {p['currency']} {p['amount']} was issued to you; confirm the amount you received.",
             _key(e),
-            "/tenant/cash/floats",
+            record_link("supervisor_cash_custody", p["entry_id"], "/tenant/cash/floats"),
             "supervisor_cash_custody",
             p["entry_id"],
         )
@@ -551,7 +586,7 @@ def _cash_approval(_: Session, e: DomainEvent) -> list[Intent]:
             f"Approve {label}",
             f"A {label} of {p['currency']} {p['amount']} awaits approval by someone other than the proposer.",
             _key(e),
-            "/tenant/cash",
+            record_link(p["entity_type"], p["entity_id"], "/tenant/cash"),
             p["entity_type"],
             p["entity_id"],
         )
@@ -571,7 +606,7 @@ def _cash_variance(session: Session, e: DomainEvent) -> list[Intent]:
             f"The amount received on a {source} differs from the declared amount by {p['currency']} {p['amount']}"
             + (f" ({who})." if who else "."),
             _key(e),
-            "/tenant/cash/variances",
+            record_link("cash_variance", p["variance_id"], "/tenant/cash/variances"),
             "cash_variance",
             p["variance_id"],
         )
@@ -590,7 +625,7 @@ def _partial_remittance(session: Session, e: DomainEvent) -> list[Intent]:
             f"{who} remitted {p['currency']} {p['amount']}; {p['currency']} {p['shortfall']} of the expected balance "
             "is not covered by an approved retention.",
             _key(e),
-            "/tenant/cash/handovers",
+            record_link("cash_handover", p["handover_id"], "/tenant/cash/handovers"),
             "cash_handover",
             p["handover_id"],
         )
@@ -670,7 +705,7 @@ def _meter_approval(session: Session, e: DomainEvent) -> list[Intent]:
             f"{what} awaiting approval",
             f"{_machine_label(session, p.get('machine_id'))}: a second person's decision is needed.",
             _key(e),
-            link,
+            record_link(key.removesuffix("_id"), p.get(key), link),
             key.removesuffix("_id"),
             p.get(key),
         )

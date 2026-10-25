@@ -19,6 +19,7 @@ from asseta.modules.accountability.dto import (
     SyncResolutionIn,
 )
 from asseta.modules.accountability.models import SecurityEventKind
+from asseta.modules.accountability.names import named
 from asseta.modules.accountability.service import AccountabilityDashboard, SecurityEventService, SyncConflictService
 from asseta.modules.identity.catalog import CATALOG, MenuDef
 from asseta.modules.identity.catalog import PermissionScope as S
@@ -77,6 +78,7 @@ Paging = Annotated[PageParams, Depends(page_params)]
 
 
 @router.get("/security-events", response_model=Page[SecurityEventDto], operation_id="listSecurityEvents")
+@named
 def list_security_events(
     session: DbSession,
     _: Annotated[RequestContext, Depends(SECURITY_READ)],
@@ -95,6 +97,7 @@ def list_security_events(
 
 
 @router.get("/sync/conflicts", response_model=Page[SyncConflictDto], operation_id="listSyncConflicts")
+@named
 def list_sync_conflicts(
     session: DbSession,
     now: Now,
@@ -112,6 +115,7 @@ def list_sync_conflicts(
 
 
 @router.get("/sync/conflicts/{operation_id}", response_model=SyncConflictDto, operation_id="getSyncConflict")
+@named
 def get_sync_conflict(
     operation_id: uuid.UUID,
     session: DbSession,
@@ -127,6 +131,7 @@ def get_sync_conflict(
     response_model=SyncConflictDto,
     operation_id="resolveSyncConflict",
 )
+@named
 def resolve_sync_conflict(
     operation_id: uuid.UUID,
     body: SyncResolutionIn,
@@ -140,6 +145,7 @@ def resolve_sync_conflict(
 
 
 @router.get("/accountability/summary", response_model=AccountabilitySummaryDto, operation_id="getAccountabilitySummary")
+@named
 def accountability_summary(
     session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(ACCOUNTABILITY_READ)]
 ) -> AccountabilitySummaryDto:

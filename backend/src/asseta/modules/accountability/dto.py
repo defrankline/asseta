@@ -53,6 +53,7 @@ class SyncResolutionDto(BaseModel):
     recaptured_entity_type: str | None
     recaptured_entity_id: uuid.UUID | None
     resolved_by: uuid.UUID | None
+    resolved_by_name: str | None = None
     resolved_at: datetime
 
 
@@ -102,6 +103,14 @@ class CashTileDto(BaseModel):
     floats_awaiting_acknowledgement: list[CountAmountDto]
     remittances_awaiting_confirmation: list[CountAmountDto]
     partial_remittances_in_window: int
+    remittance_cutoff_hour: int | None = Field(
+        default=None, description="Tenant-local daily remittance cut-off (cash policy); null = no cut-off"
+    )
+    remittances_overdue_today: int | None = Field(
+        default=None,
+        description="Custodians flagged today for unremitted cash past the cut-off (REMITTANCE_OVERDUE); null = no "
+        "cut-off configured",
+    )
 
 
 class PaymentsTileDto(BaseModel):

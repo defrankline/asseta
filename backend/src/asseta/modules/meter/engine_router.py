@@ -13,6 +13,7 @@ from asseta.core.db import get_session
 from asseta.core.errors import ERROR_RESPONSES
 from asseta.core.lifecycle import IncludeInactive, LifecycleChangeIn
 from asseta.core.paging import Page, PageParams, page_params, paginate
+from asseta.modules.accountability.names import named
 from asseta.modules.identity.catalog import CATALOG, MenuDef
 from asseta.modules.identity.catalog import PermissionScope as S
 from asseta.modules.identity.dependencies import requires
@@ -117,6 +118,7 @@ def _slice[T](items: list[T], paging: PageParams) -> Page[T]:
 
 # --- baselines -------------------------------------------------------------------------------------------------
 @router.get("/meter-baselines", response_model=Page[BaselineDto], operation_id="listMeterBaselines")
+@named
 def list_baselines(
     session: DbSession,
     now: Now,
@@ -132,6 +134,7 @@ def list_baselines(
 
 
 @router.get("/meter-baselines/{baseline_id}", response_model=BaselineDto, operation_id="getMeterBaseline")
+@named
 def get_baseline(
     baseline_id: uuid.UUID, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(METER_READ)]
 ) -> BaselineDto:
@@ -140,6 +143,7 @@ def get_baseline(
 
 
 @router.post("/meter-baselines", response_model=BaselineDto, status_code=201, operation_id="proposeMeterBaseline")
+@named
 def propose_baseline(
     body: BaselineIn, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(CAPTURE)]
 ) -> BaselineDto:
@@ -153,6 +157,7 @@ def propose_baseline(
     status_code=201,
     operation_id="proposeMeterBaselineFromReading",
 )
+@named
 def propose_baseline_from_reading(
     body: BaselineFromReadingIn, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(REVIEW)]
 ) -> BaselineDto:
@@ -161,6 +166,7 @@ def propose_baseline_from_reading(
 
 
 @router.post("/meter-baselines/{baseline_id}/decision", response_model=BaselineDto, operation_id="decideMeterBaseline")
+@named
 def decide_baseline(
     baseline_id: uuid.UUID,
     body: MeterDecisionIn,
@@ -173,6 +179,7 @@ def decide_baseline(
 
 # --- tenant lists ----------------------------------------------------------------------------------------------
 @router.get("/engine-hour-reasons", response_model=Page[EngineHourReasonDto], operation_id="listEngineHourReasons")
+@named
 def list_reasons(
     session: DbSession,
     _: Annotated[RequestContext, Depends(METER_READ)],
@@ -191,6 +198,7 @@ def list_reasons(
 
 
 @router.get("/engine-hour-reasons/{reason_id}", response_model=EngineHourReasonDto, operation_id="getEngineHourReason")
+@named
 def get_reason(
     reason_id: uuid.UUID, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(METER_READ)]
 ) -> EngineHourReasonDto:
@@ -200,6 +208,7 @@ def get_reason(
 @router.post(
     "/engine-hour-reasons", response_model=EngineHourReasonDto, status_code=201, operation_id="createEngineHourReason"
 )
+@named
 def create_reason(
     body: EngineHourReasonIn, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(REASONS)]
 ) -> EngineHourReasonDto:
@@ -209,6 +218,7 @@ def create_reason(
 @router.put(
     "/engine-hour-reasons/{reason_id}", response_model=EngineHourReasonDto, operation_id="updateEngineHourReason"
 )
+@named
 def update_reason(
     reason_id: uuid.UUID,
     body: EngineHourReasonUpdateIn,
@@ -224,6 +234,7 @@ def update_reason(
     response_model=EngineHourReasonDto,
     operation_id="deactivateEngineHourReason",
 )
+@named
 def deactivate_reason(
     reason_id: uuid.UUID,
     body: LifecycleChangeIn,
@@ -240,6 +251,7 @@ def deactivate_reason(
     response_model=EngineHourReasonDto,
     operation_id="reactivateEngineHourReason",
 )
+@named
 def reactivate_reason(
     reason_id: uuid.UUID,
     body: LifecycleChangeIn,
@@ -254,6 +266,7 @@ def reactivate_reason(
 @router.get(
     "/engine-hours/machines", response_model=Page[MachineEngineHoursSummaryDto], operation_id="listMachineEngineHours"
 )
+@named
 def list_machine_engine_hours(
     session: DbSession,
     now: Now,
@@ -268,6 +281,7 @@ def list_machine_engine_hours(
 @router.get(
     "/engine-hours/machines/{machine_id}", response_model=MachineEngineHoursDto, operation_id="getMachineEngineHours"
 )
+@named
 def get_machine_engine_hours(
     machine_id: uuid.UUID,
     session: DbSession,
@@ -286,6 +300,7 @@ def get_machine_engine_hours(
     response_model=Page[UnallocatedSegmentDto],
     operation_id="listUnallocatedEngineHours",
 )
+@named
 def list_unallocated(
     session: DbSession,
     now: Now,
@@ -308,6 +323,7 @@ def list_unallocated(
     response_model=Page[ClassificationDto],
     operation_id="listEngineHourClassifications",
 )
+@named
 def list_classifications(
     session: DbSession,
     now: Now,
@@ -326,6 +342,7 @@ def list_classifications(
     response_model=ClassificationDto,
     operation_id="getEngineHourClassification",
 )
+@named
 def get_classification(
     classification_id: uuid.UUID, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(METER_READ)]
 ) -> ClassificationDto:
@@ -339,6 +356,7 @@ def get_classification(
     status_code=201,
     operation_id="proposeEngineHourClassification",
 )
+@named
 def propose_classification(
     body: ClassificationIn, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(REVIEW)]
 ) -> ClassificationDto:
@@ -352,6 +370,7 @@ def propose_classification(
     response_model=ClassificationDto,
     operation_id="decideEngineHourClassification",
 )
+@named
 def decide_classification(
     classification_id: uuid.UUID,
     body: MeterDecisionIn,
@@ -364,6 +383,7 @@ def decide_classification(
 
 # --- corrections -----------------------------------------------------------------------------------------------
 @router.get("/meter-corrections", response_model=Page[CorrectionDto], operation_id="listMeterCorrections")
+@named
 def list_corrections(
     session: DbSession,
     now: Now,
@@ -379,6 +399,7 @@ def list_corrections(
 
 
 @router.get("/meter-corrections/{correction_id}", response_model=CorrectionDto, operation_id="getMeterCorrection")
+@named
 def get_correction(
     correction_id: uuid.UUID, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(METER_READ)]
 ) -> CorrectionDto:
@@ -387,6 +408,7 @@ def get_correction(
 
 
 @router.post("/meter-corrections", response_model=CorrectionDto, status_code=201, operation_id="proposeMeterCorrection")
+@named
 def propose_correction(
     body: CorrectionIn, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(CAPTURE)]
 ) -> CorrectionDto:
@@ -398,6 +420,7 @@ def propose_correction(
 @router.post(
     "/meter-corrections/{correction_id}/decision", response_model=CorrectionDto, operation_id="decideMeterCorrection"
 )
+@named
 def decide_correction(
     correction_id: uuid.UUID,
     body: MeterDecisionIn,

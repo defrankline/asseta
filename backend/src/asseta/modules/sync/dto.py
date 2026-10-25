@@ -25,6 +25,7 @@ CAPABILITIES = [
     "METER_DAILY_READING",  # METER_CAPTURE accepts kind DAILY (job_id optional, machine_id instead)
     "OP_METER_BASELINE",
     "OP_METER_CORRECTION",
+    "OP_CASH_RETENTION_REQUEST",  # CASH_RETENTION_REQUEST (ask to keep field cash; approved by another person)
 ]
 
 
@@ -165,6 +166,7 @@ OpType = Literal[
     "HOURS_TRANSFER_REQUEST",  # request to move remaining hours to another machine (approved per tenant policy)
     "METER_BASELINE",  # baseline proposal (engine-hour accountability)
     "METER_CORRECTION",  # reading correction proposal (approved by a second person)
+    "CASH_RETENTION_REQUEST",  # payload CashRetentionIn, client_id required (tenant policy cash.retention_allowed)
 ]
 
 

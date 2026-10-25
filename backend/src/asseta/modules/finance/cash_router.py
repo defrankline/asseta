@@ -13,6 +13,7 @@ from asseta.core.db import get_session
 from asseta.core.errors import ERROR_RESPONSES
 from asseta.core.idempotency import IdempotencyGuard, request_hash
 from asseta.core.paging import Page, PageParams, page_params, paginate
+from asseta.modules.accountability.names import named
 from asseta.modules.finance.cash_service import CashCustodyService
 from asseta.modules.finance.dto import (
     CashCollectionIn,
@@ -38,6 +39,7 @@ IdemKey = Annotated[str | None, Header()]
 
 
 @router.post("/floats", response_model=CashCustodyEntryDto, status_code=201, operation_id="issueCashFloat")
+@named
 def issue_float(
     body: CashFloatIn,
     session: DbSession,
@@ -54,6 +56,7 @@ def issue_float(
 
 
 @router.post("/collections", response_model=CustomerPaymentDto, status_code=201, operation_id="recordCashCollection")
+@named
 def record_collection(
     body: CashCollectionIn,
     session: DbSession,
@@ -70,6 +73,7 @@ def record_collection(
 
 
 @router.post("/handovers", response_model=CashHandoverDto, status_code=201, operation_id="recordCashHandover")
+@named
 def record_handover(
     body: CashHandoverIn,
     session: DbSession,
@@ -86,6 +90,7 @@ def record_handover(
 
 
 @router.get("/handovers", response_model=Page[CashHandoverDto], operation_id="listCashHandovers")
+@named
 def list_handovers(
     session: DbSession,
     _: Annotated[RequestContext, Depends(FINANCE_READ)],
@@ -108,6 +113,7 @@ def list_handovers(
 
 
 @router.post("/handovers/{handover_id}/decision", response_model=CashHandoverDto, operation_id="decideCashHandover")
+@named
 def decide_handover(
     handover_id: uuid.UUID,
     body: RemittanceDecisionIn,
@@ -121,6 +127,7 @@ def decide_handover(
 
 
 @router.get("/reconciliation", response_model=CashReconciliationDto, operation_id="getCashReconciliation")
+@named
 def reconciliation(
     session: DbSession,
     now: Now,
@@ -136,6 +143,7 @@ def reconciliation(
 @router.get(
     "/supervisor-summary", response_model=list[CashSupervisorSummaryDto], operation_id="listCashSupervisorSummaries"
 )
+@named
 def supervisor_summary(
     session: DbSession,
     now: Now,
@@ -150,6 +158,7 @@ def supervisor_summary(
 
 
 @router.get("/custody", response_model=list[CashCustodyBalanceDto], operation_id="getCashCustody")
+@named
 def custody(
     session: DbSession,
     now: Now,
@@ -160,6 +169,7 @@ def custody(
 
 
 @router.get("/custody/me", response_model=list[CashCustodyBalanceDto], operation_id="getMyCashCustody")
+@named
 def my_custody(
     session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(COLLECT)]
 ) -> list[CashCustodyBalanceDto]:
@@ -167,6 +177,7 @@ def my_custody(
 
 
 @router.get("/custody/me/collections", response_model=Page[CustomerPaymentDto], operation_id="listMyCashCollections")
+@named
 def my_collections(
     session: DbSession,
     now: Now,
@@ -182,6 +193,7 @@ def my_collections(
 
 
 @router.get("/custody/me/handovers", response_model=Page[CashHandoverDto], operation_id="listMyCashHandovers")
+@named
 def my_handovers(
     session: DbSession,
     now: Now,
@@ -202,6 +214,7 @@ def my_handovers(
 @router.get(
     "/custody/me/reconciliation", response_model=list[CashReconciliationDto], operation_id="getMyCashReconciliation"
 )
+@named
 def my_reconciliation(
     session: DbSession,
     now: Now,

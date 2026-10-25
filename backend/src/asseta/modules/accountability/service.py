@@ -37,6 +37,7 @@ from asseta.modules.accountability.models import (
 )
 from asseta.modules.expenses.models import ApprovalRequest, ApprovalStatus
 from asseta.modules.finance.cash_service import CashCustodyService
+from asseta.modules.finance.common import local_date, tenant_settings
 from asseta.modules.finance.custody_models import (
     CashDecisionStatus,
     CashFloatAcknowledgement,
@@ -45,6 +46,7 @@ from asseta.modules.finance.custody_models import (
     CashTransferStatus,
     CashVariance,
     CustodyAdjustment,
+    RemittanceOverdue,
     VarianceStatus,
 )
 from asseta.modules.finance.models import (
@@ -305,7 +307,13 @@ class AccountabilityDashboard:
             )
             .group_by(SupervisorCashCustody.currency)
         )
+        cutoff = PolicyService(self._s).cash_custody(self._tid, at=self._now).policy.remittance_cutoff_hour
+        today = local_date(tenant_settings(self._s, self._tid).timezone, self._now)
         return CashTileDto(
+            remittance_cutoff_hour=cutoff,
+            remittances_overdue_today=None
+            if cutoff is None
+            else self._count(select(func.count()).where(RemittanceOverdue.local_day == today)),
             custodians=rows,
             transfers_awaiting_acknowledgement=self._count_amount(
                 select(CashTransfer.currency, func.count(), func.sum(CashTransfer.amount_declared))

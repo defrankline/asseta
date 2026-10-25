@@ -25,6 +25,9 @@ class MenuGroupDef:
     scope: PermissionScope
     label: str
     order: int
+    # A tenant capability (`asseta.modules.policy.capabilities.CAPABILITIES`): when the tenant's effective policy
+    # switches it off, the whole group (every child menu) is left out of that tenant's navigation.
+    capability: str | None = None
 
 
 @dataclass(frozen=True)
@@ -36,6 +39,7 @@ class MenuDef:
     order: int
     required_permission: str
     group: str  # MenuGroupDef.key of the same scope (validated by `PermissionCatalog.register_menu`)
+    capability: str | None = None  # as MenuGroupDef.capability, for a single menu outside a gated group
 
 
 class PermissionCatalog:
@@ -81,6 +85,24 @@ class PermissionCatalog:
     def menu_group(self, key: str) -> MenuGroupDef | None:
         return self._groups.get(key)
 
+    def menu(self, key: str) -> MenuDef | None:
+        return self._menus.get(key)
+
+    def menu_capabilities(self, key: str) -> frozenset[str]:
+        """Capabilities a menu needs: its own and its group's (empty for ungated menus or unknown keys)."""
+        menu = self._menus.get(key)
+        if menu is None:
+            return frozenset()
+        group = self._groups.get(menu.group)
+        return frozenset(c for c in (menu.capability, group.capability if group else None) if c)
+
+    def capabilities(self) -> frozenset[str]:
+        return frozenset(
+            c
+            for c in [*(m.capability for m in self._menus.values()), *(g.capability for g in self._groups.values())]
+            if c
+        )
+
 
 CATALOG = PermissionCatalog()
 
@@ -92,7 +114,7 @@ for _group in (
     MenuGroupDef("tenant.operations", PermissionScope.TENANT, "Operations", 20),
     MenuGroupDef("tenant.fleet", PermissionScope.TENANT, "Fleet", 30),
     # Prepaid customer hours (accountability design A): purchases, balances, approvals and reason lists.
-    MenuGroupDef("tenant.hours", PermissionScope.TENANT, "Customer hours", 35),
+    MenuGroupDef("tenant.hours", PermissionScope.TENANT, "Customer hours", 35, capability="CUSTOMER_HOURS"),
     # Engine-hour accountability (design B): reconciliation, explanations, baselines, corrections, reason lists.
     MenuGroupDef("tenant.engine_hours", PermissionScope.TENANT, "Engine hours", 37),
     MenuGroupDef("tenant.finance", PermissionScope.TENANT, "Finance", 40),

@@ -126,6 +126,47 @@ class CashCustodyControls:
             stmt = stmt.where(cond)
         return stmt
 
+    # --- exact records (deep links from notifications and dashboards) -------------------------------------
+    def _sees_all(self) -> bool:
+        return FINANCE_READ_PERMISSION in self._ctx.permissions or may_record_for_others(
+            self._ctx, self._policy().policy
+        )
+
+    def _party(self, staff_ids: tuple[uuid.UUID | None, ...], recorders: tuple[uuid.UUID | None, ...]) -> bool:
+        """Field readers open a record only when they take part in it (custodian or the person who recorded it)."""
+        if self._sees_all() or self._ctx.user_id in recorders:
+            return True
+        own = own_staff(self._s, self._ctx)
+        return own is not None and own.id in staff_ids
+
+    def handover(self, handover_id: uuid.UUID) -> CashHandover:
+        row = self._s.get(CashHandover, handover_id)
+        if row is None or not self._party((row.staff_member_id,), (row.recorded_by,)):
+            raise NotFound("Remittance not found", code="HANDOVER_NOT_FOUND")
+        return row
+
+    def float_entry(self, entry_id: uuid.UUID) -> SupervisorCashCustody:
+        row = self._s.get(SupervisorCashCustody, entry_id)
+        if (
+            row is None
+            or row.entry_type is not CustodyEntryType.FLOAT_ISSUED
+            or not self._party((row.staff_member_id,), (row.created_by,))
+        ):
+            raise NotFound("Float not found", code="FLOAT_NOT_FOUND")
+        return row
+
+    def retention(self, retention_id: uuid.UUID) -> CashRetention:
+        row = self._s.get(CashRetention, retention_id)
+        if row is None or not self._party((row.staff_member_id,), (row.created_by,)):
+            raise NotFound("Retention not found", code="RETENTION_NOT_FOUND")
+        return row
+
+    def adjustment(self, adjustment_id: uuid.UUID) -> CustodyAdjustment:
+        row = self._s.get(CustodyAdjustment, adjustment_id)
+        if row is None:
+            raise NotFound("Adjustment not found", code="ADJUSTMENT_NOT_FOUND")
+        return row
+
     # --- transfers ------------------------------------------------------------------------------------------
     def transfer_dto(self, t: CashTransfer) -> CashTransferDto:
         dto = CashTransferDto.model_validate(t)
@@ -536,7 +577,13 @@ class CashCustodyControls:
         return CashVarianceDto.model_validate(v)
 
     # --- retentions -----------------------------------------------------------------------------------------
-    def request_retention(self, body: CashRetentionIn) -> CashRetentionDto:
+    def request_retention(self, body: CashRetentionIn, source: str = "API") -> CashRetentionDto:
+        if body.client_id is not None:
+            existing = self._s.execute(
+                select(CashRetention).where(CashRetention.client_id == body.client_id)
+            ).scalar_one_or_none()
+            if existing is not None:
+                return CashRetentionDto.model_validate(existing)  # offline retry: exactly one effect
         eff = self._policy()
         if not eff.policy.retention_allowed:
             raise BusinessRuleViolation("This tenant does not allow cash retention", code="RETENTION_NOT_ALLOWED")
@@ -546,6 +593,7 @@ class CashCustodyControls:
         row = CashRetention(
             id=uuid.uuid4(),
             tenant_id=self._tid,
+            client_id=body.client_id,
             staff_member_id=staff.id,
             amount=body.amount,
             currency=currency_or_default(self._s, self._tid, body.currency),
@@ -556,12 +604,12 @@ class CashCustodyControls:
             created_by=self._ctx.user_id,
             created_at=self._now,
         )
-        self._s.add(row)
-        self._s.flush()
+        insert(self._s, row, "DUPLICATE_RETENTION", "Retention request already recorded")
         self._record(
             "finance.cash_retention.requested",
             "cash_retention",
             row.id,
+            source=source.lower(),
             after={"staff_member_id": str(staff.id), "amount": str(row.amount), "currency": row.currency},
             reason=body.reason,
             policy_version=eff.version_stamp[:64],

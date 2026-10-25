@@ -5,12 +5,13 @@ Every table is tenant-owned (FORCE RLS). Evidence is append-only or guarded by t
 recorded decision can change a row; corrections are new rows (adjustments), never edits."""
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from enum import StrEnum
 
 from sqlalchemy import (
     CheckConstraint,
+    Date,
     DateTime,
     Enum,
     ForeignKey,
@@ -21,7 +22,7 @@ from sqlalchemy import (
     UniqueConstraint,
     text,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from asseta.core.db import Base, SyncRevisioned, Timestamps, UuidPk, utcnow
@@ -201,9 +202,13 @@ class CashRetention(UuidPk, Base):
     """Authorised exception to full remittance: the custodian may keep up to `amount` until `valid_until`."""
 
     __tablename__ = "cash_retention"
-    __table_args__ = (CheckConstraint("amount > 0", name="ck_cash_retention_amount"),)
+    __table_args__ = (
+        CheckConstraint("amount > 0", name="ck_cash_retention_amount"),
+        UniqueConstraint("tenant_id", "client_id", name="uq_cash_retention_client"),
+    )
 
     tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenant.id"), nullable=False, index=True)
+    client_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))  # offline idempotency (sync op)
     staff_member_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("staff_member.id"), nullable=False, index=True)
     amount: Mapped[Decimal] = mapped_column(MONEY, nullable=False)
     currency: Mapped[str] = mapped_column(ForeignKey("currency.code"), nullable=False)
@@ -241,3 +246,23 @@ class CustodyAdjustment(UuidPk, Base):
     decided_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     decision_note: Mapped[str | None] = mapped_column(Text)
+
+
+class RemittanceOverdue(UuidPk, Base):
+    """A custodian still holding unremitted cash (beyond approved retentions) after the tenant's daily remittance
+    cut-off (`cash.remittance_cutoff_hour`, tenant-local). One row per custodian per tenant-local day (the sweep is
+    idempotent); append-only evidence: `amounts` is what was held, per currency, when the sweep flagged it."""
+
+    __tablename__ = "cash_remittance_overdue"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "staff_member_id", "local_day", name="uq_cash_remittance_overdue_day"),
+        CheckConstraint("cutoff_hour BETWEEN 0 AND 23", name="ck_cash_remittance_overdue_hour"),
+    )
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenant.id"), nullable=False, index=True)
+    staff_member_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("staff_member.id"), nullable=False, index=True)
+    local_day: Mapped[date] = mapped_column(Date, nullable=False)
+    cutoff_hour: Mapped[int] = mapped_column(Integer, nullable=False)
+    amounts: Mapped[list[dict[str, str]]] = mapped_column(JSONB, nullable=False)  # [{currency, amount}]
+    flagged_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    policy_version: Mapped[str] = mapped_column(String(80), nullable=False)

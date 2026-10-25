@@ -14,9 +14,12 @@ from typing import Any
 import pytest
 from fastapi import FastAPI
 
+from asseta.core.db import get_sessionmaker
+from asseta.modules.finance.remittance_cutoff import run_remittance_cutoff
 from tests.support.api import Actor, Api
 from tests.support.finance import (
     FinCtx,
+    cash_policy,
     category,
     complete_job,
     expense_policy,
@@ -202,6 +205,22 @@ def _cash_chain_b(api: Api, f: FinCtx) -> dict[tuple[str, str], str]:
     f.accountant.post(f"{c}/handovers/{h['id']}/decision", {"verified": True, "amount_received": "9"})
     variance = f.accountant.get(f"{c}/variances").json()["items"][0]["id"]
     reason = f.accountant.post(f"{c}/reasons", {"kind": "VARIANCE", "label": "B reason"}).json()["id"]
+    issued = f.accountant.post(f"{c}/floats", {"staff_member_id": other, "amount": "5", "occurred_at": now})
+    assert issued.status_code == 201, issued.text
+    retention = f.supervisor.post(f"{c}/retentions", {"amount": "1", "reason": "B keeps a float"}).json()["id"]
+    adjustment = f.accountant.post(
+        f"{c}/adjustments", {"staff_member_id": other, "kind": "ADJUSTMENT", "amount": "1", "reason": "B recount"}
+    ).json()["id"]
+    # Unremitted cash held from before today's cut-off (00:00 local) -> one REMITTANCE_OVERDUE flag.
+    earlier = (api.clock.now - timedelta(days=2)).isoformat()
+    paid = f.accountant.post(
+        f"{c}/collections",
+        {"customer_id": f.customer_id, "amount": "3", "received_at": earlier, "staff_member_id": other},
+    )
+    assert paid.status_code == 201, paid.text
+    cash_policy(f, remittance_cutoff_hour=0)
+    assert run_remittance_cutoff(get_sessionmaker(), api.clock.now).flagged >= 1
+    overdue = f.accountant.get(f"{c}/remittance-overdue").json()["items"][0]["id"]
     headers = {**f.supervisor.headers(True, None), "X-Device-Id": "idor-b-device-01"}
     api.client.post(
         "/api/v1/sync/devices",
@@ -217,6 +236,11 @@ def _cash_chain_b(api: Api, f: FinCtx) -> dict[tuple[str, str], str]:
         ("/transfers/", "transfer_id"): transfer.json()["id"],
         ("/variances/", "variance_id"): variance,
         ("/reasons/", "reason_id"): reason,
+        ("/handovers/", "handover_id"): h["id"],
+        ("/floats/", "entry_id"): issued.json()["id"],
+        ("/retentions/", "retention_id"): retention,
+        ("/adjustments/", "adjustment_id"): adjustment,
+        ("/remittance-overdue/", "overdue_id"): overdue,
         ("/sync/conflicts/", "operation_id"): op_id,
     }
 

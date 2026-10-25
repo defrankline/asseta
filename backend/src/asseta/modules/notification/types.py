@@ -98,6 +98,7 @@ _TYPES = (
     NotificationType("CASH_APPROVAL_REQUESTED", "Cash approval requested", Category.ACTION, Severity.INFO, T),
     NotificationType("CASH_VARIANCE_OPENED", "Cash difference to review", Category.ANOMALY, Severity.WARNING, T, True),
     NotificationType("PARTIAL_REMITTANCE", "Partial remittance", Category.ANOMALY, Severity.WARNING, T, True),
+    NotificationType("REMITTANCE_OVERDUE", "Remittance overdue", Category.REMINDER, Severity.WARNING, T, True),
     NotificationType("HOURS_APPROVAL_REQUESTED", "Customer hours approval", Category.ACTION, Severity.INFO, T),
     NotificationType(
         "HOURS_APPROVAL_DECIDED", "Customer hours decision", Category.INFO, Severity.INFO, T, low_priority=True

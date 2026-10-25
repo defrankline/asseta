@@ -2,7 +2,7 @@
 adjustments, reason lists, custodians, reconciliation drill-down). Money is serialized as decimal strings."""
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from enum import StrEnum
 from typing import Annotated, Literal
@@ -81,7 +81,9 @@ class CashTransferDto(Dto):
     id: uuid.UUID
     client_id: uuid.UUID | None
     from_staff_id: uuid.UUID
+    from_staff_name: str | None = None
     to_staff_id: uuid.UUID
+    to_staff_name: str | None = None
     amount_declared: Money
     currency: str
     transferred_at: datetime
@@ -89,10 +91,12 @@ class CashTransferDto(Dto):
     status: CashTransferStatus
     source: str
     recorded_by: uuid.UUID | None
+    recorded_by_name: str | None = None
     recorded_at: datetime
     amount_received: Money | None
     ack_method: AcknowledgementMethod | None
     acknowledged_by: uuid.UUID | None
+    acknowledged_by_name: str | None = None
     acknowledged_at: datetime | None
     ack_note: str | None
     variance_id: uuid.UUID | None = None
@@ -104,7 +108,9 @@ class CashVarianceDto(Dto):
     source_type: VarianceSource
     source_id: uuid.UUID
     staff_member_id: uuid.UUID | None = Field(description="Custodian accountable for the difference")
+    staff_member_name: str | None = None
     counterparty_staff_id: uuid.UUID | None
+    counterparty_staff_name: str | None = None
     currency: str
     declared_amount: Money
     received_amount: Money
@@ -112,13 +118,16 @@ class CashVarianceDto(Dto):
     case_id: uuid.UUID | None
     opened_at: datetime
     opened_by: uuid.UUID | None
+    opened_by_name: str | None = None
     status: VarianceStatus
     reason_id: uuid.UUID | None
     proposed_by: uuid.UUID | None
+    proposed_by_name: str | None = None
     proposed_at: datetime | None
     proposal_note: str | None
     outcome: VarianceOutcome | None
     resolved_by: uuid.UUID | None
+    resolved_by_name: str | None = None
     resolved_at: datetime | None
     resolution_note: str | None
 
@@ -141,6 +150,7 @@ class DecisionIn(BaseModel):
 
 # --- retentions --------------------------------------------------------------------------------------------
 class CashRetentionIn(BaseModel):
+    client_id: uuid.UUID | None = Field(default=None, description="Device/client id (offline idempotency)")
     staff_member_id: uuid.UUID | None = Field(default=None, description="Defaults to the caller's staff record")
     amount: PositiveAmount
     currency: CurrencyCode | None = None
@@ -151,7 +161,9 @@ class CashRetentionIn(BaseModel):
 
 class CashRetentionDto(Dto):
     id: uuid.UUID
+    client_id: uuid.UUID | None = None
     staff_member_id: uuid.UUID
+    staff_member_name: str | None = None
     amount: Money
     currency: str
     reason_id: uuid.UUID | None
@@ -159,10 +171,32 @@ class CashRetentionDto(Dto):
     valid_until: datetime | None
     status: CashDecisionStatus
     created_by: uuid.UUID | None
+    created_by_name: str | None = None
     created_at: datetime
     decided_by: uuid.UUID | None
+    decided_by_name: str | None = None
     decided_at: datetime | None
     decision_note: str | None
+
+
+# --- remittance cut-off ------------------------------------------------------------------------------------
+class OverdueAmountDto(BaseModel):
+    currency: str
+    amount: Money = Field(description="Unremitted when flagged: outstanding - claimed remittances - retentions")
+
+
+class RemittanceOverdueDto(Dto):
+    """A custodian still holding unremitted cash after the tenant's daily cut-off (one per custodian per
+    tenant-local day; evidence, never edited)."""
+
+    id: uuid.UUID
+    staff_member_id: uuid.UUID
+    staff_member_name: str | None = None
+    local_day: date
+    cutoff_hour: int
+    amounts: list[OverdueAmountDto]
+    flagged_at: datetime
+    policy_version: str
 
 
 # --- custody adjustments -----------------------------------------------------------------------------------
@@ -196,6 +230,7 @@ class CustodyAdjustmentIn(BaseModel):
 class CustodyAdjustmentDto(Dto):
     id: uuid.UUID
     staff_member_id: uuid.UUID
+    staff_member_name: str | None = None
     kind: CustodyAdjustmentKind
     amount: Money
     currency: str
@@ -206,8 +241,10 @@ class CustodyAdjustmentDto(Dto):
     reverses_entity_id: uuid.UUID | None
     status: CashDecisionStatus
     created_by: uuid.UUID | None
+    created_by_name: str | None = None
     created_at: datetime
     decided_by: uuid.UUID | None
+    decided_by_name: str | None = None
     decided_at: datetime | None
     decision_note: str | None
 
@@ -271,4 +308,6 @@ class CustodyTransactionDto(BaseModel):
     reference: str | None
     note: str | None
     recorded_by: uuid.UUID | None
+    recorded_by_name: str | None = None
     counterparty_staff_id: uuid.UUID | None
+    counterparty_staff_name: str | None = None

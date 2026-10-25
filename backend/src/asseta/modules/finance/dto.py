@@ -129,6 +129,7 @@ class HireAllocationDto(Dto):
 class CustomerPaymentDto(Dto):
     id: uuid.UUID
     customer_id: uuid.UUID
+    customer_name: str | None = None
     client_id: uuid.UUID | None
     amount: Money
     currency: str
@@ -136,12 +137,15 @@ class CustomerPaymentDto(Dto):
     reference: str | None
     received_at: datetime
     received_by_staff_id: uuid.UUID | None
+    received_by_staff_name: str | None = None
     status: SettlementStatus
     note: str | None
     source: str
     recorded_by: uuid.UUID | None
+    recorded_by_name: str | None = None
     recorded_at: datetime
     verified_by: uuid.UUID | None
+    verified_by_name: str | None = None
     verified_at: datetime | None
     decision_note: str | None
     allocations: list[HireAllocationDto] = []
@@ -204,6 +208,7 @@ class CashFloatIn(BaseModel):
 class CashCustodyEntryDto(Dto):
     id: uuid.UUID
     staff_member_id: uuid.UUID
+    staff_member_name: str | None = None
     entry_type: CustodyEntryType
     amount: Money
     currency: str
@@ -216,8 +221,10 @@ class CashCustodyEntryDto(Dto):
     )
     amount_received: Money | None = None
     acknowledged_by: uuid.UUID | None = None
+    acknowledged_by_name: str | None = None
     acknowledged_at: datetime | None = None
     created_by: uuid.UUID | None = None
+    created_by_name: str | None = None
 
 
 class CashHandoverIn(BaseModel):
@@ -234,6 +241,7 @@ class CashHandoverDto(Dto):
     id: uuid.UUID
     client_id: uuid.UUID | None
     staff_member_id: uuid.UUID
+    staff_member_name: str | None = None
     amount: Money
     currency: str
     handed_at: datetime
@@ -242,8 +250,10 @@ class CashHandoverDto(Dto):
     status: SettlementStatus
     source: str
     recorded_by: uuid.UUID | None
+    recorded_by_name: str | None = None
     recorded_at: datetime
     verified_by: uuid.UUID | None
+    verified_by_name: str | None = None
     verified_at: datetime | None
     decision_note: str | None
     amount_received: Money | None = Field(

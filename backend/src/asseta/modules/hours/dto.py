@@ -134,6 +134,7 @@ class DiscountUpdateIn(BaseModel):
 class DiscountDto(Dto):
     id: uuid.UUID
     customer_id: uuid.UUID
+    customer_name: str | None = None
     percent: Decimal
     effective_from: date
     effective_to: date | None
@@ -141,11 +142,14 @@ class DiscountDto(Dto):
     reason_code_id: uuid.UUID | None
     status: ProposalStatus
     proposed_by: uuid.UUID | None
+    proposed_by_name: str | None = None
     proposed_at: datetime
     decided_by: uuid.UUID | None
+    decided_by_name: str | None = None
     decided_at: datetime | None
     decision_note: str | None
     revoked_by: uuid.UUID | None
+    revoked_by_name: str | None = None
     revoked_at: datetime | None
     revoke_reason: str | None
     version: int
@@ -187,6 +191,7 @@ class CreditArrangementUpdateIn(BaseModel):
 class CreditArrangementDto(Dto):
     id: uuid.UUID
     customer_id: uuid.UUID
+    customer_name: str | None = None
     limit_amount: Money
     currency: str
     effective_from: date
@@ -196,11 +201,14 @@ class CreditArrangementDto(Dto):
     reason_code_id: uuid.UUID | None
     status: ProposalStatus
     proposed_by: uuid.UUID | None
+    proposed_by_name: str | None = None
     proposed_at: datetime
     decided_by: uuid.UUID | None
+    decided_by_name: str | None = None
     decided_at: datetime | None
     decision_note: str | None
     revoked_by: uuid.UUID | None
+    revoked_by_name: str | None = None
     revoked_at: datetime | None
     revoke_reason: str | None
     version: int
@@ -279,6 +287,8 @@ class CreditActivationIn(BaseModel):
 
 class MachineHoursDto(BaseModel):
     machine_id: uuid.UUID
+    machine_code: str | None = None
+    machine_name: str | None = None
     activated: Decimal
     transferred_in: Decimal
     consumed: Decimal
@@ -314,7 +324,10 @@ class HoursPurchaseDto(BaseModel):
     customer_name: str | None = None
     customer_kind: CustomerKind | None = None
     machine_id: uuid.UUID
+    machine_code: str | None = None
+    machine_name: str | None = None
     job_site_id: uuid.UUID | None
+    job_site_name: str | None = None
     hours: Decimal
     currency: str
     rate_card_id: uuid.UUID
@@ -327,6 +340,7 @@ class HoursPurchaseDto(BaseModel):
     source: str
     policy_version: str
     created_by: uuid.UUID | None
+    created_by_name: str | None = None
     created_at: datetime
     cancelled_at: datetime | None
     cancellation_id: uuid.UUID | None
@@ -341,7 +355,10 @@ class LedgerEntryDto(Dto):
     id: uuid.UUID
     purchase_id: uuid.UUID
     customer_id: uuid.UUID
+    customer_name: str | None = None
     machine_id: uuid.UUID
+    machine_code: str | None = None
+    machine_name: str | None = None
     entry_type: LedgerEntryType
     hours: Decimal
     signed_hours: Decimal = Decimal(0)
@@ -363,7 +380,10 @@ class HoursBalanceDto(BaseModel):
     """Remaining activated hours of one customer on one machine (all of the customer's purchases)."""
 
     customer_id: uuid.UUID
+    customer_name: str | None = None
     machine_id: uuid.UUID
+    machine_code: str | None = None
+    machine_name: str | None = None
     purchases: int
     activated: Decimal
     transferred_in: Decimal
@@ -390,15 +410,23 @@ class TransferDto(Dto):
     id: uuid.UUID
     client_id: uuid.UUID | None
     purchase_id: uuid.UUID
+    purchase_number: str | None = None
+    customer_name: str | None = None
     from_machine_id: uuid.UUID
+    from_machine_code: str | None = None
+    from_machine_name: str | None = None
     to_machine_id: uuid.UUID
+    to_machine_code: str | None = None
+    to_machine_name: str | None = None
     hours: Decimal
     reason: str
     reason_code_id: uuid.UUID | None
     status: RequestStatus
     requested_by: uuid.UUID | None
+    requested_by_name: str | None = None
     requested_at: datetime
     decided_by: uuid.UUID | None
+    decided_by_name: str | None = None
     decided_at: datetime | None
     decision_note: str | None
 
@@ -411,12 +439,16 @@ class CancellationIn(BaseModel):
 class CancellationDto(Dto):
     id: uuid.UUID
     purchase_id: uuid.UUID
+    purchase_number: str | None = None
+    customer_name: str | None = None
     reason: str
     reason_code_id: uuid.UUID | None
     status: RequestStatus
     requested_by: uuid.UUID | None
+    requested_by_name: str | None = None
     requested_at: datetime
     decided_by: uuid.UUID | None
+    decided_by_name: str | None = None
     decided_at: datetime | None
     decision_note: str | None
 
@@ -433,8 +465,12 @@ class AllocationLineDto(BaseModel):
 class WorkExecutionAllocationDto(BaseModel):
     id: uuid.UUID
     job_id: uuid.UUID
+    job_number: str | None = None
     customer_id: uuid.UUID
+    customer_name: str | None = None
     machine_id: uuid.UUID
+    machine_code: str | None = None
+    machine_name: str | None = None
     billable_hours: Decimal
     consumed_hours: Decimal
     overrun_hours: Decimal

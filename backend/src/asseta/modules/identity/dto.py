@@ -3,7 +3,7 @@
 import uuid
 from datetime import date
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from asseta.modules.tenancy.models import TenantAccessState, TenantStatus
 
@@ -41,6 +41,10 @@ class TenantAccessDto(BaseModel):
     permissions: list[str]
     menus: list[MenuDto]
     menu_groups: list[MenuGroupDto]
+    disabled_capabilities: list[str] = Field(
+        default_factory=list,
+        description="Tenant capabilities switched off by policy (e.g. CUSTOMER_HOURS); their menus are omitted",
+    )
     mandate: MandateBadgeDto | None = None
 
 

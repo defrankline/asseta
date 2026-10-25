@@ -23,7 +23,7 @@ from asseta.modules.accountability.security_events import permission_refused
 from asseta.modules.expenses.dto import ExpenseIn, FuelEventIn
 from asseta.modules.expenses.service import ExpenseService
 from asseta.modules.finance.cash_service import CashCustodyService
-from asseta.modules.finance.custody_dto import CashAcknowledgementIn, CashTransferIn
+from asseta.modules.finance.custody_dto import CashAcknowledgementIn, CashRetentionIn, CashTransferIn
 from asseta.modules.finance.custody_service import CashCustodyControls
 from asseta.modules.finance.dto import CashCollectionIn, CashHandoverIn
 from asseta.modules.hours.approvals import HoursApprovals
@@ -61,6 +61,9 @@ CONFLICT_CODES = {
     "OVERLAPPING_ACTIVITY",
     "BASELINE_PENDING",
     "CORRECTION_PENDING",
+    # cash retention: the tenant switched retention off after the device's snapshot, or a concurrent duplicate
+    "RETENTION_NOT_ALLOWED",
+    "DUPLICATE_RETENTION",
 }
 REQUIRED_PERMISSION = {
     "METER_CAPTURE": "tenant.meter.capture",
@@ -80,6 +83,7 @@ REQUIRED_PERMISSION = {
     "CASH_FLOAT_ACKNOWLEDGEMENT": "tenant.collection.record",
     "HOURS_PURCHASE": "tenant.hours.purchase",
     "HOURS_TRANSFER_REQUEST": "tenant.hours.transfer",
+    "CASH_RETENTION_REQUEST": "tenant.collection.record",
 }
 # Ops whose payload names resumable blob uploads: the op is DEFERRED (not rejected) until they complete.
 UPLOAD_FIELDS = {
@@ -117,6 +121,10 @@ class HoursPurchaseOp(HoursPurchaseIn):
 
 
 class CashTransferOp(CashTransferIn):
+    client_id: uuid.UUID
+
+
+class CashRetentionOp(CashRetentionIn):
     client_id: uuid.UUID
 
 
@@ -313,6 +321,9 @@ class PushService:
             ),
             "CASH_TRANSFER_ACKNOWLEDGEMENT": lambda: self._transfer_ack(CashTransferAckOp.model_validate(op.payload)),
             "CASH_FLOAT_ACKNOWLEDGEMENT": lambda: self._float_ack(op.id, CashFloatAckOp.model_validate(op.payload)),
+            "CASH_RETENTION_REQUEST": lambda: CashCustodyControls(self._s, self._ctx, self._now).request_retention(
+                CashRetentionOp.model_validate(op.payload), "SYNC"
+            ),
             "HOURS_PURCHASE": lambda: self._hours_purchase(
                 HoursPurchaseOp.model_validate({"client_id": op.id, **op.payload})
             ),

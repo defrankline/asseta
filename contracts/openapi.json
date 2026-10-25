@@ -2321,6 +2321,17 @@
       },
       "CancellationDto": {
         "properties": {
+          "customer_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Name"
+          },
           "decided_at": {
             "anyOf": [
               {
@@ -2345,6 +2356,17 @@
             ],
             "title": "Decided By"
           },
+          "decided_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided By Name"
+          },
           "decision_note": {
             "anyOf": [
               {
@@ -2365,6 +2387,17 @@
             "format": "uuid",
             "title": "Purchase Id",
             "type": "string"
+          },
+          "purchase_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purchase Number"
           },
           "reason": {
             "title": "Reason",
@@ -2398,6 +2431,17 @@
               }
             ],
             "title": "Requested By"
+          },
+          "requested_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requested By Name"
           },
           "status": {
             "$ref": "#/components/schemas/RequestStatus"
@@ -3087,6 +3131,17 @@
             ],
             "title": "Acknowledged By"
           },
+          "acknowledged_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acknowledged By Name"
+          },
           "amount": {
             "title": "Amount",
             "type": "string"
@@ -3113,6 +3168,17 @@
               }
             ],
             "title": "Created By"
+          },
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
           },
           "currency": {
             "title": "Currency",
@@ -3157,6 +3223,17 @@
             "format": "uuid",
             "title": "Staff Member Id",
             "type": "string"
+          },
+          "staff_member_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Staff Member Name"
           }
         },
         "required": [
@@ -3501,6 +3578,17 @@
             ],
             "title": "Recorded By"
           },
+          "recorded_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recorded By Name"
+          },
           "reference": {
             "anyOf": [
               {
@@ -3520,6 +3608,17 @@
             "format": "uuid",
             "title": "Staff Member Id",
             "type": "string"
+          },
+          "staff_member_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Staff Member Name"
           },
           "status": {
             "$ref": "#/components/schemas/SettlementStatus"
@@ -3547,6 +3646,17 @@
               }
             ],
             "title": "Verified By"
+          },
+          "verified_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified By Name"
           }
         },
         "required": [
@@ -3962,6 +4072,18 @@
             "title": "Amount",
             "type": "string"
           },
+          "client_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -3978,6 +4100,17 @@
               }
             ],
             "title": "Created By"
+          },
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
           },
           "currency": {
             "title": "Currency",
@@ -4006,6 +4139,17 @@
               }
             ],
             "title": "Decided By"
+          },
+          "decided_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided By Name"
           },
           "decision_note": {
             "anyOf": [
@@ -4043,6 +4187,17 @@
             "format": "uuid",
             "title": "Staff Member Id",
             "type": "string"
+          },
+          "staff_member_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Staff Member Name"
           },
           "status": {
             "$ref": "#/components/schemas/CashDecisionStatus"
@@ -4091,6 +4246,19 @@
               }
             ],
             "title": "Amount"
+          },
+          "client_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Device/client id (offline idempotency)",
+            "title": "Client Id"
           },
           "currency": {
             "anyOf": [
@@ -4278,12 +4446,36 @@
             "title": "Partial Remittances In Window",
             "type": "integer"
           },
+          "remittance_cutoff_hour": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Tenant-local daily remittance cut-off (cash policy); null = no cut-off",
+            "title": "Remittance Cutoff Hour"
+          },
           "remittances_awaiting_confirmation": {
             "items": {
               "$ref": "#/components/schemas/CountAmountDto"
             },
             "title": "Remittances Awaiting Confirmation",
             "type": "array"
+          },
+          "remittances_overdue_today": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Custodians flagged today for unremitted cash past the cut-off (REMITTANCE_OVERDUE); null = no cut-off configured",
+            "title": "Remittances Overdue Today"
           },
           "transfers_awaiting_acknowledgement": {
             "items": {
@@ -4350,6 +4542,17 @@
             ],
             "title": "Acknowledged By"
           },
+          "acknowledged_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acknowledged By Name"
+          },
           "amount_declared": {
             "title": "Amount Declared",
             "type": "string"
@@ -4386,6 +4589,17 @@
             "title": "From Staff Id",
             "type": "string"
           },
+          "from_staff_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Staff Name"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -4419,6 +4633,17 @@
             ],
             "title": "Recorded By"
           },
+          "recorded_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recorded By Name"
+          },
           "source": {
             "title": "Source",
             "type": "string"
@@ -4430,6 +4655,17 @@
             "format": "uuid",
             "title": "To Staff Id",
             "type": "string"
+          },
+          "to_staff_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To Staff Name"
           },
           "transferred_at": {
             "format": "date-time",
@@ -4611,6 +4847,17 @@
             ],
             "title": "Counterparty Staff Id"
           },
+          "counterparty_staff_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Counterparty Staff Name"
+          },
           "currency": {
             "title": "Currency",
             "type": "string"
@@ -4640,6 +4887,17 @@
               }
             ],
             "title": "Opened By"
+          },
+          "opened_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opened By Name"
           },
           "outcome": {
             "anyOf": [
@@ -4685,6 +4943,17 @@
               }
             ],
             "title": "Proposed By"
+          },
+          "proposed_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proposed By Name"
           },
           "reason_id": {
             "anyOf": [
@@ -4737,6 +5006,17 @@
             ],
             "title": "Resolved By"
           },
+          "resolved_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved By Name"
+          },
           "source_id": {
             "format": "uuid",
             "title": "Source Id",
@@ -4757,6 +5037,17 @@
             ],
             "description": "Custodian accountable for the difference",
             "title": "Staff Member Id"
+          },
+          "staff_member_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Staff Member Name"
           },
           "status": {
             "$ref": "#/components/schemas/VarianceStatus"
@@ -5178,6 +5469,17 @@
             "format": "uuid",
             "title": "Machine Id",
             "type": "string"
+          },
+          "machine_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Name"
           },
           "note": {
             "title": "Note",
@@ -5744,6 +6046,17 @@
             ],
             "title": "Job Id"
           },
+          "job_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Number"
+          },
           "machine_code": {
             "anyOf": [
               {
@@ -5759,6 +6072,17 @@
             "format": "uuid",
             "title": "Machine Id",
             "type": "string"
+          },
+          "machine_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Name"
           },
           "new_reading": {
             "title": "New Reading",
@@ -5960,6 +6284,17 @@
             "title": "Customer Id",
             "type": "string"
           },
+          "customer_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Name"
+          },
           "decided_at": {
             "anyOf": [
               {
@@ -5983,6 +6318,17 @@
               }
             ],
             "title": "Decided By"
+          },
+          "decided_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided By Name"
           },
           "decision_note": {
             "anyOf": [
@@ -6038,6 +6384,17 @@
             ],
             "title": "Proposed By"
           },
+          "proposed_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proposed By Name"
+          },
           "reason": {
             "title": "Reason",
             "type": "string"
@@ -6088,6 +6445,17 @@
               }
             ],
             "title": "Revoked By"
+          },
+          "revoked_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked By Name"
           },
           "status": {
             "$ref": "#/components/schemas/ProposalStatus"
@@ -6515,6 +6883,17 @@
             ],
             "title": "Created By"
           },
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
+          },
           "currency": {
             "title": "Currency",
             "type": "string"
@@ -6542,6 +6921,17 @@
               }
             ],
             "title": "Decided By"
+          },
+          "decided_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided By Name"
           },
           "decision_note": {
             "anyOf": [
@@ -6610,6 +7000,17 @@
             "format": "uuid",
             "title": "Staff Member Id",
             "type": "string"
+          },
+          "staff_member_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Staff Member Name"
           },
           "status": {
             "$ref": "#/components/schemas/CashDecisionStatus"
@@ -6777,6 +7178,17 @@
             ],
             "title": "Counterparty Staff Id"
           },
+          "counterparty_staff_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Counterparty Staff Name"
+          },
           "currency": {
             "title": "Currency",
             "type": "string"
@@ -6820,6 +7232,17 @@
               }
             ],
             "title": "Recorded By"
+          },
+          "recorded_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recorded By Name"
           },
           "reference": {
             "anyOf": [
@@ -7142,6 +7565,17 @@
             "title": "Customer Id",
             "type": "string"
           },
+          "customer_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Name"
+          },
           "decision_note": {
             "anyOf": [
               {
@@ -7189,6 +7623,17 @@
             ],
             "title": "Received By Staff Id"
           },
+          "received_by_staff_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Received By Staff Name"
+          },
           "recorded_at": {
             "format": "date-time",
             "title": "Recorded At",
@@ -7205,6 +7650,17 @@
               }
             ],
             "title": "Recorded By"
+          },
+          "recorded_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recorded By Name"
           },
           "reference": {
             "anyOf": [
@@ -7247,6 +7703,17 @@
               }
             ],
             "title": "Verified By"
+          },
+          "verified_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified By Name"
           }
         },
         "required": [
@@ -7831,6 +8298,17 @@
             "title": "Customer Id",
             "type": "string"
           },
+          "customer_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Name"
+          },
           "decided_at": {
             "anyOf": [
               {
@@ -7854,6 +8332,17 @@
               }
             ],
             "title": "Decided By"
+          },
+          "decided_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided By Name"
           },
           "decision_note": {
             "anyOf": [
@@ -7909,6 +8398,17 @@
             ],
             "title": "Proposed By"
           },
+          "proposed_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proposed By Name"
+          },
           "reason": {
             "title": "Reason",
             "type": "string"
@@ -7959,6 +8459,17 @@
               }
             ],
             "title": "Revoked By"
+          },
+          "revoked_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked By Name"
           },
           "status": {
             "$ref": "#/components/schemas/ProposalStatus"
@@ -10947,14 +11458,47 @@
             "title": "Customer Id",
             "type": "string"
           },
+          "customer_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Name"
+          },
           "expired": {
             "title": "Expired",
             "type": "string"
+          },
+          "machine_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Code"
           },
           "machine_id": {
             "format": "uuid",
             "title": "Machine Id",
             "type": "string"
+          },
+          "machine_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Name"
           },
           "purchases": {
             "title": "Purchases",
@@ -11060,6 +11604,17 @@
             ],
             "title": "Created By"
           },
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
+          },
           "currency": {
             "title": "Currency",
             "type": "string"
@@ -11135,10 +11690,43 @@
             ],
             "title": "Job Site Id"
           },
+          "job_site_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Site Name"
+          },
+          "machine_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Code"
+          },
           "machine_id": {
             "format": "uuid",
             "title": "Machine Id",
             "type": "string"
+          },
+          "machine_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Name"
           },
           "machines": {
             "default": [],
@@ -13110,6 +13698,17 @@
             "title": "Customer Id",
             "type": "string"
           },
+          "customer_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Name"
+          },
           "entry_type": {
             "$ref": "#/components/schemas/LedgerEntryType"
           },
@@ -13146,10 +13745,32 @@
             ],
             "title": "Job Id"
           },
+          "machine_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Code"
+          },
           "machine_id": {
             "format": "uuid",
             "title": "Machine Id",
             "type": "string"
+          },
+          "machine_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Name"
           },
           "occurred_at": {
             "format": "date-time",
@@ -13830,10 +14451,32 @@
             "title": "Expired",
             "type": "string"
           },
+          "machine_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Code"
+          },
           "machine_id": {
             "format": "uuid",
             "title": "Machine Id",
             "type": "string"
+          },
+          "machine_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Name"
           },
           "remaining": {
             "title": "Remaining",
@@ -17746,7 +18389,8 @@
               "HOURS_PURCHASE",
               "HOURS_TRANSFER_REQUEST",
               "METER_BASELINE",
-              "METER_CORRECTION"
+              "METER_CORRECTION",
+              "CASH_RETENTION_REQUEST"
             ],
             "title": "Op Type",
             "type": "string"
@@ -17820,6 +18464,25 @@
         ],
         "title": "OperationStatus",
         "type": "string"
+      },
+      "OverdueAmountDto": {
+        "properties": {
+          "amount": {
+            "description": "Unremitted when flagged: outstanding - claimed remittances - retentions",
+            "title": "Amount",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          }
+        },
+        "required": [
+          "currency",
+          "amount"
+        ],
+        "title": "OverdueAmountDto",
+        "type": "object"
       },
       "OverridePendingChargeIn": {
         "properties": {
@@ -19617,6 +20280,37 @@
           "page_size"
         ],
         "title": "Page[ReasonCodeDto]",
+        "type": "object"
+      },
+      "Page_RemittanceOverdueDto_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RemittanceOverdueDto"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "Page[RemittanceOverdueDto]",
         "type": "object"
       },
       "Page_RiskSignalDto_": {
@@ -22217,6 +22911,68 @@
         "title": "RemittanceDecisionIn",
         "type": "object"
       },
+      "RemittanceOverdueDto": {
+        "description": "A custodian still holding unremitted cash after the tenant's daily cut-off (one per custodian per\ntenant-local day; evidence, never edited).",
+        "properties": {
+          "amounts": {
+            "items": {
+              "$ref": "#/components/schemas/OverdueAmountDto"
+            },
+            "title": "Amounts",
+            "type": "array"
+          },
+          "cutoff_hour": {
+            "title": "Cutoff Hour",
+            "type": "integer"
+          },
+          "flagged_at": {
+            "format": "date-time",
+            "title": "Flagged At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "local_day": {
+            "format": "date",
+            "title": "Local Day",
+            "type": "string"
+          },
+          "policy_version": {
+            "title": "Policy Version",
+            "type": "string"
+          },
+          "staff_member_id": {
+            "format": "uuid",
+            "title": "Staff Member Id",
+            "type": "string"
+          },
+          "staff_member_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Staff Member Name"
+          }
+        },
+        "required": [
+          "id",
+          "staff_member_id",
+          "local_day",
+          "cutoff_hour",
+          "amounts",
+          "flagged_at",
+          "policy_version"
+        ],
+        "title": "RemittanceOverdueDto",
+        "type": "object"
+      },
       "ReportColumnDto": {
         "properties": {
           "key": {
@@ -23875,6 +24631,17 @@
             "title": "Customer Id",
             "type": "string"
           },
+          "customer_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Name"
+          },
           "decision_note": {
             "anyOf": [
               {
@@ -23922,6 +24689,17 @@
             ],
             "title": "Received By Staff Id"
           },
+          "received_by_staff_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Received By Staff Name"
+          },
           "recorded_at": {
             "format": "date-time",
             "title": "Recorded At",
@@ -23938,6 +24716,17 @@
               }
             ],
             "title": "Recorded By"
+          },
+          "recorded_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recorded By Name"
           },
           "reference": {
             "anyOf": [
@@ -23984,6 +24773,17 @@
               }
             ],
             "title": "Verified By"
+          },
+          "verified_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified By Name"
           }
         },
         "required": [
@@ -24116,6 +24916,17 @@
             ],
             "title": "Recorded By"
           },
+          "recorded_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recorded By Name"
+          },
           "reference": {
             "anyOf": [
               {
@@ -24135,6 +24946,17 @@
             "format": "uuid",
             "title": "Staff Member Id",
             "type": "string"
+          },
+          "staff_member_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Staff Member Name"
           },
           "status": {
             "$ref": "#/components/schemas/SettlementStatus"
@@ -24166,6 +24988,17 @@
               }
             ],
             "title": "Verified By"
+          },
+          "verified_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified By Name"
           }
         },
         "required": [
@@ -25353,6 +26186,17 @@
               }
             ],
             "title": "Resolved By"
+          },
+          "resolved_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved By Name"
           }
         },
         "required": [
@@ -25430,6 +26274,14 @@
         "properties": {
           "access_state": {
             "$ref": "#/components/schemas/TenantAccessState"
+          },
+          "disabled_capabilities": {
+            "description": "Tenant capabilities switched off by policy (e.g. CUSTOMER_HOURS); their menus are omitted",
+            "items": {
+              "type": "string"
+            },
+            "title": "Disabled Capabilities",
+            "type": "array"
           },
           "mandate": {
             "anyOf": [
@@ -26753,6 +27605,17 @@
             ],
             "title": "Client Id"
           },
+          "customer_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Name"
+          },
           "decided_at": {
             "anyOf": [
               {
@@ -26777,6 +27640,17 @@
             ],
             "title": "Decided By"
           },
+          "decided_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided By Name"
+          },
           "decision_note": {
             "anyOf": [
               {
@@ -26788,10 +27662,32 @@
             ],
             "title": "Decision Note"
           },
+          "from_machine_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Machine Code"
+          },
           "from_machine_id": {
             "format": "uuid",
             "title": "From Machine Id",
             "type": "string"
+          },
+          "from_machine_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Machine Name"
           },
           "hours": {
             "title": "Hours",
@@ -26806,6 +27702,17 @@
             "format": "uuid",
             "title": "Purchase Id",
             "type": "string"
+          },
+          "purchase_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purchase Number"
           },
           "reason": {
             "title": "Reason",
@@ -26840,13 +27747,46 @@
             ],
             "title": "Requested By"
           },
+          "requested_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requested By Name"
+          },
           "status": {
             "$ref": "#/components/schemas/RequestStatus"
+          },
+          "to_machine_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To Machine Code"
           },
           "to_machine_id": {
             "format": "uuid",
             "title": "To Machine Id",
             "type": "string"
+          },
+          "to_machine_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To Machine Name"
           }
         },
         "required": [
@@ -27429,6 +28369,17 @@
             "title": "Customer Id",
             "type": "string"
           },
+          "customer_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Name"
+          },
           "exception_id": {
             "anyOf": [
               {
@@ -27462,6 +28413,17 @@
             "title": "Job Id",
             "type": "string"
           },
+          "job_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Number"
+          },
           "lines": {
             "items": {
               "$ref": "#/components/schemas/AllocationLineDto"
@@ -27469,10 +28431,32 @@
             "title": "Lines",
             "type": "array"
           },
+          "machine_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Code"
+          },
           "machine_id": {
             "format": "uuid",
             "title": "Machine Id",
             "type": "string"
+          },
+          "machine_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Name"
           },
           "overrun_hours": {
             "title": "Overrun Hours",
@@ -47999,6 +48983,141 @@
         ]
       }
     },
+    "/api/v1/tenant/cash/adjustments/{adjustment_id}": {
+      "get": {
+        "operationId": "getCustodyAdjustment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "adjustment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Adjustment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustodyAdjustmentDto"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Adjustment",
+        "tags": [
+          "finance"
+        ]
+      }
+    },
     "/api/v1/tenant/cash/adjustments/{adjustment_id}/decision": {
       "post": {
         "operationId": "decideCustodyAdjustment",
@@ -49928,6 +51047,142 @@
         ]
       }
     },
+    "/api/v1/tenant/cash/floats/{entry_id}": {
+      "get": {
+        "description": "One float (or opening balance) with its acknowledgement state.",
+        "operationId": "getCashFloat",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Entry Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashCustodyEntryDto"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Float",
+        "tags": [
+          "finance"
+        ]
+      }
+    },
     "/api/v1/tenant/cash/floats/{entry_id}/acknowledgement": {
       "post": {
         "description": "Acknowledge (amount actually received) or dispute a float that the tenant requires to be acknowledged. Until\nthen it does not count in the receiver's custody.",
@@ -50433,6 +51688,142 @@
           }
         },
         "summary": "Record Handover",
+        "tags": [
+          "finance"
+        ]
+      }
+    },
+    "/api/v1/tenant/cash/handovers/{handover_id}": {
+      "get": {
+        "description": "One remittance. Office readers open any; field recorders the ones they made or that are their custody.",
+        "operationId": "getCashHandover",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "handover_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Handover Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashHandoverDto"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Handover",
         "tags": [
           "finance"
         ]
@@ -51918,6 +53309,375 @@
         ]
       }
     },
+    "/api/v1/tenant/cash/remittance-overdue": {
+      "get": {
+        "description": "Custodians flagged for holding unremitted cash past the tenant's daily cut-off (latest day first).",
+        "operationId": "listCashRemittanceOverdue",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "staff_member_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Staff Member Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "day_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Day From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "day_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Day To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sort"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_RemittanceOverdueDto_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "List Remittance Overdue",
+        "tags": [
+          "finance"
+        ]
+      }
+    },
+    "/api/v1/tenant/cash/remittance-overdue/{overdue_id}": {
+      "get": {
+        "operationId": "getCashRemittanceOverdue",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "overdue_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Overdue Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemittanceOverdueDto"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Remittance Overdue",
+        "tags": [
+          "finance"
+        ]
+      }
+    },
     "/api/v1/tenant/cash/retentions": {
       "get": {
         "operationId": "listCashRetentions",
@@ -52262,6 +54022,141 @@
           }
         },
         "summary": "Request Retention",
+        "tags": [
+          "finance"
+        ]
+      }
+    },
+    "/api/v1/tenant/cash/retentions/{retention_id}": {
+      "get": {
+        "operationId": "getCashRetention",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "retention_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Retention Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashRetentionDto"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Retention",
         "tags": [
           "finance"
         ]

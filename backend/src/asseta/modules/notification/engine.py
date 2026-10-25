@@ -24,7 +24,7 @@ from asseta.modules.notification.models import (
 )
 from asseta.modules.notification.realtime import RealtimePublisher, entity_channel, user_channel
 from asseta.modules.notification.recipients import Directory, Recipient
-from asseta.modules.notification.rules import Audience, Intent
+from asseta.modules.notification.rules import Audience, Intent, record_data
 from asseta.modules.notification.segments import sms_segments
 from asseta.modules.notification.settings import NotificationSettings, get_notification_settings
 from asseta.modules.notification.types import TYPES, Channel, NotificationType, Severity
@@ -157,7 +157,7 @@ class NotificationEngine:
                 link=intent.link,
                 entity_type=intent.entity_type,
                 entity_id=intent.entity_id,
-                data=intent.data,
+                data={**record_data(intent.entity_type, intent.entity_id), **intent.data},
                 in_app=ch.in_app,
                 dedupe_key=intent.dedupe[:200],
                 source_event_id=source_event_id,

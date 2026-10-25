@@ -16,6 +16,7 @@ from asseta.core.errors import ERROR_RESPONSES, NotFound
 from asseta.core.idempotency import IdempotencyGuard, request_hash
 from asseta.core.lifecycle import IncludeInactive, LifecycleChangeIn
 from asseta.core.paging import Page, PageParams, page_params, paginate
+from asseta.modules.accountability.names import named
 from asseta.modules.finance.cash_service import CashCustodyService, custody_entry_dto
 from asseta.modules.finance.common import resolve_staff
 from asseta.modules.finance.custody_dto import (
@@ -34,6 +35,7 @@ from asseta.modules.finance.custody_dto import (
     CustodyTransactionDto,
     DecisionIn,
     ReconciliationFigure,
+    RemittanceOverdueDto,
     VarianceResolutionIn,
     WriteOffProposalIn,
 )
@@ -44,11 +46,12 @@ from asseta.modules.finance.custody_models import (
     CashTransfer,
     CashTransferStatus,
     CustodyAdjustment,
+    RemittanceOverdue,
     VarianceSource,
     VarianceStatus,
 )
 from asseta.modules.finance.custody_service import CashCustodyControls, custodian_dto
-from asseta.modules.finance.dto import CashCustodyEntryDto
+from asseta.modules.finance.dto import CashCustodyEntryDto, CashHandoverDto
 from asseta.modules.finance.permissions import (
     ADJUSTMENT_APPROVE,
     CASH_OFFICE,
@@ -77,6 +80,7 @@ def _page[T](items: list[T], total: int, paging: PageParams) -> Page[T]:
 
 # --- custodians -----------------------------------------------------------------------------------------------
 @router.get("/custodians", response_model=Page[CustodianDto], operation_id="listCashCustodians")
+@named
 def list_custodians(
     session: DbSession,
     now: Now,
@@ -92,6 +96,7 @@ def list_custodians(
 
 # --- transfers ------------------------------------------------------------------------------------------------
 @router.post("/transfers", response_model=CashTransferDto, status_code=201, operation_id="recordCashTransfer")
+@named
 def record_transfer(
     body: CashTransferIn,
     session: DbSession,
@@ -110,6 +115,7 @@ def record_transfer(
 
 
 @router.get("/transfers", response_model=Page[CashTransferDto], operation_id="listCashTransfers")
+@named
 def list_transfers(
     session: DbSession,
     now: Now,
@@ -124,6 +130,7 @@ def list_transfers(
 
 
 @router.get("/transfers/{transfer_id}", response_model=CashTransferDto, operation_id="getCashTransfer")
+@named
 def get_transfer(
     transfer_id: uuid.UUID, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(CUSTODY_READ)]
 ) -> CashTransferDto:
@@ -141,6 +148,7 @@ def get_transfer(
     response_model=CashTransferDto,
     operation_id="acknowledgeCashTransfer",
 )
+@named
 def acknowledge_transfer(
     transfer_id: uuid.UUID,
     body: CashAcknowledgementIn,
@@ -153,8 +161,19 @@ def acknowledge_transfer(
     return CashCustodyControls(session, ctx, now).acknowledge_transfer(transfer_id, body)
 
 
+# --- remittances (cash handovers) -----------------------------------------------------------------------------
+@router.get("/handovers/{handover_id}", response_model=CashHandoverDto, operation_id="getCashHandover")
+@named
+def get_handover(
+    handover_id: uuid.UUID, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(CUSTODY_READ)]
+) -> CashHandoverDto:
+    """One remittance. Office readers open any; field recorders the ones they made or that are their custody."""
+    return CashHandoverDto.model_validate(CashCustodyControls(session, ctx, now).handover(handover_id))
+
+
 # --- floats ---------------------------------------------------------------------------------------------------
 @router.get("/floats", response_model=Page[CashCustodyEntryDto], operation_id="listCashFloats")
+@named
 def list_floats(
     session: DbSession,
     now: Now,
@@ -170,9 +189,21 @@ def list_floats(
     return _page([custody_entry_dto(e, svc.float_ack(e.id)) for e in rows], total, paging)
 
 
+@router.get("/floats/{entry_id}", response_model=CashCustodyEntryDto, operation_id="getCashFloat")
+@named
+def get_float(
+    entry_id: uuid.UUID, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(CUSTODY_READ)]
+) -> CashCustodyEntryDto:
+    """One float (or opening balance) with its acknowledgement state."""
+    svc = CashCustodyControls(session, ctx, now)
+    entry = svc.float_entry(entry_id)
+    return custody_entry_dto(entry, svc.float_ack(entry.id))
+
+
 @router.post(
     "/floats/{entry_id}/acknowledgement", response_model=CashCustodyEntryDto, operation_id="acknowledgeCashFloat"
 )
+@named
 def acknowledge_float(
     entry_id: uuid.UUID,
     body: CashAcknowledgementIn,
@@ -187,6 +218,7 @@ def acknowledge_float(
 
 # --- variances ------------------------------------------------------------------------------------------------
 @router.get("/variances", response_model=Page[CashVarianceDto], operation_id="listCashVariances")
+@named
 def list_variances(
     session: DbSession,
     now: Now,
@@ -202,6 +234,7 @@ def list_variances(
 
 
 @router.get("/variances/{variance_id}", response_model=CashVarianceDto, operation_id="getCashVariance")
+@named
 def get_variance(
     variance_id: uuid.UUID, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(FINANCE_READ)]
 ) -> CashVarianceDto:
@@ -209,6 +242,7 @@ def get_variance(
 
 
 @router.post("/variances/{variance_id}/resolution", response_model=CashVarianceDto, operation_id="resolveCashVariance")
+@named
 def resolve_variance(
     variance_id: uuid.UUID,
     body: VarianceResolutionIn,
@@ -226,6 +260,7 @@ def resolve_variance(
     response_model=CashVarianceDto,
     operation_id="proposeCashVarianceWriteOff",
 )
+@named
 def propose_writeoff(
     variance_id: uuid.UUID,
     body: WriteOffProposalIn,
@@ -241,6 +276,7 @@ def propose_writeoff(
     response_model=CashVarianceDto,
     operation_id="decideCashVarianceWriteOff",
 )
+@named
 def decide_writeoff(
     variance_id: uuid.UUID,
     body: DecisionIn,
@@ -255,6 +291,7 @@ def decide_writeoff(
 
 # --- retentions -----------------------------------------------------------------------------------------------
 @router.post("/retentions", response_model=CashRetentionDto, status_code=201, operation_id="requestCashRetention")
+@named
 def request_retention(
     body: CashRetentionIn, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(CUSTODY_RECORD)]
 ) -> CashRetentionDto:
@@ -263,6 +300,7 @@ def request_retention(
 
 
 @router.get("/retentions", response_model=Page[CashRetentionDto], operation_id="listCashRetentions")
+@named
 def list_retentions(
     session: DbSession,
     ctx: Annotated[RequestContext, Depends(CUSTODY_READ)],
@@ -279,7 +317,16 @@ def list_retentions(
     return _page([CashRetentionDto.model_validate(r) for r in rows], total, paging)
 
 
+@router.get("/retentions/{retention_id}", response_model=CashRetentionDto, operation_id="getCashRetention")
+@named
+def get_retention(
+    retention_id: uuid.UUID, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(CUSTODY_READ)]
+) -> CashRetentionDto:
+    return CashRetentionDto.model_validate(CashCustodyControls(session, ctx, now).retention(retention_id))
+
+
 @router.post("/retentions/{retention_id}/decision", response_model=CashRetentionDto, operation_id="decideCashRetention")
+@named
 def decide_retention(
     retention_id: uuid.UUID,
     body: DecisionIn,
@@ -290,10 +337,47 @@ def decide_retention(
     return CashCustodyControls(session, ctx, now).decide_retention(retention_id, body)
 
 
+# --- remittance cut-off --------------------------------------------------------------------------------------
+@router.get("/remittance-overdue", response_model=Page[RemittanceOverdueDto], operation_id="listCashRemittanceOverdue")
+@named
+def list_remittance_overdue(
+    session: DbSession,
+    ctx: Annotated[RequestContext, Depends(FINANCE_READ)],
+    paging: Paging,
+    staff_member_id: uuid.UUID | None = None,
+    day_from: date | None = None,
+    day_to: date | None = None,
+) -> Page[RemittanceOverdueDto]:
+    """Custodians flagged for holding unremitted cash past the tenant's daily cut-off (latest day first)."""
+    stmt = select(RemittanceOverdue).order_by(RemittanceOverdue.local_day.desc(), RemittanceOverdue.flagged_at.desc())
+    if staff_member_id:
+        stmt = stmt.where(RemittanceOverdue.staff_member_id == staff_member_id)
+    if day_from:
+        stmt = stmt.where(RemittanceOverdue.local_day >= day_from)
+    if day_to:
+        stmt = stmt.where(RemittanceOverdue.local_day <= day_to)
+    rows, total = paginate(session, stmt, paging)
+    return _page([RemittanceOverdueDto.model_validate(r) for r in rows], total, paging)
+
+
+@router.get(
+    "/remittance-overdue/{overdue_id}", response_model=RemittanceOverdueDto, operation_id="getCashRemittanceOverdue"
+)
+@named
+def get_remittance_overdue(
+    overdue_id: uuid.UUID, session: DbSession, ctx: Annotated[RequestContext, Depends(FINANCE_READ)]
+) -> RemittanceOverdueDto:
+    row = session.get(RemittanceOverdue, overdue_id)
+    if row is None:
+        raise NotFound("Overdue remittance flag not found", code="REMITTANCE_OVERDUE_NOT_FOUND")
+    return RemittanceOverdueDto.model_validate(row)
+
+
 # --- custody adjustments --------------------------------------------------------------------------------------
 @router.post(
     "/adjustments", response_model=CustodyAdjustmentDto, status_code=201, operation_id="proposeCustodyAdjustment"
 )
+@named
 def propose_adjustment(
     body: CustodyAdjustmentIn, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(CASH_OFFICE)]
 ) -> CustodyAdjustmentDto:
@@ -303,6 +387,7 @@ def propose_adjustment(
 
 
 @router.get("/adjustments", response_model=Page[CustodyAdjustmentDto], operation_id="listCustodyAdjustments")
+@named
 def list_adjustments(
     session: DbSession,
     ctx: Annotated[RequestContext, Depends(FINANCE_READ)],
@@ -319,11 +404,20 @@ def list_adjustments(
     return _page([CustodyAdjustmentDto.model_validate(r) for r in rows], total, paging)
 
 
+@router.get("/adjustments/{adjustment_id}", response_model=CustodyAdjustmentDto, operation_id="getCustodyAdjustment")
+@named
+def get_adjustment(
+    adjustment_id: uuid.UUID, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(FINANCE_READ)]
+) -> CustodyAdjustmentDto:
+    return CustodyAdjustmentDto.model_validate(CashCustodyControls(session, ctx, now).adjustment(adjustment_id))
+
+
 @router.post(
     "/adjustments/{adjustment_id}/decision",
     response_model=CustodyAdjustmentDto,
     operation_id="decideCustodyAdjustment",
 )
+@named
 def decide_adjustment(
     adjustment_id: uuid.UUID,
     body: DecisionIn,
@@ -336,6 +430,7 @@ def decide_adjustment(
 
 # --- reason lists ---------------------------------------------------------------------------------------------
 @router.get("/reasons", response_model=Page[CashReasonDto], operation_id="listCashReasons")
+@named
 def list_reasons(
     session: DbSession,
     now: Now,
@@ -350,6 +445,7 @@ def list_reasons(
 
 
 @router.post("/reasons", response_model=CashReasonDto, status_code=201, operation_id="createCashReason")
+@named
 def create_reason(
     body: CashReasonIn, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(REASON_MANAGE)]
 ) -> CashReasonDto:
@@ -357,6 +453,7 @@ def create_reason(
 
 
 @router.get("/reasons/{reason_id}", response_model=CashReasonDto, operation_id="getCashReason")
+@named
 def get_reason(
     reason_id: uuid.UUID, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(CUSTODY_READ)]
 ) -> CashReasonDto:
@@ -364,6 +461,7 @@ def get_reason(
 
 
 @router.patch("/reasons/{reason_id}", response_model=CashReasonDto, operation_id="updateCashReason")
+@named
 def update_reason(
     reason_id: uuid.UUID,
     body: CashReasonUpdateIn,
@@ -375,6 +473,7 @@ def update_reason(
 
 
 @router.post("/reasons/{reason_id}/deactivate", response_model=CashReasonDto, operation_id="deactivateCashReason")
+@named
 def deactivate_reason(
     reason_id: uuid.UUID,
     body: LifecycleChangeIn,
@@ -386,6 +485,7 @@ def deactivate_reason(
 
 
 @router.post("/reasons/{reason_id}/reactivate", response_model=CashReasonDto, operation_id="reactivateCashReason")
+@named
 def reactivate_reason(
     reason_id: uuid.UUID,
     body: LifecycleChangeIn,
@@ -405,6 +505,7 @@ Figures = Annotated[list[ReconciliationFigure] | None, Query(description="Only t
     response_model=Page[CustodyTransactionDto],
     operation_id="listCashReconciliationTransactions",
 )
+@named
 def reconciliation_transactions(
     session: DbSession,
     now: Now,
@@ -428,6 +529,7 @@ def reconciliation_transactions(
     response_model=Page[CustodyTransactionDto],
     operation_id="listMyCashReconciliationTransactions",
 )
+@named
 def my_reconciliation_transactions(
     session: DbSession,
     now: Now,

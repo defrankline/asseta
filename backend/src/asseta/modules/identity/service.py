@@ -5,7 +5,7 @@ from datetime import date
 
 from sqlalchemy.orm import Session
 
-from asseta.core.db import DbScope, apply_scope
+from asseta.core.db import DbScope, apply_scope, utcnow
 from asseta.modules.identity.catalog import CATALOG
 from asseta.modules.identity.dto import MandateBadgeDto, MeDto, MenuDto, MenuGroupDto, TenantAccessDto
 from asseta.modules.identity.models import Menu
@@ -13,12 +13,22 @@ from asseta.modules.identity.principal import TokenClaims
 from asseta.modules.identity.repository import IdentityRepository
 from asseta.modules.identity.tokens import parse_group_grants
 from asseta.modules.managed_service.gate import MandateGrant, grants_for_user, has_assignment_history
+from asseta.modules.policy.capabilities import disabled_capabilities
 
 
-def menus_for(menus: list[Menu], scope: str, permissions: frozenset[str]) -> tuple[list[MenuDto], list[MenuGroupDto]]:
-    """Visible menus of one console, plus the groups holding at least one of them (both in display order)."""
+def menus_for(
+    menus: list[Menu], scope: str, permissions: frozenset[str], disabled: frozenset[str] = frozenset()
+) -> tuple[list[MenuDto], list[MenuGroupDto]]:
+    """Visible menus of one console, plus the groups holding at least one of them (both in display order). Menus
+    whose capability (own or group's, from the catalog) is switched off by the tenant's policy are left out."""
     visible = sorted(
-        (m for m in menus if m.scope == scope and m.required_permission in permissions),
+        (
+            m
+            for m in menus
+            if m.scope == scope
+            and m.required_permission in permissions
+            and not (CATALOG.menu_capabilities(m.key) & disabled)
+        ),
         key=lambda m: (m.sort_order, m.label),
     )
     used = {m.group_key for m in visible}
@@ -56,7 +66,9 @@ class IdentityService:
         for tenant in self._repo.tenants_by_ids(access.keys()):
             paths, grant = access[tenant.id]
             perms = self._repo.permissions_for_groups(paths)
-            tenant_menus, tenant_groups = menus_for(menus, "TENANT", perms)
+            apply_scope(self._s, DbScope.TENANT, tenant.id, user.id)  # the tenant's own effective policy
+            disabled = disabled_capabilities(self._s, tenant.id, utcnow())
+            tenant_menus, tenant_groups = menus_for(menus, "TENANT", perms, disabled)
             tenants.append(
                 TenantAccessDto(
                     tenant_id=tenant.id,
@@ -66,6 +78,7 @@ class IdentityService:
                     permissions=sorted(perms),
                     menus=tenant_menus,
                     menu_groups=tenant_groups,
+                    disabled_capabilities=sorted(disabled),
                     mandate=MandateBadgeDto(
                         mandate_id=grant.mandate_id,
                         reference=grant.reference,

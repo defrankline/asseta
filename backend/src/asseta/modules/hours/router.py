@@ -18,6 +18,7 @@ from asseta.core.lifecycle import IncludeInactive, LifecycleChangeIn
 from asseta.core.paging import Page, PageParams, page_params, paginate
 from asseta.core.search import ilike_any
 from asseta.core.storage import ObjectStore
+from asseta.modules.accountability.names import named
 from asseta.modules.finance import permissions as _finance_permissions  # noqa: F401  (declares finance codes)
 from asseta.modules.fleet.models import Machine
 from asseta.modules.fleet.photos import PhotoUrlDto, get_object_store
@@ -113,6 +114,7 @@ EVIDENCE_READ = requires_any(("tenant.hours.read", "tenant.finance.read"), S.TEN
 @router.post(
     "/walk-in-customers", response_model=WalkInCustomerDto, status_code=201, operation_id="createWalkInCustomer"
 )
+@named
 def create_walk_in(
     body: WalkInCustomerIn,
     session: DbSession,
@@ -130,6 +132,7 @@ def create_walk_in(
 
 
 @router.post("/customers/{customer_id}/registration", response_model=CustomerDto, operation_id="registerWalkInCustomer")
+@named
 def register_walk_in(
     customer_id: uuid.UUID,
     body: CustomerRegistrationIn,
@@ -142,6 +145,7 @@ def register_walk_in(
 
 # --- reason lists -----------------------------------------------------------------------------------------------
 @router.get("/hours-reason-codes", response_model=Page[ReasonCodeDto], operation_id="listHoursReasonCodes")
+@named
 def list_reason_codes(
     session: DbSession,
     _: Read,
@@ -156,6 +160,7 @@ def list_reason_codes(
 
 
 @router.post("/hours-reason-codes", response_model=ReasonCodeDto, status_code=201, operation_id="createHoursReasonCode")
+@named
 def create_reason_code(
     body: ReasonCodeIn, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(REASONS_MANAGE)]
 ) -> ReasonCodeDto:
@@ -163,11 +168,13 @@ def create_reason_code(
 
 
 @router.get("/hours-reason-codes/{code_id}", response_model=ReasonCodeDto, operation_id="getHoursReasonCode")
+@named
 def get_reason_code(code_id: uuid.UUID, session: DbSession, now: Now, ctx: Read) -> ReasonCodeDto:
     return ReasonCodeDto.model_validate(HoursApprovals(session, ctx, now).reason_code(code_id))
 
 
 @router.put("/hours-reason-codes/{code_id}", response_model=ReasonCodeDto, operation_id="updateHoursReasonCode")
+@named
 def update_reason_code(
     code_id: uuid.UUID,
     body: ReasonCodeUpdateIn,
@@ -181,6 +188,7 @@ def update_reason_code(
 @router.post(
     "/hours-reason-codes/{code_id}/deactivate", response_model=ReasonCodeDto, operation_id="deactivateHoursReasonCode"
 )
+@named
 def deactivate_reason_code(
     code_id: uuid.UUID,
     body: LifecycleChangeIn,
@@ -194,6 +202,7 @@ def deactivate_reason_code(
 @router.post(
     "/hours-reason-codes/{code_id}/reactivate", response_model=ReasonCodeDto, operation_id="reactivateHoursReasonCode"
 )
+@named
 def reactivate_reason_code(
     code_id: uuid.UUID,
     body: LifecycleChangeIn,
@@ -206,6 +215,7 @@ def reactivate_reason_code(
 
 # --- discounts --------------------------------------------------------------------------------------------------
 @router.get("/customer-discounts", response_model=Page[DiscountDto], operation_id="listCustomerDiscounts")
+@named
 def list_discounts(
     session: DbSession,
     _: Read,
@@ -220,6 +230,7 @@ def list_discounts(
 
 
 @router.post("/customer-discounts", response_model=DiscountDto, status_code=201, operation_id="proposeCustomerDiscount")
+@named
 def propose_discount(
     body: DiscountIn, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(DISCOUNT_PROPOSE)]
 ) -> DiscountDto:
@@ -227,6 +238,7 @@ def propose_discount(
 
 
 @router.get("/customer-discounts/{discount_id}", response_model=DiscountDto, operation_id="getCustomerDiscount")
+@named
 def get_discount(discount_id: uuid.UUID, session: DbSession, _: Read) -> DiscountDto:
     row = session.get(CustomerDiscount, discount_id)
     if row is None:
@@ -235,6 +247,7 @@ def get_discount(discount_id: uuid.UUID, session: DbSession, _: Read) -> Discoun
 
 
 @router.put("/customer-discounts/{discount_id}", response_model=DiscountDto, operation_id="updateCustomerDiscount")
+@named
 def update_discount(
     discount_id: uuid.UUID,
     body: DiscountUpdateIn,
@@ -248,6 +261,7 @@ def update_discount(
 @router.post(
     "/customer-discounts/{discount_id}/decision", response_model=DiscountDto, operation_id="decideCustomerDiscount"
 )
+@named
 def decide_discount(
     discount_id: uuid.UUID,
     body: DecisionIn,
@@ -263,6 +277,7 @@ def decide_discount(
 @router.post(
     "/customer-discounts/{discount_id}/withdraw", response_model=DiscountDto, operation_id="withdrawCustomerDiscount"
 )
+@named
 def withdraw_discount(
     discount_id: uuid.UUID,
     body: ReasonIn,
@@ -278,6 +293,7 @@ def withdraw_discount(
 @router.post(
     "/customer-discounts/{discount_id}/revoke", response_model=DiscountDto, operation_id="revokeCustomerDiscount"
 )
+@named
 def revoke_discount(
     discount_id: uuid.UUID,
     body: ReasonIn,
@@ -292,6 +308,7 @@ def revoke_discount(
 
 # --- credit arrangements ----------------------------------------------------------------------------------------
 @router.get("/credit-arrangements", response_model=Page[CreditArrangementDto], operation_id="listCreditArrangements")
+@named
 def list_credit(
     session: DbSession,
     _: Read,
@@ -314,6 +331,7 @@ def list_credit(
     status_code=201,
     operation_id="proposeCreditArrangement",
 )
+@named
 def propose_credit(
     body: CreditArrangementIn, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(CREDIT_PROPOSE)]
 ) -> CreditArrangementDto:
@@ -323,6 +341,7 @@ def propose_credit(
 @router.get(
     "/credit-arrangements/{arrangement_id}", response_model=CreditArrangementDto, operation_id="getCreditArrangement"
 )
+@named
 def get_credit(arrangement_id: uuid.UUID, session: DbSession, _: Read) -> CreditArrangementDto:
     row = session.get(CreditArrangement, arrangement_id)
     if row is None:
@@ -335,6 +354,7 @@ def get_credit(arrangement_id: uuid.UUID, session: DbSession, _: Read) -> Credit
     response_model=CreditArrangementDto,
     operation_id="updateCreditArrangement",
 )
+@named
 def update_credit(
     arrangement_id: uuid.UUID,
     body: CreditArrangementUpdateIn,
@@ -350,6 +370,7 @@ def update_credit(
     response_model=CreditArrangementDto,
     operation_id="decideCreditArrangement",
 )
+@named
 def decide_credit(
     arrangement_id: uuid.UUID,
     body: DecisionIn,
@@ -367,6 +388,7 @@ def decide_credit(
     response_model=CreditArrangementDto,
     operation_id="withdrawCreditArrangement",
 )
+@named
 def withdraw_credit(
     arrangement_id: uuid.UUID,
     body: ReasonIn,
@@ -384,6 +406,7 @@ def withdraw_credit(
     response_model=CreditArrangementDto,
     operation_id="revokeCreditArrangement",
 )
+@named
 def revoke_credit(
     arrangement_id: uuid.UUID,
     body: ReasonIn,
@@ -401,6 +424,7 @@ def revoke_credit(
     response_model=CreditExposureDto,
     operation_id="getCustomerCreditExposure",
 )
+@named
 def credit_exposure(
     customer_id: uuid.UUID, session: DbSession, now: Now, ctx: Read, currency: str | None = None
 ) -> CreditExposureDto:
@@ -409,6 +433,7 @@ def credit_exposure(
 
 # --- purchases --------------------------------------------------------------------------------------------------
 @router.get("/hours-purchases", response_model=Page[HoursPurchaseDto], operation_id="listHoursPurchases")
+@named
 def list_purchases(
     session: DbSession,
     _: Read,
@@ -424,6 +449,7 @@ def list_purchases(
 
 
 @router.post("/hours-purchases", response_model=HoursPurchaseDto, status_code=201, operation_id="recordHoursPurchase")
+@named
 def record_purchase(
     body: HoursPurchaseIn,
     session: DbSession,
@@ -440,6 +466,7 @@ def record_purchase(
 
 
 @router.get("/hours-purchases/{purchase_id}", response_model=HoursPurchaseDto, operation_id="getHoursPurchase")
+@named
 def get_purchase(purchase_id: uuid.UUID, session: DbSession, now: Now, ctx: Read) -> HoursPurchaseDto:
     return purchase_dto(session, HoursService(session, ctx, now).purchase(purchase_id))
 
@@ -449,6 +476,7 @@ def get_purchase(purchase_id: uuid.UUID, session: DbSession, now: Now, ctx: Read
     response_model=HoursPurchaseDto,
     operation_id="allocatePaymentToHoursPurchase",
 )
+@named
 def allocate_payment(
     purchase_id: uuid.UUID,
     body: PurchaseAllocationIn,
@@ -476,6 +504,7 @@ def allocate_payment(
     response_model=HoursPurchaseDto,
     operation_id="activateHoursOnCredit",
 )
+@named
 def credit_activate(
     purchase_id: uuid.UUID,
     body: CreditActivationIn,
@@ -500,6 +529,7 @@ def credit_activate(
     status_code=201,
     operation_id="requestHoursPurchaseCancellation",
 )
+@named
 def request_cancellation(
     purchase_id: uuid.UUID,
     body: CancellationIn,
@@ -512,6 +542,7 @@ def request_cancellation(
 
 # --- ledger, balances, allocations ------------------------------------------------------------------------------
 @router.get("/hours-ledger", response_model=Page[LedgerEntryDto], operation_id="listHoursLedger")
+@named
 def list_ledger(
     session: DbSession,
     _: Read,
@@ -543,6 +574,7 @@ def list_ledger(
     response_model=list[HoursBalanceDto],
     operation_id="getCustomerHoursBalances",
 )
+@named
 def customer_balances(customer_id: uuid.UUID, session: DbSession, _: Read) -> list[HoursBalanceDto]:
     if session.get(Customer, customer_id) is None:
         raise NotFound("Customer not found")
@@ -554,6 +586,7 @@ def customer_balances(customer_id: uuid.UUID, session: DbSession, _: Read) -> li
     response_model=list[HoursBalanceDto],
     operation_id="getMachineHoursBalances",
 )
+@named
 def machine_balances(machine_id: uuid.UUID, session: DbSession, _: Read) -> list[HoursBalanceDto]:
     if session.get(Machine, machine_id) is None:
         raise NotFound("Machine not found")
@@ -565,6 +598,7 @@ def machine_balances(machine_id: uuid.UUID, session: DbSession, _: Read) -> list
     response_model=Page[WorkExecutionAllocationDto],
     operation_id="listWorkExecutionAllocations",
 )
+@named
 def list_allocations(
     session: DbSession,
     _: Read,
@@ -592,6 +626,7 @@ def list_allocations(
     response_model=WorkExecutionAllocationDto,
     operation_id="getWorkExecutionAllocation",
 )
+@named
 def get_allocation(allocation_id: uuid.UUID, session: DbSession, _: Read) -> WorkExecutionAllocationDto:
     row = session.get(WorkExecutionAllocation, allocation_id)
     if row is None:
@@ -601,6 +636,7 @@ def get_allocation(allocation_id: uuid.UUID, session: DbSession, _: Read) -> Wor
 
 # --- transfers --------------------------------------------------------------------------------------------------
 @router.get("/hours-transfers", response_model=Page[TransferDto], operation_id="listHoursTransfers")
+@named
 def list_transfers(
     session: DbSession,
     _: Read,
@@ -615,6 +651,7 @@ def list_transfers(
 
 
 @router.post("/hours-transfers", response_model=TransferDto, status_code=201, operation_id="requestHoursTransfer")
+@named
 def request_transfer(
     body: TransferIn,
     session: DbSession,
@@ -631,11 +668,13 @@ def request_transfer(
 
 
 @router.get("/hours-transfers/{transfer_id}", response_model=TransferDto, operation_id="getHoursTransfer")
+@named
 def get_transfer(transfer_id: uuid.UUID, session: DbSession, now: Now, ctx: Read) -> TransferDto:
     return TransferDto.model_validate(HoursApprovals(session, ctx, now).transfer(transfer_id))
 
 
 @router.post("/hours-transfers/{transfer_id}/decision", response_model=TransferDto, operation_id="decideHoursTransfer")
+@named
 def decide_transfer(
     transfer_id: uuid.UUID,
     body: DecisionIn,
@@ -649,6 +688,7 @@ def decide_transfer(
 @router.post(
     "/hours-transfers/{transfer_id}/withdraw", response_model=TransferDto, operation_id="withdrawHoursTransfer"
 )
+@named
 def withdraw_transfer(
     transfer_id: uuid.UUID,
     body: ReasonIn,
@@ -661,6 +701,7 @@ def withdraw_transfer(
 
 # --- cancellations ----------------------------------------------------------------------------------------------
 @router.get("/hours-cancellations", response_model=Page[CancellationDto], operation_id="listHoursCancellations")
+@named
 def list_cancellations(
     session: DbSession,
     _: Read,
@@ -680,6 +721,7 @@ def list_cancellations(
 @router.get(
     "/hours-cancellations/{cancellation_id}", response_model=CancellationDto, operation_id="getHoursCancellation"
 )
+@named
 def get_cancellation(cancellation_id: uuid.UUID, session: DbSession, now: Now, ctx: Read) -> CancellationDto:
     return CancellationDto.model_validate(HoursApprovals(session, ctx, now).cancellation(cancellation_id))
 
@@ -689,6 +731,7 @@ def get_cancellation(cancellation_id: uuid.UUID, session: DbSession, now: Now, c
     response_model=CancellationDto,
     operation_id="decideHoursCancellation",
 )
+@named
 def decide_cancellation(
     cancellation_id: uuid.UUID,
     body: DecisionIn,
@@ -704,6 +747,7 @@ def decide_cancellation(
     response_model=CancellationDto,
     operation_id="withdrawHoursCancellation",
 )
+@named
 def withdraw_cancellation(
     cancellation_id: uuid.UUID,
     body: ReasonIn,
@@ -716,6 +760,7 @@ def withdraw_cancellation(
 
 # --- payment evidence -------------------------------------------------------------------------------------------
 @router.post("/payment-evidence", response_model=AttachmentDto, status_code=201, operation_id="uploadPaymentEvidence")
+@named
 async def upload_evidence(
     session: DbSession,
     store: Store,
@@ -732,6 +777,7 @@ async def upload_evidence(
     status_code=201,
     operation_id="attachPaymentEvidence",
 )
+@named
 def attach_evidence(
     payment_id: uuid.UUID,
     body: EvidenceLinkIn,
@@ -747,6 +793,7 @@ def attach_evidence(
     response_model=list[PaymentEvidenceDto],
     operation_id="listPaymentEvidence",
 )
+@named
 def list_evidence(
     payment_id: uuid.UUID, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(EVIDENCE_READ)]
 ) -> list[PaymentEvidenceDto]:
@@ -758,6 +805,7 @@ def list_evidence(
     response_model=PhotoUrlDto,
     operation_id="getPaymentEvidenceUrl",
 )
+@named
 def evidence_url(
     payment_id: uuid.UUID,
     attachment_id: uuid.UUID,

@@ -51,5 +51,6 @@ CATALOG.register_menu(
         16,
         "tenant.hours.purchase",
         group="tenant.field",
+        capability="CUSTOMER_HOURS",
     )
 )

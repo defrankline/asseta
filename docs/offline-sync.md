@@ -16,6 +16,23 @@ final financial, billing and authorization state; the device owns original captu
 Operation types (v1): `METER_CAPTURE`, `JOB_ACTIVITY`, `JOB_ACKNOWLEDGEMENT`, `JOB_TRANSITION` (START/COMPLETE).
 Gate 5 adds expense, collection, cash handover and fuel operations through the same dispatcher.
 
+Accountability (DEC-030) operations, each announced by a capability in `bootstrap`/`changes` (`capabilities[]`) so a
+client only queues an op the server understands:
+
+| Op type | Capability | Payload (idempotency) | Conflict codes |
+|---|---|---|---|
+| `CASH_TRANSFER` | `OP_CASH_TRANSFER` | `CashTransferIn` (`client_id` required) | `DUPLICATE_TRANSFER` (rejected) |
+| `CASH_TRANSFER_ACKNOWLEDGEMENT` | `OP_CASH_TRANSFER` | `{transfer_id, acknowledged, amount_received?, note?}` | `TRANSFER_ALREADY_DECIDED` |
+| `CASH_FLOAT_ACKNOWLEDGEMENT` | `OP_CASH_TRANSFER` | `{entry_id, acknowledged, amount_received?, note?}` (op id) | `FLOAT_ALREADY_ACKNOWLEDGED` |
+| `CASH_RETENTION_REQUEST` | `OP_CASH_RETENTION_REQUEST` | `CashRetentionIn` (`client_id` required; `staff_member_id` defaults to the caller) | `RETENTION_NOT_ALLOWED` (tenant policy `cash.retention_allowed` off), `DUPLICATE_RETENTION` |
+| `HOURS_PURCHASE` | `OP_HOURS_PURCHASE` | `HoursPurchaseIn` (op id = client id) + `evidence_upload_ids` | `NO_AVAILABLE_HOURS` … |
+| `HOURS_TRANSFER_REQUEST` | `OP_HOURS_TRANSFER_REQUEST` | `TransferIn` (op id = client id) | `EXCEEDS_REMAINING_HOURS` |
+| `METER_BASELINE` / `METER_CORRECTION` | `OP_METER_BASELINE` / `OP_METER_CORRECTION` | `BaselineIn` / `CorrectionIn` | `BASELINE_PENDING`, `CORRECTION_PENDING` |
+
+`CASH_RETENTION_REQUEST` needs `tenant.collection.record`; a retry with the same `client_id` returns the original
+request (one effect). The result entity is the `CashRetentionDto` (status `PENDING` until someone other than the
+requester decides it).
+
 ## Guarantees
 * **Idempotency:** the device-generated operation id is the key (`client_operation`). A retry returns the stored
   outcome (`DUPLICATE`); the same id with different content is `OPERATION_ID_REUSED`. Domain ids (capture id,

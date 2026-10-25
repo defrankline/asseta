@@ -15,6 +15,7 @@ from asseta.core.db import get_session
 from asseta.core.errors import ERROR_RESPONSES
 from asseta.core.idempotency import IdempotencyGuard, request_hash
 from asseta.core.paging import Page, PageParams, page_params, paginate
+from asseta.modules.accountability.names import named
 from asseta.modules.finance.common import tenant_settings
 from asseta.modules.finance.dto import (
     CustomerBalanceDto,
@@ -44,6 +45,7 @@ IdemKey = Annotated[str | None, Header()]
 
 
 @router.post("/hire-invoices", response_model=HireInvoiceDto, status_code=201, operation_id="createHireInvoiceDraft")
+@named
 def create_draft(
     body: HireInvoiceDraftIn,
     session: DbSession,
@@ -60,6 +62,7 @@ def create_draft(
 
 
 @router.get("/hire-invoices", response_model=Page[HireInvoiceDto], operation_id="listHireInvoices")
+@named
 def list_invoices(
     session: DbSession,
     ctx: Annotated[RequestContext, Depends(FINANCE_READ)],
@@ -87,6 +90,7 @@ def list_invoices(
 
 
 @router.get("/hire-invoices/{invoice_id}", response_model=HireInvoiceDto, operation_id="getHireInvoice")
+@named
 def get_invoice(
     invoice_id: uuid.UUID, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(FINANCE_READ)]
 ) -> HireInvoiceDto:
@@ -94,6 +98,7 @@ def get_invoice(
 
 
 @router.post("/hire-invoices/{invoice_id}/issue", response_model=HireInvoiceDto, operation_id="issueHireInvoice")
+@named
 def issue_invoice(
     invoice_id: uuid.UUID,
     body: HireInvoiceIssueIn,
@@ -105,6 +110,7 @@ def issue_invoice(
 
 
 @router.post("/hire-invoices/{invoice_id}/void", response_model=HireInvoiceDto, operation_id="voidHireInvoice")
+@named
 def void_invoice(
     invoice_id: uuid.UUID,
     body: HireInvoiceVoidIn,
@@ -118,6 +124,7 @@ def void_invoice(
 @router.post(
     "/customer-payments", response_model=CustomerPaymentDto, status_code=201, operation_id="recordCustomerPayment"
 )
+@named
 def record_payment(
     body: CustomerPaymentIn,
     session: DbSession,
@@ -134,6 +141,7 @@ def record_payment(
 
 
 @router.get("/customer-payments", response_model=Page[CustomerPaymentDto], operation_id="listCustomerPayments")
+@named
 def list_payments(
     session: DbSession,
     _: Annotated[RequestContext, Depends(FINANCE_READ)],
@@ -158,6 +166,7 @@ def list_payments(
 @router.post(
     "/customer-payments/{payment_id}/decision", response_model=CustomerPaymentDto, operation_id="decideCustomerPayment"
 )
+@named
 def decide_payment(
     payment_id: uuid.UUID,
     body: SettlementDecisionIn,
@@ -173,6 +182,7 @@ def decide_payment(
     response_model=CustomerPaymentDto,
     operation_id="allocateCustomerPayment",
 )
+@named
 def allocate_payment(
     payment_id: uuid.UUID,
     body: HireAllocateIn,
@@ -194,6 +204,7 @@ def allocate_payment(
 @router.get(
     "/customers/{customer_id}/balance", response_model=list[CustomerBalanceDto], operation_id="getCustomerBalance"
 )
+@named
 def customer_balance(
     customer_id: uuid.UUID, session: DbSession, ctx: Annotated[RequestContext, Depends(FINANCE_READ)]
 ) -> list[CustomerBalanceDto]:
@@ -204,6 +215,7 @@ def customer_balance(
 @router.get(
     "/customers/{customer_id}/statement", response_model=CustomerStatementDto, operation_id="getCustomerStatement"
 )
+@named
 def customer_statement(
     customer_id: uuid.UUID,
     session: DbSession,
@@ -217,6 +229,7 @@ def customer_statement(
 
 
 @router.get("/finance/profitability", response_model=ProfitabilityDto, operation_id="getProfitability")
+@named
 def profitability(
     session: DbSession,
     ctx: Annotated[RequestContext, Depends(REPORT)],

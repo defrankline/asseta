@@ -55,6 +55,27 @@ def _delivery(
     }
 
 
+def push_data(d: NotificationDelivery, n: Notification | None) -> dict[str, str]:
+    """Push payload (string values only): the notification, plus the exact record it is about — `entity` /
+    `entity_id` and, for accountability records, `kind` / `record_id` — so a tap opens that record."""
+    data = {
+        "notification_id": str(d.notification_id),
+        "type": d.notification_type,
+        "severity": d.severity.value,
+        "tenant_id": str(d.tenant_id) if d.tenant_id else "",
+        "link": d.link or "",
+    }
+    if n is not None:
+        if n.entity_type:
+            data["entity"] = n.entity_type
+        if n.entity_id:
+            data["entity_id"] = str(n.entity_id)
+        for key in ("kind", "record_id"):
+            if isinstance((value := (n.data or {}).get(key)), str):
+                data[key] = value
+    return data
+
+
 def target_devices(session: Session, user_id: uuid.UUID, tenant_id: uuid.UUID | None) -> list[PushDevice]:
     """The user's active devices for this context: bound to the notification's tenant or unbound (platform
     notifications only reach unbound devices). A token re-registered later by another user (handed-over phone)
@@ -173,13 +194,7 @@ class ChannelDispatcher:
             token=device.token,
             title=d.title,
             body=d.body,
-            data={
-                "notification_id": str(d.notification_id),
-                "type": d.notification_type,
-                "severity": d.severity.value,
-                "tenant_id": str(d.tenant_id) if d.tenant_id else "",
-                "link": d.link or "",
-            },
+            data=push_data(d, s.get(Notification, d.notification_id)),
             high_priority=d.severity is not Severity.INFO,
             collapse_key=d.notification_type,
             app=device.app.value,

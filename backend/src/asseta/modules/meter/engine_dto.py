@@ -227,6 +227,7 @@ class ClassificationDto(Dto):
     id: uuid.UUID
     machine_id: uuid.UUID
     machine_code: str | None = None
+    machine_name: str | None = None
     start_ref: uuid.UUID
     end_ref: uuid.UUID
     start_at: datetime
@@ -258,7 +259,9 @@ class CorrectionDto(Dto):
     id: uuid.UUID
     machine_id: uuid.UUID
     machine_code: str | None = None
+    machine_name: str | None = None
     job_id: uuid.UUID | None
+    job_number: str | None = None
     superseded_capture_id: uuid.UUID
     replacement_capture_id: uuid.UUID
     old_reading: Decimal
