@@ -192,10 +192,10 @@ public enum AccountabilityDashboard {
         var out: [DashboardTile] = []
         if let a = s.outstandingApprovals {
             out.append(DashboardTile(id: "outstanding_approvals", title: T.dashApprovals, rows: [
+                .init(T.dashTotal, "\(a.total)"),
                 .init(T.dashApprovalRequests, "\(a.approvalRequests)"), .init(T.dashPaymentsToVerify, "\(a.paymentsToVerify)"),
                 .init(T.dashRemittancesToVerify, "\(a.remittancesToVerify)"), .init(T.dashCashRetentions, "\(a.cashRetentions)"),
                 .init(T.dashCustodyAdjustments, "\(a.custodyAdjustments)"), .init(T.dashWriteOffs, "\(a.writeOffs)"),
-                .init(T.dashTotal, "\(a.total)"),
             ], route: .approvals))
         }
         if let c = s.cash {
@@ -212,7 +212,8 @@ public enum AccountabilityDashboard {
                 let outstanding = T.dashCustodianLine(OwnerFormat.money(custodian.outstanding, currency: custodian.currency))
                 let transit = custodian.inTransitOut.value == 0 ? nil
                     : T.dashInTransit(OwnerFormat.money(custodian.inTransitOut, currency: custodian.currency))
-                rows.append(.init(custodian.staffName, outstanding, detail: transit))
+                // On one line, as Android: "TZS 150,000.00 outstanding · TZS 20,000.00 in transit".
+                rows.append(.init(custodian.staffName, [outstanding, transit].compactMap { $0 }.joined(separator: " · ")))
             }
             let overdue = c.remittancesOverdueToday != nil
             out.append(DashboardTile(id: "cash", title: T.dashCash, rows: rows, route: .cash,
@@ -236,9 +237,8 @@ public enum AccountabilityDashboard {
         }
         if let a = s.unauthorizedAttempts {
             out.append(DashboardTile(id: "unauthorized_attempts", title: T.dashAttempts, rows: [
-                .init(T.dashPermissionDenied, "\(a.permissionDenied)", detail: T.dashWindow(a.windowDays)),
-                .init(T.dashSod, "\(a.segregationOfDuties)", detail: T.dashWindow(a.windowDays)),
-            ], route: nil))
+                .init(T.dashPermissionDenied, "\(a.permissionDenied)"), .init(T.dashSod, "\(a.segregationOfDuties)"),
+            ], route: nil, footer: T.dashWindow(a.windowDays)))
         }
         if customerHours, let h = s.customerHours {
             var rows: [DashboardTile.Row] = [

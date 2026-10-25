@@ -176,11 +176,14 @@ struct AccountabilityOwnerTests {
         #expect(tiles.map(\.id) == ["outstanding_approvals", "cash", "discrepancies", "investigations", "unauthorized_attempts",
                                     "customer_hours", "hours_awaiting_activation", "engine_hours", "unexplained_hours",
                                     "missing_daily_reports"])
-        #expect(tiles.first?.rows.last == DashboardTile.Row("Total", "7"))
+        #expect(tiles.first?.rows.first == DashboardTile.Row("Total", "7"))
+        let custodian = tiles.first { $0.id == "cash" }?.rows.first { $0.label == "Juma Field" }
+        #expect(custodian?.value.contains(" outstanding · ") == true && custodian?.value.hasSuffix(" in transit") == true && custodian?.detail == nil)
         #expect(tiles.first { $0.id == "engine_hours" }?.rows.map(\.label) == ["Machines", "No baseline", "Reconciled"])
         #expect(tiles.first { $0.id == "unexplained_hours" }?.rows.last?.value == "4 h · oldest 5 days")
         #expect(tiles.first { $0.id == "missing_daily_reports" }?.rows.last?.label == "EX-07 · 2026-10-23")
-        #expect(tiles.first { $0.id == "unauthorized_attempts" }?.rows.first?.detail == "Last 30 days")
+        let attempts = tiles.first { $0.id == "unauthorized_attempts" }
+        #expect(attempts?.footer == "Last 30 days" && attempts?.rows.allSatisfy { $0.detail == nil } == true)
         #expect(AccountabilityDashboard.showsHiddenNote(s))
         #expect(AccountabilityDashboard.footer(s, timeZone: TimeZone(identifier: "UTC")!) == "Policy o1 · As of 24 Oct 2026, 09:00")
         // A tile that does not decode is left out; the dashboard still opens.
