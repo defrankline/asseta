@@ -72,9 +72,10 @@ export function BalanceCard({ b, timeZone }: { b: CashCustodyBalanceDto; timeZon
         ]}
       />
       <Typography variant="caption" color="text.secondary">
-        As of {formatInstantIn(b.as_of, timeZone)}. Outstanding = floats + collections + transfers
-        received − transfers sent − approved cash expenses − confirmed remittances ± approved
-        adjustments − written off; claims and transfers in transit do not change it until confirmed.
+        As of {formatInstantIn(b.as_of, timeZone)}.{' '}
+        {controlsOn
+          ? 'Outstanding = floats + collections + transfers received − transfers sent − approved cash expenses − confirmed remittances ± approved adjustments − written off; claims and transfers in transit do not change it until confirmed.'
+          : 'Outstanding = floats + collections − approved cash expenses − confirmed remittances; claims do not change it until confirmed.'}
       </Typography>
     </Paper>
   );

@@ -14,6 +14,7 @@ import {
 } from '@mui/material';
 import dayjs from 'dayjs';
 import { useCallback, useState } from 'react';
+import { CAPABILITY, useCapabilityEnabled } from '../../../../access/capabilities';
 import { cashService } from '../../../../api/services/cashService';
 import type {
   CashReconciliationDayDto,
@@ -37,6 +38,31 @@ import { TransactionsDrawer, type DrillDown } from './TransactionsDrawer';
 /** The reconciliation identity (acceptance §10 #8), as computed by the server per tenant-local day. */
 export const RECONCILIATION_FORMULA =
   'Opening + floats + collections + transfers received − transfers sent − approved cash expenses − confirmed remittances ± approved adjustments − written off = outstanding';
+
+/** The same identity while the tenant switches the cash custody controls off (no transfers, adjustments or write-offs). */
+export const RECONCILIATION_FORMULA_BASIC =
+  'Opening + floats + collections − approved cash expenses − confirmed remittances = outstanding';
+
+/** The formula the tenant's cash custody setting uses (basic while the controls are off). */
+export function ReconciliationFormula() {
+  return useCapabilityEnabled(CAPABILITY.cashCustody)
+    ? RECONCILIATION_FORMULA
+    : RECONCILIATION_FORMULA_BASIC;
+}
+
+/** Figures of the cash custody controls (DEC-030): not shown while CASH_CUSTODY is off. */
+const CONTROL_FIGURES: ReadonlySet<keyof CashReconciliationDayDto> = new Set([
+  'transfers_in',
+  'transfers_out',
+  'adjustments',
+  'written_off',
+  'in_transit_out',
+  'in_transit_in',
+  'pending_floats',
+  'pending_adjustments',
+]);
+const shown = (controlsOn: boolean, figure: keyof CashReconciliationDayDto) =>
+  controlsOn || !CONTROL_FIGURES.has(figure);
 
 type Day = CashReconciliationDayDto;
 /** Opens the transactions behind a figure of a day (every figure drills down). */
@@ -105,6 +131,7 @@ export function FormulaCard({
   currency: string;
   onFigure?: OnFigure | undefined;
 }) {
+  const controlsOn = useCapabilityEnabled(CAPABILITY.cashCustody);
   const open = (f: ReconciliationFigure) =>
     onFigure === undefined
       ? undefined
@@ -135,20 +162,22 @@ export function FormulaCard({
                 <MoneyText amount={d.opening} currency={currency} />
               </TableCell>
             </TableRow>
-            {LINES.map(([sign, figure, label]) => (
-              <TableRow key={figure}>
-                <TableCell sx={{ width: 24 }}>{sign}</TableCell>
-                <TableCell>{label}</TableCell>
-                <TableCell align="right">
-                  <Figure
-                    value={d[figure]}
-                    currency={currency}
-                    label={label}
-                    onOpen={open(figure)}
-                  />
-                </TableCell>
-              </TableRow>
-            ))}
+            {LINES.filter(([, figure]) => shown(controlsOn, figure)).map(
+              ([sign, figure, label]) => (
+                <TableRow key={figure}>
+                  <TableCell sx={{ width: 24 }}>{sign}</TableCell>
+                  <TableCell>{label}</TableCell>
+                  <TableCell align="right">
+                    <Figure
+                      value={d[figure]}
+                      currency={currency}
+                      label={label}
+                      onOpen={open(figure)}
+                    />
+                  </TableCell>
+                </TableRow>
+              ),
+            )}
             <TableRow>
               <TableCell>=</TableCell>
               <TableCell sx={{ fontWeight: 700 }}>Outstanding</TableCell>
@@ -167,7 +196,7 @@ export function FormulaCard({
                 </Typography>
               </TableCell>
             </TableRow>
-            {PENDING.map(([figure, label]) => (
+            {PENDING.filter(([figure]) => shown(controlsOn, figure)).map(([figure, label]) => (
               <TableRow key={figure}>
                 <TableCell>{label}</TableCell>
                 <TableCell align="right">
@@ -220,13 +249,15 @@ const COLUMNS: readonly [string, keyof Day, ReconciliationFigure | null][] = [
 
 function DaysTable({ data, onFigure }: { data: CashReconciliationDto; onFigure: OnFigure }) {
   const c = data.currency;
+  const controlsOn = useCapabilityEnabled(CAPABILITY.cashCustody);
+  const columns = COLUMNS.filter(([, key]) => shown(controlsOn, key));
   return (
     <TableContainer component={Paper} variant="outlined">
       <Table size="small" aria-label="Daily reconciliation">
         <TableHead>
           <TableRow>
             <TableCell>Day</TableCell>
-            {COLUMNS.map(([h]) => (
+            {columns.map(([h]) => (
               <TableCell key={h} align="right">
                 {h}
               </TableCell>
@@ -237,7 +268,7 @@ function DaysTable({ data, onFigure }: { data: CashReconciliationDto; onFigure: 
           {data.days.map((d) => (
             <TableRow key={d.day}>
               <TableCell>{formatDate(d.day)}</TableCell>
-              {COLUMNS.map(([h, key, figure]) => (
+              {columns.map(([h, key, figure]) => (
                 <TableCell key={h} align="right">
                   <Figure
                     value={d[key]}
@@ -275,6 +306,7 @@ export function ReconciliationTab({
   timeZone = 'UTC',
 }: ReconciliationTabProps) {
   const [drill, setDrill] = useState<DrillDown | null>(null);
+  const controlsOn = useCapabilityEnabled(CAPABILITY.cashCustody);
   const [from, setFrom] = useState(() => dayjs().subtract(6, 'day').format('YYYY-MM-DD'));
   const [to, setTo] = useState(todayIsoDate);
   const [currency, setCurrency] = useState('');
@@ -293,9 +325,13 @@ export function ReconciliationTab({
   return (
     <Box className="flex flex-col gap-3">
       <Alert severity="info">
-        <strong>{RECONCILIATION_FORMULA}.</strong> Remittances awaiting confirmation, transfers not
-        yet acknowledged and expenses pending approval never reduce accountability until confirmed;
-        they are listed separately. Select any figure to see the transactions behind it.
+        <strong>
+          <ReconciliationFormula />.
+        </strong>{' '}
+        Remittances awaiting confirmation
+        {controlsOn ? ', transfers not yet acknowledged' : ''} and expenses pending approval never
+        reduce accountability until confirmed; they are listed separately. Select any figure to see
+        the transactions behind it.
       </Alert>
       <Box className="flex flex-wrap items-center gap-3">
         <Box sx={{ minWidth: 260 }}>

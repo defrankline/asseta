@@ -89,8 +89,13 @@ export function useFloatActions(onChanged: (e: CashCustodyEntryDto) => void) {
   return { actionsFor, dialog };
 }
 
-export function floatItems(e: CashCustodyEntryDto, timeZone: string): KeyValueItem[] {
-  return [
+/** `controlsOn` false (cash custody controls off): no acknowledgement fields. */
+export function floatItems(
+  e: CashCustodyEntryDto,
+  timeZone: string,
+  controlsOn = true,
+): KeyValueItem[] {
+  const items: KeyValueItem[] = [
     { label: 'Custodian', value: floatCustodian(e) },
     { label: 'Entry', value: floatKind(e) },
     { label: 'Amount', value: <MoneyText amount={e.amount} currency={e.currency} /> },
@@ -115,10 +120,13 @@ export function floatItems(e: CashCustodyEntryDto, timeZone: string): KeyValueIt
       value: <PersonName userId={e.acknowledged_by ?? null} name={e.acknowledged_by_name} />,
     },
   ];
+  return controlsOn ? items : items.filter((i) => !FLOAT_ACK_ITEMS.has(i.label));
 }
 
-export function floatHistory(e: CashCustodyEntryDto): HistoryEvent[] {
-  return [
+const FLOAT_ACK_ITEMS: ReadonlySet<string> = new Set(['Received', 'Answered by']);
+
+export function floatHistory(e: CashCustodyEntryDto, controlsOn = true): HistoryEvent[] {
+  const events: HistoryEvent[] = [
     {
       key: 'issued',
       at: e.occurred_at,
@@ -133,4 +141,5 @@ export function floatHistory(e: CashCustodyEntryDto): HistoryEvent[] {
       by: <PersonName userId={e.acknowledged_by ?? null} name={e.acknowledged_by_name} />,
     },
   ];
+  return controlsOn ? events : events.filter((ev) => ev.key !== 'answered');
 }

@@ -26,7 +26,7 @@ import { RetentionsTab } from '../finance/cash/RetentionsTab';
 import { TransactionsDrawer, type DrillDown } from '../finance/cash/TransactionsDrawer';
 import { TransfersTab } from '../finance/cash/TransfersTab';
 import { BalanceCard } from '../finance/cash/CustodyTab';
-import { FormulaCard, RECONCILIATION_FORMULA } from '../finance/cash/ReconciliationTab';
+import { FormulaCard, ReconciliationFormula } from '../finance/cash/ReconciliationTab';
 import {
   SETTLEMENT_LABELS,
   SETTLEMENT_STATUS_OPTIONS,
@@ -73,7 +73,7 @@ function MyCustody({ timeZone, reloadKey }: { timeZone: string; reloadKey: numbe
             Today’s reconciliation
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            {RECONCILIATION_FORMULA}
+            <ReconciliationFormula />
           </Typography>
           {d.reconciliation.flatMap((r) =>
             r.days.map((day) => (

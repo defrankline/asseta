@@ -1,5 +1,6 @@
 import { Button } from '@mui/material';
 import { Link as RouterLink, useParams } from 'react-router';
+import { CAPABILITY, useCapabilityEnabled } from '../../../../access/capabilities';
 import { PERMISSIONS } from '../../../../access/permissionCodes';
 import type { CashHandoverDto, CashCustodyEntryDto } from '../../../../api/types';
 import type {
@@ -126,6 +127,7 @@ export function CashFloatDetailPage() {
   const timeZone = useDisplayTimeZone();
   const res = useRecordById(load.float, id);
   const { actionsFor, dialog } = useFloatActions(res.reload);
+  const controlsOn = useCapabilityEnabled(CAPABILITY.cashCustody);
   return (
     <>
       <RecordDetail<CashCustodyEntryDto>
@@ -134,11 +136,11 @@ export function CashFloatDetailPage() {
         back={useBack('CASH_FLOAT')}
         timeZone={timeZone}
         title={(e) => `${floatKind(e)} · ${floatCustodian(e)}`}
-        status={floatChip}
+        {...(controlsOn ? { status: floatChip } : {})}
         actions={actionsFor}
         primaryKey="answer"
-        items={(e) => floatItems(e, timeZone)}
-        history={floatHistory}
+        items={(e) => floatItems(e, timeZone, controlsOn)}
+        history={(e) => floatHistory(e, controlsOn)}
       />
       {dialog}
     </>
@@ -151,6 +153,7 @@ export function CashRemittanceDetailPage() {
   const timeZone = useDisplayTimeZone();
   const res = useRecordById(load.handover, id);
   const { actionsFor, dialog } = useRemittanceActions(res.reload);
+  const controlsOn = useCapabilityEnabled(CAPABILITY.cashCustody);
   return (
     <>
       <RecordDetail<CashHandoverDto>
@@ -162,7 +165,7 @@ export function CashRemittanceDetailPage() {
         status={remittanceChip}
         actions={actionsFor}
         primaryKey="decide"
-        items={(h) => remittanceItems(h, timeZone)}
+        items={(h) => remittanceItems(h, timeZone, controlsOn)}
         history={remittanceHistory}
       />
       {dialog}

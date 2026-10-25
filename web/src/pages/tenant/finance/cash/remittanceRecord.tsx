@@ -75,8 +75,20 @@ export function useRemittanceActions(onChanged: (h: CashHandoverDto) => void) {
   return { actionsFor, dialog };
 }
 
-export function remittanceItems(h: CashHandoverDto, timeZone: string): KeyValueItem[] {
-  return [
+/** Amount received, expected balance and shortfall belong to the cash custody controls. */
+const REMITTANCE_CONTROL_ITEMS: ReadonlySet<string> = new Set([
+  'Received',
+  'Expected balance',
+  'Short of full balance',
+]);
+
+/** `controlsOn` false (cash custody controls off): the remittance as before those controls. */
+export function remittanceItems(
+  h: CashHandoverDto,
+  timeZone: string,
+  controlsOn = true,
+): KeyValueItem[] {
+  const items: KeyValueItem[] = [
     { label: 'Custodian', value: remittanceCustodian(h) },
     { label: 'Reference', value: h.reference ?? '—' },
     { label: 'Declared', value: <MoneyText amount={h.amount} currency={h.currency} /> },
@@ -95,6 +107,7 @@ export function remittanceItems(h: CashHandoverDto, timeZone: string): KeyValueI
     },
     { label: 'Decision note', value: h.decision_note ?? '—' },
   ];
+  return controlsOn ? items : items.filter((i) => !REMITTANCE_CONTROL_ITEMS.has(i.label));
 }
 
 export function remittanceHistory(h: CashHandoverDto): HistoryEvent[] {

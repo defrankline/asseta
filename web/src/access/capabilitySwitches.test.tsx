@@ -9,6 +9,9 @@ import { FieldReadingsPage } from '../pages/tenant/field/FieldReadingsPage';
 import { CashCustodyPage } from '../pages/tenant/finance/cash/CashCustodyPage';
 import { FloatsTab } from '../pages/tenant/finance/cash/FloatsTab';
 import { toRemittanceDecisionPayload } from '../pages/tenant/finance/cash/custodyForms';
+import { FormulaCard } from '../pages/tenant/finance/cash/ReconciliationTab';
+import { remittanceItems } from '../pages/tenant/finance/cash/remittanceRecord';
+import { makeDay, makeHandover } from '../test/financeFixtures';
 import { renderWithProviders } from '../test/renderWithProviders';
 import { CAPABILITY } from './capabilities';
 import { PERMISSIONS as P } from './permissionCodes';
@@ -238,5 +241,34 @@ describe('CASH_CUSTODY switched off', () => {
         new Set(['CASH_CUSTODY']),
       ),
     ).toBe('/tenant/finance/cash/remittances/r1');
+  });
+
+  it('shows the reconciliation without transfer, adjustment, write-off or acknowledgement figures', () => {
+    renderWithProviders(<FormulaCard day={makeDay()} currency="TZS" />, {
+      tenantPermissions: [P.tenantFinanceRead],
+      disabledCapabilities: [CAPABILITY.cashCustody],
+    });
+    expect(screen.getByText('Cash collections')).toBeInTheDocument();
+    expect(screen.getByText('Remittances awaiting confirmation')).toBeInTheDocument();
+    for (const hidden of [
+      'Transfers received',
+      'Transfers sent',
+      'Approved adjustments',
+      'Written off',
+      'Sent, not yet acknowledged (still held)',
+      'Floats awaiting acknowledgement',
+      'Adjustments awaiting decision',
+    ]) {
+      expect(screen.queryByText(hidden)).toBeNull();
+    }
+  });
+
+  it('shows remittance details without the amount received or shortfall', () => {
+    const labels = (on: boolean) => remittanceItems(makeHandover(), 'UTC', on).map((i) => i.label);
+    expect(labels(true)).toEqual(expect.arrayContaining(['Received', 'Short of full balance']));
+    expect(labels(false)).not.toContain('Received');
+    expect(labels(false)).not.toContain('Expected balance');
+    expect(labels(false)).not.toContain('Short of full balance');
+    expect(labels(false)).toContain('Declared');
   });
 });
