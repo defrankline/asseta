@@ -545,3 +545,54 @@ Owner notification taps (push and inbox), by `kind`:
 | HOURS_DISCOUNT, HOURS_CREDIT, HOURS_TRANSFER, HOURS_CANCELLATION | That decision screen |
 | METER_BASELINE, METER_CORRECTION, ENGINE_HOURS_CLASSIFICATION | That decision screen |
 | anything else | As before (entity / link), else the notification |
+
+## Capability switches and overdue detail (follow-up F1, F2)
+
+Rules shared by both apps:
+- **Switches (F1):** the capability codes `ENGINE_HOURS` and `CASH_CUSTODY` join `CUSTOMER_HOURS` in `/me`
+  `tenants[].disabled_capabilities`; the Owner dashboard also reads `AccountabilitySummaryDto.disabled_capabilities`
+  (the union of both is used). A listed code hides every entry point in the table below; missing field = nothing
+  disabled (today's behaviour). Data of a switched-off capability is not read (CASH_CUSTODY off: no cash policy,
+  custodians, transfers, floats to acknowledge or cash reasons are fetched by the Supervisor app).
+- **Deep links:** a push tap, inbox row or link to a hidden kind opens the list/home instead (Owner: Approvals for a
+  hidden decision, Cash with supervisors for a hidden cash record or overdue remittance; Supervisor: Money tab for
+  cash, the notification for anything else).
+- **Sync status:** a CONFLICT/REJECTED item with `ENGINE_HOURS_DISABLED` or `CASH_CUSTODY_DISABLED` shows the sentence
+  below instead of "CODE: server message".
+- **Overdue remittance (F2):** a Supervisor `REMITTANCE_OVERDUE` tap (inbox row or push; `data.kind` +
+  `data.record_id`, else target entity `cash_remittance_overdue` + id) reads `GET /cash/remittance-overdue/{id}`
+  online and opens "Overdue remittance"; on 404, offline or any error (or CASH_CUSTODY off) it opens the Money tab.
+
+| Switch off | Supervisor app hides | Owner app hides |
+|---|---|---|
+| `CUSTOMER_HOURS` | Money "+": Sell customer hours, Request hours transfer | Approvals: discounts, credit, hours transfers, cancellations; dashboard tiles Customer hours, Hours awaiting activation; their deep links → Approvals |
+| `ENGINE_HOURS` | Readings: Record daily reading, Propose meter baseline, Propose a correction | Approvals: baselines, engine-hour classifications, reading corrections; dashboard tiles Engine hours, Unexplained engine hours, Missing daily reports; their deep links → Approvals |
+| `CASH_CUSTODY` | Money "+": Transfer cash to a colleague, Ask to keep cash; Money: "Cash to acknowledge" (transfer / float acknowledgement), Transfers segment (incl. Requests to keep cash); "Cash held by" picker (recording for another custodian) on collection / remittance / sale; Overdue remittance screen; transfer / float / retention / overdue taps → Money tab | Approvals: cash write-offs, requests to keep cash, custody adjustments; Cash transfer / Cash float record screens and Overdue remittances (list and detail) → Cash with supervisors; Cash handover confirm: the "Amount received" field (confirm sends no amount); dashboard rows Transfers / Floats awaiting acknowledgement, Partial remittances, Remittances overdue today (+ Cut-off), Cash retentions, Custody adjustments, Write-offs, Open variances, Write-offs proposed |
+
+Collections, floats (issue / list), cash handovers (remittances), reconciliation and job meter readings stay in every case.
+
+### Supervisor
+| Key | English |
+|---|---|
+| field.conflict.ENGINE_HOURS_DISABLED | Your company has switched off engine-hour controls, so this was not accepted. |
+| field.conflict.CASH_CUSTODY_DISABLED | Your company has switched off cash custody controls, so this was not accepted. |
+| field.title.remittanceOverdue | Overdue remittance |
+| field.overdue.custodian | Cash held by |
+| field.overdue.notRemitted | Not remitted |
+| field.overdue.day | Day |
+| field.overdue.cutoff | Cut-off |
+| field.overdue.flagged | Flagged |
+| field.overdue.line | Still held after the {hour}:00 cut-off on {day}. |
+| field.overdue.hint | Remit this cash to the office as soon as you can. |
+
+"Overdue remittance" shows the custodian's name (short id when null) as the headline, then the fields above
+(amounts as "TZS 50,000.00, USD 20.00"; `{hour}` two digits), then `field.overdue.line` and `field.overdue.hint` as
+the footer. Pull to refresh re-reads it.
+
+Supervisor notification taps (replaces the REMITTANCE_OVERDUE row of the gap-pass table):
+| kind / target entity | Opens |
+|---|---|
+| REMITTANCE_OVERDUE / cash_remittance_overdue | "Overdue remittance" (read online), else the Money tab |
+
+### Owner
+No new strings: switched-off capabilities only hide sections, rows and fields listed above.
