@@ -143,6 +143,8 @@ sealed interface InboxLink {
     data class CashAck(val id: String, val isFloat: Boolean) : InboxLink
     /** My request to keep cash (status read online). */
     data class Retention(val id: String) : InboxLink
+    /** My overdue remittance flag (read online; the Money tab when it cannot be read). */
+    data class RemittanceOverdue(val id: String) : InboxLink
     /** A machine of mine (missing daily report, unexplained engine hours). */
     data class Machine(val machineId: String) : InboxLink
     data object None : InboxLink
@@ -156,7 +158,7 @@ object InboxLinks {
                 "CASH_TRANSFER" -> return InboxLink.CashAck(recordId, isFloat = false)
                 "CASH_FLOAT" -> return InboxLink.CashAck(recordId, isFloat = true)
                 "CASH_RETENTION" -> return InboxLink.Retention(recordId)
-                "REMITTANCE_OVERDUE" -> return InboxLink.Money
+                "REMITTANCE_OVERDUE" -> return InboxLink.RemittanceOverdue(recordId)
             }
         }
         return fromTarget(entity, id)
@@ -169,6 +171,7 @@ object InboxLinks {
         // Cash transfers and floats to acknowledge are answered on their own screen (else the Money tab).
         entity == "cash_transfer" && id != null -> InboxLink.CashAck(id, isFloat = false)
         entity == "supervisor_cash_custody" && id != null -> InboxLink.CashAck(id, isFloat = true)
+        entity == "cash_remittance_overdue" && id != null -> InboxLink.RemittanceOverdue(id)
         entity == "cash_transfer" || entity == "supervisor_cash_custody" || entity == "cash_remittance_overdue" -> InboxLink.Money
         entity == "cash_retention" && id != null -> InboxLink.Retention(id)
         entity == "machine" && id != null -> InboxLink.Machine(id)

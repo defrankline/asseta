@@ -4,6 +4,7 @@ import com.asseta.core.domain.accountability.DisplayNames
 import com.asseta.core.domain.owner.DecisionKinds
 import com.asseta.core.domain.owner.OwnerAction
 import com.asseta.core.domain.owner.OwnerFormat
+import com.asseta.core.model.TenantAccess
 import com.asseta.core.model.owner.BaselineDto
 import com.asseta.core.model.owner.CashRetentionDto
 import com.asseta.core.model.owner.CashVarianceDto
@@ -34,19 +35,24 @@ enum class DecisionKind(
     val meter: Boolean,
     val pendingStatus: String,
     private val visible: (OwnerFeatures) -> Boolean,
+    /** The tenant capability (`/me` `disabled_capabilities` code) this kind belongs to. */
+    val capability: String,
 ) {
-    DISCOUNT(DecisionKinds.DISCOUNT, T.DISCOUNTS, T.DISCOUNTS_EMPTY, T.TITLE_DISCOUNT, OwnerAction.DECIDE_DISCOUNT, false, "PROPOSED", { it.customerHours }),
-    CREDIT(DecisionKinds.CREDIT, T.CREDIT, T.CREDIT_EMPTY, T.TITLE_CREDIT, OwnerAction.DECIDE_CREDIT, false, "PROPOSED", { it.customerHours }),
-    HOURS_TRANSFER(DecisionKinds.HOURS_TRANSFER, T.HOURS_TRANSFERS, T.HOURS_TRANSFERS_EMPTY, T.TITLE_HOURS_TRANSFER, OwnerAction.DECIDE_HOURS_TRANSFER, false, "PENDING", { it.customerHours }),
-    CANCELLATION(DecisionKinds.CANCELLATION, T.CANCELLATIONS, T.CANCELLATIONS_EMPTY, T.TITLE_CANCELLATION, OwnerAction.DECIDE_HOURS_CANCELLATION, false, "PENDING", { it.customerHours }),
-    BASELINE(DecisionKinds.BASELINE, T.BASELINES, T.BASELINES_EMPTY, T.TITLE_BASELINE, OwnerAction.DECIDE_BASELINE, true, "PROPOSED", { it.meterEvidence }),
-    CLASSIFICATION(DecisionKinds.CLASSIFICATION, T.CLASSIFICATIONS, T.CLASSIFICATIONS_EMPTY, T.TITLE_CLASSIFICATION, OwnerAction.DECIDE_CLASSIFICATION, true, "PROPOSED", { it.meterEvidence }),
-    CORRECTION(DecisionKinds.CORRECTION, T.CORRECTIONS, T.CORRECTIONS_EMPTY, T.TITLE_CORRECTION, OwnerAction.DECIDE_CORRECTION, true, "PROPOSED", { it.meterEvidence }),
-    WRITE_OFF(DecisionKinds.WRITE_OFF, T.WRITE_OFFS, T.WRITE_OFFS_EMPTY, T.TITLE_WRITE_OFF, OwnerAction.DECIDE_WRITE_OFF, false, "WRITE_OFF_PROPOSED", { it.finance }),
-    RETENTION(DecisionKinds.RETENTION, T.RETENTIONS, T.RETENTIONS_EMPTY, T.TITLE_RETENTION, OwnerAction.DECIDE_RETENTION, false, "PENDING", { it.custodyRead }),
-    ADJUSTMENT(DecisionKinds.ADJUSTMENT, T.ADJUSTMENTS, T.ADJUSTMENTS_EMPTY, T.TITLE_ADJUSTMENT, OwnerAction.DECIDE_ADJUSTMENT, false, "PENDING", { it.finance });
+    DISCOUNT(DecisionKinds.DISCOUNT, T.DISCOUNTS, T.DISCOUNTS_EMPTY, T.TITLE_DISCOUNT, OwnerAction.DECIDE_DISCOUNT, false, "PROPOSED", { it.customerHours }, TenantAccess.CUSTOMER_HOURS),
+    CREDIT(DecisionKinds.CREDIT, T.CREDIT, T.CREDIT_EMPTY, T.TITLE_CREDIT, OwnerAction.DECIDE_CREDIT, false, "PROPOSED", { it.customerHours }, TenantAccess.CUSTOMER_HOURS),
+    HOURS_TRANSFER(DecisionKinds.HOURS_TRANSFER, T.HOURS_TRANSFERS, T.HOURS_TRANSFERS_EMPTY, T.TITLE_HOURS_TRANSFER, OwnerAction.DECIDE_HOURS_TRANSFER, false, "PENDING", { it.customerHours }, TenantAccess.CUSTOMER_HOURS),
+    CANCELLATION(DecisionKinds.CANCELLATION, T.CANCELLATIONS, T.CANCELLATIONS_EMPTY, T.TITLE_CANCELLATION, OwnerAction.DECIDE_HOURS_CANCELLATION, false, "PENDING", { it.customerHours }, TenantAccess.CUSTOMER_HOURS),
+    BASELINE(DecisionKinds.BASELINE, T.BASELINES, T.BASELINES_EMPTY, T.TITLE_BASELINE, OwnerAction.DECIDE_BASELINE, true, "PROPOSED", { it.meterEvidence }, TenantAccess.ENGINE_HOURS),
+    CLASSIFICATION(DecisionKinds.CLASSIFICATION, T.CLASSIFICATIONS, T.CLASSIFICATIONS_EMPTY, T.TITLE_CLASSIFICATION, OwnerAction.DECIDE_CLASSIFICATION, true, "PROPOSED", { it.meterEvidence }, TenantAccess.ENGINE_HOURS),
+    CORRECTION(DecisionKinds.CORRECTION, T.CORRECTIONS, T.CORRECTIONS_EMPTY, T.TITLE_CORRECTION, OwnerAction.DECIDE_CORRECTION, true, "PROPOSED", { it.meterEvidence }, TenantAccess.ENGINE_HOURS),
+    WRITE_OFF(DecisionKinds.WRITE_OFF, T.WRITE_OFFS, T.WRITE_OFFS_EMPTY, T.TITLE_WRITE_OFF, OwnerAction.DECIDE_WRITE_OFF, false, "WRITE_OFF_PROPOSED", { it.finance }, TenantAccess.CASH_CUSTODY),
+    RETENTION(DecisionKinds.RETENTION, T.RETENTIONS, T.RETENTIONS_EMPTY, T.TITLE_RETENTION, OwnerAction.DECIDE_RETENTION, false, "PENDING", { it.custodyRead }, TenantAccess.CASH_CUSTODY),
+    ADJUSTMENT(DecisionKinds.ADJUSTMENT, T.ADJUSTMENTS, T.ADJUSTMENTS_EMPTY, T.TITLE_ADJUSTMENT, OwnerAction.DECIDE_ADJUSTMENT, false, "PENDING", { it.finance }, TenantAccess.CASH_CUSTODY);
 
-    fun visibleTo(features: OwnerFeatures): Boolean = visible(features)
+    /** The tenant switched off the capability this kind belongs to (its section and screen are hidden). */
+    fun switchedOff(features: OwnerFeatures): Boolean = capability in features.disabled
+
+    fun visibleTo(features: OwnerFeatures): Boolean = !switchedOff(features) && visible(features)
 
     companion object {
         fun of(code: String): DecisionKind? = entries.firstOrNull { it.code == code }

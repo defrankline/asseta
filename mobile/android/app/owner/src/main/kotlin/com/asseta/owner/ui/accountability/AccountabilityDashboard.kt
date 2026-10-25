@@ -55,7 +55,11 @@ object DashboardPresentation {
     private fun JsonObject.int(key: String): Int? = (this[key] as? JsonPrimitive)?.intOrNull
     private fun JsonObject.items(): List<JsonObject> = (this["items"] as? JsonArray).orEmpty().mapNotNull { it as? JsonObject }
 
-    fun tiles(s: AccountabilitySummaryDto, features: OwnerFeatures): List<DashboardTile> = buildList {
+    fun tiles(s: AccountabilitySummaryDto, sessionFeatures: OwnerFeatures): List<DashboardTile> = buildList {
+        // Switched-off capabilities from `/me` and from the summary itself (follow-up F1).
+        val features = sessionFeatures.without(s.disabledCapabilities)
+        val cashOn = features.cashCustody
+        val engineOn = features.engineHours
         val approvals = OwnerDestination.Approvals().takeIf { features.approvals || features.finance || features.meterEvidence || features.customerHours }
         val hoursOff = TenantAccess.CUSTOMER_HOURS in features.disabled
         s.outstandingApprovals?.let { a ->
@@ -64,30 +68,38 @@ object DashboardPresentation {
                     "approvals", T.DASH_APPROVALS,
                     listOf(
                         T.DASH_TOTAL to "${a.total}", T.DASH_APPROVAL_REQUESTS to "${a.approvalRequests}", T.DASH_PAYMENTS_TO_VERIFY to "${a.paymentsToVerify}",
-                        T.DASH_REMITTANCES_TO_VERIFY to "${a.remittancesToVerify}", T.DASH_CASH_RETENTIONS to "${a.cashRetentions}",
-                        T.DASH_CUSTODY_ADJUSTMENTS to "${a.custodyAdjustments}", T.DASH_WRITE_OFFS to "${a.writeOffs}",
-                    ),
+                        T.DASH_REMITTANCES_TO_VERIFY to "${a.remittancesToVerify}",
+                    ) + if (cashOn) {
+                        listOf(T.DASH_CASH_RETENTIONS to "${a.cashRetentions}", T.DASH_CUSTODY_ADJUSTMENTS to "${a.custodyAdjustments}", T.DASH_WRITE_OFFS to "${a.writeOffs}")
+                    } else {
+                        emptyList()
+                    },
                     approvals,
                 ),
             )
         }
         s.cash?.let { c ->
-            val rows = listOf(
-                T.DASH_TRANSFERS_AWAITING to amounts(c.transfersAwaitingAcknowledgement),
-                T.DASH_FLOATS_AWAITING to amounts(c.floatsAwaitingAcknowledgement),
-                T.DASH_REMITTANCES_AWAITING to amounts(c.remittancesAwaitingConfirmation),
-                T.DASH_PARTIAL_REMITTANCES to "${c.partialRemittancesInWindow}",
-            ) + listOfNotNull(c.remittancesOverdueToday?.let { T.DASH_REMITTANCES_OVERDUE to "$it" }) + c.custodians.map { k ->
+            // CASH_CUSTODY off: only the cash basics (remittances awaiting confirmation, what each custodian holds).
+            val chain = if (cashOn) {
+                listOf(T.DASH_TRANSFERS_AWAITING to amounts(c.transfersAwaitingAcknowledgement), T.DASH_FLOATS_AWAITING to amounts(c.floatsAwaitingAcknowledgement))
+            } else {
+                emptyList()
+            }
+            val rows = chain + listOf(T.DASH_REMITTANCES_AWAITING to amounts(c.remittancesAwaitingConfirmation)) +
+                listOfNotNull(
+                    (T.DASH_PARTIAL_REMITTANCES to "${c.partialRemittancesInWindow}").takeIf { cashOn },
+                    c.remittancesOverdueToday?.takeIf { cashOn }?.let { T.DASH_REMITTANCES_OVERDUE to "$it" },
+                ) + c.custodians.map { k ->
                 val line = k.outstanding.toBigDecimalOrNull()?.let { OwnerFormat.money(it, k.currency) } ?: k.outstanding
                 val transit = k.inTransitOut.toBigDecimalOrNull()?.takeIf { it.signum() != 0 }?.let { T.inTransit(OwnerFormat.money(it, k.currency)) }
                 k.staffName to listOfNotNull(T.custodianLine(line), transit).joinToString(" · ")
             }
             // Remittance cut-off (null = the tenant has none): today's overdue count opens the flagged custodians.
-            val overdue = c.remittancesOverdueToday?.takeIf { features.finance }?.let { listOf(T.DASH_REMITTANCES_OVERDUE to OwnerDestination.RemittanceOverdue()) }
+            val overdue = c.remittancesOverdueToday?.takeIf { features.finance && cashOn }?.let { listOf(T.DASH_REMITTANCES_OVERDUE to OwnerDestination.RemittanceOverdue()) }
             add(
                 DashboardTile(
                     "cash", T.DASH_CASH, rows, OwnerDestination.Cash.takeIf { features.finance },
-                    footer = c.remittanceCutoffHour?.takeIf { c.remittancesOverdueToday != null }?.let(T::dashCutoff),
+                    footer = c.remittanceCutoffHour?.takeIf { cashOn && c.remittancesOverdueToday != null }?.let(T::dashCutoff),
                     moreLinks = overdue.orEmpty(),
                 ),
             )
@@ -97,8 +109,8 @@ object DashboardPresentation {
             add(
                 DashboardTile(
                     "discrepancies", T.DASH_DISCREPANCIES,
-                    listOf(T.DASH_OPEN_VARIANCES to amounts(d.openVariances), T.DASH_WRITE_OFFS_PROPOSED to "${d.writeOffsProposed}",
-                        T.DASH_SYNC_CONFLICTS to "${d.syncConflictsUnresolved}"),
+                    (if (cashOn) listOf(T.DASH_OPEN_VARIANCES to amounts(d.openVariances), T.DASH_WRITE_OFFS_PROPOSED to "${d.writeOffsProposed}") else emptyList()) +
+                        listOf(T.DASH_SYNC_CONFLICTS to "${d.syncConflictsUnresolved}"),
                     approvals,
                 ),
             )
@@ -132,17 +144,17 @@ object DashboardPresentation {
                 ),
             )
         }
-        s.engineHours?.let { e ->
+        s.engineHours?.takeIf { engineOn }?.let { e ->
             val byStatus = (e["by_status"] as? JsonObject).orEmpty().map { (k, v) -> T.reconciliationStatus(k) to ((v as? JsonPrimitive)?.contentOrNull ?: "0") }
             add(DashboardTile("engine_hours", T.DASH_ENGINE_HOURS, listOf(T.DASH_MACHINES to "${e.int("machines") ?: 0}") + byStatus))
         }
-        s.unexplainedHours?.let { u ->
+        s.unexplainedHours?.takeIf { engineOn }?.let { u ->
             val rows = listOf(T.F_HOURS to num(u.text("hours"))) + u.items().map {
                 (it.text("machine_code") ?: "") to T.unexplainedLine(num(it.text("unexplained_hours")), it.int("oldest_open_item_days"))
             }
             add(DashboardTile("unexplained_hours", T.DASH_UNEXPLAINED, rows, OwnerDestination.Exceptions().takeIf { features.meterEvidence }))
         }
-        s.missingDailyReports?.let { m ->
+        s.missingDailyReports?.takeIf { engineOn }?.let { m ->
             val items = m.items()
             val rows = if (items.isEmpty()) listOf(T.DASH_MISSING_REPORTS to T.DASH_NONE) else items.map {
                 T.missingLine(it.text("machine_code").orEmpty(), it.text("day").orEmpty()) to ""

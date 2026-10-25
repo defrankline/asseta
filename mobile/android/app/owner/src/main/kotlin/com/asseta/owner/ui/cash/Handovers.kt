@@ -231,6 +231,8 @@ fun HandoverScreen(vm: HandoverViewModel, session: OwnerSession, online: Boolean
             message?.let { item { GroupedSection { Text(it, color = palette.accent, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) } } }
         }
     }
+    // CASH_CUSTODY off: no "Amount received" (no variance / partial flag); confirming sends no amount (follow-up F1).
+    val askAmount = session.features.cashCustody
     if (confirming || disputing) {
         val confirm = confirming
         val close = { confirming = false; disputing = false }
@@ -239,7 +241,7 @@ fun HandoverScreen(vm: HandoverViewModel, session: OwnerSession, online: Boolean
             title = { Text(if (confirm) HandoverText.CONFIRM_TITLE else HandoverText.DISPUTE_TITLE) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (confirm) {
+                    if (confirm && askAmount) {
                         // The office records what it actually counted; a different amount opens a cash difference.
                         OutlinedTextField(
                             received, { v -> received = v.filter { it.isDigit() || it == '.' || it == ',' }.take(24) },
@@ -259,7 +261,7 @@ fun HandoverScreen(vm: HandoverViewModel, session: OwnerSession, online: Boolean
                 }
             },
             confirmButton = {
-                val amount = received.takeIf { confirm }
+                val amount = received.takeIf { confirm && askAmount }
                 TextButton({ close(); vm.decide(confirm, note, amount) }, enabled = HandoverText.canDecide(confirm, note, amount)) {
                     if (confirm) Text(HandoverText.CONFIRM) else Text(HandoverText.DISPUTE, color = MaterialTheme.colorScheme.error)
                 }

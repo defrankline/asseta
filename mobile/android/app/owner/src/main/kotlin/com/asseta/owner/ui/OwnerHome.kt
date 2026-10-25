@@ -55,7 +55,8 @@ fun OwnerHome(graph: OwnerGraph, session: OwnerSession, modifier: Modifier = Mod
     val tabs = remember(session.permissions) { OwnerNavigation.tabs(features) }
     var stack by remember(tenantId) { mutableStateOf(listOf(OwnerNavigation.start(features))) }
     var accessLost by remember(tenantId) { mutableStateOf(false) }
-    val open: (OwnerDestination) -> Unit = { stack = OwnerNavigation.navigate(stack, it) }
+    // A destination of a capability the tenant switched off falls back to its list (follow-up F1).
+    val open: (OwnerDestination) -> Unit = { stack = OwnerNavigation.navigate(stack, features.route(it)) }
     val online by graph.network.online.collectAsStateWithLifecycle()
     val unread by graph.liveUpdates.unread.collectAsStateWithLifecycle()
     val actions = LocalSessionActions.current

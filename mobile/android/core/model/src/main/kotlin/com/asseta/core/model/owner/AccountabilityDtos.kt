@@ -365,6 +365,8 @@ data class AccountabilitySummaryDto(
     @SerialName("policy_version") val policyVersion: String,
     @SerialName("hidden_tiles") val hiddenTiles: List<String> = emptyList(),
     @SerialName("unavailable_tiles") val unavailableTiles: List<String> = emptyList(),
+    /** Capabilities the tenant switched off (CUSTOMER_HOURS, ENGINE_HOURS, CASH_CUSTODY): their tiles/rows are hidden. */
+    @SerialName("disabled_capabilities") val disabledCapabilities: List<String> = emptyList(),
     @SerialName("outstanding_approvals") val outstandingApprovals: ApprovalsTileDto? = null,
     val cash: CashTileDto? = null,
     val payments: PaymentsTileDto? = null,

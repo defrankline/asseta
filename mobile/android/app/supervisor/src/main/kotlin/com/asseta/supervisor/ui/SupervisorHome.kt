@@ -88,6 +88,8 @@ import com.asseta.supervisor.ui.accountability.HoursSaleViewModel
 import com.asseta.supervisor.ui.accountability.HoursTransferScreen
 import com.asseta.supervisor.ui.accountability.HoursTransferViewModel
 import com.asseta.supervisor.ui.accountability.RetentionScreen
+import com.asseta.supervisor.ui.accountability.RemittanceOverdueScreen
+import com.asseta.supervisor.ui.accountability.RemittanceOverdueViewModel
 import com.asseta.supervisor.ui.accountability.RetentionStatusScreen
 import com.asseta.supervisor.ui.accountability.RetentionStatusViewModel
 import com.asseta.supervisor.ui.accountability.RetentionViewModel
@@ -135,6 +137,8 @@ sealed interface Route {
     data object Retention : Route
     /** A request to keep cash ([key]: this phone's form id or the server's request id). */
     data class RetentionStatus(val key: String) : Route
+    /** My overdue remittance flag (read online). */
+    data class RemittanceOverdue(val id: String) : Route
     data class DailyReading(val machineId: String) : Route
     data class Baseline(val machineId: String) : Route
     data class Correction(val readingId: String) : Route
@@ -182,6 +186,7 @@ fun Route.title(companyName: String): String = when (this) {
     is Route.CashAck -> if (isFloat) FieldAccountabilityTexts.TITLE_ACK_FLOAT else FieldAccountabilityTexts.TITLE_ACK_TRANSFER
     Route.Retention -> FieldAccountabilityTexts.TITLE_RETENTION
     is Route.RetentionStatus -> FieldAccountabilityTexts.TITLE_RETENTION_STATUS
+    is Route.RemittanceOverdue -> FieldAccountabilityTexts.TITLE_REMITTANCE_OVERDUE
     is Route.DailyReading -> FieldAccountabilityTexts.TITLE_DAILY
     is Route.Baseline -> FieldAccountabilityTexts.TITLE_BASELINE
     is Route.Correction -> FieldAccountabilityTexts.TITLE_CORRECTION
@@ -331,7 +336,10 @@ fun SupervisorHome(
     /** Opens what a link points at; [notificationId] is shown when the phone has nothing for it. */
     fun openLink(link: InboxLink, notificationId: String?) {
         val id = notificationId
-        fun fallback() { if (id != null) push(Route.NotificationDetail(id)) else if (nav.tab != SupervisorTab.MONEY) nav = nav.select(SupervisorTab.MONEY) }
+        fun money() { if (nav.tab != SupervisorTab.MONEY) nav = nav.select(SupervisorTab.MONEY) }
+        fun fallback() { if (id != null) push(Route.NotificationDetail(id)) else money() }
+        // CASH_CUSTODY switched off: its records are hidden, so their taps open the Money tab (follow-up F1).
+        val cashOff = TenantAccess.CASH_CUSTODY in tenant.disabledCapabilities
         when (link) {
             is InboxLink.Job -> push(Route.JobDetail(link.jobId, snapshot.jobs[link.jobId]?.jobNumber ?: "Job"))
             is InboxLink.Machine -> snapshot.machines[link.machineId]?.let { push(Route.MachineDetail(it.id, it.assetCode)) } ?: fallback()
@@ -343,7 +351,13 @@ fun SupervisorHome(
                 if (waiting && access?.acknowledgeCash == true) push(Route.CashAck(link.id, link.isFloat))
                 else if (nav.tab != SupervisorTab.MONEY) nav = nav.select(SupervisorTab.MONEY)
             }
-            is InboxLink.Retention -> push(Route.RetentionStatus(link.id))
+            is InboxLink.Retention -> if (cashOff) money() else push(Route.RetentionStatus(link.id))
+            // Read online first: a flag the server does not show me (404), offline or switched off opens the Money tab.
+            is InboxLink.RemittanceOverdue -> if (cashOff) {
+                money()
+            } else {
+                coroutines.launch { if (field.accountability.remittanceOverdue(link.id) != null) push(Route.RemittanceOverdue(link.id)) else money() }
+            }
             InboxLink.None -> fallback()
         }
     }
@@ -548,6 +562,7 @@ private fun RouteContent(
             RetentionScreen(viewModel(key = "retention-$visit") { RetentionViewModel(field, tenantId, permissions) }, onDone = pop,
                 onStatus = { key -> pop(); push(Route.RetentionStatus(key)) })
         }
+        is Route.RemittanceOverdue -> RemittanceOverdueScreen(viewModel(key = "remittance-overdue-$scope-${route.id}") { RemittanceOverdueViewModel(field, route.id) })
         is Route.RetentionStatus -> RetentionStatusScreen(viewModel(key = "retention-status-$scope-${route.key}") { RetentionStatusViewModel(field, tenantId, route.key) })
         is Route.Acknowledge -> AcknowledgementScreen(field, tenantId, route.jobId, onDone = pop)
         is Route.WorkLogEntry -> WorkLogEntryScreen(field, tenantId, route.jobId, onDone = pop)

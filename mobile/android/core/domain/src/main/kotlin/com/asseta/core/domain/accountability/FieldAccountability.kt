@@ -85,18 +85,24 @@ data class FieldAccess(
     val walkIn: Boolean get() = sellHours && hours?.walkInAllowed == true
     val requestHoursTransfer: Boolean
         get() = supports(SyncCapabilities.OP_HOURS_TRANSFER_REQUEST) && can(HOURS_TRANSFER) && customerHours
-    val transferCash: Boolean get() = supports(SyncCapabilities.OP_CASH_TRANSFER) && can(COLLECTION_RECORD)
+    /** The tenant uses the DEC-030 cash custody additions (CASH_CUSTODY not switched off in `/me`). */
+    val cashCustody: Boolean get() = TenantAccess.CASH_CUSTODY !in disabled
+
+    /** The tenant uses engine-hour controls (ENGINE_HOURS not switched off in `/me`). */
+    val engineHours: Boolean get() = TenantAccess.ENGINE_HOURS !in disabled
+
+    val transferCash: Boolean get() = cashCustody && supports(SyncCapabilities.OP_CASH_TRANSFER) && can(COLLECTION_RECORD)
     val acknowledgeCash: Boolean get() = transferCash
 
     /** A recorder may name another cash holder (collections, remittances, sales, transfers). */
-    val recordForOthers: Boolean get() = can(COLLECTION_RECORD) && cash?.recordersMayRecordForOthers == true
-    val askToKeepCash: Boolean get() = can(COLLECTION_RECORD) && cash?.retentionAllowed == true
+    val recordForOthers: Boolean get() = cashCustody && can(COLLECTION_RECORD) && cash?.recordersMayRecordForOthers == true
+    val askToKeepCash: Boolean get() = cashCustody && can(COLLECTION_RECORD) && cash?.retentionAllowed == true
 
     /** "Ask to keep cash" goes through the outbox (works offline) when the server accepts CASH_RETENTION_REQUEST. */
-    val retentionOffline: Boolean get() = supports(SyncCapabilities.OP_CASH_RETENTION_REQUEST)
-    val dailyReading: Boolean get() = supports(SyncCapabilities.METER_DAILY_READING) && can(METER_CAPTURE)
-    val proposeBaseline: Boolean get() = supports(SyncCapabilities.OP_METER_BASELINE) && can(METER_CAPTURE)
-    val proposeCorrection: Boolean get() = supports(SyncCapabilities.OP_METER_CORRECTION) && can(METER_CAPTURE)
+    val retentionOffline: Boolean get() = cashCustody && supports(SyncCapabilities.OP_CASH_RETENTION_REQUEST)
+    val dailyReading: Boolean get() = engineHours && supports(SyncCapabilities.METER_DAILY_READING) && can(METER_CAPTURE)
+    val proposeBaseline: Boolean get() = engineHours && supports(SyncCapabilities.OP_METER_BASELINE) && can(METER_CAPTURE)
+    val proposeCorrection: Boolean get() = engineHours && supports(SyncCapabilities.OP_METER_CORRECTION) && can(METER_CAPTURE)
 
     companion object {
         const val HOURS_PURCHASE = "tenant.hours.purchase"

@@ -172,10 +172,26 @@ object FieldAccountabilityTexts {
         else -> status.lowercase().replace('_', ' ').replaceFirstChar { it.uppercase() }
     }
 
+    // --- Follow-up F2: overdue remittance -------------------------------------------------------------------------
+    const val TITLE_REMITTANCE_OVERDUE = "Overdue remittance"
+    const val OVERDUE_CUSTODIAN = "Cash held by"
+    const val OVERDUE_NOT_REMITTED = "Not remitted"
+    const val OVERDUE_DAY = "Day"
+    const val OVERDUE_CUTOFF = "Cut-off"
+    const val OVERDUE_FLAGGED = "Flagged"
+    const val OVERDUE_HINT = "Remit this cash to the office as soon as you can."
+
+    /** "07:00" (two-digit hour). */
+    fun hour(h: Int): String = "${h.toString().padStart(2, '0')}:00"
+
+    fun overdueLine(cutoffHour: Int, day: String): String = "Still held after the ${hour(cutoffHour)} cut-off on $day."
+
     /** Plain words for the server's conflict codes on accountability operations (null: show the server's message). */
     fun conflict(code: String?): String? = when (code) {
         "RETENTION_NOT_ALLOWED" -> "Your company does not allow keeping cash, so this request was not accepted."
         "DUPLICATE_RETENTION" -> "This request to keep cash was already sent."
+        "ENGINE_HOURS_DISABLED" -> "Your company has switched off engine-hour controls, so this was not accepted."
+        "CASH_CUSTODY_DISABLED" -> "Your company has switched off cash custody controls, so this was not accepted."
         else -> null
     }
 

@@ -4,9 +4,11 @@ import com.asseta.core.domain.owner.DataSource
 import com.asseta.core.domain.owner.MutationCheck
 import com.asseta.core.domain.owner.MutationGate
 import com.asseta.core.domain.owner.OwnerAction
+import com.asseta.core.domain.owner.OwnerDestination
 import com.asseta.core.model.TenantAccess
 import com.asseta.core.network.RealtimeEvent
 import com.asseta.owner.OwnerGraph
+import com.asseta.owner.ui.accountability.DecisionKind
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.debounce
@@ -65,6 +67,26 @@ data class OwnerFeatures(val permissions: Set<String>, val disabled: Set<String>
 
     /** Customer hours are in use (not switched off by the tenant's policy) and the role may read them. */
     val customerHours get() = hoursRead && TenantAccess.CUSTOMER_HOURS !in disabled
+
+    /** Engine-hour controls are in use (ENGINE_HOURS not switched off by the tenant's policy). */
+    val engineHours get() = TenantAccess.ENGINE_HOURS !in disabled
+
+    /** The DEC-030 cash custody additions are in use (CASH_CUSTODY not switched off); the cash basics always stay. */
+    val cashCustody get() = TenantAccess.CASH_CUSTODY !in disabled
+
+    /** The same features with more switched-off capabilities (e.g. the dashboard's `disabled_capabilities`). */
+    fun without(capabilities: Collection<String>): OwnerFeatures =
+        if (capabilities.all { it in disabled }) this else copy(disabled = disabled + capabilities)
+
+    /**
+     * [d], or the list / home it falls back to when it belongs to a capability the tenant switched off (a deep link to
+     * a hidden kind opens the list instead: Approvals for a decision, Cash with supervisors for a cash record).
+     */
+    fun route(d: OwnerDestination): OwnerDestination = when (d) {
+        is OwnerDestination.Decision -> if (DecisionKind.of(d.kind)?.switchedOff(this) == true) OwnerDestination.Approvals() else d
+        is OwnerDestination.CashRecord, is OwnerDestination.RemittanceOverdue -> if (cashCustody) d else OwnerDestination.Cash
+        else -> d
+    }
     val custodyRead get() = finance || "tenant.collection.record" in permissions
     val accountability get() = "tenant.accountability.read" in permissions
 }

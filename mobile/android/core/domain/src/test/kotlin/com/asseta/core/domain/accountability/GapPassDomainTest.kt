@@ -45,12 +45,13 @@ class GapPassDomainTest {
         assertEquals(InboxLink.CashAck("t1", isFloat = false), InboxLinks.from(null, null, "CASH_TRANSFER", "t1"))
         assertEquals(InboxLink.CashAck("f1", isFloat = true), InboxLinks.from(null, null, "CASH_FLOAT", "f1"))
         assertEquals(InboxLink.Retention("r1"), InboxLinks.from(null, null, "CASH_RETENTION", "r1"))
-        assertEquals(InboxLink.Money, InboxLinks.from(null, null, "REMITTANCE_OVERDUE", "o1"))
+        assertEquals(InboxLink.RemittanceOverdue("o1"), InboxLinks.from(null, null, "REMITTANCE_OVERDUE", "o1"))
         // Older notifications: the target entity.
         assertEquals(InboxLink.CashAck("t1", isFloat = false), InboxLinks.from("cash_transfer", "t1"))
         assertEquals(InboxLink.CashAck("f1", isFloat = true), InboxLinks.from("supervisor_cash_custody", "f1"))
         assertEquals(InboxLink.Money, InboxLinks.from("cash_transfer", null))
-        assertEquals(InboxLink.Money, InboxLinks.from("cash_remittance_overdue", "o1"))
+        assertEquals(InboxLink.RemittanceOverdue("o1"), InboxLinks.from("cash_remittance_overdue", "o1"))
+        assertEquals(InboxLink.Money, InboxLinks.from("cash_remittance_overdue", null))
         assertEquals(InboxLink.Retention("r1"), InboxLinks.from("cash_retention", "r1"))
         // Unknown kinds fall back to the target.
         assertEquals(InboxLink.Job("j"), InboxLinks.from("job", "j", "SOMETHING_NEW", "x"))

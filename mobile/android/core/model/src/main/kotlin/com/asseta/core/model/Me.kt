@@ -36,6 +36,12 @@ data class TenantAccess(
     companion object {
         /** The tenant's customer-hours capability (CUSTOMER_HOURS policy `enabled`). */
         const val CUSTOMER_HOURS = "CUSTOMER_HOURS"
+
+        /** Engine-hour controls (ENGINE_HOURS policy `enabled`): daily readings, baselines, corrections, classifications. */
+        const val ENGINE_HOURS = "ENGINE_HOURS"
+
+        /** The DEC-030 cash custody additions (CASH_CUSTODY policy `enabled`); collections, floats and remittances stay. */
+        const val CASH_CUSTODY = "CASH_CUSTODY"
     }
 }
 

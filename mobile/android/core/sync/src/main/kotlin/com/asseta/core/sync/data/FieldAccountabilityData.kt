@@ -152,7 +152,8 @@ class FieldAccountabilityData(
                 keep
             }
         }
-        val record = FieldAccess.COLLECTION_RECORD in permissions
+        // CASH_CUSTODY off: the DEC-030 cash additions (policy, holders, transfers, floats to acknowledge, reasons) are not read.
+        val record = FieldAccess.COLLECTION_RECORD in permissions && TenantAccess.CASH_CUSTODY !in disabledFor(tenantId)
         // A capability the tenant switched off is not read at all (its entry points are hidden).
         val hoursOn = TenantAccess.CUSTOMER_HOURS !in disabledFor(tenantId)
         val hoursRead = hoursOn && FieldAccess.HOURS_READ in permissions
@@ -212,6 +213,24 @@ class FieldAccountabilityData(
         }
     }
 
+    /** Overdue remittance flags read this session (by id), so a reopened screen shows at once. */
+    private val overdue = java.util.concurrent.ConcurrentHashMap<String, com.asseta.core.model.owner.RemittanceOverdueDto>()
+
+    /** The last read of overdue flag [id] (memory only), or null. */
+    fun savedOverdue(id: String): com.asseta.core.model.owner.RemittanceOverdueDto? = overdue[id]
+
+    /**
+     * My overdue remittance flag (`GET /cash/remittance-overdue/{id}`, online only: the custodian or the recorder of
+     * that custodian's collections that day). Null on 404, offline or any error (the caller opens the Money tab).
+     */
+    suspend fun remittanceOverdue(id: String): com.asseta.core.model.owner.RemittanceOverdueDto? = try {
+        api().remittanceOverdueFlag(id).also { overdue[id] = it }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        null
+    }
+
     /** The server request id from an acked `CASH_RETENTION_REQUEST` result (`{"entity": CashRetentionDto}`). */
     fun retentionIdOf(op: ClientOperationEntity): String? = op.resultJson?.let { raw ->
         runCatching {
@@ -223,6 +242,7 @@ class FieldAccountabilityData(
     /** Clears the in-memory copy (sign-out / another user); the store is cleared by the account switch. */
     fun reset() {
         loadedFor = null
+        overdue.clear()
         _cache.value = FieldAccountabilityCache()
     }
 
