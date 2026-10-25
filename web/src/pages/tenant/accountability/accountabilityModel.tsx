@@ -9,6 +9,7 @@ import {
   machineDetailPath,
   ROUTES,
 } from '../../../navigation/routes';
+import { RECORD_LIST_ROUTES } from '../../../navigation/recordRoutes';
 import { withQuery } from '../../../navigation/urlFilters';
 import { formatMoney } from '../../../utils/money';
 import { humanize } from '../../../utils/text';
@@ -84,8 +85,23 @@ export interface Tile {
   rows?: KpiRow[];
 }
 
+/** Tiles of the customer hours capability (not shown when the tenant switched it off). */
+export const CUSTOMER_HOURS_TILES: ReadonlySet<string> = new Set([
+  'customer_hours',
+  'hours_awaiting_activation',
+]);
+
+export interface TileOptions {
+  /** False when the tenant's policy switches customer hours off (`/me` disabled_capabilities). */
+  customerHours?: boolean;
+}
+
 /** The tiles the summary returned (hidden or unavailable ones are null and skipped), each linking to its list. */
-export function buildTiles(s: AccountabilitySummaryDto, can: Can): Tile[] {
+export function buildTiles(
+  s: AccountabilitySummaryDto,
+  can: Can,
+  { customerHours = true }: TileOptions = {},
+): Tile[] {
   const tiles: Tile[] = [];
   const hoursRead = can(HOURS_READ);
   const machineRead = can(PERMISSIONS.tenantMachineRead);
@@ -98,7 +114,7 @@ export function buildTiles(s: AccountabilitySummaryDto, can: Can): Tile[] {
     linkIf(machineRead, machineDetailPath(id), ROUTES.tenantMachines);
   const finance = can(PERMISSIONS.tenantFinanceRead);
 
-  if (s.customer_hours) {
+  if (customerHours && s.customer_hours) {
     const h = asRecord(s.customer_hours);
     const to = linkIf(hoursRead, HOURS_BALANCES);
     tiles.push({
@@ -149,7 +165,7 @@ export function buildTiles(s: AccountabilitySummaryDto, can: Can): Tile[] {
       ],
     });
   }
-  if (s.hours_awaiting_activation) {
+  if (customerHours && s.hours_awaiting_activation) {
     const h = asRecord(s.hours_awaiting_activation);
     const to = linkIf(hoursRead, HOURS_PURCHASES);
     tiles.push({
@@ -297,6 +313,17 @@ export function buildTiles(s: AccountabilitySummaryDto, can: Can): Tile[] {
           c.partial_remittances_in_window,
           linkIf(finance, cashTabPath('handovers')),
         ),
+        // Only when the tenant set a remittance cut-off (cash.remittance_cutoff_hour).
+        ...(c.remittance_cutoff_hour == null || c.remittances_overdue_today == null
+          ? []
+          : [
+              count(
+                'overdue',
+                `Remittances overdue today (cut-off ${String(c.remittance_cutoff_hour).padStart(2, '0')}:00)`,
+                c.remittances_overdue_today,
+                linkIf(finance, RECORD_LIST_ROUTES.REMITTANCE_OVERDUE),
+              ),
+            ]),
       ],
     });
   }

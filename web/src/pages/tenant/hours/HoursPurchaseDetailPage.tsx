@@ -20,8 +20,7 @@ import { isZeroDecimal } from '../../../utils/money';
 import { formatInstantIn } from '../../../utils/time';
 import { shortId } from '../shared/financeDisplay';
 import { PersonName } from '../shared/PersonName';
-import { useCustomerLabels } from '../shared/useFinanceLabels';
-import { useMachineLabels } from '../shared/useMachineLabels';
+import { machineText, nameOr } from '../shared/names';
 import { HoursOffNotice, ReasonDialog } from './HoursDialogs';
 import { hoursText, PURCHASE_STATUS_LABELS, PURCHASE_STATUS_TONES } from './hoursDisplay';
 import { PaymentEvidenceDialog } from './PaymentEvidenceDialog';
@@ -111,8 +110,6 @@ export function HoursPurchaseDetailPage() {
   const { purchaseId = '' } = useParams();
   const notify = useNotify();
   const timeZone = useDisplayTimeZone();
-  const machineName = useMachineLabels();
-  const customerName = useCustomerLabels();
   const hours = useHoursPolicy();
   const canPurchase = useCanMutate(PERMISSIONS.tenantHoursPurchase);
   const canCredit = useCanMutate(PERMISSIONS.tenantHoursCreditActivate);
@@ -215,9 +212,15 @@ export function HoursPurchaseDetailPage() {
                 items={[
                   {
                     label: 'Customer',
-                    value: `${d.customer_name ?? customerName(d.customer_id)}${d.customer_kind === 'WALK_IN' ? ' (walk-in)' : ''}`,
+                    value: `${nameOr(d.customer_name, d.customer_id)}${d.customer_kind === 'WALK_IN' ? ' (walk-in)' : ''}`,
                   },
-                  { label: 'Machine', value: machineName(d.machine_id) },
+                  {
+                    label: 'Machine',
+                    value: machineText(d.machine_code, d.machine_name, d.machine_id),
+                  },
+                  ...(d.job_site_id == null
+                    ? []
+                    : [{ label: 'Site', value: nameOr(d.job_site_name, d.job_site_id) }]),
                   { label: 'Hours bought', value: hoursText(d.hours) },
                   {
                     label: 'Rate card rate',
@@ -232,7 +235,10 @@ export function HoursPurchaseDetailPage() {
                     label: 'Amount',
                     value: <MoneyText amount={d.amount} currency={d.currency} strong />,
                   },
-                  { label: 'Recorded by', value: <PersonName userId={d.created_by} /> },
+                  {
+                    label: 'Recorded by',
+                    value: <PersonName userId={d.created_by} name={d.created_by_name} />,
+                  },
                   { label: 'Recorded at', value: formatInstantIn(d.created_at, timeZone) },
                   { label: 'Source', value: d.source },
                   { label: 'Policy version', value: d.policy_version },
@@ -264,7 +270,11 @@ export function HoursPurchaseDetailPage() {
                 rows={d.machines}
                 getRowId={(m) => m.machine_id}
                 columns={[
-                  { id: 'machine', header: 'Machine', render: (m) => machineName(m.machine_id) },
+                  {
+                    id: 'machine',
+                    header: 'Machine',
+                    render: (m) => machineText(m.machine_code, m.machine_name, m.machine_id),
+                  },
                   {
                     id: 'act',
                     header: 'Activated',

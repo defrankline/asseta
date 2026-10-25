@@ -40,3 +40,5 @@ export type SyncResolutionOutcome = Schemas['SyncResolutionOutcome'];
 export type AccountabilitySummaryDto = Schemas['AccountabilitySummaryDto'];
 export type CountAmountDto = Schemas['CountAmountDto'];
 export type CustodianCashDto = Schemas['CustodianCashDto'];
+export type RemittanceOverdueDto = Schemas['RemittanceOverdueDto'];
+export type OverdueAmountDto = Schemas['OverdueAmountDto'];

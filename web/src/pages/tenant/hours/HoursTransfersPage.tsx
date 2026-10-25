@@ -1,6 +1,7 @@
 import Add from '@mui/icons-material/Add';
 import { Alert, Button, Stack } from '@mui/material';
 import { useCallback, useState } from 'react';
+import { useNavigate } from 'react-router';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import { useCanMutate } from '../../../access/useCanMutate';
 import type { TransferDto } from '../../../api/hoursTypes';
@@ -9,6 +10,7 @@ import { ServerDataTable } from '../../../components/data/ServerDataTable';
 import type { FetchPage } from '../../../components/data/useServerPage';
 import { PageHeader } from '../../../components/feedback/PageHeader';
 import { StaticSelectFilter } from '../../../components/forms/StaticSelectFilter';
+import { recordPath } from '../../../navigation/recordRoutes';
 import { useNotify } from '../../../notifications/useNotify';
 import { HoursOffNotice } from './HoursDialogs';
 import { REQUEST_STATUS_OPTIONS } from './hoursDisplay';
@@ -23,6 +25,7 @@ export function HoursTransfersPage() {
   const canRequest = useCanMutate(PERMISSIONS.tenantHoursTransfer) && hours.on;
   const [status, setStatus] = useState('PENDING');
   const [requesting, setRequesting] = useState(false);
+  const navigate = useNavigate();
   const [reloadKey, setReloadKey] = useState(0);
   const reload = useCallback(() => {
     setReloadKey((k) => k + 1);
@@ -60,6 +63,9 @@ export function HoursTransfersPage() {
           columns={columns}
           fetchPage={fetchPage}
           getRowId={(t) => t.id}
+          onRowClick={(t) => {
+            void navigate(recordPath('HOURS_TRANSFER', t.id));
+          }}
           searchable={false}
           reloadKey={reloadKey}
           filters={{ status: status === '' ? undefined : status }}

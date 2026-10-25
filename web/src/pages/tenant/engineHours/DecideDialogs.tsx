@@ -4,12 +4,10 @@ import { KeyValueGrid } from '../../../components/display/KeyValueGrid';
 import { AttachmentPhoto } from '../../../components/meter/AttachmentPhoto';
 import { meterService } from '../../../api/services/meterService';
 import { formatInstantIn } from '../../../utils/time';
+import { machineText } from '../shared/names';
 import { PersonName } from '../shared/PersonName';
 import { hoursText, OUTCOME_LABELS } from './engineHoursDisplay';
 import { MeterDecisionDialog } from './MeterDecisionDialog';
-
-const machineText = (code: string | null | undefined, name?: string | null) =>
-  code == null ? '—' : name == null ? code : `${code} · ${name}`;
 
 interface DecideProps<T> {
   timeZone: string;
@@ -26,14 +24,17 @@ export function DecideBaselineDialog({
 }: DecideProps<BaselineDto> & { baseline: BaselineDto }) {
   return (
     <MeterDecisionDialog<BaselineDto>
-      title={`Decide baseline · ${machineText(baseline.machine_code, baseline.machine_name)}`}
+      title={`Decide baseline · ${machineText(baseline.machine_code, baseline.machine_name, baseline.machine_id)}`}
       summary={
         <KeyValueGrid
           columns={2}
           items={[
             { label: 'Reading', value: hoursText(baseline.reading) },
             { label: 'Taken', value: formatInstantIn(baseline.captured_at, timeZone) },
-            { label: 'Proposed by', value: <PersonName userId={baseline.proposed_by} /> },
+            {
+              label: 'Proposed by',
+              value: <PersonName userId={baseline.proposed_by} name={baseline.proposed_by_name} />,
+            },
             {
               label: 'Source',
               value: baseline.source === 'READING' ? 'An existing reading' : 'New reading',
@@ -72,7 +73,7 @@ export function DecideClassificationDialog({
 }: DecideProps<ClassificationDto> & { classification: ClassificationDto }) {
   return (
     <MeterDecisionDialog<ClassificationDto>
-      title={`Decide explanation · ${hoursText(c.hours)} · ${machineText(c.machine_code)}`}
+      title={`Decide explanation · ${hoursText(c.hours)} · ${machineText(c.machine_code, c.machine_name, c.machine_id)}`}
       summary={
         <KeyValueGrid
           columns={2}
@@ -85,7 +86,10 @@ export function DecideClassificationDialog({
             { label: 'Explained as', value: OUTCOME_LABELS[c.outcome] },
             { label: 'Category / reason', value: c.reason_name ?? '—' },
             { label: 'What happened', value: c.note },
-            { label: 'Proposed by', value: <PersonName userId={c.proposed_by} /> },
+            {
+              label: 'Proposed by',
+              value: <PersonName userId={c.proposed_by} name={c.proposed_by_name} />,
+            },
           ]}
         />
       }
@@ -106,7 +110,7 @@ export function DecideCorrectionDialog({
 }: DecideProps<CorrectionDto> & { correction: CorrectionDto }) {
   return (
     <MeterDecisionDialog<CorrectionDto>
-      title={`Decide correction · ${machineText(c.machine_code)}`}
+      title={`Decide correction · ${machineText(c.machine_code, c.machine_name, c.machine_id)}`}
       summary={
         <KeyValueGrid
           columns={2}
@@ -114,7 +118,10 @@ export function DecideCorrectionDialog({
             { label: 'Reading (old → new)', value: `${c.old_reading} → ${c.new_reading}` },
             { label: 'Proposed', value: formatInstantIn(c.proposed_at, timeZone) },
             { label: 'Reason', value: c.reason },
-            { label: 'Proposed by', value: <PersonName userId={c.proposed_by} /> },
+            {
+              label: 'Proposed by',
+              value: <PersonName userId={c.proposed_by} name={c.proposed_by_name} />,
+            },
           ]}
         />
       }

@@ -1,9 +1,11 @@
 import { Box, Paper, Tab, Tabs } from '@mui/material';
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router';
+import { Navigate, useNavigate, useSearchParams } from 'react-router';
 import { staffService } from '../../../../api/services/staffService';
 import type { CashSupervisorSummaryDto, StaffDto } from '../../../../api/types';
 import { PageHeader } from '../../../../components/feedback/PageHeader';
+import { recordPath, type RecordKind } from '../../../../navigation/recordRoutes';
+import { cashTabPath } from '../../../../navigation/routes';
 import { useDisplayTimeZone } from '../../../../hooks/useDisplayTimeZone';
 import { useNotify } from '../../../../notifications/useNotify';
 import { AdjustmentsTab } from './AdjustmentsTab';
@@ -17,6 +19,7 @@ import { CustodyTab } from './CustodyTab';
 import { FloatsTab } from './FloatsTab';
 import { HandoversTab } from './HandoversTab';
 import { ReconciliationTab } from './ReconciliationTab';
+import { RemittanceOverdueTab } from './RemittanceOverdueTab';
 import { RetentionsTab } from './RetentionsTab';
 import { SupervisorsTab } from './SupervisorsTab';
 import { TransfersTab } from './TransfersTab';
@@ -28,6 +31,7 @@ const CASH_TABS = [
   { key: 'transfers', label: 'Transfers' },
   { key: 'floats', label: 'Floats' },
   { key: 'handovers', label: 'Remittances' },
+  { key: 'overdue', label: 'Overdue remittances' },
   { key: 'variances', label: 'Variances' },
   { key: 'retentions', label: 'Retentions' },
   { key: 'adjustments', label: 'Adjustments' },
@@ -35,22 +39,37 @@ const CASH_TABS = [
   { key: 'reasons', label: 'Reason lists' },
 ] as const;
 
-type TabKey = (typeof CASH_TABS)[number]['key'];
+export type CashTabKey = (typeof CASH_TABS)[number]['key'];
+type TabKey = CashTabKey;
+
+/** Old `?tab=…&id=…` links (e.g. reconciliation drill-downs) open the record's own page. */
+const RECORD_OF_TAB: Partial<Record<TabKey, RecordKind>> = {
+  transfers: 'CASH_TRANSFER',
+  floats: 'CASH_FLOAT',
+  handovers: 'CASH_REMITTANCE',
+  overdue: 'REMITTANCE_OVERDUE',
+  variances: 'CASH_VARIANCE',
+  retentions: 'CASH_RETENTION',
+  adjustments: 'CUSTODY_ADJUSTMENT',
+};
 
 const isTab = (v: string | null): v is TabKey => CASH_TABS.some((t) => t.key === v);
 
 /**
  * Cash custody chain (accountability design C): custody per custodian, transfers, floats,
  * remittances, variances, retentions, adjustments, reconciliation drill-down and reason lists.
- * URL: `?tab=…` plus `staff_member_id` (custody / reconciliation), `id` (open a record), `status`.
+ * URL: `?tab=…` plus `staff_member_id` (custody / reconciliation), `status`; `id` opens the
+ * record's page. List routes (`/tenant/finance/cash/transfers`, …) render it on that tab (`tab`).
  */
-export function CashCustodyPage() {
+export function CashCustodyPage({ tab: fixedTab }: { tab?: CashTabKey } = {}) {
   const timeZone = useDisplayTimeZone();
   const notify = useNotify();
+  const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const raw = params.get('tab');
-  const tab: TabKey = isTab(raw) ? raw : 'supervisors';
+  const tab: TabKey = fixedTab ?? (isTab(raw) ? raw : 'supervisors');
   const focusId = params.get('id');
+  const focusKind = RECORD_OF_TAB[tab];
   /** A status filter from the URL, only when it is one of the tab's options (else the tab's default). */
   const status = (options: readonly { value: string }[]): string | undefined => {
     const raw = params.get('status');
@@ -69,17 +88,24 @@ export function CashCustodyPage() {
       controller.abort();
     };
   }, [staffParam, custodian?.id]);
+  const changeTab = (v: TabKey) => {
+    if (fixedTab === undefined) setParams({ tab: v });
+    else void navigate(cashTabPath(v));
+  };
   const openCustody = (row: CashSupervisorSummaryDto) => {
     staffService.get(row.staff_member_id).then(
       (staff) => {
         setCustodian(staff);
-        setParams({ tab: 'custody' });
+        changeTab('custody');
       },
       (err: unknown) => {
         notify.error(err, `Could not open ${row.staff_name}'s custody`);
       },
     );
   };
+  if (focusId !== null && focusKind !== undefined) {
+    return <Navigate replace to={recordPath(focusKind, focusId)} />;
+  }
   return (
     <>
       <PageHeader
@@ -92,7 +118,7 @@ export function CashCustodyPage() {
           variant="scrollable"
           aria-label="Cash custody"
           onChange={(_e, v: TabKey) => {
-            setParams({ tab: v });
+            changeTab(v);
           }}
         >
           {CASH_TABS.map((t) => (
@@ -109,20 +135,13 @@ export function CashCustodyPage() {
             />
           )}
           {tab === 'transfers' && (
-            <TransfersTab
-              timeZone={timeZone}
-              focusId={focusId}
-              initialStatus={status(TRANSFER_STATUS_OPTIONS)}
-            />
+            <TransfersTab timeZone={timeZone} initialStatus={status(TRANSFER_STATUS_OPTIONS)} />
           )}
           {tab === 'floats' && <FloatsTab timeZone={timeZone} />}
           {tab === 'handovers' && <HandoversTab timeZone={timeZone} />}
+          {tab === 'overdue' && <RemittanceOverdueTab timeZone={timeZone} />}
           {tab === 'variances' && (
-            <VariancesTab
-              timeZone={timeZone}
-              focusId={focusId}
-              initialStatus={status(VARIANCE_STATUS_OPTIONS)}
-            />
+            <VariancesTab timeZone={timeZone} initialStatus={status(VARIANCE_STATUS_OPTIONS)} />
           )}
           {tab === 'retentions' && (
             <RetentionsTab timeZone={timeZone} initialStatus={status(DECISION_STATUS_OPTIONS)} />

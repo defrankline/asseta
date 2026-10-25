@@ -17,7 +17,7 @@ import { hoursPurchasePath } from '../../../navigation/hoursRoutes';
 import { useNotify } from '../../../notifications/useNotify';
 import { useSession } from '../../../session/useSession';
 import { formatInstantIn } from '../../../utils/time';
-import { useMachineLabels } from '../shared/useMachineLabels';
+import { machineText, nameOr } from '../shared/names';
 import { HoursOffNotice } from './HoursDialogs';
 import { hoursText, PURCHASE_STATUS_LABELS, PURCHASE_STATUS_TONES } from './hoursDisplay';
 import { RequestTransferDialog } from './PurchaseActionDialogs';
@@ -34,7 +34,6 @@ export function FieldHoursPage() {
   const notify = useNotify();
   const navigate = useNavigate();
   const timeZone = useDisplayTimeZone();
-  const machineName = useMachineLabels();
   const { hasPermission } = useSession();
   const hours = useHoursPolicy();
   const canRecord = useCanMutate(PERMISSIONS.tenantHoursPurchase) && hours.on;
@@ -48,8 +47,12 @@ export function FieldHoursPage() {
   );
   const columns: DataColumn<HoursPurchaseDto>[] = [
     { id: 'number', header: 'Purchase', render: (p) => <strong>{p.purchase_number}</strong> },
-    { id: 'customer', header: 'Customer', render: (p) => p.customer_name ?? '—' },
-    { id: 'machine', header: 'Machine', render: (p) => machineName(p.machine_id) },
+    { id: 'customer', header: 'Customer', render: (p) => nameOr(p.customer_name, p.customer_id) },
+    {
+      id: 'machine',
+      header: 'Machine',
+      render: (p) => machineText(p.machine_code, p.machine_name, p.machine_id),
+    },
     { id: 'hours', header: 'Hours', align: 'right', render: (p) => hoursText(p.hours) },
     {
       id: 'amount',

@@ -1,5 +1,7 @@
 import { lazy, type ReactNode } from 'react';
 import { Route } from 'react-router';
+import { CAPABILITY } from '../access/capabilities';
+import { RequireCapability } from '../access/RequireCapability';
 import { PERMISSIONS } from '../access/permissionCodes';
 import { HOURS_ROUTES } from '../navigation/hoursRoutes';
 
@@ -39,6 +41,22 @@ const CustomerDiscountsPage = page(
   () => import('../pages/tenant/hours/CustomerDiscountsPage'),
   'CustomerDiscountsPage',
 );
+const HoursTransferDetailPage = page(
+  () => import('../pages/tenant/hours/HoursRequestDetailPages'),
+  'HoursTransferDetailPage',
+);
+const HoursCancellationDetailPage = page(
+  () => import('../pages/tenant/hours/HoursRequestDetailPages'),
+  'HoursCancellationDetailPage',
+);
+const CustomerDiscountDetailPage = page(
+  () => import('../pages/tenant/hours/CustomerDiscountsPage'),
+  'CustomerDiscountDetailPage',
+);
+const CreditArrangementDetailPage = page(
+  () => import('../pages/tenant/hours/CreditArrangementsPage'),
+  'CreditArrangementDetailPage',
+);
 const CreditArrangementsPage = page(
   () => import('../pages/tenant/hours/CreditArrangementsPage'),
   'CreditArrangementsPage',
@@ -55,7 +73,10 @@ const FieldHoursPage = page(() => import('../pages/tenant/hours/FieldHoursPage')
 
 type Guard = (permission: string, page: ReactNode) => ReactNode;
 
-/** Route elements for the customer hours pages; each is permission-guarded (deny by default). */
+/**
+ * Route elements for the customer hours pages; each is permission-guarded (deny by default) and shows
+ * a plain "not enabled" state when the tenant's policy switches customer hours off (direct URLs too).
+ */
 export function hoursRouteElements(guard: Guard): ReactNode[] {
   const read = PERMISSIONS.tenantHoursRead;
   const routes: [string, string, ReactNode][] = [
@@ -65,14 +86,26 @@ export function hoursRouteElements(guard: Guard): ReactNode[] {
     [HOURS_ROUTES.ledger, read, <HoursLedgerPage key="l" />],
     [HOURS_ROUTES.allocations, read, <WorkAllocationsPage key="a" />],
     [HOURS_ROUTES.transfers, read, <HoursTransfersPage key="t" />],
+    [HOURS_ROUTES.transferDetail, read, <HoursTransferDetailPage key="td" />],
     [HOURS_ROUTES.cancellations, read, <HoursCancellationsPage key="c" />],
+    [HOURS_ROUTES.cancellationDetail, read, <HoursCancellationDetailPage key="cd" />],
     [HOURS_ROUTES.discounts, read, <CustomerDiscountsPage key="d" />],
+    [HOURS_ROUTES.discountDetail, read, <CustomerDiscountDetailPage key="dd" />],
     [HOURS_ROUTES.credit, read, <CreditArrangementsPage key="cr" />],
+    [HOURS_ROUTES.creditDetail, read, <CreditArrangementDetailPage key="crd" />],
     [HOURS_ROUTES.walkIns, read, <WalkInCustomersPage key="w" />],
     [HOURS_ROUTES.reasons, read, <HoursReasonsPage key="r" />],
     [HOURS_ROUTES.field, PERMISSIONS.tenantHoursPurchase, <FieldHoursPage key="f" />],
   ];
   return routes.map(([path, permission, element]) => (
-    <Route key={path} path={path} element={guard(permission, element)} />
+    <Route
+      key={path}
+      path={path}
+      element={
+        <RequireCapability capability={CAPABILITY.customerHours} feature="Customer hours">
+          {guard(permission, element)}
+        </RequireCapability>
+      }
+    />
   ));
 }

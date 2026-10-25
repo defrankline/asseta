@@ -275,6 +275,10 @@ export const hoursRequestService = {
   listTransfers(query: TenantListQuery, signal?: AbortSignal): Promise<Page<TransferDto>> {
     return tenantPage(`${T}/hours-transfers`, transferPage, query, 'hours transfers', signal);
   },
+  /** GET /tenant/hours-transfers/{id} (getHoursTransfer). */
+  getTransfer(id: string, signal?: AbortSignal): Promise<TransferDto> {
+    return tenantGet(`${T}/hours-transfers/${seg(id)}`, transferSchema, 'hours transfer', signal);
+  },
   /** POST /tenant/hours-transfers (requestHoursTransfer). */
   requestTransfer(body: TransferIn, idempotencyKey: string): Promise<TransferDto> {
     return tenantSend(
@@ -315,6 +319,15 @@ export const hoursRequestService = {
       cancellationPage,
       query,
       'hours cancellations',
+      signal,
+    );
+  },
+  /** GET /tenant/hours-cancellations/{id} (getHoursCancellation). */
+  getCancellation(id: string, signal?: AbortSignal): Promise<CancellationDto> {
+    return tenantGet(
+      `${T}/hours-cancellations/${seg(id)}`,
+      cancellationSchema,
+      'cancellation',
       signal,
     );
   },

@@ -83,7 +83,7 @@ function PaymentDrawer({
       <KeyValueGrid
         columns={2}
         items={[
-          { label: 'Customer', value: customerLabel(p.customer_id) },
+          { label: 'Customer', value: p.customer_name ?? customerLabel(p.customer_id) },
           { label: 'Amount', value: <MoneyText amount={p.amount} currency={p.currency} strong /> },
           {
             label: 'Unallocated',
@@ -92,11 +92,20 @@ function PaymentDrawer({
           { label: 'Method', value: PAYMENT_METHOD_LABELS[p.method] },
           { label: 'Reference', value: p.reference ?? '—' },
           { label: 'Received at', value: formatInstantIn(p.received_at, timeZone) },
-          { label: 'Received by', value: staffLabel(p.received_by_staff_id) },
+          {
+            label: 'Received by',
+            value: p.received_by_staff_name ?? staffLabel(p.received_by_staff_id),
+          },
           { label: 'Source', value: p.source },
-          { label: 'Recorded by', value: <PersonName userId={p.recorded_by} /> },
+          {
+            label: 'Recorded by',
+            value: <PersonName userId={p.recorded_by} name={p.recorded_by_name} />,
+          },
           { label: 'Recorded at', value: formatInstantIn(p.recorded_at, timeZone) },
-          { label: 'Decided by', value: <PersonName userId={p.verified_by} /> },
+          {
+            label: 'Decided by',
+            value: <PersonName userId={p.verified_by} name={p.verified_by_name} />,
+          },
           {
             label: 'Decided at',
             value: p.verified_at === null ? '—' : formatInstantIn(p.verified_at, timeZone),
@@ -158,7 +167,11 @@ export function PaymentsTab({ timeZone }: { timeZone: string }) {
   );
   const columns: DataColumn<CustomerPaymentDto>[] = [
     { id: 'received', header: 'Received', render: (p) => formatInstantIn(p.received_at, timeZone) },
-    { id: 'customer', header: 'Customer', render: (p) => customerLabel(p.customer_id) },
+    {
+      id: 'customer',
+      header: 'Customer',
+      render: (p) => p.customer_name ?? customerLabel(p.customer_id),
+    },
     { id: 'method', header: 'Method', render: (p) => PAYMENT_METHOD_LABELS[p.method] },
     { id: 'ref', header: 'Reference', render: (p) => p.reference ?? '—' },
     {

@@ -242,10 +242,9 @@ describe('HandoversTab', () => {
       tenantPermissions: [...READ, P.tenantFinanceVerify],
     });
     await user.click(await screen.findByRole('button', { name: 'Actions for remittance MINE' }));
-    expect(screen.getByRole('menuitem', { name: /not allowed: you recorded it/ })).toHaveAttribute(
-      'aria-disabled',
-      'true',
-    );
+    expect(
+      screen.getByRole('menuitem', { name: /Someone else must decide your own request/ }),
+    ).toHaveAttribute('aria-disabled', 'true');
     await user.keyboard('{Escape}');
     await user.click(screen.getByRole('button', { name: 'Actions for remittance SLIP-9' }));
     await user.click(screen.getByRole('menuitem', { name: 'Confirm / reject' }));

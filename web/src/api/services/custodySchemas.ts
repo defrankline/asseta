@@ -18,7 +18,9 @@ import type {
   CustodyAdjustmentDto,
   CustodyAdjustmentKind,
   CustodyTransactionDto,
+  OverdueAmountDto,
   ReconciliationFigure,
+  RemittanceOverdueDto,
   SecurityEventDto,
   SecurityEventKind,
   SyncConflictDto,
@@ -316,4 +318,21 @@ export const accountabilitySummarySchema: Schema<AccountabilitySummaryDto> = obj
   })
     .nullable()
     .default(null),
+});
+
+const overdueAmountSchema: Schema<OverdueAmountDto> = object({
+  amount: text(),
+  currency: text(),
+});
+
+/** A custodian flagged for holding unremitted cash past the tenant's daily cut-off (G4). */
+export const remittanceOverdueSchema: Schema<RemittanceOverdueDto> = object({
+  id: id(),
+  staff_member_id: id(),
+  staff_member_name: nullableText().optional(),
+  local_day: text(),
+  cutoff_hour: int(),
+  amounts: array(overdueAmountSchema).required(),
+  flagged_at: text(),
+  policy_version: text(),
 });

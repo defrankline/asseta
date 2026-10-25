@@ -15,6 +15,7 @@ import {
   ROUTES,
   tenantDetailPath,
 } from '../../navigation/routes';
+import { isRecordKind, RECORD_KIND_BY_ENTITY, recordPath } from '../../navigation/recordRoutes';
 import { ENTITY } from '../../realtime/entities';
 import type { NotificationSeverity as ToastSeverity } from '../NotificationContext';
 
@@ -68,9 +69,26 @@ const BY_ENTITY: Readonly<Record<string, (id: string | null) => string>> = {
   tenant: (id) => (id === null ? ROUTES.platformTenants : tenantDetailPath(id)),
 };
 
-/** Screen a notification opens, or null when it is informational only. */
-export function notificationTargetPath(target: NotificationTarget | null): string | null {
+/** `data.kind` + `data.record_id` of an accountability notification → that record's own page. */
+function exactRecordPath(data: Readonly<Record<string, unknown>> | undefined): string | null {
+  const kind = data?.kind;
+  const id = data?.record_id;
+  return isRecordKind(kind) && typeof id === 'string' && id !== '' ? recordPath(kind, id) : null;
+}
+
+/**
+ * Screen a notification opens, or null when it is informational only. Accountability records
+ * (transfers, floats, remittances, approvals, …) open their exact record.
+ */
+export function notificationTargetPath(
+  target: NotificationTarget | null,
+  data?: Readonly<Record<string, unknown>>,
+): string | null {
+  const exact = exactRecordPath(data);
+  if (exact !== null) return exact;
   if (target === null) return null;
   if (target.path !== null && isInternalPath(target.path)) return target.path;
+  const kind = RECORD_KIND_BY_ENTITY[target.entity];
+  if (kind !== undefined && target.id !== null) return recordPath(kind, target.id);
   return BY_ENTITY[target.entity]?.(target.id) ?? null;
 }

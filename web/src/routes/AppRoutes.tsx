@@ -15,7 +15,9 @@ import { PaymentsPage } from '../pages/platform/payments/PaymentsPage';
 import { TenantDetailPage } from '../pages/platform/tenantDetail/TenantDetailPage';
 import { TenantsPage } from '../pages/platform/tenants/TenantsPage';
 import { SystemStatusPage } from '../pages/SystemStatusPage';
+import { engineHoursDetailRouteElements } from './engineHoursRoutes';
 import { hoursRouteElements } from './hoursRoutes';
+import { cashRecordRouteElements } from './cashRoutes';
 import {
   AccessPage,
   CatalogPage,
@@ -373,7 +375,9 @@ export function AppRoutes() {
           path={ROUTES.fieldCash}
           element={guard(PERMISSIONS.tenantCollectionRecord, <FieldCashPage />)}
         />
+        {cashRecordRouteElements(guard, guardAny)}
         {hoursRouteElements(guard)}
+        {engineHoursDetailRouteElements(guard)}
         <Route path={ROUTES.forbidden} element={<ForbiddenPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>

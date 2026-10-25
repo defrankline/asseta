@@ -1,25 +1,20 @@
 import { Alert, Box, ToggleButton, ToggleButtonGroup } from '@mui/material';
-import { useCallback, useState, type ReactNode } from 'react';
-import { PERMISSIONS } from '../../../../access/permissionCodes';
-import { useCanMutate } from '../../../../access/useCanMutate';
+import { useCallback, useState } from 'react';
+import { useNavigate } from 'react-router';
 import { cashService } from '../../../../api/services/cashService';
 import type { CashHandoverDto, SettlementStatus } from '../../../../api/types';
 import type { CustodianDto } from '../../../../api/custodyTypes';
 import { ServerDataTable, type DataColumn } from '../../../../components/data/ServerDataTable';
 import type { FetchPage } from '../../../../components/data/useServerPage';
 import { MoneyText } from '../../../../components/display/MoneyText';
-import { StatusChip } from '../../../../components/display/StatusChip';
 import { RowActionsMenu } from '../../../../components/lifecycle/RowActionsMenu';
-import { useNotify } from '../../../../notifications/useNotify';
+import { recordPath } from '../../../../navigation/recordRoutes';
 import { formatInstantIn } from '../../../../utils/time';
-import { SETTLEMENT_LABELS, SETTLEMENT_TONES, shortId } from '../../shared/financeDisplay';
 import { PersonName } from '../../shared/PersonName';
-import { useMyUserId } from '../../shared/useFinanceLabels';
 import { ENTITY } from '../../../../realtime/entities';
 import { useLiveRefresh } from '../../../../realtime/hooks';
-import { RemittanceDecisionDialog } from './CustodyDialogs';
-import { useCustodianLabels } from './custodyHooks';
 import { CustodianFilter } from './custodyPickers';
+import { remittanceChip, remittanceCustodian, useRemittanceActions } from './remittanceRecord';
 
 type View = SettlementStatus | 'ALL';
 
@@ -28,13 +23,9 @@ type View = SettlementStatus | 'ALL';
  * actually received (a difference opens a variance) or rejects. Never your own.
  */
 export function HandoversTab({ timeZone }: { timeZone: string }) {
-  const notify = useNotify();
-  const me = useMyUserId();
-  const staffLabel = useCustodianLabels();
-  const canVerify = useCanMutate(PERMISSIONS.tenantFinanceVerify);
+  const navigate = useNavigate();
   const [view, setView] = useState<View>('CLAIMED');
   const [staff, setStaff] = useState<CustodianDto | null>(null);
-  const [deciding, setDeciding] = useState<CashHandoverDto | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const liveReload = useCallback(() => {
     setReloadKey((k) => k + 1);
@@ -44,23 +35,20 @@ export function HandoversTab({ timeZone }: { timeZone: string }) {
     (query, signal) => cashService.listHandovers(query, signal),
     [],
   );
-  const mine = (h: CashHandoverDto) => h.recorded_by !== null && h.recorded_by === me;
+  const { actionsFor, dialog } = useRemittanceActions(liveReload);
+  const open = (h: CashHandoverDto) => {
+    void navigate(recordPath('CASH_REMITTANCE', h.id));
+  };
   const columns: DataColumn<CashHandoverDto>[] = [
     { id: 'at', header: 'Handed over', render: (h) => formatInstantIn(h.handed_at, timeZone) },
-    { id: 'staff', header: 'Custodian', render: (h) => staffLabel(h.staff_member_id) },
+    { id: 'staff', header: 'Custodian', render: remittanceCustodian },
     { id: 'ref', header: 'Reference', render: (h) => h.reference ?? '—' },
+    { id: 'status', header: 'Status', render: remittanceChip },
     {
-      id: 'status',
-      header: 'Status',
-      render: (h) => (
-        <StatusChip
-          status={h.status}
-          tones={SETTLEMENT_TONES}
-          label={SETTLEMENT_LABELS[h.status]}
-        />
-      ),
+      id: 'by',
+      header: 'Recorded by',
+      render: (h) => <PersonName userId={h.recorded_by} name={h.recorded_by_name} />,
     },
-    { id: 'by', header: 'Recorded by', render: (h) => <PersonName userId={h.recorded_by} /> },
     {
       id: 'amount',
       header: 'Declared',
@@ -96,44 +84,21 @@ export function HandoversTab({ timeZone }: { timeZone: string }) {
       align: 'right',
       render: (h) => (
         <RowActionsMenu
-          label={`remittance ${h.reference ?? shortId(h.id)}`}
+          label={`remittance ${h.reference ?? remittanceCustodian(h)}`}
           actions={[
             {
-              key: 'decide',
-              label: mine(h)
-                ? 'Confirm / reject (not allowed: you recorded it)'
-                : 'Confirm / reject',
-              hidden: !canVerify || h.status !== 'CLAIMED',
-              disabled: mine(h),
+              key: 'view',
+              label: 'View details',
               onClick: () => {
-                setDeciding(h);
+                open(h);
               },
             },
+            ...actionsFor(h),
           ]}
         />
       ),
     },
   ];
-  let dialog: ReactNode = null;
-  if (deciding !== null) {
-    const h = deciding;
-    dialog = (
-      <RemittanceDecisionDialog
-        handover={h}
-        custodianName={staffLabel(h.staff_member_id)}
-        timeZone={timeZone}
-        onDone={(r) => {
-          notify.success(
-            r.status === 'VERIFIED' ? 'Remittance confirmed.' : 'Remittance rejected.',
-          );
-          setReloadKey((k) => k + 1);
-        }}
-        onClose={() => {
-          setDeciding(null);
-        }}
-      />
-    );
-  }
   return (
     <Box className="flex flex-col gap-3">
       <ToggleButtonGroup
@@ -168,6 +133,7 @@ export function HandoversTab({ timeZone }: { timeZone: string }) {
         }}
         emptyTitle="No remittances"
         isRowMuted={(h) => h.status === 'REJECTED'}
+        onRowClick={open}
         toolbar={
           <Box sx={{ minWidth: 240 }}>
             <CustodianFilter value={staff} onChange={setStaff} />

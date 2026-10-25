@@ -92,7 +92,7 @@ export function NotificationCenterProvider({
     if (!enabled || n.read_at !== null) return;
     adjust(1);
     if (!isHighPriority(n)) return;
-    const path = notificationTargetPath(n.target);
+    const path = notificationTargetPath(n.target, n.data);
     notify.notify(
       n.title,
       SEVERITY_META[n.severity].toast,

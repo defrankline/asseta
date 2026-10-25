@@ -239,6 +239,15 @@ export const engineHoursService = {
       idempotencyKey,
     );
   },
+  /** GET /tenant/engine-hours/classifications/{id} (getEngineHourClassification). */
+  getClassification(classificationId: string, signal?: AbortSignal): Promise<ClassificationDto> {
+    return tenantGet(
+      `/tenant/engine-hours/classifications/${seg(classificationId)}`,
+      classificationSchema,
+      'classification',
+      signal,
+    );
+  },
   /** POST /tenant/engine-hours/classifications/{id}/decision (decideEngineHourClassification). */
   decideClassification(
     classificationId: string,
@@ -259,6 +268,15 @@ export const engineHoursService = {
   /** GET /tenant/meter-corrections (listMeterCorrections). Filters: `machine_id`, `status`; `q`. */
   listCorrections(query: TenantListQuery, signal?: AbortSignal): Promise<Page<CorrectionDto>> {
     return tenantPage('/tenant/meter-corrections', correctionPage, query, 'corrections', signal);
+  },
+  /** GET /tenant/meter-corrections/{id} (getMeterCorrection). */
+  getCorrection(correctionId: string, signal?: AbortSignal): Promise<CorrectionDto> {
+    return tenantGet(
+      `/tenant/meter-corrections/${seg(correctionId)}`,
+      correctionSchema,
+      'correction',
+      signal,
+    );
   },
   /** POST /tenant/meter-corrections (proposeMeterCorrection): supersede a reading (reason >= 10 chars). */
   proposeCorrection(body: CorrectionIn, idempotencyKey: string): Promise<CorrectionDto> {

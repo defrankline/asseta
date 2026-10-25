@@ -1,122 +1,61 @@
-import { Alert, Box, Button, Link } from '@mui/material';
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { Link as RouterLink } from 'react-router';
+import { Alert, Box, Button } from '@mui/material';
+import { useCallback, useState } from 'react';
+import { useNavigate } from 'react-router';
 import { PERMISSIONS } from '../../../../access/permissionCodes';
 import { useMutationGuard } from '../../../../access/useCanMutate';
 import { custodyService } from '../../../../api/services/custodyService';
 import type { CashTransferDto, CustodianDto } from '../../../../api/custodyTypes';
 import { ServerDataTable, type DataColumn } from '../../../../components/data/ServerDataTable';
 import type { FetchPage } from '../../../../components/data/useServerPage';
-import { KeyValueGrid } from '../../../../components/display/KeyValueGrid';
 import { MoneyText } from '../../../../components/display/MoneyText';
-import { StatusChip } from '../../../../components/display/StatusChip';
 import { StaticSelectFilter } from '../../../../components/forms/StaticSelectFilter';
-import { ActionButtons } from '../../../../components/lifecycle/ActionButtons';
-import { DetailsDrawer } from '../../../../components/lifecycle/DetailsDrawer';
 import { RowActionsMenu } from '../../../../components/lifecycle/RowActionsMenu';
-import type { RowAction } from '../../../../components/lifecycle/rowActions';
-import { cashTabPath } from '../../../../navigation/routes';
+import { recordPath } from '../../../../navigation/recordRoutes';
 import { useNotify } from '../../../../notifications/useNotify';
 import { formatInstantIn } from '../../../../utils/time';
-import { shortId } from '../../shared/financeDisplay';
-import { PersonName } from '../../shared/PersonName';
-import { useMyUserId } from '../../shared/useFinanceLabels';
-import {
-  ACK_METHOD_LABELS,
-  TRANSFER_STATUS_LABELS,
-  TRANSFER_STATUS_OPTIONS,
-  TRANSFER_STATUS_TONES,
-} from './custodyDisplay';
-import { AcknowledgeDialog, TransferDialog } from './CustodyDialogs';
-import { useCashPolicy, useCustodianLabels } from './custodyHooks';
+import { TRANSFER_STATUS_OPTIONS } from './custodyDisplay';
+import { TransferDialog } from './CustodyDialogs';
+import { useCashPolicy } from './custodyHooks';
 import { CustodianFilter } from './custodyPickers';
-
-const statusChip = (t: CashTransferDto) => (
-  <StatusChip
-    status={t.status}
-    tones={TRANSFER_STATUS_TONES}
-    label={TRANSFER_STATUS_LABELS[t.status]}
-  />
-);
+import { transferChip, transferFrom, transferTo, useTransferActions } from './transferRecord';
 
 interface TransfersTabProps {
   timeZone: string;
   /** Field work: the caller records as sender unless the tenant lets recorders act for others. */
   field?: boolean;
-  /** Opens this transfer's details (deep link from a reconciliation drill-down). */
-  focusId?: string | null;
   /** Status filter on arrival (dashboard deep link). */
   initialStatus?: string | undefined;
 }
 
 /** Field-to-field cash transfers: who handed what to whom, and the receiver's acknowledgement. */
-export function TransfersTab({
-  timeZone,
-  field = false,
-  focusId = null,
-  initialStatus,
-}: TransfersTabProps) {
+export function TransfersTab({ timeZone, field = false, initialStatus }: TransfersTabProps) {
   const notify = useNotify();
-  const me = useMyUserId();
+  const navigate = useNavigate();
   const can = useMutationGuard();
   const policy = useCashPolicy();
-  const custodian = useCustodianLabels();
   const canRecord = can(PERMISSIONS.tenantCollectionRecord);
   const forOthers =
     can(PERMISSIONS.tenantFinanceCash) || policy?.recordersMayRecordForOthers === true;
   const [status, setStatus] = useState(initialStatus ?? (field ? 'PENDING_ACKNOWLEDGEMENT' : ''));
   const [who, setWho] = useState<CustodianDto | null>(null);
-  const [viewing, setViewing] = useState<CashTransferDto | null>(null);
-  const [answering, setAnswering] = useState<CashTransferDto | null>(null);
   const [recording, setRecording] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const reload = () => {
     setReloadKey((k) => k + 1);
   };
-  useEffect(() => {
-    if (focusId === null) return undefined;
-    const controller = new AbortController();
-    custodyService.transfer(focusId, controller.signal).then(setViewing, () => {
-      // The list stays usable when the linked transfer is not visible to this user.
-    });
-    return () => {
-      controller.abort();
-    };
-  }, [focusId]);
+  const { actionsFor, dialog } = useTransferActions(reload);
+  const open = (t: CashTransferDto) => {
+    void navigate(recordPath('CASH_TRANSFER', t.id));
+  };
   const fetchPage = useCallback<FetchPage<CashTransferDto>>(
     (query, signal) => custodyService.transfers(query, signal),
     [],
   );
-  const recordedByMe = (t: CashTransferDto) => t.recorded_by !== null && t.recorded_by === me;
-  const actionsFor = (t: CashTransferDto, inDrawer: boolean): RowAction[] => [
-    ...(inDrawer
-      ? []
-      : [
-          {
-            key: 'view',
-            label: 'View details',
-            onClick: () => {
-              setViewing(t);
-            },
-          },
-        ]),
-    {
-      key: 'answer',
-      label: 'Acknowledge / dispute',
-      hidden: !canRecord || t.status !== 'PENDING_ACKNOWLEDGEMENT',
-      disabled: recordedByMe(t),
-      disabledReason: 'You recorded this transfer; the receiver must answer it.',
-      onClick: () => {
-        setViewing(null);
-        setAnswering(t);
-      },
-    },
-  ];
   const columns: DataColumn<CashTransferDto>[] = [
     { id: 'at', header: 'Handed over', render: (t) => formatInstantIn(t.transferred_at, timeZone) },
-    { id: 'from', header: 'From', render: (t) => custodian(t.from_staff_id) },
-    { id: 'to', header: 'To', render: (t) => custodian(t.to_staff_id) },
-    { id: 'status', header: 'Status', render: statusChip },
+    { id: 'from', header: 'From', render: transferFrom },
+    { id: 'to', header: 'To', render: transferTo },
+    { id: 'status', header: 'Status', render: transferChip },
     {
       id: 'declared',
       header: 'Declared',
@@ -140,50 +79,21 @@ export function TransfersTab({
       align: 'right',
       render: (t) => (
         <RowActionsMenu
-          label={`transfer ${custodian(t.from_staff_id)} to ${custodian(t.to_staff_id)}`}
-          actions={actionsFor(t, false)}
+          label={`transfer ${transferFrom(t)} to ${transferTo(t)}`}
+          actions={[
+            {
+              key: 'view',
+              label: 'View details',
+              onClick: () => {
+                open(t);
+              },
+            },
+            ...actionsFor(t),
+          ]}
         />
       ),
     },
   ];
-  let dialog: ReactNode = null;
-  if (answering !== null) {
-    const t = answering;
-    dialog = (
-      <AcknowledgeDialog<CashTransferDto>
-        title="Acknowledge cash transfer"
-        declared={t.amount_declared}
-        summary={
-          <KeyValueGrid
-            columns={2}
-            items={[
-              { label: 'From', value: custodian(t.from_staff_id) },
-              { label: 'To', value: custodian(t.to_staff_id) },
-              {
-                label: 'Declared',
-                value: <MoneyText amount={t.amount_declared} currency={t.currency} strong />,
-              },
-              { label: 'Handed over', value: formatInstantIn(t.transferred_at, timeZone) },
-            ]}
-          />
-        }
-        onAnswer={(body, key) => custodyService.acknowledgeTransfer(t.id, body, key)}
-        onDone={(r) => {
-          notify.success(
-            r.status === 'DISPUTED'
-              ? 'Transfer disputed; it stays with the sender.'
-              : r.variance_id === null || r.variance_id === undefined
-                ? 'Transfer acknowledged.'
-                : 'Transfer acknowledged; the difference was opened as a variance.',
-          );
-          reload();
-        }}
-        onClose={() => {
-          setAnswering(null);
-        }}
-      />
-    );
-  }
   return (
     <Box className="flex flex-col gap-3">
       {policy?.transferAckRequired === false && (
@@ -201,7 +111,7 @@ export function TransfersTab({
         filters={{ status: status || undefined, staff_member_id: who?.staff_member_id }}
         emptyTitle="No cash transfers"
         isRowMuted={(t) => t.status === 'DISPUTED'}
-        onRowClick={setViewing}
+        onRowClick={open}
         toolbar={
           <Box className="flex flex-wrap items-center gap-3">
             <StaticSelectFilter
@@ -226,73 +136,6 @@ export function TransfersTab({
           </Box>
         }
       />
-      {viewing !== null && (
-        <DetailsDrawer
-          title="Cash transfer"
-          status={statusChip(viewing)}
-          actions={<ActionButtons actions={actionsFor(viewing, true)} />}
-          onClose={() => {
-            setViewing(null);
-          }}
-        >
-          <KeyValueGrid
-            columns={2}
-            items={[
-              { label: 'From (sender)', value: custodian(viewing.from_staff_id) },
-              { label: 'To (receiver)', value: custodian(viewing.to_staff_id) },
-              {
-                label: 'Declared',
-                value: <MoneyText amount={viewing.amount_declared} currency={viewing.currency} />,
-              },
-              {
-                label: 'Received',
-                value:
-                  viewing.amount_received === null ? (
-                    '—'
-                  ) : (
-                    <MoneyText amount={viewing.amount_received} currency={viewing.currency} />
-                  ),
-              },
-              { label: 'Handed over', value: formatInstantIn(viewing.transferred_at, timeZone) },
-              { label: 'Note', value: viewing.note ?? '—' },
-              { label: 'Recorded by', value: <PersonName userId={viewing.recorded_by} /> },
-              { label: 'Recorded at', value: formatInstantIn(viewing.recorded_at, timeZone) },
-              {
-                label: 'Acknowledgement',
-                value: viewing.ack_method === null ? '—' : ACK_METHOD_LABELS[viewing.ack_method],
-              },
-              {
-                label: 'Answered by',
-                value: <PersonName userId={viewing.acknowledged_by} />,
-              },
-              {
-                label: 'Answered at',
-                value:
-                  viewing.acknowledged_at === null
-                    ? '—'
-                    : formatInstantIn(viewing.acknowledged_at, timeZone),
-              },
-              { label: 'Receiver’s note', value: viewing.ack_note ?? '—' },
-              {
-                label: 'Variance',
-                value:
-                  viewing.variance_id === null || viewing.variance_id === undefined ? (
-                    '—'
-                  ) : field ? (
-                    shortId(viewing.variance_id)
-                  ) : (
-                    <Link
-                      component={RouterLink}
-                      to={cashTabPath('variances', { id: viewing.variance_id })}
-                    >
-                      Open variance
-                    </Link>
-                  ),
-              },
-            ]}
-          />
-        </DetailsDrawer>
-      )}
       {recording && (
         <TransferDialog
           ownCustody={!forOthers}

@@ -222,6 +222,41 @@ export const SyncConflictDetailPage = lazy(() =>
     default: m.SyncConflictDetailPage,
   })),
 );
+export const CashTransferDetailPage = lazy(() =>
+  import('../pages/tenant/finance/cash/CashRecordPages').then((m) => ({
+    default: m.CashTransferDetailPage,
+  })),
+);
+export const CashFloatDetailPage = lazy(() =>
+  import('../pages/tenant/finance/cash/CashRecordPages').then((m) => ({
+    default: m.CashFloatDetailPage,
+  })),
+);
+export const CashRemittanceDetailPage = lazy(() =>
+  import('../pages/tenant/finance/cash/CashRecordPages').then((m) => ({
+    default: m.CashRemittanceDetailPage,
+  })),
+);
+export const CashVarianceDetailPage = lazy(() =>
+  import('../pages/tenant/finance/cash/CashRecordPages').then((m) => ({
+    default: m.CashVarianceDetailPage,
+  })),
+);
+export const CashRetentionDetailPage = lazy(() =>
+  import('../pages/tenant/finance/cash/CashRecordPages').then((m) => ({
+    default: m.CashRetentionDetailPage,
+  })),
+);
+export const CustodyAdjustmentDetailPage = lazy(() =>
+  import('../pages/tenant/finance/cash/CashRecordPages').then((m) => ({
+    default: m.CustodyAdjustmentDetailPage,
+  })),
+);
+export const RemittanceOverdueDetailPage = lazy(() =>
+  import('../pages/tenant/finance/cash/CashRecordPages').then((m) => ({
+    default: m.RemittanceOverdueDetailPage,
+  })),
+);
 export const CashCustodyPage = lazy(() =>
   import('../pages/tenant/finance/cash/CashCustodyPage').then((m) => ({
     default: m.CashCustodyPage,

@@ -1,12 +1,19 @@
 import { Alert, Box, Typography } from '@mui/material';
+import { CAPABILITY, useCapabilityEnabled } from '../../../access/capabilities';
 import type { AccountabilitySummaryDto } from '../../../api/custodyTypes';
 import { humanize } from '../../../utils/text';
 import { KpiCard } from '../dashboard/KpiCard';
-import { buildTiles, TILE_LABELS, type Can } from './accountabilityModel';
+import { buildTiles, CUSTOMER_HOURS_TILES, TILE_LABELS, type Can } from './accountabilityModel';
 
 /** The accountability tiles plus a note of tiles hidden by policy or unavailable here. */
 export function AccountabilityTiles({ data, can }: { data: AccountabilitySummaryDto; can: Can }) {
-  const tiles = buildTiles(data, can);
+  const customerHours = useCapabilityEnabled(CAPABILITY.customerHours);
+  const tiles = buildTiles(data, can, { customerHours });
+  /** Tiles of a capability the tenant switched off are not mentioned at all. */
+  const mentioned = (keys: readonly string[]) =>
+    customerHours ? keys : keys.filter((k) => !CUSTOMER_HOURS_TILES.has(k));
+  const hidden = mentioned(data.hidden_tiles);
+  const unavailable = mentioned(data.unavailable_tiles);
   const names = (keys: readonly string[]) =>
     keys.map((k) => TILE_LABELS[k] ?? humanize(k)).join(', ');
   return (
@@ -28,14 +35,14 @@ export function AccountabilityTiles({ data, can }: { data: AccountabilitySummary
           ))}
         </Box>
       )}
-      {data.hidden_tiles.length > 0 && (
+      {hidden.length > 0 && (
         <Typography variant="body2" color="text.secondary">
-          Hidden by your organisation’s oversight policy: {names(data.hidden_tiles)}.
+          Hidden by your organisation’s oversight policy: {names(hidden)}.
         </Typography>
       )}
-      {data.unavailable_tiles.length > 0 && (
+      {unavailable.length > 0 && (
         <Typography variant="body2" color="text.secondary">
-          Not available yet: {names(data.unavailable_tiles)}.
+          Not available yet: {names(unavailable)}.
         </Typography>
       )}
     </Box>

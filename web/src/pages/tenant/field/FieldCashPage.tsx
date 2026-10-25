@@ -128,7 +128,11 @@ export function FieldCashPage() {
   );
   const collectionColumns: DataColumn<CustomerPaymentDto>[] = [
     { id: 'at', header: 'Received', render: (p) => formatInstantIn(p.received_at, timeZone) },
-    { id: 'customer', header: 'Customer', render: (p) => customerLabel(p.customer_id) },
+    {
+      id: 'customer',
+      header: 'Customer',
+      render: (p) => p.customer_name ?? customerLabel(p.customer_id),
+    },
     { id: 'ref', header: 'Reference', render: (p) => p.reference ?? '—' },
     { id: 'status', header: 'Status', render: (p) => settlement(p.status) },
     { id: 'note', header: 'Office note', render: (p) => p.decision_note ?? '—' },

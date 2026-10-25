@@ -76,9 +76,16 @@ export function TransactionsDrawer({
     {
       id: 'counterparty',
       header: 'Other custodian',
-      render: (t) => (t.counterparty_staff_id === null ? '—' : custodian(t.counterparty_staff_id)),
+      render: (t) =>
+        t.counterparty_staff_id === null
+          ? '—'
+          : (t.counterparty_staff_name ?? custodian(t.counterparty_staff_id)),
     },
-    { id: 'by', header: 'Recorded by', render: (t) => <PersonName userId={t.recorded_by} /> },
+    {
+      id: 'by',
+      header: 'Recorded by',
+      render: (t) => <PersonName userId={t.recorded_by} name={t.recorded_by_name} />,
+    },
     { id: 'note', header: 'Note', render: (t) => t.note ?? '—' },
     {
       id: 'amount',

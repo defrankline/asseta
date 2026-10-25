@@ -341,7 +341,15 @@ export function SyncConflictDetailPage() {
                 items={[
                   { label: 'Outcome', value: OUTCOME_LABELS[d.resolution.outcome] },
                   { label: 'Reason', value: d.resolution.reason },
-                  { label: 'Resolved by', value: <PersonName userId={d.resolution.resolved_by} /> },
+                  {
+                    label: 'Resolved by',
+                    value: (
+                      <PersonName
+                        userId={d.resolution.resolved_by}
+                        name={d.resolution.resolved_by_name}
+                      />
+                    ),
+                  },
                   {
                     label: 'Resolved at',
                     value: formatInstantIn(d.resolution.resolved_at, timeZone),

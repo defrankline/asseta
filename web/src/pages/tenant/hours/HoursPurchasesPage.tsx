@@ -18,8 +18,7 @@ import { hoursPurchasePath } from '../../../navigation/hoursRoutes';
 import { useNotify } from '../../../notifications/useNotify';
 import { formatInstantIn } from '../../../utils/time';
 import { CustomerFilter, MachineFilter } from '../shared/financePickers';
-import { useCustomerLabels } from '../shared/useFinanceLabels';
-import { useMachineLabels } from '../shared/useMachineLabels';
+import { machineText, nameOr } from '../shared/names';
 import { HoursOffNotice } from './HoursDialogs';
 import {
   CANCELLED_OPTIONS,
@@ -35,8 +34,6 @@ export function HoursPurchasesPage() {
   const notify = useNotify();
   const navigate = useNavigate();
   const timeZone = useDisplayTimeZone();
-  const machineName = useMachineLabels();
-  const customerName = useCustomerLabels();
   const hours = useHoursPolicy();
   const canRecord = useCanMutate(PERMISSIONS.tenantHoursPurchase) && hours.on;
   const [customer, setCustomer] = useState<CustomerDto | null>(null);
@@ -54,9 +51,13 @@ export function HoursPurchasesPage() {
       id: 'customer',
       header: 'Customer',
       render: (p) =>
-        `${p.customer_name ?? customerName(p.customer_id)}${p.customer_kind === 'WALK_IN' ? ' (walk-in)' : ''}`,
+        `${nameOr(p.customer_name, p.customer_id)}${p.customer_kind === 'WALK_IN' ? ' (walk-in)' : ''}`,
     },
-    { id: 'machine', header: 'Machine', render: (p) => machineName(p.machine_id) },
+    {
+      id: 'machine',
+      header: 'Machine',
+      render: (p) => machineText(p.machine_code, p.machine_name, p.machine_id),
+    },
     { id: 'hours', header: 'Hours', align: 'right', render: (p) => hoursText(p.hours) },
     {
       id: 'remaining',

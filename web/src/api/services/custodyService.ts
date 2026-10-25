@@ -17,6 +17,7 @@ import type {
   CustodyTransactionDto,
   ReconciliationFigure,
   RemittanceDecisionIn,
+  RemittanceOverdueDto,
   VarianceResolutionIn,
   WriteOffProposalIn,
 } from '../custodyTypes';
@@ -26,6 +27,7 @@ import {
   custodianSchema,
   custodyTransactionSchema,
   reasonSchema,
+  remittanceOverdueSchema,
   retentionSchema,
   transferSchema,
   varianceSchema,
@@ -50,6 +52,7 @@ const retentionPage = tenantPageSchema(retentionSchema);
 const adjustmentPage = tenantPageSchema(adjustmentSchema);
 const reasonPage = tenantPageSchema(reasonSchema);
 const transactionPage = tenantPageSchema(custodyTransactionSchema);
+const overduePage = tenantPageSchema(remittanceOverdueSchema);
 
 export interface TransactionsQuery {
   /** Omitted: the caller's own custody (field work). */
@@ -113,6 +116,10 @@ export const custodyService = {
   floats(query: TenantListQuery, signal?: AbortSignal): Promise<Page<CashCustodyEntryDto>> {
     return tenantPage(`${base}/floats`, floatPage, query, 'cash floats', signal);
   },
+  /** GET /tenant/cash/floats/{id} (getCashFloat). */
+  float(entryId: string, signal?: AbortSignal): Promise<CashCustodyEntryDto> {
+    return tenantGet(`${base}/floats/${seg(entryId)}`, custodyEntrySchema, 'cash float', signal);
+  },
   /** POST /tenant/cash/floats/{id}/acknowledgement (acknowledgeCashFloat). */
   acknowledgeFloat(
     entryId: string,
@@ -129,6 +136,32 @@ export const custodyService = {
     );
   },
 
+  /** GET /tenant/cash/handovers/{id} (getCashHandover): one remittance. */
+  handover(handoverId: string, signal?: AbortSignal): Promise<CashHandoverDto> {
+    return tenantGet(`${base}/handovers/${seg(handoverId)}`, handoverSchema, 'remittance', signal);
+  },
+  /** GET /tenant/cash/remittance-overdue (listCashRemittanceOverdue). Filters: `staff_member_id`, `day_from`, `day_to`. */
+  remittanceOverdue(
+    query: TenantListQuery,
+    signal?: AbortSignal,
+  ): Promise<Page<RemittanceOverdueDto>> {
+    return tenantPage(
+      `${base}/remittance-overdue`,
+      overduePage,
+      query,
+      'overdue remittances',
+      signal,
+    );
+  },
+  /** GET /tenant/cash/remittance-overdue/{id} (getCashRemittanceOverdue). */
+  remittanceOverdueFlag(overdueId: string, signal?: AbortSignal): Promise<RemittanceOverdueDto> {
+    return tenantGet(
+      `${base}/remittance-overdue/${seg(overdueId)}`,
+      remittanceOverdueSchema,
+      'overdue remittance',
+      signal,
+    );
+  },
   /** POST /tenant/cash/handovers/{id}/decision (decideCashHandover) with the amount actually received. */
   decideRemittance(
     handoverId: string,
@@ -203,6 +236,15 @@ export const custodyService = {
   retentions(query: TenantListQuery, signal?: AbortSignal): Promise<Page<CashRetentionDto>> {
     return tenantPage(`${base}/retentions`, retentionPage, query, 'cash retentions', signal);
   },
+  /** GET /tenant/cash/retentions/{id} (getCashRetention). */
+  retention(retentionId: string, signal?: AbortSignal): Promise<CashRetentionDto> {
+    return tenantGet(
+      `${base}/retentions/${seg(retentionId)}`,
+      retentionSchema,
+      'retention',
+      signal,
+    );
+  },
   /** POST /tenant/cash/retentions (requestCashRetention). */
   requestRetention(body: CashRetentionIn, idempotencyKey: string): Promise<CashRetentionDto> {
     return tenantSend(
@@ -233,6 +275,15 @@ export const custodyService = {
   /** GET /tenant/cash/adjustments (listCustodyAdjustments). Filters: `status`, `staff_member_id`. */
   adjustments(query: TenantListQuery, signal?: AbortSignal): Promise<Page<CustodyAdjustmentDto>> {
     return tenantPage(`${base}/adjustments`, adjustmentPage, query, 'custody adjustments', signal);
+  },
+  /** GET /tenant/cash/adjustments/{id} (getCustodyAdjustment). */
+  adjustment(adjustmentId: string, signal?: AbortSignal): Promise<CustodyAdjustmentDto> {
+    return tenantGet(
+      `${base}/adjustments/${seg(adjustmentId)}`,
+      adjustmentSchema,
+      'custody adjustment',
+      signal,
+    );
   },
   /** POST /tenant/cash/adjustments (proposeCustodyAdjustment). */
   proposeAdjustment(

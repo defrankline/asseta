@@ -1,6 +1,6 @@
-import { Box, Button, Chip, TextField } from '@mui/material';
+import { Box, Button, Chip, Link, TextField } from '@mui/material';
 import { useCallback, useState } from 'react';
-import { Link as RouterLink } from 'react-router';
+import { Link as RouterLink, useNavigate } from 'react-router';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import { useCanMutate } from '../../../access/useCanMutate';
 import { engineHoursService } from '../../../api/services/engineHoursService';
@@ -16,6 +16,7 @@ import { engineHoursMachinePath, ROUTES } from '../../../navigation/routes';
 import { useNotify } from '../../../notifications/useNotify';
 import { formatInstantIn } from '../../../utils/time';
 import { MachineFilter } from '../shared/financePickers';
+import { machineText } from '../shared/names';
 import { ClassifyHoursDialog, type SegmentRef } from './ClassifyHoursDialog';
 import {
   CLASSIFICATION_LABELS,
@@ -40,6 +41,7 @@ export function UnallocatedHoursPage() {
   const [minAge, setMinAge] = useState('');
   const minAgeDays = useDebouncedValue(/^\d+$/.test(minAge.trim()) ? minAge.trim() : '', 300);
   const [explaining, setExplaining] = useState<SegmentRef | null>(null);
+  const navigate = useNavigate();
   const [reloadKey, setReloadKey] = useState(0);
   const fetchPage = useCallback<FetchPage<UnallocatedSegmentDto>>(
     (query, signal) => engineHoursService.listUnallocated(query, signal),
@@ -49,7 +51,17 @@ export function UnallocatedHoursPage() {
     {
       id: 'machine',
       header: 'Machine',
-      render: (s) => `${s.machine_code} · ${s.machine_name}`,
+      render: (s) => (
+        <Link
+          component={RouterLink}
+          to={engineHoursMachinePath(s.machine_id)}
+          onClick={(e) => {
+            e.stopPropagation();
+          }}
+        >
+          {machineText(s.machine_code, s.machine_name, s.machine_id)}
+        </Link>
+      ),
     },
     {
       id: 'period',
@@ -129,7 +141,7 @@ export function UnallocatedHoursPage() {
                 onClick={() => {
                   setExplaining({
                     machineId: s.machine_id,
-                    machineLabel: `${s.machine_code} · ${s.machine_name}`,
+                    machineLabel: machineText(s.machine_code, s.machine_name, s.machine_id),
                     start: s.start,
                     end: s.end,
                     hours: s.hours,
@@ -162,6 +174,9 @@ export function UnallocatedHoursPage() {
         columns={columns}
         fetchPage={fetchPage}
         getRowId={segmentKey}
+        onRowClick={(s) => {
+          void navigate(engineHoursMachinePath(s.machine_id));
+        }}
         searchPlaceholder="Search machine code or name"
         reloadKey={reloadKey}
         filters={{

@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import { CAPABILITY, useCapabilityEnabled } from '../../../access/capabilities';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import type { BillingMode } from '../../../api/hoursTypes';
 import { policyService } from '../../../api/services/policyService';
@@ -71,7 +72,10 @@ export function useHoursPolicy(): HoursPolicyState {
       parseHoursPolicy((await policyService.effective('CUSTOMER_HOURS', {}, signal)).values),
     [],
   );
-  const res = useAsyncResource(load, [], canRead);
+  const capabilityOn = useCapabilityEnabled(CAPABILITY.customerHours);
+  const res = useAsyncResource(load, [], canRead && capabilityOn);
+  // Switched off for the tenant (`/me` disabled_capabilities): known off, no policy read needed.
+  if (!capabilityOn) return { status: 'known', policy: null, on: false };
   if (!canRead || res.error !== null) return { status: 'unknown', policy: null, on: true };
   if (res.data === null) return { status: 'loading', policy: null, on: false };
   return { status: 'known', policy: res.data, on: res.data.enabled };

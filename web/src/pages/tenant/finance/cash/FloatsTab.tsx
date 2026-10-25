@@ -1,64 +1,51 @@
 import { Alert, Box, ToggleButton, ToggleButtonGroup } from '@mui/material';
-import { useCallback, useState, type ReactNode } from 'react';
-import { PERMISSIONS } from '../../../../access/permissionCodes';
-import { useMutationGuard } from '../../../../access/useCanMutate';
+import { useCallback, useState } from 'react';
+import { useNavigate } from 'react-router';
 import { custodyService } from '../../../../api/services/custodyService';
 import type { CashCustodyEntryDto } from '../../../../api/types';
 import type { CustodianDto } from '../../../../api/custodyTypes';
 import { ServerDataTable, type DataColumn } from '../../../../components/data/ServerDataTable';
 import type { FetchPage } from '../../../../components/data/useServerPage';
-import { KeyValueGrid } from '../../../../components/display/KeyValueGrid';
 import { MoneyText } from '../../../../components/display/MoneyText';
-import { StatusChip } from '../../../../components/display/StatusChip';
 import { RowActionsMenu } from '../../../../components/lifecycle/RowActionsMenu';
-import { useNotify } from '../../../../notifications/useNotify';
+import { recordPath } from '../../../../navigation/recordRoutes';
 import { formatInstantIn } from '../../../../utils/time';
 import { PersonName } from '../../shared/PersonName';
-import { useMyUserId } from '../../shared/useFinanceLabels';
-import { FLOAT_ACK_LABELS, FLOAT_ACK_TONES } from './custodyDisplay';
-import { AcknowledgeDialog } from './CustodyDialogs';
-import { useCashPolicy, useCustodianLabels } from './custodyHooks';
+import { useCashPolicy } from './custodyHooks';
 import { CustodianFilter } from './custodyPickers';
+import { floatChip, floatCustodian, floatKind, useFloatActions } from './floatRecord';
 
 type View = 'awaiting' | 'all';
 
 /** Floats (and opening balances) issued to custodians, with the receiver's acknowledgement. */
 export function FloatsTab({ timeZone }: { timeZone: string }) {
-  const notify = useNotify();
-  const me = useMyUserId();
-  const can = useMutationGuard();
+  const navigate = useNavigate();
   const policy = useCashPolicy();
-  const custodian = useCustodianLabels();
   const [view, setView] = useState<View>('awaiting');
   const [who, setWho] = useState<CustodianDto | null>(null);
-  const [answering, setAnswering] = useState<CashCustodyEntryDto | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const fetchPage = useCallback<FetchPage<CashCustodyEntryDto>>(
     (query, signal) => custodyService.floats(query, signal),
     [],
   );
-  const canAnswer = can(PERMISSIONS.tenantCollectionRecord);
+  const reload = () => {
+    setReloadKey((k) => k + 1);
+  };
+  const { actionsFor, dialog } = useFloatActions(reload);
+  const open = (e: CashCustodyEntryDto) => {
+    void navigate(recordPath('CASH_FLOAT', e.id));
+  };
   const columns: DataColumn<CashCustodyEntryDto>[] = [
     { id: 'at', header: 'Issued', render: (e) => formatInstantIn(e.occurred_at, timeZone) },
-    { id: 'to', header: 'Custodian', render: (e) => custodian(e.staff_member_id) },
-    {
-      id: 'kind',
-      header: 'Entry',
-      render: (e) => (e.entry_type === 'FLOAT_ISSUED' ? 'Float issued' : 'Opening balance'),
-    },
+    { id: 'to', header: 'Custodian', render: floatCustodian },
+    { id: 'kind', header: 'Entry', render: floatKind },
     { id: 'ref', header: 'Reference', render: (e) => e.reference ?? '—' },
+    { id: 'ack', header: 'Acknowledgement', render: floatChip },
     {
-      id: 'ack',
-      header: 'Acknowledgement',
-      render: (e) => (
-        <StatusChip
-          status={e.ack_status}
-          tones={FLOAT_ACK_TONES}
-          label={FLOAT_ACK_LABELS[e.ack_status]}
-        />
-      ),
+      id: 'by',
+      header: 'Issued by',
+      render: (e) => <PersonName userId={e.created_by ?? null} name={e.created_by_name} />,
     },
-    { id: 'by', header: 'Issued by', render: (e) => <PersonName userId={e.created_by ?? null} /> },
     {
       id: 'amount',
       header: 'Amount',
@@ -82,55 +69,21 @@ export function FloatsTab({ timeZone }: { timeZone: string }) {
       align: 'right',
       render: (e) => (
         <RowActionsMenu
-          label={`float to ${custodian(e.staff_member_id)}`}
+          label={`float to ${floatCustodian(e)}`}
           actions={[
             {
-              key: 'answer',
-              label: 'Acknowledge / dispute',
-              hidden: !canAnswer || e.ack_status !== 'PENDING',
-              disabled: e.created_by !== null && e.created_by === me,
-              disabledReason: 'You issued this float; the receiver must answer it.',
+              key: 'view',
+              label: 'View details',
               onClick: () => {
-                setAnswering(e);
+                open(e);
               },
             },
+            ...actionsFor(e),
           ]}
         />
       ),
     },
   ];
-  let dialog: ReactNode = null;
-  if (answering !== null) {
-    const e = answering;
-    dialog = (
-      <AcknowledgeDialog<CashCustodyEntryDto>
-        title="Acknowledge cash float"
-        declared={e.amount}
-        summary={
-          <KeyValueGrid
-            columns={2}
-            items={[
-              { label: 'Custodian', value: custodian(e.staff_member_id) },
-              {
-                label: 'Amount issued',
-                value: <MoneyText amount={e.amount} currency={e.currency} strong />,
-              },
-              { label: 'Issued', value: formatInstantIn(e.occurred_at, timeZone) },
-              { label: 'Reference', value: e.reference ?? '—' },
-            ]}
-          />
-        }
-        onAnswer={(body, key) => custodyService.acknowledgeFloat(e.id, body, key)}
-        onDone={(r) => {
-          notify.success(r.ack_status === 'DISPUTED' ? 'Float disputed.' : 'Float acknowledged.');
-          setReloadKey((k) => k + 1);
-        }}
-        onClose={() => {
-          setAnswering(null);
-        }}
-      />
-    );
-  }
   return (
     <Box className="flex flex-col gap-3">
       {policy?.floatAckRequired === false && (
@@ -151,6 +104,7 @@ export function FloatsTab({ timeZone }: { timeZone: string }) {
         }}
         emptyTitle={view === 'awaiting' ? 'No floats awaiting acknowledgement' : 'No floats'}
         isRowMuted={(e) => e.ack_status === 'DISPUTED'}
+        onRowClick={open}
         toolbar={
           <Box className="flex flex-wrap items-center gap-3">
             <ToggleButtonGroup

@@ -14,8 +14,7 @@ import { exceptionsPath, jobDetailPath } from '../../../navigation/routes';
 import { isZeroDecimal } from '../../../utils/money';
 import { formatInstantIn } from '../../../utils/time';
 import { CustomerFilter, MachineFilter } from '../shared/financePickers';
-import { useCustomerLabels } from '../shared/useFinanceLabels';
-import { useMachineLabels } from '../shared/useMachineLabels';
+import { machineText, nameOr } from '../shared/names';
 import { hoursText } from './hoursDisplay';
 
 /** Allocation lines: which purchases a completed job drew its hours from (oldest first). */
@@ -45,8 +44,6 @@ function AllocationLines({ a, timeZone }: { a: WorkExecutionAllocationDto; timeZ
 /** Work-execution allocations: billable hours of completed prepaid jobs and any overrun. */
 export function WorkAllocationsPage() {
   const timeZone = useDisplayTimeZone();
-  const machineName = useMachineLabels();
-  const customerName = useCustomerLabels();
   const [params, setParams] = useSearchParams();
   const jobId = params.get('job_id') ?? undefined;
   const [customer, setCustomer] = useState<CustomerDto | null>(null);
@@ -67,12 +64,16 @@ export function WorkAllocationsPage() {
       header: 'Job',
       render: (a) => (
         <Button component={RouterLink} to={jobDetailPath(a.job_id)} size="small">
-          Open job
+          {a.job_number ?? 'Open job'}
         </Button>
       ),
     },
-    { id: 'customer', header: 'Customer', render: (a) => customerName(a.customer_id) },
-    { id: 'machine', header: 'Machine', render: (a) => machineName(a.machine_id) },
+    { id: 'customer', header: 'Customer', render: (a) => nameOr(a.customer_name, a.customer_id) },
+    {
+      id: 'machine',
+      header: 'Machine',
+      render: (a) => machineText(a.machine_code, a.machine_name, a.machine_id),
+    },
     {
       id: 'billable',
       header: 'Billable',

@@ -15,15 +15,12 @@ import { initialFilter } from '../../../navigation/urlFilters';
 import { formatInstantIn } from '../../../utils/time';
 import { CustomerFilter, MachineFilter } from '../shared/financePickers';
 import { PersonName } from '../shared/PersonName';
-import { useCustomerLabels } from '../shared/useFinanceLabels';
-import { useMachineLabels } from '../shared/useMachineLabels';
+import { machineText, nameOr } from '../shared/names';
 import { hoursText, LEDGER_TYPE_LABELS, LEDGER_TYPE_OPTIONS } from './hoursDisplay';
 
 /** Append-only hours ledger: every activation, use, transfer, expiry and reversal (never edited). */
 export function HoursLedgerPage() {
   const timeZone = useDisplayTimeZone();
-  const machineName = useMachineLabels();
-  const customerName = useCustomerLabels();
   const [params, setParams] = useSearchParams();
   const purchaseId = params.get('purchase_id') ?? undefined;
   const jobId = params.get('job_id') ?? undefined;
@@ -55,8 +52,12 @@ export function HoursLedgerPage() {
       align: 'right',
       render: (e) => hoursText(e.signed_hours),
     },
-    { id: 'customer', header: 'Customer', render: (e) => customerName(e.customer_id) },
-    { id: 'machine', header: 'Machine', render: (e) => machineName(e.machine_id) },
+    { id: 'customer', header: 'Customer', render: (e) => nameOr(e.customer_name, e.customer_id) },
+    {
+      id: 'machine',
+      header: 'Machine',
+      render: (e) => machineText(e.machine_code, e.machine_name, e.machine_id),
+    },
     {
       id: 'purchase',
       header: 'Purchase',

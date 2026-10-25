@@ -1,5 +1,6 @@
 import { Alert, Button, Paper, Stack, Typography } from '@mui/material';
 import { Link as RouterLink } from 'react-router';
+import { CAPABILITY, useCapabilityEnabled } from '../../../access/capabilities';
 import type { JobSummaryDto } from '../../../api/types';
 import { KeyValueGrid } from '../../../components/display/KeyValueGrid';
 import { MoneyText } from '../../../components/display/MoneyText';
@@ -37,6 +38,7 @@ export function JobSummaryPanel({
   canSeeExceptions,
 }: JobSummaryPanelProps) {
   const job = summary.job;
+  const hoursOn = useCapabilityEnabled(CAPABILITY.customerHours);
   const money = (amount: string) => <MoneyText amount={amount} currency={job.currency} />;
   return (
     <Stack spacing={2}>
@@ -94,7 +96,7 @@ export function JobSummaryPanel({
                 : []),
             ]}
           />
-          {job.billing_mode === 'PREPAID_HOURS' && (
+          {hoursOn && job.billing_mode === 'PREPAID_HOURS' && (
             <Button
               component={RouterLink}
               to={`${HOURS_ROUTES.allocations}?job_id=${encodeURIComponent(job.id)}`}

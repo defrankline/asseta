@@ -67,7 +67,7 @@ export function NotificationList({
         {feed.items.map((n) => {
           const meta = SEVERITY_META[n.severity];
           const unread = n.read_at === null;
-          const path = notificationTargetPath(n.target);
+          const path = notificationTargetPath(n.target, n.data);
           const body = (
             <Box className="flex min-w-0 flex-1 gap-3">
               <Box sx={{ color: `${meta.color}.main`, pt: 0.25 }} aria-hidden>

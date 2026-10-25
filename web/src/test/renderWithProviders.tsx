@@ -18,6 +18,8 @@ interface Options {
   accessState?: 'FULL' | 'READ_ONLY' | 'BLOCKED';
   /** In tenant mode: the session acts under this managed-service mandate. */
   mandate?: MandateBadgeDto | null;
+  /** In tenant mode: capabilities the tenant's policy switches off (`/me` disabled_capabilities). */
+  disabledCapabilities?: string[];
   /** Overrides on the session value (e.g. a `reload` spy). */
   session?: Partial<SessionContextValue>;
 }
@@ -34,6 +36,7 @@ export function renderWithProviders(
     tenantPermissions,
     accessState = 'FULL',
     mandate = null,
+    disabledCapabilities = [],
     session: overrides = {},
   }: Options = {},
 ) {
@@ -49,6 +52,7 @@ export function renderWithProviders(
               permissions: tenantPermissions,
               access_state: accessState,
               mandate,
+              disabled_capabilities: disabledCapabilities,
             })),
           },
           { kind: 'tenant', tenantId: TENANT_A },

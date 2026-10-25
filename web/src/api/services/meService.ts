@@ -28,6 +28,8 @@ const tenantSchema: Schema<TenantAccess> = object({
   menu_groups: array(menuGroupSchema).required(),
   /** Set when platform staff reach this tenant through a managed-service mandate. */
   mandate: optionalMandateBadge(),
+  /** Capabilities the tenant's policy switches off (e.g. CUSTOMER_HOURS); their menus are omitted. */
+  disabled_capabilities: array(string().required()).optional(),
 });
 
 const meSchema: Schema<MeResponse> = object({

@@ -11,15 +11,12 @@ import { EmptyState } from '../../../components/feedback/EmptyState';
 import { PageHeader } from '../../../components/feedback/PageHeader';
 import { useAsyncResource } from '../../../hooks/useAsyncResource';
 import { CustomerFilter, MachineFilter } from '../shared/financePickers';
-import { useCustomerLabels } from '../shared/useFinanceLabels';
-import { useMachineLabels } from '../shared/useMachineLabels';
+import { machineText, nameOr } from '../shared/names';
 import { hoursText } from './hoursDisplay';
 
 type View = 'customer' | 'machine';
 
 function BalanceTable({ rows, by }: { rows: HoursBalanceDto[]; by: View }) {
-  const machineName = useMachineLabels();
-  const customerName = useCustomerLabels();
   return (
     <StaticTable
       ariaLabel="Hours balances"
@@ -27,8 +24,16 @@ function BalanceTable({ rows, by }: { rows: HoursBalanceDto[]; by: View }) {
       getRowId={(b) => `${b.customer_id}-${b.machine_id}`}
       columns={[
         by === 'customer'
-          ? { id: 'machine', header: 'Machine', render: (b) => machineName(b.machine_id) }
-          : { id: 'customer', header: 'Customer', render: (b) => customerName(b.customer_id) },
+          ? {
+              id: 'machine',
+              header: 'Machine',
+              render: (b) => machineText(b.machine_code, b.machine_name, b.machine_id),
+            }
+          : {
+              id: 'customer',
+              header: 'Customer',
+              render: (b) => nameOr(b.customer_name, b.customer_id),
+            },
         { id: 'purchases', header: 'Purchases', align: 'right', render: (b) => b.purchases },
         {
           id: 'await',
