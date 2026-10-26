@@ -222,5 +222,6 @@ struct OversightOwnerTests {
         #expect(OwnerFormat.hoursNumber(DecimalString(Decimal(string: "1234.5")!), locale: en) == "1,234.5")
         #expect(OwnerFormat.hoursNumber(DecimalString(Decimal(string: "12.00")!), locale: en) == "12")
         #expect(OwnerFormat.hours(DecimalString(Decimal(string: "12.3456")!), locale: en) == "12.35 h")
+        #expect(OwnerFormat.hoursNumber(DecimalString(Decimal(string: "0.125")!), locale: en) == "0.12") // half-even
     }
 }

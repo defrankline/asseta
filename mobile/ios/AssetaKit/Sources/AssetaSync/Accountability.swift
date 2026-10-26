@@ -244,7 +244,7 @@ public enum AccountabilityRules {
     /// An hours figure in the phone's number format: grouping, 0–2 decimals, no trailing zeros ("12", "1,234.5"); the
     /// same rule as the Owner app and Android (strings doc "DEC-031 Phase 5", hours parity).
     public static func hoursNumber(_ value: Decimal, locale: Locale = .current) -> String {
-        value.formatted(.number.precision(.fractionLength(0...2)).locale(locale))
+        value.formatted(.number.precision(.fractionLength(0...2)).rounded(rule: .toNearestOrEven).locale(locale))
     }
 
     /// Plain decimal text without trailing zeros ("12.50" -> "12.5").

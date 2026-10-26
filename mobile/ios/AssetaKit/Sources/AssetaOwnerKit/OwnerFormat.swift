@@ -24,7 +24,7 @@ public enum OwnerFormat {
     /// An hours figure without the unit: the phone's number format, grouping, 0–2 decimals ("12", "1,234.5"), as Android
     /// `OwnerFormat.hoursNumber`.
     public static func hoursNumber(_ value: DecimalString, locale: Locale = .current) -> String {
-        value.value.formatted(.number.precision(.fractionLength(0...2)).locale(locale))
+        value.value.formatted(.number.precision(.fractionLength(0...2)).rounded(rule: .toNearestOrEven).locale(locale))
     }
 
     public static func kilometres(_ value: Double, locale: Locale = .current) -> String {
