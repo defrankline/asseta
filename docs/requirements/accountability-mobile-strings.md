@@ -981,7 +981,7 @@ Screens that change:
 | owner.hours.status.AWAITING_PAYMENT | Awaiting payment |
 | owner.hours.status.PARTLY_ACTIVE | Partly active |
 | owner.hours.status.ACTIVE | Active |
-| owner.hours.status.EXHAUSTED | Used up |
+| owner.hours.status.CONSUMED | Used up |
 | owner.hours.status.EXPIRED | Expired |
 | owner.hours.status.CANCELLED | Cancelled |
 | owner.stmt.title | Hours statement |
