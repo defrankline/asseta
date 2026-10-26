@@ -105,6 +105,9 @@ public struct ActivityItem: Sendable, Identifiable, Equatable {
     public let note: String?
     public let running: Bool
     public let status: InboxStatus
+    /// The server's activity id (the synced record, else the acknowledged operation's result); matches
+    /// `NonRevenueActivityDto.activity_id` (DEC-031).
+    public var serverID: UUID? = nil
 }
 
 public struct AcknowledgementItem: Sendable, Identifiable, Equatable {
@@ -373,7 +376,9 @@ public struct InboxDirectory: Sendable {
             return ActivityItem(
                 id: id, jobID: job, activityType: s?.activityType ?? e?.type ?? "", start: start, end: s?.endedAt ?? e?.end,
                 note: s?.note ?? e?.note, running: s == nil && e != nil && e?.op == nil,
-                status: InboxStatusRules.combined(local: e?.op?.status, server: s.map { _ in .recorded }))
+                status: InboxStatusRules.combined(local: e?.op?.status, server: s.map { _ in .recorded }),
+                serverID: s?.id ?? e?.op.flatMap { AccountabilityDirectory.ackedEntity($0)?["id"]?.stringValue }
+                    .flatMap(UUID.init(uuidString:)))
         }.sorted { $0.start < $1.start }
 
         snapshot.acknowledgements = InboxMerge.merge(

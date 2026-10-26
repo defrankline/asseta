@@ -45,9 +45,18 @@ public struct OwnerFeatures: Equatable, Sendable {
     /// The DEC-030 cash additions are in use (transfers, acknowledgements, write-offs, retentions, adjustments,
     /// remittance cut-off, amount received on a remittance).
     public var cashCustody: Bool { !disabledCapabilities.contains(TenantCapability.cashCustody) }
+    /// Revenue checks are switched on (`REVENUE_RECONCILIATION`, platform default off: listed as disabled until a
+    /// tenant opts in).
+    public var revenueOn: Bool { !disabledCapabilities.contains(TenantCapability.revenueReconciliation) }
+    /// Revenue differences and the daily machine sheet (`tenant.revenue.read`, capability on).
+    public var revenueRead: Bool { revenueOn && permissions.contains(RevenuePermission.read) }
+    /// Explain a revenue difference (`tenant.revenue.explain`).
+    public var revenueExplain: Bool { revenueRead && permissions.contains(RevenuePermission.explain) }
+    /// Decide on revenue differences (`tenant.revenue.decide`).
+    public var revenueDecide: Bool { revenueRead && permissions.contains(RevenuePermission.decide) }
 
     /// The Approvals screen shows approval requests or at least one kind of accountability decision.
-    public var approvalsScreen: Bool { approvals || !decisionKinds.isEmpty }
+    public var approvalsScreen: Bool { approvals || !decisionKinds.isEmpty || revenueRead }
 
     public func canDecide(_ kind: DecisionKind) -> Bool { kind.decidable(permissions: permissions) }
 

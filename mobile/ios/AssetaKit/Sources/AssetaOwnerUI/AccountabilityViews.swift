@@ -133,7 +133,7 @@ struct DecisionDetailView: View {
                     Text(decisionError).font(.footnote).foregroundStyle(Palette.offline).accessibilityIdentifier("decision.error")
                 }
             }
-        } header: { Text(T.decisionDecision) } footer: { Text(T.decisionFooter) }
+        } header: { Text(T.decisionDecision) } footer: { Text(kind == .nonRevenue ? RevenueTexts.nonRevFooter : T.decisionFooter) }
     }
 
     private func decide(approve: Bool) async {
@@ -174,7 +174,8 @@ struct AccountabilityDashboardView: View {
     var body: some View {
         List {
             if let summary = loader.value {
-                let tiles = AccountabilityDashboard.tiles(summary, disabled: model.features.disabledCapabilities)
+                let tiles = AccountabilityDashboard.tiles(summary, disabled: model.features.disabledCapabilities,
+                                                            revenueRead: model.features.revenueRead)
                 if AccountabilityDashboard.showsHiddenNote(summary) {
                     Text(T.dashHiddenNote).font(.footnote).foregroundStyle(.secondary)
                 }

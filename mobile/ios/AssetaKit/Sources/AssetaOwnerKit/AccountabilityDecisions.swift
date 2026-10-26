@@ -23,6 +23,8 @@ public struct MeterDecisionIn: Encodable, Hashable, Sendable {
 /// One kind of accountability decision. Same list, wording and permissions as Android.
 public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
     case discount, credit, hoursTransfer, cancellation, baseline, classification, correction, writeOff, retention, adjustment
+    /// DEC-031: non-revenue time inside a job (e.g. movement) explained by one person, approved by another.
+    case nonRevenue
 
     /// `GET` path and the status that means "waiting for a decision".
     var list: (path: String, pendingStatus: String) {
@@ -37,6 +39,7 @@ public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
         case .writeOff: ("cash/variances", "WRITE_OFF_PROPOSED")
         case .retention: ("cash/retentions", "PENDING")
         case .adjustment: ("cash/adjustments", "PENDING")
+        case .nonRevenue: ("non-revenue-approvals", "PROPOSED")
         }
     }
 
@@ -46,8 +49,9 @@ public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
         return self == .writeOff ? "\(record)/write-off-decision" : "\(record)/decision"
     }
 
-    /// Meter decisions take `MeterDecisionIn` (note required, 5+ characters); the others `DecisionIn`.
-    public var usesMeterDecision: Bool { [.baseline, .classification, .correction].contains(self) }
+    /// Meter decisions (and `NonRevenueDecisionIn`, the same shape) take `MeterDecisionIn` (note required, 5+
+    /// characters); the others `DecisionIn`.
+    public var usesMeterDecision: Bool { [.baseline, .classification, .correction, .nonRevenue].contains(self) }
 
     /// The permission that lists this kind (as the server's list endpoint).
     public var readPermissions: [String] {
@@ -56,6 +60,7 @@ public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
         case .baseline, .classification, .correction: ["tenant.meter.read"]
         case .writeOff, .adjustment: ["tenant.finance.read"]
         case .retention: ["tenant.collection.record", "tenant.finance.read"]
+        case .nonRevenue: [RevenuePermission.read]
         }
     }
 
@@ -71,6 +76,7 @@ public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
         case .writeOff: "tenant.finance.writeoff"
         case .retention: "tenant.finance.retention_approve"
         case .adjustment: "tenant.finance.adjustment_approve"
+        case .nonRevenue: RevenuePermission.decide
         }
     }
 
@@ -80,6 +86,7 @@ public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
         case .discount, .credit, .hoursTransfer, .cancellation: TenantCapability.customerHours
         case .baseline, .correction, .classification: TenantCapability.engineHours
         case .writeOff, .retention, .adjustment: TenantCapability.cashCustody
+        case .nonRevenue: TenantCapability.revenueReconciliation
         }
     }
 
@@ -98,6 +105,7 @@ public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
         case .writeOff: OwnerAccountabilityTexts.approvalsWriteOffs
         case .retention: OwnerAccountabilityTexts.approvalsRetentions
         case .adjustment: OwnerAccountabilityTexts.approvalsAdjustments
+        case .nonRevenue: RevenueTexts.sectionNonRevenue
         }
     }
 
@@ -113,6 +121,7 @@ public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
         case .writeOff: OwnerAccountabilityTexts.approvalsWriteOffsEmpty
         case .retention: OwnerAccountabilityTexts.approvalsRetentionsEmpty
         case .adjustment: OwnerAccountabilityTexts.approvalsAdjustmentsEmpty
+        case .nonRevenue: RevenueTexts.sectionNonRevenueEmpty
         }
     }
 
@@ -128,6 +137,7 @@ public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
         case .writeOff: OwnerAccountabilityTexts.decisionTitleWriteOff
         case .retention: OwnerAccountabilityTexts.decisionTitleRetention
         case .adjustment: OwnerAccountabilityTexts.decisionTitleAdjustment
+        case .nonRevenue: RevenueTexts.titleNonRevenue
         }
     }
 
@@ -144,6 +154,7 @@ public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
         case "cash_variance": self = .writeOff
         case "cash_retention": self = .retention
         case "custody_adjustment": self = .adjustment
+        case "non_revenue_approval": self = .nonRevenue
         default: return nil
         }
     }
@@ -429,6 +440,19 @@ extension PendingDecision {
                                 (T.fieldProposedBy, who(a.createdByName, a.createdBy))]
                                + decided(a.decidedByName, a.decidedBy, a.decisionNote)),
                         name: a.createdByName)
+        case .nonRevenue:
+            guard let n = try? json.decode(as: NonRevenueApprovalDTO.self) else { return nil }
+            let type = RevenueTexts.activityType(n.activityType)
+            return item(n.id, RevenueTexts.rowNonRevenue(hours: num(n.hours), type: type,
+                                                         machine: n.machineCode ?? n.machineName ?? DisplayName.shortID(n.machineID)),
+                        n.reasonName ?? n.note, n.proposedAt, n.proposedBy, n.status,
+                        fields([(T.fieldMachine, DisplayName.machine(code: n.machineCode, name: n.machineName, id: n.machineID)),
+                                (T.fieldJob, who(n.jobNumber, n.jobID)), (RevenueTexts.nonRevType, type),
+                                (RevenueTexts.nonRevTime, "\(date(n.startedAt)) – \(date(n.endedAt))"),
+                                (RevenueTexts.nonRevHours, num(n.hours)), (RevenueTexts.reason, n.reasonName),
+                                (RevenueTexts.note, n.note), (T.fieldProposedBy, who(n.proposedByName, n.proposedBy))]
+                               + decided(n.decidedByName, n.decidedBy, n.decisionNote)),
+                        machine: n.machineID, name: n.proposedByName)
         }
     }
 

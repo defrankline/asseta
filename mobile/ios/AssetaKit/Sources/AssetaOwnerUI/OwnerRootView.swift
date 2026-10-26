@@ -138,6 +138,12 @@ public struct OwnerRootView: View {
             target = .more; path.append(MoreItem.cash); path.append(route)
         case .overdueRemittance where model.features.allows(route):
             target = .more; path.append(MoreItem.cash); path.append(OwnerRoute.overdueRemittances); path.append(route)
+        case .revenueDifference where model.features.allows(route):
+            target = .more; path.append(MoreItem.approvals); path.append(route)
+        case let .dailySheet(machine) where model.features.allows(route):
+            target = .fleet; path.append(OwnerRoute.machine(machine)); path.append(route)
+        case let .dailySheetDay(machine, _) where model.features.allows(route):
+            target = .fleet; path.append(OwnerRoute.machine(machine)); path.append(OwnerRoute.dailySheet(machine)); path.append(route)
         case .investigation:
             target = .more; path.append(MoreItem.investigations); path.append(route)
         case .notification:
@@ -181,6 +187,9 @@ struct RouteView: View {
         case let .cashFloat(id): CashFloatRecordView(model: model, floatID: id)
         case .overdueRemittances: OverdueRemittancesView(model: model)
         case let .overdueRemittance(id): OverdueRemittanceView(model: model, overdueID: id)
+        case let .revenueDifference(id): RevenueDifferenceView(model: model, differenceID: id)
+        case let .dailySheet(machine): DailySheetView(model: model, machineID: machine)
+        case let .dailySheetDay(machine, day): DailySheetDayView(model: model, machineID: machine, day: day)
         }
     }
 }

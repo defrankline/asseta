@@ -16,6 +16,7 @@ struct JobDetailView: View {
     @State private var showAcknowledgement = false
     @State private var confirmAction: JobAction?
     @State private var error: String?
+    @State private var explainNonRevenue: NonRevenueActivityDTO?
 
     var body: some View {
         if let job = model.job(jobID) {
@@ -38,6 +39,9 @@ struct JobDetailView: View {
             }
             .sheet(isPresented: $showActivity) { ActivityFormView(model: model, job: job) }
             .sheet(isPresented: $showAcknowledgement) { AcknowledgementFormView(model: model, job: job) }
+            .sheet(item: $explainNonRevenue) { NonRevenueExplainView(model: model, activity: $0) }
+            .task(id: model.isOnline) { await model.loadNonRevenue(jobID: jobID) }
+            .refreshable { await model.loadNonRevenue(jobID: jobID) }
             .confirmationDialog(confirmAction == .start ? "Start this job?" : "Complete this job?",
                                 isPresented: Binding(get: { confirmAction != nil }, set: { if !$0 { confirmAction = nil } }),
                                 titleVisibility: .visible) {
@@ -113,10 +117,15 @@ struct JobDetailView: View {
         if !entries.isEmpty || canLog {
             Section {
                 ForEach(entries) { entry in
-                    HStack {
-                        Text(Self.describe(entry)).font(.subheadline)
-                        Spacer()
-                        if !entry.running { StatusPill(status: entry.status) }
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack {
+                            Text(Self.describe(entry)).font(.subheadline)
+                            Spacer()
+                            if !entry.running { StatusPill(status: entry.status) }
+                        }
+                        if let nonRevenue = model.nonRevenue(entry) {
+                            NonRevenueStatusLine(model: model, activity: nonRevenue) { explainNonRevenue = $0 }
+                        }
                     }
                 }
                 if canLog { workLogActions(job) }

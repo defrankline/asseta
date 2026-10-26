@@ -25,9 +25,12 @@ struct ApprovalsView: View {
                     .listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
                 approvalRequests
             }
-            ForEach(model.features.decisionKinds, id: \.self) { kind in
+            ForEach(model.features.decisionKinds.filter { $0 != .nonRevenue }, id: \.self) { kind in
                 DecisionKindSection(model: model, kind: kind)
             }
+            // DEC-031: "Revenue differences" then "Non-revenue hours".
+            if model.features.revenueRead { RevenueDifferencesSection(model: model) }
+            if model.features.decisionKinds.contains(.nonRevenue) { DecisionKindSection(model: model, kind: .nonRevenue) }
             otherSections
         }
         .staleBanner(loader, model: model)

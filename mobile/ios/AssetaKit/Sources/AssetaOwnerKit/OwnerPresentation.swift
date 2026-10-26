@@ -153,6 +153,11 @@ extension OwnerFeatures {
             kind.capability.map(disabledCapabilities.contains) == true ? .approvals : route
         case .cashTransfer, .cashFloat, .overdueRemittances, .overdueRemittance:
             cashCustody ? route : .cash
+        // REVENUE_RECONCILIATION off: a revenue difference opens Approvals, a daily sheet its machine (as Android).
+        case .revenueDifference:
+            revenueOn ? route : .approvals
+        case let .dailySheet(machine), let .dailySheetDay(machine, _):
+            revenueRead ? route : .machine(machine)
         default: route
         }
     }
@@ -172,6 +177,8 @@ extension OwnerFeatures {
         // DEC-030 cash records: hidden when the tenant switched CASH_CUSTODY off.
         case .cashTransfer, .cashFloat, .overdueRemittances, .overdueRemittance: finance && cashCustody
         case .investigations, .investigation: cases
+        case .revenueDifference: revenueRead
+        case .dailySheet, .dailySheetDay: revenueRead && fleet
         case .notifications, .notification: notifications
         }
     }

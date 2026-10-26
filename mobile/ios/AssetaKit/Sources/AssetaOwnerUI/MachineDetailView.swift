@@ -36,6 +36,11 @@ struct MachineDetailView: View {
             if model.features.jobs { jobSection }
             alertSection
             if model.features.meterEvidence { readingSection }
+            if model.features.allows(.dailySheet(machineID)) {
+                Section {
+                    NavigationLink(value: OwnerRoute.dailySheet(machineID)) { Text(RevenueTexts.sheetOpen) }
+                }
+            }
         }
         .navigationTitle("Machine")
         .refreshable { await reload() }

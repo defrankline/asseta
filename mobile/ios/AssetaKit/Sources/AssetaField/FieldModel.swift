@@ -31,6 +31,8 @@ public final class FieldModel {
     public private(set) var accountabilityTick = 0
     /// Overdue-remittance flags read online this session (shown while the screen re-reads them).
     var savedOverdue: [UUID: RemittanceOverdueDTO] = [:]
+    /// DEC-031: per job, the server's non-revenue work-log entries by server activity id (read online this session).
+    var nonRevenueByJob: [UUID: [UUID: NonRevenueActivityDTO]] = [:]
 
     let session: SessionModel
     let tenant: TenantMembership

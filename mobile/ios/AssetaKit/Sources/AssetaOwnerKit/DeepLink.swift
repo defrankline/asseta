@@ -40,6 +40,12 @@ public enum OwnerRoute: Hashable, Sendable {
     case overdueRemittances
     /// One overdue-remittance flag (read-only).
     case overdueRemittance(UUID)
+    /// One revenue difference (figures, explanation, decision; DEC-031 R3).
+    case revenueDifference(UUID)
+    /// One machine's daily machine sheet (last 14 days, read-only).
+    case dailySheet(UUID)
+    /// One machine on one tenant-local day (`YYYY-MM-DD`, read-only).
+    case dailySheetDay(UUID, String)
 }
 
 /// A route plus the tenant it belongs to (a push may concern another company the user belongs to).
@@ -76,6 +82,8 @@ public enum DeepLinkParser {
         case .meterBaseline: return .decision(.baseline, id)
         case .meterCorrection: return .decision(.correction, id)
         case .engineHoursClassification: return .decision(.classification, id)
+        case .revenueDifference: return .revenueDifference(id)
+        case .nonRevenueApproval: return .decision(.nonRevenue, id)
         }
     }
 
@@ -168,6 +176,7 @@ public enum DeepLinkParser {
             guard parts.count >= 4, parts[2] == "cash" else { return nil }
             return cashPath(parts[3], parts.count >= 5 ? UUID(uuidString: parts[4]) : nil)
         case ("engine-hours", _):
+            if parts.count >= 3, parts[2] == "daily-sheet" { return .fleet }
             if parts.count >= 4, parts[2] == "machines", let machine = UUID(uuidString: parts[3]) { return .machine(machine) }
             if parts.count >= 4, parts[2] == "classifications", let record = UUID(uuidString: parts[3]) {
                 return .decision(.classification, record)
@@ -179,6 +188,9 @@ public enum DeepLinkParser {
             guard parts.count >= 3 else { return .cash }
             return cashPath(parts[2], parts.count >= 4 ? UUID(uuidString: parts[3]) : nil)
         case ("accountability", _): return .accountability
+        case let ("revenue-differences", id?): return .revenueDifference(id)
+        case let ("non-revenue-approvals", id?): return .decision(.nonRevenue, id)
+        case ("revenue-differences", nil), ("non-revenue-approvals", nil): return .approvals
         case ("fleet", _):
             if parts.count >= 4, parts[2] == "machines", let machine = UUID(uuidString: parts[3]) {
                 return .machine(machine)
@@ -244,9 +256,9 @@ extension OwnerRoute {
     public var identifiesRecord: Bool {
         switch self {
         case .machine, .alert, .approval, .investigation, .job, .meterReset, .handover, .exception, .notification, .decision,
-             .cashTransfer, .cashFloat, .overdueRemittance: true
+             .cashTransfer, .cashFloat, .overdueRemittance, .revenueDifference, .dailySheetDay: true
         case .fleet, .jobs, .investigations, .alerts, .approvals, .exceptions, .fieldSpend, .cash, .notifications,
-             .accountability, .overdueRemittances: false
+             .accountability, .overdueRemittances, .dailySheet: false
         }
     }
 }
