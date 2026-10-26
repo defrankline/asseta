@@ -596,3 +596,115 @@ Supervisor notification taps (replaces the REMITTANCE_OVERDUE row of the gap-pas
 
 ### Owner
 No new strings: switched-off capabilities only hide sections, rows and fields listed above.
+
+## DEC-031 Phase 3 — deposits (D2 stronger remittances, D3 cash holding allowance)
+
+Rules shared by both apps:
+- **Gate:** the new remittance details (method, deposit account, deposit slip photos) appear on the Supervisor
+  "Hand over cash" form only when the server announces the sync capability `REMITTANCE_DETAILS_V1`. Without it the
+  form is exactly as before (amount, currency, reference, time, note) and the payload carries none of the new keys.
+- **Deposit accounts (offline):** from `SyncData.deposit_accounts` (`SyncDepositAccountDto`, kept by `sync_revision`;
+  a deactivated account arrives with `is_active=false` and is removed from the picker). The picker lists active
+  accounts whose `currency` equals the form's currency and whose type matches the chosen method
+  (`CASH_TO_OFFICE` ↔ `CASH_OFFICE`, `BANK_DEPOSIT` ↔ `BANK`, `MOBILE_MONEY` ↔ `MOBILE_MONEY`). Choosing an account
+  sets the method from its type. Row text: `{name}`, subtitle `{institution} · {account_number_masked}` (missing parts
+  left out).
+- **Method:** segmented choice, default "Cash to the office". The payload always sends `method` when the capability is
+  announced.
+- **Requirements (from `GET /tenant/policies/CASH_CUSTODY/effective`, cached encrypted; unknown policy or keys missing
+  = not required; never read while `CASH_CUSTODY` is switched off):** `remittance_account_required` → an account must be
+  chosen; `remittance_reference_required` → reference required for Bank deposit / Mobile money (never for cash to the
+  office); `remittance_evidence_required` → at least one photo. Save stays disabled and the matching
+  `field.remit.err*` line is shown under the form while a requirement is not met. Labels lose "(optional)" when
+  required.
+- **Photos:** in-app camera, at most 10, stored encrypted on the phone; uploaded by resumable blob upload with purpose
+  `REMITTANCE_EVIDENCE`; each completed upload id is appended to the op's `evidence_upload_ids`; the op stays waiting
+  (server answers DEFERRED `ATTACHMENT_PENDING`) until every photo is uploaded, like reading photos.
+- **Sync status:** a CONFLICT/REJECTED item with one of the `field.conflict.*` codes below shows that sentence.
+- **Overdue reason (both apps):** `RemittanceOverdueDto.reason` `CUTOFF` (default, as before) or `HELD_TOO_LONG`. For
+  `HELD_TOO_LONG` the "Cut-off" row is hidden and "Held since" (`held_since`, date) and "Allowed" (`max_holding_days`)
+  are shown; the footer line is `*.overdue.heldLine` instead of `*.overdue.line`. `{days}` text: "1 day" / "N days".
+  A missing `held_since` / `max_holding_days` drops that row and uses `*.overdue.heldLineShort`.
+- **Variance (Owner):** `CashVarianceDto.kind` `SURPLUS` (more received than declared) is labelled "Surplus to
+  explain" with the positive amount; `SHORTFALL` or missing kind keeps today's wording.
+
+Screens that change:
+| App | Screen | Change |
+|---|---|---|
+| Supervisor | Hand over cash (Money "+" → Hand over cash) | Method, Paid into (account picker), reference wording, deposit slip photos, requirement lines |
+| Supervisor | Sync status (outbox) | New conflict sentences; handover waiting for its photos |
+| Supervisor | Overdue remittance | Reason, Held since, Allowed rows; held-too-long footer |
+| Owner | Cash handover (remittance confirm) | Method, Paid into, Reference, deposit slip photos in the Handover card; method / account / reference repeated in the "Confirm received" dialog above "Amount received" |
+| Owner | Cash write-off decision (variance) | "Surplus to explain" for SURPLUS |
+| Owner | Overdue remittances (list) and Overdue remittance (detail) | Reason line per row; Reason, Held since, Allowed rows; held-too-long footer |
+
+### Supervisor
+| Key | English |
+|---|---|
+| field.remit.method | How was it handed over? |
+| field.remit.methodCash | Cash to the office |
+| field.remit.methodBank | Bank deposit |
+| field.remit.methodMobile | Mobile money |
+| field.remit.account | Paid into |
+| field.remit.accountOptional | Paid into (optional) |
+| field.remit.accountNone | No account |
+| field.remit.accountsEmpty | Your company's accounts for this currency appear here after a sync. |
+| field.remit.reference | Transaction reference |
+| field.remit.referenceOptional | Reference (deposit slip, transaction no.) (optional) |
+| field.remit.photos | Deposit slip or payment confirmation |
+| field.remit.photosOptional | Deposit slip or payment confirmation (optional) |
+| field.remit.photosFooter | Stored encrypted on this phone and uploaded before the handover is sent. |
+| field.remit.photograph | Photograph the slip |
+| field.remit.addPhoto | Add another photo |
+| field.remit.removePhoto | Remove |
+| field.remit.errAccount | Choose the company account the money was paid into. |
+| field.remit.errReference | Enter the transaction reference of the bank deposit or mobile-money payment. |
+| field.remit.errEvidence | Photograph the deposit slip or payment confirmation. |
+| field.outbox.waitingPhotos | Waiting for its photos to upload |
+| field.conflict.REMITTANCE_REFERENCE_REQUIRED | Your company requires the transaction reference for bank and mobile-money remittances. Record the handover again with the reference. |
+| field.conflict.REMITTANCE_EVIDENCE_REQUIRED | Your company requires a photo of the deposit slip or payment confirmation. Record the handover again with a photo. |
+| field.conflict.REMITTANCE_ACCOUNT_REQUIRED | Your company requires the account the money was paid into. Record the handover again and choose the account. |
+| field.conflict.DEPOSIT_ACCOUNT_INACTIVE | The account you chose is no longer in use. Record the handover again with another account. |
+| field.conflict.REMITTANCE_ACCOUNT_MISMATCH | The account you chose does not match how the money was handed over. Record the handover again. |
+| field.conflict.DEPOSIT_ACCOUNT_CURRENCY_MISMATCH | The account you chose holds a different currency. Record the handover again with another account. |
+| field.overdue.reason | Reason |
+| field.overdue.reasonCutoff | Not remitted by the daily cut-off |
+| field.overdue.reasonHeld | Held longer than allowed |
+| field.overdue.heldSince | Held since |
+| field.overdue.allowed | Allowed |
+| field.overdue.days | {n} day / {n} days |
+| field.overdue.heldLine | Held since {date}, longer than the allowed {days}. |
+| field.overdue.heldLineShort | Held longer than allowed. |
+
+"Overdue remittance" rows (in order): Cash held by, Not remitted, Reason, Day, Cut-off (CUTOFF only), Held since and
+Allowed (HELD_TOO_LONG only), Flagged. Footer: the line for the reason, then `field.overdue.hint`.
+
+### Owner
+| Key | English |
+|---|---|
+| owner.remit.method | Method |
+| owner.remit.methodCash | Cash to the office |
+| owner.remit.methodBank | Bank deposit |
+| owner.remit.methodMobile | Mobile money |
+| owner.remit.account | Paid into |
+| owner.remit.reference | Reference |
+| owner.remit.photo | deposit slip photo {n} |
+| owner.remit.noPhoto | No deposit slip photo |
+| owner.variance.surplus | Surplus to explain |
+| owner.row.surplus | Surplus to explain: {money} |
+| owner.field.reason | Reason |
+| owner.overdue.reasonCutoff | Not remitted by the daily cut-off |
+| owner.overdue.reasonHeld | Held longer than allowed |
+| owner.field.heldSince | Held since |
+| owner.field.allowed | Allowed |
+| owner.overdue.days | {n} day / {n} days |
+| owner.overdue.heldLine | Held since {date}, longer than the allowed {days}. |
+| owner.overdue.heldLineShort | Held longer than allowed. |
+
+Owner details: the Handover card shows Method (null method = nothing shown, an older remittance), Paid into
+(`deposit_account_name`, else short id), Reference, and one photo button per `evidence_attachment_ids` entry
+("View deposit slip photo 1", online only; `GET /cash/handovers/{id}/evidence/{attachment_id}/url`), or
+`owner.remit.noPhoto` when the handover has a method other than cash and no photo. The confirm dialog repeats Method,
+Paid into and Reference as read-only lines above "Amount received". A SURPLUS write-off row reads
+`owner.row.surplus` (amount without the minus sign) and its "Difference" field is labelled "Surplus to explain".
+Overdue list rows show the amounts and, beneath, the reason text (`owner.overdue.reasonCutoff` / `reasonHeld`).
