@@ -1036,3 +1036,192 @@ Picker row: `field.hours.purchaseOption` + " · " + `field.hours.inUse` when the
 "From machine" field, when the chosen purchase has provisional hours on that machine, a caption
 `field.hours.inUse` (secondary colour). The transfer limit stays `remaining` (provisional hours are already taken
 out of it and cannot be moved).
+
+## DEC-031 Phase 5 — oversight
+
+Rules shared by both apps:
+- **Gates.** Supervisor site check-in: sync capability `OP_SITE_CHECKIN` (announced only while
+  `OVERSIGHT.site_checkin_required`) + `tenant.site_checkin.record` + capability `SITE_CHECKIN` not in `/me`
+  `disabled_capabilities`. Owner People scorecard: `tenant.oversight.scorecard.read` + `SCORECARD` not switched off.
+  Owner Unbilled work / Idle machines lists: `tenant.oversight.read` + `UNBILLED_WORK` / `IDLE_MACHINES` not switched
+  off (the dashboard tiles come from the summary as before; the tile's link is shown only when the list is allowed).
+- **Neutral wording.** Scorecard figures are "items to look at", never a verdict.
+- **Days:** `1 day` / `{n} days`. Dates `26 Oct 2026`, times `14:05` (24 h); date-time `26 Oct 2026, 14:05`.
+- **Hours (parity fix, both apps, every customer-hours screen and the Supervisor hours picker):** the phone's locale
+  number format with grouping, 0–2 decimals, no trailing zeros, then ` h` — `12 h left`, `1,234.5 h`, never `12.00 h`
+  or `12.0000 h left`. Android: `OwnerFormat.hoursNumber` (Owner) / the same rule in the Supervisor picker; iOS:
+  `OwnerFormat.hours` style (`.number.precision(.fractionLength(0...2)).locale(.current)`) also for the `{hours}` inside
+  `owner.hours.left`, `owner.hours.inUse`, `field.hours.purchaseOption`, `field.hours.inUse`.
+- **No local reminder at slot time:** neither app has local (scheduled) notification infrastructure today, so the
+  slot reminder is not built; the due slot is shown on the Jobs tab instead. Server reminders, if added later, arrive
+  as normal push notifications.
+
+Screens that change:
+| App | Screen | Change |
+|---|---|---|
+| Supervisor | Jobs tab | Row "Site check-in" under the banners (check-in gate): subtitle `field.checkin.due` when a slot is due, else `field.checkin.next`, else `field.checkin.noneLeft`; opens Site check-ins |
+| Supervisor | Site check-ins (new) | `GET /site-checkins/mine` online (saved encrypted for offline). Today card: one row per today's slot (time, status); "Check in now" button; My check-ins card (this phone's queued check-ins + the server's, newest first); footer |
+| Supervisor | Check in now | One fresh GPS attempt (same as meter readings; failure recorded without coordinates), then queued as sync op `SITE_CHECKIN {client_id, captured_at, gps}` (no `job_site_id`: the server takes the running job's site). Works offline |
+| Supervisor | Sync status / Inbox needs attention | Title `field.checkin.outbox`; refusals in plain words (codes below) |
+| Owner | More | New entry "People scorecard" (scorecard gate), after Customer hours |
+| Owner | People scorecard (new) | Period chips; rows sorted by `items_total` (most first, then name). Row: headline name (`DisplayNames`, else short id), subtitle `owner.score.items`, caption = the non-zero figures joined with " · " (max 3) |
+| Owner | Person (new, read-only) | `GET /scorecard/{staff_member_id}?day_from&day_to`: Figures card, Cash held now card (only when any), Records card (newest first). A record opens the existing screen when the app has one and the role may open it; otherwise its details show in the row |
+| Owner | Accountability dashboard | Tiles `unbilled_work` and `idle_machines` (rows below); link to the list when allowed |
+| Owner | Unbilled work (new, read-only) | `GET /unbilled-work?page_size=100`; row opens the Job (when the role reads jobs) |
+| Owner | Idle machines (new, read-only) | `GET /idle-machines?page_size=100`; row opens the Machine (when the role reads the fleet) |
+| Owner | Investigation | Signal `REPEATED_PATTERN` worded below |
+| Owner | Deep links | notification `data.kind` `JOB` + `record_id` (UNBILLED_WORK) → Job; `/tenant/scorecard` → People scorecard; `/tenant/unbilled-work` → Unbilled work; `/tenant/idle-machines` → Idle machines (each falls back to the Accountability dashboard when its gate is closed) |
+
+### Supervisor
+| Key | English |
+|---|---|
+| field.checkin.entry | Site check-in |
+| field.checkin.title | Site check-ins |
+| field.checkin.due | Check-in due now, until {time} |
+| field.checkin.next | Next check-in at {time} |
+| field.checkin.noneLeft | No more check-ins today |
+| field.checkin.today | Today |
+| field.checkin.todayEmpty | No check-ins are scheduled for you today. |
+| field.checkin.window | Between {from} and {to} |
+| field.checkin.status.MADE | Checked in |
+| field.checkin.status.MISSED | Missed |
+| field.checkin.status.DUE | Due now |
+| field.checkin.status.UPCOMING | Upcoming |
+| field.checkin.status.SAVED | Saved on this phone |
+| field.checkin.action | Check in now |
+| field.checkin.locating | Getting your location… |
+| field.checkin.saved | Check-in saved. It is sent when the phone is online. |
+| field.checkin.footer | Your company asks you to check in at the site at these times. Your location is recorded with each check-in. Check-ins are saved on the phone and sent when you are online. |
+| field.checkin.distanceFooter | Check in within {metres} m of the site. |
+| field.checkin.mine | My check-ins |
+| field.checkin.mineEmpty | No check-ins in the last 7 days. |
+| field.checkin.noSite | No site |
+| field.checkin.distance | {metres} m from the site |
+| field.checkin.outside | Further from the site than allowed |
+| field.checkin.noLocation | Recorded without location |
+| field.checkin.waiting | Waiting to sync |
+| field.checkin.notAccepted | Not accepted |
+| field.checkin.savedAt | Schedule from {time}. Connect to update it. |
+| field.checkin.never | Your check-in times appear here after you connect. |
+| field.checkin.outbox | Site check-in |
+| field.checkin.conflict.SITE_CHECKIN_DISABLED | Your company has switched off site check-ins, so this check-in was not accepted. |
+| field.checkin.conflict.CHECKIN_ID_CONFLICT | This check-in could not be saved because its id is already used. Check in again. |
+| field.checkin.conflict.STAFF_NOT_LINKED | Your account is not linked to a staff record, so check-ins cannot be saved. Ask the office. |
+| field.checkin.conflict.CHECKIN_IN_FUTURE | The phone's clock is ahead, so this check-in was not accepted. Correct the phone's time and check in again. |
+| field.checkin.conflict.JOB_SITE_NOT_FOUND | The site of this check-in no longer exists. Check in again. |
+
+Slots: today's (tenant timezone from the response) slots in time order, label `HH:mm`, caption `field.checkin.window`
+(scheduled − window … scheduled + window). Status is recomputed on the phone from the saved slots: MADE when the
+server says so or a check-in saved on this phone falls inside the window (then `field.checkin.status.SAVED` until
+the server confirms), else MISSED when the window has ended, DUE while it is open, UPCOMING before. "Check in now" is
+always offered (the server matches it to a slot). My check-ins rows: label date-time, value site name
+(`field.checkin.noSite` when none), caption: `field.checkin.distance` (+ " · " + `field.checkin.outside` when
+`within_distance` is false) or `field.checkin.noLocation` when GPS was not FIX; this phone's not-yet-acked rows show
+`field.checkin.waiting`, refused ones `field.checkin.notAccepted` + the conflict wording. Footer `field.checkin.footer`
+(+ `field.checkin.distanceFooter` when `max_distance_m` is set) and `field.checkin.savedAt` when shown from the saved
+copy.
+
+### Owner
+| Key | English |
+|---|---|
+| owner.score.more | People scorecard |
+| owner.score.title | People scorecard |
+| owner.score.period.LAST_7_DAYS | Last 7 days |
+| owner.score.period.LAST_30_DAYS | Last 30 days |
+| owner.score.period.THIS_MONTH | This month |
+| owner.score.period.LAST_MONTH | Last month |
+| owner.score.empty | No one to show for this period. |
+| owner.score.footer | Counts of items to look at for each person, most first. A count is not a verdict: open the person to see each record. |
+| owner.score.items.0 | Nothing to look at |
+| owner.score.items.1 | 1 item to look at |
+| owner.score.items.n | {n} items to look at |
+| owner.score.inactive | Inactive |
+| owner.score.figures | Figures |
+| owner.score.period | Period |
+| owner.score.machines | Machines responsible for |
+| owner.score.reportsMissing | Daily reports missing |
+| owner.score.reportsLate | Daily reports late |
+| owner.score.unexplained | Unexplained engine hours |
+| owner.score.unexplainedValue | {hours} h · {n} items |
+| owner.score.alerts | Alerts |
+| owner.score.alertsValue | {n} · {open} open |
+| owner.score.ackTime | Time to acknowledge |
+| owner.score.ackTimeValue | average {avg} h · longest {max} h |
+| owner.score.cashHeldTooLong | Cash held too long |
+| owner.score.cashDifferences | Cash differences |
+| owner.score.nearThreshold | Near the case threshold |
+| owner.score.revenueDifferences | Revenue differences |
+| owner.score.refused | Refused attempts |
+| owner.score.checkins | Site check-ins |
+| owner.score.checkinsValue | {made} made · {missed} missed |
+| owner.score.patterns | Repeated patterns |
+| owner.score.cashHeld | Cash held now |
+| owner.score.heldSince | since {date} ({days}) |
+| owner.score.records | Records |
+| owner.score.recordsEmpty | No records in this period. |
+| owner.score.item.MISSING_DAILY_REPORT | Daily report missing |
+| owner.score.item.LATE_DAILY_REPORT | Daily report late |
+| owner.score.item.UNEXPLAINED_HOURS | Unexplained engine hours |
+| owner.score.item.ALERT | Alert |
+| owner.score.item.CASH_HELD_TOO_LONG | Cash held too long |
+| owner.score.item.CASH_DIFFERENCE | Cash difference |
+| owner.score.item.REVENUE_DIFFERENCE | Revenue difference |
+| owner.score.item.REFUSED_ATTEMPT | Refused attempt |
+| owner.score.item.MISSED_CHECKIN | Missed site check-in |
+| owner.score.item.PATTERN_SIGNAL | Repeated pattern |
+| owner.score.scheduled | Scheduled {time} |
+| owner.dash.unbilled | Unbilled work |
+| owner.dash.unbilledJobs | Jobs |
+| owner.dash.unbilledValue | Value |
+| owner.dash.oldest | Oldest |
+| owner.dash.unbilledFooter | Completed jobs not on an issued invoice after {days}. |
+| owner.dash.idle | Idle machines |
+| owner.dash.idleMachines | Machines |
+| owner.dash.longestIdle | Longest idle |
+| owner.dash.idleFooter | Machines with no running job and no engine hours for {days}. |
+| owner.unbilled.title | Unbilled work |
+| owner.unbilled.empty | No completed jobs waiting for an invoice. |
+| owner.unbilled.row | {job} · {customer} |
+| owner.unbilled.completed | Completed {date} · {days} unbilled |
+| owner.unbilled.draft | On a draft invoice |
+| owner.unbilled.footer | Completed jobs not on an issued invoice yet. Invoices are made on the web. |
+| owner.idle.title | Idle machines |
+| owner.idle.empty | No idle machines. |
+| owner.idle.since | Idle since {date} ({days}) |
+| owner.idle.lastJob | Last job {job} completed {date} |
+| owner.idle.planned | Planned job {job} |
+| owner.idle.footer | Machines with no running job and no engine hours for a while. |
+| owner.signal.REPEATED_PATTERN | Repeated items to look at for one person |
+
+Scorecard periods (local days, ≤ 93): Last 7 days = today − 6 … today; Last 30 days (default) = today − 29 … today;
+This month = 1st … today; Last month = the whole previous month. List caption figures, in this order, only when > 0:
+`{n} missing reports`, `{n} late reports`, `{h} h unexplained`, `{n} open alerts`, `{n} cash held too long`,
+`{n} cash differences`, `{n} revenue differences`, `{n} refused attempts`, `{n} missed check-ins`, `{n} repeated
+patterns` (first three shown). Inactive people add `owner.score.inactive` to the subtitle.
+
+Person Figures rows (in this order): Period (`{from} – {to}`), Machines responsible for, Daily reports missing, Daily
+reports late, Unexplained engine hours (`owner.score.unexplainedValue`), Alerts (`owner.score.alertsValue`), Time to
+acknowledge (only when `avg_hours_to_acknowledge` is set), Cash held too long, Cash differences (count, then " · " +
+each currency total in money format), Near the case threshold (only when > 0), Revenue differences (count + totals),
+Refused attempts, Site check-ins (only when `checkins_missed` is not null), Repeated patterns. Cash held now: label =
+money, value `owner.score.heldSince` (just the money when `held_since` is null).
+
+Record rows: label `owner.score.item.*` (unknown → humanized), value = money (`amount` + `currency`) or `{hours} h`
+when set, caption = local day · machine (code, else name) · job number · humanized status, plus
+`owner.score.nearThreshold` when `near_threshold`, the alert `detail.title`, `owner.score.scheduled` for a missed
+check-in, `detail.action` / `detail.permission` for a refused attempt. Opens: `job_exception` → Meter exception
+(`tenant.meter.read`), `tracking_alert` → Alert (`tenant.fleet.read`), `cash_remittance_overdue` → Overdue remittance
+(`tenant.finance.read` and cash custody on), `cash_variance` → the write-off decision, `revenue_difference` → Revenue
+difference (`tenant.revenue.read`), `risk_signal` → Investigation `detail.case_id` (`tenant.case.read`),
+`engine_interval` → Machine (`tenant.fleet.read`); `security_event` and `site_checkin_slot` do not open.
+
+Dashboard tiles (from the summary; hidden when null or the capability is switched off): Unbilled work rows Jobs
+(`count`), Value (each `amounts[]` money, joined ", "; "None" when empty), Oldest (`oldest_days` as days, row hidden
+when null), footer `owner.dash.unbilledFooter` with `after_days` (hidden when null). Idle machines rows Machines
+(`count`), Longest idle (`longest_idle_days`), footer `owner.dash.idleFooter` with `after_days`.
+
+Unbilled work rows (newest completion last → sort by `days_unbilled` descending): headline `owner.unbilled.row`
+(job number else "—", customer name else short id), subtitle machine · site name (when set), caption
+`owner.unbilled.completed` + " · " + `owner.unbilled.draft` when `draft_invoice_id`, trailing value total money
+(when set). Idle machines rows (longest idle first): headline machine, caption `owner.idle.since`, second caption
+`owner.idle.lastJob` (when a last job) and `owner.idle.planned` (when a planned job).
