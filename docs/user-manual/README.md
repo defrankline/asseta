@@ -15,6 +15,7 @@ Asseta helps your company:
 - Spot readings, movements and money that **need review**, with the evidence attached.
 - Keep a **chain of accountability** for every customer hour, every engine hour and every amount of cash, with the controls your company switches on (see **Accountability controls** in [Common concepts](#common-concepts)).
 - Check that **every working hour turns into money** that reaches the company, and that machines and fuel are used only for work (see **Revenue checks** in [Common concepts](#common-concepts)).
+- See **who and what needs a look**: a per-person scorecard, finished work not yet invoiced, machines standing idle and, if your company wants it, supervisors' GPS check-ins at the site (see **People scorecard** in [Common concepts](#common-concepts)).
 
 Asseta works in three places:
 
@@ -22,7 +23,7 @@ Asseta works in three places:
 |---|---|---|
 | **Web console**, <https://asseta.co.tz> | Everyone with a login | The full system, on a laptop or desktop. Needs an internet connection. |
 | **Asseta Supervisor** app (Android and iPhone) | Field supervisors | Works **offline** and syncs when a connection is available. |
-| **Asseta Owner** app (Android and iPhone) | Owners and managers | Dashboard, fleet map, jobs, alerts and approvals on the go. The boss can approve or create jobs, confirm cash handovers, review exceptions and issue cash floats from far away, decide accountability requests and revenue differences, follow the accountability summary, the daily machine sheet and customers' prepaid hours. Keeps read-only copies for offline viewing. |
+| **Asseta Owner** app (Android and iPhone) | Owners and managers | Dashboard, fleet map, jobs, alerts and approvals on the go. The boss can approve or create jobs, confirm cash handovers, review exceptions and issue cash floats from far away, decide accountability requests and revenue differences, follow the accountability summary, the daily machine sheet, customers' prepaid hours, the people scorecard, unbilled work and idle machines. Keeps read-only copies for offline viewing. |
 
 The Android and iPhone versions of each app look and work the same.
 
@@ -149,6 +150,11 @@ A company may show **Read only**. Its Asseta subscription is restricted, and you
 | **Low-balance warning** | A notice to the office (and, if your company chooses, an SMS to the customer) when a customer's prepaid hours fall to a set level. |
 | **Hours statement** | A customer's prepaid hours for a period: opening balance, bought, activated, used per day and job, moved, expired and closing balance. It can be downloaded as a PDF. |
 | **Sync conflict** | A field record sent offline that the server could not apply (for example two people using the same remaining hours). It is kept with its evidence for the office to resolve. |
+| **People scorecard** | Per person, for a period, the **items to look at** on the machines and cash they were responsible for: missing or late daily reports, unexplained engine hours, alerts, cash held too long, cash and revenue differences, refused attempts and missed site check-ins. It counts items and links to each record. It is **a prompt to look, not a verdict** about anyone. Off until your company switches it on. |
+| **Repeated items** | When one person has the same kind of item several times within a set number of days (for example three cash differences in 30 days), Asseta raises the signal "Repeated items to look at for one person" and an investigation for review. Off until your company sets the number. |
+| **Unbilled work** | A completed, billing-ready job that is still not on an issued invoice a set number of days after it was completed. It is listed, shown on the dashboard and notified to the people who make invoices. A job on a draft invoice still counts until the invoice is issued. |
+| **Idle machine** | An active machine with no running job and no engine hours (no completed job, no meter increase and no tracker engine-on) for a set number of days. An approved job that has not started yet is shown as **planned**. |
+| **Site check-in** | A GPS check-in a supervisor makes at the site, at times of day your company sets, while running a job. It records the time, the position (never invented when there is no fix), the site and job, and the distance from the site. **Optional and off by default**: only your company can switch it on, and each person sees their own check-ins. A check-in time that passes without one is a **missed check-in**. |
 | **Managed service** | An arrangement, with your written consent, under which the Platform Owner operates your account for you. Everything they do is recorded and visible to you, and you can revoke it. |
 
 ## Getting help

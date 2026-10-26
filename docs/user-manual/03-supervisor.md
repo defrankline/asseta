@@ -45,6 +45,7 @@ If your company has switched these controls on, you can also:
 - Say **how a handover was paid** (cash to the office, bank deposit or mobile money), **which company account** it went into, its **transaction reference** and **photos of the deposit slip**.
 - See prepaid hours **in use by running jobs** when you request an hours transfer.
 - **Explain non-revenue time**, such as moving the machine to site, so it can be approved as not customer work (only if your company gives your role this permission).
+- **Check in at the site** by GPS at the times your company sets while you run a job, and see all your own check-ins.
 
 Each of these appears only when your company's policies switch it on and your role has the permission. If you don't see one, it is not used in your company.
 
@@ -56,7 +57,7 @@ What you cannot do: approve jobs (including the ones you request) or set their p
 
 | Tab | What it holds |
 |---|---|
-| **Jobs** | Your jobs: **In progress**, **Ready to start**, **Recently closed**, **My machines**, and **Request job** |
+| **Jobs** | Your jobs: **In progress**, **Ready to start**, **Recently closed**, **My machines**, and **Request job**; the **Site check-in** row when your company uses site check-ins |
 | **Readings** | Every meter reading you captured and your meter reset requests, with the office's review |
 | **Fuel** | Your fuel events (Purchase / Issue / Usage) |
 | **Money** | Your cash, today's figures, cash to acknowledge, expenses, collections, handovers and transfers |
@@ -75,7 +76,7 @@ At the top of each tab's first screen:
 | Group | Menus |
 |---|---|
 | Overview | Dashboard, Fleet map |
-| **Field work** | **My jobs**, **Readings**, **Fuel**, **Expenses**, **Cash**, **Customer hours** |
+| **Field work** | **My jobs**, **Readings**, **Fuel**, **Expenses**, **Cash**, **Customer hours**, **Site check-in** |
 | Operations | Jobs, Customers (to look things up) |
 | Fleet | Alerts |
 | Engine hours | Reconciliation, Hours to explain, Hour explanations, Meter baselines, Reading corrections (your machines, to look things up) |
@@ -255,7 +256,7 @@ You cannot start a job while it is waiting for approval.
 
 The Supervisor app is built for sites with no signal.
 
-**What works offline:** everything in this manual. That includes jobs, job requests, readings with photos, starting and completing jobs, the work log, acknowledgements, fuel, expenses, cash collections and handovers, and (when switched on) hours sales, hours transfer requests, cash transfers, acknowledgements of transfers and floats, requests to keep cash, daily readings, baseline proposals and correction proposals.
+**What works offline:** everything in this manual. That includes jobs, job requests, readings with photos, starting and completing jobs, the work log, acknowledgements, fuel, expenses, cash collections and handovers, and (when switched on) hours sales, hours transfer requests, cash transfers, acknowledgements of transfers and floats, requests to keep cash, daily readings, baseline proposals, correction proposals and site check-ins.
 
 Offline work never skips a check. The server applies every rule when the item arrives, and anything that needs a second person still waits for one. Everything is saved **encrypted on the phone** and sent later.
 
@@ -571,6 +572,33 @@ Movement to or from a site (and any other type your company lists) is not custom
 
 "This time counts as revenue until someone else approves it. Needs a connection." *What you'll see:* "Sent. Someone else will approve it." You can never approve your own explanation. If the list is empty: "Your company has no revenue reasons yet. Ask the office." Offline, the button is disabled: "Explaining needs a connection."
 
+### A15. Site check-in
+
+This appears only when your company has switched site check-ins on. It is optional for companies, and off unless your company chose it. Your company sets one or more times of day; at each time, while you are **running a job**, you check in at the site with your phone's GPS. Your position is recorded **only when you check in**, and you see every check-in you made.
+
+On the **Jobs** tab, a **Site check-in** row under the banners tells you what is next:
+
+- "Check-in due now, until 14:30"
+- "Next check-in at 14:00"
+- "No more check-ins today"
+
+Tap it to open **Site check-ins**:
+
+- **Today**: one line per check-in time ("Between 13:00 and 15:00") with its status: **Upcoming**, **Due now**, **Checked in**, **Missed**, or **Saved on this phone** (checked in, not yet confirmed by the server). "No check-ins are scheduled for you today." when there are none.
+- **Check in now**: tap it at the site. The phone tries once for a fresh GPS position ("Getting your location…"), as for a meter reading. *What you'll see:* "Check-in saved. It is sent when the phone is online." The site and job come from the job you are running; you never choose them.
+- **My check-ins**: your check-ins of the last 7 days, newest first, with the site and "N m from the site". A check-in far from the site also shows "Further from the site than allowed"; one without a GPS fix shows "Recorded without location". Check-ins not yet sent show "Waiting to sync".
+- The footer: "Your company asks you to check in at the site at these times. Your location is recorded with each check-in. Check-ins are saved on the phone and sent when you are online." When your company sets a distance: "Check in within N m of the site."
+
+**Check in now** is always there; the server matches each check-in to the right time. A check-in works **offline**: it is saved on the phone and sent at the next sync. Without a GPS fix the check-in is still saved, without a position; try outdoors next time. Offline, the times come from the last sync ("Schedule from <time>. Connect to update it."); before the first sync: "Your check-in times appear here after you connect."
+
+If a time's window passes without a check-in, it shows **Missed**. The office sees missed check-ins as items to look at, not as a verdict; if you could not check in (no signal, between sites), tell your office.
+
+If the server does not accept a check-in, it shows **Not accepted** and appears on the Sync status screen under **Site check-in**, with the reason, for example:
+
+- "Your company has switched off site check-ins, so this check-in was not accepted."
+- "Your account is not linked to a staff record, so check-ins cannot be saved. Ask the office."
+- "The phone's clock is ahead, so this check-in was not accepted. Correct the phone's time and check in again."
+
 ---
 
 <a id="working-from-a-laptop-web-console"></a>
@@ -672,7 +700,24 @@ Lower on the page you see the job's details (rate, minimum hours, standby terms,
   - **Remit cash** also asks **How was it paid?** (**Cash handed to the office**, **Bank deposit** or **Mobile money**), the **Company account**, the **Transaction reference** ("From the deposit slip or the payment message.") and **Photo of the deposit slip or payment confirmation** (**Add photo**, up to 10). When your company requires some of these, the form says so: "Your organisation requires …". Your **My remittances** list shows **Paid by**, **Company account** and **Reference**.
   - On **Transfers**, use **Record transfer** (**Received by (receiver)**, **Amount handed over**) and **Acknowledge / dispute** on a transfer sent to you (**Acknowledge (cash received)** with the **Amount actually received**, or **Dispute (not received)** with a note). Floats are acknowledged the same way on **Floats**.
   - On **Keep cash requests**, use **Request to keep cash** (**Amount to keep**, **Why the cash is kept**, **Valid until (optional)**, then **Send request**).
+- **Field work → Site check-in**: see [B4](#b4-site-check-in).
 - **Field work → Customer hours** ("Record hours a customer buys (with the cash you collect) and request transfers"): **Record customer hours** opens the same steps as [A13](#a13-sell-customer-hours-and-request-transfers) (**Customer**, **Hours**, **Payment**, then **Record purchase**), and **Request transfer** asks for the purchase, **To machine**, **Hours** and **Reason**. "Cash you record stays in your custody as claimed until the office verifies it; only then do the customer's hours activate."
+
+### B4. Site check-in
+
+**Field work → Site check-in** ("Check in at your site at the company's set times while you run a job") appears when your company uses site check-ins. It needs a connection.
+
+1. At the site, click **Check in now**. The browser asks for your location; allow it ("Getting your position…").
+2. *What you'll see:* "Checked in.", then a line with the time, the site and the distance (for example "120 m from the site (within the distance)"). Without a position: "Checked in without a position (…). Allow location access to record where you are."
+
+The page also shows:
+
+- A notice when a check-in is due: "A check-in is due now (window ± 60 min). Use "Check in now" at the site."
+- **Company settings**: **Required**, the **Times** (your company's time zone), the **Window** and the **Distance from the site** ("Up to N m", or "Distance shown only"). "Your position is recorded only when you check in, and you see every check-in here."
+- **Schedule**: each **Time**, its **Window**, its **Status** (**Made**, **Missed**, **Due now** or **Upcoming**) and the **Job**.
+- **My check-ins**: **When**, **Site**, **Job**, **GPS** and **Distance**.
+
+When check-ins are not required at the moment: "Check-ins are not required at the moment. You can still check in; your schedule below shows any earlier times."
 
 ---
 
@@ -728,6 +773,16 @@ Each finding is shown as **Waiting for review**, **Explained** (a legitimate rea
 | Conflict | The job changed on the server; your record is kept for review |
 | Held | Kept by the server while the subscription is read-only; applied after reactivation |
 
+### Site check-in
+
+| Status | Meaning |
+|---|---|
+| Upcoming | The time has not come yet |
+| Due now | The window is open: check in now |
+| Saved on this phone | You checked in; it is sent at the next sync |
+| Checked in / Made | The server has your check-in for that time |
+| Missed | The window ended without a check-in |
+
 ## Good practice
 
 - **Sync before you leave for site.** Pull down on Jobs while you have signal.
@@ -742,6 +797,7 @@ Each finding is shown as **Waiting for review**, **Explained** (a legitimate rea
 - **Read your Inbox daily.** It is where office decisions and reminders arrive.
 - **Acknowledge cash you receive straight away**, with the amount you actually counted.
 - **Take the daily reading** on every machine that worked, before the cut-off.
+- **Check in from the site itself**, outdoors if you can, when your company uses site check-ins. If you cannot, tell the office why.
 - **Sell hours for the right machine.** Hours bought for one machine can move only through an approved transfer.
 
 ## Troubleshooting and FAQ
@@ -814,6 +870,15 @@ Non-revenue time no longer needs explaining. Nothing to do.
 
 **"A reading can be corrected once the server has it."**
 Sync first, then propose the correction.
+
+**I don't see "Site check-in".**
+Your company has not switched site check-ins on, your role does not include them, or your phone has not synced since they were switched on. Sync once while online.
+
+**"Your account is not linked to a staff record, so check-ins cannot be saved."**
+Ask the office to link your login to your staff record, then check in again.
+
+**My check-in shows "Recorded without location".**
+The phone had no GPS fix. The check-in is kept for its time, but without a position. Go outdoors and allow location for the app.
 
 **I forgot my password.**
 Ask your company's administrator (normally the owner) to reset it. You will then set a new password at your next sign-in.

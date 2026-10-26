@@ -19,6 +19,7 @@ You work in the **web console** at <https://asseta.co.tz> on a laptop or desktop
 - **Deposit accounts**: keep the list of company bank accounts, mobile-money wallets and cash offices that remittances are paid into, and check each remittance's account, reference and slip photos against the statement.
 - **Revenue checks** (when your company switches them on): read the **Daily machine sheet**, and explain **revenue differences** and **non-revenue hours**. Someone else decides them.
 - **See the Accountability dashboard.**
+- **Unbilled work and idle machines** (when your company switches them on): invoice completed work that is still not on an issued invoice, and see machines without work. You can also read supervisors' **Site check-ins**.
 - **Track expenses and fuel.** See every field expense and fuel event, manage expense categories, and record your own expenses and fuel purchases.
 - **Report on profitability** by machine, job or customer for any period.
 - **Look up** jobs, machines, customers and staff (read-only) so invoices and cash records show real names.
@@ -41,11 +42,11 @@ These are your side-menu groups in the web console. The exact menus depend on yo
 |---|---|---|
 | Overview | Accountability | The accountability dashboard |
 | Field work | Fuel, Expenses, Cash, Customer hours | Your own fuel events, expenses and cash collections, the same screens a supervisor uses |
-| Operations | Jobs, Customers, Staff | Looking up jobs, customers (balances, statements) and staff (read-only) |
-| Fleet | Machines | Looking up machines (read-only) |
+| Operations | Jobs, Customers, Staff, Site check-ins | Looking up jobs, customers (balances, statements), staff and site check-ins (read-only) |
+| Fleet | Machines, Idle machines | Looking up machines and machines without work (read-only) |
 | Customer hours | Hours purchases, Balances, Hours ledger, Work allocations, and the other hours pages (read) | Linking payments to purchases and activating hours on credit |
 | Engine hours | Non-revenue hours, Daily machine sheet | Revenue checks: reading each machine's day and explaining non-revenue time |
-| Finance | Hire finance, Cash custody, Expenses & fuel, Deposit accounts, Revenue differences, Profitability | Your main daily work |
+| Finance | Hire finance, Cash custody, Expenses & fuel, Deposit accounts, Revenue differences, Unbilled work, Profitability | Your main daily work |
 | Risk & review | Investigations | Reading investigation cases (read-only) |
 | Administration | Subscription, Notifications, My access | Your company's Asseta subscription, your inbox, your sign-in settings |
 
@@ -357,7 +358,7 @@ You cannot verify a payment you recorded yourself, including one recorded with a
 
 ### 22. Accountability dashboard
 
-**Overview → Accountability** shows the cash tiles that matter to finance: **Cash per custodian**, **Cash awaiting acknowledgement or confirmation** (including **Remittances overdue today**), **Payments awaiting confirmation**, **Open discrepancies**, **Outstanding approvals** and, when revenue checks are on, **Revenue differences**. Click a line to open the matching list. See the [Tenant Owner manual, Task 14](01-tenant-owner.md#14-accountability-dashboard).
+**Overview → Accountability** shows the cash tiles that matter to finance: **Cash per custodian**, **Cash awaiting acknowledgement or confirmation** (including **Remittances overdue today**), **Payments awaiting confirmation**, **Open discrepancies**, **Outstanding approvals**, when revenue checks are on, **Revenue differences** and, when your company sets them, **Unbilled work** and **Idle machines**. Click a line to open the matching list. See the [Tenant Owner manual, Task 14](01-tenant-owner.md#14-accountability-dashboard).
 
 ### 23. Deposit accounts
 
@@ -387,6 +388,20 @@ A revenue difference is a difference to explain, not an accusation. You cannot d
 ### 25. Customer hours used over days
 
 If your company takes prepaid hours every day, hours used by running jobs show as **In use by running jobs** on the purchase and in **Balances**, and the ledger shows **Used that day (provisional)** entries until the job is completed. A **low-balance warning** ("Hours running low") tells you when a customer should be offered a top-up. Each customer's **Hours statement** (**Operations → Customers** → the customer → **Hours statement**) can be downloaded with **Download PDF** and sent to the customer. See the [Manager manual, Task 25](02-manager-dispatcher.md#25-prepaid-hours-used-over-days).
+
+### 26. Unbilled work
+
+**Finance → Unbilled work** ("Completed, billing-ready jobs not yet on an issued invoice after the company's set days") appears when your company sets **Completed work not invoiced after** in its **Oversight** policy. Oldest first, each row shows the **Job**, **Customer**, **Machine**, **Site**, **Supervisor**, **Completed**, **Days not invoiced**, **Billable h**, **Worth** and **Invoice**. Filter by **Customer**, **Machine** or **Site**.
+
+1. On a row without an invoice, click **Create invoice**. The new-invoice dialog opens with the customer and the job filled in.
+2. Create the draft. *What you'll see:* "Draft invoice created." and the draft opens.
+3. Check it and **issue** it as in [Task 1](#1-create-and-issue-a-hire-invoice).
+
+A job already on a draft shows **Open draft invoice** ("Not issued yet"). It stays on the list until that invoice is issued. A job that is not billing-ready (blocking exceptions) is not listed; see [Billing-ready jobs](#billing-ready-jobs).
+
+Once per job you receive the notification "Work not yet invoiced: job J-…" ("… was completed N days ago and is ready to bill …, but it is not on an issued invoice yet."). It opens the job. The same jobs show on the **Unbilled work** tile of the Accountability dashboard. See also the [Tenant Owner manual, Task 31](01-tenant-owner.md#31-unbilled-work).
+
+**Fleet → Idle machines** and **Operations → Site check-ins** are read-only for you; see the [Tenant Owner manual, Tasks 32 and 33](01-tenant-owner.md#32-idle-machines).
 
 ---
 
@@ -426,7 +441,7 @@ If your company takes prepaid hours every day, hours used by running jobs show a
 - **Resolve variances with a clear explanation**, and keep at least two people with the write-off permission.
 - **Keep the deposit account list current.** Add a new account before supervisors need it, and deactivate closed ones.
 - **Check every remittance against the statement**: account, reference and slip photo, then the amount received.
-- **Issue invoices promptly.** Uninvoiced work shows as a revenue difference until the money is attributed.
+- **Issue invoices promptly.** Uninvoiced work shows as a revenue difference until the money is attributed, and on **Unbilled work** after your company's days.
 
 ## Troubleshooting and FAQ
 

@@ -47,6 +47,7 @@ Everything any other role can do, plus the tasks reserved for owners by default:
 - **Watch engines and fuel**: one investigation per machine and day when an engine runs without work, and fuel compared with engine hours ([Task 27](#27-engine-running-without-work-and-fuel-against-engine-hours)).
 - **Make sure money reaches the company**: the company **deposit accounts**, what a remittance must show, and how long cash may be held ([Task 28](#28-deposits-and-how-long-cash-may-be-held)).
 - **Follow prepaid hours used over days**: daily drawdown, low-balance warnings and the customer **hours statement** ([Task 29](#29-prepaid-hours-used-over-days-and-weeks)).
+- **See who and what needs a look**: the **People scorecard** ([Task 30](#30-people-scorecard)), **Unbilled work** ([Task 31](#31-unbilled-work)), **Idle machines** ([Task 32](#32-idle-machines)) and, if you switch them on, supervisors' **Site check-ins** ([Task 33](#33-site-check-ins)).
 
 By default the owner role holds every permission, so you can also make every decision described in the other chapters (hours discounts, credit, transfers, cancellations, write-offs, retentions, custody adjustments). Your company can give any of these permissions to other roles; the person who proposed something can never decide it.
 
@@ -56,17 +57,17 @@ By default the owner role holds every permission, so you can also make every dec
 
 | Group | Menus |
 |---|---|
-| Overview | Dashboard, Fleet map, Accountability |
-| Field work | My jobs, Readings, Fuel, Expenses, Cash, Customer hours |
-| Operations | Jobs, Customers, Staff |
-| Fleet | Machines, Trackers, Sites & geofences, Alerts |
+| Overview | Dashboard, Fleet map, Accountability, People scorecard |
+| Field work | My jobs, Readings, Fuel, Expenses, Cash, Customer hours, Site check-in |
+| Operations | Jobs, Customers, Staff, Site check-ins |
+| Fleet | Machines, Trackers, Sites & geofences, Alerts, Idle machines |
 | Customer hours | Hours purchases, Balances, Hours ledger, Work allocations, Transfers, Cancellations, Customer discounts, Credit arrangements, Walk-in customers, Reason lists |
 | Engine hours | Reconciliation, Hours to explain, Hour explanations, Meter baselines, Reading corrections, Engine-hour reasons, Non-revenue hours, Daily machine sheet |
-| Finance | Hire finance, Cash custody, Expenses & fuel, Approvals, Deposit accounts, Revenue differences, Revenue reasons, Profitability |
+| Finance | Hire finance, Cash custody, Expenses & fuel, Approvals, Deposit accounts, Revenue differences, Revenue reasons, Unbilled work, Profitability |
 | Risk & review | Exceptions, Meter resets, Investigations, Insights, Security events, Sync conflicts |
 | Administration | Policies, Users & roles, Audit log, Subscription, Managed service, Notifications, My access |
 
-When a control is switched off in your policies, its menus are left out. For example, with **Customer hours switched on** set to No, the whole **Customer hours** group and **Field work → Customer hours** disappear. Opening such a page by its address shows "Customer hours is not enabled for your company". **Engine-hour controls switched on** works the same way for the **Engine hours** group. With **Cash custody controls switched on** set to No, **Finance → Cash custody** stays (custodians, custody, floats, remittances and reconciliation), but its Transfers, Overdue remittances, Variances, Retentions, Adjustments and Reason lists tabs disappear. With **Revenue checks switched on** set to No, **Engine hours → Non-revenue hours**, **Engine hours → Daily machine sheet**, **Finance → Revenue differences** and **Finance → Revenue reasons** disappear. Because the first two sit in the **Engine hours** group, they also need **Engine-hour controls switched on**.
+When a control is switched off in your policies, its menus are left out. For example, with **Customer hours switched on** set to No, the whole **Customer hours** group and **Field work → Customer hours** disappear. Opening such a page by its address shows "Customer hours is not enabled for your company". **Engine-hour controls switched on** works the same way for the **Engine hours** group. With **Cash custody controls switched on** set to No, **Finance → Cash custody** stays (custodians, custody, floats, remittances and reconciliation), but its Transfers, Overdue remittances, Variances, Retentions, Adjustments and Reason lists tabs disappear. With **Revenue checks switched on** set to No, **Engine hours → Non-revenue hours**, **Engine hours → Daily machine sheet**, **Finance → Revenue differences** and **Finance → Revenue reasons** disappear. Because the first two sit in the **Engine hours** group, they also need **Engine-hour controls switched on**. The **Oversight** policy works the same way: **Overview → People scorecard** appears only with **People scorecard** switched on, **Finance → Unbilled work** only when **Completed work not invoiced after** is set, **Fleet → Idle machines** only when **Machine idle after** is set, and **Operations → Site check-ins** and **Field work → Site check-in** only with **Supervisors check in at the site** switched on.
 
 The top bar has:
 
@@ -85,7 +86,7 @@ The top bar has:
 | **Fleet** | Map or list of machines with live/last-known status; a machine's **Daily machine sheet** |
 | **Jobs** | Jobs and their hours, charges, readings, work log, expenses, fuel and customer acknowledgement; **New job**; approve or decline jobs waiting for approval |
 | **Alerts** | Tracking alerts to acknowledge or resolve |
-| **More** | Approvals (expenses, meter resets, jobs, cash handovers, exceptions, the accountability requests, revenue differences and non-revenue hours), **Accountability**, Meter exceptions, Field spend, Cash with supervisors (with **Issue float**), **Customer hours**, Investigations, Notifications, Settings, Company |
+| **More** | Approvals (expenses, meter resets, jobs, cash handovers, exceptions, the accountability requests, revenue differences and non-revenue hours), **Accountability** (with **Unbilled work** and **Idle machines**), Meter exceptions, Field spend, Cash with supervisors (with **Issue float**), **Customer hours**, **People scorecard**, Investigations, Notifications, Settings, Company |
 
 ---
 
@@ -236,6 +237,14 @@ The most important settings:
 | | **Days a custodian may hold unremitted cash** | Empty = no limit. Cash covered by an approved retention does not count. Can be set per site or per staff member |
 | Oversight | **Hidden dashboard tiles** | Ticked tiles are hidden from the accountability dashboard |
 | | **Refused-attempts window** | How many days of refused attempts the dashboard counts |
+| | **People scorecard** | Shows **Overview → People scorecard** and the Owner app's **People scorecard** ([Task 30](#30-people-scorecard)). Off by default |
+| | **Cash difference counted as just under the case threshold from** | The share (%) of the cash case threshold from which a difference counts as just under it (90 % by default). Empty = not counted |
+| | **Repeated items that open a case**, **Repeated items window**, **Kinds of item counted for repeats** | This many items of one kind for one person within the window raise "Repeated items to look at for one person" for review. Empty = off. The window is 30 days by default |
+| | **Completed work not invoiced after** | Days after which a completed, billing-ready job not on an issued invoice is listed and notified ([Task 31](#31-unbilled-work)). Empty = off |
+| | **Machine idle after** | Days without a job or engine hours after which an active machine is listed ([Task 32](#32-idle-machines)). Empty = off |
+| | **Supervisors check in at the site** | GPS check-ins by supervisors running a job, at the times below ([Task 33](#33-site-check-ins)). Off by default; needs at least one time |
+| | **Check-in times**, **Check-in window (before or after)** | Your local times of day (24 h; add as many as you need), and how many minutes before or after each time a check-in counts (60 by default) |
+| | **Check-in distance from the site** | Check-ins farther than this from the site centre are marked. Empty = the distance is only shown |
 | Revenue checks | **Revenue checks switched on** | The master switch. Off: no daily machine sheet, no revenue differences, and movement inside a job counts as customer work (the usual behaviour) |
 | | **Work-log types that are not revenue** | **Movement (mobilization)**, **Standby** and/or **Downtime**: non-billable time of these types inside a job. Standby billing still follows the contract |
 | | **Show that time apart from customer work** | On: that time is its own line on the engine-hour ledger and the daily sheet, and is not billed on invoice jobs |
@@ -425,6 +434,8 @@ To end it, use **Revoke mandate** with a **Reason for revoking**. If there is no
 | **Refused attempts** | For the last few days (your **Refused-attempts window**): **Missing permission** and **Own record (segregation of duties)** |
 | **Outstanding approvals** | **Approval requests**, **Payments to confirm**, **Remittances to confirm**, **Cash retentions**, **Custody adjustments**, **Write-offs** |
 | **Revenue differences** | "Engine hours not matched by money, to explain" (or "Oldest open N days"): **To explain**, **Explanations awaiting decision**, the amounts per currency, and how many were **Explained** and **Confirmed** in the last days. Shown only when revenue checks are on |
+| **Unbilled work** | Completed jobs not yet invoiced ("Oldest N days", or "Completed jobs not invoiced after N days"): **Jobs**, their worth per currency and the oldest jobs (job, customer, machine, worth and days), each opening the job. The tile title opens [Unbilled work](#31-unbilled-work). Shown only when **Completed work not invoiced after** is set |
+| **Idle machines** | Machines without work ("Longest idle N days", or "No job or engine hours for N days"): **Idle**, **With a planned job** and the longest-idle machines, each opening the machine. The tile title opens [Idle machines](#32-idle-machines). Shown only when **Machine idle after** is set |
 
 You can hide tiles you do not use with the **Oversight** policy (**Hidden dashboard tiles**). The page then says "Hidden by your organisation's oversight policy: …". When customer hours are switched off, their tiles are not shown at all. The same summary is in the Owner app under **More → Accountability**.
 
@@ -640,6 +651,103 @@ Customers who buy hours in advance often use them over days or weeks. Three sett
 - **Warn the office when hours left fall to** and **Also send the customer an SMS (uses SMS credits)**: a low-balance warning so you can offer a top-up before the work stops.
 - The customer **Hours statement** (customer page, **Hours statement** tab) with **Download PDF**, to share with the customer.
 
+### 30. People scorecard
+
+**Overview → People scorecard** ("Per person, the items to look at on the machines and cash they were responsible for (default: the last 30 days)") shows, for each person, how many things on their machines and in their cash may need a look. It appears when **People scorecard** is switched on in the **Oversight** policy. By default the owner and manager roles can read it.
+
+The scorecard counts items and links to each record. **A count is not a verdict.** A person with many machines or much cash naturally has more items; open the person and read the records before drawing any conclusion.
+
+**Whose items are whose.** A person's machines are the machines they were assigned to (in any role, on the machine's **Staff assignments** tab) or whose job they supervised, **at the time of the item**. An item on a machine counts for everyone responsible for that machine at that moment. Cash items count for the custodian who held the cash. Refused attempts count for the person whose login made them.
+
+**Read the list.**
+
+1. Choose the period with **From** and **To** (empty = the last 30 days; at most 93 days). Narrow it with **Person** or **Site**, or search by name.
+2. People with the most items come first. Active staff with nothing to look at are dimmed; inactive people appear only when they have items in the period.
+3. Click a person to open their scorecard.
+
+| Column | What it counts in the period |
+|---|---|
+| **Person** | The name, employee code and staff kind ("inactive" when the person left) |
+| **Machines** | Machines the person was responsible for |
+| **Daily reports missing / late** | Days a working machine had no daily report and nobody explained it / days the reading came after the cut-off |
+| **Unexplained engine h** | Engine hours on their machines not yet explained, and how many items |
+| **Alerts** | Tracking alerts on their machines, how many are still open, and the average hours to acknowledge them |
+| **Cash held now** | Cash the person holds and has not remitted, per currency, with the age of the oldest amount |
+| **Cash held too long** | Overdue-remittance flags (not remitted by the cut-off, or held longer than allowed) |
+| **Cash differences** | Cash differences the person stays accountable for, with the totals per currency and how many were **just under the case threshold** |
+| **Revenue differences** | Revenue differences on their machines not cleared, with the totals |
+| **Refused attempts** | Actions the person's login tried without the permission, or on their own request |
+| **Check-ins missed** | Site check-ins missed, with how many were made (— when check-ins were not required) |
+| **Repeats raised** | Times Asseta raised "Repeated items to look at for one person" |
+| **Items to look at** | The total |
+
+**Just under the case threshold.** A cash difference is counted here when it is at least the percentage you set (**Cash difference counted as just under the case threshold from**, 90 % unless you change it) of the **Open a case for differences above** amount in the Cash custody policy, without going above it. Several of these for one person are worth a look, because they stay below the amount that opens an investigation.
+
+**One person's scorecard.** The page shows the person's name, staff kind and period, with **Open staff record**. You can change **From**, **To** and choose one **Item** (or **All items**).
+
+- **Figures for the period**: **Machines responsible for**, **Daily reports missing**, **Daily reports late**, **Unexplained engine hours**, **Tracking alerts** (open and acknowledged), **Hours to acknowledge (average / longest)**, **Cash held now**, **Cash held too long (flags)**, **Cash differences**, **Just under the case threshold**, **Revenue differences**, **Refused attempts**, **Site check-ins missed / made** ("Not required in the period" when check-ins were off), **Repeats raised for review** and **Items to look at**.
+- One section per item (**Missing daily reports**, **Late daily reports**, **Unexplained engine hours**, **Tracking alerts**, **Cash held too long**, **Cash differences**, **Revenue differences**, **Refused attempts**, **Missed site check-ins**, **Repeated items raised for review**), each listing its records: **When**, **Day**, **Machine**, **Job**, **Amount / hours**, **Status** (with **Just under the case threshold** where it applies) and **Record**.
+- The **Record** link opens the record itself: **Open exceptions**, **Open engine-hour ledger**, **Open alerts**, **Open the flag**, **Open difference**, **Open security events**, **Check-ins that day** or **Open investigation**. Links to a control your company has switched off are not shown.
+
+With nothing to look at, the page says "No records to look at in this period."
+
+**Repeated items.** If you set **Repeated items that open a case** in the Oversight policy, Asseta watches for one person having that many items of one kind within the **Repeated items window** (30 days unless you change it). Only the kinds ticked in **Kinds of item counted for repeats** count (cash differences, revenue differences and missing daily reports unless you change it). When it happens, Asseta raises the signal "Repeated items to look at for one person", listing the records, and it joins an investigation in **Risk & review → Investigations** with the person as an involved party. It is raised at most once per person and kind in each window. Like every signal, it asks someone to look; the outcome is decided by people after review.
+
+### 31. Unbilled work
+
+**Finance → Unbilled work** ("Completed, billing-ready jobs not yet on an issued invoice after the company's set days") lists finished work that has not turned into an invoice. It appears when **Completed work not invoiced after** is set in the Oversight policy. By default the owner, manager and accountant roles can read it.
+
+A job is listed when it is **completed**, billed by invoice (not prepaid hours), **billing-ready** (no blocking exceptions, as for invoicing), not on an issued invoice, and was completed at least your set number of days ago. Oldest first.
+
+| Column | What it shows |
+|---|---|
+| **Job**, **Customer**, **Machine** | Each opens its page |
+| **Site**, **Supervisor** | Where and under whom the work was done |
+| **Completed** | When the job was completed |
+| **Days not invoiced** | Days since completion |
+| **Billable h**, **Worth** | The billable hours and the job's total |
+| **Invoice** | **Open draft invoice** ("Not issued yet") when a draft already holds the job, otherwise **Create invoice** |
+
+Filter by **Customer**, **Machine** or **Site**, or search by job number or customer. Click a row to open the job.
+
+**Create invoice.** With the invoice permission, click **Create invoice** on a row. The usual new-invoice dialog opens with the customer and that job filled in. After you create it, "Draft invoice created." and the draft opens; issue it as usual (see the [Accountant manual](04-accountant.md#1-create-and-issue-a-hire-invoice)). A job on a draft invoice stays on this list until the invoice is **issued**.
+
+**Notification.** Once per job, the people who make invoices (the invoice permission) receive "Work not yet invoiced: job J-…": "Job J-… for <customer> was completed N days ago and is ready to bill …, but it is not on an issued invoice yet." It opens the job, on the web and in the Owner app.
+
+### 32. Idle machines
+
+**Fleet → Idle machines** ("Active machines with no running job and no engine hours for the company's set days") appears when **Machine idle after** is set in the Oversight policy. By default the owner, manager and accountant roles can read it.
+
+A machine is idle when it is active, has no job in progress, and its latest sign of work (the last completed job, the last meter increase or the last tracker engine-on) is at least your set number of days ago. Longest idle first.
+
+| Column | What it shows |
+|---|---|
+| **Machine** | Opens the machine |
+| **Idle days**, **Idle since** | How long and since when |
+| **Last job**, **Completed** | The last job and when it was completed |
+| **Last engine activity** | The last meter increase or tracker engine-on |
+| **Planned job** | An approved job that has not started yet |
+
+Filter by **Category** or search by asset code or name. Click a row to open the machine. An idle machine is a question about the business (can it be hired, moved or sold?), not about any person. A machine whose engine runs without a job is not idle; that is covered by [Task 27](#27-engine-running-without-work-and-fuel-against-engine-hours).
+
+### 33. Site check-ins
+
+Site check-ins are **optional and off by default**. Only your company can switch them on (**Supervisors check in at the site** in the Oversight policy). They are the only person-location record Asseta keeps on purpose, and each supervisor sees their own check-ins.
+
+**How it works.**
+
+1. You set the **Check-in times** (your company's local times of day, as many as you need), the **Check-in window (before or after)** (60 minutes unless you change it) and, optionally, the **Check-in distance from the site**.
+2. At each time, every supervisor **running a job** owes a check-in. They check in from the **Supervisor app** (it works offline and is sent later) or from the web (**Field work → Site check-in**). See the [Supervisor manual](03-supervisor.md#a15-site-check-in).
+3. A check-in inside the window counts as **Made**. When the window ends without one, the check-in is **Missed**, and it shows on the [People scorecard](#30-people-scorecard).
+
+**What is recorded.** The time on the phone, the GPS position and its accuracy when there is a fix (a check-in without a fix is still recorded, without coordinates; none are ever substituted), the person, who recorded it, and where it came from (**Web** or **Supervisor app**). The site and job are taken from the job the person is running. With a position, Asseta works out the **distance from the site** centre. If you set a distance, check-ins farther away are marked **Farther than set**; otherwise the distance is only shown.
+
+**See everyone's check-ins.** **Operations → Site check-ins** ("GPS check-ins supervisors made at their sites at the company's set times") lists them newest first, for the owner, manager and accountant roles by default. Columns: **When**, **Person**, **Site**, **Job**, **GPS**, **Distance**, **Distance check** (**Within the distance**, **Farther than set**, **Distance only** or **No distance**) and **From**. Filter by **From** and **To**, **Person** or **Site**. Check-ins farther than set are dimmed so you can find them.
+
+Click one to open it: **Person**, **Recorded by**, **Site**, **Job**, **GPS**, **Coordinates**, **Accuracy**, **Distance from the site** and **Recorded from**, a **Location** map, the history (**Checked in**, **Received by the server**) and **Open the job**. Check-ins are never edited or deleted.
+
+A missed check-in or one far from the site is a prompt to ask, not a conclusion: the supervisor may have had no signal, been between sites or been at the yard.
+
 ---
 
 ## The Asseta Owner app
@@ -802,9 +910,14 @@ To decide non-revenue hours, tap the row. The decision screen shows the **Machin
   - **Issue float**: opens **Issue a cash float**. Enter the **Amount** (in the card's currency) and a **Note (optional)**, then tap **Issue**. *What you'll see:* "Float issued." The supervisor's cash goes up.
 - **Customer hours** (when your company sells prepaid hours): "Prepaid hours with hours left or in use by running jobs. Selling and moving hours is done in the field app or on the web." Each row shows "<purchase> · <customer>", the machine, "<hours> h left" and, while jobs are running, "<hours> h in use by running jobs". Tap one to open the **Hours purchase** (read-only): **Customer**, **Machine**, **Status**, **Bought**, **Activated**, **Used**, **In use by running jobs**, **Moved to other machines**, **Expired**, **Left** and **Awaiting activation**, with a **Machines** card when hours were moved. "Hours in use by running jobs are drawn day by day and become final when the job is completed."
 - **Hours statement**: tap **Hours statement** on a purchase to see that customer's statement. Choose **This month**, **Last month**, **Last 3 months** or **This year**. The **Totals** card shows the **Opening balance**, **Bought**, **Activated**, **Used**, **Of which in use by running jobs**, **Moved in**, **Moved out**, **Expired**, **Cancelled**, **Closing balance** and **Awaiting activation (now)**. **Hours used** lists each day and job, marked **Drawn day by day** or **Final**, and "Job still running". Tap **Open PDF** to open the statement in your phone's PDF viewer and share it with the customer (needs a connection).
-- **Investigations**: cases and their signals and outcomes. Decisions are recorded in the web console. The new signals read "Engine running without work during the day" and "Fuel above the norm for the engine hours".
-- **Accountability**: the accountability summary, with the same tiles as [Task 14](#14-accountability-dashboard): **Outstanding approvals**, **Cash** (transfers and floats awaiting acknowledgement, remittances awaiting confirmation, partial remittances, cash per custodian), **Payments awaiting confirmation**, **Discrepancies**, **Investigations**, **Refused attempts**, **Customer hours**, **Hours awaiting activation**, **Engine hours**, **Unexplained engine hours** and **Missing daily reports**. The footer shows the policy version and time. If your company sets a remittance cut-off, the Cash tile shows **Remittances overdue today** with "Cut-off <hour>:00". Tap it to open **Overdue remittances**, where each row reads "Still held after the <hour>:00 cut-off on <day>." Each row also shows its reason: **Not remitted by the daily cut-off** or **Held longer than allowed**. An overdue remittance held too long shows **Held since** and **Allowed** instead of the cut-off, with "Held since <date>, longer than the allowed <days>." When revenue checks are on, the summary also has a **Revenue differences** tile: **To explain**, **Awaiting a decision**, **Amount**, **Oldest open**, **Explained**, **Confirmed** and **Cleared** for the last days, and the machines concerned. Tap it to open Approvals.
-- **Notifications**: your inbox, with **Unread only** and **Mark all read**. Tapping a notification, or its push message, opens the exact record: the decision screen of a discount, credit arrangement, hours transfer, cancellation, baseline, correction, classification, write-off, retention or custody adjustment; a **Cash transfer** or **Cash float** record; the cash handover; an **Overdue remittance**; a **Revenue difference** or the **Non-revenue hours** decision; or the **Hours purchase** for "Hours running low", expiring or expired hours. Notifications about missing daily reports or unexplained hours open the machine.
+- **Investigations**: cases and their signals and outcomes. Decisions are recorded in the web console. The new signals read "Engine running without work during the day", "Fuel above the norm for the engine hours" and "Repeated items to look at for one person".
+- **People scorecard** (when switched on and your role may read it; after **Customer hours**): choose **Last 7 days**, **Last 30 days** (the default), **This month** or **Last month**. People with the most items come first. Each row shows the name, "N items to look at" (or "Nothing to look at", and **Inactive** for people who left) and up to three of the figures, for example "2 missing reports · 3.5 h unexplained · 2 cash differences". "Counts of items to look at for each person, most first. A count is not a verdict: open the person to see each record." Tap a person (read-only) to see:
+  - **Figures**: **Period**, **Machines responsible for**, **Daily reports missing**, **Daily reports late**, **Unexplained engine hours**, **Alerts** ("N · N open"), **Time to acknowledge** ("average … h · longest … h"), **Cash held too long**, **Cash differences**, **Near the case threshold**, **Revenue differences**, **Refused attempts**, **Site check-ins** ("N made · N missed") and **Repeated patterns**.
+  - **Cash held now** (when any), with "since <date> (<days>)".
+  - **Records**, newest first, for example **Daily report missing**, **Cash difference** or **Missed site check-in** ("Scheduled 14:00"). Tapping a record opens its screen in the app (meter exception, alert, overdue remittance, write-off decision, revenue difference, investigation or machine) when there is one and your role may open it.
+- **Unbilled work** and **Idle machines** (read-only): open from their tiles on **Accountability**. Unbilled work shows "<job> · <customer>", the machine and site, "Completed <date> · <days> unbilled", **On a draft invoice** where it applies, and the worth: "Completed jobs not on an issued invoice yet. Invoices are made on the web." Tap a job to open it. Idle machines shows each machine with "Idle since <date> (<days>)", "Last job <job> completed <date>" and "Planned job <job>"; tap one to open the machine.
+- **Accountability**: the accountability summary, with the same tiles as [Task 14](#14-accountability-dashboard): **Outstanding approvals**, **Cash** (transfers and floats awaiting acknowledgement, remittances awaiting confirmation, partial remittances, cash per custodian), **Payments awaiting confirmation**, **Discrepancies**, **Investigations**, **Refused attempts**, **Customer hours**, **Hours awaiting activation**, **Engine hours**, **Unexplained engine hours** and **Missing daily reports**. The footer shows the policy version and time. If your company sets a remittance cut-off, the Cash tile shows **Remittances overdue today** with "Cut-off <hour>:00". Tap it to open **Overdue remittances**, where each row reads "Still held after the <hour>:00 cut-off on <day>." Each row also shows its reason: **Not remitted by the daily cut-off** or **Held longer than allowed**. An overdue remittance held too long shows **Held since** and **Allowed** instead of the cut-off, with "Held since <date>, longer than the allowed <days>." When revenue checks are on, the summary also has a **Revenue differences** tile: **To explain**, **Awaiting a decision**, **Amount**, **Oldest open**, **Explained**, **Confirmed** and **Cleared** for the last days, and the machines concerned. Tap it to open Approvals. When set, the **Unbilled work** tile shows **Jobs**, **Value** and **Oldest** ("Completed jobs not on an issued invoice after <days>."), and the **Idle machines** tile shows **Machines** and **Longest idle** ("Machines with no running job and no engine hours for <days>."). Tap either to open its list (when your role may read it).
+- **Notifications**: your inbox, with **Unread only** and **Mark all read**. Tapping a notification, or its push message, opens the exact record: the decision screen of a discount, credit arrangement, hours transfer, cancellation, baseline, correction, classification, write-off, retention or custody adjustment; a **Cash transfer** or **Cash float** record; the cash handover; an **Overdue remittance**; a **Revenue difference** or the **Non-revenue hours** decision; or the **Hours purchase** for "Hours running low", expiring or expired hours. Notifications about missing daily reports or unexplained hours open the machine. "Work not yet invoiced" opens the job.
 
 ### Settings
 
@@ -842,11 +955,13 @@ While you are looking at saved data, **all decisions are disabled**. Approvals, 
 | Revenue difference | To explain → Explanation awaiting decision → Explained (or back to To explain); Confirmed (money to recover); Cleared (money arrived) |
 | Non-revenue time | Counts as revenue (not explained) → Explanation awaiting decision → Approved as non-revenue / Rejected (counts as revenue) |
 | Overdue remittance (reason) | Not remitted by the cut-off; Held longer than allowed |
+| Site check-in (each set time) | Upcoming → Due now → Made / Missed |
+| Site check-in (distance) | Within the distance; Farther than set; Distance only; No distance |
 | Customer hours, cash | See the [Manager](02-manager-dispatcher.md#statuses-and-what-they-mean) and [Accountant](04-accountant.md#statuses-and-what-they-mean) manuals |
 
 ## Switching on the controls
 
-Every accountability control is a company policy. A control that is off keeps the usual behaviour, and its menus and buttons stay hidden. Asseta starts you with safe defaults: customer hours are available, while daily reports, required baselines, float acknowledgement, full remittance, the remittance cut-off, revenue checks, the engine and fuel checks, remittance requirements, the holding allowance, daily drawdown and low-balance warnings are **off** until you switch them on. Switch on only what your business needs, one step at a time.
+Every accountability control is a company policy. A control that is off keeps the usual behaviour, and its menus and buttons stay hidden. Asseta starts you with safe defaults: customer hours are available, while daily reports, required baselines, float acknowledgement, full remittance, the remittance cut-off, revenue checks, the engine and fuel checks, remittance requirements, the holding allowance, daily drawdown, low-balance warnings, the people scorecard, repeated items, unbilled work, idle machines and site check-ins are **off** until you switch them on. Switch on only what your business needs, one step at a time.
 
 Approvals go to **whoever holds the permission**, not to a fixed role. Before switching a control on, make sure **at least two people** hold its approval permission, so nobody is left deciding their own request.
 
@@ -861,8 +976,9 @@ Approvals go to **whoever holds the permission**, not to a fixed role. Before sw
 9. **Risk signals** policy: set **Engine running without work (one case per machine and day)**, the **Fuel against engine hours: check period** and the **Fuel norm per engine hour**, first for the company and then per machine category (scope **Machine category override**) and per machine where needed ([Task 27](#27-engine-running-without-work-and-fuel-against-engine-hours)).
 10. **Deposits**: add every company account in **Finance → Deposit accounts**, then in the **Cash custody** policy choose **Require the company account the money was paid into**, **Require a transaction reference for bank / mobile-money remittances**, **Require a photo of the deposit slip or payment confirmation** and **Days a custodian may hold unremitted cash**, with site or staff member overrides for remote sites ([Task 28](#28-deposits-and-how-long-cash-may-be-held)).
 11. **Prepaid hours over days**: in the **Customer hours** policy choose **Take prepaid hours from the balance**, **Warn the office when hours left fall to** and, if customers should be told, **Also send the customer an SMS (uses SMS credits)** (check your SMS wallet). Make sure customers' contact phone numbers are filled in.
-12. **Tell your people**, and ask supervisors to **sync their phones** so the apps pick up the new rules.
-13. **Watch the Accountability dashboard** daily for the first weeks ([Task 14](#14-accountability-dashboard)), and the **Daily machine sheet** and **Revenue differences** when revenue checks are on.
+12. **Oversight of people and machines** (Oversight policy): switch on **People scorecard** and check **Cash difference counted as just under the case threshold from** ([Task 30](#30-people-scorecard)). If you want repeated items reviewed, set **Repeated items that open a case**, the **Repeated items window** and the **Kinds of item counted for repeats**. Set **Completed work not invoiced after** ([Task 31](#31-unbilled-work)) and **Machine idle after** ([Task 32](#32-idle-machines)). Only if you want site check-ins: tell your supervisors first, then switch on **Supervisors check in at the site** with the **Check-in times**, the **Check-in window (before or after)** and, if you like, the **Check-in distance from the site** ([Task 33](#33-site-check-ins)). Check-ins need each supervisor's login linked to their staff record.
+13. **Tell your people**, and ask supervisors to **sync their phones** so the apps pick up the new rules.
+14. **Watch the Accountability dashboard** daily for the first weeks ([Task 14](#14-accountability-dashboard)), the **Daily machine sheet** and **Revenue differences** when revenue checks are on, and the **People scorecard** once a week.
 
 You can switch any control off again later with a new policy version. Records made while it was on are kept.
 
@@ -881,6 +997,9 @@ You can switch any control off again later with a new policy version. Records ma
 - **Look at the daily machine sheet every morning** when revenue checks are on. A flag on yesterday's line is easiest to explain today.
 - **Decide non-revenue hours promptly.** Until approved, movement time counts as revenue and can open a revenue difference.
 - **Set fuel norms per machine category**, not one figure for every machine.
+- **Read the scorecard as a list of questions.** Open the person and the records before talking to them; a high count often just means many machines or much cash.
+- **Clear unbilled work weekly.** Every job on the list is money the customer has not been asked for yet.
+- **Tell supervisors before switching site check-ins on**, and why. They see every check-in they make.
 - **Check remittances against the statement.** Compare the account, reference and slip photo with your bank or mobile-money statement before confirming.
 
 ## Troubleshooting and FAQ
@@ -932,6 +1051,15 @@ Add your reasons in **Finance → Revenue reasons** ([Task 26](#26-revenue-reaso
 
 **A movement entry still counts as revenue.**
 It has not been approved yet. Explain it ([Task 24](#24-non-revenue-hours)) and have someone else approve it.
+
+**The People scorecard, Unbilled work, Idle machines or Site check-ins menus are missing.**
+The matching setting in the **Oversight** policy is off or empty, or your role lacks the permission ([Switching on the controls](#switching-on-the-controls), step 12).
+
+**A person's scorecard shows items on a machine they never drove.**
+Items count for everyone responsible for the machine at that time: its assigned staff and the supervisor of its job. Open the record to see the machine and job.
+
+**The Oversight policy will not save with site check-ins switched on.**
+Check-ins need at least one time. Add at least one **Check-in time** before switching on **Supervisors check in at the site**.
 
 **I can't make changes in the Owner app.**
 The app shows why:

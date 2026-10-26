@@ -39,6 +39,8 @@ You may collect cash from customers, or receive cash from a colleague, even with
 
 Ask for a receipt or check with your supervisor that every amount was recorded. A difference between what was declared and what was counted is reviewed by the office; it is a check, not an accusation.
 
+If your company uses the **people scorecard**, the office may see, per person, items to look at on the machines and cash they were responsible for, such as a missing daily report or a cash difference. It is a list of questions to check, not a verdict.
+
 ## Where you work
 
 | Place | What you'll see |

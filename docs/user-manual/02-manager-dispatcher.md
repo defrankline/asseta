@@ -28,6 +28,7 @@ You work mainly in the **web console** at <https://asseta.co.tz>.
 - **Oversight**: the **Accountability** dashboard, **Security events** (refused attempts) and **Sync conflicts** (field records the server could not apply).
 - **Revenue checks** (if your company switches them on): read the **Daily machine sheet**, explain and approve **non-revenue hours**, explain and decide **revenue differences** (never your own explanation), and keep the **revenue reasons**.
 - **Prepaid hours used over days**: follow hours **in use by running jobs**, **low-balance warnings** and the customer **hours statement**.
+- **People and machines** (if your company switches them on): the **People scorecard**, **Unbilled work**, **Idle machines** and supervisors' **Site check-ins**.
 - **Read-only**: Policies and the Audit log.
 
 What the Manager role does **not** include, by default:
@@ -42,17 +43,17 @@ The **Tenant Owner** handles these. Your company may customise roles.
 
 | Menu group | Menus |
 |---|---|
-| Overview | Dashboard, Fleet map, Accountability |
+| Overview | Dashboard, Fleet map, Accountability, People scorecard |
 | Field work | My jobs, Cash, Customer hours |
-| Operations | Jobs, Customers, Staff |
-| Fleet | Machines, Trackers, Sites & geofences, Alerts |
+| Operations | Jobs, Customers, Staff, Site check-ins |
+| Fleet | Machines, Trackers, Sites & geofences, Alerts, Idle machines |
 | Customer hours | Hours purchases, Balances, Hours ledger, Work allocations, Transfers, Cancellations, Customer discounts, Credit arrangements, Walk-in customers, Reason lists |
 | Engine hours | Non-revenue hours, Daily machine sheet |
 | Risk & review | Investigations, Insights, Security events, Sync conflicts |
-| Finance | Approvals, Revenue differences, Revenue reasons |
+| Finance | Approvals, Revenue differences, Revenue reasons, Unbilled work |
 | Administration | Policies (read-only), Audit log, Notifications, My access |
 
-The **Customer hours** menus appear only when your company has switched customer hours on in its policies. The **Engine hours** menus and **Revenue differences** / **Revenue reasons** appear only when your company has switched revenue checks on (the Engine hours menus also need engine-hour controls). The decisions you see depend on the permissions your role holds; the role setup above is an example your company can change.
+The **Customer hours** menus appear only when your company has switched customer hours on in its policies. The **Engine hours** menus and **Revenue differences** / **Revenue reasons** appear only when your company has switched revenue checks on (the Engine hours menus also need engine-hour controls). **People scorecard**, **Site check-ins**, **Idle machines** and **Unbilled work** appear only when your company switches them on in its **Oversight** policy. The decisions you see depend on the permissions your role holds; the role setup above is an example your company can change.
 
 The **Asseta Owner** phone app can also be used by managers whose company gives them access. It covers the fleet map, jobs (including **New job** and approving or declining jobs), alerts and approvals on the go; see the [Tenant Owner manual](01-tenant-owner.md#the-asseta-owner-app). The buttons shown there depend on your role's permissions.
 
@@ -498,6 +499,17 @@ If your company has switched on revenue checks, your role can by default do all 
 
 Movement inside a job counts as revenue until one person explains it and **another** approves it. You can never decide your own explanation: "You explained this, so someone else must decide it."
 
+### 27. People scorecard, unbilled work, idle machines and site check-ins
+
+If your company switches them on in its **Oversight** policy, your role can read these by default. The details are in the Tenant Owner manual:
+
+- **Overview → People scorecard**: per person, for a period, the items to look at on the machines and cash they were responsible for, each linked to its record ([Task 30](01-tenant-owner.md#30-people-scorecard)). It is a prompt to look, not a verdict: open the person and the records before drawing conclusions.
+- **Finance → Unbilled work**: completed, billing-ready jobs not yet on an issued invoice after your company's days ([Task 31](01-tenant-owner.md#31-unbilled-work)). Invoices are made by finance.
+- **Fleet → Idle machines**: active machines with no running job and no engine hours for your company's days, with any planned job ([Task 32](01-tenant-owner.md#32-idle-machines)). Use it to plan hires and moves.
+- **Operations → Site check-ins**: supervisors' GPS check-ins at their sites, with the distance from the site ([Task 33](01-tenant-owner.md#33-site-check-ins)). Missed check-ins also show on the scorecard.
+
+The **Unbilled work** and **Idle machines** tiles are also on the **Accountability** dashboard.
+
 ---
 
 ## Statuses and what they mean
@@ -518,6 +530,7 @@ Movement inside a job counts as revenue until one person explains it and **anoth
 | Non-revenue time | Counts as revenue (not explained) → Explanation awaiting decision → Approved as non-revenue / Rejected (counts as revenue) |
 | Hours transfer, cancellation | Awaiting decision → Approved / Rejected; Withdrawn |
 | Customer discount, credit arrangement | Awaiting decision → Approved / Rejected; Withdrawn; Revoked |
+| Site check-in (each set time) | Upcoming → Due now → Made / Missed |
 
 ## Good practice
 
@@ -531,6 +544,8 @@ Movement inside a job counts as revenue until one person explains it and **anoth
 - **Record sales for the right machine.** Hours belong to the machine named on the purchase; moving them needs a transfer.
 - **Log movement as Mobilization, not Work**, so it can be explained and approved as non-revenue time.
 - **Act on low-balance warnings** the same day: offer the customer a top-up before the work stops.
+- **Look at Idle machines when planning.** An idle machine may be the one to send to the next customer.
+- **Ask before you judge.** A scorecard item or a missed check-in is a question for the person, not an answer.
 
 ## Troubleshooting and FAQ
 
