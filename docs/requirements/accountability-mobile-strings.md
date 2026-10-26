@@ -708,3 +708,209 @@ Owner details: the Handover card shows Method (null method = nothing shown, an o
 Paid into and Reference as read-only lines above "Amount received". A SURPLUS write-off row reads
 `owner.row.surplus` (amount without the minus sign) and its "Difference" field is labelled "Surplus to explain".
 Overdue list rows show the amounts and, beneath, the reason text (`owner.overdue.reasonCutoff` / `reasonHeld`).
+
+## DEC-031 Phase 1 — revenue (R1 non-revenue time, R2 daily machine sheet, R3 revenue differences)
+
+Rules shared by both apps:
+- **Online only.** No sync operations: every read and every action calls the API directly; offline the actions are
+  disabled with the usual offline note (Owner) or `field.nonrev.offline` (Supervisor). Owner reads may be shown from
+  the encrypted snapshot cache like every other Owner screen (stale banner as today).
+- **Gate:** capability code `REVENUE_RECONCILIATION` (platform default **off**) not listed in `/me`
+  `tenants[].disabled_capabilities` (Owner also: `AccountabilitySummaryDto.disabled_capabilities`), **and** the
+  permission. Read = `tenant.revenue.read`; explain = `tenant.revenue.explain` (+ read, for the reason list); decide =
+  `tenant.revenue.decide`. A missing permission hides the entry (an older server never grants these permissions, so
+  nothing changes there). Switched off → every entry point below is hidden; a deep link of a revenue kind opens
+  Approvals (Owner) / the notification (Supervisor).
+- **Segregation:** the explainer (`explained_by` of a difference, `proposed_by` of a non-revenue approval) never
+  decides it: buttons disabled with `*.rev.ownExplanation`; the server's `SEGREGATION_OF_DUTIES` refusal is shown
+  as today.
+- **Notes:** every explanation and decision needs a note of at least 5 characters (server `Note` min 5, max 2000).
+- **Reasons:** `GET /revenue-reasons` (active only, sorted by name) feed a reason picker; empty list →
+  `*.rev.reasonsEmpty` and the send button stays disabled.
+- **Money / hours:** money with the money formatter in the record's currency; hours with the decimal formatter + ` h`;
+  days as the local date (`26 Oct 2026`); periods `{from} – {to}` from `local_from` / `local_to` (one date when equal).
+- **Wording:** neutral. A difference is "to explain", never an accusation.
+
+Status wording (both apps):
+| Wire | Revenue difference (`*.rev.status.*`) | Non-revenue time (`*.nonrev.status.*`) |
+|---|---|---|
+| OPEN / NONE | To explain | Counted as revenue until explained |
+| EXPLANATION_PROPOSED / PROPOSED | Explanation waiting for a decision | Explained · waiting for approval |
+| EXPLAINED / APPROVED | Explained | Approved as non-revenue time |
+| CONFIRMED / REJECTED | Confirmed difference | Not approved · counted as revenue |
+| CLEARED | Cleared (money arrived) | — |
+
+Sheet flags (`*.sheet.flag.*`): MISSING_DAILY_REPORT "Daily report missing", UNEXPLAINED_HOURS "Unexplained hours",
+ENGINE_ON_WITHOUT_JOB "Engine on without a job", FUEL_ABOVE_NORM "Fuel above norm", REVENUE_DIFFERENCE "Revenue
+difference". Unknown flag → humanized wire value.
+
+Screens that change:
+| App | Screen | Change |
+|---|---|---|
+| Owner | Approvals | New sections "Revenue differences" (status OPEN + EXPLANATION_PROPOSED; OPEN rows only for explain or decide holders) and "Non-revenue hours" (PROPOSED), shown only when something waits |
+| Owner | Revenue difference (new, from Approvals / dashboard / notification) | Figures, jobs, explanation, adjustments; Explain form (OPEN, explain holder); Approve / Reject / Confirm (decide holder, not the explainer) |
+| Owner | Non-revenue hours decision (new, generic decision screen) | Machine, job, type, period, hours, reason, note; Approve / Reject with a note |
+| Owner | Accountability dashboard | New tile "Revenue differences" (links to Approvals) |
+| Owner | Machine | New row "Daily machine sheet" (read holder) |
+| Owner | Daily machine sheet (new, list of the last 14 days, newest first) and Machine day (new) | Read-only |
+| Owner | Deep links | kind `REVENUE_DIFFERENCE` / entity `revenue_difference` / `/tenant/revenue-differences/{id}` → Revenue difference; kind `NON_REVENUE_APPROVAL` / entity `non_revenue_approval` / `/tenant/non-revenue-approvals/{id}` → Non-revenue hours decision; `/tenant/revenue-differences`, `/tenant/non-revenue-approvals` → Approvals; `/tenant/engine-hours/daily-sheet` → Fleet |
+| Supervisor | Job → Work log | Under each entry the server lists as non-revenue (`GET /non-revenue-activities?job_id=`, read online when the job opens and on pull to refresh; matched by the server activity id): its status line; "Explain" (explain holder, status NONE or REJECTED, online) |
+| Supervisor | Explain non-revenue time (new form) | Entry summary, reason picker, note, Send |
+
+### Owner
+| Key | English |
+|---|---|
+| owner.rev.sectionDifferences | Revenue differences |
+| owner.rev.sectionNonRevenue | Non-revenue hours |
+| owner.rev.rowDifference | {money} to explain · {machine} |
+| owner.rev.rowNonRevenue | {hours} h {type} · {machine} |
+| owner.rev.titleDifference | Revenue difference |
+| owner.rev.titleNonRevenue | Non-revenue hours |
+| owner.rev.figures | Figures |
+| owner.rev.machine | Machine |
+| owner.rev.period | Period |
+| owner.rev.job | Job |
+| owner.rev.status | Status |
+| owner.rev.expected | Expected revenue |
+| owner.rev.inProgress | Work still in progress |
+| owner.rev.attributed | Money attributed |
+| owner.rev.difference | Difference |
+| owner.rev.adjustedDifference | Difference after adjustments |
+| owner.rev.customerWork | Customer-work hours |
+| owner.rev.nonRevenueHours | Non-revenue hours |
+| owner.rev.unexplainedHours | Unexplained hours |
+| owner.rev.unexplainedExpected | Unexplained hours expected as revenue |
+| owner.rev.case | Investigation |
+| owner.rev.jobs | Jobs |
+| owner.rev.jobLine | Expected {expected} · Attributed {attributed} |
+| owner.rev.jobInProgress | In progress {money} |
+| owner.rev.noJobs | No jobs in this period. |
+| owner.rev.explanation | Explanation |
+| owner.rev.reason | Reason |
+| owner.rev.note | Note |
+| owner.rev.explainedBy | Explained by |
+| owner.rev.explained | Explained |
+| owner.rev.decidedBy | Decided by |
+| owner.rev.decisionNote | Decision note |
+| owner.rev.adjustments | Adjustments |
+| owner.rev.adjustmentLine | {date}: {previous} → {new} |
+| owner.rev.explain | Explain this difference |
+| owner.rev.explainFooter | Someone else decides on your explanation. |
+| owner.rev.chooseReason | Choose a reason |
+| owner.rev.reasonsEmpty | Your company has no revenue reasons yet. Add them on the web. |
+| owner.rev.noteLabel | Note (at least 5 characters) |
+| owner.rev.sendExplanation | Send explanation |
+| owner.rev.explanationSent | Explanation sent. Someone else will decide. |
+| owner.rev.decide | Decision |
+| owner.rev.decideFooter | Approve or reject the explanation, or confirm the difference as money to recover. The person who explained it can't decide. |
+| owner.rev.approve | Approve explanation |
+| owner.rev.reject | Reject explanation |
+| owner.rev.confirm | Confirm difference |
+| owner.rev.confirmReject | Reject this explanation? The difference goes back to "To explain". |
+| owner.rev.confirmConfirm | Confirm this difference? It stays recorded as money to recover. |
+| owner.rev.approved | Explanation approved. |
+| owner.rev.rejected | Explanation rejected. |
+| owner.rev.confirmed | Difference confirmed. |
+| owner.rev.ownExplanation | Someone else must decide on your explanation |
+| owner.rev.status.OPEN | To explain |
+| owner.rev.status.EXPLANATION_PROPOSED | Explanation waiting for a decision |
+| owner.rev.status.EXPLAINED | Explained |
+| owner.rev.status.CONFIRMED | Confirmed difference |
+| owner.rev.status.CLEARED | Cleared (money arrived) |
+| owner.nonrev.type | Type |
+| owner.nonrev.hours | Hours |
+| owner.nonrev.time | Time |
+| owner.nonrev.footer | Approved time stops counting as revenue. The person who explained it can't approve it. |
+| owner.dash.revenue | Revenue differences |
+| owner.dash.revToExplain | To explain |
+| owner.dash.revAwaiting | Awaiting a decision |
+| owner.dash.revAmounts | Amount |
+| owner.dash.revOldest | Oldest open |
+| owner.dash.revExplained | Explained |
+| owner.dash.revConfirmed | Confirmed |
+| owner.dash.revCleared | Cleared |
+| owner.dash.revItem | {machine} · {period} |
+| owner.sheet.open | Daily machine sheet |
+| owner.sheet.title | Daily machine sheet |
+| owner.sheet.empty | No days with engine hours in the last 14 days. |
+| owner.sheet.rowHours | Engine {engine} h · Revenue {revenue} h |
+| owner.sheet.rowDifference | Difference {money} |
+| owner.sheet.dayTitle | {machine} · {day} |
+| owner.sheet.hours | Hours |
+| owner.sheet.engine | Engine hours |
+| owner.sheet.customerWork | Customer work |
+| owner.sheet.nonRevenue | Non-revenue |
+| owner.sheet.nonRevenuePending | Non-revenue awaiting approval |
+| owner.sheet.revenue | Revenue hours |
+| owner.sheet.approvedNonCustomer | Approved non-customer |
+| owner.sheet.identifiedVariance | Identified difference |
+| owner.sheet.unexplained | Unexplained |
+| owner.sheet.pendingReview | Awaiting review |
+| owner.sheet.readings | Readings |
+| owner.sheet.firstReading | First reading |
+| owner.sheet.lastReading | Last reading |
+| owner.sheet.readingCount | Readings taken |
+| owner.sheet.money | Money ({currency}) |
+| owner.sheet.fuel | Fuel |
+| owner.sheet.litres | {litres} L |
+| owner.sheet.flags | Flags |
+| owner.sheet.noFlags | No flags. |
+| owner.sheet.flag.* | (see Sheet flags above) |
+| owner.sheet.footer | Read-only. Figures come from the readings, jobs, invoices and prepaid hours of the day. |
+
+Revenue difference screen order: Figures card (Machine, Period, Job when `job_id`, Status pill, Expected revenue,
+Work still in progress (only when non-zero), Money attributed, Difference, Difference after adjustments (only when
+`adjusted_difference`), Customer-work hours, Non-revenue hours, Unexplained hours, Unexplained hours expected as
+revenue (both only when non-zero), Investigation (`case_number`, only when `case_id`)); Jobs card (`detail.jobs` of
+the difference's currency: row `{job number}` + `owner.rev.jobLine`, `owner.rev.jobInProgress` appended when
+non-zero); Explanation card (when `reason_id` or `explained_by`); decided fields (when `decided_by`); Adjustments card
+(when any, newest first); then the action card: Explain (status OPEN and explain holder) and/or Decision (decide
+holder: OPEN → Confirm only; EXPLANATION_PROPOSED → Approve, Reject, Confirm). Approvals row subtitle: the period;
+footnote: the status wording.
+
+Non-revenue hours decision uses the generic decision screen: fields Machine, Job, Type, Time (`started_at – ended_at`),
+Hours, Reason (`reason_name`), Note (the explanation), Proposed by, Decided by, Decision note; note at least 5
+characters for both Approve and Reject; footer `owner.nonrev.footer`.
+
+Dashboard tile rows: To explain `{open}`, Awaiting a decision `{awaiting_decision}`, Amount (amounts as
+"`{count} · {money}`" joined by ", ", or "None"), Oldest open (`{n} days`, row hidden when null), Explained / Confirmed /
+Cleared (`*_in_window`), then one row per item `owner.dash.revItem` → difference money; footer "Last {window_days}
+days"; link → Approvals.
+
+Daily machine sheet: `GET /daily-machine-sheet?machine_id=&day_from=&day_to=` for the last 14 local days (today
+included), newest first. Row: the day (headline), `owner.sheet.rowHours`, `owner.sheet.rowDifference` per currency with a
+non-zero difference, flags joined by " · " (warning colour). Tap → Machine day (`GET
+/daily-machine-sheet/{machine_id}/{day}`): Hours card (rows in the key order above; each non-revenue type as
+"Non-revenue · {Type}"; zero rows other than Engine / Revenue hidden), Readings card (first, last, count, then each
+reading `{time} · {reading} · {kind}`), Jobs card (`{job number} · {customer}` → `{customer work} h`), one Money card per
+currency (Expected revenue, Work still in progress, Money attributed, Difference, Unexplained hours expected as revenue
+when non-zero), Fuel (`owner.sheet.litres`), Flags (or `owner.sheet.noFlags`); footer `owner.sheet.footer`.
+
+### Supervisor
+| Key | English |
+|---|---|
+| field.nonrev.status.NONE | Counted as revenue until explained |
+| field.nonrev.status.PROPOSED | Explained · waiting for approval |
+| field.nonrev.status.APPROVED | Approved as non-revenue time |
+| field.nonrev.status.REJECTED | Not approved · counted as revenue |
+| field.nonrev.explain | Explain |
+| field.nonrev.title | Explain non-revenue time |
+| field.nonrev.entry | Work log entry |
+| field.nonrev.entryLine | {type} · {start} → {end} ({hours} h) |
+| field.nonrev.reason | Reason |
+| field.nonrev.chooseReason | Choose a reason |
+| field.nonrev.reasonsEmpty | Your company has no revenue reasons yet. Ask the office. |
+| field.nonrev.note | Note (at least 5 characters) |
+| field.nonrev.send | Send |
+| field.nonrev.footer | This time counts as revenue until someone else approves it. Needs a connection. |
+| field.nonrev.sent | Sent. Someone else will approve it. |
+| field.nonrev.offline | Explaining needs a connection. |
+| field.nonrev.err.NON_REVENUE_PENDING | This time is already waiting for approval. |
+| field.nonrev.err.NON_REVENUE_APPROVAL_NOT_REQUIRED | Your company does not need approval for this time. |
+| field.nonrev.err.REVENUE_RECONCILIATION_DISABLED | Your company has switched off revenue checks. |
+| field.nonrev.err.REASON_INACTIVE | This reason is no longer in use. Choose another. |
+
+Supervisor details: the status line is a caption under the work-log entry (warning colour for NONE / REJECTED, accent
+for PROPOSED, live for APPROVED); "Explain" is a small text button on the same line, shown only to explain holders for
+NONE / REJECTED and disabled offline. Other refusals show the server message. After sending, the form closes and the
+work log re-reads the statuses.
