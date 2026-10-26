@@ -36,6 +36,8 @@ import {
 } from './custodyForms';
 import { type CashPolicy } from './custodyHooks';
 import { FormikCustodianIdPicker } from './custodyPickers';
+import { RemittanceEvidence } from './remittanceDeposit';
+import { remittanceAccountText, remittanceMethodText } from './remittanceDetails';
 
 const hinted = (err: unknown) => withErrorCode(err, CUSTODY_ERROR_HINTS);
 const entered = (amount: string, currency: string) => formatEnteredMoney(amount, currency);
@@ -288,7 +290,10 @@ export function RemittanceDecisionDialog({
                 value: <MoneyText amount={h.amount} currency={h.currency} strong />,
               },
               { label: 'Handed over', value: formatInstantIn(h.handed_at, timeZone) },
+              { label: 'Paid by', value: remittanceMethodText(h) },
+              { label: 'Company account', value: remittanceAccountText(h) },
               { label: 'Reference', value: h.reference ?? '—' },
+              { label: 'Photos', value: <RemittanceEvidence handover={h} /> },
             ]}
           />
           <Alert severity="info">

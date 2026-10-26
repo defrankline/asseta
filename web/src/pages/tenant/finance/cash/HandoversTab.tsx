@@ -15,6 +15,7 @@ import { PersonName } from '../../shared/PersonName';
 import { ENTITY } from '../../../../realtime/entities';
 import { useLiveRefresh } from '../../../../realtime/hooks';
 import { CustodianFilter } from './custodyPickers';
+import { remittanceAccountText, remittanceMethodText } from './remittanceDetails';
 import { remittanceChip, remittanceCustodian, useRemittanceActions } from './remittanceRecord';
 
 type View = SettlementStatus | 'ALL';
@@ -56,6 +57,8 @@ export function HandoversTab({ timeZone }: { timeZone: string }) {
   const columns: DataColumn<CashHandoverDto>[] = [
     { id: 'at', header: 'Handed over', render: (h) => formatInstantIn(h.handed_at, timeZone) },
     { id: 'staff', header: 'Custodian', render: remittanceCustodian },
+    { id: 'method', header: 'Paid by', render: remittanceMethodText },
+    { id: 'account', header: 'Company account', render: remittanceAccountText },
     { id: 'ref', header: 'Reference', render: (h) => h.reference ?? '—' },
     { id: 'status', header: 'Status', render: remittanceChip },
     {

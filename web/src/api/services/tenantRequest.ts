@@ -66,7 +66,7 @@ export async function tenantPage<T>(
   return tenantGet(url, schema, what, signal, toListParams(query));
 }
 
-type Method = 'post' | 'put';
+type Method = 'post' | 'put' | 'patch';
 
 export async function tenantSend<T>(
   method: Method,

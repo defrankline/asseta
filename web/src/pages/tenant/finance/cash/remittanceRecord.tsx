@@ -15,6 +15,8 @@ import { PersonName } from '../../shared/PersonName';
 import type { HistoryEvent } from '../../shared/RecordDetail';
 import { useMyUserId } from '../../shared/useFinanceLabels';
 import { OWN_REQUEST_TOOLTIP } from './custodyDisplay';
+import { RemittanceEvidence } from './remittanceDeposit';
+import { remittanceAccountText, remittanceMethodText } from './remittanceDetails';
 import { RemittanceDecisionDialog } from './CustodyDialogs';
 
 export const remittanceChip = (h: CashHandoverDto) => (
@@ -90,7 +92,10 @@ export function remittanceItems(
 ): KeyValueItem[] {
   const items: KeyValueItem[] = [
     { label: 'Custodian', value: remittanceCustodian(h) },
+    { label: 'Paid by', value: remittanceMethodText(h) },
+    { label: 'Company account', value: remittanceAccountText(h) },
     { label: 'Reference', value: h.reference ?? '—' },
+    { label: 'Photos', value: <RemittanceEvidence handover={h} /> },
     { label: 'Declared', value: <MoneyText amount={h.amount} currency={h.currency} /> },
     { label: 'Received', value: money(h.amount_received, h.currency) },
     { label: 'Expected balance', value: money(h.expected_balance, h.currency) },

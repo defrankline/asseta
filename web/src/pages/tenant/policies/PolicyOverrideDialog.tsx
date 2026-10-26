@@ -2,7 +2,13 @@ import { Alert, Box, MenuItem, TextField, Typography } from '@mui/material';
 import { getIn, type FormikProps } from 'formik';
 import { useCallback, useState } from 'react';
 import { policyService } from '../../../api/services/policyService';
-import type { JobSiteDto, MachineDto, PolicyType, PolicyVersionDto } from '../../../api/types';
+import type {
+  JobSiteDto,
+  MachineDto,
+  PolicyType,
+  PolicyVersionDto,
+  StaffDto,
+} from '../../../api/types';
 import { KeyValueGrid } from '../../../components/display/KeyValueGrid';
 import { DateTimeField } from '../../../components/forms/DateTimeField';
 import { FormikTextField } from '../../../components/forms/FormikTextField';
@@ -10,6 +16,7 @@ import { StepperFormDialog, type FormStep } from '../../../components/forms/Step
 import { useIdempotencyKey } from '../../../hooks/useIdempotencyKey';
 import { formatInstantIn } from '../../../utils/time';
 import { machineLabel } from '../shared/display';
+import { FormikStaffIdPicker } from '../shared/financePickers';
 import { FormikJobSitePicker } from '../shared/lookupPickers';
 import { jobSiteLabel } from '../shared/lookups';
 import { MachinePicker } from '../shared/MachinePicker';
@@ -36,6 +43,8 @@ interface PolicyOverrideDialogProps {
   initialScope: OverrideScope;
   initialMachine: MachineDto | null;
   initialSiteId: string;
+  /** STAFF scope: the staff member chosen on the page ('' = none). */
+  initialStaffId?: string;
   /** Current effective values, used to prefill inputs. */
   current: Record<string, unknown> | null;
   sites: readonly JobSiteDto[] | null;
@@ -44,11 +53,19 @@ interface PolicyOverrideDialogProps {
   onCreated: (version: PolicyVersionDto) => void;
 }
 
-const SCOPE_ORDER: readonly OverrideScope[] = ['TENANT', 'MACHINE', 'SITE'];
+const SCOPE_ORDER: readonly OverrideScope[] = ['TENANT', 'MACHINE', 'SITE', 'STAFF'];
 const SCOPE_LABELS: Readonly<Record<OverrideScope, string>> = {
   TENANT: 'Tenant default (all fields)',
   MACHINE: 'Machine override',
   SITE: 'Site override',
+  STAFF: 'Staff member override',
+};
+
+const SCOPE_NOUNS: Readonly<Record<OverrideScope, string>> = {
+  TENANT: 'tenant',
+  MACHINE: 'machine',
+  SITE: 'site',
+  STAFF: 'staff member',
 };
 
 function ScopeStep({
@@ -56,11 +73,13 @@ function ScopeStep({
   sites,
   timeZone,
   onSiteChange,
+  onStaffChange,
 }: {
   formik: FormikProps<PolicyFormValues>;
   sites: readonly JobSiteDto[] | null;
   timeZone: string;
   onSiteChange: (site: JobSiteDto | null) => void;
+  onStaffChange: (staff: StaffDto | null) => void;
 }) {
   const { values, setFieldValue, touched, errors } = formik;
   /** The page already holds the job sites (for labels): resolve a preselected id from them. */
@@ -115,6 +134,15 @@ function ScopeStep({
           onOptionChange={onSiteChange}
         />
       )}
+      {values.scope === 'STAFF' && (
+        <FormikStaffIdPicker
+          name="staff_id"
+          label="Staff member"
+          required
+          onOptionChange={onStaffChange}
+          helperText="This person's own value replaces the site and tenant values."
+        />
+      )}
       <DateTimeField
         label="Effective from (empty = now)"
         value={values.effective_from === '' ? null : values.effective_from}
@@ -137,7 +165,7 @@ function ValuesStep({ formik }: { formik: FormikProps<PolicyFormValues> }) {
       <Alert severity="info">
         {formik.values.scope === 'TENANT'
           ? 'Tenant defaults may set every field.'
-          : `Only these fields may be overridden for a ${formik.values.scope.toLowerCase()}.`}
+          : `Only these fields may be overridden for a ${SCOPE_NOUNS[formik.values.scope]}.`}
       </Alert>
       {typeof groupError === 'string' && <Alert severity="error">{groupError}</Alert>}
       <Box className="flex flex-col gap-2">
@@ -160,16 +188,24 @@ export function PolicyOverrideDialog(props: PolicyOverrideDialogProps) {
       props.current,
       props.initialMachine,
       props.initialSiteId,
+      props.initialStaffId ?? '',
     ),
   );
   const [site, setSite] = useState<JobSiteDto | null>(null);
+  const [staff, setStaff] = useState<StaffDto | null>(null);
 
   const steps: FormStep<PolicyFormValues>[] = [
     {
       label: 'Scope',
-      fields: ['scope', 'machine', 'site_id', 'reason'],
+      fields: ['scope', 'machine', 'site_id', 'staff_id', 'reason'],
       render: (formik) => (
-        <ScopeStep formik={formik} sites={sites} timeZone={timeZone} onSiteChange={setSite} />
+        <ScopeStep
+          formik={formik}
+          sites={sites}
+          timeZone={timeZone}
+          onSiteChange={setSite}
+          onStaffChange={setStaff}
+        />
       ),
     },
     { label: 'Values', fields: ['overrides'], render: (formik) => <ValuesStep formik={formik} /> },
@@ -193,7 +229,11 @@ export function PolicyOverrideDialog(props: PolicyOverrideDialogProps) {
               ? site?.id === v.site_id
                 ? jobSiteLabel(site)
                 : v.site_id
-              : 'Whole tenant';
+              : v.scope === 'STAFF'
+                ? staff?.id === v.staff_id
+                  ? staff.full_name
+                  : v.staff_id
+                : 'Whole tenant';
         return (
           <>
             <KeyValueGrid

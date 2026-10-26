@@ -11,6 +11,7 @@ import { withErrorCode } from '../../shared/errorHints';
 import {
   CUSTODY_ERROR_HINTS,
   VARIANCE_OUTCOME_OPTIONS,
+  VARIANCE_KIND_LABELS,
   VARIANCE_SOURCE_LABELS,
 } from './custodyDisplay';
 import {
@@ -37,6 +38,7 @@ function VarianceSummary({ v, custodian }: { v: CashVarianceDto; custodian: stri
       columns={2}
       items={[
         { label: 'From', value: VARIANCE_SOURCE_LABELS[v.source_type] },
+        { label: 'Kind', value: VARIANCE_KIND_LABELS[v.kind] },
         { label: 'Accountable custodian', value: custodian },
         {
           label: 'Declared',

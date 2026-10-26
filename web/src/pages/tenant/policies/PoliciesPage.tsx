@@ -15,7 +15,7 @@ import { CanMutate } from '../../../access/CanMutate';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import { geofenceService } from '../../../api/services/geofenceService';
 import { policyService } from '../../../api/services/policyService';
-import type { JobSiteDto, MachineDto, PolicyType } from '../../../api/types';
+import type { JobSiteDto, MachineDto, PolicyType, StaffDto } from '../../../api/types';
 import { AsyncContent } from '../../../components/feedback/AsyncContent';
 import { EmptyState } from '../../../components/feedback/EmptyState';
 import { PageHeader } from '../../../components/feedback/PageHeader';
@@ -24,6 +24,7 @@ import { useDisplayTimeZone } from '../../../hooks/useDisplayTimeZone';
 import { useNotify } from '../../../notifications/useNotify';
 import { useSession } from '../../../session/useSession';
 import { machineLabel } from '../shared/display';
+import { StaffFilter } from '../shared/financePickers';
 import { JobSiteFilter } from '../shared/lookupPickers';
 import { MachinePicker } from '../shared/MachinePicker';
 import { EffectivePolicyView } from './EffectivePolicyView';
@@ -55,7 +56,7 @@ const SUBTITLES: Readonly<Record<PolicyType, string>> = {
   FRAUD_CONTROLS:
     'Risk signals: thresholds for deterministic checks that open investigation cases (machine overrides)',
   CASH_CUSTODY:
-    'Cash custody: recording for custodians, acknowledgements, full remittance and write-off approval (tenant-wide only)',
+    'Cash custody: recording for custodians, acknowledgements, remittance evidence, write-off approval and the cash holding allowance (site / staff overrides)',
   OVERSIGHT: 'Oversight: accountability dashboard tiles and windows (tenant-wide only)',
   ENGINE_HOURS:
     'Engine hours: baselines, daily reports, explanations and corrections of engine hours (machine overrides)',
@@ -69,6 +70,7 @@ export function PoliciesPage() {
   const notify = useNotify();
   const { hasPermission } = useSession();
   const canSites = hasPermission(PERMISSIONS.tenantGeofenceRead);
+  const canStaff = hasPermission(PERMISSIONS.tenantStaffRead);
   const [ptype, setPtype] = useState<PolicyType>('TRACKING');
   const [rawScope, setScope] = useState<OverrideScope>('TENANT');
   const scopes = scopesFor(ptype);
@@ -76,6 +78,8 @@ export function PoliciesPage() {
   const [machine, setMachine] = useState<MachineDto | null>(null);
   const [site, setSite] = useState<JobSiteDto | null>(null);
   const siteId = site?.id ?? '';
+  const [staff, setStaff] = useState<StaffDto | null>(null);
+  const staffId = staff?.id ?? '';
   const [creating, setCreating] = useState(false);
   const [version, setVersion] = useState(0);
 
@@ -84,7 +88,13 @@ export function PoliciesPage() {
   const siteList = canSites ? (sites.data ?? NO_SITES) : null;
 
   const target =
-    scope === 'MACHINE' ? (machine?.id ?? null) : scope === 'SITE' ? siteId || null : 'tenant';
+    scope === 'MACHINE'
+      ? (machine?.id ?? null)
+      : scope === 'SITE'
+        ? siteId || null
+        : scope === 'STAFF'
+          ? staffId || null
+          : 'tenant';
   const loadEffective = useCallback(
     (signal: AbortSignal) =>
       policyService.effective(
@@ -92,10 +102,11 @@ export function PoliciesPage() {
         {
           machine_id: scope === 'MACHINE' ? machine?.id : undefined,
           site_id: scope === 'SITE' ? siteId : undefined,
+          staff_id: scope === 'STAFF' ? staffId : undefined,
         },
         signal,
       ),
-    [ptype, scope, machine, siteId],
+    [ptype, scope, machine, siteId, staffId],
   );
   const effective = useAsyncResource(loadEffective, [version], target !== null);
   const loadVersions = useCallback(
@@ -108,8 +119,9 @@ export function PoliciesPage() {
     const m = new Map<string, string>();
     for (const s of siteList ?? []) m.set(s.id, `${s.code} · ${s.name}`);
     if (machine !== null) m.set(machine.id, machineLabel(machine));
+    if (staff !== null) m.set(staff.id, staff.full_name);
     return m;
-  }, [siteList, machine]);
+  }, [siteList, machine, staff]);
 
   return (
     <>
@@ -164,6 +176,9 @@ export function PoliciesPage() {
                 {canSites && scopes.includes('SITE') && (
                   <ToggleButton value="SITE">Site</ToggleButton>
                 )}
+                {canStaff && scopes.includes('STAFF') && (
+                  <ToggleButton value="STAFF">Staff member</ToggleButton>
+                )}
               </ToggleButtonGroup>
               {scope === 'MACHINE' && (
                 <Box className="min-w-72">
@@ -175,13 +190,29 @@ export function PoliciesPage() {
                   <JobSiteFilter label="Job site" value={site} onChange={setSite} />
                 </Box>
               )}
+              {scope === 'STAFF' && (
+                <Box sx={{ minWidth: 260 }}>
+                  <StaffFilter
+                    label="Staff member"
+                    placeholder="Choose a staff member"
+                    value={staff}
+                    onChange={setStaff}
+                  />
+                </Box>
+              )}
             </Box>
             <Typography variant="subtitle1" component="h2">
               Effective policy
             </Typography>
             {target === null ? (
               <EmptyState
-                title={scope === 'MACHINE' ? 'Select a machine' : 'Select a job site'}
+                title={
+                  scope === 'MACHINE'
+                    ? 'Select a machine'
+                    : scope === 'STAFF'
+                      ? 'Select a staff member'
+                      : 'Select a job site'
+                }
                 description="The effective policy combines platform, tenant and override versions."
               />
             ) : (
@@ -217,6 +248,7 @@ export function PoliciesPage() {
           initialScope={scope}
           initialMachine={machine}
           initialSiteId={siteId}
+          initialStaffId={staffId}
           current={effective.data?.values ?? null}
           sites={siteList}
           timeZone={tz}

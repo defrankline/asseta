@@ -21,6 +21,7 @@ import { useMyUserId } from '../../shared/useFinanceLabels';
 import {
   OWN_REQUEST_TOOLTIP,
   VARIANCE_OUTCOME_LABELS,
+  VARIANCE_KIND_LABELS,
   VARIANCE_SOURCE_LABELS,
   VARIANCE_STATUS_LABELS,
   VARIANCE_STATUS_TONES,
@@ -181,6 +182,7 @@ export function varianceItems(
         </Link>
       ),
     },
+    { label: 'Kind', value: VARIANCE_KIND_LABELS[v.kind] },
     { label: 'Accountable custodian', value: varianceCustodian(v) },
     {
       label: 'Other custodian',

@@ -19,6 +19,8 @@ export interface PolicyFormValues {
   scope: OverrideScope;
   machine: MachineDto | null;
   site_id: string;
+  /** STAFF scope: the staff member whose own value this is (e.g. a custodian's cash allowance). */
+  staff_id: string;
   /** UTC ISO instant or '' for "now". */
   effective_from: string;
   reason: string;
@@ -31,6 +33,7 @@ export function initialPolicyValues(
   current: Record<string, unknown> | null,
   machine: MachineDto | null,
   siteId: string,
+  staffId = '',
 ): PolicyFormValues {
   const overrides: Record<string, FieldOverride> = {};
   for (const def of POLICY_FIELDS[policyType]) {
@@ -41,6 +44,7 @@ export function initialPolicyValues(
     scope,
     machine,
     site_id: siteId,
+    staff_id: staffId,
     effective_from: '',
     reason: '',
     overrides,
@@ -60,7 +64,7 @@ export const policyFormSchema = object({
   policy_type: mixed<PolicyType>()
     .oneOf(Object.keys(POLICY_FIELDS) as PolicyType[])
     .required(),
-  scope: mixed<OverrideScope>().oneOf(['TENANT', 'MACHINE', 'SITE']).required(),
+  scope: mixed<OverrideScope>().oneOf(['TENANT', 'MACHINE', 'SITE', 'STAFF']).required(),
   machine: mixed<MachineDto>()
     .nullable()
     .defined()
@@ -72,6 +76,11 @@ export const policyFormSchema = object({
     .default('')
     .test('site', 'Select a site', function (value) {
       return (this.parent as { scope: OverrideScope }).scope !== 'SITE' || value !== '';
+    }),
+  staff_id: string()
+    .default('')
+    .test('staff', 'Select a staff member', function (value) {
+      return (this.parent as { scope: OverrideScope }).scope !== 'STAFF' || value !== '';
     }),
   effective_from: string().default(''),
   reason: string()
@@ -107,7 +116,13 @@ export function toPolicyPayload(v: PolicyFormValues): PolicyVersionIn {
     if (o?.enabled === true) values[def.key] = fromInputValue(def, o.value);
   }
   const scopeRef =
-    v.scope === 'MACHINE' ? (v.machine?.id ?? null) : v.scope === 'SITE' ? v.site_id : null;
+    v.scope === 'MACHINE'
+      ? (v.machine?.id ?? null)
+      : v.scope === 'SITE'
+        ? v.site_id
+        : v.scope === 'STAFF'
+          ? v.staff_id
+          : null;
   return {
     scope: v.scope,
     scope_ref_id: scopeRef,

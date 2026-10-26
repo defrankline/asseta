@@ -280,14 +280,17 @@ export const POLICY_TYPE_LABELS: Readonly<Record<PolicyType, string>> = {
   ENGINE_HOURS: 'Engine hours',
 };
 
-export type OverrideScope = 'TENANT' | 'MACHINE' | 'SITE';
+export type OverrideScope = 'TENANT' | 'MACHINE' | 'SITE' | 'STAFF';
 
 type LowerScope = Exclude<OverrideScope, 'TENANT'>;
 
+/** MACHINE and SITE are listed for every overridable type; STAFF only where the backend allows it. */
+type LowerScopeFields = Readonly<
+  Record<'MACHINE' | 'SITE', ReadonlySet<string>> & { STAFF?: ReadonlySet<string> }
+>;
+
 /** Fields a lower scope may override (mirrors the backend OVERRIDABLE table; tenant = all). */
-const SCOPE_FIELDS: Readonly<
-  Record<PolicyType, Readonly<Record<LowerScope, ReadonlySet<string>>> | null>
-> = {
+const SCOPE_FIELDS: Readonly<Record<PolicyType, LowerScopeFields | null>> = {
   TRACKING: {
     MACHINE: new Set([
       'live_max_age_seconds',
@@ -317,7 +320,12 @@ const SCOPE_FIELDS: Readonly<
   HIRE_BILLING: null,
   DEVICE_SYNC: null,
   EXPENSE_CAPTURE: null,
-  CASH_CUSTODY: null,
+  // Only the cash holding allowance varies by site or person (DEC-031 D3).
+  CASH_CUSTODY: {
+    MACHINE: new Set<string>(),
+    SITE: new Set(['max_holding_days']),
+    STAFF: new Set(['max_holding_days']),
+  },
   OVERSIGHT: null,
   CUSTOMER_HOURS: null,
   FRAUD_CONTROLS: {
@@ -338,8 +346,8 @@ const SCOPE_FIELDS: Readonly<
 export function scopesFor(ptype: PolicyType): readonly OverrideScope[] {
   const lower = SCOPE_FIELDS[ptype];
   if (lower === null) return ['TENANT'];
-  const scopes: LowerScope[] = ['MACHINE', 'SITE'];
-  return ['TENANT', ...scopes.filter((scope) => lower[scope].size > 0)];
+  const scopes: LowerScope[] = ['MACHINE', 'SITE', 'STAFF'];
+  return ['TENANT', ...scopes.filter((scope) => (lower[scope]?.size ?? 0) > 0)];
 }
 
 export function allowedFields(ptype: PolicyType, scope: OverrideScope): readonly PolicyFieldDef[] {

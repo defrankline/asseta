@@ -12,6 +12,7 @@ import { recordPath } from '../../../../navigation/recordRoutes';
 import { formatInstantIn } from '../../../../utils/time';
 import {
   VARIANCE_OUTCOME_LABELS,
+  VARIANCE_KIND_LABELS,
   VARIANCE_SOURCE_LABELS,
   VARIANCE_SOURCE_OPTIONS,
   VARIANCE_STATUS_OPTIONS,
@@ -45,6 +46,7 @@ export function VariancesTab({
   const columns: DataColumn<CashVarianceDto>[] = [
     { id: 'at', header: 'Opened', render: (v) => formatInstantIn(v.opened_at, timeZone) },
     { id: 'source', header: 'From', render: (v) => VARIANCE_SOURCE_LABELS[v.source_type] },
+    { id: 'kind', header: 'Kind', render: (v) => VARIANCE_KIND_LABELS[v.kind] },
     { id: 'who', header: 'Accountable custodian', render: varianceCustodian },
     { id: 'status', header: 'Status', render: varianceChip },
     {

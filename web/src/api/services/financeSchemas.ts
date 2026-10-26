@@ -24,6 +24,7 @@ import type {
   SettlementStatus,
   StatementLineKind,
 } from '../types';
+import type { RemittanceMethod } from '../custodyTypes';
 import {
   bool,
   id,
@@ -55,6 +56,12 @@ export const FLOAT_ACK_STATUSES: readonly CashCustodyEntryDto['ack_status'][] = 
   'DISPUTED',
 ];
 export const CUSTODY_ENTRY_TYPES: readonly CustodyEntryType[] = ['OPENING_BALANCE', 'FLOAT_ISSUED'];
+/** DEC-031 D2: how a remittance reached the company. */
+export const REMITTANCE_METHODS: readonly RemittanceMethod[] = [
+  'CASH_TO_OFFICE',
+  'BANK_DEPOSIT',
+  'MOBILE_MONEY',
+];
 export const GROUP_BYS: readonly ProfitabilityGroupBy[] = ['MACHINE', 'JOB', 'CUSTOMER'];
 
 export const hireInvoiceSchema: Schema<HireInvoiceDto> = object({
@@ -206,6 +213,10 @@ export const handoverSchema: Schema<CashHandoverDto> = object({
   amount_received: nullableText(),
   expected_balance: nullableText(),
   partial_shortfall: nullableText(),
+  method: nullableOneOf(REMITTANCE_METHODS).optional(),
+  deposit_account_id: nullableId().optional(),
+  deposit_account_name: nullableText().optional(),
+  evidence_attachment_ids: array(string().required()).default([]),
 });
 
 export const reconciliationSchema: Schema<CashReconciliationDto> = object({

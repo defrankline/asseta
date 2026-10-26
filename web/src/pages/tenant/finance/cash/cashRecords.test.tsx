@@ -7,6 +7,7 @@ import { PERMISSIONS as P } from '../../../../access/permissionCodes';
 import type {
   CashRetentionDto,
   CashTransferDto,
+  CashVarianceDto,
   RemittanceOverdueDto,
 } from '../../../../api/custodyTypes';
 import type { custodyService } from '../../../../api/services/custodyService';
@@ -22,6 +23,7 @@ import {
   CashRemittanceDetailPage,
   CashRetentionDetailPage,
   CashTransferDetailPage,
+  CashVarianceDetailPage,
   RemittanceOverdueDetailPage,
 } from './CashRecordPages';
 import { RemittanceOverdueTab } from './RemittanceOverdueTab';
@@ -33,6 +35,7 @@ const m = vi.hoisted(() => ({
   transfer: vi.fn<typeof custodyService.transfer>(),
   retention: vi.fn<typeof custodyService.retention>(),
   handover: vi.fn<typeof custodyService.handover>(),
+  variance: vi.fn<typeof custodyService.variance>(),
   remittanceOverdue: vi.fn<typeof custodyService.remittanceOverdue>(),
   remittanceOverdueFlag: vi.fn<typeof custodyService.remittanceOverdueFlag>(),
   effective: vi.fn<typeof policyService.effective>(),
@@ -220,6 +223,81 @@ describe('cash record detail pages (exact-record links)', () => {
     );
   });
 
+  it('shows how a remittance was paid, into which account, and its photos', async () => {
+    m.handover.mockResolvedValue(
+      makeHandover({
+        staff_member_name: 'Sam Supervisor',
+        method: 'BANK_DEPOSIT',
+        deposit_account_id: 'dddddddd-0000-4000-8000-000000000001',
+        deposit_account_name: 'CRDB main',
+        evidence_attachment_ids: ['aaaaaaaa-0000-4000-8000-000000000001'],
+      }),
+    );
+    openRecord('CASH_REMITTANCE', makeHandover().id, <CashRemittanceDetailPage />, [
+      P.tenantFinanceRead,
+    ]);
+    expect(
+      await screen.findByRole('heading', { name: 'Remittance · Sam Supervisor' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Bank deposit')).toBeInTheDocument();
+    expect(screen.getByText('CRDB main')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'View photo 1' })).toBeInTheDocument();
+  });
+
+  it('shows a holding-allowance flag with when the cash was first held, never as a cut-off', async () => {
+    m.remittanceOverdueFlag.mockResolvedValue(
+      makeOverdue({
+        reason: 'HELD_TOO_LONG',
+        held_since: '2026-10-17T09:00:00Z',
+        max_holding_days: 3,
+        cutoff_hour: 9,
+      }),
+    );
+    openRecord('REMITTANCE_OVERDUE', makeOverdue().id, <RemittanceOverdueDetailPage />, [
+      P.tenantFinanceRead,
+    ]);
+    expect(
+      (await screen.findAllByText(/Held longer than allowed since 17 Oct 2026/)).length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByText('3 days')).toBeInTheDocument();
+    expect(screen.queryByText('09:00')).not.toBeInTheDocument();
+    expect(screen.queryByText(/cut-off/)).not.toBeInTheDocument();
+  });
+
+  it('labels a surplus (more received than declared) as a surplus to explain', async () => {
+    const variance: CashVarianceDto = {
+      id: 'vvvvvvvv-0000-4000-8000-000000000001',
+      source_type: 'REMITTANCE',
+      source_id: makeHandover().id,
+      staff_member_id: STAFF_ID,
+      staff_member_name: 'Sam Supervisor',
+      counterparty_staff_id: null,
+      currency: 'TZS',
+      declared_amount: '90000.0000',
+      received_amount: '95000.0000',
+      amount: '-5000.0000',
+      kind: 'SURPLUS',
+      case_id: null,
+      opened_at: '2026-10-21T16:00:00Z',
+      opened_by: OTHER_USER,
+      status: 'OPEN',
+      outcome: null,
+      reason_id: null,
+      resolution_note: null,
+      resolved_at: null,
+      resolved_by: null,
+      proposal_note: null,
+      proposed_at: null,
+      proposed_by: null,
+    };
+    m.variance.mockResolvedValue(variance);
+    openRecord('CASH_VARIANCE', variance.id, <CashVarianceDetailPage />, [P.tenantFinanceRead]);
+    expect(
+      await screen.findByRole('heading', { name: 'Cash variance · Sam Supervisor' }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText('Surplus to explain').length).toBeGreaterThan(0);
+  });
+
   it('shows an error state when the record cannot be loaded', async () => {
     m.transfer.mockRejectedValue(new Error('boom'));
     openRecord('CASH_TRANSFER', 'missing', <CashTransferDetailPage />, [P.tenantFinanceRead]);
@@ -228,6 +306,33 @@ describe('cash record detail pages (exact-record links)', () => {
 });
 
 describe('RemittanceOverdueTab', () => {
+  it('shows the reason of each flag and filters by reason', async () => {
+    const user = userEvent.setup();
+    m.remittanceOverdue.mockResolvedValue(
+      page([
+        makeOverdue(),
+        makeOverdue({
+          id: 'oooooooo-0000-4000-8000-000000000010',
+          reason: 'HELD_TOO_LONG',
+          held_since: '2026-10-17T09:00:00Z',
+          max_holding_days: 3,
+        }),
+      ]),
+    );
+    renderWithProviders(<RemittanceOverdueTab timeZone="UTC" />, {
+      tenantPermissions: [P.tenantFinanceRead],
+    });
+    expect(await screen.findByText('Not remitted by the 18:00 cut-off')).toBeInTheDocument();
+    expect(screen.getByText('Held longer than allowed since 17 Oct 2026')).toBeInTheDocument();
+    await user.click(screen.getByRole('combobox', { name: 'Reason' }));
+    await user.click(await screen.findByRole('option', { name: 'Held longer than allowed' }));
+    await waitFor(() => {
+      expect(m.remittanceOverdue.mock.lastCall?.[0].filters).toMatchObject({
+        reason: 'HELD_TOO_LONG',
+      });
+    });
+  });
+
   it('lists flags by custodian and filters by day range', async () => {
     const user = userEvent.setup();
     m.remittanceOverdue.mockResolvedValue(page([makeOverdue()]));

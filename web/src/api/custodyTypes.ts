@@ -42,3 +42,11 @@ export type CountAmountDto = Schemas['CountAmountDto'];
 export type CustodianCashDto = Schemas['CustodianCashDto'];
 export type RemittanceOverdueDto = Schemas['RemittanceOverdueDto'];
 export type OverdueAmountDto = Schemas['OverdueAmountDto'];
+// DEC-031 Phase 3: company deposit accounts and stronger remittances.
+export type DepositAccountDto = Schemas['DepositAccountDto'];
+export type DepositAccountIn = Schemas['DepositAccountIn'];
+export type DepositAccountUpdateIn = Schemas['DepositAccountUpdateIn'];
+export type DepositAccountType = Schemas['DepositAccountType'];
+export type RemittanceMethod = Schemas['RemittanceMethod'];
+export type RemittanceEvidenceDto = Schemas['RemittanceEvidenceDto'];
+export type OverdueReason = Schemas['OverdueReason'];

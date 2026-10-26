@@ -134,6 +134,20 @@ export const FINANCE_ERROR_HINTS: Readonly<Record<string, string>> = {
   GPS_REQUIRED: 'The EXPENSE_CAPTURE policy requires an accurate GPS fix. Capture GPS and retry.',
   ATTRIBUTION_MISMATCH: 'The machine must match the job’s machine (or leave the machine empty).',
   CUSTODIAN_NOT_ALLOWED: 'A custodian applies only to expenses paid from cash custody.',
+  // Remittances (DEC-031 D2): the tenant's CASH_CUSTODY requirements and the company account.
+  REMITTANCE_ACCOUNT_REQUIRED:
+    'Your organisation requires the company account the money was paid into. Choose it under Deposit.',
+  REMITTANCE_REFERENCE_REQUIRED:
+    'Your organisation requires the transaction reference for bank and mobile-money remittances. Enter it from the deposit slip or payment message.',
+  REMITTANCE_EVIDENCE_REQUIRED:
+    'Your organisation requires a photo of the deposit slip or payment confirmation. Add the photo under Deposit.',
+  REMITTANCE_ACCOUNT_MISMATCH:
+    'The chosen account is not of the kind the money was paid by (bank, mobile money or cash office). Pick a matching account or change how it was paid.',
+  DEPOSIT_ACCOUNT_INACTIVE: 'That company account has been deactivated. Choose another account.',
+  DEPOSIT_ACCOUNT_CURRENCY_MISMATCH:
+    'That company account holds a different currency from this remittance. Choose an account in the same currency.',
+  DEPOSIT_ACCOUNT_NOT_FOUND: 'That company account no longer exists. Choose another account.',
+  ATTACHMENT_NOT_FOUND: 'A photo could not be found. Remove it and add it again.',
 };
 
 /** First 8 characters of an id, for records without a human label. */

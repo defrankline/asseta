@@ -6,6 +6,7 @@ import type { CustodianDto } from '../../../../api/custodyTypes';
 import { useAsyncResource } from '../../../../hooks/useAsyncResource';
 import { useSession } from '../../../../session/useSession';
 import { shortId } from '../../shared/financeDisplay';
+import { remittanceRequirements, type RemittanceRequirements } from './cashForms';
 
 /** The tenant's effective CASH_CUSTODY policy as the screens need it (never hard-coded). */
 export interface CashPolicy {
@@ -16,6 +17,8 @@ export interface CashPolicy {
   remitFullBalance: boolean;
   writeoffRequiresApproval: boolean;
   retentionAllowed: boolean;
+  /** What a remittance must carry (DEC-031 D2); all off while the cash custody controls are off. */
+  remittance: RemittanceRequirements;
 }
 
 const flag = (v: unknown, fallback: boolean): boolean => (typeof v === 'boolean' ? v : fallback);
@@ -30,6 +33,7 @@ export function parseCashPolicy(values: Record<string, unknown>): CashPolicy {
     remitFullBalance: flag(values.remit_full_balance, true),
     writeoffRequiresApproval: flag(values.writeoff_requires_approval, true),
     retentionAllowed: flag(values.retention_allowed, false),
+    remittance: remittanceRequirements(values),
   };
 }
 

@@ -74,6 +74,8 @@ import {
   SyncConflictsPage,
   SyncConflictDetailPage,
   CashCustodyPage,
+  DepositAccountDetailPage,
+  DepositAccountsPage,
   AuditLogPage,
   FieldCashPage,
   FieldExpensesPage,
@@ -86,6 +88,12 @@ import {
 const NOTIFICATION_MANAGE = [
   PERMISSIONS.tenantNotificationManage,
   PERMISSIONS.platformNotificationManage,
+] as const;
+
+/** Deposit accounts: managers and finance readers (the account picker itself is wider). */
+const DEPOSIT_ACCOUNT_READERS = [
+  PERMISSIONS.tenantFinanceAccountsManage,
+  PERMISSIONS.tenantFinanceRead,
 ] as const;
 
 /** Console-agnostic pages: the current console's code of either kind grants access. */
@@ -302,6 +310,14 @@ export function AppRoutes() {
         <Route
           path={ROUTES.tenantCashCustody}
           element={guard(PERMISSIONS.tenantFinanceRead, <CashCustodyPage />)}
+        />
+        <Route
+          path={ROUTES.tenantDepositAccounts}
+          element={guardAny(DEPOSIT_ACCOUNT_READERS, <DepositAccountsPage />)}
+        />
+        <Route
+          path={ROUTES.tenantDepositAccountDetail}
+          element={guardAny(DEPOSIT_ACCOUNT_READERS, <DepositAccountDetailPage />)}
         />
         <Route
           path={ROUTES.tenantProfitability}

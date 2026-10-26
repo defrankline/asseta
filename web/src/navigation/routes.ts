@@ -62,6 +62,9 @@ export const ROUTES = {
   tenantHireInvoicePrint: '/tenant/finance/invoices/:invoiceId/print',
   /** Matches the backend `tenant.cash_custody` menu path (custody chain, remittances, reconciliation). */
   tenantCashCustody: '/tenant/finance/cash',
+  /** Matches the backend `tenant.deposit_accounts` menu path (Finance group). */
+  tenantDepositAccounts: '/tenant/finance/deposit-accounts',
+  tenantDepositAccountDetail: '/tenant/finance/deposit-accounts/:accountId',
   /** Matches the backend `tenant.accountability` menu path (Overview group). */
   tenantAccountability: '/tenant/accountability',
   /** Matches the backend `tenant.security_events` menu path (Risk & review group). */
@@ -174,6 +177,10 @@ export function cashTabPath(
   return `${ROUTES.tenantCashCustody}?${q.toString()}`;
 }
 
+export function depositAccountDetailPath(accountId: string): string {
+  return `${ROUTES.tenantDepositAccounts}/${encodeURIComponent(accountId)}`;
+}
+
 export function syncConflictDetailPath(operationId: string): string {
   return `${ROUTES.tenantSyncConflicts}/${encodeURIComponent(operationId)}`;
 }
@@ -255,6 +262,7 @@ export const IMPLEMENTED_PATHS: ReadonlySet<string> = new Set([
   ROUTES.tenantApprovals,
   ROUTES.tenantFinance,
   ROUTES.tenantCashCustody,
+  ROUTES.tenantDepositAccounts,
   ROUTES.tenantAccountability,
   ROUTES.tenantSecurityEvents,
   ROUTES.tenantSyncConflicts,

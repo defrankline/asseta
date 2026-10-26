@@ -26,6 +26,13 @@ export function formatInstantIn(
   return d.tz(tz).format(withSeconds ? 'D MMM YYYY, HH:mm:ss' : 'D MMM YYYY, HH:mm');
 }
 
+/** The calendar day of a UTC ISO instant in the given IANA zone, e.g. `21 Oct 2026`. */
+export function formatDateIn(value: string | null | undefined, tz: string): string {
+  if (value === null || value === undefined || value === '') return '—';
+  const d = dayjs.utc(value);
+  return d.isValid() ? d.tz(tz).format('D MMM YYYY') : value;
+}
+
 /** Seconds elapsed between a UTC ISO instant and `nowMs` (never negative), or null. */
 export function ageSecondsSince(value: string | null | undefined, nowMs: number): number | null {
   if (value === null || value === undefined || value === '') return null;

@@ -42,6 +42,29 @@ export const CASH_CUSTODY_FIELDS: readonly PolicyFieldDef[] = [
   },
   { key: 'writeoff_requires_approval', label: 'Write-offs need a second approver', kind: 'bool' },
   { key: 'retention_allowed', label: 'Approved retentions allowed', kind: 'bool' },
+  {
+    key: 'remittance_reference_required',
+    label: 'Require a transaction reference for bank / mobile-money remittances',
+    kind: 'bool',
+    help: 'Cash handed to the office never needs one.',
+  },
+  {
+    key: 'remittance_evidence_required',
+    label: 'Require a photo of the deposit slip or payment confirmation',
+    kind: 'bool',
+  },
+  {
+    key: 'remittance_account_required',
+    label: 'Require the company account the money was paid into',
+    kind: 'bool',
+  },
+  {
+    key: 'max_holding_days',
+    label: 'Days a custodian may hold unremitted cash',
+    kind: 'nullableNumber',
+    unit: 'days',
+    help: 'Leave empty for no limit. Cash covered by an approved retention does not count. Site and staff overrides allowed.',
+  },
 ];
 
 /** Accountability dashboard tiles (backend `accountability.service.TILES`). */

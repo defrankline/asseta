@@ -135,6 +135,8 @@ export const PERMISSIONS = {
   tenantFinanceAdjustmentApprove: 'tenant.finance.adjustment_approve',
   /** The tenant's cash reason lists (variance, write-off, retention, adjustment). */
   tenantFinanceReasonManage: 'tenant.finance.reason_manage',
+  /** Company deposit accounts remittances are paid into (DEC-031 D1). */
+  tenantFinanceAccountsManage: 'tenant.finance.accounts.manage',
   /** Accountability dashboard summary. */
   tenantAccountabilityRead: 'tenant.accountability.read',
   /** Refused attempts (missing permission, segregation of duties). */

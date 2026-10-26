@@ -301,13 +301,15 @@ export function buildTiles(
         c.partial_remittances_in_window,
         linkIf(finance, cashTabPath('handovers')),
       ),
-      // Only when the tenant set a remittance cut-off (cash.remittance_cutoff_hour).
-      ...(c.remittance_cutoff_hour == null || c.remittances_overdue_today == null
+      // Only when the tenant set a remittance cut-off or a cash holding allowance (null otherwise).
+      ...(c.remittances_overdue_today == null
         ? []
         : [
             count(
               'overdue',
-              `Remittances overdue today (cut-off ${String(c.remittance_cutoff_hour).padStart(2, '0')}:00)`,
+              c.remittance_cutoff_hour == null
+                ? 'Remittances overdue today'
+                : `Remittances overdue today (cut-off ${String(c.remittance_cutoff_hour).padStart(2, '0')}:00)`,
               c.remittances_overdue_today,
               linkIf(finance, RECORD_LIST_ROUTES.REMITTANCE_OVERDUE),
             ),

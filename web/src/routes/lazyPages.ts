@@ -289,3 +289,13 @@ export const FieldExpensesPage = lazy(() =>
 export const FieldCashPage = lazy(() =>
   import('../pages/tenant/field/FieldCashPage').then((m) => ({ default: m.FieldCashPage })),
 );
+export const DepositAccountsPage = lazy(() =>
+  import('../pages/tenant/finance/depositAccounts/DepositAccountsPage').then((m) => ({
+    default: m.DepositAccountsPage,
+  })),
+);
+export const DepositAccountDetailPage = lazy(() =>
+  import('../pages/tenant/finance/depositAccounts/DepositAccountDetailPage').then((m) => ({
+    default: m.DepositAccountDetailPage,
+  })),
+);

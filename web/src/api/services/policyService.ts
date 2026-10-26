@@ -5,6 +5,8 @@ import { seg, tenantGet, tenantList, tenantSend } from './tenantRequest';
 export interface EffectivePolicyQuery {
   machine_id?: string | undefined;
   site_id?: string | undefined;
+  /** STAFF scope (e.g. a custodian's cash holding allowance). */
+  staff_id?: string | undefined;
   at?: string | undefined;
 }
 
@@ -25,6 +27,7 @@ export const policyService = {
       {
         machine_id: query.machine_id,
         site_id: query.site_id,
+        staff_id: query.staff_id,
         at: query.at,
       },
     );

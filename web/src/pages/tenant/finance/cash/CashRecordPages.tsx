@@ -25,7 +25,7 @@ import {
   adjustmentItems,
   useAdjustmentActions,
 } from './adjustmentRecord';
-import { ADJUSTMENT_KIND_LABELS } from './custodyDisplay';
+import { ADJUSTMENT_KIND_LABELS, VARIANCE_KIND_LABELS } from './custodyDisplay';
 import {
   floatChip,
   floatCustodian,
@@ -188,6 +188,7 @@ export function CashVarianceDetailPage() {
         back={useBack('CASH_VARIANCE')}
         timeZone={timeZone}
         title={(v) => `Cash variance · ${varianceCustodian(v)}`}
+        subtitle={(v) => VARIANCE_KIND_LABELS[v.kind]}
         status={varianceChip}
         actions={actionsFor}
         primaryKey="resolve"
@@ -282,7 +283,7 @@ export function RemittanceOverdueDetailPage() {
         </div>
       )}
       items={(o) => overdueItems(o, timeZone)}
-      history={overdueHistory}
+      history={(o) => overdueHistory(o, timeZone)}
     />
   );
 }

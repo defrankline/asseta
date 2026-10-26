@@ -1,9 +1,9 @@
 import { Alert } from '@mui/material';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { newUuid } from '../../../../api/ids';
 import { cashService } from '../../../../api/services/cashService';
 import type { CashCustodyEntryDto, CashHandoverDto, StaffDto } from '../../../../api/types';
-import type { CustodianDto } from '../../../../api/custodyTypes';
+import type { CustodianDto, DepositAccountDto } from '../../../../api/custodyTypes';
 import { KeyValueGrid } from '../../../../components/display/KeyValueGrid';
 import { FormikDateTimeField } from '../../../../components/forms/FormikDateTimeField';
 import { FormikSelectField } from '../../../../components/forms/FormikSelectField';
@@ -18,13 +18,17 @@ import { FormikStaffIdPicker } from '../../shared/financePickers';
 import {
   ENTRY_TYPE_OPTIONS,
   floatSchema,
-  handoverSchema,
+  handoverSchemaFor,
+  REMITTANCE_METHOD_LABELS,
   toFloatPayload,
   toHandoverPayload,
   type FloatValues,
   type HandoverValues,
 } from './cashForms';
 import { FormikCustodianIdPicker } from './custodyPickers';
+import { RemittanceDepositFields } from './remittanceDeposit';
+import { useRemittanceRequirements } from './remittanceDetails';
+import { depositAccountLabel } from '../depositAccounts/depositAccountForm';
 
 const amountText = (amount: string, currency: string) => formatEnteredMoney(amount, currency);
 
@@ -137,7 +141,10 @@ interface HandoverDialogProps {
   onRecorded: (handover: CashHandoverDto) => void;
 }
 
-/** A custodian remits cash to the company; CLAIMED until someone else confirms the amount received. */
+/**
+ * A custodian remits cash to the company (how it was paid, into which company account, reference
+ * and photos); CLAIMED until someone else confirms the amount received.
+ */
 export function HandoverDialog({
   staffMemberId = '',
   ownCustody = false,
@@ -148,12 +155,18 @@ export function HandoverDialog({
   const keyFor = useIdempotencyKey();
   const [clientId] = useState(() => newUuid());
   const [staff, setStaff] = useState<CustodianDto | null>(null);
+  const [account, setAccount] = useState<DepositAccountDto | null>(null);
+  const requirements = useRemittanceRequirements();
+  const schema = useMemo(() => handoverSchemaFor(requirements), [requirements]);
   const [initial] = useState<HandoverValues>(() => ({
     staff_member_id: staffMemberId,
     amount: '',
     currency: '',
-    handed_at: new Date().toISOString(),
+    method: 'CASH_TO_OFFICE',
+    deposit_account_id: '',
     reference: '',
+    evidence: [],
+    handed_at: new Date().toISOString(),
     note: '',
   }));
   return (
@@ -161,7 +174,7 @@ export function HandoverDialog({
       open
       title="Record remittance"
       initialValues={initial}
-      validationSchema={handoverSchema}
+      validationSchema={schema}
       submitLabel="Record remittance"
       onClose={onClose}
       steps={[
@@ -184,8 +197,19 @@ export function HandoverDialog({
           ),
         },
         {
+          label: 'Deposit',
+          fields: ['method', 'deposit_account_id', 'reference', 'evidence'],
+          render: () => (
+            <RemittanceDepositFields
+              requirements={requirements}
+              account={account}
+              onAccountChange={setAccount}
+            />
+          ),
+        },
+        {
           label: 'Details',
-          fields: ['handed_at', 'reference', 'note'],
+          fields: ['handed_at', 'note'],
           render: () => (
             <>
               <FormikDateTimeField
@@ -194,7 +218,6 @@ export function HandoverDialog({
                 timeZone={timeZone}
                 required
               />
-              <FormikTextField name="reference" label="Reference (optional, e.g. deposit slip)" />
               <FormikTextField name="note" label="Note (optional)" multiline minRows={2} />
             </>
           ),
@@ -207,8 +230,20 @@ export function HandoverDialog({
             items={[
               { label: 'Custodian', value: staff?.full_name ?? 'Me (my custody)' },
               { label: 'Amount', value: amountText(v.amount, v.currency) },
-              { label: 'Handed over at', value: formatInstantIn(v.handed_at, timeZone) },
+              { label: 'Paid by', value: REMITTANCE_METHOD_LABELS[v.method] },
+              {
+                label: 'Company account',
+                value:
+                  account !== null && account.id === v.deposit_account_id
+                    ? depositAccountLabel(account)
+                    : '—',
+              },
               { label: 'Reference', value: v.reference.trim() || '—' },
+              {
+                label: 'Photos',
+                value: v.evidence.length === 0 ? 'None' : String(v.evidence.length),
+              },
+              { label: 'Handed over at', value: formatInstantIn(v.handed_at, timeZone) },
             ]}
           />
           <Alert severity="info">

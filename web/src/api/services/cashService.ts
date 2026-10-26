@@ -1,4 +1,5 @@
 import type {
+  AttachmentDto,
   CashCollectionIn,
   CashCustodyBalanceDto,
   CashCustodyEntryDto,
@@ -9,8 +10,10 @@ import type {
   CashSupervisorSummaryDto,
   CustomerPaymentDto,
   Page,
+  PhotoUrlDto,
   SettlementDecisionIn,
 } from '../types';
+import { attachmentSchema, photoUrlSchema } from './meterSchemas';
 import {
   custodyBalanceSchema,
   custodyEntrySchema,
@@ -136,6 +139,32 @@ export const cashService = {
       handoverSchema,
       'cash handover',
       idempotencyKey,
+    );
+  },
+  /** POST /tenant/cash/remittance-evidence (uploadRemittanceEvidence), multipart `file`. */
+  uploadRemittanceEvidence(file: File, idempotencyKey: string): Promise<AttachmentDto> {
+    const form = new FormData();
+    form.append('file', file);
+    return tenantSend(
+      'post',
+      '/tenant/cash/remittance-evidence',
+      form,
+      attachmentSchema,
+      'remittance evidence',
+      idempotencyKey,
+    );
+  },
+  /** GET /tenant/cash/handovers/{id}/evidence/{attachmentId}/url (getRemittanceEvidenceUrl): short-lived. */
+  remittanceEvidenceUrl(
+    handoverId: string,
+    attachmentId: string,
+    signal?: AbortSignal,
+  ): Promise<PhotoUrlDto> {
+    return tenantGet(
+      `/tenant/cash/handovers/${seg(handoverId)}/evidence/${seg(attachmentId)}/url`,
+      photoUrlSchema,
+      'remittance evidence URL',
+      signal,
     );
   },
   /** GET /tenant/cash/supervisor-summary (listCashSupervisorSummaries): every custodian x currency. */

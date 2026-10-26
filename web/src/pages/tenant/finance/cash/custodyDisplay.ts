@@ -7,6 +7,7 @@ import type {
   CashAckMethod,
   CashReasonKind,
   CashTransferStatus,
+  CashVarianceDto,
   CustodyAdjustmentKind,
   ReconciliationFigure,
   VarianceOutcome,
@@ -70,6 +71,12 @@ export const VARIANCE_OUTCOME_LABELS: Readonly<Record<VarianceOutcome, string>> 
   WRITTEN_OFF: 'Written off',
 };
 export const VARIANCE_OUTCOME_OPTIONS = options(VARIANCE_OUTCOME_LABELS);
+
+/** SURPLUS: more was received than declared (a negative difference) — neutral wording, never blame. */
+export const VARIANCE_KIND_LABELS: Readonly<Record<CashVarianceDto['kind'], string>> = {
+  SHORTFALL: 'Shortfall',
+  SURPLUS: 'Surplus to explain',
+};
 export const VARIANCE_SOURCE_LABELS: Readonly<Record<VarianceSource, string>> = {
   TRANSFER: 'Transfer',
   REMITTANCE: 'Remittance',

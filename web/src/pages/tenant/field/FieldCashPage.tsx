@@ -1,5 +1,6 @@
 import { Box, Button, Paper, Stack, Tab, Tabs, Typography } from '@mui/material';
 import { useCallback, useState } from 'react';
+import { useNavigate } from 'react-router';
 import { CAPABILITY, useCapabilityEnabled } from '../../../access/capabilities';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import { CanMutate } from '../../../access/CanMutate';
@@ -18,8 +19,10 @@ import { useDisplayTimeZone } from '../../../hooks/useDisplayTimeZone';
 import { useNotify } from '../../../notifications/useNotify';
 import { ENTITY } from '../../../realtime/entities';
 import { useLiveRefresh } from '../../../realtime/hooks';
+import { recordPath } from '../../../navigation/recordRoutes';
 import { formatInstantIn } from '../../../utils/time';
 import { HandoverDialog } from '../finance/cash/CashDialogs';
+import { remittanceAccountText, remittanceMethodText } from '../finance/cash/remittanceDetails';
 import { useCashPolicy } from '../finance/cash/custodyHooks';
 import { FloatsTab } from '../finance/cash/FloatsTab';
 import { RetentionsTab } from '../finance/cash/RetentionsTab';
@@ -129,6 +132,10 @@ export function FieldCashPage() {
     (query, signal) => cashService.myCollections(query, signal),
     [],
   );
+  const navigate = useNavigate();
+  const openRemittance = (h: CashHandoverDto) => {
+    void navigate(recordPath('CASH_REMITTANCE', h.id));
+  };
   const fetchHandovers = useCallback<FetchPage<CashHandoverDto>>(
     (query, signal) => cashService.myHandovers(query, signal),
     [],
@@ -152,6 +159,8 @@ export function FieldCashPage() {
   ];
   const handoverColumns: DataColumn<CashHandoverDto>[] = [
     { id: 'at', header: 'Handed over', render: (h) => formatInstantIn(h.handed_at, timeZone) },
+    { id: 'method', header: 'Paid by', render: remittanceMethodText },
+    { id: 'account', header: 'Company account', render: remittanceAccountText },
     { id: 'ref', header: 'Reference', render: (h) => h.reference ?? '—' },
     { id: 'status', header: 'Status', render: (h) => settlement(h.status) },
     { id: 'note', header: 'Office note', render: (h) => h.decision_note ?? '—' },
@@ -246,6 +255,7 @@ export function FieldCashPage() {
                 filters={{ status: status || undefined }}
                 emptyTitle="No remittances"
                 isRowMuted={(h) => h.status === 'REJECTED'}
+                onRowClick={openRemittance}
                 toolbar={
                   <StaticSelectFilter
                     label="Status"
