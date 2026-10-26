@@ -115,6 +115,8 @@ _TYPES = (
     NotificationType("HOURS_EXPIRED", "Customer hours expired", Category.INFO, Severity.INFO, T, low_priority=True),
     # Operations: reminders
     NotificationType("CASH_NOT_HANDED_OVER", "Cash not handed over", Category.REMINDER, Severity.WARNING, T, True),
+    # DEC-031 M2: completed, billing-ready work not on an issued invoice after the tenant's days (once per job)
+    NotificationType("UNBILLED_WORK", "Work not yet invoiced", Category.REMINDER, Severity.WARNING, T),
     NotificationType(
         "HIRE_INVOICE_OVERDUE", "Customer invoice overdue", Category.REMINDER, Severity.INFO, T, low_priority=True
     ),

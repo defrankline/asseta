@@ -37,6 +37,7 @@ RULE_TITLES: dict[str, str] = {
     RuleCode.UNEXPLAINED_ENGINE_HOURS: "Engine hours still unexplained after the review period",
     RuleCode.ENGINE_RUNNING_WITHOUT_WORK: "Engine running without work during the day",
     RuleCode.MACHINE_FUEL_ABOVE_NORM: "Fuel above the norm for the engine hours",
+    RuleCode.REPEATED_PATTERN: "Repeated items to look at for one person",
 }
 ALERT_TITLES = {
     AlertType.TAMPER: "Tracker tamper signal",

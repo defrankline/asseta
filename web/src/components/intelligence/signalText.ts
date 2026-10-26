@@ -24,6 +24,7 @@ export const RULE_LABELS: Readonly<Record<RuleCode, string>> = {
   UNEXPLAINED_ENGINE_HOURS: 'Engine hours still unexplained after the review period',
   ENGINE_RUNNING_WITHOUT_WORK: 'Engine running without work during the day',
   MACHINE_FUEL_ABOVE_NORM: 'Fuel above the norm for the engine hours',
+  REPEATED_PATTERN: 'Repeated items to look at for one person',
 };
 
 export const SOURCE_TYPE_LABELS: Readonly<Record<CaseSourceType, string>> = {
@@ -229,6 +230,25 @@ const RULE_EXPLAIN: Readonly<Record<RuleCode, Explainer>> = {
       `${f.text('engine_hours_outside_jobs')} h outside jobs): ${f.text('litres_per_engine_hour')} L per ` +
       `engine hour against ${source[f.text('norm_source')] ?? 'the norm'} of ` +
       `${f.text('norm_litres_per_engine_hour')} L per engine hour.`
+    );
+  },
+  REPEATED_PATTERN: (f) => {
+    const items: Readonly<Record<string, string>> = {
+      MISSING_DAILY_REPORT: 'missing daily reports',
+      LATE_DAILY_REPORT: 'late daily reports',
+      UNEXPLAINED_HOURS: 'unexplained engine-hour periods',
+      ALERT: 'tracking alerts',
+      CASH_HELD_TOO_LONG: 'cash held too long',
+      CASH_DIFFERENCE: 'cash differences',
+      REVENUE_DIFFERENCE: 'revenue differences',
+      REFUSED_ATTEMPT: 'refused attempts',
+      MISSED_CHECKIN: 'missed site check-ins',
+    };
+    const who = f.has('staff_name') ? f.text('staff_name') : 'One person';
+    return (
+      `${who} has ${f.text('count')} ${items[f.text('item')] ?? 'items'} within ` +
+      `${f.text('window_days')} days (the tenant looks at ${f.text('threshold_count')} or more). ` +
+      'Each one is listed below to look at.'
     );
   },
 };

@@ -4513,6 +4513,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenant/idle-machines": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Idle Machines
+         * @description Active machines with no running job and no engine hours for OVERSIGHT.idle_after_days (longest idle first;
+         *     `q`: asset code or name).
+         */
+        get: operations["listIdleMachines"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenant/insights": {
         parameters: {
             query?: never;
@@ -6236,6 +6257,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenant/scorecard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Scorecard
+         * @description One row per person (active staff, and anyone with items) for a tenant-local period (default the last 30
+         *     days, at most 93): most items first. `q` searches the name; `site_id` keeps people who worked that site.
+         */
+        get: operations["listScorecard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/scorecard/{staff_member_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Scorecard
+         * @description One person's figures with every record behind them (newest first; `item` filters one kind).
+         */
+        get: operations["getScorecard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenant/security-events": {
         parameters: {
             query?: never;
@@ -6248,6 +6310,68 @@ export interface paths {
          * @description Refused attempts, latest first. `q` searches permission, action, record type and request path.
          */
         get: operations["listSecurityEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/site-checkins": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Site Checkins
+         * @description Everyone's check-ins, newest first (`q`: person's name).
+         */
+        get: operations["listSiteCheckins"];
+        put?: never;
+        /**
+         * Record Site Checkin
+         * @description The caller checks in at the site (same as the sync op SITE_CHECKIN). Replaying a client_id returns the
+         *     stored check-in.
+         */
+        post: operations["recordSiteCheckin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/site-checkins/mine": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My Site Checkins
+         * @description The caller's schedule (MADE / MISSED / DUE / UPCOMING) and check-ins.
+         */
+        get: operations["getMySiteCheckins"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/site-checkins/{checkin_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Site Checkin */
+        get: operations["getSiteCheckin"];
         put?: never;
         post?: never;
         delete?: never;
@@ -6516,6 +6640,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenant/unbilled-work": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Unbilled Work
+         * @description Completed, billing-ready jobs not on an issued invoice after OVERSIGHT.unbilled_after_days (oldest first;
+         *     `q`: job number or customer).
+         */
+        get: operations["listUnbilledWork"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenant/walk-in-customers": {
         parameters: {
             query?: never;
@@ -6593,7 +6738,7 @@ export interface components {
             } | null;
             /**
              * Disabled Capabilities
-             * @description Tenant capabilities switched off by policy (CUSTOMER_HOURS, ENGINE_HOURS, CASH_CUSTODY, REVENUE_RECONCILIATION); their tiles are hidden and, for CASH_CUSTODY, the cash-control figures of the cash/discrepancy/approval tiles are empty
+             * @description Tenant capabilities switched off by policy (CUSTOMER_HOURS, ENGINE_HOURS, CASH_CUSTODY, REVENUE_RECONCILIATION, SCORECARD, UNBILLED_WORK, IDLE_MACHINES, SITE_CHECKIN); their tiles are hidden and, for CASH_CUSTODY, the cash-control figures of the cash/discrepancy/approval tiles are empty
              */
             disabled_capabilities?: string[];
             discrepancies?: components["schemas"]["DiscrepanciesTileDto"] | null;
@@ -6611,6 +6756,13 @@ export interface components {
              * @description [3.6.8] hours awaiting activation (customer hours module)
              */
             hours_awaiting_activation?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Idle Machines
+             * @description [DEC-031 M2] idle machines: count, after_days, longest_idle_days, items [{machine_id, idle_since, idle_days, planned_job_id}] (oversight module)
+             */
+            idle_machines?: {
                 [key: string]: unknown;
             } | null;
             investigations?: components["schemas"]["InvestigationsTileDto"] | null;
@@ -6635,6 +6787,13 @@ export interface components {
             unauthorized_attempts?: components["schemas"]["AttemptsTileDto"] | null;
             /** Unavailable Tiles */
             unavailable_tiles: string[];
+            /**
+             * Unbilled Work
+             * @description [DEC-031 M2] unbilled work: count, after_days, amounts [{currency, count, amount}], oldest_days, items [{job_id, machine_id, customer_id, completed_at, days_unbilled, currency, total}] (oversight module)
+             */
+            unbilled_work?: {
+                [key: string]: unknown;
+            } | null;
             /**
              * Unexplained Hours
              * @description [3.6.4] unexplained engine hours (meter module)
@@ -6902,6 +7061,15 @@ export interface components {
             purchase_id: string;
             /** Purchase Number */
             purchase_number: string;
+        };
+        /** AmountByCurrencyDto */
+        AmountByCurrencyDto: {
+            /** Amount */
+            amount: string;
+            /** Count */
+            count: number;
+            /** Currency */
+            currency: string;
         };
         /** AnomalyCaseDetailDto */
         AnomalyCaseDetailDto: {
@@ -7985,6 +8153,21 @@ export interface components {
              */
             staff_member_id?: string | null;
         };
+        /**
+         * CashHeldDto
+         * @description Cash the person holds now and has not remitted (beyond approved retentions), oldest part first received at
+         *     `held_since`.
+         */
+        CashHeldDto: {
+            /** Amount */
+            amount: string;
+            /** Currency */
+            currency: string;
+            /** Held Days */
+            held_days: number | null;
+            /** Held Since */
+            held_since: string | null;
+        };
         /** CashReasonDto */
         CashReasonDto: {
             /**
@@ -8561,6 +8744,30 @@ export interface components {
              * @enum {string}
              */
             status: "ok" | "down";
+        };
+        /**
+         * CheckinSlotDto
+         * @description A scheduled check-in: MADE (checkin_id), MISSED, DUE (window open now) or UPCOMING.
+         */
+        CheckinSlotDto: {
+            /** Checkin Id */
+            checkin_id?: string | null;
+            /** Job Id */
+            job_id?: string | null;
+            /** Job Number */
+            job_number?: string | null;
+            /**
+             * Scheduled At
+             * Format: date-time
+             */
+            scheduled_at: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "MADE" | "MISSED" | "DUE" | "UPCOMING";
+            /** Window Minutes */
+            window_minutes: number;
         };
         /** ClassificationDto */
         ClassificationDto: {
@@ -11257,6 +11464,48 @@ export interface components {
             machine_name?: string | null;
         };
         /**
+         * IdleMachineDto
+         * @description An active machine with no running job and no engine hours for at least OVERSIGHT.idle_after_days.
+         */
+        IdleMachineDto: {
+            /** Category Id */
+            category_id: string | null;
+            /** Idle Days */
+            idle_days: number;
+            /**
+             * Idle Since
+             * Format: date-time
+             */
+            idle_since: string;
+            /**
+             * Last Engine Activity At
+             * @description Last meter increase or tracker engine-on
+             */
+            last_engine_activity_at: string | null;
+            /** Last Job Completed At */
+            last_job_completed_at: string | null;
+            /** Last Job Id */
+            last_job_id: string | null;
+            /** Last Job Number */
+            last_job_number?: string | null;
+            /** Machine Code */
+            machine_code?: string | null;
+            /**
+             * Machine Id
+             * Format: uuid
+             */
+            machine_id: string;
+            /** Machine Name */
+            machine_name?: string | null;
+            /**
+             * Planned Job Id
+             * @description An approved job not started yet
+             */
+            planned_job_id: string | null;
+            /** Planned Job Number */
+            planned_job_number?: string | null;
+        };
+        /**
          * InferenceOutcome
          * @enum {string}
          */
@@ -13315,6 +13564,39 @@ export interface components {
          * @enum {string}
          */
         ModelStatus: "TRAINED" | "EVALUATED" | "APPROVED" | "DEPLOYED_SHADOW" | "DEPLOYED_ACTIVE" | "RETIRED" | "DISABLED" | "REJECTED";
+        /**
+         * MySiteCheckinsDto
+         * @description The caller's own check-ins and schedule (shown to the person in the app).
+         */
+        MySiteCheckinsDto: {
+            /** Checkins */
+            checkins: components["schemas"]["SiteCheckinDto"][];
+            /**
+             * Day From
+             * Format: date
+             */
+            day_from: string;
+            /**
+             * Day To
+             * Format: date
+             */
+            day_to: string;
+            /** Max Distance M */
+            max_distance_m: number | null;
+            /** Required */
+            required: boolean;
+            /** Slots */
+            slots: components["schemas"]["CheckinSlotDto"][];
+            /**
+             * Times
+             * @description Tenant-local HH:MM
+             */
+            times: string[];
+            /** Timezone */
+            timezone: string;
+            /** Window Minutes */
+            window_minutes: number;
+        };
         /** NearbyMachineDto */
         NearbyMachineDto: {
             /** Asset Code */
@@ -13806,7 +14088,7 @@ export interface components {
              * Op Type
              * @enum {string}
              */
-            op_type: "METER_CAPTURE" | "JOB_ACTIVITY" | "JOB_ACKNOWLEDGEMENT" | "JOB_TRANSITION" | "EXPENSE" | "CASH_COLLECTION" | "CASH_HANDOVER" | "CASH_TRANSFER" | "CASH_TRANSFER_ACKNOWLEDGEMENT" | "CASH_FLOAT_ACKNOWLEDGEMENT" | "FUEL_EVENT" | "METER_RESET_REQUEST" | "JOB_REQUEST" | "HOURS_PURCHASE" | "HOURS_TRANSFER_REQUEST" | "METER_BASELINE" | "METER_CORRECTION" | "CASH_RETENTION_REQUEST";
+            op_type: "METER_CAPTURE" | "JOB_ACTIVITY" | "JOB_ACKNOWLEDGEMENT" | "JOB_TRANSITION" | "EXPENSE" | "CASH_COLLECTION" | "CASH_HANDOVER" | "CASH_TRANSFER" | "CASH_TRANSFER_ACKNOWLEDGEMENT" | "CASH_FLOAT_ACKNOWLEDGEMENT" | "FUEL_EVENT" | "METER_RESET_REQUEST" | "JOB_REQUEST" | "HOURS_PURCHASE" | "HOURS_TRANSFER_REQUEST" | "METER_BASELINE" | "METER_CORRECTION" | "CASH_RETENTION_REQUEST" | "SITE_CHECKIN";
             /** Payload */
             payload: {
                 [key: string]: unknown;
@@ -14373,6 +14655,17 @@ export interface components {
             /** Total */
             total: number;
         };
+        /** Page[IdleMachineDto] */
+        Page_IdleMachineDto_: {
+            /** Items */
+            items: components["schemas"]["IdleMachineDto"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+        };
         /** Page[IngestionEventDto] */
         Page_IngestionEventDto_: {
             /** Items */
@@ -14648,10 +14941,32 @@ export interface components {
             /** Total */
             total: number;
         };
+        /** Page[ScorecardRowDto] */
+        Page_ScorecardRowDto_: {
+            /** Items */
+            items: components["schemas"]["ScorecardRowDto"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+        };
         /** Page[SecurityEventDto] */
         Page_SecurityEventDto_: {
             /** Items */
             items: components["schemas"]["SecurityEventDto"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+        };
+        /** Page[SiteCheckinDto] */
+        Page_SiteCheckinDto_: {
+            /** Items */
+            items: components["schemas"]["SiteCheckinDto"][];
             /** Page */
             page: number;
             /** Page Size */
@@ -14751,6 +15066,17 @@ export interface components {
         Page_UnallocatedSegmentDto_: {
             /** Items */
             items: components["schemas"]["UnallocatedSegmentDto"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+        };
+        /** Page[UnbilledJobDto] */
+        Page_UnbilledJobDto_: {
+            /** Items */
+            items: components["schemas"]["UnbilledJobDto"][];
             /** Page */
             page: number;
             /** Page Size */
@@ -16162,7 +16488,176 @@ export interface components {
          * RuleCode
          * @enum {string}
          */
-        RuleCode: "UNREPORTED_ENGINE_ACTIVITY" | "DUPLICATE_RECEIPT" | "FUEL_ALLOWANCE_EXCEEDED" | "EXPENSE_THRESHOLD_EXCEEDED" | "CASH_NOT_HANDED_OVER" | "WORK_WITHOUT_AUTHORIZATION" | "UNEXPLAINED_ENGINE_HOURS" | "ENGINE_RUNNING_WITHOUT_WORK" | "MACHINE_FUEL_ABOVE_NORM";
+        RuleCode: "UNREPORTED_ENGINE_ACTIVITY" | "DUPLICATE_RECEIPT" | "FUEL_ALLOWANCE_EXCEEDED" | "EXPENSE_THRESHOLD_EXCEEDED" | "CASH_NOT_HANDED_OVER" | "WORK_WITHOUT_AUTHORIZATION" | "UNEXPLAINED_ENGINE_HOURS" | "ENGINE_RUNNING_WITHOUT_WORK" | "MACHINE_FUEL_ABOVE_NORM" | "REPEATED_PATTERN";
+        /** ScorecardDetailDto */
+        ScorecardDetailDto: {
+            /** Records */
+            records: components["schemas"]["ScorecardRecordDto"][];
+            row: components["schemas"]["ScorecardRowDto"];
+        };
+        /**
+         * ScorecardItem
+         * @description Kinds of item on the per-person scorecard (DEC-031 M1). Neutral: each is something to look at, not a verdict.
+         * @enum {string}
+         */
+        ScorecardItem: "MISSING_DAILY_REPORT" | "LATE_DAILY_REPORT" | "UNEXPLAINED_HOURS" | "ALERT" | "CASH_HELD_TOO_LONG" | "CASH_DIFFERENCE" | "REVENUE_DIFFERENCE" | "REFUSED_ATTEMPT" | "MISSED_CHECKIN";
+        /**
+         * ScorecardRecordDto
+         * @description One item behind a scorecard figure, with the record to open (`record_type` + `record_id`):
+         *     job_exception -> /tenant/exceptions/{id}, engine_interval -> the machine's engine-hour ledger (no record id),
+         *     tracking_alert -> /tenant/alerts/{id}, cash_remittance_overdue -> /tenant/finance/cash/remittance-overdue/{id},
+         *     cash_variance -> /tenant/finance/cash/variances/{id}, revenue_difference -> /tenant/revenue-differences/{id},
+         *     security_event -> /tenant/security-events (id), site_checkin_slot -> a scheduled check-in not made (no id),
+         *     risk_signal -> the case of the signal (case_id in detail).
+         */
+        ScorecardRecordDto: {
+            /** Amount */
+            amount?: string | null;
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Currency */
+            currency?: string | null;
+            /** Day */
+            day: string | null;
+            /** Detail */
+            detail?: {
+                [key: string]: unknown;
+            };
+            /** Hours */
+            hours?: string | null;
+            /** Item */
+            item: components["schemas"]["ScorecardItem"] | "PATTERN_SIGNAL";
+            /** Job Id */
+            job_id?: string | null;
+            /** Job Number */
+            job_number?: string | null;
+            /** Machine Code */
+            machine_code?: string | null;
+            /** Machine Id */
+            machine_id?: string | null;
+            /** Machine Name */
+            machine_name?: string | null;
+            /**
+             * Near Threshold
+             * @default false
+             */
+            near_threshold: boolean;
+            /** Record Id */
+            record_id: string | null;
+            /** Record Type */
+            record_type: string;
+            /** Status */
+            status?: string | null;
+        };
+        /**
+         * ScorecardRowDto
+         * @description One person's figures for the period. Neutral: counts of items to look at, never a verdict.
+         */
+        ScorecardRowDto: {
+            /**
+             * Alerts
+             * @description Tracking alerts on the person's machines in the period
+             */
+            alerts: number;
+            /** Alerts Acknowledged */
+            alerts_acknowledged: number;
+            /**
+             * Alerts Open
+             * @description Of those, not yet acknowledged or resolved
+             */
+            alerts_open: number;
+            /** Avg Hours To Acknowledge */
+            avg_hours_to_acknowledge: string | null;
+            /** Cash Difference Totals */
+            cash_difference_totals: components["schemas"]["AmountByCurrencyDto"][];
+            /** Cash Differences */
+            cash_differences: number;
+            /**
+             * Cash Differences Near Threshold
+             * @description Cash differences at or above OVERSIGHT.near_threshold_percent of the cash case threshold
+             */
+            cash_differences_near_threshold: number;
+            /**
+             * Cash Held
+             * @description Now (not limited to the period)
+             */
+            cash_held?: components["schemas"]["CashHeldDto"][];
+            /**
+             * Cash Held Too Long
+             * @description Remittance-overdue flags in the period (cut-off or allowance)
+             */
+            cash_held_too_long: number;
+            /** Checkins Made */
+            checkins_made: number;
+            /**
+             * Checkins Missed
+             * @description Null while site check-ins were never required in the period
+             */
+            checkins_missed: number | null;
+            /**
+             * Daily Reports Late
+             * @description A reading came for the day, but after the daily-report cut-off
+             */
+            daily_reports_late: number;
+            /** Daily Reports Missing */
+            daily_reports_missing: number;
+            /**
+             * Day From
+             * Format: date
+             */
+            day_from: string;
+            /**
+             * Day To
+             * Format: date
+             */
+            day_to: string;
+            /** Employee Code */
+            employee_code: string | null;
+            /** Is Active */
+            is_active: boolean;
+            /**
+             * Items Total
+             * @description All items above (list order: most first)
+             */
+            items_total: number;
+            /**
+             * Machines
+             * @description Machines the person was responsible for in the period (assigned / supervised)
+             */
+            machines: number;
+            /** Max Hours To Acknowledge */
+            max_hours_to_acknowledge: string | null;
+            /**
+             * Pattern Signals
+             * @description REPEATED_PATTERN risk signals about the person in the period
+             */
+            pattern_signals: number;
+            /** Refused Attempts */
+            refused_attempts: number;
+            /** Revenue Difference Totals */
+            revenue_difference_totals: components["schemas"]["AmountByCurrencyDto"][];
+            /** Revenue Differences */
+            revenue_differences: number;
+            /** Staff Kind */
+            staff_kind: string;
+            /**
+             * Staff Member Id
+             * Format: uuid
+             */
+            staff_member_id: string;
+            /** Staff Member Name */
+            staff_member_name?: string | null;
+            /**
+             * Unexplained Hours
+             * @description Engine hours still unexplained on the person's machines
+             */
+            unexplained_hours: string;
+            /** Unexplained Items */
+            unexplained_items: number;
+        };
         /** SecurityEventDto */
         SecurityEventDto: {
             /** Action */
@@ -16461,6 +16956,90 @@ export interface components {
          * @enum {string}
          */
         SignalStatus: "OPEN" | "LINKED" | "DISMISSED";
+        /** SiteCheckinDto */
+        SiteCheckinDto: {
+            /** Accuracy M */
+            accuracy_m: number | null;
+            /**
+             * Captured At
+             * Format: date-time
+             */
+            captured_at: string;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /**
+             * Distance M
+             * @description From the site centre (GPS fix and a site only)
+             */
+            distance_m: number | null;
+            gps_status: components["schemas"]["GpsStatus"];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Job Id */
+            job_id: string | null;
+            /** Job Number */
+            job_number?: string | null;
+            /** Job Site Id */
+            job_site_id: string | null;
+            /** Job Site Name */
+            job_site_name?: string | null;
+            /** Latitude */
+            latitude: number | null;
+            /** Longitude */
+            longitude: number | null;
+            /**
+             * Received At
+             * Format: date-time
+             */
+            received_at: string;
+            /**
+             * Recorded By
+             * Format: uuid
+             */
+            recorded_by: string;
+            /** Recorded By Name */
+            recorded_by_name?: string | null;
+            /** Source */
+            source: string;
+            /**
+             * Staff Member Id
+             * Format: uuid
+             */
+            staff_member_id: string;
+            /** Staff Member Name */
+            staff_member_name?: string | null;
+            /**
+             * Within Distance
+             * @description Against OVERSIGHT.site_checkin_max_distance_m; null when not judged
+             */
+            within_distance?: boolean | null;
+        };
+        /**
+         * SiteCheckinIn
+         * @description A GPS check-in at the site (also the sync op SITE_CHECKIN payload). Never fabricate coordinates: a failed
+         *     GPS attempt is sent with its status and no coordinates.
+         */
+        SiteCheckinIn: {
+            /**
+             * Captured At
+             * Format: date-time
+             */
+            captured_at: string;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            gps: components["schemas"]["GpsIn"];
+            /** Job Site Id */
+            job_site_id?: string | null;
+        };
         /** SiteVisitDto */
         SiteVisitDto: {
             /** Duration Seconds */
@@ -18070,6 +18649,64 @@ export interface components {
             effective_to: string;
             /** Reason */
             reason: string;
+        };
+        /**
+         * UnbilledJobDto
+         * @description A completed, billing-ready job not on an issued invoice for more than OVERSIGHT.unbilled_after_days.
+         */
+        UnbilledJobDto: {
+            /** Billable Hours */
+            billable_hours: string | null;
+            /**
+             * Completed At
+             * Format: date-time
+             */
+            completed_at: string;
+            /** Currency */
+            currency: string;
+            /**
+             * Customer Id
+             * Format: uuid
+             */
+            customer_id: string;
+            /** Customer Name */
+            customer_name?: string | null;
+            /** Days Unbilled */
+            days_unbilled: number;
+            /**
+             * Draft Invoice Id
+             * @description A draft invoice already holds the job (not issued yet)
+             */
+            draft_invoice_id: string | null;
+            /**
+             * Job Id
+             * Format: uuid
+             */
+            job_id: string;
+            /** Job Number */
+            job_number?: string | null;
+            /** Job Site Id */
+            job_site_id: string | null;
+            /** Job Site Name */
+            job_site_name?: string | null;
+            /** Machine Code */
+            machine_code?: string | null;
+            /**
+             * Machine Id
+             * Format: uuid
+             */
+            machine_id: string;
+            /** Machine Name */
+            machine_name?: string | null;
+            /** Supervisor Staff Id */
+            supervisor_staff_id: string | null;
+            /** Supervisor Staff Name */
+            supervisor_staff_name?: string | null;
+            /**
+             * Total
+             * @description What the job is worth under its terms (the invoice would snapshot it)
+             */
+            total: string | null;
         };
         /** UtilisationInsightDto */
         UtilisationInsightDto: {
@@ -45497,6 +46134,98 @@ export interface operations {
             };
         };
     };
+    listIdleMachines: {
+        parameters: {
+            query?: {
+                category_id?: string | null;
+                page?: number;
+                page_size?: number;
+                q?: string | null;
+                sort?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_IdleMachineDto_"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     getTenantInsights: {
         parameters: {
             query?: never;
@@ -56090,6 +56819,197 @@ export interface operations {
             };
         };
     };
+    listScorecard: {
+        parameters: {
+            query?: {
+                /** @description First tenant-local day (default: 29 days before day_to) */
+                day_from?: string | null;
+                /** @description Last tenant-local day, inclusive (default: today) */
+                day_to?: string | null;
+                staff_id?: string | null;
+                site_id?: string | null;
+                page?: number;
+                page_size?: number;
+                q?: string | null;
+                sort?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_ScorecardRowDto_"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getScorecard: {
+        parameters: {
+            query?: {
+                /** @description First tenant-local day (default: 29 days before day_to) */
+                day_from?: string | null;
+                /** @description Last tenant-local day, inclusive (default: today) */
+                day_to?: string | null;
+                item?: components["schemas"]["ScorecardItem"] | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                staff_member_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScorecardDetailDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     listSecurityEvents: {
         parameters: {
             query?: {
@@ -56118,6 +57038,370 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Page_SecurityEventDto_"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listSiteCheckins: {
+        parameters: {
+            query?: {
+                staff_id?: string | null;
+                job_site_id?: string | null;
+                day_from?: string | null;
+                day_to?: string | null;
+                page?: number;
+                page_size?: number;
+                q?: string | null;
+                sort?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_SiteCheckinDto_"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    recordSiteCheckin: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SiteCheckinIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteCheckinDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getMySiteCheckins: {
+        parameters: {
+            query?: {
+                /** @description Default: 6 days before day_to */
+                day_from?: string | null;
+                /** @description Last tenant-local day, inclusive (default: today) */
+                day_to?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MySiteCheckinsDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getSiteCheckin: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                checkin_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteCheckinDto"];
                 };
             };
             /** @description Bad Request */
@@ -57762,6 +59046,100 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TrackerDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listUnbilledWork: {
+        parameters: {
+            query?: {
+                customer_id?: string | null;
+                machine_id?: string | null;
+                site_id?: string | null;
+                page?: number;
+                page_size?: number;
+                q?: string | null;
+                sort?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_UnbilledJobDto_"];
                 };
             };
             /** @description Bad Request */

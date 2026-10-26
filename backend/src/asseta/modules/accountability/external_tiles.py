@@ -155,6 +155,16 @@ def revenue_differences_tile(s: Session, ctx: RequestContext, now: datetime) -> 
     return dict(_optional("asseta.modules.revenue.tile", "revenue_differences_tile")(s, ctx, now))
 
 
+def unbilled_work_tile(s: Session, ctx: RequestContext, now: datetime) -> dict[str, Any]:
+    """[DEC-031 M2] Completed, billing-ready jobs not invoiced after the tenant's days (oversight module)."""
+    return dict(_optional("asseta.modules.oversight.tile", "unbilled_work_tile")(s, ctx, now))
+
+
+def idle_machines_tile(s: Session, ctx: RequestContext, now: datetime) -> dict[str, Any]:
+    """[DEC-031 M2] Active machines with no job and no engine hours for the tenant's days (oversight module)."""
+    return dict(_optional("asseta.modules.oversight.tile", "idle_machines_tile")(s, ctx, now))
+
+
 EXTERNAL_TILES: dict[str, Tile] = {
     "customer_hours": customer_hours_tile,
     "hours_awaiting_activation": hours_awaiting_activation_tile,
@@ -162,4 +172,6 @@ EXTERNAL_TILES: dict[str, Tile] = {
     "unexplained_hours": unexplained_hours_tile,
     "missing_daily_reports": missing_daily_reports_tile,
     "revenue_differences": revenue_differences_tile,
+    "unbilled_work": unbilled_work_tile,
+    "idle_machines": idle_machines_tile,
 }

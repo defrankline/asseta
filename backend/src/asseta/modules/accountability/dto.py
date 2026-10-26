@@ -166,7 +166,7 @@ class AccountabilitySummaryDto(BaseModel):
     disabled_capabilities: list[str] = Field(
         default_factory=list,
         description="Tenant capabilities switched off by policy (CUSTOMER_HOURS, ENGINE_HOURS, CASH_CUSTODY, "
-        "REVENUE_RECONCILIATION); their "
+        "REVENUE_RECONCILIATION, SCORECARD, UNBILLED_WORK, IDLE_MACHINES, SITE_CHECKIN); their "
         "tiles are hidden and, for CASH_CUSTODY, the cash-control figures of the cash/discrepancy/approval tiles are "
         "empty",
     )
@@ -190,6 +190,16 @@ class AccountabilitySummaryDto(BaseModel):
         description="[DEC-031 R3] revenue differences: open, awaiting_decision, amounts [{currency, count, amount}], "
         "oldest_open_days, window_days, explained/confirmed/cleared_in_window, items [{id, machine_id, machine_code, "
         "period_key, local_from, local_to, currency, difference, status}] (revenue module)",
+    )
+    unbilled_work: dict[str, Any] | None = Field(
+        default=None,
+        description="[DEC-031 M2] unbilled work: count, after_days, amounts [{currency, count, amount}], oldest_days, "
+        "items [{job_id, machine_id, customer_id, completed_at, days_unbilled, currency, total}] (oversight module)",
+    )
+    idle_machines: dict[str, Any] | None = Field(
+        default=None,
+        description="[DEC-031 M2] idle machines: count, after_days, longest_idle_days, items [{machine_id, idle_since, "
+        "idle_days, planned_job_id}] (oversight module)",
     )
     investigations: InvestigationsTileDto | None = None
     cash: CashTileDto | None = None

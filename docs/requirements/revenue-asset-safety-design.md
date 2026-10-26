@@ -246,3 +246,37 @@ Both items are FRAUD_CONTROLS ("Risk signals") keys, null on the platform defaul
   final allocation less daily draws), transferred in/out, expired, cancelled, closing, still-provisional, awaiting
   activation; purchases with remaining at close and next expiry; every movement with the running balance. JSON and a
   PDF on the report layout; `tenant.hours.read`; PDF downloads are audited.
+
+## Implementation notes — Phase 5 (backend, 2026-10-27)
+
+All items are OVERSIGHT keys, off on the platform default (new platform version; today's behaviour), each behind a
+tenant capability (menus, `/me` disabled_capabilities, tiles, endpoints refused with `<CAPABILITY>_DISABLED`):
+SCORECARD (`scorecard_enabled`), UNBILLED_WORK (`unbilled_after_days` set), IDLE_MACHINES (`idle_after_days` set),
+SITE_CHECKIN (`site_checkin_required`). Tenant scope only.
+
+- **M1 people scorecard** (read model, `tenant.oversight.scorecard.read`; owner/manager): per staff member and
+  tenant-local period (default 30 days, at most 93). A person's machines are those they were assigned to (machine
+  assignment, any role) or whose job they supervised, for that time; machine items count for everyone responsible
+  at the item's time. Items: MISSING_DAILY_REPORT / LATE_DAILY_REPORT (MISSING_DAILY_REPORT exceptions not
+  explained; late = a live reading for that day came after the cut-off), UNEXPLAINED_HOURS (open items of the
+  engine-hour ledger), ALERT (tracking alerts; open, acknowledged, hours to acknowledge), CASH_HELD_TOO_LONG
+  (remittance-overdue flags), CASH_DIFFERENCE (variances the custodian stays accountable for; "just under the
+  threshold" = at least `near_threshold_percent` % of CASH_CUSTODY.variance_case_threshold and not above it),
+  REVENUE_DIFFERENCE (not cleared, on their machines), REFUSED_ATTEMPT (security events of their login),
+  MISSED_CHECKIN (M3). Cash held now (unremitted, FIFO age) per currency. Detail lists every record id to open.
+- **Repeat pattern**: `repeat_pattern_count` (null = off) items of one kind in `repeat_pattern_items` within
+  `repeat_pattern_window_days` → risk signal REPEATED_PATTERN (subject STAFF, evidence lists the records, the person
+  is an involved party) → case through the usual linker. At most one signal per person and kind per window; the
+  intelligence sweep runs it.
+- **M2**: unbilled = COMPLETED INVOICE-mode job, billing-ready (same job summary rule as invoicing), not claimed by
+  an issued invoice, completed at least `unbilled_after_days` ago (a draft invoice is shown, still unbilled);
+  UNBILLED_WORK notification once per job to `tenant.finance.invoice` holders (data kind JOB, record_id = job).
+  Idle = active machine, no IN_PROGRESS job, and the latest of last completed job, last meter increase and last
+  tracker engine-on at least `idle_after_days` ago (an approved job not started is shown as planned).
+  `tenant.oversight.read` (owner, manager, accountant).
+- **M3 site check-ins**: `site_checkin_times` (tenant-local), `site_checkin_window_minutes` (± 60) and
+  `site_checkin_max_distance_m` (null = distance only). A slot is owed by every supervisor running a job at that
+  time while check-ins were required (policy evaluated over time). Check-ins are append-only (sync op SITE_CHECKIN,
+  capability OP_SITE_CHECKIN announced only while on, or POST online); the job and site are inferred from the
+  person's running job; distance from the site centre with a GPS fix. The person sees their schedule
+  (MADE / MISSED / DUE / UPCOMING) and check-ins; the office lists everyone's.

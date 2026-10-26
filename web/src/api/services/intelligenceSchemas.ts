@@ -31,6 +31,7 @@ const RULE_CODE_SET: Readonly<Record<RuleCode, true>> = {
   UNEXPLAINED_ENGINE_HOURS: true,
   ENGINE_RUNNING_WITHOUT_WORK: true,
   MACHINE_FUEL_ABOVE_NORM: true,
+  REPEATED_PATTERN: true,
 };
 export const RULE_CODES = Object.keys(RULE_CODE_SET) as readonly RuleCode[];
 export const SIGNAL_SEVERITIES: readonly SignalSeverity[] = ['INFO', 'WARNING', 'CRITICAL'];

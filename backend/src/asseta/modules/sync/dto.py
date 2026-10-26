@@ -30,6 +30,9 @@ CAPABILITIES = [
     # CASH_HANDOVER accepts method, deposit_account_id, evidence_attachment_ids and evidence_upload_ids (purpose
     # REMITTANCE_EVIDENCE); SyncData.deposit_accounts carries the account picker (DEC-031 D2)
     "REMITTANCE_DETAILS_V1",
+    # SITE_CHECKIN {client_id, captured_at, gps, job_site_id?}: supervisor GPS check-in at the tenant's times
+    # (DEC-031 M3); announced only while the tenant switched site check-ins on (OVERSIGHT.site_checkin_required)
+    "OP_SITE_CHECKIN",
 ]
 # Protocol capabilities that belong to a tenant capability (`asseta.modules.policy.capabilities`): not announced
 # while the tenant has it switched off, and their operations are then refused (CONFLICT, the capability's code).
@@ -41,6 +44,7 @@ TENANT_CAPABILITY_OF = {
     "OP_METER_CORRECTION": "ENGINE_HOURS",
     "OP_CASH_TRANSFER": "CASH_CUSTODY",
     "OP_CASH_RETENTION_REQUEST": "CASH_CUSTODY",
+    "OP_SITE_CHECKIN": "SITE_CHECKIN",
 }
 
 
@@ -190,6 +194,7 @@ OpType = Literal[
     "METER_BASELINE",  # baseline proposal (engine-hour accountability)
     "METER_CORRECTION",  # reading correction proposal (approved by a second person)
     "CASH_RETENTION_REQUEST",  # payload CashRetentionIn, client_id required (tenant policy cash.retention_allowed)
+    "SITE_CHECKIN",  # payload SiteCheckinIn {client_id, captured_at, gps, job_site_id?} (OVERSIGHT site check-ins)
 ]
 
 

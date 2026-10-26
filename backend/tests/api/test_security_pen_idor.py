@@ -113,6 +113,7 @@ def _populate_b(api: Api) -> tuple[FinCtx, dict[tuple[str, str], str]]:
     ids.update(_customer_hours_b(api, f))
     ids.update(_cash_chain_b(api, f))
     ids.update(_revenue_b(api, f))
+    ids.update(_oversight_b(api, f))
     optional = {
         ("/notifications/", "notification_id"): f"{T}/notifications",
         ("/assignments/", "assignment_id"): f"{T}/machines/{f.c.t.machine_id}/assignments",
@@ -318,6 +319,33 @@ def _revenue_b(api: Api, f: FinCtx) -> dict[tuple[str, str], str]:
     }
 
 
+def _oversight_policy(owner: Actor) -> None:
+    r = owner.post(
+        f"{T}/policies/OVERSIGHT/versions",
+        {
+            "scope": "TENANT",
+            "values": {"scorecard_enabled": True, "site_checkin_required": True, "site_checkin_times": ["09:00"]},
+            "reason": "Oversight on",
+        },
+    )
+    assert r.status_code == 201, r.text
+
+
+def _oversight_b(api: Api, f: FinCtx) -> dict[tuple[str, str], str]:
+    """B's oversight records (DEC-031 Phase 5): a person's scorecard and a site check-in."""
+    _oversight_policy(f.owner)
+    now = api.clock.now.isoformat()
+    checkin = f.supervisor.post(
+        f"{T}/site-checkins",
+        {"client_id": str(uuid.uuid4()), "captured_at": now, "gps": {"status": "NO_FIX"}},
+    )
+    assert checkin.status_code == 201, checkin.text
+    return {
+        ("/scorecard/", "staff_member_id"): f.sup_staff_id,
+        ("/site-checkins/", "checkin_id"): checkin.json()["id"],
+    }
+
+
 def _engine_hours_records(api: Api, f: FinCtx) -> dict[tuple[str, str], str]:
     """Baseline (from the earliest reading, approved by a second owner), a list entry, a classification proposal
     and a correction proposal on B's machine."""
@@ -390,6 +418,7 @@ def world(api: Api) -> tuple[Actor, FinCtx, dict[tuple[str, str], str]]:
     a = api.onboard("Idor Alpha", price="1000")
     api.activate(a)
     _revenue_policy(a["owner"])  # A has the capability too: B's revenue records are still not found
+    _oversight_policy(a["owner"])
     return a["owner"], f, ids
 
 

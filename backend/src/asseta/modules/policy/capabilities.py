@@ -20,6 +20,10 @@ CUSTOMER_HOURS = "CUSTOMER_HOURS"
 ENGINE_HOURS = "ENGINE_HOURS"
 CASH_CUSTODY = "CASH_CUSTODY"
 REVENUE_RECONCILIATION = "REVENUE_RECONCILIATION"
+SCORECARD = "SCORECARD"
+UNBILLED_WORK = "UNBILLED_WORK"
+IDLE_MACHINES = "IDLE_MACHINES"
+SITE_CHECKIN = "SITE_CHECKIN"
 
 CAPABILITIES: dict[str, Check] = {
     # Customer prepaid hours (CUSTOMER_HOURS.enabled): purchases, balances, approvals, reason lists.
@@ -34,10 +38,17 @@ CAPABILITIES: dict[str, Check] = {
     # Revenue reconciliation (REVENUE_RECONCILIATION.enabled, DEC-031 Phase 1; platform default OFF): the
     # revenue-hour basis (non-revenue bucket), the daily machine sheet, revenue differences, their reasons and sweep.
     REVENUE_RECONCILIATION: lambda svc, tid, at: svc.revenue_reconciliation(tid, at=at).policy.enabled,
+    # DEC-031 Phase 5 oversight (OVERSIGHT policy; platform default OFF): the per-person scorecard and its
+    # repeat-pattern signals (scorecard_enabled), unbilled work (unbilled_after_days set), idle machines
+    # (idle_after_days set) and supervisors' site check-ins (site_checkin_required).
+    SCORECARD: lambda svc, tid, at: svc.oversight(tid, at=at).policy.scorecard_enabled,
+    UNBILLED_WORK: lambda svc, tid, at: svc.oversight(tid, at=at).policy.unbilled_after_days is not None,
+    IDLE_MACHINES: lambda svc, tid, at: svc.oversight(tid, at=at).policy.idle_after_days is not None,
+    SITE_CHECKIN: lambda svc, tid, at: svc.oversight(tid, at=at).policy.site_checkin_required,
 }
 
 # Capabilities whose safe platform default is OFF (a tenant opts in): an unconfigured policy counts as off for them.
-OFF_BY_DEFAULT = frozenset({REVENUE_RECONCILIATION})
+OFF_BY_DEFAULT = frozenset({REVENUE_RECONCILIATION, SCORECARD, UNBILLED_WORK, IDLE_MACHINES, SITE_CHECKIN})
 
 # How a request needing a switched-off capability is refused: 422 BUSINESS_RULE_VIOLATION envelope with this code
 # (CUSTOMER_HOURS keeps the code its services already used). Offline sync operations get the same code as CONFLICT.
@@ -49,6 +60,10 @@ REFUSALS: dict[str, tuple[str, str]] = {
         "REVENUE_RECONCILIATION_DISABLED",
         "Revenue reconciliation is switched off for this tenant",
     ),
+    SCORECARD: ("SCORECARD_DISABLED", "The people scorecard is switched off for this tenant"),
+    UNBILLED_WORK: ("UNBILLED_WORK_DISABLED", "The unbilled-work check is switched off for this tenant"),
+    IDLE_MACHINES: ("IDLE_MACHINES_DISABLED", "The idle-machine check is switched off for this tenant"),
+    SITE_CHECKIN: ("SITE_CHECKIN_DISABLED", "Site check-ins are switched off for this tenant"),
 }
 
 

@@ -74,10 +74,18 @@ def sweep_tenant(s: Session, tenant_id: uuid.UUID, now: datetime) -> Intelligenc
     findings += detect_aged_unexplained_hours(s, tenant_id, now)
     findings += detect_engine_without_work(s, tenant_id, now, since)
     findings += detect_machine_fuel(s, tenant_id, now, since)
+    findings += _person_patterns(s, tenant_id, now)
     linker = CaseLinker(s, tenant_id, now, eff.policy.case_grouping_window_hours)
     added = _finish(s, tenant_id, findings, linker, now)
     link_sources(s, linker, since, eff.version_stamp)
     return _result(added, linker)
+
+
+def _person_patterns(s: Session, tenant_id: uuid.UUID, now: datetime) -> list[SignalFinding]:
+    """DEC-031 M1 repeat-pattern signals (oversight module; imported lazily, it reads many modules' records)."""
+    from asseta.modules.oversight.patterns import detect_person_patterns
+
+    return detect_person_patterns(s, tenant_id, now)
 
 
 def _uuid(value: Any) -> uuid.UUID | None:

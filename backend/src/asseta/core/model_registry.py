@@ -20,6 +20,7 @@ from asseta.modules.meter import engine_models as meter_engine_models  # noqa: F
 from asseta.modules.meter import models as meter_models  # noqa: F401
 from asseta.modules.notification import channel_models as notification_channel_models  # noqa: F401
 from asseta.modules.notification import models as notification_models  # noqa: F401
+from asseta.modules.oversight import models as oversight_models  # noqa: F401
 from asseta.modules.platform_billing import models_catalog, models_commercial, models_ledger  # noqa: F401
 from asseta.modules.policy import models as policy_models  # noqa: F401
 from asseta.modules.revenue import models as revenue_models  # noqa: F401

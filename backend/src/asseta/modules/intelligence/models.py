@@ -44,6 +44,7 @@ class RuleCode(StrEnum):
     UNEXPLAINED_ENGINE_HOURS = "UNEXPLAINED_ENGINE_HOURS"  # unexplained engine hours older than the policy age
     ENGINE_RUNNING_WITHOUT_WORK = "ENGINE_RUNNING_WITHOUT_WORK"  # one machine-day summary (DEC-031 S1)
     MACHINE_FUEL_ABOVE_NORM = "MACHINE_FUEL_ABOVE_NORM"  # litres per engine hour per machine-period (DEC-031 S2)
+    REPEATED_PATTERN = "REPEATED_PATTERN"  # one person: N scorecard items of one kind within a window (DEC-031 M1)
 
 
 class SubjectType(StrEnum):

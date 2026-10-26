@@ -63,7 +63,9 @@ from asseta.modules.policy.capabilities import (
     CASH_CUSTODY,
     CUSTOMER_HOURS,
     ENGINE_HOURS,
+    IDLE_MACHINES,
     REVENUE_RECONCILIATION,
+    UNBILLED_WORK,
     disabled_capabilities,
 )
 from asseta.modules.policy.service import PolicyService
@@ -77,6 +79,8 @@ TILES = (
     "unexplained_hours",
     "missing_daily_reports",
     "revenue_differences",
+    "unbilled_work",
+    "idle_machines",
     "investigations",
     "cash",
     "payments",
@@ -93,6 +97,8 @@ TILE_CAPABILITY = {
     "unexplained_hours": ENGINE_HOURS,
     "missing_daily_reports": ENGINE_HOURS,
     "revenue_differences": REVENUE_RECONCILIATION,
+    "unbilled_work": UNBILLED_WORK,
+    "idle_machines": IDLE_MACHINES,
 }
 
 

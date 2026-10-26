@@ -33,7 +33,7 @@
             "title": "Customer Hours"
           },
           "disabled_capabilities": {
-            "description": "Tenant capabilities switched off by policy (CUSTOMER_HOURS, ENGINE_HOURS, CASH_CUSTODY, REVENUE_RECONCILIATION); their tiles are hidden and, for CASH_CUSTODY, the cash-control figures of the cash/discrepancy/approval tiles are empty",
+            "description": "Tenant capabilities switched off by policy (CUSTOMER_HOURS, ENGINE_HOURS, CASH_CUSTODY, REVENUE_RECONCILIATION, SCORECARD, UNBILLED_WORK, IDLE_MACHINES, SITE_CHECKIN); their tiles are hidden and, for CASH_CUSTODY, the cash-control figures of the cash/discrepancy/approval tiles are empty",
             "items": {
               "type": "string"
             },
@@ -82,6 +82,19 @@
             ],
             "description": "[3.6.8] hours awaiting activation (customer hours module)",
             "title": "Hours Awaiting Activation"
+          },
+          "idle_machines": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "[DEC-031 M2] idle machines: count, after_days, longest_idle_days, items [{machine_id, idle_since, idle_days, planned_job_id}] (oversight module)",
+            "title": "Idle Machines"
           },
           "investigations": {
             "anyOf": [
@@ -159,6 +172,19 @@
             },
             "title": "Unavailable Tiles",
             "type": "array"
+          },
+          "unbilled_work": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "[DEC-031 M2] unbilled work: count, after_days, amounts [{currency, count, amount}], oldest_days, items [{job_id, machine_id, customer_id, completed_at, days_unbilled, currency, total}] (oversight module)",
+            "title": "Unbilled Work"
           },
           "unexplained_hours": {
             "anyOf": [
@@ -872,6 +898,29 @@
           "occurred_at"
         ],
         "title": "AllocationLineDto",
+        "type": "object"
+      },
+      "AmountByCurrencyDto": {
+        "properties": {
+          "amount": {
+            "title": "Amount",
+            "type": "string"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          }
+        },
+        "required": [
+          "currency",
+          "count",
+          "amount"
+        ],
+        "title": "AmountByCurrencyDto",
         "type": "object"
       },
       "AnomalyCaseDetailDto": {
@@ -3881,6 +3930,50 @@
         "title": "CashHandoverIn",
         "type": "object"
       },
+      "CashHeldDto": {
+        "description": "Cash the person holds now and has not remitted (beyond approved retentions), oldest part first received at\n`held_since`.",
+        "properties": {
+          "amount": {
+            "title": "Amount",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "held_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Held Days"
+          },
+          "held_since": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Held Since"
+          }
+        },
+        "required": [
+          "currency",
+          "amount",
+          "held_since",
+          "held_days"
+        ],
+        "title": "CashHeldDto",
+        "type": "object"
+      },
       "CashReasonDto": {
         "properties": {
           "created_at": {
@@ -5509,6 +5602,72 @@
           "status"
         ],
         "title": "CheckResult",
+        "type": "object"
+      },
+      "CheckinSlotDto": {
+        "description": "A scheduled check-in: MADE (checkin_id), MISSED, DUE (window open now) or UPCOMING.",
+        "properties": {
+          "checkin_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checkin Id"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "job_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Number"
+          },
+          "scheduled_at": {
+            "format": "date-time",
+            "title": "Scheduled At",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "MADE",
+              "MISSED",
+              "DUE",
+              "UPCOMING"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "window_minutes": {
+            "title": "Window Minutes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "scheduled_at",
+          "window_minutes",
+          "status"
+        ],
+        "title": "CheckinSlotDto",
         "type": "object"
       },
       "ClassificationDto": {
@@ -13285,6 +13444,143 @@
         "title": "HoursStatementUsageDto",
         "type": "object"
       },
+      "IdleMachineDto": {
+        "description": "An active machine with no running job and no engine hours for at least OVERSIGHT.idle_after_days.",
+        "properties": {
+          "category_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Id"
+          },
+          "idle_days": {
+            "title": "Idle Days",
+            "type": "integer"
+          },
+          "idle_since": {
+            "format": "date-time",
+            "title": "Idle Since",
+            "type": "string"
+          },
+          "last_engine_activity_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Last meter increase or tracker engine-on",
+            "title": "Last Engine Activity At"
+          },
+          "last_job_completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Job Completed At"
+          },
+          "last_job_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Job Id"
+          },
+          "last_job_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Job Number"
+          },
+          "machine_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Code"
+          },
+          "machine_id": {
+            "format": "uuid",
+            "title": "Machine Id",
+            "type": "string"
+          },
+          "machine_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Name"
+          },
+          "planned_job_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "An approved job not started yet",
+            "title": "Planned Job Id"
+          },
+          "planned_job_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planned Job Number"
+          }
+        },
+        "required": [
+          "machine_id",
+          "category_id",
+          "idle_since",
+          "idle_days",
+          "last_job_id",
+          "last_job_completed_at",
+          "last_engine_activity_at",
+          "planned_job_id"
+        ],
+        "title": "IdleMachineDto",
+        "type": "object"
+      },
       "InferenceOutcome": {
         "enum": [
           "OK",
@@ -19124,6 +19420,79 @@
         "title": "ModelStatus",
         "type": "string"
       },
+      "MySiteCheckinsDto": {
+        "description": "The caller's own check-ins and schedule (shown to the person in the app).",
+        "properties": {
+          "checkins": {
+            "items": {
+              "$ref": "#/components/schemas/SiteCheckinDto"
+            },
+            "title": "Checkins",
+            "type": "array"
+          },
+          "day_from": {
+            "format": "date",
+            "title": "Day From",
+            "type": "string"
+          },
+          "day_to": {
+            "format": "date",
+            "title": "Day To",
+            "type": "string"
+          },
+          "max_distance_m": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Distance M"
+          },
+          "required": {
+            "title": "Required",
+            "type": "boolean"
+          },
+          "slots": {
+            "items": {
+              "$ref": "#/components/schemas/CheckinSlotDto"
+            },
+            "title": "Slots",
+            "type": "array"
+          },
+          "times": {
+            "description": "Tenant-local HH:MM",
+            "items": {
+              "type": "string"
+            },
+            "title": "Times",
+            "type": "array"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          },
+          "window_minutes": {
+            "title": "Window Minutes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "required",
+          "times",
+          "window_minutes",
+          "max_distance_m",
+          "timezone",
+          "day_from",
+          "day_to",
+          "slots",
+          "checkins"
+        ],
+        "title": "MySiteCheckinsDto",
+        "type": "object"
+      },
       "NearbyMachineDto": {
         "properties": {
           "asset_code": {
@@ -20329,7 +20698,8 @@
               "HOURS_TRANSFER_REQUEST",
               "METER_BASELINE",
               "METER_CORRECTION",
-              "CASH_RETENTION_REQUEST"
+              "CASH_RETENTION_REQUEST",
+              "SITE_CHECKIN"
             ],
             "title": "Op Type",
             "type": "string"
@@ -21733,6 +22103,37 @@
         "title": "Page[HoursPurchaseDto]",
         "type": "object"
       },
+      "Page_IdleMachineDto_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/IdleMachineDto"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "Page[IdleMachineDto]",
+        "type": "object"
+      },
       "Page_IngestionEventDto_": {
         "properties": {
           "items": {
@@ -22508,6 +22909,37 @@
         "title": "Page[RiskSignalDto]",
         "type": "object"
       },
+      "Page_ScorecardRowDto_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ScorecardRowDto"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "Page[ScorecardRowDto]",
+        "type": "object"
+      },
       "Page_SecurityEventDto_": {
         "properties": {
           "items": {
@@ -22537,6 +22969,37 @@
           "page_size"
         ],
         "title": "Page[SecurityEventDto]",
+        "type": "object"
+      },
+      "Page_SiteCheckinDto_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SiteCheckinDto"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "Page[SiteCheckinDto]",
         "type": "object"
       },
       "Page_SmsDeliveryDto_": {
@@ -22816,6 +23279,37 @@
           "page_size"
         ],
         "title": "Page[UnallocatedSegmentDto]",
+        "type": "object"
+      },
+      "Page_UnbilledJobDto_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/UnbilledJobDto"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "Page[UnbilledJobDto]",
         "type": "object"
       },
       "Page_WorkExecutionAllocationDto_": {
@@ -26323,10 +26817,427 @@
           "WORK_WITHOUT_AUTHORIZATION",
           "UNEXPLAINED_ENGINE_HOURS",
           "ENGINE_RUNNING_WITHOUT_WORK",
-          "MACHINE_FUEL_ABOVE_NORM"
+          "MACHINE_FUEL_ABOVE_NORM",
+          "REPEATED_PATTERN"
         ],
         "title": "RuleCode",
         "type": "string"
+      },
+      "ScorecardDetailDto": {
+        "properties": {
+          "records": {
+            "items": {
+              "$ref": "#/components/schemas/ScorecardRecordDto"
+            },
+            "title": "Records",
+            "type": "array"
+          },
+          "row": {
+            "$ref": "#/components/schemas/ScorecardRowDto"
+          }
+        },
+        "required": [
+          "row",
+          "records"
+        ],
+        "title": "ScorecardDetailDto",
+        "type": "object"
+      },
+      "ScorecardItem": {
+        "description": "Kinds of item on the per-person scorecard (DEC-031 M1). Neutral: each is something to look at, not a verdict.",
+        "enum": [
+          "MISSING_DAILY_REPORT",
+          "LATE_DAILY_REPORT",
+          "UNEXPLAINED_HOURS",
+          "ALERT",
+          "CASH_HELD_TOO_LONG",
+          "CASH_DIFFERENCE",
+          "REVENUE_DIFFERENCE",
+          "REFUSED_ATTEMPT",
+          "MISSED_CHECKIN"
+        ],
+        "title": "ScorecardItem",
+        "type": "string"
+      },
+      "ScorecardRecordDto": {
+        "description": "One item behind a scorecard figure, with the record to open (`record_type` + `record_id`):\njob_exception -> /tenant/exceptions/{id}, engine_interval -> the machine's engine-hour ledger (no record id),\ntracking_alert -> /tenant/alerts/{id}, cash_remittance_overdue -> /tenant/finance/cash/remittance-overdue/{id},\ncash_variance -> /tenant/finance/cash/variances/{id}, revenue_difference -> /tenant/revenue-differences/{id},\nsecurity_event -> /tenant/security-events (id), site_checkin_slot -> a scheduled check-in not made (no id),\nrisk_signal -> the case of the signal (case_id in detail).",
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "day": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day"
+          },
+          "detail": {
+            "additionalProperties": true,
+            "title": "Detail",
+            "type": "object"
+          },
+          "hours": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours"
+          },
+          "item": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScorecardItem"
+              },
+              {
+                "const": "PATTERN_SIGNAL",
+                "type": "string"
+              }
+            ],
+            "title": "Item"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "job_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Number"
+          },
+          "machine_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Code"
+          },
+          "machine_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Id"
+          },
+          "machine_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Name"
+          },
+          "near_threshold": {
+            "default": false,
+            "title": "Near Threshold",
+            "type": "boolean"
+          },
+          "record_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Record Id"
+          },
+          "record_type": {
+            "title": "Record Type",
+            "type": "string"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          }
+        },
+        "required": [
+          "item",
+          "record_type",
+          "record_id",
+          "at",
+          "day"
+        ],
+        "title": "ScorecardRecordDto",
+        "type": "object"
+      },
+      "ScorecardRowDto": {
+        "description": "One person's figures for the period. Neutral: counts of items to look at, never a verdict.",
+        "properties": {
+          "alerts": {
+            "description": "Tracking alerts on the person's machines in the period",
+            "title": "Alerts",
+            "type": "integer"
+          },
+          "alerts_acknowledged": {
+            "title": "Alerts Acknowledged",
+            "type": "integer"
+          },
+          "alerts_open": {
+            "description": "Of those, not yet acknowledged or resolved",
+            "title": "Alerts Open",
+            "type": "integer"
+          },
+          "avg_hours_to_acknowledge": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Hours To Acknowledge"
+          },
+          "cash_difference_totals": {
+            "items": {
+              "$ref": "#/components/schemas/AmountByCurrencyDto"
+            },
+            "title": "Cash Difference Totals",
+            "type": "array"
+          },
+          "cash_differences": {
+            "title": "Cash Differences",
+            "type": "integer"
+          },
+          "cash_differences_near_threshold": {
+            "description": "Cash differences at or above OVERSIGHT.near_threshold_percent of the cash case threshold",
+            "title": "Cash Differences Near Threshold",
+            "type": "integer"
+          },
+          "cash_held": {
+            "description": "Now (not limited to the period)",
+            "items": {
+              "$ref": "#/components/schemas/CashHeldDto"
+            },
+            "title": "Cash Held",
+            "type": "array"
+          },
+          "cash_held_too_long": {
+            "description": "Remittance-overdue flags in the period (cut-off or allowance)",
+            "title": "Cash Held Too Long",
+            "type": "integer"
+          },
+          "checkins_made": {
+            "title": "Checkins Made",
+            "type": "integer"
+          },
+          "checkins_missed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null while site check-ins were never required in the period",
+            "title": "Checkins Missed"
+          },
+          "daily_reports_late": {
+            "description": "A reading came for the day, but after the daily-report cut-off",
+            "title": "Daily Reports Late",
+            "type": "integer"
+          },
+          "daily_reports_missing": {
+            "title": "Daily Reports Missing",
+            "type": "integer"
+          },
+          "day_from": {
+            "format": "date",
+            "title": "Day From",
+            "type": "string"
+          },
+          "day_to": {
+            "format": "date",
+            "title": "Day To",
+            "type": "string"
+          },
+          "employee_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employee Code"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "items_total": {
+            "description": "All items above (list order: most first)",
+            "title": "Items Total",
+            "type": "integer"
+          },
+          "machines": {
+            "description": "Machines the person was responsible for in the period (assigned / supervised)",
+            "title": "Machines",
+            "type": "integer"
+          },
+          "max_hours_to_acknowledge": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Hours To Acknowledge"
+          },
+          "pattern_signals": {
+            "description": "REPEATED_PATTERN risk signals about the person in the period",
+            "title": "Pattern Signals",
+            "type": "integer"
+          },
+          "refused_attempts": {
+            "title": "Refused Attempts",
+            "type": "integer"
+          },
+          "revenue_difference_totals": {
+            "items": {
+              "$ref": "#/components/schemas/AmountByCurrencyDto"
+            },
+            "title": "Revenue Difference Totals",
+            "type": "array"
+          },
+          "revenue_differences": {
+            "title": "Revenue Differences",
+            "type": "integer"
+          },
+          "staff_kind": {
+            "title": "Staff Kind",
+            "type": "string"
+          },
+          "staff_member_id": {
+            "format": "uuid",
+            "title": "Staff Member Id",
+            "type": "string"
+          },
+          "staff_member_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Staff Member Name"
+          },
+          "unexplained_hours": {
+            "description": "Engine hours still unexplained on the person's machines",
+            "title": "Unexplained Hours",
+            "type": "string"
+          },
+          "unexplained_items": {
+            "title": "Unexplained Items",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "staff_member_id",
+          "staff_kind",
+          "employee_code",
+          "is_active",
+          "day_from",
+          "day_to",
+          "machines",
+          "daily_reports_missing",
+          "daily_reports_late",
+          "unexplained_hours",
+          "unexplained_items",
+          "alerts",
+          "alerts_open",
+          "alerts_acknowledged",
+          "avg_hours_to_acknowledge",
+          "max_hours_to_acknowledge",
+          "cash_held_too_long",
+          "cash_differences",
+          "cash_difference_totals",
+          "cash_differences_near_threshold",
+          "revenue_differences",
+          "revenue_difference_totals",
+          "refused_attempts",
+          "checkins_missed",
+          "checkins_made",
+          "pattern_signals",
+          "items_total"
+        ],
+        "title": "ScorecardRowDto",
+        "type": "object"
       },
       "SecurityEventDto": {
         "properties": {
@@ -27071,6 +27982,227 @@
         ],
         "title": "SignalStatus",
         "type": "string"
+      },
+      "SiteCheckinDto": {
+        "properties": {
+          "accuracy_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accuracy M"
+          },
+          "captured_at": {
+            "format": "date-time",
+            "title": "Captured At",
+            "type": "string"
+          },
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "distance_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "From the site centre (GPS fix and a site only)",
+            "title": "Distance M"
+          },
+          "gps_status": {
+            "$ref": "#/components/schemas/GpsStatus"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "job_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Number"
+          },
+          "job_site_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Site Id"
+          },
+          "job_site_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Site Name"
+          },
+          "latitude": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latitude"
+          },
+          "longitude": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Longitude"
+          },
+          "received_at": {
+            "format": "date-time",
+            "title": "Received At",
+            "type": "string"
+          },
+          "recorded_by": {
+            "format": "uuid",
+            "title": "Recorded By",
+            "type": "string"
+          },
+          "recorded_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recorded By Name"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "staff_member_id": {
+            "format": "uuid",
+            "title": "Staff Member Id",
+            "type": "string"
+          },
+          "staff_member_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Staff Member Name"
+          },
+          "within_distance": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Against OVERSIGHT.site_checkin_max_distance_m; null when not judged",
+            "title": "Within Distance"
+          }
+        },
+        "required": [
+          "id",
+          "client_id",
+          "staff_member_id",
+          "recorded_by",
+          "captured_at",
+          "received_at",
+          "gps_status",
+          "latitude",
+          "longitude",
+          "accuracy_m",
+          "job_site_id",
+          "job_id",
+          "distance_m",
+          "source"
+        ],
+        "title": "SiteCheckinDto",
+        "type": "object"
+      },
+      "SiteCheckinIn": {
+        "description": "A GPS check-in at the site (also the sync op SITE_CHECKIN payload). Never fabricate coordinates: a failed\nGPS attempt is sent with its status and no coordinates.",
+        "properties": {
+          "captured_at": {
+            "format": "date-time",
+            "title": "Captured At",
+            "type": "string"
+          },
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "gps": {
+            "$ref": "#/components/schemas/GpsIn"
+          },
+          "job_site_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Site Id"
+          }
+        },
+        "required": [
+          "client_id",
+          "captured_at",
+          "gps"
+        ],
+        "title": "SiteCheckinIn",
+        "type": "object"
       },
       "SiteVisitDto": {
         "properties": {
@@ -31587,6 +32719,180 @@
           "reason"
         ],
         "title": "UnassignTrackerIn",
+        "type": "object"
+      },
+      "UnbilledJobDto": {
+        "description": "A completed, billing-ready job not on an issued invoice for more than OVERSIGHT.unbilled_after_days.",
+        "properties": {
+          "billable_hours": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Billable Hours"
+          },
+          "completed_at": {
+            "format": "date-time",
+            "title": "Completed At",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "customer_id": {
+            "format": "uuid",
+            "title": "Customer Id",
+            "type": "string"
+          },
+          "customer_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Name"
+          },
+          "days_unbilled": {
+            "title": "Days Unbilled",
+            "type": "integer"
+          },
+          "draft_invoice_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A draft invoice already holds the job (not issued yet)",
+            "title": "Draft Invoice Id"
+          },
+          "job_id": {
+            "format": "uuid",
+            "title": "Job Id",
+            "type": "string"
+          },
+          "job_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Number"
+          },
+          "job_site_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Site Id"
+          },
+          "job_site_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Site Name"
+          },
+          "machine_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Code"
+          },
+          "machine_id": {
+            "format": "uuid",
+            "title": "Machine Id",
+            "type": "string"
+          },
+          "machine_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Name"
+          },
+          "supervisor_staff_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supervisor Staff Id"
+          },
+          "supervisor_staff_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supervisor Staff Name"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What the job is worth under its terms (the invoice would snapshot it)",
+            "title": "Total"
+          }
+        },
+        "required": [
+          "job_id",
+          "machine_id",
+          "customer_id",
+          "job_site_id",
+          "supervisor_staff_id",
+          "completed_at",
+          "days_unbilled",
+          "billable_hours",
+          "currency",
+          "total",
+          "draft_invoice_id"
+        ],
+        "title": "UnbilledJobDto",
         "type": "object"
       },
       "UtilisationInsightDto": {
@@ -79575,6 +80881,206 @@
         ]
       }
     },
+    "/api/v1/tenant/idle-machines": {
+      "get": {
+        "description": "Active machines with no running job and no engine hours for OVERSIGHT.idle_after_days (longest idle first;\n`q`: asset code or name).",
+        "operationId": "listIdleMachines",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "category_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Category Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sort"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_IdleMachineDto_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "List Idle Machines",
+        "tags": [
+          "oversight"
+        ]
+      }
+    },
     "/api/v1/tenant/insights": {
       "get": {
         "operationId": "getTenantInsights",
@@ -97961,6 +99467,451 @@
         ]
       }
     },
+    "/api/v1/tenant/scorecard": {
+      "get": {
+        "description": "One row per person (active staff, and anyone with items) for a tenant-local period (default the last 30\ndays, at most 93): most items first. `q` searches the name; `site_id` keeps people who worked that site.",
+        "operationId": "listScorecard",
+        "parameters": [
+          {
+            "description": "First tenant-local day (default: 29 days before day_to)",
+            "in": "query",
+            "name": "day_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First tenant-local day (default: 29 days before day_to)",
+              "title": "Day From"
+            }
+          },
+          {
+            "description": "Last tenant-local day, inclusive (default: today)",
+            "in": "query",
+            "name": "day_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last tenant-local day, inclusive (default: today)",
+              "title": "Day To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "staff_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Staff Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "site_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sort"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_ScorecardRowDto_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "List Scorecard",
+        "tags": [
+          "oversight"
+        ]
+      }
+    },
+    "/api/v1/tenant/scorecard/{staff_member_id}": {
+      "get": {
+        "description": "One person's figures with every record behind them (newest first; `item` filters one kind).",
+        "operationId": "getScorecard",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "staff_member_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Staff Member Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "First tenant-local day (default: 29 days before day_to)",
+            "in": "query",
+            "name": "day_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First tenant-local day (default: 29 days before day_to)",
+              "title": "Day From"
+            }
+          },
+          {
+            "description": "Last tenant-local day, inclusive (default: today)",
+            "in": "query",
+            "name": "day_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last tenant-local day, inclusive (default: today)",
+              "title": "Day To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "item",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ScorecardItem"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Item"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScorecardDetailDto"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Scorecard",
+        "tags": [
+          "oversight"
+        ]
+      }
+    },
     "/api/v1/tenant/security-events": {
       "get": {
         "description": "Refused attempts, latest first. `q` searches permission, action, record type and request path.",
@@ -98208,6 +100159,690 @@
         "summary": "List Security Events",
         "tags": [
           "accountability"
+        ]
+      }
+    },
+    "/api/v1/tenant/site-checkins": {
+      "get": {
+        "description": "Everyone's check-ins, newest first (`q`: person's name).",
+        "operationId": "listSiteCheckins",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "staff_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Staff Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "job_site_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Job Site Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "day_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Day From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "day_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Day To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sort"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_SiteCheckinDto_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "List Site Checkins",
+        "tags": [
+          "oversight"
+        ]
+      },
+      "post": {
+        "description": "The caller checks in at the site (same as the sync op SITE_CHECKIN). Replaying a client_id returns the\nstored check-in.",
+        "operationId": "recordSiteCheckin",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SiteCheckinIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteCheckinDto"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Record Site Checkin",
+        "tags": [
+          "oversight"
+        ]
+      }
+    },
+    "/api/v1/tenant/site-checkins/mine": {
+      "get": {
+        "description": "The caller's schedule (MADE / MISSED / DUE / UPCOMING) and check-ins.",
+        "operationId": "getMySiteCheckins",
+        "parameters": [
+          {
+            "description": "Default: 6 days before day_to",
+            "in": "query",
+            "name": "day_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Default: 6 days before day_to",
+              "title": "Day From"
+            }
+          },
+          {
+            "description": "Last tenant-local day, inclusive (default: today)",
+            "in": "query",
+            "name": "day_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last tenant-local day, inclusive (default: today)",
+              "title": "Day To"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MySiteCheckinsDto"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "My Site Checkins",
+        "tags": [
+          "oversight"
+        ]
+      }
+    },
+    "/api/v1/tenant/site-checkins/{checkin_id}": {
+      "get": {
+        "operationId": "getSiteCheckin",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "checkin_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Checkin Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteCheckinDto"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Site Checkin",
+        "tags": [
+          "oversight"
         ]
       }
     },
@@ -101067,6 +103702,240 @@
         "summary": "Unassign",
         "tags": [
           "trackers"
+        ]
+      }
+    },
+    "/api/v1/tenant/unbilled-work": {
+      "get": {
+        "description": "Completed, billing-ready jobs not on an issued invoice after OVERSIGHT.unbilled_after_days (oldest first;\n`q`: job number or customer).",
+        "operationId": "listUnbilledWork",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "customer_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Customer Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "machine_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Machine Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "site_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sort"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_UnbilledJobDto_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "List Unbilled Work",
+        "tags": [
+          "oversight"
         ]
       }
     },

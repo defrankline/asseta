@@ -37,7 +37,9 @@ from asseta.modules.meter.dto import MeterCaptureIn, ResetIn
 from asseta.modules.meter.engine_dto import BaselineIn, CorrectionIn
 from asseta.modules.meter.engine_service import EngineHoursService
 from asseta.modules.meter.service import MeterService
-from asseta.modules.policy.capabilities import CASH_CUSTODY, ENGINE_HOURS, require_capability
+from asseta.modules.oversight.checkins import SiteCheckinService
+from asseta.modules.oversight.dto import SiteCheckinIn
+from asseta.modules.policy.capabilities import CASH_CUSTODY, ENGINE_HOURS, SITE_CHECKIN, require_capability
 from asseta.modules.policy.service import PolicyService
 from asseta.modules.sync.dto import OperationIn, OperationResultDto, PushIn, PushResultDto
 from asseta.modules.sync.models import BlobUploadSession, ClientOperation, DeviceSession, OperationStatus
@@ -74,6 +76,10 @@ CONFLICT_CODES = {
     "REMITTANCE_EVIDENCE_REQUIRED",
     "REMITTANCE_ACCOUNT_REQUIRED",
     "DEPOSIT_ACCOUNT_INACTIVE",
+    # site check-ins (DEC-031 M3): switched off after the device queued it, or the same client id reused by another
+    # person (kept for review, never applied)
+    "SITE_CHECKIN_DISABLED",
+    "CHECKIN_ID_CONFLICT",
 }
 # Operations that belong to a tenant capability (sync capabilities: dto.TENANT_CAPABILITY_OF). A DAILY meter capture
 # is refused by the meter service itself (same code). Customer-hours operations keep their service refusal.
@@ -84,6 +90,7 @@ OP_CAPABILITY = {
     "CASH_TRANSFER_ACKNOWLEDGEMENT": CASH_CUSTODY,
     "CASH_FLOAT_ACKNOWLEDGEMENT": CASH_CUSTODY,
     "CASH_RETENTION_REQUEST": CASH_CUSTODY,
+    "SITE_CHECKIN": SITE_CHECKIN,
 }
 REQUIRED_PERMISSION = {
     "METER_CAPTURE": "tenant.meter.capture",
@@ -104,6 +111,7 @@ REQUIRED_PERMISSION = {
     "HOURS_PURCHASE": "tenant.hours.purchase",
     "HOURS_TRANSFER_REQUEST": "tenant.hours.transfer",
     "CASH_RETENTION_REQUEST": "tenant.collection.record",
+    "SITE_CHECKIN": "tenant.site_checkin.record",
 }
 # Ops whose payload names resumable blob uploads: the op is DEFERRED (not rejected) until they complete.
 UPLOAD_FIELDS = {
@@ -349,6 +357,9 @@ class PushService:
             ),
             "HOURS_PURCHASE": lambda: self._hours_purchase(
                 HoursPurchaseOp.model_validate({"client_id": op.id, **op.payload})
+            ),
+            "SITE_CHECKIN": lambda: SiteCheckinService(self._s, self._ctx, self._now).record(
+                SiteCheckinIn.model_validate(op.payload), "SYNC", device_session_id=device.id
             ),
             "HOURS_TRANSFER_REQUEST": lambda: HoursApprovals(self._s, self._ctx, self._now).request_transfer(
                 TransferIn.model_validate({"client_id": op.id, **op.payload})

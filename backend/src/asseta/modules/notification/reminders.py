@@ -27,7 +27,7 @@ from asseta.modules.finance.models import (
 from asseta.modules.fleet.models import AssignmentRole, MachineAssignment, StaffKind, StaffMember
 from asseta.modules.geospatial.models import AlertStatus, AlertType, TrackingAlert
 from asseta.modules.identity.principal import RequestContext
-from asseta.modules.jobs.models import Job, JobStatus
+from asseta.modules.jobs.models import Customer, Job, JobStatus
 from asseta.modules.meter.engine_hours import missing_daily_reports
 from asseta.modules.meter.models import CaptureState, MeterCapture, ReadingKind
 from asseta.modules.notification.engine import NotificationEngine
@@ -72,6 +72,7 @@ class TenantReminders:
             self._trackers,
             self._jobs,
             self._daily_reports,
+            self._unbilled_work,
         ):
             out += fn()
         return out
@@ -251,6 +252,38 @@ class TenantReminders:
                         str(job.id),
                     )
                 )
+        return out
+
+    def _unbilled_work(self) -> list[Intent]:
+        """DEC-031 M2: once per job, completed billing-ready work still not on an issued invoice after the tenant's
+        OVERSIGHT.unbilled_after_days (off while null)."""
+        from asseta.modules.oversight.unbilled import unbilled_jobs  # the oversight module reads many modules
+
+        out = []
+        for job in unbilled_jobs(self._s, self._tid, self._now):
+            customer = self._s.execute(select(Customer.name).where(Customer.id == job.customer_id)).scalar()
+            worth = f" worth {job.currency} {job.total}" if job.total is not None else ""
+            number = self._s.execute(select(Job.job_number).where(Job.id == job.job_id)).scalar()
+            out.append(
+                Intent(
+                    "UNBILLED_WORK",
+                    (perm("tenant.finance.invoice"),),
+                    f"Work not yet invoiced: job {number}",
+                    f"Job {number} for {customer or 'a customer'} was completed {job.days_unbilled} days ago and is "
+                    f"ready to bill{worth}, but it is not on an issued invoice yet.",
+                    f"unbilled:{job.job_id}",
+                    f"/tenant/jobs/{job.job_id}",
+                    "job",
+                    str(job.job_id),
+                    data={
+                        "kind": "JOB",
+                        "record_id": str(job.job_id),
+                        "days_unbilled": job.days_unbilled,
+                        "currency": job.currency,
+                        "total": str(job.total) if job.total is not None else None,
+                    },
+                )
+            )
         return out
 
     def _daily_reports(self) -> list[Intent]:

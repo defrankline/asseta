@@ -157,7 +157,7 @@ def test_accountability_summary(api: Api) -> None:
     assert r.status_code == 201, r.text
     hidden = _ok(mgr.get("/api/v1/tenant/accountability/summary"))
     assert (
-        hidden["hidden_tiles"] == ["cash", "payments", "revenue_differences"]
+        hidden["hidden_tiles"] == ["cash", "idle_machines", "payments", "revenue_differences", "unbilled_work"]
         and hidden["cash"] is None
         and hidden["payments"] is None
     )

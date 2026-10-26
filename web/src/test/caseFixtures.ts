@@ -151,6 +151,14 @@ export const RULE_EVIDENCE = {
     job_numbers: ['J-1003'],
     fuel_event_ids: [],
   },
+  REPEATED_PATTERN: {
+    item: 'CASH_DIFFERENCE',
+    count: 3,
+    threshold_count: 3,
+    window_days: 30,
+    staff_name: 'Juma',
+    records: [],
+  },
 } as const;
 
 export function makeCaseSignal(overrides: Partial<CaseSignalDto> = {}): CaseSignalDto {

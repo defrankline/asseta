@@ -53,6 +53,8 @@ TENANT_TEMPLATES = (
             # Revenue reconciliation (DEC-031): see the daily machine sheet, explain revenue differences and decide
             # on someone else's explanation (never their own: segregation of duties).
             "tenant.revenue.",
+            # Oversight (DEC-031 Phase 5): the people scorecard, unbilled work, idle machines and site check-ins.
+            "tenant.oversight.",
         ),
     ),
     RoleTemplate(
@@ -75,6 +77,7 @@ TENANT_TEMPLATES = (
             "tenant.fleet.read",
             "tenant.notification.read",
             "tenant.directory.read",
+            "tenant.site_checkin.",  # GPS site check-in at the tenant's times (DEC-031 M3; only when switched on)
         ),
     ),
     RoleTemplate(
@@ -102,6 +105,7 @@ TENANT_TEMPLATES = (
             "tenant.hours.credit_activate",
             "tenant.revenue.read",  # revenue reconciliation (DEC-031): daily sheet, explain differences
             "tenant.revenue.explain",
+            "tenant.oversight.read",  # unbilled work and idle machines (DEC-031 M2); not the people scorecard
         ),
     ),
     RoleTemplate(

@@ -286,13 +286,65 @@ class CashCustodyPolicy(BaseModel):
         )
 
 
+class ScorecardItem(StrEnum):
+    """Kinds of item on the per-person scorecard (DEC-031 M1). Neutral: each is something to look at, not a verdict."""
+
+    MISSING_DAILY_REPORT = "MISSING_DAILY_REPORT"  # no reading at all for a working machine-day
+    LATE_DAILY_REPORT = "LATE_DAILY_REPORT"  # a reading came, but after the daily-report cut-off
+    UNEXPLAINED_HOURS = "UNEXPLAINED_HOURS"  # engine hours still unexplained on the person's machines
+    ALERT = "ALERT"  # tracking alert on the person's machines
+    CASH_HELD_TOO_LONG = "CASH_HELD_TOO_LONG"  # remittance overdue (cut-off or holding allowance)
+    CASH_DIFFERENCE = "CASH_DIFFERENCE"  # cash variance the person stays accountable for
+    REVENUE_DIFFERENCE = "REVENUE_DIFFERENCE"  # revenue difference on the person's machines
+    REFUSED_ATTEMPT = "REFUSED_ATTEMPT"  # missing permission / segregation-of-duties attempt
+    MISSED_CHECKIN = "MISSED_CHECKIN"  # scheduled site check-in not made (M3)
+
+
 class OversightPolicy(BaseModel):
-    """Accountability dashboard (design D): which tiles a tenant shows and the look-back window of its counts."""
+    """Accountability dashboard (design D): which tiles a tenant shows and the look-back window of its counts, plus
+    the DEC-031 Phase 5 oversight switches (all off on the platform default = today's behaviour)."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     hidden_dashboard_tiles: list[str] = Field(default_factory=list, max_length=50)
     security_event_window_days: int = Field(ge=1, le=366)
+    # M1 per-person scorecard (capability SCORECARD). Off: no scorecard, no repeat-pattern signals.
+    scorecard_enabled: bool = False
+    # A cash difference at or above this share of the cash case threshold (CASH_CUSTODY.variance_case_threshold)
+    # counts as "just under the threshold". Null = not counted.
+    near_threshold_percent: Decimal | None = Field(default=Decimal(90), gt=0, le=Decimal(100))
+    # This many items of one kind (repeat_pattern_items) for one person within repeat_pattern_window_days raise a
+    # REPEATED_PATTERN risk signal (-> case). Null = no pattern signal.
+    repeat_pattern_count: int | None = Field(default=None, ge=2, le=100)
+    repeat_pattern_window_days: int = Field(default=30, ge=1, le=366)
+    repeat_pattern_items: list[ScorecardItem] = Field(
+        default_factory=lambda: [
+            ScorecardItem.CASH_DIFFERENCE,
+            ScorecardItem.REVENUE_DIFFERENCE,
+            ScorecardItem.MISSING_DAILY_REPORT,
+        ],
+        max_length=len(ScorecardItem),
+    )
+    # M2: completed, billing-ready jobs not on an issued invoice after this many days -> UNBILLED_WORK. Null = off.
+    unbilled_after_days: int | None = Field(default=None, ge=1, le=365)
+    # M2: active machines with no job and no engine hours for this many days -> idle machines. Null = off.
+    idle_after_days: int | None = Field(default=None, ge=1, le=365)
+    # M3 site check-in (capability SITE_CHECKIN): supervisors running a job check in by GPS at these tenant-local
+    # times, within +/- the window. Person-location data only while the tenant switches this on.
+    site_checkin_required: bool = False
+    site_checkin_times: list[time] = Field(default_factory=list, max_length=12)
+    site_checkin_window_minutes: int = Field(default=60, ge=5, le=720)
+    site_checkin_max_distance_m: int | None = Field(default=None, ge=10, le=100000)  # null = distance shown only
+
+    @model_validator(mode="after")
+    def _consistent(self) -> "OversightPolicy":
+        if len(set(self.repeat_pattern_items)) != len(self.repeat_pattern_items):
+            raise ValueError("repeat_pattern_items must not repeat")
+        if len(set(self.site_checkin_times)) != len(self.site_checkin_times):
+            raise ValueError("site_checkin_times must not repeat")
+        if self.site_checkin_required and not self.site_checkin_times:
+            raise ValueError("site_checkin_required needs at least one time in site_checkin_times")
+        return self
 
 
 SCHEMAS: dict[PolicyType, type[BaseModel]] = {
@@ -449,7 +501,21 @@ SEED_DEFAULTS: dict[PolicyType, dict[str, object]] = {
         "remittance_account_required": False,
         "max_holding_days": None,
     },
-    PolicyType.OVERSIGHT: {"hidden_dashboard_tiles": [], "security_event_window_days": 7},
+    PolicyType.OVERSIGHT: {
+        "hidden_dashboard_tiles": [],
+        "security_event_window_days": 7,
+        "scorecard_enabled": False,
+        "near_threshold_percent": "90",
+        "repeat_pattern_count": None,
+        "repeat_pattern_window_days": 30,
+        "repeat_pattern_items": ["CASH_DIFFERENCE", "REVENUE_DIFFERENCE", "MISSING_DAILY_REPORT"],
+        "unbilled_after_days": None,
+        "idle_after_days": None,
+        "site_checkin_required": False,
+        "site_checkin_times": [],
+        "site_checkin_window_minutes": 60,
+        "site_checkin_max_distance_m": None,
+    },
     PolicyType.CUSTOMER_HOURS: {
         "enabled": True,
         "walk_in_allowed": True,
