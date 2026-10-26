@@ -865,8 +865,13 @@ revenue (both only when non-zero), Investigation (`case_number`, only when `case
 the difference's currency: row `{job number}` + `owner.rev.jobLine`, `owner.rev.jobInProgress` appended when
 non-zero); Explanation card (when `reason_id` or `explained_by`); decided fields (when `decided_by`); Adjustments card
 (when any, newest first); then the action card: Explain (status OPEN and explain holder) and/or Decision (decide
-holder: OPEN → Confirm only; EXPLANATION_PROPOSED → Approve, Reject, Confirm). Approvals row subtitle: the period;
-footnote: the status wording.
+holder: OPEN → Confirm only; EXPLANATION_PROPOSED → Approve, Reject, Confirm). When both cards show (OPEN, user holds
+explain and decide) they share the one note field of the Explain card. Reject and Confirm ask first
+(`owner.rev.confirmReject` / `owner.rev.confirmConfirm`). Headline amount = `adjusted_difference` when present, else
+`difference`. Approvals rows: headline `owner.rev.rowDifference` (machine code, else name, else short id); subtitle
+`{period} · {status wording}`; footnote "Proposed {time} by {explainer}" only once explained. Non-revenue rows: headline
+`owner.rev.rowNonRevenue` (type humanized, hours to 2 dp without trailing zeros); subtitle `reason_name` (else the note);
+footnote "Proposed {time} by {name}".
 
 Non-revenue hours decision uses the generic decision screen: fields Machine, Job, Type, Time (`started_at – ended_at`),
 Hours, Reason (`reason_name`), Note (the explanation), Proposed by, Decided by, Decision note; note at least 5
