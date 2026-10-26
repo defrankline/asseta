@@ -568,4 +568,37 @@ interface TenantApi {
         @Path("id") id: String,
         @Body body: com.asseta.core.model.owner.NonRevenueDecisionIn,
     ): com.asseta.core.model.owner.NonRevenueApprovalDto
+
+    // --- customer hours, read-only (DEC-031 P4) ----------------------------------------------------------------------
+
+    /** listHoursPurchases for the Owner list (open purchases, with names). */
+    @GET("api/v1/tenant/hours-purchases")
+    suspend fun ownerHoursPurchases(
+        @Query("cancelled") cancelled: Boolean? = false,
+        @Query("page") page: Int = 1,
+        @Query("page_size") pageSize: Int = 100,
+    ): PageDto<com.asseta.core.model.owner.OwnerHoursPurchaseDto>
+
+    /** getHoursPurchase */
+    @GET("api/v1/tenant/hours-purchases/{id}")
+    suspend fun hoursPurchase(@Path("id") id: String): com.asseta.core.model.owner.OwnerHoursPurchaseDto
+
+    /** getCustomerHoursStatement: [dateFrom]..[dateTo] local days (at most 366). */
+    @GET("api/v1/tenant/customers/{customer_id}/hours-statement")
+    suspend fun customerHoursStatement(
+        @Path("customer_id") customerId: String,
+        @Query("date_from") dateFrom: String,
+        @Query("date_to") dateTo: String,
+        @Query("machine_id") machineId: String? = null,
+    ): com.asseta.core.model.owner.HoursStatementDto
+
+    /** downloadCustomerHoursStatementPdf: the same statement as a PDF. */
+    @retrofit2.http.Streaming
+    @GET("api/v1/tenant/customers/{customer_id}/hours-statement.pdf")
+    suspend fun customerHoursStatementPdf(
+        @Path("customer_id") customerId: String,
+        @Query("date_from") dateFrom: String,
+        @Query("date_to") dateTo: String,
+        @Query("machine_id") machineId: String? = null,
+    ): okhttp3.ResponseBody
 }

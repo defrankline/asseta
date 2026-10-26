@@ -144,13 +144,13 @@ class AccountabilityOwnerTest {
         assertEquals(OwnerDestination.MeterException(ID1), DeepLinkRouter.fromTarget("job_exception", ID1, "/tenant/exceptions"))
         assertEquals(OwnerDestination.Handover(ID1), DeepLinkRouter.fromTarget("cash_handover", ID1, "/tenant/cash/handovers"))
         assertEquals(OwnerDestination.CashRecord(RecordKinds.CASH_TRANSFER, ID1), DeepLinkRouter.fromTarget("cash_transfer", ID1, "/tenant/cash/transfers"))
-        assertEquals(OwnerDestination.Accountability, DeepLinkRouter.fromTarget("hours_purchase", ID1, "/tenant/hours/purchases/$ID1"))
+        assertEquals(OwnerDestination.HoursPurchase(ID1), DeepLinkRouter.fromTarget("hours_purchase", ID1, "/tenant/hours/purchases/$ID1"))
         assertEquals(OwnerDestination.Machine(ID1), DeepLinkRouter.fromTarget("machine", ID1, "/tenant/engine-hours/machines/$ID1"))
         // Push taps carry only the link.
         assertEquals(OwnerDestination.Machine(ID1), DeepLinkRouter.fromPath("/tenant/engine-hours/machines/$ID1"))
         assertEquals(OwnerDestination.Approvals(), DeepLinkRouter.fromPath("/tenant/meter-corrections"))
         assertEquals(OwnerDestination.Approvals(), DeepLinkRouter.fromPath("/tenant/hours/transfers"))
-        assertEquals(OwnerDestination.Accountability, DeepLinkRouter.fromPath("/tenant/hours/purchases/$ID1"))
+        assertEquals(OwnerDestination.HoursPurchase(ID1), DeepLinkRouter.fromPath("/tenant/hours/purchases/$ID1"))
         assertEquals(OwnerDestination.Cash, DeepLinkRouter.fromPath("/tenant/cash/floats"))
         assertEquals(OwnerDestination.Approvals(), DeepLinkRouter.fromPath("/tenant/cash/variances"))
     }

@@ -46,6 +46,15 @@ sealed interface OwnerDestination {
 
     /** One machine on one local [day] (`yyyy-MM-dd`) of the daily machine sheet. */
     data class SheetDay(val machineId: String, val day: String) : OwnerDestination
+
+    /** Open prepaid-hours purchases with hours left or in use (DEC-031 P4, read-only). */
+    data object CustomerHours : OwnerDestination
+
+    /** One prepaid-hours purchase (HOURS_LOW_BALANCE / HOURS_EXPIRING / HOURS_EXPIRED notifications). */
+    data class HoursPurchase(val purchaseId: String) : OwnerDestination
+
+    /** The hours statement of one customer ([customerName] shown until the statement arrives). */
+    data class HoursStatement(val customerId: String, val customerName: String? = null) : OwnerDestination
 }
 
 /**
@@ -69,6 +78,7 @@ object RecordKinds {
     const val ENGINE_HOURS_CLASSIFICATION = "ENGINE_HOURS_CLASSIFICATION"
     const val REVENUE_DIFFERENCE = "REVENUE_DIFFERENCE"
     const val NON_REVENUE_APPROVAL = "NON_REVENUE_APPROVAL"
+    const val HOURS_PURCHASE = "HOURS_PURCHASE"
 
     /** Record kind -> the decision kind whose screen shows it (and decides it while it waits). */
     val DECISIONS = mapOf(
@@ -103,6 +113,7 @@ object RecordKinds {
             CASH_TRANSFER, CASH_FLOAT -> OwnerDestination.CashRecord(kind, id)
             CASH_REMITTANCE -> OwnerDestination.Handover(id)
             REMITTANCE_OVERDUE -> OwnerDestination.RemittanceOverdue(id)
+            HOURS_PURCHASE -> OwnerDestination.HoursPurchase(id)
             else -> null
         }
     }
@@ -188,7 +199,7 @@ object DeepLinkRouter {
             "cash_transfer" -> target?.let { OwnerDestination.CashRecord(RecordKinds.CASH_TRANSFER, it) } ?: OwnerDestination.Cash
             "supervisor_cash_custody" -> target?.let { OwnerDestination.CashRecord(RecordKinds.CASH_FLOAT, it) } ?: OwnerDestination.Cash
             "cash_remittance_overdue" -> OwnerDestination.RemittanceOverdue(target)
-            "hours_purchase" -> OwnerDestination.Accountability
+            "hours_purchase" -> target?.let { OwnerDestination.HoursPurchase(it) } ?: OwnerDestination.CustomerHours
             else -> fromPath(path) ?: OwnerDestination.Notifications(id(notificationId))
         }
     }
@@ -211,7 +222,7 @@ object DeepLinkRouter {
             "notifications" -> OwnerDestination.Notifications(second)
             // Accountability (customer hours, engine hours, cash custody chain).
             "hours" -> when (val segment = rest.getOrNull(1)) {
-                "purchases" -> OwnerDestination.Accountability
+                "purchases" -> id(rest.getOrNull(2))?.let { OwnerDestination.HoursPurchase(it) } ?: OwnerDestination.CustomerHours
                 else -> RecordKinds.destination(RecordKinds.HOURS_SEGMENTS[segment], id(rest.getOrNull(2))) ?: OwnerDestination.Approvals()
             }
             "meter-baselines" -> RecordKinds.destination(RecordKinds.METER_BASELINE, second) ?: OwnerDestination.Approvals()

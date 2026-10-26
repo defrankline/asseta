@@ -23,6 +23,7 @@ import com.asseta.owner.ui.common.KeyValue
 fun moreEntries(features: OwnerFeatures): List<Pair<String, OwnerDestination>> = listOfNotNull(
     ("Approvals" to OwnerDestination.Approvals()).takeIf { features.approvals },
     (OwnerAccountabilityTexts.MORE_ACCOUNTABILITY to OwnerDestination.Accountability).takeIf { features.accountability },
+    (OwnerAccountabilityTexts.HOURS_MORE to OwnerDestination.CustomerHours).takeIf { features.customerHours },
     ("Meter exceptions" to OwnerDestination.Exceptions()).takeIf { features.meterEvidence },
     ("Field spend" to OwnerDestination.FieldSpend).takeIf { features.expenses },
     ("Cash with supervisors" to OwnerDestination.Cash).takeIf { features.finance },
@@ -63,6 +64,7 @@ private fun moreIcon(d: OwnerDestination): Int = when (d) {
     OwnerDestination.FieldSpend -> R.drawable.ic_receipt
     OwnerDestination.Cash -> R.drawable.ic_cash
     OwnerDestination.Accountability -> R.drawable.ic_approval
+    OwnerDestination.CustomerHours -> R.drawable.ic_receipt
     OwnerDestination.Cases -> R.drawable.ic_investigation
     is OwnerDestination.Notifications -> R.drawable.ic_bell
     else -> R.drawable.ic_settings

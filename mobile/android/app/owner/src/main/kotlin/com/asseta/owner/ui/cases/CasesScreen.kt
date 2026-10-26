@@ -138,7 +138,7 @@ fun CaseDetailScreen(vm: CaseDetailViewModel, features: OwnerFeatures, onOpen: (
                     d.signals.forEach { s ->
                         Column(Modifier.semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                Text(OwnerFormat.humanize(s.code), style = AssetaType.subheadline, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                                Text(com.asseta.owner.ui.accountability.OwnerAccountabilityTexts.signalName(s.code), style = AssetaType.subheadline, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                                 StatusPill(OwnerFormat.humanize(s.severity), OwnerColors.severity(s.severity))
                             }
                             Text("Observed ${OwnerFormat.dateTime(s.observedAt, zone)}", style = AssetaType.caption, color = secondary)

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -85,7 +86,13 @@ fun custodianOptions(custodians: List<CustodianDto>, me: String?): List<PickerOp
 
 /** Purchases with hours left, as picker options ("HP-2026-00012 · 12.5 h left", customer below). */
 fun purchaseOptions(purchases: List<FieldHoursPurchaseDto>): List<PickerOption> = purchases.map {
-    PickerOption(it.id, T.purchaseOption(it.purchaseNumber, it.totals.remaining), it.customerName, it.purchaseNumber)
+    PickerOption(it.id, T.purchaseOption(it.purchaseNumber, it.totals.remaining, it.totals.provisional), it.customerName, it.purchaseNumber)
+}
+
+/** Provisional hours (in use by running jobs) of [p] on [machineId] (else the purchase's), or null when none. */
+fun inUseOn(p: FieldHoursPurchaseDto, machineId: String?): String? {
+    val raw = p.machines.firstOrNull { it.machineId == machineId }?.provisional ?: p.totals.provisional
+    return raw.toBigDecimalOrNull()?.takeIf { it.signum() > 0 }?.stripTrailingZeros()?.toPlainString()
 }
 
 /** Base for the accountability forms: the user's access (capabilities + permissions + saved policies) and saved data. */
@@ -345,6 +352,7 @@ fun HoursTransferScreen(vm: HoursTransferViewModel, onDone: () -> Unit) {
                 val holding = p.machines.filter { (it.remaining.toBigDecimalOrNull()?.signum() ?: 0) > 0 }.map { it.machineId }.ifEmpty { listOf(p.machineId) }
                 val fromOptions = machines.filter { it.id in holding }.ifEmpty { holding.map { PickerOption(it, it.take(8)) } }
                 SearchablePickerField(T.FROM_MACHINE, fromOptions, form.fromMachineId, { id -> vm.edit { it.copy(fromMachineId = id) } }, enabled = editable && holding.size > 1)
+                inUseOn(p, form.fromMachineId)?.let { Text(T.hoursInUse(it), style = MaterialTheme.typography.bodySmall, color = palette.secondaryText) }
             }
             SearchablePickerField(T.TO_MACHINE, machines.filter { it.id != form.fromMachineId }, form.toMachineId, { id -> vm.edit { it.copy(toMachineId = id) } }, enabled = editable)
             DecimalField(T.HOURS_TO_MOVE, form.hours, { v -> vm.edit { it.copy(hours = v) } }, editable)

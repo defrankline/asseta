@@ -75,6 +75,13 @@ object FieldAccountabilityTexts {
     // Request hours transfer
     const val PURCHASE = "Purchase"
     fun purchaseOption(number: String, hours: String) = "$number · $hours h left"
+    fun hoursInUse(hours: String) = "$hours h in use by running jobs"
+
+    /** Picker row: "{purchase} · {left} h left[ · {n} h in use by running jobs]" (provisional already out of left). */
+    fun purchaseOption(number: String, hours: String, provisional: String?): String {
+        val inUse = provisional?.toBigDecimalOrNull()?.takeIf { it.signum() > 0 }
+        return purchaseOption(number, hours) + (inUse?.let { " · " + hoursInUse(it.stripTrailingZeros().toPlainString()) } ?: "")
+    }
     const val PURCHASES_EMPTY = "No purchases with hours left. Purchases appear here after you connect."
     const val FROM_MACHINE = "From machine"
     const val TO_MACHINE = "To machine"

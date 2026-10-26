@@ -82,5 +82,8 @@ object OwnerNavigation {
             if (d.id == null) OwnerAccountabilityTexts.OVERDUE_TITLE else OwnerAccountabilityTexts.OVERDUE_DETAIL_TITLE
         is OwnerDestination.DailySheet -> OwnerAccountabilityTexts.SHEET_TITLE
         is OwnerDestination.SheetDay -> com.asseta.owner.ui.accountability.RevenuePresentation.day(d.day)
+        OwnerDestination.CustomerHours -> OwnerAccountabilityTexts.HOURS_LIST_TITLE
+        is OwnerDestination.HoursPurchase -> OwnerAccountabilityTexts.HOURS_PURCHASE_TITLE
+        is OwnerDestination.HoursStatement -> OwnerAccountabilityTexts.STMT_TITLE
     }
 }

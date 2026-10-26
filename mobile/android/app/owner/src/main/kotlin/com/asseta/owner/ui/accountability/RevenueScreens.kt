@@ -47,9 +47,11 @@ import com.asseta.core.model.owner.RevenueDecisionIn
 import com.asseta.core.model.owner.RevenueDifferenceDto
 import com.asseta.core.model.owner.RevenueReasonDto
 import com.asseta.core.model.owner.SheetMoneyDto
+import com.asseta.core.model.owner.SheetFlagRefDto
 import com.asseta.core.ui.components.GroupedItem
 import com.asseta.core.ui.components.GroupedSection
 import com.asseta.core.ui.components.LabeledValue
+import com.asseta.core.ui.components.NavigationRow
 import com.asseta.core.ui.components.groupedSection
 import com.asseta.core.ui.theme.AssetaType
 import com.asseta.core.ui.theme.palette
@@ -253,6 +255,16 @@ object RevenuePresentation {
             add("$at · ${num(r.reading)}" to OwnerFormat.humanize(r.kind))
         }
     }
+
+    /** Fuel card rows: litres, and litres per engine hour when the server has it (DEC-031 S2). */
+    fun fuelRows(d: DailyMachineSheetDetailDto): List<Pair<String, String>> = buildList {
+        add(T.SHEET_FUEL to T.sheetLitres(num(d.fuelLitres)))
+        d.fuelLitresPerEngineHour?.let { add(T.SHEET_LITRES_PER_HOUR to T.sheetLitresPerHour(num(it))) }
+    }
+
+    /** Distinct machine-day investigations behind the flags (record_type anomaly_case), in flag order. */
+    fun caseIds(d: DailyMachineSheetDetailDto): List<String> =
+        d.flagRecords.filter { it.recordType == SheetFlagRefDto.ANOMALY_CASE }.map { it.recordId }.distinct()
 
     fun jobRows(d: DailyMachineSheetDetailDto): List<Pair<String, String>> = d.jobs.map { j ->
         listOfNotNull(DisplayNames.of(j.jobNumber, j.jobId), j.customerName).joinToString(" · ") to hours(j.customerWorkHours)
@@ -487,7 +499,7 @@ fun DailySheetScreen(vm: DailySheetViewModel, onOpen: (OwnerDestination) -> Unit
 }
 
 @Composable
-fun SheetDayScreen(vm: SheetDayViewModel) {
+fun SheetDayScreen(vm: SheetDayViewModel, features: OwnerFeatures, onOpen: (OwnerDestination) -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
     SnapshotScaffold(state, vm::refresh) { d ->
         val zone = ZoneId.systemDefault()
@@ -503,11 +515,14 @@ fun SheetDayScreen(vm: SheetDayViewModel) {
             d.money.forEach { m ->
                 item(key = "money-${m.currency}") { SectionCard(T.sheetMoney(m.currency)) { RevenuePresentation.moneyRows(m).forEach { (l, v) -> KeyValue(l, v) } } }
             }
-            item { SectionCard(T.SHEET_FUEL) { KeyValue(T.SHEET_FUEL, T.sheetLitres(RevenuePresentation.num(d.fuelLitres))) } }
+            item { SectionCard(T.SHEET_FUEL) { RevenuePresentation.fuelRows(d).forEach { (l, v) -> KeyValue(l, v) } } }
             item {
                 SectionCard(T.SHEET_FLAGS, footer = T.SHEET_FOOTER) {
                     if (d.flags.isEmpty()) FootNote(T.SHEET_NO_FLAGS)
                     d.flags.forEach { Text(T.sheetFlag(it), style = AssetaType.subheadline, color = OwnerColors.Warning) }
+                    if (features.cases) RevenuePresentation.caseIds(d).forEach { id ->
+                        NavigationRow(T.SHEET_OPEN_CASE) { onOpen(OwnerDestination.Case(id)) }
+                    }
                     Spacer(Modifier.height(2.dp))
                 }
             }

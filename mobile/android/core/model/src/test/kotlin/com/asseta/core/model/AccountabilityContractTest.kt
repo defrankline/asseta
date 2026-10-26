@@ -123,6 +123,11 @@ class AccountabilityContractTest {
         ContractCheck.check("HoursPurchaseDto", FieldHoursPurchaseDto.serializer().descriptor, subset = true)
         ContractCheck.check("PurchaseTotalsDto", PurchaseTotalsDto.serializer().descriptor, subset = true)
         ContractCheck.check("MachineHoursDto", MachineHoursDto.serializer().descriptor, subset = true)
+        // DEC-031 P4: owner customer hours (read-only).
+        ContractCheck.check("HoursPurchaseDto", com.asseta.core.model.owner.OwnerHoursPurchaseDto.serializer().descriptor, subset = true)
+        ContractCheck.check("HoursStatementDto", com.asseta.core.model.owner.HoursStatementDto.serializer().descriptor, subset = true)
+        ContractCheck.check("HoursStatementTotalsDto", com.asseta.core.model.owner.HoursStatementTotalsDto.serializer().descriptor)
+        ContractCheck.check("HoursStatementUsageDto", com.asseta.core.model.owner.HoursStatementUsageDto.serializer().descriptor)
     }
 
     @Test

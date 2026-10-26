@@ -18,6 +18,12 @@ import com.asseta.owner.ui.accountability.DecisionScreen
 import com.asseta.owner.ui.accountability.DecisionViewModel
 import com.asseta.owner.ui.accountability.OwnerAccountabilityTexts
 import com.asseta.owner.ui.accountability.DailySheetScreen
+import com.asseta.owner.ui.accountability.CustomerHoursScreen
+import com.asseta.owner.ui.accountability.CustomerHoursViewModel
+import com.asseta.owner.ui.accountability.HoursPurchaseScreen
+import com.asseta.owner.ui.accountability.HoursPurchaseViewModel
+import com.asseta.owner.ui.accountability.HoursStatementScreen
+import com.asseta.owner.ui.accountability.HoursStatementViewModel
 import com.asseta.owner.ui.accountability.DailySheetViewModel
 import com.asseta.owner.ui.accountability.RevenueDifferenceScreen
 import com.asseta.owner.ui.accountability.RevenueDifferenceViewModel
@@ -70,6 +76,9 @@ private val ACCOUNTABILITY_ENTITIES = arrayOf(
     "customer_discount", "credit_arrangement", "hours_transfer", "hours_cancellation", "meter_baseline", "meter_correction",
     "engine_hour_classification", "cash_variance", "cash_retention", "custody_adjustment", "revenue_difference", "non_revenue_approval",
 )
+
+/** Live-update entities of the customer hours screens. */
+private val HOURS_ENTITIES = arrayOf("hours_purchase", "hours_transfer", "hours_cancellation", "job")
 
 /** One screen per destination; view models are keyed by tenant (and id) so switching tenant never mixes data. */
 @Composable
@@ -244,7 +253,23 @@ fun OwnerRoutes(
             val vm: SheetDayViewModel = viewModel(key = "sheet-day-$t-${route.machineId}-${route.day}") {
                 SheetDayViewModel(data, route.machineId, route.day, graph.refreshTriggers("revenue_difference", "meter_capture"))
             }
-            SheetDayScreen(vm)
+            SheetDayScreen(vm, features, open)
+        }
+        OwnerDestination.CustomerHours -> {
+            val vm: CustomerHoursViewModel = viewModel(key = "customer-hours-$t") { CustomerHoursViewModel(data, graph.refreshTriggers(*HOURS_ENTITIES)) }
+            CustomerHoursScreen(vm, open)
+        }
+        is OwnerDestination.HoursPurchase -> {
+            val vm: HoursPurchaseViewModel = viewModel(key = "hours-purchase-$t-${route.purchaseId}") {
+                HoursPurchaseViewModel(data, route.purchaseId, graph.refreshTriggers(*HOURS_ENTITIES))
+            }
+            HoursPurchaseScreen(vm, open)
+        }
+        is OwnerDestination.HoursStatement -> {
+            val vm: HoursStatementViewModel = viewModel(key = "hours-statement-$t-${route.customerId}") {
+                HoursStatementViewModel(data, route.customerId, graph.refreshTriggers(*HOURS_ENTITIES))
+            }
+            HoursStatementScreen(vm, online, route.customerName)
         }
         OwnerDestination.Accountability -> {
             val vm: AccountabilityViewModel = viewModel(key = "accountability-$t") {

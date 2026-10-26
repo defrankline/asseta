@@ -326,6 +326,26 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
     suspend fun sheetDay(machineId: String, day: String): Load<DailyMachineSheetDetailDto> =
         repo.load(tenantId, "sheet_day:$machineId:$day", DailyMachineSheetDetailDto.serializer()) { dailyMachineSheetDay(machineId, day) }
 
+    // --- customer hours, read-only (DEC-031 P4) --------------------------------------------------------------------
+    /** Open purchases with hours left or in use by running jobs, newest first. */
+    suspend fun hoursPurchases(): Load<List<com.asseta.core.model.owner.OwnerHoursPurchaseDto>> =
+        repo.load(tenantId, "hours_purchases", ListSerializer(com.asseta.core.model.owner.OwnerHoursPurchaseDto.serializer())) {
+            com.asseta.owner.ui.accountability.HoursPresentation.open(ownerHoursPurchases(pageSize = LIST_PAGE).items)
+        }
+
+    suspend fun hoursPurchase(id: String): Load<com.asseta.core.model.owner.OwnerHoursPurchaseDto> =
+        repo.load(tenantId, "hours_purchase:$id", com.asseta.core.model.owner.OwnerHoursPurchaseDto.serializer()) { hoursPurchase(id) }
+
+    /** One customer's hours statement for the local days [from]..[to] (cached per customer and period). */
+    suspend fun hoursStatement(customerId: String, from: java.time.LocalDate, to: java.time.LocalDate): Load<com.asseta.core.model.owner.HoursStatementDto> =
+        repo.load(tenantId, "hours_statement:$customerId:$from:$to", com.asseta.core.model.owner.HoursStatementDto.serializer()) {
+            customerHoursStatement(customerId, from.toString(), to.toString())
+        }
+
+    /** The same statement as PDF bytes (online only, never cached). */
+    suspend fun hoursStatementPdf(customerId: String, from: java.time.LocalDate, to: java.time.LocalDate): ActionResult<ByteArray> =
+        repo.act { customerHoursStatementPdf(customerId, from.toString(), to.toString()).use { it.bytes() } }
+
     /** The accountability dashboard summary (tiles the tenant hides come back null). */
     suspend fun accountabilitySummary(): Load<AccountabilitySummaryDto> =
         repo.load(tenantId, "accountability_summary", AccountabilitySummaryDto.serializer()) { accountabilitySummary() }

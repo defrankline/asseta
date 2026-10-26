@@ -28,6 +28,17 @@
             </intent-filter>
         </activity>
 
+        <!-- Hands the customer hours statement PDF to the phone's PDF viewer (read-only grant). -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
         <!-- FCM entry point; only receives messages when the build has a Firebase config (README "Push"). -->
         <service
             android:name=".push.OwnerMessagingService"

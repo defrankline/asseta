@@ -231,7 +231,12 @@ data class SheetFlagRefDto(
     val flag: String,
     @SerialName("record_type") val recordType: String,
     @SerialName("record_id") val recordId: String,
-)
+) {
+    companion object {
+        /** The machine-day investigation (DEC-031 S1), opened on the Investigation screen. */
+        const val ANOMALY_CASE = "anomaly_case"
+    }
+}
 
 /** `SheetFuelDto`. */
 @Serializable
@@ -264,6 +269,8 @@ data class DailyMachineSheetRowDto(
     @SerialName("unexplained_hours") val unexplainedHours: String,
     @SerialName("pending_review_hours") val pendingReviewHours: String,
     @SerialName("fuel_litres") val fuelLitres: String,
+    /** Fuel into the machine per engine hour of the day (DEC-031 S2); null without engine hours. */
+    @SerialName("fuel_litres_per_engine_hour") val fuelLitresPerEngineHour: String? = null,
     val jobs: List<SheetJobDto> = emptyList(),
     val money: List<SheetMoneyDto> = emptyList(),
     val flags: List<String> = emptyList(),
@@ -290,6 +297,8 @@ data class DailyMachineSheetDetailDto(
     @SerialName("unexplained_hours") val unexplainedHours: String,
     @SerialName("pending_review_hours") val pendingReviewHours: String,
     @SerialName("fuel_litres") val fuelLitres: String,
+    /** Fuel into the machine per engine hour of the day (DEC-031 S2); null without engine hours. */
+    @SerialName("fuel_litres_per_engine_hour") val fuelLitresPerEngineHour: String? = null,
     val jobs: List<SheetJobDto> = emptyList(),
     val money: List<SheetMoneyDto> = emptyList(),
     val flags: List<String> = emptyList(),

@@ -99,6 +99,9 @@ data class OwnerFeatures(val permissions: Set<String>, val disabled: Set<String>
         is OwnerDestination.CashRecord, is OwnerDestination.RemittanceOverdue -> if (cashCustody) d else OwnerDestination.Cash
         is OwnerDestination.DailySheet -> if (revenueRead) d else OwnerDestination.Machine(d.machineId)
         is OwnerDestination.SheetDay -> if (revenueRead) d else OwnerDestination.Machine(d.machineId)
+        // Customer hours (DEC-031 P4): switched off or not readable -> the dashboard, as before these screens existed.
+        OwnerDestination.CustomerHours, is OwnerDestination.HoursPurchase, is OwnerDestination.HoursStatement ->
+            if (customerHours) d else OwnerDestination.Accountability
         else -> d
     }
     val custodyRead get() = finance || "tenant.collection.record" in permissions

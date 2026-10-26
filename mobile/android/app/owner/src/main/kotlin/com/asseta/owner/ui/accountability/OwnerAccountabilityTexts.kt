@@ -338,4 +338,77 @@ object OwnerAccountabilityTexts {
         "REVENUE_DIFFERENCE" -> "Revenue difference"
         else -> OwnerFormat.humanize(wire)
     }
+
+    // --- DEC-031 Phases 2 and 4 -----------------------------------------------------------------------------------
+    const val SHEET_LITRES_PER_HOUR = "Litres per engine hour"
+    fun sheetLitresPerHour(litres: String) = "$litres L/h"
+    const val SHEET_OPEN_CASE = "Open investigation"
+
+    /** Investigation signal names (owner.signal.*); other codes humanized. */
+    fun signalName(code: String): String = when (code) {
+        "ENGINE_RUNNING_WITHOUT_WORK" -> "Engine running without work during the day"
+        "MACHINE_FUEL_ABOVE_NORM" -> "Fuel above the norm for the engine hours"
+        else -> OwnerFormat.humanize(code)
+    }
+
+    const val HOURS_MORE = "Customer hours"
+    const val HOURS_LIST_TITLE = "Customer hours"
+    const val HOURS_EMPTY = "No prepaid hours with hours left."
+    const val HOURS_LIST_FOOTER = "Prepaid hours with hours left or in use by running jobs. Selling and moving hours is done in the field app or on the web."
+    fun hoursRow(purchase: String, customer: String) = "$purchase · $customer"
+    fun hoursLeft(hours: String) = "$hours h left"
+    fun hoursInUse(hours: String) = "$hours h in use by running jobs"
+    const val HOURS_PURCHASE_TITLE = "Hours purchase"
+    const val HOURS_HOURS = "Hours"
+    const val HOURS_CUSTOMER = "Customer"
+    const val HOURS_MACHINE = "Machine"
+    const val HOURS_STATUS = "Status"
+    const val HOURS_BOUGHT = "Bought"
+    const val HOURS_ACTIVATED = "Activated"
+    const val HOURS_USED = "Used"
+    const val HOURS_PROVISIONAL = "In use by running jobs"
+    const val HOURS_TRANSFERRED = "Moved to other machines"
+    const val HOURS_EXPIRED = "Expired"
+    const val HOURS_REMAINING = "Left"
+    const val HOURS_AWAITING = "Awaiting activation"
+    const val HOURS_MACHINES = "Machines"
+    const val HOURS_OPEN_STATEMENT = "Hours statement"
+    const val HOURS_PROVISIONAL_FOOTER = "Hours in use by running jobs are drawn day by day and become final when the job is completed."
+    fun purchaseStatus(wire: String): String = when (wire) {
+        "AWAITING_PAYMENT" -> "Awaiting payment"
+        "PARTLY_ACTIVE" -> "Partly active"
+        "ACTIVE" -> "Active"
+        "CONSUMED" -> "Used up"
+        "EXPIRED" -> "Expired"
+        "CANCELLED" -> "Cancelled"
+        else -> OwnerFormat.humanize(wire)
+    }
+
+    const val STMT_TITLE = "Hours statement"
+    fun stmtHeader(customer: String, period: String) = "$customer · $period"
+    const val STMT_TOTALS = "Totals"
+    const val STMT_OPENING = "Opening balance"
+    const val STMT_BOUGHT = "Bought"
+    const val STMT_ACTIVATED = "Activated"
+    const val STMT_USED = "Used"
+    const val STMT_PROVISIONAL_AT_CLOSE = "Of which in use by running jobs"
+    const val STMT_TRANSFERRED_IN = "Moved in"
+    const val STMT_TRANSFERRED_OUT = "Moved out"
+    const val STMT_EXPIRED = "Expired"
+    const val STMT_CANCELLED = "Cancelled"
+    const val STMT_CLOSING = "Closing balance"
+    const val STMT_AWAITING = "Awaiting activation (now)"
+    const val STMT_USAGE = "Hours used"
+    const val STMT_USAGE_EMPTY = "No hours used in this period."
+    fun stmtUsageRow(day: String, job: String) = "$day · $job"
+    fun stmtBasis(wire: String): String = when (wire) {
+        "DAILY" -> "Drawn day by day"
+        "FINAL" -> "Final"
+        else -> OwnerFormat.humanize(wire)
+    }
+    const val STMT_RUNNING = "Job still running"
+    const val STMT_OPEN_PDF = "Open PDF"
+    const val STMT_PDF_FAILED = "Could not get the PDF. Check your connection and try again."
+    const val STMT_NO_PDF_APP = "No app on this phone can open PDFs."
+    fun stmtFooter(timezone: String, time: String) = "Times are in $timezone. Generated $time."
 }

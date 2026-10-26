@@ -1024,7 +1024,7 @@ months = first day of the month two months back – today; This year = 1 Jan –
 running jobs, Moved in, Moved out, Expired, Cancelled and Awaiting activation only when > 0. Usage rows newest day
 first: label `owner.stmt.usageRow` (job number, else "—"), value `{hours} h`, caption = machine · basis wording,
 plus " · " + `owner.stmt.running` when `job_running`. Server refusals (`INVALID_PERIOD`, `PERIOD_TOO_LONG`) show the
-server message. Open PDF is disabled offline (usual offline note).
+server message. Open PDF is disabled offline; a failed download shows `owner.stmt.pdfFailed` (or the server message).
 
 ### Supervisor
 | Key | English |

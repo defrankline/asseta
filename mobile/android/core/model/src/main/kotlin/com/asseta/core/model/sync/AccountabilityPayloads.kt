@@ -222,6 +222,10 @@ data class PurchaseTotalsDto(
     val consumed: String,
     val remaining: String,
     @SerialName("awaiting_activation") val awaitingActivation: String,
+    val transferred: String = "0",
+    val expired: String = "0",
+    /** Hours held by running jobs (daily drawdown, DEC-031 P4), already taken out of [remaining]. */
+    val provisional: String = "0",
 )
 
 /** `MachineHoursDto`: a purchase's hours on one machine (after transfers). */
@@ -229,6 +233,10 @@ data class PurchaseTotalsDto(
 data class MachineHoursDto(
     @SerialName("machine_id") val machineId: String,
     val remaining: String,
+    @SerialName("machine_code") val machineCode: String? = null,
+    @SerialName("machine_name") val machineName: String? = null,
+    /** Hours held by running jobs on this machine, already taken out of [remaining]. */
+    val provisional: String = "0",
 )
 
 /** `HoursPurchaseDto` (listHoursPurchases), the part the hours-transfer form needs. */
