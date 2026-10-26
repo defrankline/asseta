@@ -83,6 +83,7 @@ object FieldTexts {
         AccountabilityOps.METER_BASELINE -> FieldAccountabilityTexts.OUTBOX_BASELINE
         AccountabilityOps.METER_CORRECTION -> FieldAccountabilityTexts.OUTBOX_CORRECTION
         AccountabilityOps.CASH_RETENTION_REQUEST -> FieldAccountabilityTexts.OUTBOX_RETENTION
+        AccountabilityOps.SITE_CHECKIN -> com.asseta.supervisor.ui.accountability.SiteCheckinTexts.OUTBOX
         OpTypes.JOB_ACTIVITY -> "Work log entry"
         OpTypes.JOB_ACKNOWLEDGEMENT -> "Customer acknowledgement"
         OpTypes.JOB_TRANSITION ->

@@ -55,6 +55,18 @@ sealed interface OwnerDestination {
 
     /** The hours statement of one customer ([customerName] shown until the statement arrives). */
     data class HoursStatement(val customerId: String, val customerName: String? = null) : OwnerDestination
+
+    /** People scorecard: counts of items to look at per person (DEC-031 M1, read-only). */
+    data object Scorecard : OwnerDestination
+
+    /** One person's scorecard for the local days [dayFrom]..[dayTo] (null: the default period). */
+    data class ScorecardPerson(val staffId: String, val name: String? = null, val dayFrom: String? = null, val dayTo: String? = null) : OwnerDestination
+
+    /** Completed jobs not invoiced yet (DEC-031 M2, read-only). */
+    data object UnbilledWork : OwnerDestination
+
+    /** Machines idle for a while (DEC-031 M2, read-only). */
+    data object IdleMachines : OwnerDestination
 }
 
 /**
@@ -79,6 +91,9 @@ object RecordKinds {
     const val REVENUE_DIFFERENCE = "REVENUE_DIFFERENCE"
     const val NON_REVENUE_APPROVAL = "NON_REVENUE_APPROVAL"
     const val HOURS_PURCHASE = "HOURS_PURCHASE"
+
+    /** A job (UNBILLED_WORK: completed and not invoiced yet). */
+    const val JOB = "JOB"
 
     /** Record kind -> the decision kind whose screen shows it (and decides it while it waits). */
     val DECISIONS = mapOf(
@@ -114,6 +129,7 @@ object RecordKinds {
             CASH_REMITTANCE -> OwnerDestination.Handover(id)
             REMITTANCE_OVERDUE -> OwnerDestination.RemittanceOverdue(id)
             HOURS_PURCHASE -> OwnerDestination.HoursPurchase(id)
+            JOB -> OwnerDestination.Job(id)
             else -> null
         }
     }
@@ -244,6 +260,10 @@ object DeepLinkRouter {
             // Revenue reconciliation (DEC-031): the record, or Approvals where they are listed.
             "revenue-differences" -> RecordKinds.destination(RecordKinds.REVENUE_DIFFERENCE, second) ?: OwnerDestination.Approvals()
             "non-revenue-approvals" -> RecordKinds.destination(RecordKinds.NON_REVENUE_APPROVAL, second) ?: OwnerDestination.Approvals()
+            // Oversight (DEC-031 Phase 5).
+            "scorecard" -> second?.let { OwnerDestination.ScorecardPerson(it) } ?: OwnerDestination.Scorecard
+            "unbilled-work" -> OwnerDestination.UnbilledWork
+            "idle-machines" -> OwnerDestination.IdleMachines
             else -> null
         }
     }

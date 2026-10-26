@@ -74,13 +74,17 @@ object FieldAccountabilityTexts {
 
     // Request hours transfer
     const val PURCHASE = "Purchase"
-    fun purchaseOption(number: String, hours: String) = "$number · $hours h left"
-    fun hoursInUse(hours: String) = "$hours h in use by running jobs"
+    /** [hours] is shown in the phone's number format, 0–2 decimals ("12", "1,234.5"; never "12.0000"). */
+    fun purchaseOption(number: String, hours: String) = "$number · ${hoursNumber(hours)} h left"
+    fun hoursInUse(hours: String) = "${hoursNumber(hours)} h in use by running jobs"
+
+    /** An hours figure as every customer-hours screen shows it (same as iOS). */
+    fun hoursNumber(raw: String): String = com.asseta.core.domain.owner.OwnerFormat.hoursNumber(raw)
 
     /** Picker row: "{purchase} · {left} h left[ · {n} h in use by running jobs]" (provisional already out of left). */
     fun purchaseOption(number: String, hours: String, provisional: String?): String {
         val inUse = provisional?.toBigDecimalOrNull()?.takeIf { it.signum() > 0 }
-        return purchaseOption(number, hours) + (inUse?.let { " · " + hoursInUse(it.stripTrailingZeros().toPlainString()) } ?: "")
+        return purchaseOption(number, hours) + (inUse?.let { " · " + hoursInUse(it.toPlainString()) } ?: "")
     }
     const val PURCHASES_EMPTY = "No purchases with hours left. Purchases appear here after you connect."
     const val FROM_MACHINE = "From machine"
@@ -241,7 +245,7 @@ object FieldAccountabilityTexts {
         "DEPOSIT_ACCOUNT_INACTIVE" -> "The account you chose is no longer in use. Record the handover again with another account."
         "REMITTANCE_ACCOUNT_MISMATCH" -> "The account you chose does not match how the money was handed over. Record the handover again."
         "DEPOSIT_ACCOUNT_CURRENCY_MISMATCH" -> "The account you chose holds a different currency. Record the handover again with another account."
-        else -> null
+        else -> SiteCheckinTexts.conflict(code)
     }
 
     /** A colleague's name from the server, else from the saved cash holders, else the short id (DEC-030 G2). */

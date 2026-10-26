@@ -393,4 +393,8 @@ data class AccountabilitySummaryDto(
     @SerialName("missing_daily_reports") val missingDailyReports: JsonObject? = null,
     /** DEC-031 R3: revenue differences to explain / decide (null while REVENUE_RECONCILIATION is off). */
     @SerialName("revenue_differences") val revenueDifferences: JsonObject? = null,
+    /** DEC-031 M2: completed jobs not invoiced yet (null while UNBILLED_WORK is off). */
+    @SerialName("unbilled_work") val unbilledWork: JsonObject? = null,
+    /** DEC-031 M2: machines idle for a while (null while IDLE_MACHINES is off). */
+    @SerialName("idle_machines") val idleMachines: JsonObject? = null,
 )

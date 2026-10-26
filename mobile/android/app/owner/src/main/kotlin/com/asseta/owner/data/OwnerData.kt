@@ -346,6 +346,24 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
     suspend fun hoursStatementPdf(customerId: String, from: java.time.LocalDate, to: java.time.LocalDate): ActionResult<ByteArray> =
         repo.act { customerHoursStatementPdf(customerId, from.toString(), to.toString()).use { it.bytes() } }
 
+    // --- oversight, read-only (DEC-031 Phase 5) -------------------------------------------------------------------
+    /** One row per person for the local days [from]..[to] (cached per period). */
+    suspend fun scorecard(from: java.time.LocalDate, to: java.time.LocalDate): Load<List<com.asseta.core.model.owner.ScorecardRowDto>> =
+        repo.load(tenantId, "scorecard:$from:$to", ListSerializer(com.asseta.core.model.owner.ScorecardRowDto.serializer())) {
+            scorecard(from.toString(), to.toString(), pageSize = LIST_PAGE).items
+        }
+
+    suspend fun scorecardPerson(staffId: String, from: java.time.LocalDate, to: java.time.LocalDate): Load<com.asseta.core.model.owner.ScorecardDetailDto> =
+        repo.load(tenantId, "scorecard_person:$staffId:$from:$to", com.asseta.core.model.owner.ScorecardDetailDto.serializer()) {
+            scorecardDetail(staffId, from.toString(), to.toString())
+        }
+
+    suspend fun unbilledWork(): Load<List<com.asseta.core.model.owner.UnbilledJobDto>> =
+        repo.load(tenantId, "unbilled_work", ListSerializer(com.asseta.core.model.owner.UnbilledJobDto.serializer())) { unbilledWork(pageSize = LIST_PAGE).items }
+
+    suspend fun idleMachines(): Load<List<com.asseta.core.model.owner.IdleMachineDto>> =
+        repo.load(tenantId, "idle_machines", ListSerializer(com.asseta.core.model.owner.IdleMachineDto.serializer())) { idleMachines(pageSize = LIST_PAGE).items }
+
     /** The accountability dashboard summary (tiles the tenant hides come back null). */
     suspend fun accountabilitySummary(): Load<AccountabilitySummaryDto> =
         repo.load(tenantId, "accountability_summary", AccountabilitySummaryDto.serializer()) { accountabilitySummary() }

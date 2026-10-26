@@ -159,6 +159,7 @@ object InboxLinks {
                 "CASH_FLOAT" -> return InboxLink.CashAck(recordId, isFloat = true)
                 "CASH_RETENTION" -> return InboxLink.Retention(recordId)
                 "REMITTANCE_OVERDUE" -> return InboxLink.RemittanceOverdue(recordId)
+                "JOB" -> return InboxLink.Job(recordId)
             }
         }
         return fromTarget(entity, id)

@@ -145,6 +145,32 @@ class AccountabilityContractTest {
         ContractCheck.check("CashCollectionIn", CashCollectionPayload.serializer().descriptor, extra = setOf("client_id"), request = true)
         ContractCheck.check("CashHandoverIn", CashHandoverPayload.serializer().descriptor, extra = setOf("client_id", "evidence_upload_ids"), request = true)
         ContractCheck.check("CashRetentionIn", CashRetentionIn.serializer().descriptor, request = true)
+        ContractCheck.check("SiteCheckinIn", com.asseta.core.model.sync.SiteCheckinPayload.serializer().descriptor, request = true)
+    }
+
+    @Test
+    fun `oversight DTOs match the contract`() {
+        mapOf<String, KSerializer<*>>(
+            "AmountByCurrencyDto" to com.asseta.core.model.owner.AmountByCurrencyDto.serializer(),
+            "CashHeldDto" to com.asseta.core.model.owner.CashHeldDto.serializer(),
+            "ScorecardRowDto" to com.asseta.core.model.owner.ScorecardRowDto.serializer(),
+            "ScorecardRecordDto" to com.asseta.core.model.owner.ScorecardRecordDto.serializer(),
+            "ScorecardDetailDto" to com.asseta.core.model.owner.ScorecardDetailDto.serializer(),
+            "UnbilledJobDto" to com.asseta.core.model.owner.UnbilledJobDto.serializer(),
+            "IdleMachineDto" to com.asseta.core.model.owner.IdleMachineDto.serializer(),
+            "SiteCheckinDto" to com.asseta.core.model.owner.SiteCheckinDto.serializer(),
+            "CheckinSlotDto" to com.asseta.core.model.owner.CheckinSlotDto.serializer(),
+            "MySiteCheckinsDto" to com.asseta.core.model.owner.MySiteCheckinsDto.serializer(),
+        ).forEach { (name, serializer) -> ContractCheck.check(name, serializer.descriptor) }
+    }
+
+    @Test
+    fun `site check-in payload keeps a failed GPS attempt without coordinates`() {
+        val payload = com.asseta.core.model.sync.SiteCheckinPayload("c1", "2026-10-26T07:00:00Z", com.asseta.core.model.sync.GpsIn("TIMEOUT"))
+        val wire = json.encodeToJsonElement(com.asseta.core.model.sync.SiteCheckinPayload.serializer(), payload).jsonObject
+        assertEquals("c1", wire["client_id"].toString().trim('"'))
+        assertFalse("latitude" in wire["gps"]!!.jsonObject)
+        assertFalse("job_site_id" in wire)
     }
 
     @Test

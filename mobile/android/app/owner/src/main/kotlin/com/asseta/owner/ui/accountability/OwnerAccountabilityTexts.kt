@@ -348,6 +348,7 @@ object OwnerAccountabilityTexts {
     fun signalName(code: String): String = when (code) {
         "ENGINE_RUNNING_WITHOUT_WORK" -> "Engine running without work during the day"
         "MACHINE_FUEL_ABOVE_NORM" -> "Fuel above the norm for the engine hours"
+        "REPEATED_PATTERN" -> "Repeated items to look at for one person"
         else -> OwnerFormat.humanize(code)
     }
 

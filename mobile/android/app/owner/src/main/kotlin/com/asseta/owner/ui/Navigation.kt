@@ -85,5 +85,9 @@ object OwnerNavigation {
         OwnerDestination.CustomerHours -> OwnerAccountabilityTexts.HOURS_LIST_TITLE
         is OwnerDestination.HoursPurchase -> OwnerAccountabilityTexts.HOURS_PURCHASE_TITLE
         is OwnerDestination.HoursStatement -> OwnerAccountabilityTexts.STMT_TITLE
+        OwnerDestination.Scorecard -> com.asseta.owner.ui.accountability.OversightTexts.SCORE_TITLE
+        is OwnerDestination.ScorecardPerson -> d.name ?: com.asseta.owner.ui.accountability.OversightTexts.SCORE_TITLE
+        OwnerDestination.UnbilledWork -> com.asseta.owner.ui.accountability.OversightTexts.UNBILLED_TITLE
+        OwnerDestination.IdleMachines -> com.asseta.owner.ui.accountability.OversightTexts.IDLE_TITLE
     }
 }

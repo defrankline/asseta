@@ -86,6 +86,18 @@ data class OwnerFeatures(val permissions: Set<String>, val disabled: Set<String>
     /** Decide revenue differences and non-revenue hours. */
     val revenueDecide get() = revenueRead && "tenant.revenue.decide" in permissions
 
+    /** People scorecard (DEC-031 M1): SCORECARD on and the role may read it. */
+    val scorecard get() = TenantAccess.SCORECARD !in disabled && "tenant.oversight.scorecard.read" in permissions
+
+    /** Oversight lists (unbilled work, idle machines, office check-ins). */
+    val oversightRead get() = "tenant.oversight.read" in permissions
+
+    /** Unbilled work list (DEC-031 M2): UNBILLED_WORK on and tenant.oversight.read. */
+    val unbilledWork get() = oversightRead && TenantAccess.UNBILLED_WORK !in disabled
+
+    /** Idle machines list (DEC-031 M2): IDLE_MACHINES on and tenant.oversight.read. */
+    val idleMachines get() = oversightRead && TenantAccess.IDLE_MACHINES !in disabled
+
     /** The same features with more switched-off capabilities (e.g. the dashboard's `disabled_capabilities`). */
     fun without(capabilities: Collection<String>): OwnerFeatures =
         if (capabilities.all { it in disabled }) this else copy(disabled = disabled + capabilities)
@@ -102,6 +114,10 @@ data class OwnerFeatures(val permissions: Set<String>, val disabled: Set<String>
         // Customer hours (DEC-031 P4): switched off or not readable -> the dashboard, as before these screens existed.
         OwnerDestination.CustomerHours, is OwnerDestination.HoursPurchase, is OwnerDestination.HoursStatement ->
             if (customerHours) d else OwnerDestination.Accountability
+        // Oversight (DEC-031 Phase 5): switched off or not readable -> the dashboard.
+        OwnerDestination.Scorecard, is OwnerDestination.ScorecardPerson -> if (scorecard) d else OwnerDestination.Accountability
+        OwnerDestination.UnbilledWork -> if (unbilledWork) d else OwnerDestination.Accountability
+        OwnerDestination.IdleMachines -> if (idleMachines) d else OwnerDestination.Accountability
         else -> d
     }
     val custodyRead get() = finance || "tenant.collection.record" in permissions

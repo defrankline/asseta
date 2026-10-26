@@ -65,13 +65,13 @@ class AccountabilityPresentationTest {
         val p = FieldHoursPurchaseDto("p1", "HP-2026-00001", "c1", "Joe", "m1", "20", "ACTIVE",
             PurchaseTotalsDto("20", "20", "4", "12.00", "0", provisional = "4.00"),
             listOf(MachineHoursDto("m1", "8", provisional = "4.00"), MachineHoursDto("m2", "4")))
-        assertEquals("HP-2026-00001 · 12.00 h left · 4 h in use by running jobs", purchaseOptions(listOf(p)).single().title)
+        assertEquals("HP-2026-00001 · 12 h left · 4 h in use by running jobs", purchaseOptions(listOf(p)).single().title)
         assertEquals("4", inUseOn(p, "m1"))
         assertEquals(null, inUseOn(p, "m2"))
         assertEquals("4", inUseOn(p, null))
         assertEquals("4 h in use by running jobs", FieldAccountabilityTexts.hoursInUse("4"))
         val none = p.copy(totals = p.totals.copy(provisional = "0"), machines = emptyList())
-        assertEquals("HP-2026-00001 · 12.00 h left", purchaseOptions(listOf(none)).single().title)
+        assertEquals("HP-2026-00001 · 12 h left", purchaseOptions(listOf(none)).single().title)
         assertEquals(null, inUseOn(none, "m1"))
     }
 

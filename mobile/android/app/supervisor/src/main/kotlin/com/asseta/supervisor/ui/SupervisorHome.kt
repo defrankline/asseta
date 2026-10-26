@@ -144,6 +144,8 @@ sealed interface Route {
     data class Correction(val readingId: String) : Route
     /** Explain a non-revenue work-log entry (DEC-031 R1, online only). */
     data class ExplainNonRevenue(val activity: com.asseta.core.model.owner.NonRevenueActivityDto) : Route
+    /** Today's site check-ins and my check-ins (DEC-031 M3). */
+    data object SiteCheckins : Route
 }
 
 val SupervisorTab.root: Route
@@ -193,6 +195,7 @@ fun Route.title(companyName: String): String = when (this) {
     is Route.Baseline -> FieldAccountabilityTexts.TITLE_BASELINE
     is Route.Correction -> FieldAccountabilityTexts.TITLE_CORRECTION
     is Route.ExplainNonRevenue -> com.asseta.supervisor.ui.accountability.NonRevenueText.TITLE
+    Route.SiteCheckins -> com.asseta.supervisor.ui.accountability.SiteCheckinTexts.TITLE
 }
 
 /** Routes the iOS app presents as sheets (Cancel / Save in the navigation bar, no tab bar). */
@@ -505,7 +508,16 @@ private fun RouteContent(
     onAttention: (AttentionItem) -> Unit,
 ) {
     when (route) {
-        Route.Jobs -> JobsScreen(field, tenantId, snapshot, syncing, onRefresh, onOpen = { id, number -> push(Route.JobDetail(id, number)) }, onRoute = push)
+        Route.Jobs -> JobsScreen(
+            field, tenantId, snapshot, syncing, onRefresh, onOpen = { id, number -> push(Route.JobDetail(id, number)) }, onRoute = push,
+            checkinEntry = if (access?.siteCheckin == true) {
+                { com.asseta.supervisor.ui.accountability.SiteCheckinEntry(field, tenantId, permissions, snapshot, syncing) { push(Route.SiteCheckins) } }
+            } else null,
+        )
+        Route.SiteCheckins -> com.asseta.supervisor.ui.accountability.SiteCheckinScreen(
+            viewModel(key = "site-checkins-$scope") { com.asseta.supervisor.ui.accountability.SiteCheckinViewModel(field, tenantId, permissions) },
+            field, snapshot, online = rememberOnline(),
+        )
         Route.Readings -> ReadingsScreen(snapshot, syncing, onRefresh, push)
         Route.Fuel -> FuelScreen(snapshot, syncing, onRefresh, push)
         Route.Money -> MoneyScreen(field, tenantId, snapshot, syncing, onRefresh, push, permissions, access)

@@ -24,6 +24,9 @@ object AccountabilityOps {
     const val METER_BASELINE = "METER_BASELINE"
     const val METER_CORRECTION = "METER_CORRECTION"
 
+    /** DEC-031 M3: a GPS check-in at the site (`SiteCheckinIn`), when the server announces OP_SITE_CHECKIN. */
+    const val SITE_CHECKIN = "SITE_CHECKIN"
+
     /** Blob purpose of hours-sale payment evidence (receipt, mobile-money screenshot). */
     const val PAYMENT_EVIDENCE = "PAYMENT_EVIDENCE"
 
@@ -286,4 +289,16 @@ data class CashRetentionIn(
     @SerialName("staff_member_id") val staffMemberId: String? = null,
     @SerialName("valid_until") val validUntil: String? = null,
     @SerialName("client_id") val clientId: String? = null,
+)
+
+/**
+ * `SiteCheckinIn`: the sync op `SITE_CHECKIN` (DEC-031 M3). [clientId] is the check-in's idempotency key; the GPS
+ * attempt is sent as it happened (no coordinates on failure). No [jobSiteId]: the server takes the running job's site.
+ */
+@Serializable
+data class SiteCheckinPayload(
+    @SerialName("client_id") val clientId: String,
+    @SerialName("captured_at") val capturedAt: String,
+    val gps: GpsIn,
+    @SerialName("job_site_id") val jobSiteId: String? = null,
 )

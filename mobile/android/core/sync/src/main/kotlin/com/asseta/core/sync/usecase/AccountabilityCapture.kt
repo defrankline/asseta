@@ -251,6 +251,17 @@ class AccountabilityCapture(
         return queue(r.tenantId, AccountabilityOps.CASH_RETENTION_REQUEST, FieldOps.CASH_RETENTION, r.clientId, CashRetentionIn.serializer(), payload)
     }
 
+    /**
+     * A site check-in (`SITE_CHECKIN`, capability OP_SITE_CHECKIN, DEC-031 M3): the fresh GPS attempt as it happened
+     * (no coordinates on failure), queued once per [clientId] (the server dedupes by client id too). The server matches
+     * it to a scheduled slot and takes the running job's site.
+     */
+    suspend fun siteCheckin(tenantId: String, clientId: String, capturedAtMs: Long, gps: com.asseta.core.domain.capture.GpsOutcome): FinanceResult {
+        unavailable(tenantId, SyncCapabilities.OP_SITE_CHECKIN)?.let { return FinanceResult.Blocked(it) }
+        val payload = com.asseta.core.model.sync.SiteCheckinPayload(clientId, IsoTime.format(capturedAtMs), gps.toWire())
+        return queue(tenantId, AccountabilityOps.SITE_CHECKIN, FieldOps.SITE_CHECKIN, clientId, com.asseta.core.model.sync.SiteCheckinPayload.serializer(), payload)
+    }
+
     /** This phone already queued an answer to the transfer / float [targetId]. */
     suspend fun answered(tenantId: String, targetId: String, isFloat: Boolean): Boolean =
         alreadySaved(tenantId, if (isFloat) FieldOps.CASH_FLOAT_ACK else FieldOps.CASH_TRANSFER_ACK, targetId)

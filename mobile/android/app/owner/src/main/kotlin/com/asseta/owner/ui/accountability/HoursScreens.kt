@@ -80,8 +80,9 @@ data class UsageLine(val label: String, val value: String, val caption: String)
 object HoursPresentation {
     private fun dec(raw: String?): BigDecimal = raw?.toBigDecimalOrNull() ?: BigDecimal.ZERO
     private fun positive(raw: String?): Boolean = dec(raw).signum() > 0
-    private fun num(raw: String?) = RevenuePresentation.num(raw)
-    private fun hours(raw: String?) = RevenuePresentation.hours(raw)
+    /** Hours in the phone's number format, 0–2 decimals, no trailing zeros ("12", "1,234.5"), as on iOS. */
+    private fun num(raw: String?) = OwnerFormat.hoursNumber(raw)
+    private fun hours(raw: String?) = "${num(raw)} h"
 
     /** Open (not cancelled) purchases with hours left or in use by running jobs, newest first. */
     fun open(items: List<OwnerHoursPurchaseDto>): List<OwnerHoursPurchaseDto> =

@@ -34,6 +34,9 @@ object SyncCapabilities {
      * REMITTANCE_EVIDENCE); SyncData carries deposit_accounts.
      */
     const val REMITTANCE_DETAILS_V1 = "REMITTANCE_DETAILS_V1"
+
+    /** DEC-031 M3: SITE_CHECKIN; announced only while the tenant requires site check-ins. */
+    const val OP_SITE_CHECKIN = "OP_SITE_CHECKIN"
 }
 
 /** `ExceptionDto`: a server finding on a reading (type, severity, blocking) and its review. */

@@ -454,14 +454,14 @@ class InboxRepository(
         val ACCOUNTABILITY_OP_TYPES = setOf(
             AccountabilityOps.CASH_TRANSFER, AccountabilityOps.CASH_TRANSFER_ACKNOWLEDGEMENT, AccountabilityOps.CASH_FLOAT_ACKNOWLEDGEMENT,
             AccountabilityOps.HOURS_PURCHASE, AccountabilityOps.HOURS_TRANSFER_REQUEST, AccountabilityOps.METER_BASELINE,
-            AccountabilityOps.METER_CORRECTION, AccountabilityOps.CASH_RETENTION_REQUEST,
+            AccountabilityOps.METER_CORRECTION, AccountabilityOps.CASH_RETENTION_REQUEST, AccountabilityOps.SITE_CHECKIN,
         )
         val ALL_OP_TYPES = listOf(
             OpTypes.METER_CAPTURE, OpTypes.JOB_ACTIVITY, OpTypes.JOB_ACKNOWLEDGEMENT, OpTypes.JOB_TRANSITION, OpTypes.EXPENSE,
             OpTypes.CASH_COLLECTION, OpTypes.CASH_HANDOVER, OpTypes.FUEL_EVENT, OpTypes.METER_RESET_REQUEST,
             AccountabilityOps.CASH_TRANSFER, AccountabilityOps.CASH_TRANSFER_ACKNOWLEDGEMENT, AccountabilityOps.CASH_FLOAT_ACKNOWLEDGEMENT,
             AccountabilityOps.HOURS_PURCHASE, AccountabilityOps.HOURS_TRANSFER_REQUEST, AccountabilityOps.METER_BASELINE,
-            AccountabilityOps.METER_CORRECTION, AccountabilityOps.CASH_RETENTION_REQUEST,
+            AccountabilityOps.METER_CORRECTION, AccountabilityOps.CASH_RETENTION_REQUEST, AccountabilityOps.SITE_CHECKIN,
         )
     }
 }

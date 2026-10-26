@@ -45,6 +45,12 @@ data class TenantAccess(
 
         /** Revenue reconciliation (REVENUE_RECONCILIATION policy `enabled`, DEC-031; platform default off). */
         const val REVENUE_RECONCILIATION = "REVENUE_RECONCILIATION"
+
+        /** DEC-031 Phase 5 oversight switches (OVERSIGHT policy; platform default off, listed in `/me` while off). */
+        const val SCORECARD = "SCORECARD"
+        const val UNBILLED_WORK = "UNBILLED_WORK"
+        const val IDLE_MACHINES = "IDLE_MACHINES"
+        const val SITE_CHECKIN = "SITE_CHECKIN"
     }
 }
 

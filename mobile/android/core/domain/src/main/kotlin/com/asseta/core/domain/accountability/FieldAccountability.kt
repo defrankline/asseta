@@ -127,6 +127,13 @@ data class FieldAccess(
     /** "Explain" on a non-revenue entry (online only; the reason list needs read too). */
     val explainNonRevenue: Boolean get() = nonRevenueStatus && can(REVENUE_EXPLAIN)
 
+    /**
+     * Site check-ins (DEC-031 M3): the server announces OP_SITE_CHECKIN only while the tenant requires them; the role
+     * records check-ins and SITE_CHECKIN is not switched off.
+     */
+    val siteCheckin: Boolean
+        get() = TenantAccess.SITE_CHECKIN !in disabled && supports(SyncCapabilities.OP_SITE_CHECKIN) && can(SITE_CHECKIN_RECORD)
+
     /** The handover form offers method, deposit account and deposit slip photos (DEC-031 D2). */
     val remittanceDetails: Boolean get() = supports(SyncCapabilities.REMITTANCE_DETAILS_V1)
 
@@ -142,6 +149,7 @@ data class FieldAccess(
         const val METER_CAPTURE = "tenant.meter.capture"
         const val REVENUE_READ = "tenant.revenue.read"
         const val REVENUE_EXPLAIN = "tenant.revenue.explain"
+        const val SITE_CHECKIN_RECORD = "tenant.site_checkin.record"
     }
 }
 

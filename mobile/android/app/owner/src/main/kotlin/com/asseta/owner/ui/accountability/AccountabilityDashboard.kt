@@ -49,7 +49,8 @@ object DashboardPresentation {
 
     private fun amounts(list: List<CountAmountDto>): String = if (list.isEmpty()) T.DASH_NONE else list.joinToString(", ", transform = ::money)
 
-    private fun num(raw: String?): String = raw?.toBigDecimalOrNull()?.let(OwnerFormat::decimal) ?: (raw ?: "0")
+    /** Hours figures in the phone's number format, 0–2 decimals (same as the customer-hours screens and iOS). */
+    private fun num(raw: String?): String = OwnerFormat.hoursNumber(raw)
 
     private fun JsonObject.text(key: String): String? = (this[key] as? JsonPrimitive)?.contentOrNull
     private fun JsonObject.int(key: String): Int? = (this[key] as? JsonPrimitive)?.intOrNull
@@ -165,6 +166,9 @@ object DashboardPresentation {
         if (features.revenueRead) {
             RevenuePresentation.tile(s.revenueDifferences)?.let(::add)
         }
+        // DEC-031 M2: unbilled work and idle machines (their lists need tenant.oversight.read).
+        s.unbilledWork?.let { OversightPresentation.unbilledTile(it, features) }?.let(::add)
+        s.idleMachines?.let { OversightPresentation.idleTile(it, features) }?.let(::add)
     }
 }
 

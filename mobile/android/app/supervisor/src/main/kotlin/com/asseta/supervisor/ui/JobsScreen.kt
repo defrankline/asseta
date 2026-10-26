@@ -72,6 +72,8 @@ fun JobsScreen(
     onRefresh: () -> Unit,
     onOpen: (jobId: String, jobNumber: String) -> Unit,
     onRoute: (Route) -> Unit,
+    /** The "Site check-in" row (DEC-031 M3), when the server, the role and the company ask for check-ins. */
+    checkinEntry: (@Composable () -> Unit)? = null,
 ) {
     // null until the encrypted store has answered once ("Opening your jobs…").
     val rows by remember(tenantId) {
@@ -103,6 +105,7 @@ fun JobsScreen(
             .let { jobs -> if (segment == JobSegment.CLOSED) jobs.sortedByDescending { it.job.plannedStart } else jobs }
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp)) {
             item(key = "banners") { FieldBanners(field, tenantId) }
+            checkinEntry?.let { entry -> item(key = "site-checkin") { entry() } }
             item(key = "segments") {
                 FilterChipRow(JobSegment.entries.map { it to it.label }, segment, { segment = it; chosen = true }, Modifier.padding(bottom = 8.dp))
             }

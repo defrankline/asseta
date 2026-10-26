@@ -601,4 +601,45 @@ interface TenantApi {
         @Query("date_to") dateTo: String,
         @Query("machine_id") machineId: String? = null,
     ): okhttp3.ResponseBody
+
+    // --- oversight (DEC-031 Phase 5) ---------------------------------------------------------------------------------
+
+    /** listScorecard: one row per person for the local days [dayFrom]..[dayTo] (at most 93). */
+    @GET("api/v1/tenant/scorecard")
+    suspend fun scorecard(
+        @Query("day_from") dayFrom: String? = null,
+        @Query("day_to") dayTo: String? = null,
+        @Query("page") page: Int = 1,
+        @Query("page_size") pageSize: Int = 100,
+    ): PageDto<com.asseta.core.model.owner.ScorecardRowDto>
+
+    /** getScorecard: one person's figures and the records behind them. */
+    @GET("api/v1/tenant/scorecard/{staff_member_id}")
+    suspend fun scorecardDetail(
+        @Path("staff_member_id") staffMemberId: String,
+        @Query("day_from") dayFrom: String? = null,
+        @Query("day_to") dayTo: String? = null,
+        @Query("item") item: String? = null,
+    ): com.asseta.core.model.owner.ScorecardDetailDto
+
+    /** listUnbilledWork */
+    @GET("api/v1/tenant/unbilled-work")
+    suspend fun unbilledWork(
+        @Query("page") page: Int = 1,
+        @Query("page_size") pageSize: Int = 100,
+    ): PageDto<com.asseta.core.model.owner.UnbilledJobDto>
+
+    /** listIdleMachines */
+    @GET("api/v1/tenant/idle-machines")
+    suspend fun idleMachines(
+        @Query("page") page: Int = 1,
+        @Query("page_size") pageSize: Int = 100,
+    ): PageDto<com.asseta.core.model.owner.IdleMachineDto>
+
+    /** mySiteCheckins: my schedule (slots) and my own check-ins (default the last 7 days). */
+    @GET("api/v1/tenant/site-checkins/mine")
+    suspend fun mySiteCheckins(
+        @Query("day_from") dayFrom: String? = null,
+        @Query("day_to") dayTo: String? = null,
+    ): com.asseta.core.model.owner.MySiteCheckinsDto
 }

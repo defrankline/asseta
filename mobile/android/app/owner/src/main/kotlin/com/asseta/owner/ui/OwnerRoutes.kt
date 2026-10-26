@@ -80,6 +80,9 @@ private val ACCOUNTABILITY_ENTITIES = arrayOf(
 /** Live-update entities of the customer hours screens. */
 private val HOURS_ENTITIES = arrayOf("hours_purchase", "hours_transfer", "hours_cancellation", "job")
 
+/** Live-update entities behind the people scorecard. */
+private val OVERSIGHT_ENTITIES = arrayOf("job_exception", "alert", "cash_remittance_overdue", "cash_variance", "revenue_difference", "site_checkin", "case")
+
 /** One screen per destination; view models are keyed by tenant (and id) so switching tenant never mixes data. */
 @Composable
 fun OwnerRoutes(
@@ -270,6 +273,34 @@ fun OwnerRoutes(
                 HoursStatementViewModel(data, route.customerId, graph.refreshTriggers(*HOURS_ENTITIES))
             }
             HoursStatementScreen(vm, online, route.customerName)
+        }
+        OwnerDestination.Scorecard -> {
+            val vm: com.asseta.owner.ui.accountability.ScorecardViewModel = viewModel(key = "scorecard-$t") {
+                com.asseta.owner.ui.accountability.ScorecardViewModel(data, graph.refreshTriggers(*OVERSIGHT_ENTITIES))
+            }
+            com.asseta.owner.ui.accountability.ScorecardScreen(vm, open)
+        }
+        is OwnerDestination.ScorecardPerson -> {
+            val (from, to) = com.asseta.owner.ui.accountability.ScorecardPeriod.LAST_30_DAYS.range(java.time.LocalDate.now()).let { (f, l) ->
+                (route.dayFrom?.let { runCatching { java.time.LocalDate.parse(it) }.getOrNull() } ?: f) to
+                    (route.dayTo?.let { runCatching { java.time.LocalDate.parse(it) }.getOrNull() } ?: l)
+            }
+            val vm: com.asseta.owner.ui.accountability.ScorecardPersonViewModel = viewModel(key = "scorecard-person-$t-${route.staffId}-$from-$to") {
+                com.asseta.owner.ui.accountability.ScorecardPersonViewModel(data, route.staffId, from, to, graph.refreshTriggers(*OVERSIGHT_ENTITIES))
+            }
+            com.asseta.owner.ui.accountability.ScorecardPersonScreen(vm, features, open)
+        }
+        OwnerDestination.UnbilledWork -> {
+            val vm: com.asseta.owner.ui.accountability.UnbilledWorkViewModel = viewModel(key = "unbilled-$t") {
+                com.asseta.owner.ui.accountability.UnbilledWorkViewModel(data, graph.refreshTriggers("job", "invoice"))
+            }
+            com.asseta.owner.ui.accountability.UnbilledWorkScreen(vm, features, open)
+        }
+        OwnerDestination.IdleMachines -> {
+            val vm: com.asseta.owner.ui.accountability.IdleMachinesViewModel = viewModel(key = "idle-$t") {
+                com.asseta.owner.ui.accountability.IdleMachinesViewModel(data, graph.refreshTriggers("job", "machine"))
+            }
+            com.asseta.owner.ui.accountability.IdleMachinesScreen(vm, features, open)
         }
         OwnerDestination.Accountability -> {
             val vm: AccountabilityViewModel = viewModel(key = "accountability-$t") {

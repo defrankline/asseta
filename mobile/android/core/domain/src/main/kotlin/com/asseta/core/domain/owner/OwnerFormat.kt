@@ -32,6 +32,21 @@ object OwnerFormat {
         return "${if (v.scale() < 0) v.setScale(0).toPlainString() else v.toPlainString()} h"
     }
 
+    /**
+     * An hours figure in the phone's [locale] number format: grouping, 0–2 decimals, no trailing zeros ("12",
+     * "1,234.5"); the raw text when it is not a number. Same as iOS `.number.precision(.fractionLength(0...2))`.
+     */
+    fun hoursNumber(raw: String?, locale: Locale = Locale.getDefault()): String {
+        val value = raw?.trim()?.toBigDecimalOrNull() ?: return raw ?: "0"
+        val format = java.text.NumberFormat.getNumberInstance(locale).apply {
+            minimumFractionDigits = 0
+            maximumFractionDigits = 2
+            roundingMode = RoundingMode.HALF_EVEN
+            isGroupingUsed = true
+        }
+        return format.format(value)
+    }
+
     private val dateTime = DateTimeFormatter.ofPattern("d MMM yyyy, HH:mm", Locale.US)
     private val time = DateTimeFormatter.ofPattern("HH:mm", Locale.US)
     private val date = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.US)

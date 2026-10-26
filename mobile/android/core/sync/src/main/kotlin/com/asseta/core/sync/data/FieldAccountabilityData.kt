@@ -51,6 +51,10 @@ data class FieldAccountabilityCache(
     val purchases: List<FieldHoursPurchaseDto> = emptyList(),
     @SerialName("transfer_reasons") val transferReasons: List<ReasonCodeDto> = emptyList(),
     @SerialName("retention_reasons") val retentionReasons: List<CashReasonDto> = emptyList(),
+    /** My site check-in schedule and check-ins (DEC-031 M3), from the last successful read. */
+    @SerialName("site_checkins") val siteCheckins: com.asseta.core.model.owner.MySiteCheckinsDto? = null,
+    /** When [siteCheckins] was read (0 = never). */
+    @SerialName("site_checkins_at_ms") val siteCheckinsAtMs: Long = 0,
 ) {
     val cash: CashCustodyPolicy? get() = cashPolicy?.values?.let(CashCustodyPolicy::fromValues)
     val hours: CustomerHoursPolicy? get() = hoursPolicy?.values?.let(CustomerHoursPolicy::fromValues)
@@ -175,15 +179,63 @@ class FieldAccountabilityData(
             purchases = part(hoursRead && FieldAccess.HOURS_TRANSFER in permissions, old.purchases, emptyList()) { hoursPurchases(pageSize = PAGE).items },
             transferReasons = part(hoursRead, old.transferReasons, emptyList()) { hoursReasonCodes(kind = "TRANSFER").items.filter { it.isActive } },
             retentionReasons = part(record, old.retentionReasons, emptyList()) { cashReasons(kind = "RETENTION").items.filter { it.isActive } },
-        ).let { if (fresh) it.copy(fetchedAtMs = nowMs()) else it }
+        ).let { if (fresh) it.copy(fetchedAtMs = nowMs()) else it }.let { c ->
+            when (val r = readSiteCheckins(tenantId, permissions)) {
+                null -> c.copy(siteCheckins = null, siteCheckinsAtMs = 0)
+                SiteCheckinRead.Failed -> c.copy(siteCheckins = old.siteCheckins, siteCheckinsAtMs = old.siteCheckinsAtMs)
+                is SiteCheckinRead.Fresh -> {
+                    fresh = true
+                    c.copy(siteCheckins = r.mine, siteCheckinsAtMs = nowMs(), fetchedAtMs = nowMs())
+                }
+            }
+        }
         _cache.value = next
+        save(tenantId, next)
+        return fresh
+    }
+
+    private sealed interface SiteCheckinRead {
+        data class Fresh(val mine: com.asseta.core.model.owner.MySiteCheckinsDto) : SiteCheckinRead
+        data object Failed : SiteCheckinRead
+    }
+
+    /** Null when site check-ins are not offered (nothing is read or kept), else the online read's outcome. */
+    private suspend fun readSiteCheckins(tenantId: String, permissions: Set<String>): SiteCheckinRead? {
+        // Only while the server announces OP_SITE_CHECKIN (the tenant requires check-ins) and the role records them.
+        val capabilities = db().syncStateDao().get(tenantId)?.capabilities?.split(',')?.filter { it.isNotBlank() }?.toSet()
+        if (!FieldAccess(capabilities, permissions, disabled = disabledFor(tenantId)).siteCheckin) return null
+        return try {
+            SiteCheckinRead.Fresh(api().mySiteCheckins())
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            SiteCheckinRead.Failed
+        }
+    }
+
+    /**
+     * Refreshes only my site check-in schedule and check-ins (the check-in screen and the Jobs tab); returns true when
+     * read from the server. A failed read keeps the saved copy.
+     */
+    suspend fun refreshSiteCheckins(tenantId: String, permissions: Set<String>): Boolean {
+        load(tenantId)
+        val r = readSiteCheckins(tenantId, permissions)
+        if (r == SiteCheckinRead.Failed) return false
+        val next = _cache.value.let { c ->
+            if (r is SiteCheckinRead.Fresh) c.copy(siteCheckins = r.mine, siteCheckinsAtMs = nowMs()) else c.copy(siteCheckins = null, siteCheckinsAtMs = 0)
+        }
+        _cache.value = next
+        save(tenantId, next)
+        return r is SiteCheckinRead.Fresh
+    }
+
+    private suspend fun save(tenantId: String, value: FieldAccountabilityCache) {
         runCatching {
             db().readSnapshotDao().putBounded(
-                ReadSnapshotEntity(tenantId, KEY, json.encodeToString(FieldAccountabilityCache.serializer(), next), nowMs()),
+                ReadSnapshotEntity(tenantId, KEY, json.encodeToString(FieldAccountabilityCache.serializer(), value), nowMs()),
                 SupervisorOnline.MAX_SNAPSHOTS,
             )
         }
-        return fresh
     }
 
     /** Ask to keep cash (online only; [key] is stable per form visit so a retry never asks twice). */
