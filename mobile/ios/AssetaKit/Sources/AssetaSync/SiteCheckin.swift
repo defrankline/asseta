@@ -120,6 +120,11 @@ extension SupervisorOnline {
         await saveSiteCheckins(APIRequest<MySiteCheckinsDTO>.get("\(Self.tenant)/site-checkins/mine"))
     }
 
+    /// Deletes the saved schedule and check-ins (the check-in gate closed: nothing is kept, as Android).
+    public func clearSiteCheckins() {
+        try? store.syncState.setValue(nil, for: AccountabilityKey.siteCheckins, tenant: tenantID.uuidString.lowercased())
+    }
+
     private func saveSiteCheckins(_ request: APIRequest<MySiteCheckinsDTO>) async {
         do {
             let response = try await client.send(request)

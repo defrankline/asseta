@@ -1,4 +1,6 @@
 import AssetaModel
+import AssetaNetwork
+import AssetaTestSupport
 import AssetaStore
 @testable import AssetaSync
 import Foundation
@@ -131,5 +133,19 @@ struct SiteCheckinTests {
     @Test func unbilledWorkNotificationOpensTheJob() {
         let id = UUID()
         #expect(InboxLink.from(record: RecordRef(kind: .job, id: id)) == .job(id))
+    }
+
+    @Test func closedGateDeletesTheSavedSchedule() throws {
+        let h = try SyncHarness()
+        let json = #"{"required":true,"times":[],"window_minutes":60,"max_distance_m":null,"timezone":"UTC","day_from":"2026-10-20","day_to":"2026-10-26","slots":[],"checkins":[]}"#
+        let dto = try AssetaJSON.decoder().decode(MySiteCheckinsDTO.self, from: Data(json.utf8))
+        try SavedOnline.write(SavedOnline(value: dto, forbidden: false, fetchedAt: Date()), h.store, SyncFixtures.tenant,
+                              AccountabilityKey.siteCheckins)
+        let directory = AccountabilityDirectory(store: h.store, tenantID: SyncFixtures.tenant, owner: nil)
+        #expect(directory.siteCheckins != nil)
+        let client = APIClient(baseURL: URL(string: "https://api.test")!, transport: MockTransport { _ in (500, Data()) },
+                               tokens: StaticTokenProvider(token: "t"), tenantID: SyncFixtures.tenant)
+        SupervisorOnline(client: client, store: h.store, tenantID: SyncFixtures.tenant).clearSiteCheckins()
+        #expect(directory.siteCheckins == nil)
     }
 }

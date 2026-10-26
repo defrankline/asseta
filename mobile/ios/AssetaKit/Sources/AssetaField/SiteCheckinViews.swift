@@ -14,8 +14,14 @@ private typealias T = SiteCheckinTexts
 
 extension FieldModel {
     /// Reads my check-in schedule (online, check-in gate open) and re-reads the saved lists.
+    /// Gate closed: the saved schedule is deleted from the phone (as Android).
     func refreshSiteCheckins() async {
-        guard access.siteCheckin, isOnline, let online else { return }
+        guard let online else { return }
+        guard access.siteCheckin else {
+            if accountabilityData?.siteCheckins != nil { online.clearSiteCheckins(); refresh() }
+            return
+        }
+        guard isOnline else { return }
         await online.refreshSiteCheckins()
         refresh()
     }
