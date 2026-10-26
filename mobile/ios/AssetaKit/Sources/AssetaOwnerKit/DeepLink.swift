@@ -46,6 +46,12 @@ public enum OwnerRoute: Hashable, Sendable {
     case dailySheet(UUID)
     /// One machine on one tenant-local day (`YYYY-MM-DD`, read-only).
     case dailySheetDay(UUID, String)
+    /// Open prepaid-hours purchases with hours left or in use (DEC-031 Phase 4, read-only).
+    case customerHours
+    /// One prepaid-hours purchase (HOURS_LOW_BALANCE / HOURS_EXPIRING / HOURS_EXPIRED notifications).
+    case hoursPurchase(UUID)
+    /// The hours statement of one customer (`name` shown until the statement arrives).
+    case hoursStatement(customer: UUID, name: String?)
 }
 
 /// A route plus the tenant it belongs to (a push may concern another company the user belongs to).
@@ -84,6 +90,7 @@ public enum DeepLinkParser {
         case .engineHoursClassification: return .decision(.classification, id)
         case .revenueDifference: return .revenueDifference(id)
         case .nonRevenueApproval: return .decision(.nonRevenue, id)
+        case .hoursPurchase: return .hoursPurchase(id)
         }
     }
 
@@ -106,7 +113,7 @@ public enum DeepLinkParser {
         case let ("job_exception", id?): return .exception(id)
         case let ("cash_handover", id?): return .handover(id)
         case ("cash_transfer", _), ("supervisor_cash_custody", _): return .cash
-        case ("hours_purchase", _): return .accountability
+        case ("hours_purchase", nil): return .customerHours
         case let (entity, id?) where DecisionKind(entity: entity) != nil: return .decision(DecisionKind(entity: entity)!, id)
         case let (entity, nil) where DecisionKind(entity: entity) != nil: return .approvals
         default: return path.flatMap(route(path:))
@@ -160,9 +167,10 @@ public enum DeepLinkParser {
              ("meter-baselines", nil), ("meter-corrections", nil):
             return .approvals
         case ("hours", _):
-            // Web detail routes /tenant/hours/<discounts|credit|transfers|cancellations>/<id>.
+            // Web detail routes /tenant/hours/<purchases|discounts|credit|transfers|cancellations>/<id>.
             if parts.count >= 4, let record = UUID(uuidString: parts[3]) {
                 switch parts[2] {
+                case "purchases": return .hoursPurchase(record)
                 case "discounts": return .decision(.discount, record)
                 case "credit": return .decision(.credit, record)
                 case "transfers": return .decision(.hoursTransfer, record)
@@ -170,6 +178,7 @@ public enum DeepLinkParser {
                 default: break
                 }
             }
+            if parts.count >= 3, parts[2] == "purchases" { return .customerHours }
             return .accountability
         case ("finance", _):
             // Web cash detail routes /tenant/finance/cash/<segment>/<id> (and their lists).
@@ -256,9 +265,9 @@ extension OwnerRoute {
     public var identifiesRecord: Bool {
         switch self {
         case .machine, .alert, .approval, .investigation, .job, .meterReset, .handover, .exception, .notification, .decision,
-             .cashTransfer, .cashFloat, .overdueRemittance, .revenueDifference, .dailySheetDay: true
+             .cashTransfer, .cashFloat, .overdueRemittance, .revenueDifference, .dailySheetDay, .hoursPurchase: true
         case .fleet, .jobs, .investigations, .alerts, .approvals, .exceptions, .fieldSpend, .cash, .notifications,
-             .accountability, .overdueRemittances, .dailySheet: false
+             .accountability, .overdueRemittances, .dailySheet, .customerHours, .hoursStatement: false
         }
     }
 }

@@ -25,7 +25,8 @@ private func unavailableMessage(_ access: FieldAccess) -> String { access.capabi
 private func purchaseOptions(_ purchases: [HoursPurchaseDTO]) -> [PickerOption] {
     purchases.map {
         PickerOption(id: $0.id, title: T.transferPurchaseOption(number: $0.purchaseNumber,
-                                                                hours: AccountabilityRules.plain($0.totals.remaining.value)),
+                                                                hours: AccountabilityRules.plain($0.totals.remaining.value),
+                                                                provisional: AccountabilityRules.inUse($0.totals.provisional.value)),
                      subtitle: $0.customerName)
     }
 }
@@ -240,6 +241,9 @@ struct HoursTransferFormView: View {
                                                   options: model.machineOptions.filter { holding.contains($0.id) },
                                                   selection: $fromMachineID, identifier: "transfer.from")
                                 .disabled(holding.count <= 1)
+                            if let inUse = AccountabilityRules.inUse(purchase.provisional(on: fromMachineID)) {
+                                Text(T.hoursInUse(inUse)).font(.footnote).foregroundStyle(.secondary)
+                            }
                         }
                         SearchablePickerField(label: T.transferToMachine,
                                               options: model.machineOptions.filter { $0.id != fromMachineID },

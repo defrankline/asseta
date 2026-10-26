@@ -7,7 +7,7 @@ import SwiftUI
 enum OwnerTab: Hashable { case overview, fleet, jobs, alerts, more }
 
 /// Lists reachable from the "More" tab.
-enum MoreItem: Hashable { case approvals, accountability, exceptions, fieldSpend, cash, investigations, notifications, settings }
+enum MoreItem: Hashable { case approvals, accountability, customerHours, exceptions, fieldSpend, cash, investigations, notifications, settings }
 
 /// Owner home for one tenant: tabs, deep links from notification taps, offline/stale state.
 public struct OwnerRootView: View {
@@ -144,6 +144,10 @@ public struct OwnerRootView: View {
             target = .fleet; path.append(OwnerRoute.machine(machine)); path.append(route)
         case let .dailySheetDay(machine, _) where model.features.allows(route):
             target = .fleet; path.append(OwnerRoute.machine(machine)); path.append(OwnerRoute.dailySheet(machine)); path.append(route)
+        case .customerHours where model.features.allows(route):
+            target = .more; path.append(MoreItem.customerHours)
+        case .hoursPurchase where model.features.allows(route), .hoursStatement where model.features.allows(route):
+            target = .more; path.append(MoreItem.customerHours); path.append(route)
         case .investigation:
             target = .more; path.append(MoreItem.investigations); path.append(route)
         case .notification:
@@ -190,6 +194,9 @@ struct RouteView: View {
         case let .revenueDifference(id): RevenueDifferenceView(model: model, differenceID: id)
         case let .dailySheet(machine): DailySheetView(model: model, machineID: machine)
         case let .dailySheetDay(machine, day): DailySheetDayView(model: model, machineID: machine, day: day)
+        case let .hoursPurchase(id): HoursPurchaseView(model: model, purchaseID: id)
+        case .customerHours: CustomerHoursView(model: model)
+        case let .hoursStatement(customer, name): HoursStatementView(model: model, customerID: customer, customerName: name)
         }
     }
 }
@@ -202,6 +209,7 @@ struct MoreDestination: View {
         switch item {
         case .approvals: ApprovalsView(model: model)
         case .accountability: AccountabilityDashboardView(model: model)
+        case .customerHours: CustomerHoursView(model: model)
         case .exceptions: ExceptionsView(model: model, jobID: nil)
         case .fieldSpend: FieldSpendView(model: model)
         case .cash: CashView(model: model)
@@ -224,6 +232,11 @@ struct MoreView: View {
                 if model.features.accountability {
                     NavigationLink(value: MoreItem.accountability) {
                         Label(OwnerAccountabilityTexts.moreAccountability, systemImage: "checkmark.shield")
+                    }
+                }
+                if model.features.hoursRead {
+                    NavigationLink(value: MoreItem.customerHours) {
+                        Label(CustomerHoursTexts.more, systemImage: "hourglass")
                     }
                 }
                 if model.features.meterEvidence {

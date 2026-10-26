@@ -383,6 +383,7 @@ public struct HoursPurchaseDTO: Codable, Hashable, Sendable, Identifiable {
     public let amount: DecimalString
     public let status: String
     public let createdAt: Date
+    public let cancelledAt: Date?
     public let totals: Totals
     /// The purchase's hours per machine after transfers.
     public let machines: [MachineHours]?
@@ -393,15 +394,56 @@ public struct HoursPurchaseDTO: Codable, Hashable, Sendable, Identifiable {
         public let consumed: DecimalString
         public let remaining: DecimalString
         public let awaitingActivation: DecimalString
+        /// Hours moved to other machines; 0 when absent.
+        public let transferred: DecimalString
+        public let expired: DecimalString
+        /// DEC-031 Phase 4 daily drawdown: hours held by running jobs (already out of `remaining`); 0 when absent.
+        public let provisional: DecimalString
 
-        enum CodingKeys: String, CodingKey { case purchased, activated, consumed, remaining, awaitingActivation = "awaiting_activation" }
+        public init(from decoder: any Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            let zero = DecimalString(0)
+            purchased = try c.decode(DecimalString.self, forKey: .purchased)
+            activated = try c.decode(DecimalString.self, forKey: .activated)
+            consumed = try c.decode(DecimalString.self, forKey: .consumed)
+            remaining = try c.decode(DecimalString.self, forKey: .remaining)
+            awaitingActivation = try c.decode(DecimalString.self, forKey: .awaitingActivation)
+            transferred = try c.decodeIfPresent(DecimalString.self, forKey: .transferred) ?? zero
+            expired = try c.decodeIfPresent(DecimalString.self, forKey: .expired) ?? zero
+            provisional = try c.decodeIfPresent(DecimalString.self, forKey: .provisional) ?? zero
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case purchased, activated, consumed, remaining, transferred, expired, provisional
+            case awaitingActivation = "awaiting_activation"
+        }
     }
 
     public struct MachineHours: Codable, Hashable, Sendable {
         public let machineID: UUID
+        public let machineCode: String?
+        public let machineName: String?
         public let remaining: DecimalString
+        /// Hours of this machine held by running jobs (DEC-031 Phase 4); 0 when absent.
+        public let provisional: DecimalString
 
-        enum CodingKeys: String, CodingKey { case remaining, machineID = "machine_id" }
+        public init(from decoder: any Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            machineID = try c.decode(UUID.self, forKey: .machineID)
+            machineCode = try c.decodeIfPresent(String.self, forKey: .machineCode)
+            machineName = try c.decodeIfPresent(String.self, forKey: .machineName)
+            remaining = try c.decode(DecimalString.self, forKey: .remaining)
+            provisional = try c.decodeIfPresent(DecimalString.self, forKey: .provisional) ?? DecimalString(0)
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case remaining, provisional, machineID = "machine_id", machineCode = "machine_code", machineName = "machine_name"
+        }
+    }
+
+    /// Hours held by running jobs on `machineID` (after transfers), else on the whole purchase.
+    public func provisional(on machineID: UUID?) -> Decimal {
+        machines?.first { $0.machineID == machineID }?.provisional.value ?? totals.provisional.value
     }
 
     /// Remaining hours on `machineID` (after transfers), else the purchase total remaining.
@@ -413,7 +455,7 @@ public struct HoursPurchaseDTO: Codable, Hashable, Sendable, Identifiable {
         case id, hours, currency, amount, status, totals, machines, purchaseNumber = "purchase_number", clientID = "client_id"
         case customerID = "customer_id", customerName = "customer_name", machineID = "machine_id", createdAt = "created_at"
         case machineCode = "machine_code", machineName = "machine_name", jobSiteName = "job_site_name"
-        case createdByName = "created_by_name"
+        case createdByName = "created_by_name", cancelledAt = "cancelled_at"
     }
 }
 

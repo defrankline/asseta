@@ -238,6 +238,9 @@ public enum AccountabilityRules {
         reason.trimmingCharacters(in: .whitespacesAndNewlines).count >= minCorrectionReason
     }
 
+    /// Provisional hours (in use by running jobs) as plain text, nil when there are none (DEC-031 Phase 4).
+    public static func inUse(_ value: Decimal) -> String? { value > 0 ? plain(value) : nil }
+
     /// Plain decimal text without trailing zeros ("12.50" -> "12.5").
     public static func plain(_ value: Decimal) -> String {
         var v = value

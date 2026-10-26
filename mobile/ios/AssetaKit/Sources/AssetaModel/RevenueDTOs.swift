@@ -425,6 +425,12 @@ public struct SheetFlagRefDTO: Codable, Hashable, Sendable {
     public let recordType: String
 
     enum CodingKeys: String, CodingKey { case flag, recordID = "record_id", recordType = "record_type" }
+
+    /// DEC-031 Phase 2: the machine-day investigation case behind ENGINE_ON_WITHOUT_JOB (web `/tenant/cases/{id}`).
+    public static let anomalyCase = "anomaly_case"
+
+    /// The investigation case this flag points at, when it is one.
+    public var caseID: UUID? { recordType == Self.anomalyCase ? recordID : nil }
 }
 
 /// `SheetFuelDto`.
@@ -460,6 +466,8 @@ public struct DailyMachineSheetDTO: Codable, Hashable, Sendable, Identifiable {
     public let unexplainedHours: DecimalString
     public let pendingReviewHours: DecimalString
     public let fuelLitres: DecimalString
+    /// DEC-031 Phase 2: litres per engine hour that day (nil when the engine did not run or no fuel was recorded).
+    public let fuelLitresPerEngineHour: DecimalString?
     public let jobs: [SheetJobDTO]
     public let money: [SheetMoneyDTO]
     public let flags: [String]
@@ -491,6 +499,7 @@ public struct DailyMachineSheetDTO: Codable, Hashable, Sendable, Identifiable {
         unexplainedHours = try c.decode(DecimalString.self, forKey: .unexplainedHours)
         pendingReviewHours = try c.decode(DecimalString.self, forKey: .pendingReviewHours)
         fuelLitres = try c.decode(DecimalString.self, forKey: .fuelLitres)
+        fuelLitresPerEngineHour = try c.decodeIfPresent(DecimalString.self, forKey: .fuelLitresPerEngineHour)
         jobs = try c.decodeIfPresent([SheetJobDTO].self, forKey: .jobs) ?? []
         money = try c.decodeIfPresent([SheetMoneyDTO].self, forKey: .money) ?? []
         flags = try c.decodeIfPresent([String].self, forKey: .flags) ?? []
@@ -510,6 +519,6 @@ public struct DailyMachineSheetDTO: Codable, Hashable, Sendable, Identifiable {
         case revenueHours = "revenue_hours", approvedNonCustomerHours = "approved_non_customer_hours"
         case identifiedVarianceHours = "identified_variance_hours", unexplainedHours = "unexplained_hours"
         case pendingReviewHours = "pending_review_hours", fuelLitres = "fuel_litres", moneySources = "money_sources"
-        case flagRecords = "flag_records", fuelEvents = "fuel_events"
+        case flagRecords = "flag_records", fuelEvents = "fuel_events", fuelLitresPerEngineHour = "fuel_litres_per_engine_hour"
     }
 }

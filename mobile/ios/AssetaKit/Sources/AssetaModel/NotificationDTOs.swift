@@ -228,6 +228,8 @@ public enum RecordKind: String, CaseIterable, Sendable, Hashable {
     case revenueDifference = "REVENUE_DIFFERENCE"
     /// DEC-031: non-revenue time explained by one person, awaiting another's approval.
     case nonRevenueApproval = "NON_REVENUE_APPROVAL"
+    /// DEC-031 Phase 4: a prepaid-hours purchase (low balance, expiring, expired).
+    case hoursPurchase = "HOURS_PURCHASE"
 
     /// From a notification target entity (`cash_transfer`, `supervisor_cash_custody`, `baseline`, ...).
     public init?(entity: String?) {
@@ -248,6 +250,7 @@ public enum RecordKind: String, CaseIterable, Sendable, Hashable {
         case "classification", "engine_hours_classification": self = .engineHoursClassification
         case "revenue_difference": self = .revenueDifference
         case "non_revenue_approval": self = .nonRevenueApproval
+        case "hours_purchase": self = .hoursPurchase
         default: return nil
         }
     }

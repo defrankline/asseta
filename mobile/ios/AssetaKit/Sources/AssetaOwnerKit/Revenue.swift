@@ -125,6 +125,11 @@ public enum RevenueTexts {
     public static func sheetMoney(_ currency: String) -> String { "Money (\(currency))" }
     public static let sheetFuel = "Fuel"
     public static func sheetLitres(_ litres: String) -> String { "\(litres) L" }
+    /// DEC-031 Phase 2: fuel against the engine hours of the day.
+    public static let sheetLitresPerHour = "Litres per engine hour"
+    public static func sheetLitresPerHourValue(_ rate: String) -> String { "\(rate) L/h" }
+    /// A link under the flags to the machine-day investigation (engine running without work).
+    public static let sheetOpenCase = "Open investigation"
     public static let sheetFlags = "Flags"
     public static let sheetNoFlags = "No flags."
     public static let sheetFooter = "Read-only. Figures come from the readings, jobs, invoices and prepaid hours of the day."
@@ -484,7 +489,22 @@ public enum RevenuePresentation {
 
     public static func sheetFuel(_ s: DailyMachineSheetDTO) -> String { T.sheetLitres(number(s.fuelLitres)) }
 
+    /// The Fuel card: litres, then litres per engine hour when the server worked it out (DEC-031 Phase 2).
+    public static func sheetFuelFields(_ s: DailyMachineSheetDTO) -> [DecisionField] {
+        var rows = [DecisionField(label: T.sheetFuel, value: sheetFuel(s))]
+        if let rate = s.fuelLitresPerEngineHour {
+            rows.append(DecisionField(label: T.sheetLitresPerHour, value: T.sheetLitresPerHourValue(number(rate))))
+        }
+        return rows
+    }
+
     public static func sheetFlags(_ s: DailyMachineSheetDTO) -> [String] { s.flags.map(T.flag) }
+
+    /// Distinct machine-day investigations behind the flags (`flag_records` `record_type = "anomaly_case"`), in flag order.
+    public static func caseIDs(_ s: DailyMachineSheetDTO) -> [UUID] {
+        var seen = Set<UUID>()
+        return s.flagRecords.compactMap(\.caseID).filter { seen.insert($0).inserted }
+    }
 }
 
 // MARK: - Dashboard tile

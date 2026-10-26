@@ -40,6 +40,8 @@ public struct OwnerFeatures: Equatable, Sendable {
 
     /// Customer hours are in use (not switched off by the tenant's policy).
     public var customerHours: Bool { !disabledCapabilities.contains(TenantCapability.customerHours) }
+    /// Prepaid-hours purchases and customer hours statements (DEC-031 Phase 4): customer hours on + `tenant.hours.read`.
+    public var hoursRead: Bool { customerHours && permissions.contains("tenant.hours.read") }
     /// Engine-hour controls are in use (baselines, corrections, classifications, unexplained hours).
     public var engineHours: Bool { !disabledCapabilities.contains(TenantCapability.engineHours) }
     /// The DEC-030 cash additions are in use (transfers, acknowledgements, write-offs, retentions, adjustments,

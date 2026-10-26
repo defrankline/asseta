@@ -92,7 +92,7 @@ struct CaseDetailView: View {
                     ForEach(detail.signals) { signal in
                         VStack(alignment: .leading, spacing: 2) {
                             HStack {
-                                Text(OwnerFormat.humanize(signal.code))
+                                Text(CaseText.signal(signal.code))
                                     .font(.subheadline.bold())
                                 Spacer()
                                 Pill(text: signal.severity.label, color: signal.severity.color)

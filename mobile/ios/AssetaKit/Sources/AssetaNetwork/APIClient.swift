@@ -71,6 +71,17 @@ public struct APIRequest<Response: Decodable & Sendable>: Sendable {
     }
 }
 
+/// The response body as raw bytes (e.g. a PDF), not decoded as JSON.
+public struct RawData: Decodable, Sendable, Equatable {
+    public let data: Data
+
+    public init(_ data: Data) { self.data = data }
+
+    public init(from decoder: any Decoder) throws {
+        throw DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "RawData is never decoded from JSON"))
+    }
+}
+
 /// Placeholder response type for endpoints returning no body (204).
 public struct EmptyResponse: Decodable, Sendable, Equatable {
     public init() {}
@@ -170,6 +181,9 @@ public struct APIClient: Sendable {
         }
         if Response.self == EmptyResponse.self, let empty = EmptyResponse() as? Response {
             return empty
+        }
+        if Response.self == RawData.self, let raw = RawData(data) as? Response {
+            return raw
         }
         do {
             return try AssetaJSON.decoder().decode(Response.self, from: data)

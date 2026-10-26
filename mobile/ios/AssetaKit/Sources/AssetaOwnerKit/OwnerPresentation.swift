@@ -158,6 +158,9 @@ extension OwnerFeatures {
             revenueOn ? route : .approvals
         case let .dailySheet(machine), let .dailySheetDay(machine, _):
             revenueRead ? route : .machine(machine)
+        // Customer hours switched off or not readable: the dashboard, as before these screens existed (as Android).
+        case .customerHours, .hoursPurchase, .hoursStatement:
+            hoursRead ? route : .accountability
         default: route
         }
     }
@@ -179,6 +182,7 @@ extension OwnerFeatures {
         case .investigations, .investigation: cases
         case .revenueDifference: revenueRead
         case .dailySheet, .dailySheetDay: revenueRead && fleet
+        case .customerHours, .hoursPurchase, .hoursStatement: hoursRead
         case .notifications, .notification: notifications
         }
     }
@@ -186,6 +190,7 @@ extension OwnerFeatures {
     /// Entries of the More tab, in order.
     public var moreEntries: [String] {
         (approvalsScreen ? ["Approvals"] : []) + (accountability ? [OwnerAccountabilityTexts.moreAccountability] : [])
+            + (hoursRead ? [CustomerHoursTexts.more] : [])
             + (meterEvidence ? ["Meter exceptions"] : []) + (expenses ? ["Field spend"] : [])
             + (finance ? ["Cash with supervisors"] : []) + (cases ? ["Investigations"] : [])
             + (notifications ? ["Notifications"] : []) + ["Settings"]
@@ -380,6 +385,15 @@ public enum CaseText {
     public static let emptyMessage = "Nothing needs review."
     public static let detailFooter = "Signals are indicators that need review; they are not conclusions. "
         + "Review and outcomes are recorded in the web console."
+
+    /// A signal's rule in plain words (web `signalText.ts`); rules without their own wording are humanized.
+    public static func signal(_ code: String) -> String {
+        switch code {
+        case "ENGINE_RUNNING_WITHOUT_WORK": "Engine running without work during the day"
+        case "MACHINE_FUEL_ABOVE_NORM": "Fuel above the norm for the engine hours"
+        default: OwnerFormat.humanize(code)
+        }
+    }
 
     public static func summary(_ c: AnomalyCaseDTO) -> String {
         let n = c.signalCount ?? 0

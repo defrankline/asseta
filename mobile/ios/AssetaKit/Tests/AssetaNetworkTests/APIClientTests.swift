@@ -26,6 +26,14 @@ struct APIClientTests {
         #expect(UUID(uuidString: cid) != nil)
     }
 
+    @Test func rawDataReturnsTheBodyBytes() async throws {
+        let pdf = Data("%PDF-1.7".utf8)
+        let transport = MockTransport { _ in (200, pdf) }
+        let client = APIClient(baseURL: base, transport: transport, tokens: StaticTokenProvider(token: "t"), tenantID: tenant)
+        let raw = try await client.send(APIRequest<RawData>.get("/api/v1/tenant/customers/x/hours-statement.pdf"))
+        #expect(raw.data == pdf)
+    }
+
     @Test func correlationIDIsUniquePerRequest() async throws {
         let transport = MockTransport { _ in (200, Fixtures.json(Fixtures.meJSON)) }
         let client = APIClient(baseURL: base, transport: transport, tokens: StaticTokenProvider(token: "t"))

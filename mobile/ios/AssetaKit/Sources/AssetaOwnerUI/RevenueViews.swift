@@ -298,11 +298,16 @@ struct DailySheetDayView: View {
                 ForEach(Array(RevenuePresentation.sheetMoney(s).enumerated()), id: \.offset) { _, card in
                     Section(card.title) { FieldList(fields: card.fields) }
                 }
-                Section(T.sheetFuel) { LabeledContent(T.sheetFuel, value: RevenuePresentation.sheetFuel(s)) }
+                Section(T.sheetFuel) { FieldList(fields: RevenuePresentation.sheetFuelFields(s)) }
                 Section {
                     let flags = RevenuePresentation.sheetFlags(s)
                     if flags.isEmpty { Text(T.sheetNoFlags).font(.footnote).foregroundStyle(.secondary) }
                     ForEach(flags, id: \.self) { Text($0).font(.subheadline).foregroundStyle(Palette.warning) }
+                    if model.features.cases {
+                        ForEach(RevenuePresentation.caseIDs(s), id: \.self) { id in
+                            NavigationLink(value: OwnerRoute.investigation(id)) { Text(T.sheetOpenCase) }
+                        }
+                    }
                 } header: { Text(T.sheetFlags) } footer: { Text(T.sheetFooter) }
             } else if let error = loader.error {
                 LoadFailure(message: error) { await reload() }

@@ -80,6 +80,12 @@ public enum FieldAccountabilityTexts {
     // Request hours transfer
     public static let transferPurchase = "Purchase"
     public static func transferPurchaseOption(number: String, hours: String) -> String { "\(number) · \(hours) h left" }
+    /// field.hours.inUse (DEC-031 Phase 4 daily drawdown).
+    public static func hoursInUse(_ hours: String) -> String { "\(hours) h in use by running jobs" }
+    /// Picker row: "{purchase} · {left} h left[ · {n} h in use by running jobs]" (provisional already out of left).
+    public static func transferPurchaseOption(number: String, hours: String, provisional: String?) -> String {
+        transferPurchaseOption(number: number, hours: hours) + (provisional.map { " · " + hoursInUse($0) } ?? "")
+    }
     public static let transferPurchasesEmpty = "No purchases with hours left. Purchases appear here after you connect."
     public static let transferFromMachine = "From machine"
     public static let transferToMachine = "To machine"

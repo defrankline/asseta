@@ -231,7 +231,7 @@ struct AccountabilityOwnerTests {
         #expect(DeepLinkParser.route(entity: "cash_transfer", id: r, path: nil) == .cashTransfer(rid))
         #expect(DeepLinkParser.route(entity: "supervisor_cash_custody", id: r, path: nil) == .cashFloat(rid))
         #expect(DeepLinkParser.route(entity: "cash_transfer", id: nil, path: nil) == .cash)
-        #expect(DeepLinkParser.route(entity: "hours_purchase", id: r, path: nil) == .accountability)
+        #expect(DeepLinkParser.route(entity: "hours_purchase", id: r, path: nil) == .hoursPurchase(rid))
         #expect(DeepLinkParser.route(type: "CASH_VARIANCE_OPENED") == .approvals)
         #expect(DeepLinkParser.route(type: "HOURS_EXPIRING") == .accountability)
         #expect(DeepLinkParser.route(path: "/tenant/engine-hours/machines/\(r)") == .machine(rid))
