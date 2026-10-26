@@ -6760,7 +6760,7 @@ export interface components {
             } | null;
             /**
              * Idle Machines
-             * @description [DEC-031 M2] idle machines: count, after_days, longest_idle_days, items [{machine_id, idle_since, idle_days, planned_job_id}] (oversight module)
+             * @description [DEC-031 M2] idle machines: count, after_days, longest_idle_days, items [{machine_id, machine_code, machine_name, idle_since, idle_days, planned_job_id, planned_job_number}] (oversight module)
              */
             idle_machines?: {
                 [key: string]: unknown;
@@ -6789,7 +6789,7 @@ export interface components {
             unavailable_tiles: string[];
             /**
              * Unbilled Work
-             * @description [DEC-031 M2] unbilled work: count, after_days, amounts [{currency, count, amount}], oldest_days, items [{job_id, machine_id, customer_id, completed_at, days_unbilled, currency, total}] (oversight module)
+             * @description [DEC-031 M2] unbilled work: count, after_days, amounts [{currency, count, amount}], oldest_days, items [{job_id, job_number, machine_id, machine_code, machine_name, customer_id, customer_name, completed_at, days_unbilled, currency, total}] (oversight module)
              */
             unbilled_work?: {
                 [key: string]: unknown;

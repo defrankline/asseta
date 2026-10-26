@@ -111,4 +111,5 @@ def test_supervisor_template_gets_the_field_work_group_after_overview() -> None:
         ("Expenses", "/tenant/field/expenses"),
         ("Cash", "/tenant/field/cash"),
         ("Customer hours", "/tenant/field/hours"),
+        ("Site check-in", "/tenant/field/check-in"),
     ]

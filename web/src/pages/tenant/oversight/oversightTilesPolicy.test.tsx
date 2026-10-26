@@ -37,13 +37,37 @@ describe('dashboard tiles and notifications', () => {
       after_days: 7,
       amounts: [{ currency: 'TZS', count: 1, amount: '2000000' }],
       oldest_days: 16,
-      items: [],
+      items: [
+        {
+          job_id: 'j1',
+          job_number: 'J-001',
+          machine_id: 'm1',
+          machine_code: 'EX-01',
+          machine_name: 'Excavator',
+          customer_id: 'c1',
+          customer_name: 'Road Builders',
+          completed_at: '',
+          days_unbilled: 16,
+          currency: 'TZS',
+          total: '2000000',
+        },
+      ],
     },
     idle_machines: {
       count: 1,
       after_days: 14,
       longest_idle_days: 25,
-      items: [{ machine_id: 'm3', idle_since: '', idle_days: 25, planned_job_id: 'j8' }],
+      items: [
+        {
+          machine_id: 'm3',
+          machine_code: 'GR-03',
+          machine_name: 'Grader',
+          idle_since: '',
+          idle_days: 25,
+          planned_job_id: 'j8',
+          planned_job_number: 'J-008',
+        },
+      ],
     },
   } as unknown as AccountabilitySummaryDto;
 
@@ -56,6 +80,24 @@ describe('dashboard tiles and notifications', () => {
     const idle = tiles.find((t) => t.key === 'idle_machines');
     expect(idle?.to).toBe('/tenant/idle-machines');
     expect(idle?.rows?.find((r) => r.key === 'planned')?.value).toBe(1);
+  });
+
+  it('lists the tile items by name, linking to the record', () => {
+    const tiles = buildTiles(SUMMARY, () => true);
+    const job = tiles.find((t) => t.key === 'unbilled_work')?.rows?.find((r) => r.key === 'job-j1');
+    expect(job?.label).toBe('J-001 · Road Builders · EX-01 Excavator');
+    expect(job?.valueText).toBe('TZS 2,000,000.00, 16 days');
+    expect(job?.to).toBe('/tenant/jobs/j1');
+    const machine = tiles
+      .find((t) => t.key === 'idle_machines')
+      ?.rows?.find((r) => r.key === 'machine-m3');
+    expect(machine?.label).toBe('GR-03 Grader (planned J-008)');
+    expect(machine?.valueText).toBe('25 days');
+    expect(machine?.to).toBe('/tenant/machines/m3');
+    const noAccess = buildTiles(SUMMARY, () => false);
+    expect(
+      noAccess.find((t) => t.key === 'unbilled_work')?.rows?.find((r) => r.key === 'job-j1')?.to,
+    ).toBeUndefined();
   });
 
   it('drops the tiles while their capability is off', () => {

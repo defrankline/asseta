@@ -194,12 +194,13 @@ class AccountabilitySummaryDto(BaseModel):
     unbilled_work: dict[str, Any] | None = Field(
         default=None,
         description="[DEC-031 M2] unbilled work: count, after_days, amounts [{currency, count, amount}], oldest_days, "
-        "items [{job_id, machine_id, customer_id, completed_at, days_unbilled, currency, total}] (oversight module)",
+        "items [{job_id, job_number, machine_id, machine_code, machine_name, customer_id, customer_name, completed_at, "
+        "days_unbilled, currency, total}] (oversight module)",
     )
     idle_machines: dict[str, Any] | None = Field(
         default=None,
-        description="[DEC-031 M2] idle machines: count, after_days, longest_idle_days, items [{machine_id, idle_since, "
-        "idle_days, planned_job_id}] (oversight module)",
+        description="[DEC-031 M2] idle machines: count, after_days, longest_idle_days, items [{machine_id, "
+        "machine_code, machine_name, idle_since, idle_days, planned_job_id, planned_job_number}] (oversight module)",
     )
     investigations: InvestigationsTileDto | None = None
     cash: CashTileDto | None = None

@@ -1,5 +1,5 @@
 /** Oversight paths (DEC-031 Phase 5): backend menus tenant.scorecard / .unbilled_work / .idle_machines /
- * .site_checkins, plus the supervisor's own check-in page under Field work. */
+ * .site_checkins, plus tenant.field.checkin (the supervisor's own check-in page under Field work). */
 export const OVERSIGHT_ROUTES = {
   scorecard: '/tenant/scorecard',
   scorecardPerson: '/tenant/scorecard/:staffId',
@@ -7,7 +7,7 @@ export const OVERSIGHT_ROUTES = {
   idleMachines: '/tenant/idle-machines',
   siteCheckins: '/tenant/site-checkins',
   siteCheckinDetail: '/tenant/site-checkins/:id',
-  /** No backend menu yet: reached from My jobs. */
+  /** Backend menu tenant.field.checkin (Field work); also reached from My jobs. */
   fieldCheckin: '/tenant/field/check-in',
 } as const;
 

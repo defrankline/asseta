@@ -86,6 +86,16 @@ for _menu in (
         group="tenant.operations",
         capability=SITE_CHECKIN,
     ),
+    MenuDef(
+        "tenant.field.checkin",
+        S.TENANT,
+        "Site check-in",
+        "/tenant/field/check-in",
+        17,
+        CHECKIN_PERMISSION,
+        group="tenant.field",
+        capability=SITE_CHECKIN,
+    ),
 ):
     CATALOG.register_menu(_menu)
 

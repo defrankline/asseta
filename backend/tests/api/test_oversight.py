@@ -109,9 +109,14 @@ def test_defaults_change_nothing(api: Api) -> None:
     assert eff["near_threshold_percent"] == "90" and eff["repeat_pattern_window_days"] == 30
     nav = _nav(f.owner)
     assert set(OFF) <= set(nav["disabled_capabilities"])
-    assert not {"tenant.scorecard", "tenant.unbilled_work", "tenant.idle_machines", "tenant.site_checkins"} & _menus(
-        nav
-    )
+    assert not {
+        "tenant.scorecard",
+        "tenant.unbilled_work",
+        "tenant.idle_machines",
+        "tenant.site_checkins",
+        "tenant.field.checkin",
+    } & _menus(nav)
+    assert "tenant.field.checkin" not in _menus(_nav(f.supervisor))
     for path, code in (
         ("scorecard", "SCORECARD_DISABLED"),
         (f"scorecard/{f.sup_staff_id}", "SCORECARD_DISABLED"),
@@ -250,6 +255,9 @@ def test_unbilled_work_and_idle_machines(api: Api) -> None:
     assert Decimal(items[0]["total"]) > 0
     tile = _ok(f.owner.get(f"{T}/accountability/summary"))["unbilled_work"]
     assert (tile["count"], tile["after_days"]) == (1, 2)
+    item = tile["items"][0]
+    assert (item["job_id"], item["job_number"], item["customer_name"]) == (f.c.job_id, "J-001", "Road Builders Ltd")
+    assert item["machine_code"] == items[0]["machine_code"] and item["machine_name"] == items[0]["machine_name"]
 
     run_reminders(get_sessionmaker(), api.clock.now)
     run_reminders(get_sessionmaker(), api.clock.now + timedelta(days=1))  # once per job
@@ -264,7 +272,13 @@ def test_unbilled_work_and_idle_machines(api: Api) -> None:
     idle = _ok(f.owner.get(f"{T}/idle-machines"))["items"]
     assert [(i["machine_id"], i["idle_days"], i["last_job_id"]) for i in idle] == [(f.c.t.machine_id, 3, f.c.job_id)]
     assert idle[0]["machine_code"] and idle[0]["last_job_number"] == "J-001"
-    assert _ok(f.owner.get(f"{T}/accountability/summary"))["idle_machines"]["count"] == 1
+    idle_tile = _ok(f.owner.get(f"{T}/accountability/summary"))["idle_machines"]
+    assert idle_tile["count"] == 1
+    assert (idle_tile["items"][0]["machine_code"], idle_tile["items"][0]["machine_name"]) == (
+        idle[0]["machine_code"],
+        idle[0]["machine_name"],
+    )
+    assert idle_tile["items"][0]["planned_job_number"] is None
 
     issue_invoice(f, [f.c.job_id])
     assert _ok(f.accountant.get(f"{T}/unbilled-work"))["items"] == []
@@ -304,6 +318,8 @@ def test_site_checkins_sync_schedule_and_missed(api: Api) -> None:
         site_checkin_window_minutes=60,
         site_checkin_max_distance_m=500,
     )
+    assert "tenant.field.checkin" in _menus(_nav(f.supervisor))
+    assert "tenant.field.checkin" not in _menus(_nav(f.accountant))
     caps = _device(api, f.supervisor)
     assert "OP_SITE_CHECKIN" in caps
 

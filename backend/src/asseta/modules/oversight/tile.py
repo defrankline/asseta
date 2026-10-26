@@ -8,6 +8,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from asseta.modules.accountability.names import fill_names
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.oversight.idle import idle_machines
 from asseta.modules.oversight.unbilled import unbilled_jobs
@@ -33,14 +34,18 @@ def unbilled_work_tile(s: Session, ctx: RequestContext, now: datetime) -> dict[s
         "items": [
             {
                 "job_id": str(r.job_id),
+                "job_number": r.job_number,
                 "machine_id": str(r.machine_id),
+                "machine_code": r.machine_code,
+                "machine_name": r.machine_name,
                 "customer_id": str(r.customer_id),
+                "customer_name": r.customer_name,
                 "completed_at": r.completed_at.isoformat(),
                 "days_unbilled": r.days_unbilled,
                 "currency": r.currency,
                 "total": str(r.total) if r.total is not None else None,
             }
-            for r in rows[:ITEMS]
+            for r in fill_names(s, rows[:ITEMS])
         ],
     }
 
@@ -55,10 +60,13 @@ def idle_machines_tile(s: Session, ctx: RequestContext, now: datetime) -> dict[s
         "items": [
             {
                 "machine_id": str(r.machine_id),
+                "machine_code": r.machine_code,
+                "machine_name": r.machine_name,
                 "idle_since": r.idle_since.isoformat(),
                 "idle_days": r.idle_days,
                 "planned_job_id": str(r.planned_job_id) if r.planned_job_id else None,
+                "planned_job_number": r.planned_job_number,
             }
-            for r in rows[:ITEMS]
+            for r in fill_names(s, rows[:ITEMS])
         ],
     }
