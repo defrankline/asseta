@@ -42,6 +42,9 @@ If your company has switched these controls on, you can also:
 - **Transfer cash to a colleague**, and **acknowledge** cash transfers and floats you receive.
 - **Ask to keep cash** instead of remitting all of it.
 - Take **daily readings** outside jobs, **propose a meter baseline**, and **propose a correction** of a wrong reading.
+- Say **how a handover was paid** (cash to the office, bank deposit or mobile money), **which company account** it went into, its **transaction reference** and **photos of the deposit slip**.
+- See prepaid hours **in use by running jobs** when you request an hours transfer.
+- **Explain non-revenue time**, such as moving the machine to site, so it can be approved as not customer work (only if your company gives your role this permission).
 
 Each of these appears only when your company's policies switch it on and your role has the permission. If you don't see one, it is not used in your company.
 
@@ -175,6 +178,8 @@ For more detail, or to record something after the fact, tap **Add work log entry
 *What you'll see:* entries such as "Work 08:00 → 10:00 (2 h 00 min)". The Summary shows the total per type.
 
 **Why this matters:** the hour meter shows how long the engine ran, but that is **not automatically** what the customer pays for. Standby and downtime entries help the office bill correctly under the contract.
+
+**Log movement as Mobilization.** If your company uses revenue checks, time spent moving the machine to or from the site (and any other type your company lists) is **non-revenue time**. It still **counts as revenue until someone explains it and a second person approves it**. Under each such entry the work log shows its status, for example **Counts as revenue until explained** or **Explained · waiting for approval**. See [A14](#a14-explain-non-revenue-time).
 
 #### Step 5: Capture the closing reading
 
@@ -345,11 +350,20 @@ The cash is added to your custody (or your colleague's) once the server accepts 
 1. **Money** tab → **+** → **Hand over cash**.
 2. The form shows **Your cash** (an estimate per currency).
 3. Enter **Amount handed over**, **Currency**, **Reference (deposit slip, receipt no.)**, **Handed over** (time) and a **Note** (for example, who received it).
-4. Tap **Save**.
+4. If your company records remittance details, the form also asks:
+   - **How was it handed over?**: **Cash to the office**, **Bank deposit** or **Mobile money**.
+   - **Paid into**: the company account the money went into. Only your company's active accounts for that currency and method are listed. "Your company's accounts for this currency appear here after a sync." Choosing an account also sets the method.
+   - **Transaction reference**: the reference from the deposit slip or the payment message. Cash to the office never needs one.
+   - **Deposit slip or payment confirmation**: tap **Photograph the slip**, and **Add another photo** if needed (up to 10). "Stored encrypted on this phone and uploaded before the handover is sent."
+
+   Fields your company requires lose the word "(optional)", and **Save** stays disabled until they are filled in, with a line such as "Photograph the deposit slip or payment confirmation."
+5. Tap **Save**.
+
+The handover works offline. It is sent after its photos have uploaded; until then the Sync status screen shows "Waiting for its photos to upload".
 
 **Your custody goes down only when finance verifies the handover.** A handover shows **Awaiting verification** until then, and **Verified** or **Rejected** after. If it is rejected, read the office note and use **Hand over cash again** if needed.
 
-The office counts the cash and records the **amount actually received**. Only that amount reduces your custody. If it differs from what you declared, a **cash difference** is opened for the office to review; this is a check, not an accusation. If your company expects the **full balance** to be handed over, handing over less than you hold (without an approved request to keep cash) is flagged as a partial remittance. If your company sets a **daily remittance cut-off**, cash still held after that hour is listed as an overdue remittance, and you get a "Remittance overdue" notification. Some of these cash controls may be switched off by your company; then their buttons do not appear.
+The office counts the cash and records the **amount actually received**. Only that amount reduces your custody. If it differs from what you declared, a **cash difference** is opened for the office to review; this is a check, not an accusation. If your company expects the **full balance** to be handed over, handing over less than you hold (without an approved request to keep cash) is flagged as a partial remittance. If your company sets a **daily remittance cut-off**, cash still held after that hour is listed as an overdue remittance, and you get a "Remittance overdue" notification. If your company sets **how many days cash may be held** (it can differ per site or per person), cash held longer is flagged **Held longer than allowed**: "Held since <date>, longer than the allowed <days>." Some of these cash controls may be switched off by your company; then their buttons do not appear.
 
 #### Transfer cash to a colleague
 
@@ -469,11 +483,12 @@ The **Inbox** tab has two parts:
   - "Job J-…: opening/closing reading missing"
   - "Cash not handed over"
   - "Cash transfer to acknowledge" / "Cash float to acknowledge"
-  - "Remittance overdue"
+  - "Remittance overdue" (not remitted by the cut-off, or held longer than allowed)
+  - "Hours running low" when a customer's prepaid hours fall to your company's warning level
   - "Daily report missing" for your machines
   - Tracking alerts on your machines
 
-Tap a notification to open the exact record: a transfer or float waiting for you opens its acknowledge screen, a request to keep cash opens its status screen, an overdue remittance opens its **Overdue remittance** screen (**Cash held by**, **Not remitted**, **Day**, **Cut-off**, **Flagged**, and "Remit this cash to the office as soon as you can."; offline it opens the Money tab), and a machine notification opens the machine. Others open the related job, expense or Money screen. Use **Mark all as read** to clear the unread badge. Offline, you see the notifications saved on the phone.
+Tap a notification to open the exact record: a transfer or float waiting for you opens its acknowledge screen, a request to keep cash opens its status screen, an overdue remittance opens its **Overdue remittance** screen (**Cash held by**, **Not remitted**, **Reason** (**Not remitted by the daily cut-off** or **Held longer than allowed**), **Day**, **Cut-off** or **Held since** and **Allowed**, **Flagged**, and "Remit this cash to the office as soon as you can."; offline it opens the Money tab), and a machine notification opens the machine. Others open the related job, expense or Money screen. Use **Mark all as read** to clear the unread badge. Offline, you see the notifications saved on the phone.
 
 ### A11. Account menu
 
@@ -536,6 +551,25 @@ This works offline. The sale is sent at the next sync and the office gives it a 
 4. Tap **Save**.
 
 "Someone else approves the transfer before the hours move." The purchase list appears after you connect once.
+
+If your company takes prepaid hours every day, a purchase used by a running job shows, for example, "HP-… · 12 h left · 4 h in use by running jobs". Hours in use by running jobs are already taken out of the hours left and cannot be moved.
+
+### A14. Explain non-revenue time
+
+This appears when your company uses revenue checks and your role may explain revenue. It needs a connection.
+
+Movement to or from a site (and any other type your company lists) is not customer work, but it **counts as revenue until one person explains it and a second person approves it**. Your company may also deduct it from prepaid hours or from the invoice once approved.
+
+1. Open the job and look at its **Work log**. Under each non-revenue entry you see its status:
+   - **Counts as revenue until explained**
+   - **Explained · waiting for approval**
+   - **Approved as non-revenue time**
+   - **Not approved · counted as revenue**
+2. Tap **Explain** next to an entry that is not explained or not approved. The **Explain non-revenue time** screen shows the **Work log entry**.
+3. **Choose a reason** from your company's list, and write a **Note (at least 5 characters)**.
+4. Tap **Send**.
+
+"This time counts as revenue until someone else approves it. Needs a connection." *What you'll see:* "Sent. Someone else will approve it." You can never approve your own explanation. If the list is empty: "Your company has no revenue reasons yet. Ask the office." Offline, the button is disabled: "Explaining needs a connection."
 
 ---
 
@@ -635,6 +669,7 @@ Lower on the page you see the job's details (rate, minimum hours, standby terms,
   - **Remit cash** (hand over cash). Afterwards you see: "Remittance recorded; it is awaiting confirmation until the office counts it."
   - With the accountability controls on, the page also shows the tabs **My remittances**, **Transfers**, **Floats** and **Keep cash requests**, and your custody card shows **Sent, not yet acknowledged (still held)**, **Incoming, not yet acknowledged**, **Floats awaiting acknowledgement** and **Approved to keep (retention)**. Every figure in **Today's reconciliation** can be clicked to see the transactions behind it.
   - If you may record for others, **Record cash collection** asks **Collected by (custodian)** and **Remit cash** asks **Handed over by (custodian)**. Leave them empty for your own cash.
+  - **Remit cash** also asks **How was it paid?** (**Cash handed to the office**, **Bank deposit** or **Mobile money**), the **Company account**, the **Transaction reference** ("From the deposit slip or the payment message.") and **Photo of the deposit slip or payment confirmation** (**Add photo**, up to 10). When your company requires some of these, the form says so: "Your organisation requires …". Your **My remittances** list shows **Paid by**, **Company account** and **Reference**.
   - On **Transfers**, use **Record transfer** (**Received by (receiver)**, **Amount handed over**) and **Acknowledge / dispute** on a transfer sent to you (**Acknowledge (cash received)** with the **Amount actually received**, or **Dispute (not received)** with a note). Floats are acknowledged the same way on **Floats**.
   - On **Keep cash requests**, use **Request to keep cash** (**Amount to keep**, **Why the cash is kept**, **Valid until (optional)**, then **Send request**).
 - **Field work → Customer hours** ("Record hours a customer buys (with the cash you collect) and request transfers"): **Record customer hours** opens the same steps as [A13](#a13-sell-customer-hours-and-request-transfers) (**Customer**, **Hours**, **Payment**, then **Record purchase**), and **Request transfer** asks for the purchase, **To machine**, **Hours** and **Reason**. "Cash you record stays in your custody as claimed until the office verifies it; only then do the customer's hours activate."
@@ -679,6 +714,7 @@ Each finding is shown as **Waiting for review**, **Explained** (a legitimate rea
 | Cash transfer | Awaiting acknowledgement → Acknowledged / Disputed |
 | Float (when acknowledgement is required) | Awaiting acknowledgement → Acknowledged / Disputed |
 | Request to keep cash | Waiting for approval (web: "Awaiting decision") → Approved / Rejected |
+| Non-revenue time (work log) | Counts as revenue until explained → Explained · waiting for approval → Approved as non-revenue time / Not approved · counted as revenue |
 | Baseline, correction proposal | Awaiting decision → Approved / Rejected |
 | Hours purchase | Awaiting payment → Partly active → Active → Used up; Expired; Cancelled |
 
@@ -700,7 +736,8 @@ Each finding is shown as **Waiting for review**, **Explained** (a legitimate rea
 - **Stand next to the machine** when taking a reading, outdoors if possible, so GPS matches the tracker.
 - **Log standby and downtime as they happen**, with a short note. This protects billing for both you and the customer.
 - **Keep your phone clock on automatic** date and time.
-- **Hand over cash regularly** and keep the deposit slip or receipt number as your reference.
+- **Hand over cash regularly** and keep the deposit slip or receipt number as your reference. Photograph the slip before you leave the bank or agent.
+- **Log movement as Mobilization**, with the start and end times, so it can be explained as non-revenue time.
 - **Don't sign out with unsent items** unless you must.
 - **Read your Inbox daily.** It is where office decisions and reminders arrive.
 - **Acknowledge cash you receive straight away**, with the amount you actually counted.
@@ -765,6 +802,15 @@ You asked to move more hours than remain. Enter a smaller number.
 
 **"This item is no longer waiting for you."**
 The transfer or float was already answered (perhaps by a recorder on your behalf) or withdrawn.
+
+**A handover was refused with "Your company requires the transaction reference …", "… a photo of the deposit slip …" or "… the account the money was paid into …".**
+Your company requires that detail. Record the handover again with it. If it says "The account you chose is no longer in use", choose another account.
+
+**"Paid into" is empty.**
+Your company's accounts for that currency appear after a sync. Sync once while online, or ask the office to add the account.
+
+**"Your company has switched off revenue checks."**
+Non-revenue time no longer needs explaining. Nothing to do.
 
 **"A reading can be corrected once the server has it."**
 Sync first, then propose the correction.

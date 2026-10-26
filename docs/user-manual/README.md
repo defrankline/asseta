@@ -14,6 +14,7 @@ Asseta helps your company:
 - Control **fuel, field expenses and cash** held by supervisors.
 - Spot readings, movements and money that **need review**, with the evidence attached.
 - Keep a **chain of accountability** for every customer hour, every engine hour and every amount of cash, with the controls your company switches on (see **Accountability controls** in [Common concepts](#common-concepts)).
+- Check that **every working hour turns into money** that reaches the company, and that machines and fuel are used only for work (see **Revenue checks** in [Common concepts](#common-concepts)).
 
 Asseta works in three places:
 
@@ -21,7 +22,7 @@ Asseta works in three places:
 |---|---|---|
 | **Web console**, <https://asseta.co.tz> | Everyone with a login | The full system, on a laptop or desktop. Needs an internet connection. |
 | **Asseta Supervisor** app (Android and iPhone) | Field supervisors | Works **offline** and syncs when a connection is available. |
-| **Asseta Owner** app (Android and iPhone) | Owners and managers | Dashboard, fleet map, jobs, alerts and approvals on the go. The boss can approve or create jobs, confirm cash handovers, review exceptions and issue cash floats from far away, decide accountability requests and follow the accountability summary. Keeps read-only copies for offline viewing. |
+| **Asseta Owner** app (Android and iPhone) | Owners and managers | Dashboard, fleet map, jobs, alerts and approvals on the go. The boss can approve or create jobs, confirm cash handovers, review exceptions and issue cash floats from far away, decide accountability requests and revenue differences, follow the accountability summary, the daily machine sheet and customers' prepaid hours. Keeps read-only copies for offline viewing. |
 
 The Android and iPhone versions of each app look and work the same.
 
@@ -134,6 +135,19 @@ A company may show **Read only**. Its Asseta subscription is restricted, and you
 | **Retention** | An approved permission for a custodian to keep part of their cash instead of remitting everything. |
 | **Custody adjustment** | A correcting entry on a custodian's cash (a reversal or an adjustment), with a reason, approved by a second person. Records are never edited or deleted. |
 | **Security event** | A refused attempt: someone tried an action without the permission, or tried to decide their own request. Recorded for oversight, not as a verdict. |
+| **Revenue checks** | A control that matches each machine's engine hours with the money they brought in. It is **switched on or off by your company's policy** (**Revenue checks switched on**), like every other control. |
+| **Non-revenue time** | Time inside a job that is not customer work, such as moving the machine to or from the site. By default it **counts as revenue until one person explains it and a second person approves it**. |
+| **Unexplained hours expected as revenue** | Engine hours outside any job that nobody has explained. With revenue checks on, they are **expected to bring in money** (at the rate card price, unless your company chooses otherwise) until they are approved as non-customer activity. |
+| **Daily machine sheet** | One line per machine per day: readings, engine hours, customer work, non-revenue time, fuel, expected money, money received and flags. It is worked out from the records, never typed in. |
+| **Revenue difference** | Opened when the money attributed to a machine's work in a period falls short of the expected revenue by more than your company's tolerance. It is **a difference to explain, not an accusation**. One person explains it with a reason; another decides. |
+| **Engine running without work** | A machine's engine ran on a day without a job. Tracker signals, unexplained meter hours and after-hours movement of that machine and day are reviewed together in **one investigation**. |
+| **Fuel norm per engine hour** | The most litres per engine hour your company expects. It can be set for the whole company, for a machine category or for one machine. Fuel above the norm opens a signal for review. |
+| **Deposit account** | A company bank account, mobile-money wallet or cash office that remittances are paid into. |
+| **Remittance details** | How a remittance was paid (**cash to the office**, **bank deposit** or **mobile money**), into which deposit account, the transaction reference and photos of the deposit slip. Your company decides which of these are required. |
+| **Holding allowance** | The number of days a custodian may hold cash before remitting it. It can be different per site or per person. Cash held longer is flagged **Held longer than allowed**. |
+| **Daily drawdown** | Prepaid hours taken from the customer's balance **every day** the machine works, instead of only when the job is completed. Until the job is completed these hours show as **In use by running jobs**. |
+| **Low-balance warning** | A notice to the office (and, if your company chooses, an SMS to the customer) when a customer's prepaid hours fall to a set level. |
+| **Hours statement** | A customer's prepaid hours for a period: opening balance, bought, activated, used per day and job, moved, expired and closing balance. It can be downloaded as a PDF. |
 | **Sync conflict** | A field record sent offline that the server could not apply (for example two people using the same remaining hours). It is kept with its evidence for the office to resolve. |
 | **Managed service** | An arrangement, with your written consent, under which the Platform Owner operates your account for you. Everything they do is recorded and visible to you, and you can revoke it. |
 

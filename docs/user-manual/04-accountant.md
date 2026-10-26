@@ -15,7 +15,9 @@ You work in the **web console** at <https://asseta.co.tz> on a laptop or desktop
 - **Verify or reject** payments and cash handovers that other people recorded.
 - **Manage custodians' cash.** Issue cash floats, record opening balances, confirm remittances with the amount actually received, and run the daily cash reconciliation for each custodian (any staff member who holds cash, with or without a login).
 - **Follow the cash chain** (when your company switches it on): transfers between custodians and their acknowledgement, cash differences (variances) and write-offs, requests to keep cash (retentions), custody adjustments, overdue remittances and the cash reason lists.
-- **Customer hours**: link payments to hours purchases, verify those payments (which activates the hours), and activate hours on approved credit.
+- **Customer hours**: link payments to hours purchases, verify those payments (which activates the hours), and activate hours on approved credit. Follow hours **in use by running jobs**, **low-balance warnings** and the customer **hours statement**.
+- **Deposit accounts**: keep the list of company bank accounts, mobile-money wallets and cash offices that remittances are paid into, and check each remittance's account, reference and slip photos against the statement.
+- **Revenue checks** (when your company switches them on): read the **Daily machine sheet**, and explain **revenue differences** and **non-revenue hours**. Someone else decides them.
 - **See the Accountability dashboard.**
 - **Track expenses and fuel.** See every field expense and fuel event, manage expense categories, and record your own expenses and fuel purchases.
 - **Report on profitability** by machine, job or customer for any period.
@@ -42,7 +44,8 @@ These are your side-menu groups in the web console. The exact menus depend on yo
 | Operations | Jobs, Customers, Staff | Looking up jobs, customers (balances, statements) and staff (read-only) |
 | Fleet | Machines | Looking up machines (read-only) |
 | Customer hours | Hours purchases, Balances, Hours ledger, Work allocations, and the other hours pages (read) | Linking payments to purchases and activating hours on credit |
-| Finance | Hire finance, Cash custody, Expenses & fuel, Profitability | Your main daily work |
+| Engine hours | Non-revenue hours, Daily machine sheet | Revenue checks: reading each machine's day and explaining non-revenue time |
+| Finance | Hire finance, Cash custody, Expenses & fuel, Deposit accounts, Revenue differences, Profitability | Your main daily work |
 | Risk & review | Investigations | Reading investigation cases (read-only) |
 | Administration | Subscription, Notifications, My access | Your company's Asseta subscription, your inbox, your sign-in settings |
 
@@ -204,9 +207,9 @@ If your company has **Receiver acknowledges floats** on, the float counts in the
 
 When a custodian hands cash to the company, they (or a recorder on their behalf) record a **remittance**, called a handover in the apps. It arrives **Awaiting confirmation**. "Remittances awaiting confirmation do not reduce a custodian's outstanding cash until someone other than the recorder confirms the amount received."
 
-1. Count the cash, or check the bank deposit slip.
-2. Go to **Finance → Cash custody → Remittances**. It shows **Awaiting confirmation** by default; you can switch to **Confirmed**, **Rejected** or **All**, and filter by **Custodian**. The columns include **Declared**, **Received** and **Short of full balance**.
-3. Click **Confirm / reject** on the remittance. The **Confirm remittance** dialog opens.
+1. Count the cash, or check the bank deposit slip or mobile-money statement.
+2. Go to **Finance → Cash custody → Remittances**. It shows **Awaiting confirmation** by default; you can switch to **Confirmed**, **Rejected** or **All**, and filter by **Custodian**. The columns include **Paid by**, **Company account**, **Reference**, **Declared**, **Received** and **Short of full balance**.
+3. Click **Confirm / reject** on the remittance. The **Confirm remittance** dialog opens. It shows the **Custodian**, **Amount declared**, **Handed over**, **Paid by** (**Cash handed to the office**, **Bank deposit** or **Mobile money**), **Company account**, **Reference** and **Photos** (**View photo 1** and so on). "Confirm only after counting the cash or seeing the deposit." Compare the account, reference and photos with your statement.
 4. Choose the **Decision**:
    - **Confirm (cash counted)**: enter the **Amount received**, the amount you actually counted.
    - **Reject (not received)**: a **Note / reason** is required.
@@ -218,7 +221,7 @@ When a custodian hands cash to the company, they (or a recorder on their behalf)
 
 Handovers can also be confirmed (verified) or disputed (rejected) in the Asseta Owner app by people with verify permission, often the owner when away from the office. The result is the same, and the same segregation-of-duties rule applies.
 
-You can also record a remittance on someone's behalf: **Record remittance** on the **Custody** tab, with **Handed over by (custodian)**. This needs office cash permission (or your company's permission for recorders). Another person must then confirm it.
+You can also record a remittance on someone's behalf: **Record remittance** on the **Custody** tab, with **Handed over by (custodian)**, **How was it paid?**, **Company account**, **Transaction reference** and **Photo of the deposit slip or payment confirmation** (**Add photo**). This needs office cash permission (or your company's permission for recorders). Another person must then confirm it.
 
 ### 9. Run the daily cash reconciliation
 
@@ -299,7 +302,7 @@ Go to **Administration → Subscription** to see your company's subscription wit
 
 A **variance** opens automatically whenever the amount received differs from the amount declared on a transfer, remittance or float. It names the **Accountable custodian**. A variance is a fact to follow up, not an accusation. If your policy sets **Open a case for differences above**, larger differences also open an investigation, and the people with variance permission get a "Cash difference to review" notification.
 
-1. Go to **Finance → Cash custody → Variances** (shows **Open** by default). Filter by **From** (**Transfer**, **Remittance**, **Float**) or **Custodian**.
+1. Go to **Finance → Cash custody → Variances** (shows **Open** by default). Filter by **From** (**Transfer**, **Remittance**, **Float**) or **Custodian**. The **Kind** column shows **Shortfall** (less received than declared) or **Surplus to explain** (more received than declared, for example when the bank statement shows more than the custodian declared).
 2. To close one, click **Resolve**. Choose the **Outcome**: **Recovered**, **Corrected error** (or **Written off**, only if your company does not require write-off approval and you hold the write-off permission). Choose a **Reason (from the tenant's list)** if your company keeps one, write the **Explanation**, and click **Resolve**.
 3. To write the difference off, click **Propose write-off**, choose the **Write-off reason (from the tenant's list)**, write the **Explanation**, and click **Propose write-off**. *What you'll see:* "Write-off proposed; someone else with the write-off permission decides."
 4. A colleague with the write-off permission clicks **Approve / reject write-off**, chooses **Approve** or **Reject** with a **Note / reason**, and clicks **Record decision**. "Approving resolves the variance as written off and lowers the custodian's expected balance by the difference. Rejecting returns it to open."
@@ -329,9 +332,14 @@ A colleague with the adjustment permission clicks **Approve / reject** and recor
 
 ### 19. Overdue remittances
 
-If your company sets a **Daily remittance cut-off** (Cash custody policy), Asseta checks every day, after that local hour, which custodians still hold cash they have not remitted. Each one is flagged once per day, and a "Remittance overdue" notification goes to the people who confirm remittances, the custodian, and whoever recorded the cash for them.
+Asseta flags cash that stays with a custodian too long, in two ways that work side by side (Cash custody policy):
 
-Go to **Finance → Cash custody → Overdue remittances** ("Custodians still holding cash not remitted after your organisation's daily cut-off. Flags appear only when a remittance cut-off is set in the cash custody policy."). Filter by **Custodian**, **From day** and **To day**. Each row shows the **Day**, **Custodian**, **Cut-off**, **Flagged** time and **Cash still held**. Use **Open custody** to see the custodian's cash.
+- **Daily remittance cut-off**: every day, after that local hour, custodians who still hold cash they have not remitted are flagged once per day with the reason **Not remitted by the cut-off**.
+- **Days a custodian may hold unremitted cash** (the holding allowance; it can differ per site or per staff member): cash held longer than allowed, and not covered by an approved retention, is flagged with the reason **Held longer than allowed**. The notification reads "<name> has held <amounts> since <date>, longer than the allowed N days. Please remit or explain."
+
+A "Remittance overdue" notification goes to the people who confirm remittances, the custodian, and whoever recorded the cash for them.
+
+Go to **Finance → Cash custody → Overdue remittances** ("Custodians still holding cash not remitted by your organisation's daily cut-off, or held longer than the days allowed. Flags appear only when a cut-off or a holding allowance is set in the cash custody policy."). Filter by **Reason**, **Custodian**, **From day** and **To day**. Each row shows the **Day**, **Custodian**, **Reason**, **Flagged** time and **Cash still held**. Open one with **View details** to see, for a held-too-long flag, **Held since**, **Allowed holding** and the **Oldest unremitted cash received**, or the **Cut-off** for a daily flag. Use **Open custody** to see the custodian's cash.
 
 ### 20. Cash reason lists
 
@@ -349,7 +357,36 @@ You cannot verify a payment you recorded yourself, including one recorded with a
 
 ### 22. Accountability dashboard
 
-**Overview → Accountability** shows the cash tiles that matter to finance: **Cash per custodian**, **Cash awaiting acknowledgement or confirmation** (including **Remittances overdue today**), **Payments awaiting confirmation**, **Open discrepancies** and **Outstanding approvals**. Click a line to open the matching list. See the [Tenant Owner manual, Task 14](01-tenant-owner.md#14-accountability-dashboard).
+**Overview → Accountability** shows the cash tiles that matter to finance: **Cash per custodian**, **Cash awaiting acknowledgement or confirmation** (including **Remittances overdue today**), **Payments awaiting confirmation**, **Open discrepancies**, **Outstanding approvals** and, when revenue checks are on, **Revenue differences**. Click a line to open the matching list. See the [Tenant Owner manual, Task 14](01-tenant-owner.md#14-accountability-dashboard).
+
+### 23. Deposit accounts
+
+**Finance → Deposit accounts** ("Company accounts remittances are paid into; supervisors pick one when they remit") lists every bank account, mobile-money wallet and cash office of the company. Managing it needs the deposit-account permission (in the example roles, the accountant and the owner).
+
+**Add an account:**
+
+1. Click **New deposit account**.
+2. Under **Account**, enter the **Name** ("What supervisors pick when they remit, e.g. "CRDB main".") and choose the **Type** (**Bank account**, **Mobile-money wallet** or **Cash office**) and **Currency**.
+3. Under **Details**, enter the **Bank or operator (optional)**, the **Account number (optional)** ("Only the last four characters are kept (shown as •••• 4821).") and a **Note (optional)**.
+4. Click **Create account**. *What you'll see:* "<name> added."
+
+**Look after the list:** filter by **Type**, search by name or bank / operator, and tick **Show inactive** to see old accounts. Open an account to see its details, who created it, and **Edit** it ("Leave empty to keep it" for the stored number). When an account is closed, **Deactivate** it with a reason: "New remittances can no longer name this account. Remittances already recorded keep it." You can **Reactivate** it later.
+
+Supervisors' phones receive the active accounts at their next sync. Your company can require every remittance to name an account (**Require the company account the money was paid into**), to give the transaction reference for bank and mobile-money payments, and to include a photo of the deposit slip (see [Task 8](#8-confirm-a-remittance-cash-handover)).
+
+### 24. Revenue differences and the daily machine sheet
+
+When your company switches revenue checks on, Asseta matches each machine's engine hours with the money billed for them. Your role can, by default, read and explain; someone with the decide permission decides. The full steps are in the Tenant Owner manual:
+
+- **Engine hours → Daily machine sheet**: each machine's day, with **Expected**, **Attributed** and **Difference** per currency, and the **Money sources** (invoice lines and prepaid hours used) behind them ([Task 23](01-tenant-owner.md#23-daily-machine-sheet)). Use **Export CSV** to keep a copy.
+- **Finance → Revenue differences**: periods where the money attributed fell short of the expected revenue by more than your company's tolerance. Click **Explain**, choose the **Reason**, write **What happened** and click **Propose explanation** ([Task 25](01-tenant-owner.md#25-revenue-differences)). A typical reason is an invoice not yet issued: once it is issued, the money is attributed and an open difference clears by itself (**Cleared (money arrived)**).
+- **Engine hours → Non-revenue hours**: explain movement time inside a job ([Task 24](01-tenant-owner.md#24-non-revenue-hours)).
+
+A revenue difference is a difference to explain, not an accusation. You cannot decide your own explanation.
+
+### 25. Customer hours used over days
+
+If your company takes prepaid hours every day, hours used by running jobs show as **In use by running jobs** on the purchase and in **Balances**, and the ledger shows **Used that day (provisional)** entries until the job is completed. A **low-balance warning** ("Hours running low") tells you when a customer should be offered a top-up. Each customer's **Hours statement** (**Operations → Customers** → the customer → **Hours statement**) can be downloaded with **Download PDF** and sent to the customer. See the [Manager manual, Task 25](02-manager-dispatcher.md#25-prepaid-hours-used-over-days).
 
 ---
 
@@ -372,7 +409,10 @@ You cannot verify a payment you recorded yourself, including one recorded with a
 | | Confirmed (Verified) | Counted; reduces custody by the amount received |
 | | Rejected | Not received; never reduces custody |
 | Cash transfer, float acknowledgement | Awaiting acknowledgement / Acknowledged / Disputed | Floats show **Not required** when your policy does not ask for acknowledgement |
-| Variance | Open → Write-off proposed → Resolved | Outcomes: Recovered, Corrected error, Written off |
+| Variance | Open → Write-off proposed → Resolved | Outcomes: Recovered, Corrected error, Written off. Kind: Shortfall or Surplus to explain |
+| Overdue remittance | Not remitted by the cut-off / Held longer than allowed | The reason it was flagged |
+| Deposit account | Active / Inactive | An inactive account cannot be named on new remittances |
+| Revenue difference | To explain → Explanation awaiting decision → Explained; Confirmed (money to recover); Cleared (money arrived) | Someone other than the explainer decides |
 | Retention, custody adjustment | Awaiting decision → Approved / Rejected | Only approved ones count |
 
 ## Good practice
@@ -384,6 +424,9 @@ You cannot verify a payment you recorded yourself, including one recorded with a
 - **Export month-end reports** (Reconciliation, Cash custody, Expenses) for your records.
 - **Always enter the amount you counted** when confirming a remittance or acknowledging a transfer, even when it differs. A recorded difference is better than a hidden one.
 - **Resolve variances with a clear explanation**, and keep at least two people with the write-off permission.
+- **Keep the deposit account list current.** Add a new account before supervisors need it, and deactivate closed ones.
+- **Check every remittance against the statement**: account, reference and slip photo, then the amount received.
+- **Issue invoices promptly.** Uninvoiced work shows as a revenue difference until the money is attributed.
 
 ## Troubleshooting and FAQ
 
@@ -419,6 +462,15 @@ Use **Propose write-off**; a colleague with the write-off permission decides it.
 
 **A figure in the reconciliation looks wrong.**
 Click it to see the transactions behind it. Correct a mistake with a custody adjustment ([Task 18](#18-custody-adjustments)), never by editing.
+
+**"Another deposit account already has this name."**
+Each deposit account needs its own name. Choose a different one, or reactivate the old account.
+
+**A supervisor cannot choose an account when remitting.**
+The account is inactive, holds another currency, or is of another type than the method chosen. Check it in **Finance → Deposit accounts**, then ask the supervisor to sync.
+
+**I can explain a revenue difference but not decide it.**
+Deciding needs the decide permission, and you can never decide your own explanation. Ask a colleague who holds it.
 
 **The page says the company is read-only.**
 Your company's Asseta subscription is restricted. You can view everything but cannot make changes. Contact your account owner.

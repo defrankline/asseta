@@ -34,6 +34,8 @@ You may collect cash from customers, or receive cash from a colleague, even with
 - When you hand cash to someone, they record the transfer and the **amount they actually received**. Until then the cash is still counted as yours.
 - When cash reaches the office, the office counts it and records the amount received. Only then does your balance go down.
 - If you need to keep some cash (for example for a working float), ask your supervisor to send a **request to keep cash** for approval. Without an approved request, the whole balance is expected to be handed over.
+- Your company may set **how many days cash may be held** before it is handed over (it can be longer at remote sites). Cash held longer is flagged **Held longer than allowed** for the office to follow up.
+- When cash is paid into the company's bank account or mobile-money wallet, keep the **deposit slip or payment message**. Your company may require its transaction reference and a photo of it.
 
 Ask for a receipt or check with your supervisor that every amount was recorded. A difference between what was declared and what was counted is reviewed by the office; it is a check, not an accusation.
 
@@ -74,6 +76,8 @@ Click the **Sign out** icon in the top bar. Always sign out on a shared computer
 
 - Do not share your login. Each person has their own.
 - Tell your supervisor about breakdowns, standby and downtime as they happen, so they can log them on the job. This is how the customer is billed fairly.
+- Tell your supervisor when the machine is **moved** to or from a site, so the movement is logged. If your company uses revenue checks, movement counts as customer work until it is explained and approved.
+- Run the engine only for work. Your company may review days when an engine runs without a job, and fuel used against engine hours.
 - Make sure your supervisor takes the hour-meter photo before you start and after you finish a job.
 - If your company asks for daily readings, make sure the meter is read every working day, including days without a job.
 - Hand over company cash promptly and only to the person your company names, and check it is recorded.

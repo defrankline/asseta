@@ -43,6 +43,10 @@ Everything any other role can do, plus the tasks reserved for owners by default:
 - **Switch on the accountability controls** for customer hours, engine hours and cash, and watch them on the **Accountability** dashboard (see [Switching on the controls](#switching-on-the-controls)).
 - **Decide engine-hour records**: meter baselines, explanations of engine hours and reading corrections (never your own).
 - **Review refused attempts** (**Security events**) and **resolve sync conflicts**.
+- **Check revenue**: switch on the revenue checks, read the **Daily machine sheet**, approve **non-revenue hours** and decide **revenue differences** (never your own explanation). See [Task 22](#22-revenue-checks-how-they-work).
+- **Watch engines and fuel**: one investigation per machine and day when an engine runs without work, and fuel compared with engine hours ([Task 27](#27-engine-running-without-work-and-fuel-against-engine-hours)).
+- **Make sure money reaches the company**: the company **deposit accounts**, what a remittance must show, and how long cash may be held ([Task 28](#28-deposits-and-how-long-cash-may-be-held)).
+- **Follow prepaid hours used over days**: daily drawdown, low-balance warnings and the customer **hours statement** ([Task 29](#29-prepaid-hours-used-over-days-and-weeks)).
 
 By default the owner role holds every permission, so you can also make every decision described in the other chapters (hours discounts, credit, transfers, cancellations, write-offs, retentions, custody adjustments). Your company can give any of these permissions to other roles; the person who proposed something can never decide it.
 
@@ -57,12 +61,12 @@ By default the owner role holds every permission, so you can also make every dec
 | Operations | Jobs, Customers, Staff |
 | Fleet | Machines, Trackers, Sites & geofences, Alerts |
 | Customer hours | Hours purchases, Balances, Hours ledger, Work allocations, Transfers, Cancellations, Customer discounts, Credit arrangements, Walk-in customers, Reason lists |
-| Engine hours | Reconciliation, Hours to explain, Hour explanations, Meter baselines, Reading corrections, Engine-hour reasons |
-| Finance | Hire finance, Cash custody, Expenses & fuel, Approvals, Profitability |
+| Engine hours | Reconciliation, Hours to explain, Hour explanations, Meter baselines, Reading corrections, Engine-hour reasons, Non-revenue hours, Daily machine sheet |
+| Finance | Hire finance, Cash custody, Expenses & fuel, Approvals, Deposit accounts, Revenue differences, Revenue reasons, Profitability |
 | Risk & review | Exceptions, Meter resets, Investigations, Insights, Security events, Sync conflicts |
 | Administration | Policies, Users & roles, Audit log, Subscription, Managed service, Notifications, My access |
 
-When a control is switched off in your policies, its menus are left out. For example, with **Customer hours switched on** set to No, the whole **Customer hours** group and **Field work → Customer hours** disappear. Opening such a page by its address shows "Customer hours is not enabled for your company". **Engine-hour controls switched on** works the same way for the **Engine hours** group. With **Cash custody controls switched on** set to No, **Finance → Cash custody** stays (custodians, custody, floats, remittances and reconciliation), but its Transfers, Overdue remittances, Variances, Retentions, Adjustments and Reason lists tabs disappear.
+When a control is switched off in your policies, its menus are left out. For example, with **Customer hours switched on** set to No, the whole **Customer hours** group and **Field work → Customer hours** disappear. Opening such a page by its address shows "Customer hours is not enabled for your company". **Engine-hour controls switched on** works the same way for the **Engine hours** group. With **Cash custody controls switched on** set to No, **Finance → Cash custody** stays (custodians, custody, floats, remittances and reconciliation), but its Transfers, Overdue remittances, Variances, Retentions, Adjustments and Reason lists tabs disappear. With **Revenue checks switched on** set to No, **Engine hours → Non-revenue hours**, **Engine hours → Daily machine sheet**, **Finance → Revenue differences** and **Finance → Revenue reasons** disappear. Because the first two sit in the **Engine hours** group, they also need **Engine-hour controls switched on**.
 
 The top bar has:
 
@@ -78,10 +82,10 @@ The top bar has:
 | Tab | What it holds |
 |---|---|
 | **Overview** | Your dashboard tiles (fleet, jobs, money, investigations) |
-| **Fleet** | Map or list of machines with live/last-known status |
+| **Fleet** | Map or list of machines with live/last-known status; a machine's **Daily machine sheet** |
 | **Jobs** | Jobs and their hours, charges, readings, work log, expenses, fuel and customer acknowledgement; **New job**; approve or decline jobs waiting for approval |
 | **Alerts** | Tracking alerts to acknowledge or resolve |
-| **More** | Approvals (expenses, meter resets, jobs, cash handovers, exceptions, and the accountability requests), **Accountability**, Meter exceptions, Field spend, Cash with supervisors (with **Issue float**), Investigations, Notifications, Settings, Company |
+| **More** | Approvals (expenses, meter resets, jobs, cash handovers, exceptions, the accountability requests, revenue differences and non-revenue hours), **Accountability**, Meter exceptions, Field spend, Cash with supervisors (with **Issue float**), **Customer hours**, Investigations, Notifications, Settings, Company |
 
 ---
 
@@ -157,8 +161,12 @@ To stop billing a machine (sold, scrapped or returned), contact the Platform Own
 3. To change it, click **New override**. The dialog is **New {type} policy version**.
 4. Choose the **Scope**:
    - **Tenant default (all fields)**: applies to everything.
+   - **Machine category override**: applies to every machine of one category (only for **Fuel norm per engine hour** in Risk signals).
    - **Machine override**: applies to one machine.
    - **Site override**: applies to one site.
+   - **Staff member override**: applies to one person (only for **Days a custodian may hold unremitted cash** in Cash custody).
+
+   On the Policies page itself, the scope buttons **Tenant**, **Machine category**, **Machine**, **Site** and **Staff member** show what applies to one category, machine, site or person. The most specific setting wins.
 5. Turn on only the fields you want to override and set their values.
 6. Set **Effective from (empty = now)** and a **Reason**.
 7. Click **Create version**.
@@ -188,6 +196,9 @@ The most important settings:
 | Risk signals | **Engine activity without a running job**, **Fuel allowance**, **Weekly spending per machine** | Thresholds for automatic review signals |
 | | **Cash held at most** / **Cash held up to** | When cash not handed over is flagged |
 | | **Duplicate receipt lookback**, **Case grouping window**, and others | How signals are found and grouped |
+| | **Engine running without work (one case per machine and day)** | Minutes of engine time without work in a day that add a day summary to the machine-day investigation. Empty = off. See [Task 27](#27-engine-running-without-work-and-fuel-against-engine-hours) |
+| | **Fuel against engine hours: check period** | **Off**, **Per day** or **Per week**: how often all fuel put into each machine is compared with its engine hours |
+| | **Fuel norm per engine hour** | The most litres per engine hour expected. Set it for the company, a **machine category** or one machine (the most specific applies). Empty = off |
 | Customer hours | **Customer hours switched on** | The master switch for prepaid hours. Off: no purchases or prepaid jobs; jobs are invoiced, and the **Customer hours** menus and app buttons are hidden |
 | | **Walk-in customers allowed** | Whether hours can be sold to walk-in customers without full registration |
 | | **Billing methods allowed on jobs**, **Default billing of new jobs** | **Invoice after the work** and/or **Prepaid customer hours**, and which one a new job uses unless changed |
@@ -200,6 +211,9 @@ The most important settings:
 | | **Cancel the rest of a partly used purchase** | Whether the unused part of a purchase can be cancelled once some hours are used |
 | | **Highest discount**, **Credit arrangements allowed** | The largest discount that can be proposed, and whether customers can get credit |
 | | **A reason from the tenant list is required** | Whether requests must pick a reason from your [reason lists](#switching-on-the-controls) |
+| | **Take prepaid hours from the balance** | **When the job is completed** (the usual way), or **Every day from the readings (final at completion)**. See [Task 29](#29-prepaid-hours-used-over-days-and-weeks) |
+| | **Warn the office when hours left fall to** | The hours level that triggers a low-balance warning. Empty = no warning |
+| | **Also send the customer an SMS (uses SMS credits)** | Whether the customer's contact also gets the low-balance warning by SMS |
 | Engine hours | **Engine-hour controls switched on** | The master switch for engine-hour accountability. Off: engine-hour pages, baselines, corrections, daily readings and flags are hidden; job meter readings work as before |
 | | **Approved meter baseline before a job starts** | Off: jobs start without an approved baseline (reconciliation still begins at the baseline) |
 | | **Daily report required**, **Daily report cut-off** | A working machine needs a meter reading every day by the cut-off hour (local time) |
@@ -216,10 +230,26 @@ The most important settings:
 | | **Daily remittance cut-off** | Local hour by which cash should be remitted; leave empty for no daily cut-off |
 | | **Open a case for differences above** | Cash differences above this amount open an investigation (empty = never automatically) |
 | | **Write-offs need a second approver**, **Approved retentions allowed** | Write-off and retention rules |
+| | **Require a transaction reference for bank / mobile-money remittances** | A bank or mobile-money remittance needs its transaction reference. Cash handed to the office never needs one |
+| | **Require a photo of the deposit slip or payment confirmation** | Every remittance needs at least one photo of the slip or payment message |
+| | **Require the company account the money was paid into** | Every remittance must name one of your [deposit accounts](04-accountant.md#23-deposit-accounts) |
+| | **Days a custodian may hold unremitted cash** | Empty = no limit. Cash covered by an approved retention does not count. Can be set per site or per staff member |
 | Oversight | **Hidden dashboard tiles** | Ticked tiles are hidden from the accountability dashboard |
 | | **Refused-attempts window** | How many days of refused attempts the dashboard counts |
+| Revenue checks | **Revenue checks switched on** | The master switch. Off: no daily machine sheet, no revenue differences, and movement inside a job counts as customer work (the usual behaviour) |
+| | **Work-log types that are not revenue** | **Movement (mobilization)**, **Standby** and/or **Downtime**: non-billable time of these types inside a job. Standby billing still follows the contract |
+| | **Show that time apart from customer work** | On: that time is its own line on the engine-hour ledger and the daily sheet, and is not billed on invoice jobs |
+| | **Do not take that time from prepaid hours** | On: prepaid jobs do not draw these hours from the customer's balance |
+| | **Non-revenue time needs approval** | On (the default): the time counts as revenue until one person explains it and a second person approves it |
+| | **Unexplained hours outside jobs** | **Expected as revenue until approved** (the default) or **Shown only** |
+| | **Rate for unexplained hours**, **Tenant rate for unexplained hours** | **The machine category rate card**, or **A tenant rate** that you enter |
+| | **Check period** | **Each day**, **Each week (Monday to Sunday)** or **Each completed job**: when hours are matched with money |
+| | **Tolerance**, **Tolerance amount** | A shortfall above this percentage of the expected revenue, or above this amount, is a difference to explain |
+| | **Open a case for differences above** | Larger differences also open an investigation. Empty = never automatically |
+| | **Money counted** | **Issued invoices and prepaid hours used** |
+| | **Re-check closed periods for** | Days during which money that arrives later still clears an open difference |
 
-Hire billing, Device sync, Expense capture, Customer hours, Cash custody and Oversight are company-wide only. They cannot be overridden per machine or site. In Engine hours, only **Approved meter baseline before a job starts** and **Daily report required** can be set per machine.
+Hire billing, Device sync, Expense capture, Customer hours, Oversight and Revenue checks are company-wide only. They cannot be overridden per machine or site. In Engine hours, only **Approved meter baseline before a job starts** and **Daily report required** can be set per machine. In Cash custody, only **Days a custodian may hold unremitted cash** can be set per site or per staff member. In Risk signals, **Fuel norm per engine hour** can also be set per machine category.
 
 **Hourly hire prices** are not policies. They are set in rate cards and on each job (see the [Manager manual](02-manager-dispatcher.md#1-add-a-customer-a-contract-and-rate-cards)). Your **Asseta subscription price** is negotiated with Asseta and cannot be edited here.
 
@@ -299,6 +329,8 @@ You cannot approve your own expense, and you cannot verify a payment or cash han
 - **Hire finance**: hire invoices and customer payments.
 - **Cash custody**: cash held by every custodian, transfers, floats, remittances, overdue remittances, variances, retentions, adjustments, the reconciliation and the cash reason lists.
 - **Expenses & fuel**: all expenses and fuel events, and expense categories.
+- **Deposit accounts**: the company accounts remittances are paid into ([Task 28](#28-deposits-and-how-long-cash-may-be-held)).
+- **Revenue differences** and **Revenue reasons**: engine hours that did not turn into the expected money ([Task 25](#25-revenue-differences)).
 - **Profitability**: by machine, job or customer.
 
 All of these are described in the [Accountant manual](04-accountant.md). Customer hours are described in the [Manager manual](02-manager-dispatcher.md#14-customer-hours-how-it-works).
@@ -341,7 +373,7 @@ Asseta will not remove the **last owner**. Roles granted under a managed-service
 3. The **Push and e-mail** routing sets defaults by category and severity. Click **Save routing**.
 4. **Delivery log** shows SMS, push and e-mail delivery results.
 
-**Notifications open the exact record.** Clicking a notification about a cash transfer, float, remittance, overdue remittance, variance, retention, custody adjustment, hours discount, credit arrangement, hours transfer or cancellation, meter baseline, reading correction or engine-hour explanation opens that record's own page, where you can see it and decide it. Notifications about missing daily reports or unexplained engine hours open the machine's engine-hours page. The Owner app does the same.
+**Notifications open the exact record.** Clicking a notification about a cash transfer, float, remittance, overdue remittance, variance, retention, custody adjustment, hours discount, credit arrangement, hours transfer or cancellation, meter baseline, reading correction or engine-hour explanation opens that record's own page, where you can see it and decide it. Notifications about missing daily reports or unexplained engine hours open the machine's engine-hours page. "Revenue difference to explain" and "Revenue explanation to decide" open the difference, "Non-revenue hours to approve" opens the explanation waiting for a decision, and "Hours running low", "Hours expiring" and "Hours expired" open the hours purchase. The Owner app does the same.
 
 SMS uses credits from your **SMS wallet**, which is shown on the **Subscription** page. Buy SMS bundles from the Platform Owner. You are warned when credits run low or run out.
 
@@ -392,6 +424,7 @@ To end it, use **Revoke mandate** with a **Reason for revoking**. If there is no
 | **Open discrepancies** | **Open variances**, **Write-offs proposed**, **Offline operations to review** |
 | **Refused attempts** | For the last few days (your **Refused-attempts window**): **Missing permission** and **Own record (segregation of duties)** |
 | **Outstanding approvals** | **Approval requests**, **Payments to confirm**, **Remittances to confirm**, **Cash retentions**, **Custody adjustments**, **Write-offs** |
+| **Revenue differences** | "Engine hours not matched by money, to explain" (or "Oldest open N days"): **To explain**, **Explanations awaiting decision**, the amounts per currency, and how many were **Explained** and **Confirmed** in the last days. Shown only when revenue checks are on |
 
 You can hide tiles you do not use with the **Oversight** policy (**Hidden dashboard tiles**). The page then says "Hidden by your organisation's oversight policy: …". When customer hours are switched off, their tiles are not shown at all. The same summary is in the Owner app under **More → Accountability**.
 
@@ -403,6 +436,8 @@ Asseta accounts for every engine hour of each machine. Between two accepted read
 
 - **Customer work**: hours inside a job (from its opening to its closing reading).
 - **Not yet explained**: every other hour, until someone explains it as **Non-customer activity** (maintenance, relocation, testing and so on) or an **Identified variance**.
+
+With revenue checks on and **Show that time apart from customer work** set, movement and other non-revenue time inside a job (once approved, if your policy requires approval) appears as its own **Non-revenue** part of the job hours ([Task 22](#22-revenue-checks-how-they-work)).
 
 No hour is ever counted twice. If two jobs on one machine overlap, each hour counts once, for the earlier job, and the overlap is shown for review.
 
@@ -492,6 +527,119 @@ When the Supervisor app syncs, the server checks every field record again. A rec
 
 *What you'll see:* "Outcome recorded." Someone else must resolve an operation you submitted yourself.
 
+### 22. Revenue checks: how they work
+
+Revenue checks answer one question: **did the machines' work turn into money?** They follow the way a manager reconciles by hand: today's reading minus the last reading, minus movement hours, gives the real working hours; then the hours are matched with the money. The checks are off until you switch them on (**Revenue checks switched on** in the **Revenue checks** policy, [Task 3](#3-set-company-policies)). Every rule below is a setting of your company.
+
+The rules Asseta applies:
+
+- **Movement and other non-revenue time inside a job counts as revenue until approved.** Your policy lists the **Work-log types that are not revenue** (by default **Movement (mobilization)**). With **Non-revenue time needs approval** on (the default), such a work-log entry stays customer work, billable and expected revenue until one person explains it and **a second person approves it** ([Task 24](#24-non-revenue-hours)). With the setting off, the time is non-revenue as soon as it is logged.
+- **Engine hours outside jobs are expected revenue until explained.** With **Unexplained hours outside jobs** set to **Expected as revenue until approved** (the default), every engine hour outside a job is expected to bring in money, at **The machine category rate card** or at **A tenant rate**. Only an approved explanation as **non-customer activity** ([Task 17](#17-explain-engine-hours)) removes it. Hours explained as an identified variance stay expected revenue.
+- **Expected revenue mirrors billing.** Customer-work hours (less downtime, standby and approved non-revenue time) × the job's approved hourly price, plus standby and the mobilization fee where the contract charges them, less the job's discount. Tax is never revenue.
+- **Money attributed** is what was billed for that work: issued invoice lines of the job, plus prepaid hours used × the purchase's price.
+- **A difference is opened only for a shortfall.** After each **Check period** (**Each day**, **Each week (Monday to Sunday)** or **Each completed job**) has closed, a shortfall above the **Tolerance** (or the **Tolerance amount**) opens a **revenue difference** ([Task 25](#25-revenue-differences)). More money than expected is never a difference. Work of jobs still running is shown as **Work still in progress**, never as a difference.
+- **Late money clears it.** For the **Re-check closed periods for** days (28 unless you change it), an open difference whose money arrives later becomes **Cleared (money arrived)** by itself.
+- **Approvals by permission.** Explaining needs the explain permission, deciding needs the decide permission, and the person who explained something can never decide it. In the example roles, owners and managers hold all three revenue permissions; accountants can read and explain.
+
+A revenue difference is a question to answer, not a finding against anyone.
+
+### 23. Daily machine sheet
+
+**Engine hours → Daily machine sheet** ("Each machine's day: engine hours, customer work, non-revenue time, fuel, money and flags") shows one line per machine per day. It shows the last 7 days unless you choose a range.
+
+1. Filter by **Machine**, **Site**, **From day** and **To day** (at most 93 days at a time), or search by machine code or name.
+2. Each line shows the **Day**, **Machine**, **Readings** (first → last and how many), **Engine h**, **Customer work h**, **Non-revenue h** (with any hours "awaiting approval"), **Revenue h**, **Non-customer h**, **Unexplained h**, **Jobs**, **Fuel L** (with litres per engine hour), **Money** and **Flags**.
+3. Click a line to open the machine's day. It shows:
+   - **Hours**: **Engine hours**, **Customer work**, **Revenue hours**, **Non-revenue time** by type, **Non-revenue awaiting approval** ("counted as revenue"), **Non-customer activity**, **Identified variance**, **Not yet explained** and **Readings under review**.
+   - **Readings**, **Fuel into the machine** and **Fuel per engine hour**.
+   - **Money** per currency: **Expected**, **Of which unexplained hours**, **Work in progress**, **Attributed** and **Difference**.
+   - **Flags**, **Jobs** (with **Open job**), **Money sources** (each invoice line or prepaid hours used), **Engine-hour segments**, **Readings** and **Fuel**.
+4. Click **Export CSV** to download the sheet with the current filters.
+
+The flags are **Daily report missing**, **Hours to explain**, **Engine on without a job**, **Fuel above the norm** and **Revenue difference**. Each links to the record behind it, such as the investigation of an engine running without work. Nothing on the sheet is typed in: it is worked out from the readings, jobs, invoices, prepaid hours and fuel of the day.
+
+### 24. Non-revenue hours
+
+**Engine hours → Non-revenue hours** ("Time inside jobs that is not customer work, explained by one person and approved by another") reminds you: "Until approved, this time counts as customer work and expected revenue."
+
+**Explain the time** (holders of the explain permission; also from the job's **Work log** tab, in the **Non-revenue approval** column):
+
+1. On the **To explain** tab, filter by **Status** and **Machine**. Each row shows the **Machine**, **Job**, **Type**, **When**, **Hours** and **Status** (for example **Counts as revenue (not explained)**).
+2. Click **Explain** on the row. The dialog is **Explain movement (mobilization) · <hours> h**: "Until someone else approves it, this time counts as customer work and expected revenue."
+3. Choose the **Reason** from your [revenue reasons](#26-revenue-reasons), write **What happened** (at least 5 characters) and click **Propose explanation**.
+
+*What you'll see:* "Explanation proposed; someone else approves it." The holders of the decide permission get a "Non-revenue hours to approve" notification.
+
+**Approve or reject it** (holders of the decide permission, never the person who explained it):
+
+1. On the **Approvals** tab (it shows **Awaiting decision** by default), click **Decide**, or open the row with **View details**.
+2. Check the **Machine**, **Job**, **Type**, **Hours**, **When**, **Reason**, **What happened** and **Explained by**. "Approving removes this time from customer work and expected revenue. Rejecting keeps it as revenue; it can be explained again."
+3. Choose **Approve as non-revenue** or **Reject (keep as revenue)**, write a **Note** (at least 5 characters) and click **Record decision**.
+
+*What you'll see:* "Approved as non-revenue time." or "Rejected; the time counts as revenue." Revenue differences of the same days are worked out again straight away.
+
+### 25. Revenue differences
+
+**Finance → Revenue differences** ("Engine hours that did not turn into the expected money: differences to explain") shows **To explain** differences by default. Filter by **Status**, **Machine**, **From day** and **To day**. Each row shows the **Machine**, **Period**, **Expected**, **Attributed**, **Difference**, **Reason** and **Status**.
+
+Open a difference to see its figures: **Expected revenue**, **Of which unexplained hours expected as revenue**, **Work still in progress**, **Money attributed**, **Difference to explain**, **Customer-work hours** and **Non-revenue hours (approved)**, plus its **Jobs**, **Money sources**, any **Investigation** and the **Adjustments**.
+
+**Explain a difference** (holders of the explain permission):
+
+1. Click **Explain**. The dialog is **Explain difference · <machine>**: "Engine hours that did not turn into money are a difference to explain, not a finding against anyone. Your explanation is decided by someone else."
+2. Choose the **Reason**, write **What happened** (at least 5 characters) and click **Propose explanation**.
+
+*What you'll see:* "Explanation proposed; someone else decides it." The status becomes **Explanation awaiting decision**.
+
+**Decide a difference** (holders of the decide permission, never the person who explained it):
+
+1. Click **Decide** (or **Confirm difference** on a difference nobody has explained yet).
+2. In **Decide difference · <machine>**, choose the **Decision**:
+   - **Approve the explanation**: the difference becomes **Explained**.
+   - **Reject the explanation (back to open)**: it goes back to **To explain**.
+   - **Confirm the difference (money to recover)**: it stays recorded as money to recover (**Confirmed (money to recover)**).
+3. Write a **Note** (at least 5 characters) and click **Record decision**.
+
+If your policy sets **Open a case for differences above**, larger differences also open an investigation. When engine hours or non-revenue time are approved later, the figures are worked out again: an open difference is refreshed (and cleared when it is back within tolerance); an explained or confirmed one keeps its figures and gets an **Adjustments** line, with the **Difference after later changes**.
+
+### 26. Revenue reasons
+
+**Finance → Revenue reasons** ("Your list of reasons for explaining revenue differences and non-revenue time") holds your company's own reasons. Holders of the decide permission manage it. Click **New reason**, enter a **Code**, **Name** and **Description**, and click **Create reason**. Deactivate a reason when you no longer use it: "It can no longer be chosen for new explanations; past explanations keep it."
+
+Add your reasons **before** switching revenue checks on, for example Movement to site, Customer delay, Rate agreed lower or Invoice still to issue. Without reasons, nobody can explain anything.
+
+### 27. Engine running without work and fuel against engine hours
+
+Two **Risk signals** settings protect the machines and their fuel. Both are off until you set them ([Task 3](#3-set-company-policies)).
+
+**Engine running without work.** With **Engine running without work (one case per machine and day)** set (in minutes; it can be set per machine), everything that shows one machine working without a job on one day is reviewed together in **one investigation**: tracker engine-on time with no running job, unexplained meter hours outside jobs, and movement outside working hours. The case is titled "Engine running without work: <machine> on <day>". After the day closes, a day summary ("Engine running without work during the day") is added when the engine time without work reaches your minutes. Unexplained meter hours alone can open the case, so it works for machines without a tracker too. Follow it in **Risk & review → Investigations**; the daily machine sheet flags the day as **Engine on without a job** and links to the case.
+
+**Fuel against engine hours.** Choose the **Fuel against engine hours: check period** (**Per day** or **Per week**) and set the **Fuel norm per engine hour**. All fuel issued or bought into each machine is compared with its engine hours in the period, inside or outside jobs. A machine above the norm gets the signal "Fuel above the norm for the engine hours", with the litres, the hours and where the norm was set, and it joins an investigation as usual. A period is judged only when the readings cover it.
+
+Set the norm where it fits best: for the whole company, then per **machine category** (scope **Machine category override**: an excavator uses more than a roller), and per machine where one machine is different. The most specific setting applies. The daily machine sheet shows the litres and the litres per engine hour of each day. The older per-job **Fuel allowance** check works as before.
+
+A signal or an investigation is a prompt to look, not a conclusion about anyone.
+
+### 28. Deposits and how long cash may be held
+
+These settings make sure cash collected in the field reaches the company and can be checked against the bank or mobile-money statement. Finance keeps the details; see the [Accountant manual](04-accountant.md#23-deposit-accounts).
+
+1. **Add your deposit accounts** in **Finance → Deposit accounts**: every bank account, mobile-money wallet and cash office that remittances are paid into. Supervisors pick one when they remit.
+2. **Choose what a remittance must show** in the **Cash custody** policy: **Require the company account the money was paid into**, **Require a transaction reference for bank / mobile-money remittances** and **Require a photo of the deposit slip or payment confirmation**.
+3. **Set how long cash may be held** with **Days a custodian may hold unremitted cash**. Remote sites may need longer: add a **Site override** for a site, or a **Staff member override** for one person. Cash covered by an approved retention does not count.
+
+Cash held longer than allowed is flagged as an overdue remittance with the reason **Held longer than allowed**, and a "Remittance overdue" notification goes to the custodian and the people who confirm remittances ("… has held … since …, longer than the allowed N days. Please remit or explain."). This works alongside the **Daily remittance cut-off**, which is flagged as **Not remitted by the cut-off**.
+
+When you confirm a remittance, check the **Paid by**, **Company account**, **Reference** and **Photos** against your statement before entering the **Amount received**. If the statement shows more than was declared, the difference opens as **Surplus to explain**.
+
+### 29. Prepaid hours used over days and weeks
+
+Customers who buy hours in advance often use them over days or weeks. Three settings in the **Customer hours** policy keep you and the customer informed. They are described in the [Manager manual](02-manager-dispatcher.md#25-prepaid-hours-used-over-days):
+
+- **Take prepaid hours from the balance**: **Every day from the readings (final at completion)** lowers the balance each day the machine works. Those hours show as **In use by running jobs** until the job is completed. A job that runs out of hours is flagged the same day, not at the end.
+- **Warn the office when hours left fall to** and **Also send the customer an SMS (uses SMS credits)**: a low-balance warning so you can offer a top-up before the work stops.
+- The customer **Hours statement** (customer page, **Hours statement** tab) with **Download PDF**, to share with the customer.
+
 ---
 
 ## The Asseta Owner app
@@ -524,6 +672,17 @@ Each section shows when its data was last updated. Tap a tile to go to the match
   - **Status**: connectivity, last seen, engine and motion from the tracker, reported work status, location compliance, operator, supervisor, tracker.
   - **Last 24 hours**: track, distance and stops.
   - **Current job**, **Recent alerts** and **Recent meter readings** (with evidence photo).
+  - **Daily machine sheet** (when revenue checks are on and your role may read them).
+
+**Daily machine sheet.** Tap **Daily machine sheet** on a machine to see its last 14 days, newest first. Each day shows "Engine <hours> h · Revenue <hours> h", any "Difference <amount>" and its flags (**Daily report missing**, **Unexplained hours**, **Engine on without a job**, **Fuel above norm**, **Revenue difference**). Tap a day to open it:
+
+- **Hours**: **Engine hours**, **Customer work**, **Non-revenue** (per type), **Non-revenue awaiting approval**, **Revenue hours**, **Approved non-customer**, **Identified difference**, **Unexplained** and **Awaiting review**.
+- **Readings**: **First reading**, **Last reading**, **Readings taken** and each reading.
+- **Jobs**, and one **Money** card per currency: **Expected revenue**, **Work still in progress**, **Money attributed**, **Difference** and **Unexplained hours expected as revenue**.
+- **Fuel**: the litres and **Litres per engine hour**.
+- **Flags** (or "No flags."). A day with an engine running without work shows **Open investigation**.
+
+"Read-only. Figures come from the readings, jobs, invoices and prepaid hours of the day."
 
 ### Jobs
 
@@ -581,7 +740,7 @@ For a job, see [Jobs](#jobs) above.
 
 For a cash handover ("<supervisor> handed over <currency> <amount>", "Claimed <time>"):
 
-1. Open it and check the amount, reference and note against the cash or deposit slip.
+1. Open it and check the amount, reference and note against the cash or deposit slip. When the supervisor recorded them, the **Handover** card also shows the **Method** (**Cash to the office**, **Bank deposit** or **Mobile money**), **Paid into** (the company account), the **Reference** and one **View deposit slip photo** button per photo (online only). A bank or mobile-money handover without a photo says "No deposit slip photo". The confirm dialog repeats the method, account and reference above the amount.
 2. Enter the **Amount received**. It starts at the declared amount. "Count the cash. A different amount opens a cash difference for review." The card also shows the **Expected balance** and any amount **Not covered by a retention**.
 3. Tap **Confirm received** (a note is optional), or **Dispute** (a **Reason** is required). Confirm **Confirm this handover?** or **Dispute this handover?**.
 
@@ -606,7 +765,7 @@ The app reminds you: "The person who submitted a request can't decide it (segreg
 | **Meter baselines** | "Baseline <reading> h · <machine>" |
 | **Engine-hour classifications** | "<hours> h · <category>" |
 | **Reading corrections** | "<old> → <new> h · <machine>" |
-| **Cash write-offs** | "Write off <amount>" |
+| **Cash write-offs** | "Write off <amount>" ("Surplus to explain: <amount>" when more was received than declared) |
 | **Cash retentions** | "Keep <amount>" |
 | **Custody adjustments** | "<kind> <amount>" |
 
@@ -617,6 +776,22 @@ Each row shows "Proposed <time> by <name>". To decide one:
 
 *What you'll see:* "Approved." or "Rejected." On your own request both buttons are disabled: "Someone else must decide your own request". A request that was already decided shows its status and decision.
 
+**Revenue differences and non-revenue hours.** When revenue checks are on, Approvals also has these two sections (needs a connection):
+
+| Section | Row shows |
+|---|---|
+| **Revenue differences** | "<amount> to explain · <machine>", with the period and status (**To explain** or **Explanation waiting for a decision**) |
+| **Non-revenue hours** | "<hours> h <type> · <machine>", with the reason and "Proposed <time> by <name>" |
+
+To handle a revenue difference, tap it. The **Revenue difference** screen shows the **Figures** (**Machine**, **Period**, **Job**, **Status**, **Expected revenue**, **Work still in progress**, **Money attributed**, **Difference**, **Difference after adjustments**, **Customer-work hours**, **Non-revenue hours**, **Unexplained hours**, **Unexplained hours expected as revenue** and any **Investigation**), the **Jobs** with "Expected … · Attributed …", the **Explanation** and any **Adjustments**. Then:
+
+1. **Explain this difference** (with the explain permission, while it is **To explain**): **Choose a reason**, write the **Note (at least 5 characters)** and tap **Send explanation**. *What you'll see:* "Explanation sent. Someone else will decide." If your company has no reasons yet: "Your company has no revenue reasons yet. Add them on the web."
+2. **Decision** (with the decide permission): "Approve or reject the explanation, or confirm the difference as money to recover. The person who explained it can't decide." Write a note and tap **Approve explanation**, **Reject explanation** ("Reject this explanation? The difference goes back to "To explain".") or **Confirm difference** ("Confirm this difference? It stays recorded as money to recover."). A difference nobody has explained yet can only be confirmed.
+
+*What you'll see:* "Explanation approved.", "Explanation rejected." or "Difference confirmed." On your own explanation the buttons are disabled: "Someone else must decide on your explanation".
+
+To decide non-revenue hours, tap the row. The decision screen shows the **Machine**, **Job**, **Type**, **Time**, **Hours**, **Reason**, **Note** and **Proposed by**: "Approved time stops counting as revenue. The person who explained it can't approve it." Write a note (at least 5 characters) and tap **Approve** or **Reject**.
+
 ### More: other screens
 
 - **Meter exceptions**: open and all exceptions, with **Blocking** marked. Tap one to see it and **Review** it, as in [Approvals](#approvals).
@@ -625,9 +800,11 @@ Each row shows "Proposed <time> by <name>". To decide one:
   - **Holding** = opening + floats + collections − approved spending − verified handovers
   - Plus amounts awaiting approval or verification, and the supervisor's claimed handovers (tap one to confirm or dispute it).
   - **Issue float**: opens **Issue a cash float**. Enter the **Amount** (in the card's currency) and a **Note (optional)**, then tap **Issue**. *What you'll see:* "Float issued." The supervisor's cash goes up.
-- **Investigations**: cases and their signals and outcomes. Decisions are recorded in the web console.
-- **Accountability**: the accountability summary, with the same tiles as [Task 14](#14-accountability-dashboard): **Outstanding approvals**, **Cash** (transfers and floats awaiting acknowledgement, remittances awaiting confirmation, partial remittances, cash per custodian), **Payments awaiting confirmation**, **Discrepancies**, **Investigations**, **Refused attempts**, **Customer hours**, **Hours awaiting activation**, **Engine hours**, **Unexplained engine hours** and **Missing daily reports**. The footer shows the policy version and time. If your company sets a remittance cut-off, the Cash tile shows **Remittances overdue today** with "Cut-off <hour>:00". Tap it to open **Overdue remittances**, where each row reads "Still held after the <hour>:00 cut-off on <day>."
-- **Notifications**: your inbox, with **Unread only** and **Mark all read**. Tapping a notification, or its push message, opens the exact record: the decision screen of a discount, credit arrangement, hours transfer, cancellation, baseline, correction, classification, write-off, retention or custody adjustment; a **Cash transfer** or **Cash float** record; the cash handover; or an **Overdue remittance**. Notifications about missing daily reports or unexplained hours open the machine.
+- **Customer hours** (when your company sells prepaid hours): "Prepaid hours with hours left or in use by running jobs. Selling and moving hours is done in the field app or on the web." Each row shows "<purchase> · <customer>", the machine, "<hours> h left" and, while jobs are running, "<hours> h in use by running jobs". Tap one to open the **Hours purchase** (read-only): **Customer**, **Machine**, **Status**, **Bought**, **Activated**, **Used**, **In use by running jobs**, **Moved to other machines**, **Expired**, **Left** and **Awaiting activation**, with a **Machines** card when hours were moved. "Hours in use by running jobs are drawn day by day and become final when the job is completed."
+- **Hours statement**: tap **Hours statement** on a purchase to see that customer's statement. Choose **This month**, **Last month**, **Last 3 months** or **This year**. The **Totals** card shows the **Opening balance**, **Bought**, **Activated**, **Used**, **Of which in use by running jobs**, **Moved in**, **Moved out**, **Expired**, **Cancelled**, **Closing balance** and **Awaiting activation (now)**. **Hours used** lists each day and job, marked **Drawn day by day** or **Final**, and "Job still running". Tap **Open PDF** to open the statement in your phone's PDF viewer and share it with the customer (needs a connection).
+- **Investigations**: cases and their signals and outcomes. Decisions are recorded in the web console. The new signals read "Engine running without work during the day" and "Fuel above the norm for the engine hours".
+- **Accountability**: the accountability summary, with the same tiles as [Task 14](#14-accountability-dashboard): **Outstanding approvals**, **Cash** (transfers and floats awaiting acknowledgement, remittances awaiting confirmation, partial remittances, cash per custodian), **Payments awaiting confirmation**, **Discrepancies**, **Investigations**, **Refused attempts**, **Customer hours**, **Hours awaiting activation**, **Engine hours**, **Unexplained engine hours** and **Missing daily reports**. The footer shows the policy version and time. If your company sets a remittance cut-off, the Cash tile shows **Remittances overdue today** with "Cut-off <hour>:00". Tap it to open **Overdue remittances**, where each row reads "Still held after the <hour>:00 cut-off on <day>." Each row also shows its reason: **Not remitted by the daily cut-off** or **Held longer than allowed**. An overdue remittance held too long shows **Held since** and **Allowed** instead of the cut-off, with "Held since <date>, longer than the allowed <days>." When revenue checks are on, the summary also has a **Revenue differences** tile: **To explain**, **Awaiting a decision**, **Amount**, **Oldest open**, **Explained**, **Confirmed** and **Cleared** for the last days, and the machines concerned. Tap it to open Approvals.
+- **Notifications**: your inbox, with **Unread only** and **Mark all read**. Tapping a notification, or its push message, opens the exact record: the decision screen of a discount, credit arrangement, hours transfer, cancellation, baseline, correction, classification, write-off, retention or custody adjustment; a **Cash transfer** or **Cash float** record; the cash handover; an **Overdue remittance**; a **Revenue difference** or the **Non-revenue hours** decision; or the **Hours purchase** for "Hours running low", expiring or expired hours. Notifications about missing daily reports or unexplained hours open the machine.
 
 ### Settings
 
@@ -662,11 +839,14 @@ While you are looking at saved data, **all decisions are disabled**. Approvals, 
 | Engine-hour reconciliation (per machine) | No approved baseline; Hours to explain; Readings under review; All hours explained |
 | Engine hours (per interval) | Customer work; Not yet explained; Non-customer activity; Identified variance |
 | Sync conflict | Conflict / Rejected → Dismissed or Re-captured |
+| Revenue difference | To explain → Explanation awaiting decision → Explained (or back to To explain); Confirmed (money to recover); Cleared (money arrived) |
+| Non-revenue time | Counts as revenue (not explained) → Explanation awaiting decision → Approved as non-revenue / Rejected (counts as revenue) |
+| Overdue remittance (reason) | Not remitted by the cut-off; Held longer than allowed |
 | Customer hours, cash | See the [Manager](02-manager-dispatcher.md#statuses-and-what-they-mean) and [Accountant](04-accountant.md#statuses-and-what-they-mean) manuals |
 
 ## Switching on the controls
 
-Every accountability control is a company policy. A control that is off keeps the usual behaviour, and its menus and buttons stay hidden. Asseta starts you with safe defaults: customer hours are available, while daily reports, required baselines, float acknowledgement, full remittance and the remittance cut-off are **off** until you switch them on. Switch on only what your business needs, one step at a time.
+Every accountability control is a company policy. A control that is off keeps the usual behaviour, and its menus and buttons stay hidden. Asseta starts you with safe defaults: customer hours are available, while daily reports, required baselines, float acknowledgement, full remittance, the remittance cut-off, revenue checks, the engine and fuel checks, remittance requirements, the holding allowance, daily drawdown and low-balance warnings are **off** until you switch them on. Switch on only what your business needs, one step at a time.
 
 Approvals go to **whoever holds the permission**, not to a fixed role. Before switching a control on, make sure **at least two people** hold its approval permission, so nobody is left deciding their own request.
 
@@ -677,8 +857,12 @@ Approvals go to **whoever holds the permission**, not to a fixed role. Before sw
 5. **Engine hours** policy: check **Engine-hour controls switched on**. Have supervisors propose a **meter baseline** for every machine and approve them ([Task 16](#16-meter-baselines)). Then switch on **Approved meter baseline before a job starts** and, if you want daily readings, **Daily report required** with its **Daily report cut-off**. Set **Open an investigation for unexplained hours after**.
 6. **Cash custody** policy: check **Cash custody controls switched on**, then choose **Recorders record for any custodian**, **Receiver acknowledges transfers**, **Receiver acknowledges floats**, **Remit the full balance**, **Daily remittance cut-off**, **Open a case for differences above**, **Write-offs need a second approver** and **Approved retentions allowed**.
 7. **Oversight** policy: hide dashboard tiles you do not use and set the **Refused-attempts window**.
-8. **Tell your people**, and ask supervisors to **sync their phones** so the apps pick up the new rules.
-9. **Watch the Accountability dashboard** daily for the first weeks ([Task 14](#14-accountability-dashboard)).
+8. **Revenue checks** policy: first switch on **Engine-hour controls switched on** and approve the baselines (the daily machine sheet needs them), fill in **Finance → Revenue reasons** ([Task 26](#26-revenue-reasons)), and make sure at least two people hold the revenue decide permission. Then set **Revenue checks switched on**, the **Work-log types that are not revenue**, **Non-revenue time needs approval**, **Unexplained hours outside jobs** and its rate, the **Check period**, **Tolerance** / **Tolerance amount** and **Open a case for differences above**.
+9. **Risk signals** policy: set **Engine running without work (one case per machine and day)**, the **Fuel against engine hours: check period** and the **Fuel norm per engine hour**, first for the company and then per machine category (scope **Machine category override**) and per machine where needed ([Task 27](#27-engine-running-without-work-and-fuel-against-engine-hours)).
+10. **Deposits**: add every company account in **Finance → Deposit accounts**, then in the **Cash custody** policy choose **Require the company account the money was paid into**, **Require a transaction reference for bank / mobile-money remittances**, **Require a photo of the deposit slip or payment confirmation** and **Days a custodian may hold unremitted cash**, with site or staff member overrides for remote sites ([Task 28](#28-deposits-and-how-long-cash-may-be-held)).
+11. **Prepaid hours over days**: in the **Customer hours** policy choose **Take prepaid hours from the balance**, **Warn the office when hours left fall to** and, if customers should be told, **Also send the customer an SMS (uses SMS credits)** (check your SMS wallet). Make sure customers' contact phone numbers are filled in.
+12. **Tell your people**, and ask supervisors to **sync their phones** so the apps pick up the new rules.
+13. **Watch the Accountability dashboard** daily for the first weeks ([Task 14](#14-accountability-dashboard)), and the **Daily machine sheet** and **Revenue differences** when revenue checks are on.
 
 You can switch any control off again later with a new policy version. Records made while it was on are kept.
 
@@ -694,6 +878,10 @@ You can switch any control off again later with a new policy version. Records ma
 - **Watch your SMS wallet** if you rely on SMS notifications.
 - **Explain engine hours while memories are fresh.** Unexplained hours are a question, not a verdict, and are easiest to explain the same week.
 - **Read refused attempts as signals, not accusations.** Most are people trying a button their role does not have.
+- **Look at the daily machine sheet every morning** when revenue checks are on. A flag on yesterday's line is easiest to explain today.
+- **Decide non-revenue hours promptly.** Until approved, movement time counts as revenue and can open a revenue difference.
+- **Set fuel norms per machine category**, not one figure for every machine.
+- **Check remittances against the statement.** Compare the account, reference and slip photo with your bank or mobile-money statement before confirming.
 
 ## Troubleshooting and FAQ
 
@@ -729,6 +917,21 @@ A baseline is set once. If the meter was replaced, use a meter reset.
 
 **The Engine hours menus, or some Cash custody tabs, are missing.**
 **Engine-hour controls switched on** or **Cash custody controls switched on** is No in that policy, or your role lacks the permission.
+
+**The Daily machine sheet, Non-revenue hours or Revenue differences menus are missing.**
+**Revenue checks switched on** is No in your Revenue checks policy, or your role lacks the revenue permission. The two Engine hours menus also need **Engine-hour controls switched on**.
+
+**"Revenue checks are switched off for your company (Policies → Revenue checks)."**
+Switch them on in the Revenue checks policy, or ask the owner.
+
+**"You explained this, so someone else must decide it."**
+Segregation of duties. Another person with the decide permission must decide.
+
+**"No active reasons; add them under Revenue reasons".**
+Add your reasons in **Finance → Revenue reasons** ([Task 26](#26-revenue-reasons)).
+
+**A movement entry still counts as revenue.**
+It has not been approved yet. Explain it ([Task 24](#24-non-revenue-hours)) and have someone else approve it.
 
 **I can't make changes in the Owner app.**
 The app shows why:

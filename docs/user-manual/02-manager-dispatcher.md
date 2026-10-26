@@ -26,6 +26,8 @@ You work mainly in the **web console** at <https://asseta.co.tz>.
 - **Customer hours** (if your company uses prepaid hours): record walk-in customers and hours purchases, link payments, propose and decide customer discounts, credit arrangements, hours transfers and cancellations (never your own), and keep the reason lists.
 - **Cash on behalf of staff**: record cash collections, transfers and remittances for custodians who have no login, such as operators (if your company allows it).
 - **Oversight**: the **Accountability** dashboard, **Security events** (refused attempts) and **Sync conflicts** (field records the server could not apply).
+- **Revenue checks** (if your company switches them on): read the **Daily machine sheet**, explain and approve **non-revenue hours**, explain and decide **revenue differences** (never your own explanation), and keep the **revenue reasons**.
+- **Prepaid hours used over days**: follow hours **in use by running jobs**, **low-balance warnings** and the customer **hours statement**.
 - **Read-only**: Policies and the Audit log.
 
 What the Manager role does **not** include, by default:
@@ -45,11 +47,12 @@ The **Tenant Owner** handles these. Your company may customise roles.
 | Operations | Jobs, Customers, Staff |
 | Fleet | Machines, Trackers, Sites & geofences, Alerts |
 | Customer hours | Hours purchases, Balances, Hours ledger, Work allocations, Transfers, Cancellations, Customer discounts, Credit arrangements, Walk-in customers, Reason lists |
+| Engine hours | Non-revenue hours, Daily machine sheet |
 | Risk & review | Investigations, Insights, Security events, Sync conflicts |
-| Finance | Approvals |
+| Finance | Approvals, Revenue differences, Revenue reasons |
 | Administration | Policies (read-only), Audit log, Notifications, My access |
 
-The **Customer hours** menus appear only when your company has switched customer hours on in its policies. The decisions you see depend on the permissions your role holds; the role setup above is an example your company can change.
+The **Customer hours** menus appear only when your company has switched customer hours on in its policies. The **Engine hours** menus and **Revenue differences** / **Revenue reasons** appear only when your company has switched revenue checks on (the Engine hours menus also need engine-hour controls). The decisions you see depend on the permissions your role holds; the role setup above is an example your company can change.
 
 The **Asseta Owner** phone app can also be used by managers whose company gives them access. It covers the fleet map, jobs (including **New job** and approving or declining jobs), alerts and approvals on the go; see the [Tenant Owner manual](01-tenant-owner.md#the-asseta-owner-app). The buttons shown there depend on your role's permissions.
 
@@ -394,12 +397,14 @@ A job with **Billing** set to **Prepaid customer hours** draws on the customer's
 - **Customer hours → Work allocations** ("Hours each completed prepaid job used, drawn from the customer's oldest active purchases") lists each job's **Billable**, **Covered** and **Not covered** hours. Use **Show purchases used** to see which purchases were drawn on.
 - Hours **not covered** appear as the exception **Hours beyond what the customer has active** (the apps say **Hours beyond purchase**), with **Requires review**. "Hours beyond what the customer had active are never used silently: they are flagged for review until new hours cover them." Depending on your policy it may block invoicing until reviewed. The office reviews it in **Risk & review → Exceptions**.
 
+If your company takes prepaid hours **every day** (**Take prepaid hours from the balance** set to **Every day from the readings (final at completion)**), the balance goes down each day the machine works, not only at completion. See [Task 25](#25-prepaid-hours-used-over-days).
+
 If two supervisors offline use the same remaining hours, Asseta applies them one after the other when they sync. The second job gets what is left, and the rest is flagged as hours beyond purchase. Nothing is lost or double-counted.
 
 ### 19. Balances and the hours ledger
 
-- **Customer hours → Balances** ("Activated, used and remaining prepaid hours, derived from the hours ledger"): choose **By customer** or **By machine**. Columns show **Purchases**, **Awaiting activation**, **Activated**, **Transferred in**, **Transferred out**, **Used**, **Expired**, **Reversed** and **Remaining**. By customer, the **Credit** panel shows the **Approved limit**, **Used on credit, not yet paid** and **Available**.
-- **Customer hours → Hours ledger** ("Every change to customer hours, in order; balances are always derived from it"): filter by **Customer**, **Machine** or **Entry**. Each row shows **When**, **Entry**, **Hours**, **Customer**, **Machine**, **Purchase**, **Job**, **Source** (Credit or Verified payment), **Reason** and **By**.
+- **Customer hours → Balances** ("Activated, used and remaining prepaid hours, derived from the hours ledger"): choose **By customer** or **By machine**. Columns show **Purchases**, **Awaiting activation**, **Activated**, **Transferred in**, **Transferred out**, **Used**, **In use by running jobs**, **Expired**, **Reversed** and **Remaining**. By customer, the page also links to the **Hours statement (customer page)** and the **Low-balance warnings**. By customer, the **Credit** panel shows the **Approved limit**, **Used on credit, not yet paid** and **Available**.
+- **Customer hours → Hours ledger** ("Every change to customer hours, in order (provisional entries: hours drawn day by day while a job runs); balances are always derived from it"): filter by **Customer**, **Machine** or **Entry**. Each row shows **When**, **Entry**, **Hours**, **Customer**, **Machine**, **Purchase**, **Job**, **Source** (Credit or Verified payment), **Reason** and **By**.
 
 **Expiry.** If your company sets **Unused hours expire after**, activated hours not used within that many days (counted from activation) expire. A warning is sent beforehand (**Warn before expiry**). Expired hours appear as **Expired** in the ledger and balances. If the setting is empty, hours never expire.
 
@@ -452,6 +457,47 @@ These are described in the [Tenant Owner manual](01-tenant-owner.md#14-accountab
 - **Risk & review → Security events**: refused attempts.
 - **Risk & review → Sync conflicts**: field records the server could not apply, which you can resolve.
 
+### 25. Prepaid hours used over days
+
+Customers often use prepaid hours over several days or weeks. Your company's **Customer hours** policy decides how Asseta follows them (owner: [Set company policies](01-tenant-owner.md#3-set-company-policies)).
+
+**Daily drawdown.** With **Take prepaid hours from the balance** set to **Every day from the readings (final at completion)**:
+
+- Each day a prepaid job runs, the customer-work hours of that day (from the meter readings, less downtime, standby and approved non-revenue time) are taken from the customer's hours on that machine. The ledger shows them as **Used that day (provisional)**.
+- These hours show as **In use by running jobs** on the purchase, in **Balances** and in the apps. They are already taken out of **Remaining**, so they cannot be moved or sold twice.
+- If later readings lower a day's hours, the difference is given back (**Provisional use given back**). When the job is completed, the daily figures are replaced by the final allocation, exactly as before. A job that stops without being completed gives its hours back.
+- If a day needs more hours than the customer has, only the available hours are taken and the job gets the exception **Hours beyond what the customer has active** **the same day**, not at the end. It closes by itself when new hours cover it.
+
+With **When the job is completed** (the usual way), nothing is taken until completion.
+
+**Low-balance warnings.** When your company sets **Warn the office when hours left fall to**, a purchase whose remaining hours fall to that level (while the customer has no more than that left on the machine) sends one "Hours running low" notification to the people who follow customer hours: "<customer> has <hours> prepaid hours left on <machine> … Offer a top-up before the work stops." It opens the hours purchase. With **Also send the customer an SMS (uses SMS credits)**, the customer's contact phone gets one SMS too.
+
+To see every warning, click **Low-balance warnings** on a purchase page, on **Balances** (by customer) or on the customer's hours statement. The **Low-balance warnings** page ("Prepaid hours that fell to the company's low-balance threshold") shows the **Customer**, **Machine**, **Purchase**, **Left on the purchase**, **Left on the machine**, **Threshold** and **State** (**Still low** or **Topped up since**). Open one to see when it **Fell to the threshold** and went **Back above the threshold**, the **Warning number** and the **Customer SMS** result (for example **Sent to the SMS channel** or **Not sent: the customer has no phone number**). A purchase is warned once each time it falls to the threshold.
+
+**Customer hours statement.**
+
+1. Go to **Operations → Customers**, open the customer and choose the **Hours statement** tab. You can also click **Customer hours statement** on a purchase page.
+2. Choose **From** and **To** (this month to date unless you change it; at most 366 days) and, optionally, a **Machine**.
+3. The statement shows:
+   - The totals: **Opening balance**, **Bought in the period**, **Activated**, **Transferred in**, **Used**, **Transferred out**, **Expired**, **Cancelled** and **Closing balance**.
+   - **Purchases**: each purchase with its **Remaining at close**, **Next expiry** and **Status**.
+   - **Usage**: hours used per **Day** and **Job**, with the **Basis** (**Drawn that day** or **Final allocation**) and "job still running".
+   - **Movements**: every ledger entry with the running **Balance**.
+4. Click **Download PDF** to save the statement and share it with the customer.
+
+The Owner app shows the same statement under **More → Customer hours** ([Tenant Owner manual](01-tenant-owner.md#more-other-screens)).
+
+### 26. Revenue checks
+
+If your company has switched on revenue checks, your role can by default do all of the following. The steps are in the Tenant Owner manual:
+
+- **Engine hours → Daily machine sheet**: each machine's day: hours, fuel, money and flags ([Task 23](01-tenant-owner.md#23-daily-machine-sheet)).
+- **Engine hours → Non-revenue hours**: explain movement and other non-revenue time inside a job, or approve someone else's explanation ([Task 24](01-tenant-owner.md#24-non-revenue-hours)). You can also explain it from the job's **Work log** tab.
+- **Finance → Revenue differences**: explain a difference, or decide someone else's explanation ([Task 25](01-tenant-owner.md#25-revenue-differences)).
+- **Finance → Revenue reasons**: keep your company's reasons ([Task 26](01-tenant-owner.md#26-revenue-reasons)).
+
+Movement inside a job counts as revenue until one person explains it and **another** approves it. You can never decide your own explanation: "You explained this, so someone else must decide it."
+
 ---
 
 ## Statuses and what they mean
@@ -466,7 +512,10 @@ These are described in the [Tenant Owner manual](01-tenant-owner.md#14-accountab
 | Investigation case | Open → In review → Resolved (can be reopened) |
 | Signal | Open, Linked (on a case), Dismissed |
 | Hours purchase | Awaiting payment → Partly active → Active → Used up; Expired; Cancelled |
-| Hours ledger entry | Activated, Used on a job, Transferred out, Transferred in, Expired, Reversed |
+| Hours ledger entry | Activated, Used on a job, Used that day (provisional), Provisional use given back, Transferred out, Transferred in, Expired, Reversed |
+| Low-balance warning | Still low; Topped up since |
+| Revenue difference | To explain → Explanation awaiting decision → Explained (or back to To explain); Confirmed (money to recover); Cleared (money arrived) |
+| Non-revenue time | Counts as revenue (not explained) → Explanation awaiting decision → Approved as non-revenue / Rejected (counts as revenue) |
 | Hours transfer, cancellation | Awaiting decision → Approved / Rejected; Withdrawn |
 | Customer discount, credit arrangement | Awaiting decision → Approved / Rejected; Withdrawn; Revoked |
 
@@ -480,6 +529,8 @@ These are described in the [Tenant Owner manual](01-tenant-owner.md#14-accountab
 - **Check Alerts and Approvals daily.** Reminders are sent when approvals wait too long.
 - **Decide hours requests promptly**, but never your own. Keep at least two people with each approval permission.
 - **Record sales for the right machine.** Hours belong to the machine named on the purchase; moving them needs a transfer.
+- **Log movement as Mobilization, not Work**, so it can be explained and approved as non-revenue time.
+- **Act on low-balance warnings** the same day: offer the customer a top-up before the work stops.
 
 ## Troubleshooting and FAQ
 
@@ -515,6 +566,12 @@ Your company has not switched customer hours on. Existing records stay readable.
 
 **"Hours were already used from this purchase, so it cannot be cancelled."**
 Your policy does not allow cancelling the rest of a partly used purchase. Ask the owner whether it should.
+
+**"Choose a period of at most 366 days."**
+The hours statement covers at most a year. Choose a shorter period.
+
+**A customer's remaining hours went down while the job is still running.**
+Your company takes prepaid hours every day. The hours show as **In use by running jobs** and become final when the job is completed.
 
 **I can't review exceptions or decide meter resets.**
 These belong to the owner by default. Ask the owner, or ask them to adjust your role.
