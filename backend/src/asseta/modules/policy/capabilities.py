@@ -19,6 +19,7 @@ Check = Callable[[PolicyService, uuid.UUID, datetime], bool]
 CUSTOMER_HOURS = "CUSTOMER_HOURS"
 ENGINE_HOURS = "ENGINE_HOURS"
 CASH_CUSTODY = "CASH_CUSTODY"
+REVENUE_RECONCILIATION = "REVENUE_RECONCILIATION"
 
 CAPABILITIES: dict[str, Check] = {
     # Customer prepaid hours (CUSTOMER_HOURS.enabled): purchases, balances, approvals, reason lists.
@@ -30,7 +31,13 @@ CAPABILITIES: dict[str, Check] = {
     # retentions, custody adjustments, cash reasons, the remittance cut-off, partial-remittance flag and recording
     # for others. The cash basics (collections, floats, remittances, reconciliation) are not part of it.
     CASH_CUSTODY: lambda svc, tid, at: svc.cash_custody(tid, at=at).policy.enabled,
+    # Revenue reconciliation (REVENUE_RECONCILIATION.enabled, DEC-031 Phase 1; platform default OFF): the
+    # revenue-hour basis (non-revenue bucket), the daily machine sheet, revenue differences, their reasons and sweep.
+    REVENUE_RECONCILIATION: lambda svc, tid, at: svc.revenue_reconciliation(tid, at=at).policy.enabled,
 }
+
+# Capabilities whose safe platform default is OFF (a tenant opts in): an unconfigured policy counts as off for them.
+OFF_BY_DEFAULT = frozenset({REVENUE_RECONCILIATION})
 
 # How a request needing a switched-off capability is refused: 422 BUSINESS_RULE_VIOLATION envelope with this code
 # (CUSTOMER_HOURS keeps the code its services already used). Offline sync operations get the same code as CONFLICT.
@@ -38,16 +45,20 @@ REFUSALS: dict[str, tuple[str, str]] = {
     CUSTOMER_HOURS: ("HOURS_DISABLED", "Customer hours are switched off for this tenant"),
     ENGINE_HOURS: ("ENGINE_HOURS_DISABLED", "Engine-hour controls are switched off for this tenant"),
     CASH_CUSTODY: ("CASH_CUSTODY_DISABLED", "Cash custody controls are switched off for this tenant"),
+    REVENUE_RECONCILIATION: (
+        "REVENUE_RECONCILIATION_DISABLED",
+        "Revenue reconciliation is switched off for this tenant",
+    ),
 }
 
 
 def capability_on(session: Session, tenant_id: uuid.UUID, code: str, at: datetime) -> bool:
     """Whether one capability is on for the tenant at `at` (read in the tenant's RLS scope). A policy that is not
-    configured counts as on (the platform default)."""
+    configured counts as its platform default (on, except the OFF_BY_DEFAULT ones)."""
     try:
         return CAPABILITIES[code](PolicyService(session), tenant_id, at)
     except BusinessRuleViolation:
-        return True
+        return code not in OFF_BY_DEFAULT
 
 
 def require_capability(session: Session, tenant_id: uuid.UUID, code: str, at: datetime) -> None:

@@ -3286,6 +3286,68 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenant/daily-machine-sheet": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Daily Sheet
+         * @description One row per machine per tenant-local day with activity (newest day first; `q`: machine code or name; at
+         *     most 93 days). Derived from the engine-hour ledger, jobs, fuel, flags and money on every call.
+         */
+        get: operations["listDailyMachineSheet"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/daily-machine-sheet/export.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Daily Sheet
+         * @description The list's rows (same filters, no paging) as CSV, one money column group per currency (audited export).
+         */
+        get: operations["exportDailyMachineSheetCsv"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/daily-machine-sheet/{machine_id}/{day}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Daily Sheet Day
+         * @description One machine-day with the ids behind every figure: readings, ledger segments, jobs, money sources (invoice
+         *     lines / prepaid consumption) and flag records.
+         */
+        get: operations["getDailyMachineSheetDay"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenant/deposit-accounts": {
         parameters: {
             query?: never;
@@ -5148,6 +5210,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenant/non-revenue-activities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Non Revenue Activities
+         * @description Non-billable work-log entries of the declared non-revenue types (e.g. movement), newest first, with their
+         *     approval status. Until APPROVED the time counts as revenue.
+         */
+        get: operations["listNonRevenueActivities"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/non-revenue-approvals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Non Revenue Approvals */
+        get: operations["listNonRevenueApprovals"];
+        put?: never;
+        /**
+         * Propose Non Revenue
+         * @description Explain a work-log entry as non-revenue (tenant reason + note); a second person with `tenant.revenue.decide`
+         *     approves it.
+         */
+        post: operations["proposeNonRevenueApproval"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/non-revenue-approvals/{approval_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Non Revenue Approval */
+        get: operations["getNonRevenueApproval"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/non-revenue-approvals/{approval_id}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Decide Non Revenue
+         * @description APPROVE (the time stops counting as revenue; affected revenue differences are recomputed) or REJECT.
+         */
+        post: operations["decideNonRevenueApproval"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenant/notification-deliveries": {
         parameters: {
             query?: never;
@@ -5852,6 +5994,159 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenant/revenue-differences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Differences
+         * @description Revenue differences to explain, newest period first (`q`: machine code/name or period key).
+         */
+        get: operations["listRevenueDifferences"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/revenue-differences/{difference_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Difference */
+        get: operations["getRevenueDifference"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/revenue-differences/{difference_id}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Decide Difference
+         * @description APPROVE / REJECT the proposed explanation, or CONFIRM the difference as real. Never by the explainer.
+         */
+        post: operations["decideRevenueDifference"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/revenue-differences/{difference_id}/explanation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Explain Difference
+         * @description Propose an explanation (tenant reason + note) for an OPEN difference; a second person decides.
+         */
+        post: operations["explainRevenueDifference"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/revenue-reasons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Reasons
+         * @description Reasons that explain a revenue difference (tenant data; `q`: code or name).
+         */
+        get: operations["listRevenueReasons"];
+        put?: never;
+        /** Create Reason */
+        post: operations["createRevenueReason"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/revenue-reasons/{reason_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Reason */
+        get: operations["getRevenueReason"];
+        /** Update Reason */
+        put: operations["updateRevenueReason"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/revenue-reasons/{reason_id}/deactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Deactivate Reason
+         * @description Refused for new explanations afterwards; past explanations keep the entry.
+         */
+        post: operations["deactivateRevenueReason"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/revenue-reasons/{reason_id}/reactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reactivate Reason */
+        post: operations["reactivateRevenueReason"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenant/risk-signals": {
         parameters: {
             query?: never;
@@ -6226,7 +6521,7 @@ export interface components {
             } | null;
             /**
              * Disabled Capabilities
-             * @description Tenant capabilities switched off by policy (CUSTOMER_HOURS, ENGINE_HOURS, CASH_CUSTODY); their tiles are hidden and, for CASH_CUSTODY, the cash-control figures of the cash/discrepancy/approval tiles are empty
+             * @description Tenant capabilities switched off by policy (CUSTOMER_HOURS, ENGINE_HOURS, CASH_CUSTODY, REVENUE_RECONCILIATION); their tiles are hidden and, for CASH_CUSTODY, the cash-control figures of the cash/discrepancy/approval tiles are empty
              */
             disabled_capabilities?: string[];
             discrepancies?: components["schemas"]["DiscrepanciesTileDto"] | null;
@@ -6258,6 +6553,13 @@ export interface components {
             payments?: components["schemas"]["PaymentsTileDto"] | null;
             /** Policy Version */
             policy_version: string;
+            /**
+             * Revenue Differences
+             * @description [DEC-031 R3] revenue differences: open, awaiting_decision, amounts [{currency, count, amount}], oldest_open_days, window_days, explained/confirmed/cleared_in_window, items [{id, machine_id, machine_code, period_key, local_from, local_to, currency, difference, status}] (revenue module)
+             */
+            revenue_differences?: {
+                [key: string]: unknown;
+            } | null;
             unauthorized_attempts?: components["schemas"]["AttemptsTileDto"] | null;
             /** Unavailable Tiles */
             unavailable_tiles: string[];
@@ -7273,7 +7575,7 @@ export interface components {
          * CaseSourceType
          * @enum {string}
          */
-        CaseSourceType: "RISK_SIGNAL" | "METER_EXCEPTION" | "TRACKING_ALERT" | "SOD_EVENT" | "PREDICTION" | "CASH_VARIANCE";
+        CaseSourceType: "RISK_SIGNAL" | "METER_EXCEPTION" | "TRACKING_ALERT" | "SOD_EVENT" | "PREDICTION" | "CASH_VARIANCE" | "REVENUE_DIFFERENCE";
         /**
          * CaseStatus
          * @enum {string}
@@ -9092,6 +9394,154 @@ export interface components {
              * @description Optimistic concurrency token from the last read
              */
             version: number;
+        };
+        /**
+         * DailyMachineSheetDetailDto
+         * @description The machine-day with the ids behind every figure (drill to readings, ledger, jobs, money and flags).
+         */
+        DailyMachineSheetDetailDto: {
+            /** Approved Non Customer Hours */
+            approved_non_customer_hours: string;
+            /**
+             * Customer Work Hours
+             * @description Inside job windows, after the revenue-hour basis (R1)
+             */
+            customer_work_hours: string;
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /** Engine Hours */
+            engine_hours: string;
+            /** First Reading */
+            first_reading: string | null;
+            /** Flag Records */
+            flag_records: components["schemas"]["SheetFlagRefDto"][];
+            /** Flags */
+            flags: components["schemas"]["SheetFlag"][];
+            /** Fuel Events */
+            fuel_events: components["schemas"]["SheetFuelDto"][];
+            /** Fuel Litres */
+            fuel_litres: string;
+            /** Identified Variance Hours */
+            identified_variance_hours: string;
+            /** Jobs */
+            jobs: components["schemas"]["SheetJobDto"][];
+            /** Last Reading */
+            last_reading: string | null;
+            /** Machine Code */
+            machine_code?: string | null;
+            /**
+             * Machine Id
+             * Format: uuid
+             */
+            machine_id: string;
+            /** Machine Name */
+            machine_name?: string | null;
+            /** Money */
+            money: components["schemas"]["SheetMoneyDto"][];
+            /** Money Sources */
+            money_sources: components["schemas"]["SheetMoneySourceDto"][];
+            /** Non Revenue By Type */
+            non_revenue_by_type: {
+                [key: string]: string;
+            };
+            /**
+             * Non Revenue Hours
+             * @description Declared non-revenue work-log time inside jobs (R1; 0 when off)
+             */
+            non_revenue_hours: string;
+            /**
+             * Non Revenue Pending Hours
+             * @description Declared non-revenue work-log time not yet explained and approved: still counted as revenue
+             * @default 0
+             */
+            non_revenue_pending_hours: string;
+            /** Pending Review Hours */
+            pending_review_hours: string;
+            /** Reading Count */
+            reading_count: number;
+            /** Readings */
+            readings: components["schemas"]["SheetReadingDto"][];
+            /**
+             * Revenue Hours
+             * @description Hours expected to be billed: customer work less non-billable time
+             */
+            revenue_hours: string;
+            /** Segments */
+            segments: components["schemas"]["SheetSegmentDto"][];
+            /** Unexplained Hours */
+            unexplained_hours: string;
+        };
+        /**
+         * DailyMachineSheetRowDto
+         * @description One machine on one tenant-local day, derived from the engine-hour ledger, jobs, fuel, flags and money.
+         */
+        DailyMachineSheetRowDto: {
+            /** Approved Non Customer Hours */
+            approved_non_customer_hours: string;
+            /**
+             * Customer Work Hours
+             * @description Inside job windows, after the revenue-hour basis (R1)
+             */
+            customer_work_hours: string;
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /** Engine Hours */
+            engine_hours: string;
+            /** First Reading */
+            first_reading: string | null;
+            /** Flags */
+            flags: components["schemas"]["SheetFlag"][];
+            /** Fuel Litres */
+            fuel_litres: string;
+            /** Identified Variance Hours */
+            identified_variance_hours: string;
+            /** Jobs */
+            jobs: components["schemas"]["SheetJobDto"][];
+            /** Last Reading */
+            last_reading: string | null;
+            /** Machine Code */
+            machine_code?: string | null;
+            /**
+             * Machine Id
+             * Format: uuid
+             */
+            machine_id: string;
+            /** Machine Name */
+            machine_name?: string | null;
+            /** Money */
+            money: components["schemas"]["SheetMoneyDto"][];
+            /** Non Revenue By Type */
+            non_revenue_by_type: {
+                [key: string]: string;
+            };
+            /**
+             * Non Revenue Hours
+             * @description Declared non-revenue work-log time inside jobs (R1; 0 when off)
+             */
+            non_revenue_hours: string;
+            /**
+             * Non Revenue Pending Hours
+             * @description Declared non-revenue work-log time not yet explained and approved: still counted as revenue
+             * @default 0
+             */
+            non_revenue_pending_hours: string;
+            /** Pending Review Hours */
+            pending_review_hours: string;
+            /** Reading Count */
+            reading_count: number;
+            /**
+             * Revenue Hours
+             * @description Hours expected to be billed: customer work less non-billable time
+             */
+            revenue_hours: string;
+            /** Unexplained Hours */
+            unexplained_hours: string;
         };
         /** DecisionIn */
         DecisionIn: {
@@ -12534,6 +12984,164 @@ export interface components {
             /** Unit Price */
             unit_price: number | string;
         };
+        /**
+         * NonRevenueActivityDto
+         * @description A non-billable work-log entry of a declared non-revenue type, with its explanation/approval status. Until
+         *     APPROVED it counts as revenue.
+         */
+        NonRevenueActivityDto: {
+            /**
+             * Activity Id
+             * Format: uuid
+             */
+            activity_id: string;
+            /** Activity Type */
+            activity_type: string;
+            /** Approval Id */
+            approval_id: string | null;
+            /**
+             * Approval Status
+             * @enum {string}
+             */
+            approval_status: "NONE" | "PROPOSED" | "APPROVED" | "REJECTED";
+            /**
+             * Ended At
+             * Format: date-time
+             */
+            ended_at: string;
+            /** Hours */
+            hours: string;
+            /**
+             * Job Id
+             * Format: uuid
+             */
+            job_id: string;
+            /** Job Number */
+            job_number?: string | null;
+            /** Machine Code */
+            machine_code?: string | null;
+            /**
+             * Machine Id
+             * Format: uuid
+             */
+            machine_id: string;
+            /** Machine Name */
+            machine_name?: string | null;
+            /** Note */
+            note: string | null;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+        };
+        /** NonRevenueApprovalDto */
+        NonRevenueApprovalDto: {
+            /**
+             * Activity Id
+             * Format: uuid
+             */
+            activity_id: string;
+            /** Activity Type */
+            activity_type: string;
+            /** Decided At */
+            decided_at: string | null;
+            /** Decided By */
+            decided_by: string | null;
+            /** Decided By Name */
+            decided_by_name?: string | null;
+            /** Decision Note */
+            decision_note: string | null;
+            /**
+             * Ended At
+             * Format: date-time
+             */
+            ended_at: string;
+            /** Hours */
+            hours: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Job Id
+             * Format: uuid
+             */
+            job_id: string;
+            /** Job Number */
+            job_number?: string | null;
+            /** Machine Code */
+            machine_code?: string | null;
+            /**
+             * Machine Id
+             * Format: uuid
+             */
+            machine_id: string;
+            /** Machine Name */
+            machine_name?: string | null;
+            /** Note */
+            note: string;
+            /** Policy Version */
+            policy_version: string;
+            /**
+             * Proposed At
+             * Format: date-time
+             */
+            proposed_at: string;
+            /** Proposed By */
+            proposed_by: string | null;
+            /** Proposed By Name */
+            proposed_by_name?: string | null;
+            /**
+             * Reason Id
+             * Format: uuid
+             */
+            reason_id: string;
+            /** Reason Name */
+            reason_name?: string | null;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /**
+             * Status
+             * @description PROPOSED | APPROVED | REJECTED
+             */
+            status: string;
+        };
+        /** NonRevenueApprovalIn */
+        NonRevenueApprovalIn: {
+            /**
+             * Activity Id
+             * Format: uuid
+             */
+            activity_id: string;
+            /** Note */
+            note: string;
+            /**
+             * Reason Id
+             * Format: uuid
+             * @description Active entry of the tenant's revenue reason list
+             */
+            reason_id: string;
+        };
+        /**
+         * NonRevenueApprovalStatus
+         * @enum {string}
+         */
+        NonRevenueApprovalStatus: "PROPOSED" | "APPROVED" | "REJECTED";
+        /** NonRevenueDecisionIn */
+        NonRevenueDecisionIn: {
+            /**
+             * Decision
+             * @enum {string}
+             */
+            decision: "APPROVE" | "REJECT";
+            /** Note */
+            note: string;
+        };
         /** NotificationChannelDeliveryDto */
         NotificationChannelDeliveryDto: {
             /** Attempts */
@@ -13283,6 +13891,17 @@ export interface components {
             /** Total */
             total: number;
         };
+        /** Page[DailyMachineSheetRowDto] */
+        Page_DailyMachineSheetRowDto_: {
+            /** Items */
+            items: components["schemas"]["DailyMachineSheetRowDto"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+        };
         /** Page[DepositAccountDto] */
         Page_DepositAccountDto_: {
             /** Items */
@@ -13503,6 +14122,28 @@ export interface components {
             /** Total */
             total: number;
         };
+        /** Page[NonRevenueActivityDto] */
+        Page_NonRevenueActivityDto_: {
+            /** Items */
+            items: components["schemas"]["NonRevenueActivityDto"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+        };
+        /** Page[NonRevenueApprovalDto] */
+        Page_NonRevenueApprovalDto_: {
+            /** Items */
+            items: components["schemas"]["NonRevenueApprovalDto"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+        };
         /** Page[NotificationChannelDeliveryDto] */
         Page_NotificationChannelDeliveryDto_: {
             /** Items */
@@ -13573,6 +14214,28 @@ export interface components {
         Page_RemittanceOverdueDto_: {
             /** Items */
             items: components["schemas"]["RemittanceOverdueDto"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+        };
+        /** Page[RevenueDifferenceDto] */
+        Page_RevenueDifferenceDto_: {
+            /** Items */
+            items: components["schemas"]["RevenueDifferenceDto"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+        };
+        /** Page[RevenueReasonDto] */
+        Page_RevenueReasonDto_: {
+            /** Items */
+            items: components["schemas"]["RevenueReasonDto"][];
             /** Page */
             page: number;
             /** Page Size */
@@ -13968,7 +14631,7 @@ export interface components {
          * PolicyType
          * @enum {string}
          */
-        PolicyType: "TRACKING" | "METER_CAPTURE" | "HIRE_BILLING" | "DEVICE_SYNC" | "EXPENSE_CAPTURE" | "FRAUD_CONTROLS" | "ENGINE_HOURS" | "CASH_CUSTODY" | "OVERSIGHT" | "CUSTOMER_HOURS";
+        PolicyType: "TRACKING" | "METER_CAPTURE" | "HIRE_BILLING" | "DEVICE_SYNC" | "EXPENSE_CAPTURE" | "FRAUD_CONTROLS" | "ENGINE_HOURS" | "CASH_CUSTODY" | "OVERSIGHT" | "CUSTOMER_HOURS" | "REVENUE_RECONCILIATION";
         /** PolicyVersionDto */
         PolicyVersionDto: {
             /**
@@ -14792,6 +15455,234 @@ export interface components {
             /** Reason */
             reason: string;
         };
+        /** RevenueAdjustmentDto */
+        RevenueAdjustmentDto: {
+            /** Amount */
+            amount: string;
+            /**
+             * Cause Id
+             * Format: uuid
+             */
+            cause_id: string;
+            /**
+             * Cause Type
+             * @description engine_hour_classification | non_revenue_approval
+             */
+            cause_type: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by: string | null;
+            /** Created By Name */
+            created_by_name?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** New Difference */
+            new_difference: string;
+            /** Previous Difference */
+            previous_difference: string;
+        };
+        /** RevenueDecisionIn */
+        RevenueDecisionIn: {
+            /**
+             * Decision
+             * @description APPROVE the proposed explanation (-> EXPLAINED), REJECT it (-> OPEN), or CONFIRM the difference as real (-> CONFIRMED)
+             * @enum {string}
+             */
+            decision: "APPROVE" | "REJECT" | "CONFIRM";
+            /** Note */
+            note: string;
+        };
+        /** RevenueDifferenceDto */
+        RevenueDifferenceDto: {
+            /**
+             * Adjusted Difference
+             * @description difference + the adjustments (null when there are none)
+             */
+            adjusted_difference?: string | null;
+            /**
+             * Adjustments
+             * @description Later changes recorded against a decided difference (never rewritten)
+             */
+            adjustments?: components["schemas"]["RevenueAdjustmentDto"][];
+            /** Attributed Amount */
+            attributed_amount: string;
+            /** Case Id */
+            case_id: string | null;
+            /** Case Number */
+            case_number?: string | null;
+            /**
+             * Computed At
+             * Format: date-time
+             */
+            computed_at: string;
+            /** Currency */
+            currency: string;
+            /** Customer Work Hours */
+            customer_work_hours: string;
+            /** Decided At */
+            decided_at: string | null;
+            /** Decided By */
+            decided_by: string | null;
+            /** Decided By Name */
+            decided_by_name?: string | null;
+            /** Decision Note */
+            decision_note: string | null;
+            /**
+             * Detail
+             * @description jobs [{job_id, job_number, expected, attributed}] and money sources
+             */
+            detail: {
+                [key: string]: unknown;
+            };
+            /** Difference */
+            difference: string;
+            /** Expected Amount */
+            expected_amount: string;
+            /** Explained At */
+            explained_at: string | null;
+            /** Explained By */
+            explained_by: string | null;
+            /** Explained By Name */
+            explained_by_name?: string | null;
+            /** Explanation Note */
+            explanation_note: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** In Progress Amount */
+            in_progress_amount: string;
+            /** Job Id */
+            job_id: string | null;
+            /** Job Number */
+            job_number?: string | null;
+            /**
+             * Local From
+             * Format: date
+             */
+            local_from: string;
+            /**
+             * Local To
+             * Format: date
+             */
+            local_to: string;
+            /** Machine Code */
+            machine_code?: string | null;
+            /**
+             * Machine Id
+             * Format: uuid
+             */
+            machine_id: string;
+            /** Machine Name */
+            machine_name?: string | null;
+            /** Non Revenue Hours */
+            non_revenue_hours: string;
+            /**
+             * Opened At
+             * Format: date-time
+             */
+            opened_at: string;
+            /**
+             * Period End
+             * Format: date-time
+             */
+            period_end: string;
+            /** Period Key */
+            period_key: string;
+            /** Period Kind */
+            period_kind: string;
+            /**
+             * Period Start
+             * Format: date-time
+             */
+            period_start: string;
+            /** Policy Version */
+            policy_version: string;
+            /** Reason Id */
+            reason_id: string | null;
+            /** Reason Name */
+            reason_name?: string | null;
+            status: components["schemas"]["RevenueDifferenceStatus"];
+            /**
+             * Unexplained Expected Amount
+             * @description Unexplained hours expected as revenue (in expected)
+             */
+            unexplained_expected_amount: string;
+            /**
+             * Unexplained Hours
+             * @description Engine hours outside jobs not approved as non-customer activity
+             */
+            unexplained_hours: string;
+        };
+        /**
+         * RevenueDifferenceStatus
+         * @enum {string}
+         */
+        RevenueDifferenceStatus: "OPEN" | "EXPLANATION_PROPOSED" | "EXPLAINED" | "CONFIRMED" | "CLEARED";
+        /** RevenueExplanationIn */
+        RevenueExplanationIn: {
+            /** Note */
+            note: string;
+            /**
+             * Reason Id
+             * Format: uuid
+             * @description Active entry of the tenant's revenue reason list
+             */
+            reason_id: string;
+        };
+        /** RevenueReasonDto */
+        RevenueReasonDto: {
+            /** Code */
+            code: string;
+            /** Deactivated At */
+            deactivated_at?: string | null;
+            /** Deactivation Reason */
+            deactivation_reason?: string | null;
+            /** Description */
+            description: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Name */
+            name: string;
+            /** Version */
+            version: number;
+        };
+        /** RevenueReasonIn */
+        RevenueReasonIn: {
+            /** Code */
+            code: string;
+            /** Description */
+            description?: string | null;
+            /** Name */
+            name: string;
+        };
+        /** RevenueReasonUpdateIn */
+        RevenueReasonUpdateIn: {
+            /** Code */
+            code: string;
+            /** Description */
+            description?: string | null;
+            /** Name */
+            name: string;
+            /**
+             * Version
+             * @description Optimistic concurrency token from the last read
+             */
+            version: number;
+        };
         /** ReviewIn */
         ReviewIn: {
             /** Note */
@@ -14920,6 +15811,11 @@ export interface components {
         SegmentClassification: "NOT_APPLICABLE" | "UNEXPLAINED" | "APPROVED_NON_CUSTOMER" | "IDENTIFIED_VARIANCE";
         /** SegmentDto */
         SegmentDto: {
+            /**
+             * Activity Type
+             * @description NON_REVENUE segments: the work-log type (e.g. MOBILIZATION) — DEC-031 R1
+             */
+            activity_type?: string | null;
             approved: components["schemas"]["ClassificationRefDto"] | null;
             classification: components["schemas"]["SegmentClassification"];
             /** Hours */
@@ -14935,7 +15831,7 @@ export interface components {
          * SegmentKind
          * @enum {string}
          */
-        SegmentKind: "CUSTOMER_WORK" | "UNALLOCATED";
+        SegmentKind: "CUSTOMER_WORK" | "UNALLOCATED" | "NON_REVENUE";
         /** SettlementDecisionIn */
         SettlementDecisionIn: {
             /** Note */
@@ -14954,6 +15850,207 @@ export interface components {
          * @enum {string}
          */
         Severity: "INFO" | "WARNING" | "CRITICAL";
+        /**
+         * SheetFlag
+         * @enum {string}
+         */
+        SheetFlag: "MISSING_DAILY_REPORT" | "UNEXPLAINED_HOURS" | "ENGINE_ON_WITHOUT_JOB" | "FUEL_ABOVE_NORM" | "REVENUE_DIFFERENCE";
+        /** SheetFlagRefDto */
+        SheetFlagRefDto: {
+            flag: components["schemas"]["SheetFlag"];
+            /**
+             * Record Id
+             * Format: uuid
+             */
+            record_id: string;
+            /**
+             * Record Type
+             * @description job_exception | risk_signal | revenue_difference
+             */
+            record_type: string;
+        };
+        /** SheetFuelDto */
+        SheetFuelDto: {
+            /** Event Type */
+            event_type: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Job Id */
+            job_id: string | null;
+            /** Litres */
+            litres: string;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+        };
+        /** SheetJobDto */
+        SheetJobDto: {
+            /** Billing Mode */
+            billing_mode: string;
+            /** Customer Id */
+            customer_id?: string | null;
+            /** Customer Name */
+            customer_name?: string | null;
+            /** Customer Work Hours */
+            customer_work_hours: string;
+            /**
+             * Job Id
+             * Format: uuid
+             */
+            job_id: string;
+            /** Job Number */
+            job_number?: string | null;
+            /** Job Site Id */
+            job_site_id?: string | null;
+            /** Job Site Name */
+            job_site_name?: string | null;
+            /** Revenue Hours */
+            revenue_hours: string;
+            /** Status */
+            status: string;
+        };
+        /** SheetMoneyDto */
+        SheetMoneyDto: {
+            /**
+             * Attributed
+             * @description Invoice lines and prepaid consumption attributed to the day's work
+             */
+            attributed: string;
+            /** Currency */
+            currency: string;
+            /**
+             * Difference
+             * @description expected - in_progress - attributed (negative: more money than expected)
+             */
+            difference: string;
+            /**
+             * Expected
+             * @description Expected revenue from the day's work (hours x locked rate, + standby/fee)
+             */
+            expected: string;
+            /**
+             * In Progress
+             * @description Part of `expected` from jobs still running (not yet billable)
+             */
+            in_progress: string;
+            /**
+             * Unexplained Expected
+             * @description Unexplained hours expected as revenue (part of `expected`; 0 when the tenant excludes them)
+             * @default 0
+             */
+            unexplained_expected: string;
+            /**
+             * Unexplained Hours
+             * @description Engine hours outside jobs not approved as non-customer activity
+             * @default 0
+             */
+            unexplained_hours: string;
+        };
+        /** SheetMoneySourceDto */
+        SheetMoneySourceDto: {
+            /**
+             * Amount
+             * @description Whole amount of the source (attributed to days pro rata)
+             */
+            amount: string;
+            /** Currency */
+            currency: string;
+            /** Hours */
+            hours: string | null;
+            /**
+             * Job Id
+             * Format: uuid
+             */
+            job_id: string;
+            /** Job Number */
+            job_number?: string | null;
+            /**
+             * Parent Id
+             * Format: uuid
+             * @description Invoice id or customer-hours purchase id
+             */
+            parent_id: string;
+            /**
+             * Ref Id
+             * Format: uuid
+             * @description Invoice line id or customer-hours ledger entry id
+             */
+            ref_id: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "INVOICE_LINE" | "PREPAID_CONSUMPTION";
+        };
+        /** SheetReadingDto */
+        SheetReadingDto: {
+            /**
+             * Captured At
+             * Format: date-time
+             */
+            captured_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Job Id */
+            job_id: string | null;
+            /** Job Number */
+            job_number?: string | null;
+            /** Kind */
+            kind: string;
+            /** Reading */
+            reading: string;
+            /** State */
+            state: string;
+        };
+        /** SheetSegmentDto */
+        SheetSegmentDto: {
+            /** Classification */
+            classification: string;
+            /** Customer Work Hours In Day */
+            customer_work_hours_in_day: string;
+            /**
+             * End At
+             * Format: date-time
+             */
+            end_at: string;
+            /**
+             * End Ref
+             * Format: uuid
+             */
+            end_ref: string;
+            /** Hours In Day */
+            hours_in_day: string;
+            /** Job Id */
+            job_id: string | null;
+            /** Job Number */
+            job_number?: string | null;
+            /** Kind */
+            kind: string;
+            /** Non Revenue By Type */
+            non_revenue_by_type: {
+                [key: string]: string;
+            };
+            /** Review */
+            review: string;
+            /**
+             * Start At
+             * Format: date-time
+             */
+            start_at: string;
+            /**
+             * Start Ref
+             * Format: uuid
+             */
+            start_ref: string;
+        };
         /**
          * SignalSeverity
          * @enum {string}
@@ -16201,6 +17298,12 @@ export interface components {
             customer_work_hours: string;
             /** Identified Variance Hours */
             identified_variance_hours: string;
+            /**
+             * Non Revenue Hours
+             * @description Non-revenue work-log time inside job windows (revenue-hour basis on; else 0) — DEC-031 R1
+             * @default 0
+             */
+            non_revenue_hours: string;
             /** Pending Review Hours */
             pending_review_hours: string;
             /** Proposed Hours */
@@ -36326,6 +37429,286 @@ export interface operations {
             };
         };
     };
+    listDailyMachineSheet: {
+        parameters: {
+            query?: {
+                machine_id?: string | null;
+                site_id?: string | null;
+                /** @description First tenant-local day (default: 6 days before day_to) */
+                day_from?: string | null;
+                /** @description Last tenant-local day, inclusive (default: today) */
+                day_to?: string | null;
+                page?: number;
+                page_size?: number;
+                q?: string | null;
+                sort?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_DailyMachineSheetRowDto_"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    exportDailyMachineSheetCsv: {
+        parameters: {
+            query?: {
+                q?: string | null;
+                machine_id?: string | null;
+                site_id?: string | null;
+                /** @description First tenant-local day (default: 6 days before day_to) */
+                day_from?: string | null;
+                /** @description Last tenant-local day, inclusive (default: today) */
+                day_to?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": unknown;
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getDailyMachineSheetDay: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                machine_id: string;
+                day: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DailyMachineSheetDetailDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     listDepositAccounts: {
         parameters: {
             query?: {
@@ -48511,6 +49894,465 @@ export interface operations {
             };
         };
     };
+    listNonRevenueActivities: {
+        parameters: {
+            query?: {
+                machine_id?: string | null;
+                job_id?: string | null;
+                /** @description NONE: not explained yet */
+                status?: string | null;
+                page?: number;
+                page_size?: number;
+                q?: string | null;
+                sort?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_NonRevenueActivityDto_"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listNonRevenueApprovals: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["NonRevenueApprovalStatus"] | null;
+                machine_id?: string | null;
+                job_id?: string | null;
+                page?: number;
+                page_size?: number;
+                q?: string | null;
+                sort?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_NonRevenueApprovalDto_"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    proposeNonRevenueApproval: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NonRevenueApprovalIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NonRevenueApprovalDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getNonRevenueApproval: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                approval_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NonRevenueApprovalDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    decideNonRevenueApproval: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                approval_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NonRevenueDecisionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NonRevenueApprovalDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     listMyNotificationChannelDeliveries: {
         parameters: {
             query?: {
@@ -52398,6 +54240,922 @@ export interface operations {
                 };
                 content: {
                     "application/pdf": unknown;
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listRevenueDifferences: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["RevenueDifferenceStatus"] | null;
+                machine_id?: string | null;
+                /** @description First tenant-local day (default: 6 days before day_to) */
+                day_from?: string | null;
+                /** @description Last tenant-local day, inclusive (default: today) */
+                day_to?: string | null;
+                page?: number;
+                page_size?: number;
+                q?: string | null;
+                sort?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_RevenueDifferenceDto_"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getRevenueDifference: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                difference_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevenueDifferenceDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    decideRevenueDifference: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                difference_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RevenueDecisionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevenueDifferenceDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    explainRevenueDifference: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                difference_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RevenueExplanationIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevenueDifferenceDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listRevenueReasons: {
+        parameters: {
+            query?: {
+                /** @description Also return deactivated/retired/closed records (hidden by default) */
+                include_inactive?: boolean;
+                page?: number;
+                page_size?: number;
+                q?: string | null;
+                sort?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_RevenueReasonDto_"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    createRevenueReason: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RevenueReasonIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevenueReasonDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getRevenueReason: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                reason_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevenueReasonDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    updateRevenueReason: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                reason_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RevenueReasonUpdateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevenueReasonDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    deactivateRevenueReason: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                reason_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LifecycleChangeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevenueReasonDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    reactivateRevenueReason: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                reason_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LifecycleChangeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevenueReasonDto"];
                 };
             };
             /** @description Bad Request */

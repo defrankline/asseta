@@ -59,7 +59,13 @@ from asseta.modules.finance.models import (
 from asseta.modules.identity.models import AppUser
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.intelligence.models import AnomalyCase, CaseStatus
-from asseta.modules.policy.capabilities import CASH_CUSTODY, CUSTOMER_HOURS, ENGINE_HOURS, disabled_capabilities
+from asseta.modules.policy.capabilities import (
+    CASH_CUSTODY,
+    CUSTOMER_HOURS,
+    ENGINE_HOURS,
+    REVENUE_RECONCILIATION,
+    disabled_capabilities,
+)
 from asseta.modules.policy.service import PolicyService
 from asseta.modules.sync.models import ClientOperation, DeviceSession, OperationStatus
 
@@ -70,6 +76,7 @@ TILES = (
     "engine_hours",
     "unexplained_hours",
     "missing_daily_reports",
+    "revenue_differences",
     "investigations",
     "cash",
     "payments",
@@ -85,6 +92,7 @@ TILE_CAPABILITY = {
     "engine_hours": ENGINE_HOURS,
     "unexplained_hours": ENGINE_HOURS,
     "missing_daily_reports": ENGINE_HOURS,
+    "revenue_differences": REVENUE_RECONCILIATION,
 }
 
 

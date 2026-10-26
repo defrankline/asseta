@@ -81,6 +81,8 @@ RECORDS: dict[str, tuple[str, str]] = {
     "baseline": ("METER_BASELINE", "/tenant/meter-baselines"),
     "correction": ("METER_CORRECTION", "/tenant/meter-corrections"),
     "classification": ("ENGINE_HOURS_CLASSIFICATION", "/tenant/engine-hours/classifications"),
+    "revenue_difference": ("REVENUE_DIFFERENCE", "/tenant/revenue-differences"),
+    "non_revenue_approval": ("NON_REVENUE_APPROVAL", "/tenant/non-revenue-approvals"),
 }
 
 
@@ -609,6 +611,60 @@ def _cash_variance(session: Session, e: DomainEvent) -> list[Intent]:
             record_link("cash_variance", p["variance_id"], "/tenant/cash/variances"),
             "cash_variance",
             p["variance_id"],
+        )
+    ]
+
+
+@rule("RevenueDifferenceOpened", "RevenueExplanationProposed")
+def _revenue_difference(session: Session, e: DomainEvent) -> list[Intent]:
+    """DEC-031 R3: a revenue difference to explain (sweep) or an explanation awaiting a second person's decision.
+    Neutral wording: a difference is never a verdict."""
+    p = e.payload
+    machine = _machine_label(session, p.get("machine_id"))
+    period = str(p.get("period_key", "")).replace(":", " ")
+    if e.event_type == "RevenueDifferenceOpened":
+        title = f"Revenue difference to explain: {machine}"
+        body = (
+            f"{period}: expected {p['currency']} {p['expected_amount']} from engine hours, money attributed "
+            f"{p['currency']} {p['attributed_amount']} (difference {p['currency']} {p['difference']})."
+        )
+    else:
+        title = f"Revenue explanation to decide: {machine}"
+        body = (
+            f'{period}: a difference of {p["currency"]} {p["difference"]} was explained as "{p.get("reason")}"; '
+            "it awaits a decision by someone other than the person who explained it."
+        )
+    return [
+        Intent(
+            "REVENUE_DIFFERENCE",
+            (perm("tenant.revenue.decide"),),
+            title,
+            body,
+            _key(e),
+            record_link("revenue_difference", p["difference_id"], "/tenant/revenue-differences"),
+            "revenue_difference",
+            p["difference_id"],
+        )
+    ]
+
+
+@rule("NonRevenueApprovalProposed")
+def _non_revenue_approval(session: Session, e: DomainEvent) -> list[Intent]:
+    """DEC-031 (owner rule): non-revenue time explained by one person, awaiting another's approval."""
+    p = e.payload
+    machine = _machine_label(session, p.get("machine_id"))
+    kind = str(p.get("activity_type", "")).replace("_", " ").lower()
+    return [
+        Intent(
+            "NON_REVENUE_APPROVAL_REQUESTED",
+            (perm("tenant.revenue.decide"),),
+            f"Non-revenue hours to approve: {machine}",
+            f'{p["hours"]} h of {kind} explained as "{p.get("reason")}"; until approved by someone other than the '
+            "person who explained it, the time counts as revenue.",
+            _key(e),
+            record_link("non_revenue_approval", p["approval_id"], "/tenant/non-revenue-approvals"),
+            "non_revenue_approval",
+            p["approval_id"],
         )
     ]
 

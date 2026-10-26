@@ -8,14 +8,16 @@ tenant A's OWNER — the most privileged tenant role — addresses B's real ids 
 """
 
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import pytest
 from fastapi import FastAPI
 
 from asseta.core.db import get_sessionmaker
 from asseta.modules.finance.remittance_cutoff import run_remittance_cutoff
+from asseta.modules.revenue.reconciliation import run_revenue_reconciliation
 from tests.support.api import Actor, Api
 from tests.support.finance import (
     FinCtx,
@@ -110,6 +112,7 @@ def _populate_b(api: Api) -> tuple[FinCtx, dict[tuple[str, str], str]]:
     drain(api)
     ids.update(_customer_hours_b(api, f))
     ids.update(_cash_chain_b(api, f))
+    ids.update(_revenue_b(api, f))
     optional = {
         ("/notifications/", "notification_id"): f"{T}/notifications",
         ("/assignments/", "assignment_id"): f"{T}/machines/{f.c.t.machine_id}/assignments",
@@ -256,6 +259,52 @@ def _cash_chain_b(api: Api, f: FinCtx) -> dict[tuple[str, str], str]:
     }
 
 
+def _revenue_policy(owner: Actor) -> None:
+    r = owner.post(
+        f"{T}/policies/REVENUE_RECONCILIATION/versions",
+        {
+            "scope": "TENANT",
+            "values": {"enabled": True, "period": "DAY", "deduct_non_revenue_from_working_hours": True},
+            "reason": "Revenue checks on",
+        },
+    )
+    assert r.status_code == 201, r.text
+
+
+def _revenue_b(api: Api, f: FinCtx) -> dict[tuple[str, str], str]:
+    """B's revenue records (DEC-031): a reason, a non-revenue approval proposal and a revenue difference (the
+    unexplained engine hours after the job are expected revenue), plus a machine-day of the daily sheet."""
+    o = f.owner
+    _revenue_policy(o)
+    job = o.get(f"{T}/jobs/{f.c.job_id}").json()["job"]
+    start = datetime.fromisoformat(job["started_at"])
+    move = o.post(
+        f"{T}/jobs/{f.c.job_id}/activities",
+        {
+            "client_id": str(uuid.uuid4()),
+            "activity_type": "MOBILIZATION",
+            "started_at": start.isoformat(),
+            "ended_at": (start + timedelta(minutes=30)).isoformat(),
+        },
+    )
+    assert move.status_code == 201, move.text
+    reason = o.post(f"{T}/revenue-reasons", {"code": "MOVE", "name": "B move"}).json()["id"]
+    approval = f.accountant.post(
+        f"{T}/non-revenue-approvals",
+        {"activity_id": move.json()["id"], "reason_id": reason, "note": "B moved to site"},
+    )
+    assert approval.status_code == 201, approval.text
+    assert run_revenue_reconciliation(get_sessionmaker(), api.clock.now + timedelta(days=2)).opened >= 1
+    diff = o.get(f"{T}/revenue-differences").json()["items"][0]["id"]
+    return {
+        ("/revenue-reasons/", "reason_id"): reason,
+        ("/non-revenue-approvals/", "approval_id"): approval.json()["id"],
+        ("/revenue-differences/", "difference_id"): diff,
+        ("/daily-machine-sheet/", "machine_id"): f.c.t.machine_id,
+        ("{machine_id}/", "day"): start.astimezone(ZoneInfo("Africa/Dar_es_Salaam")).date().isoformat(),
+    }
+
+
 def _engine_hours_records(api: Api, f: FinCtx) -> dict[tuple[str, str], str]:
     """Baseline (from the earliest reading, approved by a second owner), a list entry, a classification proposal
     and a correction proposal on B's machine."""
@@ -327,6 +376,7 @@ def world(api: Api) -> tuple[Actor, FinCtx, dict[tuple[str, str], str]]:
     f, ids = _populate_b(api)
     a = api.onboard("Idor Alpha", price="1000")
     api.activate(a)
+    _revenue_policy(a["owner"])  # A has the capability too: B's revenue records are still not found
     return a["owner"], f, ids
 
 

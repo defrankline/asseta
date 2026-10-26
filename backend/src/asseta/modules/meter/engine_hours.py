@@ -9,7 +9,7 @@ from datetime import date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import and_, exists, or_, select
+from sqlalchemy import Select, and_, exists, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -19,6 +19,7 @@ from asseta.modules.fleet.models import Machine
 from asseta.modules.jobs.models import ActivityType, Job, JobActivity, JobStatus
 from asseta.modules.meter.engine_models import EngineHourClassification, MachineMeterBaseline, MeterProposalStatus
 from asseta.modules.meter.ledger import (
+    ActivitySpan,
     ClassificationFact,
     JobSpan,
     Ledger,
@@ -136,9 +137,43 @@ def load_machine_ledger(s: Session, tenant_id: uuid.UUID, machine: Machine, now:
             )
         ).scalars()
     ]
+    spans = job_spans(s, machine.id)
+    activities = non_revenue_activities(s, tenant_id, [sp.job_id for sp in spans], now)
     return MachineLedger(
-        machine, baseline, proposal, build_ledger(points, resets, job_spans(s, machine.id), classifications), eff
+        machine, baseline, proposal, build_ledger(points, resets, spans, classifications, activities), eff
     )
+
+
+def approved_non_revenue_ids() -> Select[uuid.UUID]:
+    from asseta.modules.revenue.models import (  # lazy: revenue builds on meter
+        NonRevenueApproval,
+        NonRevenueApprovalStatus,
+    )
+
+    return select(NonRevenueApproval.activity_id).where(NonRevenueApproval.status == NonRevenueApprovalStatus.APPROVED)
+
+
+def non_revenue_activities(
+    s: Session, tenant_id: uuid.UUID, job_ids: list[uuid.UUID], now: datetime
+) -> list[ActivitySpan]:
+    """[DEC-031 R1] Non-billable, ended work-log entries of the tenant's declared non-revenue types on these jobs
+    (approved ones only, when the tenant requires approval) — only while the tenant's revenue-hour basis is on
+    (`deduct_non_revenue_from_working_hours`); none otherwise, so the ledger is exactly as before."""
+    policy = PolicyService(s).revenue_reconciliation(tenant_id, at=now).policy.in_force()
+    if not policy.deduct_non_revenue_from_working_hours or not policy.non_revenue_activity_types or not job_ids:
+        return []
+    stmt = select(JobActivity).where(
+        JobActivity.job_id.in_(job_ids),
+        JobActivity.activity_type.in_(policy.non_revenue_activity_types),
+        JobActivity.billable.is_(False),
+        JobActivity.ended_at.is_not(None),
+    )
+    if policy.non_revenue_requires_approval:  # owner rule: non-revenue only once explained and approved
+        stmt = stmt.where(JobActivity.id.in_(approved_non_revenue_ids()))
+    rows = s.execute(stmt).scalars()
+    return [
+        ActivitySpan(a.job_id, a.activity_type.value, a.started_at, a.ended_at) for a in rows if a.ended_at is not None
+    ]
 
 
 def approved_resets(s: Session, machine_id: uuid.UUID) -> list[ResetPoint]:

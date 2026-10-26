@@ -120,6 +120,7 @@ function makeInterval(overrides: Partial<IntervalDto> = {}): IntervalDto {
 const TOTALS = {
   total_hours: '12.5',
   customer_work_hours: '10.0',
+  non_revenue_hours: '0',
   unallocated_hours: '2.5',
   unexplained_hours: '2.5',
   proposed_hours: '0',

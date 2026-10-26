@@ -21,6 +21,7 @@ from asseta.core.db import utcnow
 from asseta.core.errors import BusinessRuleViolation, ErrorDetail
 from asseta.modules.policy.engine_hours import EngineHoursPolicy
 from asseta.modules.policy.models import PolicyVersion
+from asseta.modules.policy.revenue import RevenueReconciliationPolicy
 from asseta.modules.policy.schemas import (
     OVERRIDABLE,
     SCHEMAS,
@@ -172,6 +173,14 @@ class PolicyService:
 
     def oversight(self, tenant_id: uuid.UUID, at: datetime | None = None) -> EffectivePolicy[OversightPolicy]:
         return cast(EffectivePolicy[OversightPolicy], self.resolve(PolicyType.OVERSIGHT, tenant_id, at=at))
+
+    def revenue_reconciliation(
+        self, tenant_id: uuid.UUID, at: datetime | None = None
+    ) -> EffectivePolicy[RevenueReconciliationPolicy]:
+        return cast(
+            EffectivePolicy[RevenueReconciliationPolicy],
+            self.resolve(PolicyType.REVENUE_RECONCILIATION, tenant_id, at=at),
+        )
 
     def engine_hours(
         self, tenant_id: uuid.UUID, machine_id: uuid.UUID | None = None, at: datetime | None = None

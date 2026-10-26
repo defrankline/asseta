@@ -136,6 +136,9 @@ class SegmentDto(BaseModel):
     job_number: str | None
     approved: ClassificationRefDto | None
     proposal: ClassificationRefDto | None
+    activity_type: str | None = Field(
+        default=None, description="NON_REVENUE segments: the work-log type (e.g. MOBILIZATION) — DEC-031 R1"
+    )
 
 
 class IntervalDto(BaseModel):
@@ -156,6 +159,10 @@ class IntervalDto(BaseModel):
 class TotalsDto(BaseModel):
     total_hours: Decimal
     customer_work_hours: Decimal
+    non_revenue_hours: Decimal = Field(
+        default=Decimal(0),
+        description="Non-revenue work-log time inside job windows (revenue-hour basis on; else 0) — DEC-031 R1",
+    )
     unallocated_hours: Decimal
     approved_non_customer_hours: Decimal
     identified_variance_hours: Decimal

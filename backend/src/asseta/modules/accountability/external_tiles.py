@@ -150,10 +150,16 @@ def missing_daily_reports_tile(s: Session, ctx: RequestContext, now: datetime) -
     }
 
 
+def revenue_differences_tile(s: Session, ctx: RequestContext, now: datetime) -> dict[str, Any]:
+    """[DEC-031 R3] Revenue differences to explain / decide (revenue module)."""
+    return dict(_optional("asseta.modules.revenue.tile", "revenue_differences_tile")(s, ctx, now))
+
+
 EXTERNAL_TILES: dict[str, Tile] = {
     "customer_hours": customer_hours_tile,
     "hours_awaiting_activation": hours_awaiting_activation_tile,
     "engine_hours": engine_hours_tile,
     "unexplained_hours": unexplained_hours_tile,
     "missing_daily_reports": missing_daily_reports_tile,
+    "revenue_differences": revenue_differences_tile,
 }

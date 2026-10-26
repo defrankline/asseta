@@ -5,23 +5,27 @@ intervals; each interval's elapsed engine hours come from the two readings (an a
 re-bases the count). An interval inside a started job's opening->closing window is CUSTOMER_WORK; anything else is
 UNALLOCATED and carries a classification: UNEXPLAINED until a person's explanation (APPROVED_NON_CUSTOMER with a
 tenant category, or IDENTIFIED_VARIANCE with a tenant reason) is approved. Time alone never changes a
-classification. Nothing here is stored: the ledger is re-derived from immutable readings on every read, so it is
-always reproducible from its sources ([3.4.6], [3.4.7])."""
+classification. When the tenant's revenue-hour basis is on (DEC-031 R1), non-billable work-log time of the job's
+declared non-revenue types (e.g. MOBILIZATION) inside a customer-work interval is its own NON_REVENUE bucket.
+Nothing here is stored: the ledger is re-derived from immutable readings on every read, so it is always
+reproducible from its sources ([3.4.6], [3.4.7])."""
 
 import itertools
 import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
-from decimal import Decimal
+from decimal import ROUND_DOWN, Decimal
 from enum import StrEnum
 
 ZERO = Decimal(0)
+HOUR_STEP = Decimal("0.01")
 
 
 class SegmentKind(StrEnum):
     CUSTOMER_WORK = "CUSTOMER_WORK"
     UNALLOCATED = "UNALLOCATED"
+    NON_REVENUE = "NON_REVENUE"  # non-revenue work-log time inside a job window (revenue-hour basis, DEC-031 R1)
 
 
 class SegmentClassification(StrEnum):
@@ -67,6 +71,16 @@ class JobSpan:
 
 
 @dataclass(frozen=True)
+class ActivitySpan:
+    """A non-billable work-log entry of a declared non-revenue type (wall-clock window) on one job."""
+
+    job_id: uuid.UUID
+    activity_type: str
+    start: datetime
+    end: datetime
+
+
+@dataclass(frozen=True)
 class ClassificationFact:
     id: uuid.UUID
     start_ref: uuid.UUID
@@ -93,6 +107,16 @@ class LedgerInterval:
     overlapping_job_ids: list[uuid.UUID] = field(default_factory=list)
     approved: ClassificationFact | None = None
     proposal: ClassificationFact | None = None
+    non_revenue: dict[str, Decimal] = field(default_factory=dict)  # activity type -> engine hours (R1)
+
+    @property
+    def non_revenue_hours(self) -> Decimal:
+        return sum(self.non_revenue.values(), ZERO)
+
+    @property
+    def customer_work_hours(self) -> Decimal:
+        """Customer-work hours after the revenue-hour basis (0 for unallocated intervals)."""
+        return self.hours - self.non_revenue_hours if self.kind is SegmentKind.CUSTOMER_WORK else ZERO
 
     @property
     def key(self) -> tuple[uuid.UUID, uuid.UUID]:
@@ -117,6 +141,7 @@ class LedgerInterval:
 class LedgerTotals:
     total_hours: Decimal = ZERO
     customer_work_hours: Decimal = ZERO
+    non_revenue_hours: Decimal = ZERO  # revenue-hour basis (DEC-031 R1); 0 while the tenant has it off
     unallocated_hours: Decimal = ZERO
     approved_non_customer_hours: Decimal = ZERO
     identified_variance_hours: Decimal = ZERO
@@ -142,7 +167,8 @@ class Ledger:
         for i in self.intervals if intervals is None else intervals:
             t.total_hours += i.hours
             if i.kind is SegmentKind.CUSTOMER_WORK:
-                t.customer_work_hours += i.hours
+                t.customer_work_hours += i.customer_work_hours
+                t.non_revenue_hours += i.non_revenue_hours
                 continue
             t.unallocated_hours += i.hours
             if i.review is ReadingReview.PENDING_REVIEW:
@@ -200,11 +226,34 @@ def job_overlaps(spans: Sequence[JobSpan], resets: Sequence[ResetPoint] = ()) ->
     return out
 
 
+def non_revenue_split(
+    hours: Decimal, start: datetime, end: datetime, job_id: uuid.UUID, activities: Sequence[ActivitySpan]
+) -> dict[str, Decimal]:
+    """Engine hours of a customer-work interval that belong to its job's non-revenue activities: the wall-clock
+    overlap of each type with the interval (the engine is taken to run while moving/standing by), never more than
+    the interval's engine hours (scaled down proportionally), rounded down to 0.01 h."""
+    seconds: dict[str, float] = {}
+    for a in activities:
+        if a.job_id != job_id:
+            continue
+        overlap = (min(a.end, end) - max(a.start, start)).total_seconds()
+        if overlap > 0:
+            seconds[a.activity_type] = seconds.get(a.activity_type, 0.0) + overlap
+    if not seconds or hours <= ZERO:
+        return {}
+    raw = {t: Decimal(str(v)) / Decimal(3600) for t, v in seconds.items()}
+    total = sum(raw.values(), ZERO)
+    scale = min(Decimal(1), hours / total)
+    out = {t: (v * scale).quantize(HOUR_STEP, rounding=ROUND_DOWN) for t, v in sorted(raw.items())}
+    return {t: v for t, v in out.items() if v > ZERO}
+
+
 def build_ledger(
     points: Sequence[LedgerPoint],
     resets: Sequence[ResetPoint],
     spans: Sequence[JobSpan],
     classifications: Sequence[ClassificationFact],
+    non_revenue: Sequence[ActivitySpan] = (),
 ) -> Ledger:
     ordered = sorted(points, key=lambda p: (p.at, p.reading, 0 if p.source == "BASELINE" else 1, str(p.ref)))
     by_key: dict[tuple[uuid.UUID, uuid.UUID], list[ClassificationFact]] = {}
@@ -231,6 +280,8 @@ def build_ledger(
             first = min(covering, key=lambda s: (s.start, str(s.job_id)))  # one job only: never counted twice
             interval.job_id, interval.job_number = first.job_id, first.job_number
             interval.overlapping_job_ids = [s.job_id for s in covering if s.job_id != first.job_id]
+            if non_revenue:
+                interval.non_revenue = non_revenue_split(hours, a.at, b.at, first.job_id, non_revenue)
         elif hours > ZERO:
             interval.classification = SegmentClassification.UNEXPLAINED
             for c in by_key.get(interval.key, []):

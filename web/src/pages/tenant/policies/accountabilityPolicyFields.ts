@@ -74,6 +74,7 @@ const DASHBOARD_TILES: readonly FieldOption[] = [
   { value: 'engine_hours', label: 'Engine hours' },
   { value: 'unexplained_hours', label: 'Unexplained engine hours' },
   { value: 'missing_daily_reports', label: 'Missing daily reports' },
+  { value: 'revenue_differences', label: 'Revenue differences' },
   { value: 'investigations', label: 'Investigations' },
   { value: 'cash', label: 'Cash' },
   { value: 'payments', label: 'Payments' },

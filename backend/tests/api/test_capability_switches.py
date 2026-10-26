@@ -88,13 +88,15 @@ def test_engine_hours_switched_off_keeps_the_job_meter_flow_from_before(api: Api
     o, sup, c, machine = f.owner, f.supervisor, f.c, f.c.t.machine_id
     t0 = api.clock.now
     nav = _nav(o)
-    assert nav["disabled_capabilities"] == [] and "tenant.engine_hours" in {g["key"] for g in nav["menu_groups"]}
+    assert nav["disabled_capabilities"] == ["REVENUE_RECONCILIATION"] and "tenant.engine_hours" in {
+        g["key"] for g in nav["menu_groups"]
+    }
     assert "OP_METER_BASELINE" in _device(api, sup)
 
     # Switched off, with its controls still configured on underneath: the master switch wins.
     engine_hours_policy(o, enabled=False, baseline_required_before_start=True, daily_report_required=True)
     nav = _nav(o)
-    assert nav["disabled_capabilities"] == ["ENGINE_HOURS"]
+    assert nav["disabled_capabilities"] == ["ENGINE_HOURS", "REVENUE_RECONCILIATION"]
     assert "tenant.engine_hours" not in {g["key"] for g in nav["menu_groups"]}
     keys = {m["key"] for m in nav["menus"]}
     assert not keys & {"tenant.engine_hours", "tenant.meter_baselines", "tenant.meter_corrections"}
@@ -129,7 +131,10 @@ def test_engine_hours_switched_off_keeps_the_job_meter_flow_from_before(api: Api
     # Its dashboard tiles are hidden.
     summary = _ok(o.get(f"{T}/accountability/summary"))
     assert {"engine_hours", "unexplained_hours", "missing_daily_reports"} <= set(summary["hidden_tiles"])
-    assert summary["engine_hours"] is None and summary["disabled_capabilities"] == ["ENGINE_HOURS"]
+    assert summary["engine_hours"] is None and summary["disabled_capabilities"] == [
+        "ENGINE_HOURS",
+        "REVENUE_RECONCILIATION",
+    ]
     assert summary["cash"] is not None
 
     # Devices: its operations are no longer announced, and queued ones are refused for review (never applied).
@@ -165,7 +170,7 @@ def test_cash_custody_switched_off_keeps_the_cash_basics(api: Api) -> None:
         variance_case_threshold="0",
     )
     nav = _nav(o)
-    assert nav["disabled_capabilities"] == ["CASH_CUSTODY"]
+    assert nav["disabled_capabilities"] == ["CASH_CUSTODY", "REVENUE_RECONCILIATION"]
     assert "tenant.cash_custody" in {m["key"] for m in nav["menus"]}  # the cash basics keep their page
 
     # The DEC-030 additions are refused.
@@ -205,7 +210,7 @@ def test_cash_custody_switched_off_keeps_the_cash_basics(api: Api) -> None:
 
     # Dashboard: the cash tile keeps the basics, its cash-control figures are empty.
     summary = _ok(o.get(f"{T}/accountability/summary"))
-    assert summary["disabled_capabilities"] == ["CASH_CUSTODY"]
+    assert summary["disabled_capabilities"] == ["CASH_CUSTODY", "REVENUE_RECONCILIATION"]
     tile = summary["cash"]
     assert tile["custodians"] and tile["transfers_awaiting_acknowledgement"] == []
     assert (tile["remittance_cutoff_hour"], tile["remittances_overdue_today"]) == (None, None)

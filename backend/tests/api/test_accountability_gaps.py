@@ -54,11 +54,11 @@ def test_menus_follow_the_tenant_capability_policy(api: Api) -> None:
     nav = _tenant_nav(f.owner)
     assert "tenant.hours" in {g["key"] for g in nav["menu_groups"]}
     assert {"tenant.hours.purchases", "tenant.field.hours"} <= {m["key"] for m in nav["menus"]}
-    assert nav["disabled_capabilities"] == []
+    assert nav["disabled_capabilities"] == ["REVENUE_RECONCILIATION"]  # off by default (DEC-031)
 
     hours_policy(f, enabled=False)  # the tenant switches customer hours off: its navigation goes with it
     nav = _tenant_nav(f.owner)
-    assert nav["disabled_capabilities"] == ["CUSTOMER_HOURS"]
+    assert nav["disabled_capabilities"] == ["CUSTOMER_HOURS", "REVENUE_RECONCILIATION"]
     assert "tenant.hours" not in {g["key"] for g in nav["menu_groups"]}
     keys = {m["key"] for m in nav["menus"]}
     assert not {k for k in keys if k.startswith("tenant.hours") or k == "tenant.field.hours"}

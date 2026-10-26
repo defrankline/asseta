@@ -165,7 +165,8 @@ class AccountabilitySummaryDto(BaseModel):
     unavailable_tiles: list[str]
     disabled_capabilities: list[str] = Field(
         default_factory=list,
-        description="Tenant capabilities switched off by policy (CUSTOMER_HOURS, ENGINE_HOURS, CASH_CUSTODY); their "
+        description="Tenant capabilities switched off by policy (CUSTOMER_HOURS, ENGINE_HOURS, CASH_CUSTODY, "
+        "REVENUE_RECONCILIATION); their "
         "tiles are hidden and, for CASH_CUSTODY, the cash-control figures of the cash/discrepancy/approval tiles are "
         "empty",
     )
@@ -183,6 +184,12 @@ class AccountabilitySummaryDto(BaseModel):
     )
     missing_daily_reports: dict[str, Any] | None = Field(
         default=None, description="[3.6.9] missing or overdue operational reports (meter module)"
+    )
+    revenue_differences: dict[str, Any] | None = Field(
+        default=None,
+        description="[DEC-031 R3] revenue differences: open, awaiting_decision, amounts [{currency, count, amount}], "
+        "oldest_open_days, window_days, explained/confirmed/cleared_in_window, items [{id, machine_id, machine_code, "
+        "period_key, local_from, local_to, currency, difference, status}] (revenue module)",
     )
     investigations: InvestigationsTileDto | None = None
     cash: CashTileDto | None = None

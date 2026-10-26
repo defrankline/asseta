@@ -214,6 +214,14 @@ export function sourceLinks(s: CaseSignalDto, c: AnomalyCaseDto): SourceLink[] {
       return [{ kind: 'route', label: 'Open alerts', to: ROUTES.tenantAlerts }];
     case 'CASH_VARIANCE':
       return [{ kind: 'route', label: 'Open cash custody', to: financeTabPath('custody') }];
+    case 'REVENUE_DIFFERENCE':
+      return [
+        {
+          kind: 'route',
+          label: 'Open revenue difference',
+          to: `/tenant/revenue-differences/${s.source_id}`,
+        },
+      ];
     case 'SOD_EVENT':
     case 'PREDICTION':
       return [];

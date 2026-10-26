@@ -141,3 +141,51 @@ tenant deliberately switches on; shown to the person in the app.
 | Q14 | Which deposit accounts does the owner use? | Tenant enters them (D1) |
 
 Owner decision: APPROVED 2026-10-26 ("The goal is maximum revenue and maximum safety of assets" … "yes lets goooo").
+
+## Implementation notes — Phase 1 (backend, 2026-10-26)
+
+Ambiguities resolved while building R1–R3 (all tenant-configurable where a rule is involved):
+
+- **Capability.** `REVENUE_RECONCILIATION.enabled` is the master switch (capability `REVENUE_RECONCILIATION`, platform
+  default **off**). Off = R1 deductions read as off, the sheet/difference/reason endpoints refuse with
+  `REVENUE_RECONCILIATION_DISABLED`, menus and the dashboard tile are hidden, and the sweep skips the tenant.
+- **Owner rule (2026-10-26): non-productive hours count as revenue until explained and approved.**
+  `non_revenue_requires_approval` (default **true**): a non-revenue work-log entry inside a job (declared types, e.g.
+  movement to/from a site) becomes non-revenue only after one person explains it (`tenant.revenue.explain`, tenant
+  reason + note) and another approves it (`tenant.revenue.decide`; proposer ≠ approver; same PROPOSED → APPROVED /
+  REJECTED flow and statuses as engine-hour classifications, record `non_revenue_approval`). Until approved it stays
+  customer work, billable and expected revenue (shown as `non_revenue_pending_hours` on the daily sheet). Engine hours
+  **outside** jobs that are not approved as non-customer activity (unexplained, proposed, rejected, or classified as
+  an identified variance — only APPROVED_NON_CUSTOMER removes them) are **expected revenue**
+  (`unexplained_hours_treatment` EXPECT_REVENUE default | EXCLUDE) at `unexplained_hours_rate_source`
+  MACHINE_RATE_CARD (default: the machine category's rate card in force, its currency; no rate card = shown, not
+  priced) | TENANT_RATE (`unexplained_hours_rate`, tenant base currency); they are their own line ("unexplained hours
+  expected as revenue") on the sheet and in each difference. When a classification or non-revenue approval is
+  approved later, recorded differences of the overlapping periods are recomputed at once (whatever `recheck_days`):
+  open ones are refreshed (CLEARED when back within tolerance); EXPLAINED / CONFIRMED ones keep their figures and get
+  an append-only **adjustment** entry (previous, new, amount, cause).
+- **R1 scope.** Only *non-billable, ended* work-log entries of the declared types count (an entry logged as billable
+  stays revenue). Their wall-clock overlap with a customer-work interval becomes the NON_REVENUE bucket, capped at the
+  interval's engine hours. `deduct_non_revenue_from_working_hours` also removes that time from an INVOICE job's
+  billable hours, and `deduct_non_revenue_from_prepaid_hours` from a PREPAID job's drawdown — both through the job
+  summary's existing billable-hours computation, using the policy in force when the job **started** (a later switch
+  never re-prices a running job). The ledger view uses the policy in force now.
+- **Expected revenue** mirrors billing: customer-work hours less the job's non-billable time (DOWNTIME/STANDBY
+  always, declared types when deducted) × locked hourly rate, + STANDBY_RATE standby × standby rate, + mobilization
+  fee in the period containing the job's start, less the job's discount. Tax is never revenue. Intervals spanning a
+  day/period boundary are split by wall-clock time.
+- **Money attributed** (`basis = INVOICED_OR_PREPAID`, the only basis built): issued invoice lines of the job (hire,
+  standby, mobilization, discount) + prepaid CONSUMED hours × purchase effective rate, spread over periods in
+  proportion to the job's expected revenue. Cash-in matching (verified payments) is deferred.
+- **Differences** are opened only for a **shortfall** beyond tolerance (`tolerance_percent` of the expected revenue
+  of completed work, or `tolerance_amount`, either exceeded); more money than expected (e.g. minimum-hours billing) is
+  not a difference. Work of jobs still running counts as `in_progress`, never as a difference.
+- **Periods** are tenant-local DAY, ISO WEEK (Monday–Sunday) or JOB (per completed job). Closed periods ending within
+  `recheck_days` (default 28) are re-examined every scheduler cycle: an OPEN difference whose money arrived later
+  becomes **CLEARED** (system, final); figures of differences awaiting a decision are refreshed. Statuses: OPEN →
+  EXPLANATION_PROPOSED (explain, `tenant.revenue.explain`) → EXPLAINED (APPROVE) or back to OPEN (REJECT); CONFIRMED
+  (CONFIRM, from OPEN or proposed: the difference is real, money to recover). Deciding needs `tenant.revenue.decide`
+  and is refused to the explainer. Reasons are a tenant list managed by decide holders.
+- **Daily sheet fuel** = litres issued or purchased into the machine that day (USAGE logs are not added, to avoid
+  double counting). Flags come from existing records: MISSING_DAILY_REPORT exceptions, UNREPORTED_ENGINE_ACTIVITY and
+  FUEL_ALLOWANCE_EXCEEDED risk signals, unexplained ledger hours, and revenue differences covering the day.

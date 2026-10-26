@@ -1,5 +1,6 @@
-"""Reminder scheduler: periodically evaluates the reminder rules for every tenant (idempotent per tenant-local day)
-and refreshes the Keycloak membership mirror that notification audiences resolve against."""
+"""Reminder scheduler: periodically evaluates the reminder rules for every tenant (idempotent per tenant-local day),
+runs the policy sweeps (customer hours expiry, remittance cut-off, revenue reconciliation) and refreshes the Keycloak
+membership mirror that notification audiences resolve against."""
 
 import signal
 import time
@@ -16,6 +17,7 @@ from asseta.modules.identity.authz_sync import AuthzSyncService
 from asseta.modules.notification.realtime import RedisBroker, SafePublisher
 from asseta.modules.notification.reminders import run_reminders
 from asseta.modules.notification.settings import get_notification_settings
+from asseta.modules.revenue.reconciliation import run_revenue_reconciliation
 
 log = structlog.get_logger()
 
@@ -55,6 +57,10 @@ def run() -> None:
             run_remittance_cutoff(get_sessionmaker(), system_clock())
         except Exception:
             log.exception("remittance_cutoff_cycle_failed")
+        try:  # hours-to-money reconciliation of closed periods (tenant policy REVENUE_RECONCILIATION; off = skipped)
+            run_revenue_reconciliation(get_sessionmaker(), system_clock())
+        except Exception:
+            log.exception("revenue_reconciliation_cycle_failed")
         try:
             run_reminders(get_sessionmaker(), system_clock(), publisher, cfg)
         except Exception:

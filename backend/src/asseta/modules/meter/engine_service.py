@@ -65,7 +65,13 @@ from asseta.modules.meter.engine_models import (
     MeterCorrection,
     MeterProposalStatus,
 )
-from asseta.modules.meter.ledger import ClassificationFact, LedgerInterval, LedgerPoint, SegmentClassification
+from asseta.modules.meter.ledger import (
+    ClassificationFact,
+    LedgerInterval,
+    LedgerPoint,
+    SegmentClassification,
+    SegmentKind,
+)
 from asseta.modules.meter.models import (
     CaptureAttachment,
     CaptureState,
@@ -473,13 +479,26 @@ class EngineHoursService:
             segments=[
                 SegmentDto(
                     kind=i.kind,
-                    hours=i.hours,
+                    hours=i.customer_work_hours if i.kind is SegmentKind.CUSTOMER_WORK else i.hours,
                     classification=i.classification,
                     job_id=i.job_id,
                     job_number=i.job_number,
                     approved=_ref(i.approved),
                     proposal=_ref(i.proposal),
-                )
+                ),
+                *(
+                    SegmentDto(
+                        kind=SegmentKind.NON_REVENUE,
+                        hours=hours,
+                        classification=SegmentClassification.NOT_APPLICABLE,
+                        job_id=i.job_id,
+                        job_number=i.job_number,
+                        approved=None,
+                        proposal=None,
+                        activity_type=activity,
+                    )
+                    for activity, hours in i.non_revenue.items()
+                ),
             ],
         )
 
@@ -716,6 +735,7 @@ class EngineHoursService:
         self._record("meter.classification.proposed", "engine_hour_classification", row.id, None, after, body.note)
         if direct:
             self._close_flag(row)
+            self._revenue_recompute(row)
         else:
             self._emit(
                 "EngineHoursClassificationProposed",
@@ -767,7 +787,25 @@ class EngineHoursService:
         )
         if approve:
             self._close_flag(row)
+            self._revenue_recompute(row)
         return self._classification_dtos([row])[0]
+
+    def _revenue_recompute(self, row: EngineHourClassification) -> None:
+        """DEC-031 (owner rule): approved hours stop counting as expected revenue; recorded revenue differences of
+        the affected periods are recomputed (decided ones get an adjustment entry)."""
+        from asseta.modules.revenue.reconciliation import recompute_after_change  # lazy: revenue builds on meter
+
+        recompute_after_change(
+            self._s,
+            self._tid,
+            row.machine_id,
+            row.start_at,
+            row.end_at,
+            "engine_hour_classification",
+            row.id,
+            self._ctx.user_id,
+            self._now,
+        )
 
     # --- corrections -------------------------------------------------------------------------------------------
     def _correction_dtos(self, rows: list[MeterCorrection]) -> list[CorrectionDto]:

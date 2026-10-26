@@ -152,6 +152,7 @@ const intervalSchema: Schema<IntervalDto> = object({
 const totalsFields = {
   total_hours: text(),
   customer_work_hours: text(),
+  non_revenue_hours: text(),
   unallocated_hours: text(),
   unexplained_hours: text(),
   proposed_hours: text(),

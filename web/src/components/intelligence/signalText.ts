@@ -31,6 +31,7 @@ export const SOURCE_TYPE_LABELS: Readonly<Record<CaseSourceType, string>> = {
   SOD_EVENT: 'Segregation of duties',
   PREDICTION: 'Model output',
   CASH_VARIANCE: 'Cash difference',
+  REVENUE_DIFFERENCE: 'Revenue difference',
 };
 
 /** Tracking alert types linked to cases (backend `ALERT_TITLES`); others are humanised. */
@@ -255,6 +256,12 @@ export function explainCaseSignal(
         `The amount received on a ${humanize(f.text('source_type')).toLowerCase()} differed from the ` +
         `declared amount (declared ${f.text('declared_amount')}, received ${f.text('received_amount')} ` +
         `${f.text('currency')}). It needs review; the difference is not a conclusion.`
+      );
+    case 'REVENUE_DIFFERENCE':
+      return (
+        `Engine hours in ${f.text('period')} were not matched by money (expected ${f.text('expected_amount')}, ` +
+        `attributed ${f.text('attributed_amount')} ${f.text('currency')}). It needs explaining; the difference ` +
+        'is not a conclusion.'
       );
     case 'PREDICTION':
       return 'A model output was surfaced for review; it is an indication, not a finding.';

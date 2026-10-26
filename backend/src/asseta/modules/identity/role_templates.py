@@ -50,6 +50,9 @@ TENANT_TEMPLATES = (
             # Customer hours (DEC-030 / 3.1): managers record purchases and walk-ins for the field, propose and
             # approve discounts/credit/transfers/cancellations (never their own: segregation of duties).
             "tenant.hours.",
+            # Revenue reconciliation (DEC-031): see the daily machine sheet, explain revenue differences and decide
+            # on someone else's explanation (never their own: segregation of duties).
+            "tenant.revenue.",
         ),
     ),
     RoleTemplate(
@@ -97,6 +100,8 @@ TENANT_TEMPLATES = (
             "tenant.hours.read",  # customer hours: link payments to purchases, activate on approved credit
             "tenant.hours.purchase",
             "tenant.hours.credit_activate",
+            "tenant.revenue.read",  # revenue reconciliation (DEC-031): daily sheet, explain differences
+            "tenant.revenue.explain",
         ),
     ),
     RoleTemplate(
