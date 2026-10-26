@@ -10,6 +10,7 @@ A DTO opts in by declaring nullable name fields next to its id fields; the conve
 - `<x>job_site_id` / `<x>site_id` -> `<x>job_site_name` / `<x>site_name`
 - `<x>job_id`                     -> `<x>job_number`
 - `<x>purchase_id`                -> `<x>purchase_number` (customer hours purchase) and `customer_name`
+- `<x>deposit_account_id`         -> `<x>deposit_account_name` (company deposit account)
 
 Only empty (None) name fields are filled, so a DTO that already carries a name keeps it."""
 
@@ -23,6 +24,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from asseta.modules.finance.deposit_models import CompanyDepositAccount
 from asseta.modules.fleet.models import Machine, StaffMember
 from asseta.modules.geospatial.models import JobSite
 from asseta.modules.hours.models import HoursPurchase
@@ -70,6 +72,10 @@ def _purchases(s: Session, ids: set[uuid.UUID]) -> dict[uuid.UUID, dict[str, str
     return {i: {"number": n, "customer": c} for i, n, c in rows}
 
 
+def _deposit_accounts(s: Session, ids: set[uuid.UUID]) -> dict[uuid.UUID, dict[str, str]]:
+    return {i: {"name": n} for i, n in _pairs(s, (CompanyDepositAccount.name,), CompanyDepositAccount.id, ids)}
+
+
 LOADERS: dict[str, _Loader] = {
     "user": _users,
     "staff": _staff,
@@ -78,6 +84,7 @@ LOADERS: dict[str, _Loader] = {
     "site": _sites,
     "job": _jobs,
     "purchase": _purchases,
+    "deposit_account": _deposit_accounts,
 }
 
 
@@ -98,6 +105,8 @@ def _rule(field: str) -> tuple[str, dict[str, str]] | None:
         return "site", {"name": f"{stem}_name"}
     if stem.endswith("job"):
         return "job", {"number": f"{stem}_number"}
+    if stem.endswith("deposit_account"):
+        return "deposit_account", {"name": f"{stem}_name"}
     if stem.endswith("purchase"):
         return "purchase", {"number": f"{stem}_number", "customer": "customer_name"}
     return None

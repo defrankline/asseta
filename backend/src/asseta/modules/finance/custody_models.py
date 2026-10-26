@@ -248,14 +248,23 @@ class CustodyAdjustment(UuidPk, Base):
     decision_note: Mapped[str | None] = mapped_column(Text)
 
 
+class OverdueReason(StrEnum):
+    CUTOFF = "CUTOFF"  # still held after the tenant's daily remittance cut-off
+    HELD_TOO_LONG = "HELD_TOO_LONG"  # held longer than the custodian's allowance (`max_holding_days`, DEC-031 D3)
+
+
 class RemittanceOverdue(UuidPk, Base):
     """A custodian still holding unremitted cash (beyond approved retentions) after the tenant's daily remittance
-    cut-off (`cash.remittance_cutoff_hour`, tenant-local). One row per custodian per tenant-local day (the sweep is
-    idempotent); append-only evidence: `amounts` is what was held, per currency, when the sweep flagged it."""
+    cut-off (`cash.remittance_cutoff_hour`, tenant-local; reason CUTOFF) or for longer than their holding allowance
+    (`max_holding_days`, tenant/site/staff; reason HELD_TOO_LONG). One row per custodian per tenant-local day per
+    reason (the sweep is idempotent); append-only evidence: `amounts` is what was held, per currency, when flagged.
+    `cutoff_hour` is the cut-off for CUTOFF rows and the tenant-local hour of flagging for HELD_TOO_LONG rows."""
 
     __tablename__ = "cash_remittance_overdue"
     __table_args__ = (
-        UniqueConstraint("tenant_id", "staff_member_id", "local_day", name="uq_cash_remittance_overdue_day"),
+        UniqueConstraint(
+            "tenant_id", "staff_member_id", "local_day", "reason", name="uq_cash_remittance_overdue_day_reason"
+        ),
         CheckConstraint("cutoff_hour BETWEEN 0 AND 23", name="ck_cash_remittance_overdue_hour"),
     )
 
@@ -266,3 +275,8 @@ class RemittanceOverdue(UuidPk, Base):
     amounts: Mapped[list[dict[str, str]]] = mapped_column(JSONB, nullable=False)  # [{currency, amount}]
     flagged_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     policy_version: Mapped[str] = mapped_column(String(80), nullable=False)
+    reason: Mapped[OverdueReason] = mapped_column(
+        _enum(OverdueReason), nullable=False, default=OverdueReason.CUTOFF, server_default=OverdueReason.CUTOFF.value
+    )
+    held_since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # oldest unremitted cash
+    max_holding_days: Mapped[int | None] = mapped_column(Integer)  # the allowance that applied (HELD_TOO_LONG)

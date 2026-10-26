@@ -2345,6 +2345,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenant/cash/handovers/{handover_id}/evidence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Remittance Evidence */
+        get: operations["listRemittanceEvidence"];
+        put?: never;
+        /**
+         * Attach Remittance Evidence
+         * @description Add evidence photos to a remittance still awaiting confirmation (never changes its status).
+         */
+        post: operations["attachRemittanceEvidence"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/cash/handovers/{handover_id}/evidence/{attachment_id}/url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Remittance Evidence Url
+         * @description Short-lived link to one evidence photo of a remittance the caller may open.
+         */
+        get: operations["getRemittanceEvidenceUrl"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenant/cash/reasons": {
         parameters: {
             query?: never;
@@ -2453,6 +2494,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenant/cash/remittance-evidence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload Remittance Evidence
+         * @description Upload a deposit slip / mobile-money screenshot; pass the returned id in `evidence_attachment_ids` when
+         *     recording the remittance (or attach it afterwards while the remittance awaits confirmation).
+         */
+        post: operations["uploadRemittanceEvidence"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenant/cash/remittance-overdue": {
         parameters: {
             query?: never;
@@ -2462,7 +2524,8 @@ export interface paths {
         };
         /**
          * List Remittance Overdue
-         * @description Custodians flagged for holding unremitted cash past the tenant's daily cut-off (latest day first).
+         * @description Custodians flagged for holding unremitted cash past the tenant's daily cut-off (reason CUTOFF) or longer than
+         *     their holding allowance (reason HELD_TOO_LONG), latest day first.
          */
         get: operations["listCashRemittanceOverdue"];
         put?: never;
@@ -3217,6 +3280,82 @@ export interface paths {
         get: operations["getCustomerStatement"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/deposit-accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Accounts
+         * @description Company deposit accounts (search by name, institution or masked number). Active only unless asked.
+         */
+        get: operations["listDepositAccounts"];
+        put?: never;
+        /** Create Account */
+        post: operations["createDepositAccount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/deposit-accounts/{account_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Account */
+        get: operations["getDepositAccount"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Account */
+        patch: operations["updateDepositAccount"];
+        trace?: never;
+    };
+    "/api/v1/tenant/deposit-accounts/{account_id}/deactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Deactivate Account
+         * @description Deactivated accounts stay on past remittances but can no longer be chosen for new ones.
+         */
+        post: operations["deactivateDepositAccount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/deposit-accounts/{account_id}/reactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reactivate Account */
+        post: operations["reactivateDepositAccount"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6867,7 +7006,7 @@ export interface components {
              * Purpose
              * @enum {string}
              */
-            purpose: "METER_PHOTO" | "SIGNATURE" | "RESET_EVIDENCE" | "EXPENSE_RECEIPT" | "PAYMENT_EVIDENCE";
+            purpose: "METER_PHOTO" | "SIGNATURE" | "RESET_EVIDENCE" | "EXPENSE_RECEIPT" | "PAYMENT_EVIDENCE" | "REMITTANCE_EVIDENCE";
             /** Sha256 */
             sha256: string;
             /** Size Bytes */
@@ -6894,6 +7033,11 @@ export interface components {
         };
         /** Body_uploadPaymentEvidence */
         Body_uploadPaymentEvidence: {
+            /** File */
+            file: string;
+        };
+        /** Body_uploadRemittanceEvidence */
+        Body_uploadRemittanceEvidence: {
             /** File */
             file: string;
         };
@@ -7372,6 +7516,12 @@ export interface components {
             currency: string;
             /** Decision Note */
             decision_note: string | null;
+            /** Deposit Account Id */
+            deposit_account_id?: string | null;
+            /** Deposit Account Name */
+            deposit_account_name?: string | null;
+            /** Evidence Attachment Ids */
+            evidence_attachment_ids?: string[];
             /**
              * Expected Balance
              * @description Custodian's expected balance when recorded
@@ -7387,6 +7537,7 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            method?: components["schemas"]["RemittanceMethod"] | null;
             /** Note */
             note: string | null;
             /**
@@ -7431,13 +7582,28 @@ export interface components {
             /** Currency */
             currency?: string | null;
             /**
+             * Deposit Account Id
+             * @description Active company deposit account
+             */
+            deposit_account_id?: string | null;
+            /**
+             * Evidence Attachment Ids
+             * @description Uploaded evidence photos (uploadRemittanceEvidence)
+             */
+            evidence_attachment_ids?: string[];
+            /**
              * Handed At
              * Format: date-time
              */
             handed_at: string;
+            /** @description How the money reached the company; omitted = derived from the account, else cash */
+            method?: components["schemas"]["RemittanceMethod"] | null;
             /** Note */
             note?: string | null;
-            /** Reference */
+            /**
+             * Reference
+             * @description Deposit slip / mobile-money transaction reference (tenant may require it)
+             */
             reference?: string | null;
             /**
              * Staff Member Id
@@ -7732,7 +7898,7 @@ export interface components {
             remittances_awaiting_confirmation: components["schemas"]["CountAmountDto"][];
             /**
              * Remittances Overdue Today
-             * @description Custodians flagged today for unremitted cash past the cut-off (REMITTANCE_OVERDUE); null = no cut-off configured
+             * @description Custodians flagged today for unremitted cash past the cut-off or held longer than allowed (REMITTANCE_OVERDUE); null = no cut-off or holding allowance configured
              */
             remittances_overdue_today?: number | null;
             /** Transfers Awaiting Acknowledgement */
@@ -7862,6 +8028,12 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /**
+             * Kind
+             * @description SHORTFALL: less received than declared; SURPLUS: more ('Surplus to explain')
+             * @enum {string}
+             */
+            readonly kind: "SHORTFALL" | "SURPLUS";
             /**
              * Opened At
              * Format: date-time
@@ -8938,6 +9110,98 @@ export interface components {
          * @enum {string}
          */
         DeliveryStatus: "PENDING" | "SENT" | "FAILED" | "REFUSED_NO_CREDIT" | "INVALID_NUMBER";
+        /** DepositAccountDto */
+        DepositAccountDto: {
+            /** Account Number Masked */
+            account_number_masked: string | null;
+            account_type: components["schemas"]["DepositAccountType"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by: string | null;
+            /** Created By Name */
+            created_by_name?: string | null;
+            /** Currency */
+            currency: string;
+            /** Deactivated At */
+            deactivated_at: string | null;
+            /** Deactivated By */
+            deactivated_by: string | null;
+            /** Deactivated By Name */
+            deactivated_by_name?: string | null;
+            /** Deactivation Reason */
+            deactivation_reason: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Institution */
+            institution: string | null;
+            /** Is Active */
+            is_active: boolean;
+            /** Name */
+            name: string;
+            /** Note */
+            note: string | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Version */
+            version: number;
+        };
+        /** DepositAccountIn */
+        DepositAccountIn: {
+            /**
+             * Account Number
+             * @description Stored masked (last four characters only)
+             */
+            account_number?: string | null;
+            account_type: components["schemas"]["DepositAccountType"];
+            /**
+             * Currency
+             * @description Defaults to the tenant currency
+             */
+            currency?: string | null;
+            /**
+             * Institution
+             * @description Bank or mobile-money operator
+             */
+            institution?: string | null;
+            /** Name */
+            name: string;
+            /** Note */
+            note?: string | null;
+        };
+        /**
+         * DepositAccountType
+         * @enum {string}
+         */
+        DepositAccountType: "BANK" | "MOBILE_MONEY" | "CASH_OFFICE";
+        /** DepositAccountUpdateIn */
+        DepositAccountUpdateIn: {
+            /**
+             * Account Number
+             * @description Replaces the masked number
+             */
+            account_number?: string | null;
+            account_type?: components["schemas"]["DepositAccountType"] | null;
+            /** Currency */
+            currency?: string | null;
+            /** Institution */
+            institution?: string | null;
+            /** Name */
+            name?: string | null;
+            /** Note */
+            note?: string | null;
+            /** Version */
+            version?: number | null;
+        };
         /**
          * DeviceApp
          * @enum {string}
@@ -12596,6 +12860,11 @@ export interface components {
             /** Currency */
             currency: string;
         };
+        /**
+         * OverdueReason
+         * @enum {string}
+         */
+        OverdueReason: "CUTOFF" | "HELD_TOO_LONG";
         /** OverridePendingChargeIn */
         OverridePendingChargeIn: {
             /** Amount */
@@ -13007,6 +13276,17 @@ export interface components {
         Page_CustomerPaymentDto_: {
             /** Items */
             items: components["schemas"]["CustomerPaymentDto"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+        };
+        /** Page[DepositAccountDto] */
+        Page_DepositAccountDto_: {
+            /** Items */
+            items: components["schemas"]["DepositAccountDto"][];
             /** Page */
             page: number;
             /** Page Size */
@@ -13663,7 +13943,7 @@ export interface components {
          * PolicyScope
          * @enum {string}
          */
-        PolicyScope: "PLATFORM" | "TENANT" | "MACHINE" | "SITE";
+        PolicyScope: "PLATFORM" | "TENANT" | "MACHINE" | "SITE" | "STAFF";
         /** PolicySnapshotDto */
         PolicySnapshotDto: {
             /** Policy Type */
@@ -14331,21 +14611,68 @@ export interface components {
             /** Verified */
             verified: boolean;
         };
+        /** RemittanceEvidenceDto */
+        RemittanceEvidenceDto: {
+            /**
+             * Attachment Id
+             * Format: uuid
+             */
+            attachment_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by: string | null;
+            /** Created By Name */
+            created_by_name?: string | null;
+            /**
+             * Handover Id
+             * Format: uuid
+             */
+            handover_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+        };
+        /** RemittanceEvidenceIn */
+        RemittanceEvidenceIn: {
+            /** Attachment Ids */
+            attachment_ids: string[];
+        };
+        /**
+         * RemittanceMethod
+         * @description How a remittance reached the company. Null on remittances recorded before DEC-031 (cash to the office).
+         * @enum {string}
+         */
+        RemittanceMethod: "CASH_TO_OFFICE" | "BANK_DEPOSIT" | "MOBILE_MONEY";
         /**
          * RemittanceOverdueDto
-         * @description A custodian still holding unremitted cash after the tenant's daily cut-off (one per custodian per
-         *     tenant-local day; evidence, never edited).
+         * @description A custodian still holding unremitted cash after the tenant's daily cut-off (reason CUTOFF) or longer than
+         *     their holding allowance (reason HELD_TOO_LONG). One per custodian per tenant-local day per reason; evidence,
+         *     never edited.
          */
         RemittanceOverdueDto: {
             /** Amounts */
             amounts: components["schemas"]["OverdueAmountDto"][];
-            /** Cutoff Hour */
+            /**
+             * Cutoff Hour
+             * @description CUTOFF: the daily cut-off hour; HELD_TOO_LONG: the tenant-local hour when it was flagged
+             */
             cutoff_hour: number;
             /**
              * Flagged At
              * Format: date-time
              */
             flagged_at: string;
+            /**
+             * Held Since
+             * @description When the oldest unremitted cash was received
+             */
+            held_since?: string | null;
             /**
              * Id
              * Format: uuid
@@ -14356,8 +14683,15 @@ export interface components {
              * Format: date
              */
             local_day: string;
+            /**
+             * Max Holding Days
+             * @description The holding allowance that applied
+             */
+            max_holding_days?: number | null;
             /** Policy Version */
             policy_version: string;
+            /** @default CUTOFF */
+            reason: components["schemas"]["OverdueReason"];
             /**
              * Staff Member Id
              * Format: uuid
@@ -15043,6 +15377,12 @@ export interface components {
             currency: string;
             /** Decision Note */
             decision_note: string | null;
+            /** Deposit Account Id */
+            deposit_account_id?: string | null;
+            /** Deposit Account Name */
+            deposit_account_name?: string | null;
+            /** Evidence Attachment Ids */
+            evidence_attachment_ids?: string[];
             /**
              * Expected Balance
              * @description Custodian's expected balance when recorded
@@ -15058,6 +15398,7 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            method?: components["schemas"]["RemittanceMethod"] | null;
             /** Note */
             note: string | null;
             /**
@@ -15168,6 +15509,11 @@ export interface components {
              */
             customers: components["schemas"]["CustomerDto"][];
             /**
+             * Deposit Accounts
+             * @default []
+             */
+            deposit_accounts: components["schemas"]["SyncDepositAccountDto"][];
+            /**
              * Expense Categories
              * @default []
              */
@@ -15232,6 +15578,53 @@ export interface components {
              * @default []
              */
             staff: components["schemas"]["StaffDto"][];
+        };
+        /** SyncDepositAccountDto */
+        SyncDepositAccountDto: {
+            /** Account Number Masked */
+            account_number_masked: string | null;
+            account_type: components["schemas"]["DepositAccountType"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by: string | null;
+            /** Created By Name */
+            created_by_name?: string | null;
+            /** Currency */
+            currency: string;
+            /** Deactivated At */
+            deactivated_at: string | null;
+            /** Deactivated By */
+            deactivated_by: string | null;
+            /** Deactivated By Name */
+            deactivated_by_name?: string | null;
+            /** Deactivation Reason */
+            deactivation_reason: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Institution */
+            institution: string | null;
+            /** Is Active */
+            is_active: boolean;
+            /** Name */
+            name: string;
+            /** Note */
+            note: string | null;
+            /** Sync Revision */
+            sync_revision: number;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Version */
+            version: number;
         };
         /** SyncExpenseDto */
         SyncExpenseDto: {
@@ -29915,6 +30308,275 @@ export interface operations {
             };
         };
     };
+    listRemittanceEvidence: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                handover_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemittanceEvidenceDto"][];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    attachRemittanceEvidence: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                handover_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RemittanceEvidenceIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemittanceEvidenceDto"][];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getRemittanceEvidenceUrl: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                handover_id: string;
+                attachment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhotoUrlDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     listCashReasons: {
         parameters: {
             query?: {
@@ -30651,12 +31313,103 @@ export interface operations {
             };
         };
     };
+    uploadRemittanceEvidence: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_uploadRemittanceEvidence"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttachmentDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     listCashRemittanceOverdue: {
         parameters: {
             query?: {
                 staff_member_id?: string | null;
                 day_from?: string | null;
                 day_to?: string | null;
+                reason?: components["schemas"]["OverdueReason"] | null;
                 page?: number;
                 page_size?: number;
                 q?: string | null;
@@ -35506,6 +36259,554 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CustomerStatementDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listDepositAccounts: {
+        parameters: {
+            query?: {
+                account_type?: components["schemas"]["DepositAccountType"] | null;
+                /** @description Also return deactivated/retired/closed records (hidden by default) */
+                include_inactive?: boolean;
+                page?: number;
+                page_size?: number;
+                q?: string | null;
+                sort?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_DepositAccountDto_"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    createDepositAccount: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DepositAccountIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DepositAccountDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getDepositAccount: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DepositAccountDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    updateDepositAccount: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DepositAccountUpdateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DepositAccountDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    deactivateDepositAccount: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LifecycleChangeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DepositAccountDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    reactivateDepositAccount: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LifecycleChangeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DepositAccountDto"];
                 };
             };
             /** @description Bad Request */
@@ -49186,6 +50487,7 @@ export interface operations {
             query?: {
                 machine_id?: string | null;
                 site_id?: string | null;
+                staff_id?: string | null;
                 at?: string | null;
             };
             header?: {

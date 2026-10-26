@@ -34,6 +34,7 @@ import {
   id,
   int,
   nullableId,
+  nullableInt,
   nullableOneOf,
   nullableRecord,
   nullableText,
@@ -43,6 +44,9 @@ import {
 } from './schemaKit';
 
 export const STAFF_KINDS = ['SUPERVISOR', 'OPERATOR', 'OTHER'] as const;
+/** DEC-031: a negative variance (more received than declared) is a surplus to explain. */
+export const VARIANCE_KINDS = ['SHORTFALL', 'SURPLUS'] as const;
+export const OVERDUE_REASONS = ['CUTOFF', 'HELD_TOO_LONG'] as const;
 export const TRANSFER_STATUSES: readonly CashTransferStatus[] = [
   'PENDING_ACKNOWLEDGEMENT',
   'ACKNOWLEDGED',
@@ -136,6 +140,7 @@ export const varianceSchema: Schema<CashVarianceDto> = object({
   declared_amount: text(),
   received_amount: text(),
   amount: text(),
+  kind: oneOf(VARIANCE_KINDS).default('SHORTFALL'),
   case_id: nullableId(),
   opened_at: text(),
   opened_by: nullableId(),
@@ -335,4 +340,7 @@ export const remittanceOverdueSchema: Schema<RemittanceOverdueDto> = object({
   amounts: array(overdueAmountSchema).required(),
   flagged_at: text(),
   policy_version: text(),
+  reason: oneOf(OVERDUE_REASONS).default('CUTOFF'),
+  held_since: nullableText().optional(),
+  max_holding_days: nullableInt().optional(),
 });

@@ -7,7 +7,7 @@ from decimal import Decimal
 from enum import StrEnum
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, computed_field, model_validator
 
 from asseta.modules.finance.custody_models import (
     AcknowledgementMethod,
@@ -15,6 +15,7 @@ from asseta.modules.finance.custody_models import (
     CashReasonKind,
     CashTransferStatus,
     CustodyAdjustmentKind,
+    OverdueReason,
     VarianceOutcome,
     VarianceSource,
     VarianceStatus,
@@ -115,6 +116,11 @@ class CashVarianceDto(Dto):
     declared_amount: Money
     received_amount: Money
     amount: Money = Field(description="declared - received (negative: more received than declared)")
+
+    @computed_field(description="SHORTFALL: less received than declared; SURPLUS: more ('Surplus to explain')")
+    def kind(self) -> Literal["SHORTFALL", "SURPLUS"]:
+        return "SURPLUS" if self.amount < 0 else "SHORTFALL"
+
     case_id: uuid.UUID | None
     opened_at: datetime
     opened_by: uuid.UUID | None
@@ -186,17 +192,23 @@ class OverdueAmountDto(BaseModel):
 
 
 class RemittanceOverdueDto(Dto):
-    """A custodian still holding unremitted cash after the tenant's daily cut-off (one per custodian per
-    tenant-local day; evidence, never edited)."""
+    """A custodian still holding unremitted cash after the tenant's daily cut-off (reason CUTOFF) or longer than
+    their holding allowance (reason HELD_TOO_LONG). One per custodian per tenant-local day per reason; evidence,
+    never edited."""
 
     id: uuid.UUID
     staff_member_id: uuid.UUID
     staff_member_name: str | None = None
     local_day: date
-    cutoff_hour: int
+    cutoff_hour: int = Field(
+        description="CUTOFF: the daily cut-off hour; HELD_TOO_LONG: the tenant-local hour when it was flagged"
+    )
     amounts: list[OverdueAmountDto]
     flagged_at: datetime
     policy_version: str
+    reason: OverdueReason = OverdueReason.CUTOFF
+    held_since: datetime | None = Field(default=None, description="When the oldest unremitted cash was received")
+    max_holding_days: int | None = Field(default=None, description="The holding allowance that applied")
 
 
 # --- custody adjustments -----------------------------------------------------------------------------------

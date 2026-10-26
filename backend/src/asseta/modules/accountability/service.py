@@ -3,7 +3,7 @@ operations, and the dashboard summary assembled from each module's own services 
 
 import uuid
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -329,7 +329,8 @@ class AccountabilityDashboard:
             )
             .group_by(SupervisorCashCustody.currency)
         )
-        cutoff = cash_policy(self._s, self._tid, self._now).policy.remittance_cutoff_hour
+        cash_rules = cash_policy(self._s, self._tid, self._now).policy
+        cutoff = cash_rules.remittance_cutoff_hour
         today = local_date(tenant_settings(self._s, self._tid).timezone, self._now)
         if not self._cash_controls:  # cash basics only: custody per custodian and remittances awaiting confirmation
             return CashTileDto(
@@ -341,9 +342,9 @@ class AccountabilityDashboard:
             )
         return CashTileDto(
             remittance_cutoff_hour=cutoff,
-            remittances_overdue_today=None
-            if cutoff is None
-            else self._count(select(func.count()).where(RemittanceOverdue.local_day == today)),
+            remittances_overdue_today=self._overdue_today(
+                today, cutoff is None and cash_rules.max_holding_days is None
+            ),
             custodians=rows,
             transfers_awaiting_acknowledgement=self._count_amount(
                 select(CashTransfer.currency, func.count(), func.sum(CashTransfer.amount_declared))
@@ -361,6 +362,16 @@ class AccountabilityDashboard:
                 ).scalar_one()
             ),
         )
+
+    def _overdue_today(self, today: date, rules_off: bool) -> int | None:
+        """Custodians flagged overdue today, for either reason (cut-off or holding allowance). Null when neither
+        rule is configured at tenant level and nobody was flagged today (site/staff allowances can still flag)."""
+        count = self._count(
+            select(func.count(func.distinct(RemittanceOverdue.staff_member_id))).where(
+                RemittanceOverdue.local_day == today
+            )
+        )
+        return None if rules_off and count == 0 else count
 
     def _remittances_awaiting(self) -> list[CountAmountDto]:
         return self._count_amount(

@@ -21,6 +21,7 @@ from asseta.modules.audit_log import router as audit_log_router
 from asseta.modules.expenses import router as expenses_router
 from asseta.modules.finance import cash_router as finance_cash_router
 from asseta.modules.finance import custody_router as finance_custody_router
+from asseta.modules.finance import deposit_accounts as finance_deposit_accounts
 from asseta.modules.finance import router as finance_router
 from asseta.modules.fleet import photos as fleet_photos
 from asseta.modules.fleet import router as fleet_router
@@ -150,6 +151,7 @@ def create_app(
         finance_router.router,
         finance_cash_router.router,
         finance_custody_router.router,
+        finance_deposit_accounts.router,
         accountability_router.router,
         hours_router.router,
         expenses_router.router,

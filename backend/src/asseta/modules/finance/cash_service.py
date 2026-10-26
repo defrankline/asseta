@@ -46,6 +46,8 @@ from asseta.modules.finance.custody_models import (
     VarianceSource,
 )
 from asseta.modules.finance.custody_rules import cash_policy, open_variance, refuse_sod, resolve_recorded_custodian
+from asseta.modules.finance.deposit_accounts import DepositAccountService, require_active_account
+from asseta.modules.finance.deposit_models import ACCOUNT_TYPE_METHOD, CompanyDepositAccount, RemittanceMethod
 from asseta.modules.finance.dto import (
     CashCollectionIn,
     CashCustodyBalanceDto,
@@ -115,6 +117,16 @@ class Movement:
     note: str | None = None
     recorded_by: uuid.UUID | None = None
     counterparty_staff_id: uuid.UUID | None = None
+
+
+def _consume(held: list[list[Any]], amount: Decimal) -> None:
+    """Take `amount` from the oldest held cash first (FIFO)."""
+    while amount > 0 and held:
+        take = min(held[0][1], amount)
+        held[0][1] -= take
+        amount -= take
+        if held[0][1] <= 0:
+            held.pop(0)
 
 
 def float_ack_status(entry: SupervisorCashCustody, ack: CashFloatAcknowledgement | None) -> str:
@@ -233,6 +245,7 @@ class CashCustodyService:
         eff = self._policy()
         staff = resolve_recorded_custodian(self._s, self._ctx, body.staff_member_id, eff.policy)
         currency = currency_or_default(self._s, self._tid, body.currency)
+        method, account = self._remittance_destination(body, currency, eff.policy)
         balance = self._balance(staff.id, currency)
         shortfall = None
         if eff.policy.remit_full_balance:
@@ -260,8 +273,14 @@ class CashCustodyService:
             recorded_at=self._now,
             expected_balance=balance.outstanding,
             partial_shortfall=shortfall,
+            method=method,
+            deposit_account_id=account.id if account is not None else None,
         )
         insert(self._s, row, "DUPLICATE_HANDOVER", "Handover already recorded")
+        if body.evidence_attachment_ids:
+            DepositAccountService(self._s, self._ctx, self._now).link_evidence(row.id, body.evidence_attachment_ids)
+            self._s.flush()
+            self._s.expire(row, ["evidence"])
         self._audit.record(
             actor=self._ctx.audit_actor(source.lower()),
             action="finance.handover.recorded",
@@ -274,6 +293,10 @@ class CashCustodyService:
                 "status": "CLAIMED",
                 "expected_balance": str(balance.outstanding),
                 "partial_shortfall": str(shortfall) if shortfall is not None else None,
+                "method": method.value if method is not None else None,
+                "deposit_account_id": str(account.id) if account is not None else None,
+                "reference": row.reference,
+                "evidence_attachment_ids": [str(a) for a in dict.fromkeys(body.evidence_attachment_ids)],
             },
             policy_version=eff.version_stamp[:64],
         )
@@ -296,6 +319,43 @@ class CashCustodyService:
                 tenant_id=self._tid,
             )
         return CashHandoverDto.model_validate(row)
+
+    def _remittance_destination(
+        self, body: CashHandoverIn, currency: str, policy: CashCustodyPolicy
+    ) -> tuple[RemittanceMethod | None, CompanyDepositAccount | None]:
+        """How and where the money went (DEC-031 D2), checked against the tenant's remittance requirements (all off
+        by default, and off while the CASH_CUSTODY capability is off). The method follows the account's type when
+        omitted; a remittance without a method is cash to the office (as before)."""
+        method, account = body.method, None
+        if body.deposit_account_id is not None:
+            account = require_active_account(self._s, body.deposit_account_id)
+            if account.currency != currency:
+                raise BusinessRuleViolation(
+                    f"Deposit account {account.name} holds {account.currency}, not {currency}",
+                    code="DEPOSIT_ACCOUNT_CURRENCY_MISMATCH",
+                )
+            derived = ACCOUNT_TYPE_METHOD[account.account_type]
+            if method is not None and method is not derived:
+                raise BusinessRuleViolation(
+                    f"A {method.value} remittance cannot go to a {account.account_type.value} account",
+                    code="REMITTANCE_ACCOUNT_MISMATCH",
+                )
+            method = derived
+        if policy.remittance_account_required and account is None:
+            raise BusinessRuleViolation(
+                "Name the company deposit account this remittance was paid into", code="REMITTANCE_ACCOUNT_REQUIRED"
+            )
+        non_cash = method in (RemittanceMethod.BANK_DEPOSIT, RemittanceMethod.MOBILE_MONEY)
+        if policy.remittance_reference_required and non_cash and not body.reference:
+            raise BusinessRuleViolation(
+                "A bank or mobile-money remittance needs its transaction reference",
+                code="REMITTANCE_REFERENCE_REQUIRED",
+            )
+        if policy.remittance_evidence_required and not body.evidence_attachment_ids:
+            raise BusinessRuleViolation(
+                "Attach a photo of the deposit slip or payment confirmation", code="REMITTANCE_EVIDENCE_REQUIRED"
+            )
+        return method, account
 
     def decide_handover(self, handover_id: uuid.UUID, body: RemittanceDecisionIn) -> CashHandoverDto:
         row = self._s.execute(
@@ -621,6 +681,28 @@ class CashCustodyService:
             elif running <= 0:
                 since = None
         return running, since
+
+    def unremitted_since(self, staff_id: uuid.UUID, currency: str) -> tuple[Decimal, datetime | None]:
+        """Cash still held and not yet remitted (outstanding - claimed remittances - approved retentions) and when the
+        oldest part of it was received, first-in first-out: money leaving custody (remittances claimed or confirmed,
+        spending, transfers out, write-offs) settles the oldest cash first; approved retentions cover the oldest cash
+        that remains. (None, 0) when nothing unremitted is held. Used by the holding-allowance sweep (DEC-031 D3)."""
+        held: list[list[Any]] = []  # [received_at, amount] oldest first
+        movements = self._movements(staff_id, currency, self._now + FOREVER)
+        for m in sorted(movements, key=lambda m: m.at):
+            if m.figure in SIGN:
+                delta = SIGN[m.figure] * m.amount
+            elif m.figure == F.CLAIMED_UNVERIFIED_HANDOVERS:
+                delta = -m.amount
+            else:
+                continue
+            if delta > 0:
+                held.append([m.at, delta])
+            else:
+                _consume(held, -delta)
+        _consume(held, self.approved_retention(staff_id, currency))
+        total = sum((h[1] for h in held), ZERO)
+        return (total, held[0][0]) if total > 0 else (ZERO, None)
 
     def _currencies(self, staff_id: uuid.UUID) -> set[str]:
         return {

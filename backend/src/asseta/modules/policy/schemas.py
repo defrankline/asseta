@@ -28,6 +28,7 @@ class PolicyScope(StrEnum):
     TENANT = "TENANT"
     MACHINE = "MACHINE"
     SITE = "SITE"
+    STAFF = "STAFF"  # one staff member (e.g. a custodian's cash allowance); most specific layer
 
 
 class TrackingPolicy(BaseModel):
@@ -224,6 +225,13 @@ class CashCustodyPolicy(BaseModel):
     variance_case_threshold: Decimal | None = Field(default=None, ge=0)  # |variance| above -> case; null = never
     writeoff_requires_approval: bool  # on: a write-off is proposed then approved by another permission holder
     retention_allowed: bool  # off: no retention may be requested (everything must be remitted)
+    # Stronger remittances (DEC-031 D2). Off = today: method, deposit account, reference and evidence are optional.
+    remittance_reference_required: bool = False  # a BANK_DEPOSIT / MOBILE_MONEY remittance needs its reference
+    remittance_evidence_required: bool = False  # every remittance needs at least one evidence photo
+    remittance_account_required: bool = False  # every remittance names the company deposit account it went to
+    # Remote-site cash allowance (DEC-031 D3): days a custodian may hold unremitted cash (beyond approved retentions)
+    # before REMITTANCE_OVERDUE (reason HELD_TOO_LONG). Null = no limit. Site and staff overrides allowed.
+    max_holding_days: int | None = Field(default=None, ge=1, le=365)
 
     def in_force(self) -> "CashCustodyPolicy":
         """The rules actually enforced: as configured when enabled; switched off as a whole otherwise (the cash
@@ -241,6 +249,10 @@ class CashCustodyPolicy(BaseModel):
                 "remittance_cutoff_hour": None,
                 "variance_case_threshold": None,
                 "retention_allowed": False,
+                "remittance_reference_required": False,
+                "remittance_evidence_required": False,
+                "remittance_account_required": False,
+                "max_holding_days": None,
             }
         )
 
@@ -267,7 +279,8 @@ SCHEMAS: dict[PolicyType, type[BaseModel]] = {
     PolicyType.CUSTOMER_HOURS: CustomerHoursPolicy,
 }
 
-# Fields a lower scope may override (platform/tenant may override any field).
+# Fields a lower scope may override (platform/tenant may override any field). A type without a STAFF entry has no
+# staff-level overrides.
 OVERRIDABLE: dict[PolicyType, dict[PolicyScope, frozenset[str]]] = {
     PolicyType.ENGINE_HOURS: {
         PolicyScope.MACHINE: frozenset({"baseline_required_before_start", "daily_report_required"}),
@@ -305,7 +318,11 @@ OVERRIDABLE: dict[PolicyType, dict[PolicyScope, frozenset[str]]] = {
     PolicyType.HIRE_BILLING: {PolicyScope.MACHINE: frozenset(), PolicyScope.SITE: frozenset()},
     PolicyType.DEVICE_SYNC: {PolicyScope.MACHINE: frozenset(), PolicyScope.SITE: frozenset()},
     PolicyType.EXPENSE_CAPTURE: {PolicyScope.MACHINE: frozenset(), PolicyScope.SITE: frozenset()},
-    PolicyType.CASH_CUSTODY: {PolicyScope.MACHINE: frozenset(), PolicyScope.SITE: frozenset()},
+    PolicyType.CASH_CUSTODY: {
+        PolicyScope.MACHINE: frozenset(),
+        PolicyScope.SITE: frozenset({"max_holding_days"}),
+        PolicyScope.STAFF: frozenset({"max_holding_days"}),
+    },
     PolicyType.OVERSIGHT: {PolicyScope.MACHINE: frozenset(), PolicyScope.SITE: frozenset()},
     PolicyType.FRAUD_CONTROLS: {
         PolicyScope.MACHINE: frozenset(
@@ -385,6 +402,10 @@ SEED_DEFAULTS: dict[PolicyType, dict[str, object]] = {
         "variance_case_threshold": "0",
         "writeoff_requires_approval": True,
         "retention_allowed": True,
+        "remittance_reference_required": False,
+        "remittance_evidence_required": False,
+        "remittance_account_required": False,
+        "max_holding_days": None,
     },
     PolicyType.OVERSIGHT: {"hidden_dashboard_tiles": [], "security_event_window_days": 7},
     PolicyType.CUSTOMER_HOURS: {

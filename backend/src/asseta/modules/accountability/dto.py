@@ -108,8 +108,8 @@ class CashTileDto(BaseModel):
     )
     remittances_overdue_today: int | None = Field(
         default=None,
-        description="Custodians flagged today for unremitted cash past the cut-off (REMITTANCE_OVERDUE); null = no "
-        "cut-off configured",
+        description="Custodians flagged today for unremitted cash past the cut-off or held longer than allowed "
+        "(REMITTANCE_OVERDUE); null = no cut-off or holding allowance configured",
     )
 
 

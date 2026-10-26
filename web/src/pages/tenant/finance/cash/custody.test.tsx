@@ -126,6 +126,7 @@ function makeVariance(o: Partial<CashVarianceDto> = {}): CashVarianceDto {
     declared_amount: '100000.0000',
     received_amount: '90000.0000',
     amount: '10000.0000',
+    kind: 'SHORTFALL',
     case_id: null,
     opened_at: '2026-10-21T09:00:00Z',
     opened_by: null,

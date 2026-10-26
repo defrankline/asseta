@@ -7,6 +7,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
+from asseta.modules.finance.deposit_models import RemittanceMethod
 from asseta.modules.finance.models import (
     CustodyEntryType,
     HireInvoiceStatus,
@@ -233,8 +234,18 @@ class CashHandoverIn(BaseModel):
     amount: PositiveAmount
     currency: CurrencyCode | None = None
     handed_at: datetime
-    reference: Ref | None = None
+    reference: Ref | None = Field(
+        default=None, description="Deposit slip / mobile-money transaction reference (tenant may require it)"
+    )
     note: Note | None = None
+    # DEC-031 D2 (all optional unless the tenant's CASH_CUSTODY policy requires them).
+    method: RemittanceMethod | None = Field(
+        default=None, description="How the money reached the company; omitted = derived from the account, else cash"
+    )
+    deposit_account_id: uuid.UUID | None = Field(default=None, description="Active company deposit account")
+    evidence_attachment_ids: list[uuid.UUID] = Field(
+        default_factory=list, max_length=10, description="Uploaded evidence photos (uploadRemittanceEvidence)"
+    )
 
 
 class CashHandoverDto(Dto):
@@ -263,6 +274,10 @@ class CashHandoverDto(Dto):
     partial_shortfall: Money | None = Field(
         default=None, description="Unretained balance not remitted (PARTIAL_REMITTANCE flag); null = not flagged"
     )
+    method: RemittanceMethod | None = None
+    deposit_account_id: uuid.UUID | None = None
+    deposit_account_name: str | None = None
+    evidence_attachment_ids: list[uuid.UUID] = Field(default_factory=list)
 
 
 class RemittanceDecisionIn(SettlementDecisionIn):

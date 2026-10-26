@@ -8,16 +8,19 @@ from datetime import date, datetime
 from functools import cache
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, Query
+from fastapi import APIRouter, Depends, File, Header, Query, UploadFile
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from asseta.core.clock import get_now
+from asseta.core.config import get_settings
 from asseta.core.db import get_session
-from asseta.core.errors import ERROR_RESPONSES, NotFound
+from asseta.core.errors import ERROR_RESPONSES, Conflict, NotFound
 from asseta.core.idempotency import IdempotencyGuard, request_hash
 from asseta.core.lifecycle import IncludeInactive, LifecycleChangeIn
 from asseta.core.paging import Page, PageParams, page_params, paginate
+from asseta.core.storage import ObjectStore
 from asseta.modules.accountability.names import named
 from asseta.modules.finance.cash_service import CashCustodyService, custody_entry_dto
 from asseta.modules.finance.common import resolve_staff
@@ -48,12 +51,15 @@ from asseta.modules.finance.custody_models import (
     CashTransfer,
     CashTransferStatus,
     CustodyAdjustment,
+    OverdueReason,
     RemittanceOverdue,
     VarianceSource,
     VarianceStatus,
 )
 from asseta.modules.finance.custody_service import CashCustodyControls, custodian_dto
+from asseta.modules.finance.deposit_accounts import DepositAccountService, RemittanceEvidenceDto
 from asseta.modules.finance.dto import CashCustodyEntryDto, CashHandoverDto
+from asseta.modules.finance.models import SettlementStatus
 from asseta.modules.finance.permissions import (
     ADJUSTMENT_APPROVE,
     CASH_OFFICE,
@@ -66,8 +72,12 @@ from asseta.modules.finance.permissions import (
     VARIANCE,
     WRITEOFF,
 )
+from asseta.modules.fleet.photos import PhotoUrlDto, get_object_store
 from asseta.modules.identity.dependencies import gated
 from asseta.modules.identity.principal import RequestContext
+from asseta.modules.meter.dto import AttachmentDto
+from asseta.modules.meter.models import CaptureAttachment
+from asseta.modules.meter.router import save_attachment
 from asseta.modules.policy.capabilities import CASH_CUSTODY
 
 router = APIRouter(prefix="/api/v1/tenant/cash", tags=["finance"], responses=ERROR_RESPONSES)
@@ -76,6 +86,11 @@ Now = Annotated[datetime, Depends(get_now)]
 IdemKey = Annotated[str | None, Header()]
 Paging = Annotated[PageParams, Depends(page_params)]
 Currency = Annotated[str | None, Query(pattern=r"^[A-Z]{3}$")]
+Store = Annotated[ObjectStore, Depends(get_object_store)]
+
+
+class RemittanceEvidenceIn(BaseModel):
+    attachment_ids: list[uuid.UUID] = Field(min_length=1, max_length=10)
 
 
 @cache
@@ -182,6 +197,81 @@ def get_handover(
 ) -> CashHandoverDto:
     """One remittance. Office readers open any; field recorders the ones they made or that are their custody."""
     return CashHandoverDto.model_validate(CashCustodyControls(session, ctx, now).handover(handover_id))
+
+
+@router.post(
+    "/remittance-evidence", response_model=AttachmentDto, status_code=201, operation_id="uploadRemittanceEvidence"
+)
+@named
+async def upload_remittance_evidence(
+    session: DbSession,
+    store: Store,
+    ctx: Annotated[RequestContext, Depends(CUSTODY_RECORD)],
+    file: Annotated[UploadFile, File()],
+) -> AttachmentDto:
+    """Upload a deposit slip / mobile-money screenshot; pass the returned id in `evidence_attachment_ids` when
+    recording the remittance (or attach it afterwards while the remittance awaits confirmation)."""
+    data = await file.read(get_settings().max_image_bytes + 1)
+    return AttachmentDto.model_validate(save_attachment(session, store, ctx, data, "REMITTANCE_EVIDENCE"))
+
+
+@router.post(
+    "/handovers/{handover_id}/evidence",
+    response_model=list[RemittanceEvidenceDto],
+    status_code=201,
+    operation_id="attachRemittanceEvidence",
+)
+@named
+def attach_remittance_evidence(
+    handover_id: uuid.UUID,
+    body: RemittanceEvidenceIn,
+    session: DbSession,
+    now: Now,
+    ctx: Annotated[RequestContext, Depends(CUSTODY_RECORD)],
+) -> list[RemittanceEvidenceDto]:
+    """Add evidence photos to a remittance still awaiting confirmation (never changes its status)."""
+    row = CashCustodyControls(session, ctx, now).handover(handover_id)
+    if row.status is not SettlementStatus.CLAIMED:
+        raise Conflict(f"Remittance already {row.status.value}", code="HANDOVER_ALREADY_DECIDED")
+    svc = DepositAccountService(session, ctx, now)
+    svc.link_evidence(row.id, body.attachment_ids)
+    return [RemittanceEvidenceDto.model_validate(e) for e in svc.evidence(row.id)]
+
+
+@router.get(
+    "/handovers/{handover_id}/evidence",
+    response_model=list[RemittanceEvidenceDto],
+    operation_id="listRemittanceEvidence",
+)
+@named
+def list_remittance_evidence(
+    handover_id: uuid.UUID, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(CUSTODY_READ)]
+) -> list[RemittanceEvidenceDto]:
+    row = CashCustodyControls(session, ctx, now).handover(handover_id)
+    return [RemittanceEvidenceDto.model_validate(e) for e in DepositAccountService(session, ctx, now).evidence(row.id)]
+
+
+@router.get(
+    "/handovers/{handover_id}/evidence/{attachment_id}/url",
+    response_model=PhotoUrlDto,
+    operation_id="getRemittanceEvidenceUrl",
+)
+def remittance_evidence_url(
+    handover_id: uuid.UUID,
+    attachment_id: uuid.UUID,
+    session: DbSession,
+    now: Now,
+    store: Store,
+    ctx: Annotated[RequestContext, Depends(CUSTODY_READ)],
+) -> PhotoUrlDto:
+    """Short-lived link to one evidence photo of a remittance the caller may open."""
+    row = CashCustodyControls(session, ctx, now).handover(handover_id)
+    linked = attachment_id in row.evidence_attachment_ids
+    att = session.get(CaptureAttachment, attachment_id) if linked else None
+    if att is None:
+        raise NotFound("Evidence not found")
+    ttl = get_settings().presigned_url_ttl_seconds
+    return PhotoUrlDto(url=store.presigned_get(att.object_key, ttl), expires_in_seconds=ttl)
 
 
 # --- floats ---------------------------------------------------------------------------------------------------
@@ -360,9 +450,13 @@ def list_remittance_overdue(
     staff_member_id: uuid.UUID | None = None,
     day_from: date | None = None,
     day_to: date | None = None,
+    reason: OverdueReason | None = None,
 ) -> Page[RemittanceOverdueDto]:
-    """Custodians flagged for holding unremitted cash past the tenant's daily cut-off (latest day first)."""
+    """Custodians flagged for holding unremitted cash past the tenant's daily cut-off (reason CUTOFF) or longer than
+    their holding allowance (reason HELD_TOO_LONG), latest day first."""
     stmt = select(RemittanceOverdue).order_by(RemittanceOverdue.local_day.desc(), RemittanceOverdue.flagged_at.desc())
+    if reason:
+        stmt = stmt.where(RemittanceOverdue.reason == reason)
     if staff_member_id:
         stmt = stmt.where(RemittanceOverdue.staff_member_id == staff_member_id)
     if day_from:

@@ -201,7 +201,16 @@ def _cash_chain_b(api: Api, f: FinCtx) -> dict[tuple[str, str], str]:
     other = f.owner.post(f"{T}/staff", {"full_name": "B operator", "kind": "OPERATOR"}).json()["id"]
     transfer = f.supervisor.post(f"{c}/transfers", {"to_staff_id": other, "amount": "10", "transferred_at": now})
     assert transfer.status_code == 201, transfer.text
-    h = f.supervisor.post(f"{c}/handovers", {"amount": "10", "handed_at": now}).json()
+    slip = api.client.post(
+        f"{c}/remittance-evidence",
+        headers=f.supervisor.headers(True, None),
+        files={"file": ("slip.jpg", unique_jpeg(), "image/jpeg")},
+    ).json()["id"]
+    account = f.accountant.post(f"{T}/deposit-accounts", {"name": "B bank", "account_type": "BANK"}).json()["id"]
+    h = f.supervisor.post(
+        f"{c}/handovers",
+        {"amount": "10", "handed_at": now, "deposit_account_id": account, "evidence_attachment_ids": [slip]},
+    ).json()
     f.accountant.post(f"{c}/handovers/{h['id']}/decision", {"verified": True, "amount_received": "9"})
     variance = f.accountant.get(f"{c}/variances").json()["items"][0]["id"]
     reason = f.accountant.post(f"{c}/reasons", {"kind": "VARIANCE", "label": "B reason"}).json()["id"]
@@ -237,6 +246,8 @@ def _cash_chain_b(api: Api, f: FinCtx) -> dict[tuple[str, str], str]:
         ("/variances/", "variance_id"): variance,
         ("/reasons/", "reason_id"): reason,
         ("/handovers/", "handover_id"): h["id"],
+        ("{handover_id}/evidence/", "attachment_id"): slip,
+        ("/deposit-accounts/", "account_id"): account,
         ("/floats/", "entry_id"): issued.json()["id"],
         ("/retentions/", "retention_id"): retention,
         ("/adjustments/", "adjustment_id"): adjustment,

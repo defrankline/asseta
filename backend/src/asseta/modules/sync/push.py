@@ -68,6 +68,12 @@ CONFLICT_CODES = {
     # the tenant switched a capability off after the device queued the operation (kept for review, never applied)
     "ENGINE_HOURS_DISABLED",
     "CASH_CUSTODY_DISABLED",
+    # stronger remittances (DEC-031 D2): the tenant switched a requirement on, or deactivated the chosen deposit
+    # account, after the device queued the remittance (kept for review, never applied)
+    "REMITTANCE_REFERENCE_REQUIRED",
+    "REMITTANCE_EVIDENCE_REQUIRED",
+    "REMITTANCE_ACCOUNT_REQUIRED",
+    "DEPOSIT_ACCOUNT_INACTIVE",
 }
 # Operations that belong to a tenant capability (sync capabilities: dto.TENANT_CAPABILITY_OF). A DAILY meter capture
 # is refused by the meter service itself (same code). Customer-hours operations keep their service refusal.
@@ -104,6 +110,7 @@ UPLOAD_FIELDS = {
     "EXPENSE": "receipt_upload_ids",
     "METER_RESET_REQUEST": "evidence_upload_id",
     "HOURS_PURCHASE": "evidence_upload_ids",
+    "CASH_HANDOVER": "evidence_upload_ids",
 }
 
 
@@ -124,7 +131,11 @@ class CashCollectionOp(CashCollectionIn):
 
 
 class CashHandoverOp(CashHandoverIn):
+    """Offline remittance. Evidence photos reference resumable blob uploads (purpose REMITTANCE_EVIDENCE; the op
+    waits until they complete) and/or attachment ids uploaded online."""
+
     client_id: uuid.UUID
+    evidence_upload_ids: list[uuid.UUID] = Field(default_factory=list, max_length=10)
 
 
 class HoursPurchaseOp(HoursPurchaseIn):
@@ -319,9 +330,7 @@ class PushService:
             "CASH_COLLECTION": lambda: CashCustodyService(self._s, self._ctx, self._now).record_collection(
                 CashCollectionOp.model_validate(op.payload), "SYNC"
             ),
-            "CASH_HANDOVER": lambda: CashCustodyService(self._s, self._ctx, self._now).record_handover(
-                CashHandoverOp.model_validate(op.payload), "SYNC"
-            ),
+            "CASH_HANDOVER": lambda: self._handover(CashHandoverOp.model_validate(op.payload)),
             "METER_RESET_REQUEST": lambda: self._meter_reset(MeterResetOp.model_validate(op.payload)),
             "JOB_REQUEST": lambda: JobService(self._s, self._ctx).request_job(JobRequestIn.model_validate(op.payload)),
             "METER_BASELINE": lambda: EngineHoursService(self._s, self._ctx, self._now).propose_baseline(
@@ -404,6 +413,18 @@ class PushService:
                 raise ValueError("evidence_upload_ids need a payment")
             purchase.payment.evidence_attachment_ids = [*purchase.payment.evidence_attachment_ids, *evidence]
         return HoursService(self._s, self._ctx, self._now).create_purchase(purchase, "SYNC")
+
+    def _handover(self, body: CashHandoverOp) -> BaseModel:
+        evidence = list(body.evidence_attachment_ids)
+        for upload_id in body.evidence_upload_ids:
+            upload = self._s.get(BlobUploadSession, upload_id)
+            if upload is None or upload.attachment_id is None:
+                raise NotFound("Evidence upload not found", code="ATTACHMENT_NOT_FOUND")
+            evidence.append(upload.attachment_id)
+        handover = CashHandoverIn.model_validate(
+            {**body.model_dump(exclude={"evidence_upload_ids"}), "evidence_attachment_ids": evidence}
+        )
+        return CashCustodyService(self._s, self._ctx, self._now).record_handover(handover, "SYNC")
 
     def _meter_reset(self, body: MeterResetOp) -> BaseModel:
         evidence = body.evidence_attachment_id

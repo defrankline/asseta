@@ -1,7 +1,8 @@
 """Deterministic policy resolution `get_effective_policy(type, tenant, machine, site, at)` and versioning.
 
 Resolution merges, for instant `at`, the latest effective version at each scope:
-platform default -> tenant default -> machine override -> site override (only fields allowed per scope),
+platform default -> tenant default -> machine override -> site override -> staff override (only fields allowed per
+scope),
 then validates the merged result against the typed schema. The returned `version_stamp` is recorded on every
 evaluated event so later policy changes never silently reinterpret accepted history.
 """
@@ -37,7 +38,14 @@ from asseta.modules.policy.schemas import (
 )
 
 BACKDATE_TOLERANCE = timedelta(minutes=5)
-_ABBR = {PolicyScope.PLATFORM: "P", PolicyScope.TENANT: "T", PolicyScope.MACHINE: "M", PolicyScope.SITE: "S"}
+_ABBR = {
+    PolicyScope.PLATFORM: "P",
+    PolicyScope.TENANT: "T",
+    PolicyScope.MACHINE: "M",
+    PolicyScope.SITE: "S",
+    PolicyScope.STAFF: "E",
+}
+REF_SCOPES = (PolicyScope.MACHINE, PolicyScope.SITE, PolicyScope.STAFF)
 
 
 @dataclass(frozen=True)
@@ -75,6 +83,7 @@ class PolicyService:
         *,
         machine_id: uuid.UUID | None = None,
         site_id: uuid.UUID | None = None,
+        staff_id: uuid.UUID | None = None,
         at: datetime | None = None,
     ) -> EffectivePolicy[BaseModel]:
         at = at or utcnow()
@@ -85,6 +94,8 @@ class PolicyService:
                 layers.append((PolicyScope.MACHINE, tenant_id, machine_id))
             if site_id is not None:
                 layers.append((PolicyScope.SITE, tenant_id, site_id))
+            if staff_id is not None:
+                layers.append((PolicyScope.STAFF, tenant_id, staff_id))
         merged: dict[str, Any] = {}
         stamp, ids = [], []
         for scope, tid, ref in layers:
@@ -146,8 +157,18 @@ class PolicyService:
     def customer_hours(self, tenant_id: uuid.UUID, at: datetime | None = None) -> EffectivePolicy[CustomerHoursPolicy]:
         return cast(EffectivePolicy[CustomerHoursPolicy], self.resolve(PolicyType.CUSTOMER_HOURS, tenant_id, at=at))
 
-    def cash_custody(self, tenant_id: uuid.UUID, at: datetime | None = None) -> EffectivePolicy[CashCustodyPolicy]:
-        return cast(EffectivePolicy[CashCustodyPolicy], self.resolve(PolicyType.CASH_CUSTODY, tenant_id, at=at))
+    def cash_custody(
+        self,
+        tenant_id: uuid.UUID,
+        at: datetime | None = None,
+        *,
+        site_id: uuid.UUID | None = None,
+        staff_id: uuid.UUID | None = None,
+    ) -> EffectivePolicy[CashCustodyPolicy]:
+        return cast(
+            EffectivePolicy[CashCustodyPolicy],
+            self.resolve(PolicyType.CASH_CUSTODY, tenant_id, site_id=site_id, staff_id=staff_id, at=at),
+        )
 
     def oversight(self, tenant_id: uuid.UUID, at: datetime | None = None) -> EffectivePolicy[OversightPolicy]:
         return cast(EffectivePolicy[OversightPolicy], self.resolve(PolicyType.OVERSIGHT, tenant_id, at=at))
@@ -167,7 +188,7 @@ class PolicyService:
         }
         if set(version_ids) - rows.keys() or any(r.policy_type is not ptype for r in rows.values()):
             raise BusinessRuleViolation("Unknown policy snapshot", code="POLICY_SNAPSHOT_UNKNOWN")
-        order = [PolicyScope.PLATFORM, PolicyScope.TENANT, PolicyScope.MACHINE, PolicyScope.SITE]
+        order = [PolicyScope.PLATFORM, PolicyScope.TENANT, PolicyScope.MACHINE, PolicyScope.SITE, PolicyScope.STAFF]
         merged: dict[str, Any] = {}
         for row in sorted(rows.values(), key=lambda r: order.index(r.scope)):
             merged.update(row.values)
@@ -191,9 +212,9 @@ class PolicyService:
             raise BusinessRuleViolation("Policy changes cannot be backdated", code="POLICY_BACKDATED")
         if (scope is PolicyScope.PLATFORM) != (tenant_id is None):
             raise BusinessRuleViolation("Platform policies have no tenant; others require one", code="POLICY_SCOPE")
-        if (scope in (PolicyScope.MACHINE, PolicyScope.SITE)) != (scope_ref_id is not None):
-            raise BusinessRuleViolation("Machine/site policies require scope_ref_id", code="POLICY_SCOPE")
-        allowed = OVERRIDABLE.get(ptype, {}).get(scope)
+        if (scope in REF_SCOPES) != (scope_ref_id is not None):
+            raise BusinessRuleViolation("Machine/site/staff policies require scope_ref_id", code="POLICY_SCOPE")
+        allowed = OVERRIDABLE.get(ptype, {}).get(scope, frozenset() if scope is PolicyScope.STAFF else None)
         if allowed is not None and (extra := set(values) - allowed):
             raise BusinessRuleViolation(
                 f"Fields not overridable at {scope.value}: {sorted(extra)}", code="POLICY_FIELD_NOT_OVERRIDABLE"
@@ -241,6 +262,7 @@ class PolicyService:
             tenant_id,
             machine_id=scope_ref_id if scope is PolicyScope.MACHINE else None,
             site_id=scope_ref_id if scope is PolicyScope.SITE else None,
+            staff_id=scope_ref_id if scope is PolicyScope.STAFF else None,
             at=effective,
         )
         AuditService(self._s).record(

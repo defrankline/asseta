@@ -99,6 +99,7 @@ function makeOverdue(o: Partial<RemittanceOverdueDto> = {}): RemittanceOverdueDt
     staff_member_name: 'Sam Supervisor',
     local_day: '2026-10-21',
     cutoff_hour: 18,
+    reason: 'CUTOFF',
     amounts: [{ currency: 'TZS', amount: '75000.0000' }],
     flagged_at: '2026-10-21T15:05:00Z',
     policy_version: 'v3',

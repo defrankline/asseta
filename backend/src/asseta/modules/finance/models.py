@@ -22,9 +22,10 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from asseta.core.db import Base, SyncRevisioned, UuidPk, utcnow
+from asseta.modules.finance.deposit_models import RemittanceEvidence, RemittanceMethod
 from asseta.modules.jobs.charges import ChargeKind
 
 MONEY = Numeric(18, 4)
@@ -251,3 +252,17 @@ class CashHandover(UuidPk, SyncRevisioned, Base):
     amount_received: Mapped[Decimal | None] = mapped_column(MONEY)
     expected_balance: Mapped[Decimal | None] = mapped_column(MONEY)
     partial_shortfall: Mapped[Decimal | None] = mapped_column(MONEY)
+    # Stronger remittances (DEC-031 D2): how and where the money went, fixed at recording (null on older rows).
+    method: Mapped[RemittanceMethod | None] = mapped_column(_enum(RemittanceMethod))
+    deposit_account_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("company_deposit_account.id"))
+    evidence: Mapped[list[RemittanceEvidence]] = relationship(
+        RemittanceEvidence,
+        primaryjoin="CashHandover.id == foreign(RemittanceEvidence.handover_id)",
+        order_by="(RemittanceEvidence.created_at, RemittanceEvidence.id)",
+        lazy="selectin",
+        viewonly=True,
+    )
+
+    @property
+    def evidence_attachment_ids(self) -> list[uuid.UUID]:
+        return [e.attachment_id for e in self.evidence]

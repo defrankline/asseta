@@ -7,6 +7,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from asseta.modules.expenses.dto import ExpenseCategoryDto, ExpenseDto, FuelEventDto
+from asseta.modules.finance.deposit_accounts import SyncDepositAccountDto
 from asseta.modules.finance.dto import CashCustodyBalanceDto, CashHandoverDto, CustomerPaymentDto
 from asseta.modules.fleet.dto import MachineDto, StaffDto
 from asseta.modules.geospatial.dto import JobSiteDto
@@ -26,6 +27,9 @@ CAPABILITIES = [
     "OP_METER_BASELINE",
     "OP_METER_CORRECTION",
     "OP_CASH_RETENTION_REQUEST",  # CASH_RETENTION_REQUEST (ask to keep field cash; approved by another person)
+    # CASH_HANDOVER accepts method, deposit_account_id, evidence_attachment_ids and evidence_upload_ids (purpose
+    # REMITTANCE_EVIDENCE); SyncData.deposit_accounts carries the account picker (DEC-031 D2)
+    "REMITTANCE_DETAILS_V1",
 ]
 # Protocol capabilities that belong to a tenant capability (`asseta.modules.policy.capabilities`): not announced
 # while the tenant has it switched off, and their operations are then refused (CONFLICT, the capability's code).
@@ -132,6 +136,9 @@ class SyncData(BaseModel):
     staff: list[StaffDto] = []
     expense_categories: list[ExpenseCategoryDto] = []
     cash_custody: list[CashCustodyBalanceDto] = []  # the signed-in supervisor's current custody (server-owned)
+    # Company deposit accounts for the remittance picker (REMITTANCE_DETAILS_V1; cash recorders only). Bootstrap:
+    # active accounts; deltas: changes since the cursor, deactivations included (is_active=false).
+    deposit_accounts: list[SyncDepositAccountDto] = []
     # Supervisor inbox (SUPERVISOR_INBOX_V1): the caller's own field records, upsert by (id, sync_revision).
     # Bootstrap: last 30 days + everything still open; deltas: anything changed since the cursor.
     my_meter_captures: list[SyncMeterCaptureDto] = []
@@ -217,7 +224,9 @@ class PushResultDto(BaseModel):
 class BlobStartIn(BaseModel):
     sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     size_bytes: int = Field(gt=0)
-    purpose: Literal["METER_PHOTO", "SIGNATURE", "RESET_EVIDENCE", "EXPENSE_RECEIPT", "PAYMENT_EVIDENCE"]
+    purpose: Literal[
+        "METER_PHOTO", "SIGNATURE", "RESET_EVIDENCE", "EXPENSE_RECEIPT", "PAYMENT_EVIDENCE", "REMITTANCE_EVIDENCE"
+    ]
 
 
 class BlobSessionDto(BaseModel):

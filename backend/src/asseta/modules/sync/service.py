@@ -16,6 +16,8 @@ from asseta.core.errors import AppError, ErrorDetail, NotFound, PermissionDenied
 from asseta.modules.expenses.dto import ExpenseCategoryDto
 from asseta.modules.expenses.models import ExpenseCategory
 from asseta.modules.finance.cash_service import CashCustodyService
+from asseta.modules.finance.deposit_accounts import SyncDepositAccountDto
+from asseta.modules.finance.deposit_models import CompanyDepositAccount
 from asseta.modules.finance.dto import CashCustodyBalanceDto
 from asseta.modules.fleet.dto import MachineDto, StaffDto
 from asseta.modules.fleet.models import Machine, MachineAssignment, StaffMember
@@ -193,6 +195,7 @@ class SyncService:
             else [],
             expense_categories=[ExpenseCategoryDto.model_validate(c) for c in self._s.execute(categories).scalars()],
             cash_custody=self._custody(staff),
+            deposit_accounts=self._deposit_accounts(min_revision),
             my_meter_captures=inbox.meter_captures.items,
             my_meter_resets=inbox.meter_resets.items,
             my_job_activities=inbox.job_activities.items,
@@ -215,6 +218,17 @@ class SyncService:
         if staff is None or "tenant.collection.record" not in self._ctx.permissions:
             return []
         return CashCustodyService(self._s, self._ctx, self._now).balances(staff.id)
+
+    def _deposit_accounts(self, min_revision: int | None) -> list[SyncDepositAccountDto]:
+        """The remittance account picker for cash recorders (bootstrap: active; deltas: every change)."""
+        if "tenant.collection.record" not in self._ctx.permissions:
+            return []
+        stmt = select(CompanyDepositAccount).order_by(CompanyDepositAccount.name, CompanyDepositAccount.id)
+        if min_revision is None:
+            stmt = stmt.where(CompanyDepositAccount.is_active.is_(True))
+        else:
+            stmt = stmt.where(CompanyDepositAccount.sync_revision > min_revision)
+        return [SyncDepositAccountDto.model_validate(a) for a in self._s.execute(stmt).scalars()]
 
     def _watermark(self) -> int:
         """Highest revision handed out so far (read *before* querying; LOOKBACK covers late commits)."""
