@@ -229,6 +229,8 @@ data class CashVarianceDto(
     @SerialName("resolved_by_name") val resolvedByName: String? = null,
     @SerialName("resolved_at") val resolvedAt: String? = null,
     @SerialName("resolution_note") val resolutionNote: String? = null,
+    /** SHORTFALL (less received than declared) or SURPLUS (more: "Surplus to explain"); null from older servers. */
+    val kind: String? = null,
 )
 
 /** `CashRetentionDto` (a custodian may keep some cash instead of remitting it, once approved). */
@@ -293,7 +295,18 @@ data class RemittanceOverdueDto(
     val amounts: List<OverdueAmountDto> = emptyList(),
     @SerialName("flagged_at") val flaggedAt: String,
     @SerialName("policy_version") val policyVersion: String,
-)
+    /** CUTOFF (daily cut-off, the default) or HELD_TOO_LONG (beyond the holding allowance, DEC-031 D3). */
+    val reason: String = CUTOFF,
+    /** When the oldest unremitted cash was received (HELD_TOO_LONG). */
+    @SerialName("held_since") val heldSince: String? = null,
+    /** The holding allowance that applied (HELD_TOO_LONG). */
+    @SerialName("max_holding_days") val maxHoldingDays: Int? = null,
+) {
+    companion object {
+        const val CUTOFF = "CUTOFF"
+        const val HELD_TOO_LONG = "HELD_TOO_LONG"
+    }
+}
 
 // --- accountability dashboard (getAccountabilitySummary) -------------------------------------------------------
 

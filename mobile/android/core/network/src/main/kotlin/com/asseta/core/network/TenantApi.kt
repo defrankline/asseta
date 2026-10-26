@@ -182,6 +182,10 @@ interface TenantApi {
     @GET("api/v1/tenant/expenses/{expenseId}/receipts/{attachmentId}/url")
     suspend fun receiptUrl(@Path("expenseId") expenseId: String, @Path("attachmentId") attachmentId: String): PhotoUrlDto
 
+    /** getRemittanceEvidenceUrl: a deposit slip / payment confirmation photo of a remittance (on demand only). */
+    @GET("api/v1/tenant/cash/handovers/{handoverId}/evidence/{attachmentId}/url")
+    suspend fun remittanceEvidenceUrl(@Path("handoverId") handoverId: String, @Path("attachmentId") attachmentId: String): PhotoUrlDto
+
     /** listTrackingAlerts */
     @GET("api/v1/tenant/alerts")
     suspend fun alerts(

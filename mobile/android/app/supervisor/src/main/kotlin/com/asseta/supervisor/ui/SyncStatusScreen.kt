@@ -173,7 +173,7 @@ private fun ItemRow(item: OutboxItem, onRetry: (ClientOperationEntity) -> Unit) 
             Text(FieldAccountabilityTexts.conflict(code) ?: "$code: ${op.lastError.orEmpty()}", style = MaterialTheme.typography.bodySmall, color = palette.offline)
         }
         item.serverState?.let { Text("Server state: $it", style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace)) }
-        item.waiting?.let { Text(FieldTexts.waiting(it), style = MaterialTheme.typography.bodySmall, color = palette.secondaryText) }
+        item.waiting?.let { Text(FieldTexts.waiting(it, op.opType), style = MaterialTheme.typography.bodySmall, color = palette.secondaryText) }
         if (op.status == ClientOperationStatus.FAILED) {
             TextButton(onClick = { onRetry(op) }, contentPadding = PaddingValues(0.dp)) { Text("Retry") }
         }

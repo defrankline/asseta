@@ -186,12 +186,54 @@ object FieldAccountabilityTexts {
 
     fun overdueLine(cutoffHour: Int, day: String): String = "Still held after the ${hour(cutoffHour)} cut-off on $day."
 
+    // --- DEC-031 Phase 3: remittance details and holding allowance -----------------------------------------------
+    const val REMIT_METHOD = "How was it handed over?"
+    const val REMIT_ACCOUNT = "Paid into"
+    const val REMIT_ACCOUNT_OPTIONAL = "Paid into (optional)"
+    const val REMIT_ACCOUNT_NONE = "No account"
+    const val REMIT_ACCOUNTS_EMPTY = "Your company's accounts for this currency appear here after a sync."
+    const val REMIT_REFERENCE = "Transaction reference"
+    const val REMIT_REFERENCE_OPTIONAL = "Reference (deposit slip, transaction no.) (optional)"
+    const val REMIT_PHOTOS = "Deposit slip or payment confirmation"
+    const val REMIT_PHOTOS_OPTIONAL = "Deposit slip or payment confirmation (optional)"
+    const val REMIT_PHOTOS_FOOTER = "Stored encrypted on this phone and uploaded before the handover is sent."
+    const val REMIT_PHOTOGRAPH = "Photograph the slip"
+    const val REMIT_ADD_PHOTO = "Add another photo"
+    const val REMIT_REMOVE_PHOTO = "Remove"
+    const val OUTBOX_WAITING_PHOTOS = "Waiting for its photos to upload"
+
+    fun remitMethod(method: com.asseta.core.domain.accountability.RemittanceMethod): String = when (method) {
+        com.asseta.core.domain.accountability.RemittanceMethod.CASH_TO_OFFICE -> "Cash to the office"
+        com.asseta.core.domain.accountability.RemittanceMethod.BANK_DEPOSIT -> "Bank deposit"
+        com.asseta.core.domain.accountability.RemittanceMethod.MOBILE_MONEY -> "Mobile money"
+    }
+
+    const val OVERDUE_REASON = "Reason"
+    const val OVERDUE_REASON_CUTOFF = "Not remitted by the daily cut-off"
+    const val OVERDUE_REASON_HELD = "Held longer than allowed"
+    const val OVERDUE_HELD_SINCE = "Held since"
+    const val OVERDUE_ALLOWED = "Allowed"
+    const val OVERDUE_HELD_LINE_SHORT = "Held longer than allowed."
+
+    fun days(n: Int): String = if (n == 1) "1 day" else "$n days"
+
+    fun overdueHeldLine(date: String, days: Int): String = "Held since $date, longer than the allowed ${days(days)}."
+
     /** Plain words for the server's conflict codes on accountability operations (null: show the server's message). */
     fun conflict(code: String?): String? = when (code) {
         "RETENTION_NOT_ALLOWED" -> "Your company does not allow keeping cash, so this request was not accepted."
         "DUPLICATE_RETENTION" -> "This request to keep cash was already sent."
         "ENGINE_HOURS_DISABLED" -> "Your company has switched off engine-hour controls, so this was not accepted."
         "CASH_CUSTODY_DISABLED" -> "Your company has switched off cash custody controls, so this was not accepted."
+        "REMITTANCE_REFERENCE_REQUIRED" ->
+            "Your company requires the transaction reference for bank and mobile-money remittances. Record the handover again with the reference."
+        "REMITTANCE_EVIDENCE_REQUIRED" ->
+            "Your company requires a photo of the deposit slip or payment confirmation. Record the handover again with a photo."
+        "REMITTANCE_ACCOUNT_REQUIRED" ->
+            "Your company requires the account the money was paid into. Record the handover again and choose the account."
+        "DEPOSIT_ACCOUNT_INACTIVE" -> "The account you chose is no longer in use. Record the handover again with another account."
+        "REMITTANCE_ACCOUNT_MISMATCH" -> "The account you chose does not match how the money was handed over. Record the handover again."
+        "DEPOSIT_ACCOUNT_CURRENCY_MISMATCH" -> "The account you chose holds a different currency. Record the handover again with another account."
         else -> null
     }
 

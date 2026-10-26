@@ -26,7 +26,8 @@ class CapabilitySwitchPresentationTest {
     fun `overdue remittance shows name, amounts, day, cut-off and flagged time`() {
         assertEquals(
             listOf(
-                "Cash held by" to "Baraka", "Not remitted" to "TZS 50,000.00, USD 20.00", "Day" to "2026-10-24", "Cut-off" to "07:00",
+                "Cash held by" to "Baraka", "Not remitted" to "TZS 50,000.00, USD 20.00", "Reason" to "Not remitted by the daily cut-off",
+                "Day" to "2026-10-24", "Cut-off" to "07:00",
                 "Flagged" to "2026-10-24T07:05:00Z",
             ),
             RemittanceOverdueText.rows(flag),

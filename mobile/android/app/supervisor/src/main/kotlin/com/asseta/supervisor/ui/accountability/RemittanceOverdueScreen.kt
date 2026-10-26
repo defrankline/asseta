@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.time.ZoneId
 
 private val T = FieldAccountabilityTexts
 
@@ -41,16 +42,37 @@ object RemittanceOverdueText {
         a.amount.toBigDecimalOrNull()?.let { OwnerFormat.money(it, a.currency) } ?: "${a.amount} ${a.currency}"
     }
 
-    /** Label/value rows in screen order ([flagged] formats the server timestamp). */
-    fun rows(o: RemittanceOverdueDto, flagged: (String) -> String = { it }): List<Pair<String, String>> = listOf(
+    /** True when the cash was held longer than the allowance (DEC-031 D3), not merely past the daily cut-off. */
+    fun heldTooLong(o: RemittanceOverdueDto): Boolean = o.reason == RemittanceOverdueDto.HELD_TOO_LONG
+
+    fun reason(o: RemittanceOverdueDto): String = if (heldTooLong(o)) T.OVERDUE_REASON_HELD else T.OVERDUE_REASON_CUTOFF
+
+    /** "24 Oct 2026" in [zone] (the date the oldest unremitted cash was received); null when the server sent none. */
+    fun heldSince(o: RemittanceOverdueDto, zone: ZoneId): String? = o.heldSince?.let { OwnerFormat.date(it, zone) }?.takeIf { it != "—" }
+
+    /**
+     * Label/value rows in screen order ([flagged] formats the server timestamp). The cut-off row belongs to CUTOFF
+     * flags only; HELD_TOO_LONG shows since when the cash is held and the allowance instead.
+     */
+    fun rows(o: RemittanceOverdueDto, flagged: (String) -> String = { it }, zone: ZoneId = ZoneId.systemDefault()): List<Pair<String, String>> = listOfNotNull(
         T.OVERDUE_CUSTODIAN to name(o),
         T.OVERDUE_NOT_REMITTED to amounts(o),
+        T.OVERDUE_REASON to reason(o),
         T.OVERDUE_DAY to o.localDay,
-        T.OVERDUE_CUTOFF to T.hour(o.cutoffHour),
+        (T.OVERDUE_CUTOFF to T.hour(o.cutoffHour)).takeIf { !heldTooLong(o) },
+        heldSince(o, zone)?.takeIf { heldTooLong(o) }?.let { T.OVERDUE_HELD_SINCE to it },
+        o.maxHoldingDays?.takeIf { heldTooLong(o) }?.let { T.OVERDUE_ALLOWED to T.days(it) },
         T.OVERDUE_FLAGGED to flagged(o.flaggedAt),
     ).filter { it.second.isNotBlank() }
 
-    fun footer(o: RemittanceOverdueDto): String = "${T.overdueLine(o.cutoffHour, o.localDay)} ${T.OVERDUE_HINT}"
+    fun line(o: RemittanceOverdueDto, zone: ZoneId = ZoneId.systemDefault()): String {
+        if (!heldTooLong(o)) return T.overdueLine(o.cutoffHour, o.localDay)
+        val since = heldSince(o, zone)
+        val days = o.maxHoldingDays
+        return if (since != null && days != null) T.overdueHeldLine(since, days) else T.OVERDUE_HELD_LINE_SHORT
+    }
+
+    fun footer(o: RemittanceOverdueDto, zone: ZoneId = ZoneId.systemDefault()): String = "${line(o, zone)} ${T.OVERDUE_HINT}"
 }
 
 /** My overdue remittance flag [id], read online (shown from this session's last read while it reloads). */

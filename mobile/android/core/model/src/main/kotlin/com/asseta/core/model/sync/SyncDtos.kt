@@ -58,6 +58,23 @@ data class SyncData(
     @SerialName("my_fuel_events") val myFuelEvents: List<SyncFuelEventDto>? = null,
     @SerialName("my_cash_collections") val myCashCollections: List<SyncCashCollectionDto>? = null,
     @SerialName("my_cash_handovers") val myCashHandovers: List<SyncCashHandoverDto>? = null,
+    /** Company deposit accounts (REMITTANCE_DETAILS_V1), by sync revision; deactivations arrive with is_active=false. */
+    @SerialName("deposit_accounts") val depositAccounts: List<SyncDepositAccountDto>? = null,
+)
+
+/** `SyncDepositAccountDto`: a company account remittances are paid into (account number masked by the server). */
+@Serializable
+data class SyncDepositAccountDto(
+    val id: String,
+    val name: String,
+    @SerialName("account_type") val accountType: String,
+    val institution: String? = null,
+    @SerialName("account_number_masked") val accountNumberMasked: String? = null,
+    val currency: String,
+    val note: String? = null,
+    @SerialName("is_active") val isActive: Boolean,
+    val version: Int = 0,
+    @SerialName("sync_revision") val syncRevision: Long = 0,
 )
 
 @Serializable
@@ -159,6 +176,9 @@ object BlobPurpose {
     const val EXPENSE_RECEIPT = "EXPENSE_RECEIPT"
     const val RESET_EVIDENCE = "RESET_EVIDENCE"
     const val PAYMENT_EVIDENCE = "PAYMENT_EVIDENCE"
+
+    /** Deposit slip / payment confirmation of a remittance (CASH_HANDOVER `evidence_upload_ids`). */
+    const val REMITTANCE_EVIDENCE = "REMITTANCE_EVIDENCE"
 }
 
 object SyncErrorCodes {

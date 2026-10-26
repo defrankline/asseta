@@ -15,6 +15,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
+import com.asseta.core.domain.accountability.DepositAccountOption
+import com.asseta.core.domain.accountability.RemittanceMethod
+import com.asseta.core.domain.accountability.RemittanceRequirements
+import com.asseta.core.domain.accountability.RemittanceRules
 import com.asseta.core.domain.finance.AmountParser
 import com.asseta.core.domain.finance.CashRules
 import com.asseta.core.domain.finance.CustodyLine
@@ -27,6 +31,9 @@ import com.asseta.core.sync.usecase.CashCollectionRequest
 import com.asseta.core.sync.usecase.CashHandoverRequest
 import com.asseta.core.sync.usecase.FinanceResult
 import com.asseta.core.sync.usecase.FuelEventRequest
+import com.asseta.core.sync.usecase.RemittanceDetails
+import com.asseta.supervisor.capture.CapturedPhoto
+import com.asseta.supervisor.ui.accountability.EvidencePhotos
 import com.asseta.supervisor.FieldGraph
 import com.asseta.supervisor.ui.DateTimeField
 import com.asseta.supervisor.ui.LabeledRow
@@ -42,6 +49,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.math.BigDecimal
 import java.util.UUID
+
+private val T = FieldAccountabilityTexts
 
 /** Plain text fields of a cash/fuel form (validated by `CashRules` in the use case). */
 data class CashForm(
@@ -61,7 +70,41 @@ data class CashForm(
     val atMs: Long = 0,
     /** Another cash holder (recorders may record for others per tenant policy); null = me. */
     val holderId: String? = null,
+    /** Remittance details (REMITTANCE_DETAILS_V1): how and where the money went, with deposit slip photos. */
+    val method: RemittanceMethod = RemittanceMethod.CASH_TO_OFFICE,
+    val depositAccountId: String? = null,
+    val photos: List<CapturedPhoto> = emptyList(),
 )
+
+/** What the handover form shows for the remittance details (pure, unit-tested; same rules on iOS). */
+object RemittanceForm {
+    /** Picker rows: active accounts in the form's currency matching the method. */
+    fun accountOptions(accounts: List<DepositAccountOption>, method: RemittanceMethod, currency: String): List<PickerOption> =
+        RemittanceRules.accountsFor(accounts, method, currency).map { PickerOption(it.id, it.name, it.subtitle.takeIf { s -> s.isNotEmpty() }) }
+
+    /** Choosing an account sets the method from its type; clearing it keeps the method. */
+    fun selectAccount(form: CashForm, accountId: String?, accounts: List<DepositAccountOption>): CashForm {
+        val account = accounts.firstOrNull { it.id == accountId }
+        return form.copy(depositAccountId = accountId, method = RemittanceMethod.ofAccountType(account?.accountType) ?: form.method)
+    }
+
+    /** A new method drops an account of another type. */
+    fun selectMethod(form: CashForm, method: RemittanceMethod, accounts: List<DepositAccountOption>): CashForm {
+        val account = accounts.firstOrNull { it.id == form.depositAccountId }
+        return form.copy(method = method, depositAccountId = form.depositAccountId.takeIf { account == null || account.accountType == method.accountType })
+    }
+
+    fun issues(form: CashForm, req: RemittanceRequirements, accounts: List<DepositAccountOption>): List<String> =
+        RemittanceRules.check(req, form.method, form.depositAccountId, accounts.firstOrNull { it.id == form.depositAccountId }, form.currency,
+            form.reference, form.photos.size)
+
+    fun accountLabel(req: RemittanceRequirements): String = if (req.accountRequired) T.REMIT_ACCOUNT else T.REMIT_ACCOUNT_OPTIONAL
+
+    fun referenceLabel(req: RemittanceRequirements, method: RemittanceMethod): String =
+        if (RemittanceRules.referenceRequired(req, method)) T.REMIT_REFERENCE else T.REMIT_REFERENCE_OPTIONAL
+
+    fun photosLabel(req: RemittanceRequirements): String = if (req.evidenceRequired) T.REMIT_PHOTOS else T.REMIT_PHOTOS_OPTIONAL
+}
 
 /** Wording of the cash and fuel forms shared with iOS. */
 object CashTexts {
@@ -85,6 +128,9 @@ object CashTexts {
         return "Cost: ${formatMoney(CashRules.fuelCost(l, p).stripTrailingZeros().let { if (it.scale() < 0) it.setScale(0) else it }, currency)}"
     }
 }
+
+/** [enabled]: the server announced REMITTANCE_DETAILS_V1; [requirements]: the tenant's CASH_CUSTODY requirements. */
+data class RemittanceAccess(val enabled: Boolean, val requirements: RemittanceRequirements)
 
 /** Collection, handover and fuel forms share one view model; the client id is generated once per visit. */
 class CashFormViewModel(
@@ -111,6 +157,13 @@ class CashFormViewModel(
     val custody: StateFlow<List<CustodyLine>> = repo.observeCashView(tenantId).map { it.lines }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    /** Company deposit accounts saved from sync (picker filters active ones of the form's currency and method). */
+    val depositAccounts: StateFlow<List<DepositAccountOption>> = repo.observeDepositAccounts(tenantId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Whether the server takes remittance details, and the tenant's requirements on them. */
+    val remittance = MutableStateFlow(RemittanceAccess(false, RemittanceRequirements()))
+
     /** The cash holders a recorder may record for (empty unless the tenant policy allows it). */
     val holders = MutableStateFlow<List<PickerOption>>(emptyList())
     val me = MutableStateFlow<String?>(null)
@@ -119,7 +172,9 @@ class CashFormViewModel(
         viewModelScope.launch { repo.baseCurrency(tenantId)?.let { c -> form.update { it.copy(currency = c) } } }
         viewModelScope.launch {
             me.value = field.accountability.myStaffId(tenantId)
-            if (field.accountability.access(tenantId, permissions).recordForOthers) {
+            val access = field.accountability.access(tenantId, permissions)
+            remittance.value = RemittanceAccess(access.remittanceDetails, access.remittanceRequirements)
+            if (access.recordForOthers) {
                 holders.value = com.asseta.supervisor.ui.accountability.custodianOptions(field.accountability.cache.value.custodians, me.value)
             }
         }
@@ -149,7 +204,11 @@ class CashFormViewModel(
                 COLLECTION -> field.finance.cashCollection(
                     CashCollectionRequest(tenantId, clientId, f.customerId, f.jobId, f.amount, f.currency, f.reference, f.note, at, holder()),
                 )
-                HANDOVER -> field.finance.cashHandover(CashHandoverRequest(tenantId, clientId, f.amount, f.currency, f.reference, f.note, at, holder()))
+                HANDOVER -> {
+                    val r = remittance.value
+                    val details = if (r.enabled) RemittanceDetails(f.method, f.depositAccountId, f.photos.map { it.jpeg }, r.requirements) else null
+                    field.finance.cashHandover(CashHandoverRequest(tenantId, clientId, f.amount, f.currency, f.reference, f.note, at, holder(), details))
+                }
                 else -> field.finance.fuelEvent(
                     FuelEventRequest(tenantId, clientId, f.fuelType, f.amount, f.unitPrice, f.currency, f.machineId, f.jobId,
                         f.meter, if (f.fuelType == FuelEventType.PURCHASE) f.supplier else "", f.note, at),
@@ -158,6 +217,8 @@ class CashFormViewModel(
             save.update { it.after(result) }
         }
     }
+
+    fun onPhotoError(message: String) = save.update { it.copy(messages = listOf("The photo could not be saved: $message")) }
 
     companion object {
         const val COLLECTION = "COLLECTION"
@@ -176,6 +237,8 @@ fun CashFormScreen(vm: CashFormViewModel, onDone: () -> Unit) {
     val custody by vm.custody.collectAsStateWithLifecycle()
     val holders by vm.holders.collectAsStateWithLifecycle()
     val me by vm.me.collectAsStateWithLifecycle()
+    val accounts by vm.depositAccounts.collectAsStateWithLifecycle()
+    val remittance by vm.remittance.collectAsStateWithLifecycle()
     val editable = !save.saved && !save.saving
     // Recorders may record for another cash holder when the company allows it (operators hold cash without a login).
     val holderPicker: @Composable () -> Unit = {
@@ -209,15 +272,34 @@ fun CashFormScreen(vm: CashFormViewModel, onDone: () -> Unit) {
                         custody.forEach { LabeledRow(it.currency, it.estimatedInHand.plainText()) }
                     }
                 }
+                val details = remittance.enabled
+                val req = remittance.requirements
                 Section(null, footer = "Your custody goes down only when finance verifies the handover.") {
                     holderPicker()
                     DecimalField("Amount handed over", form.amount, { v -> vm.edit { it.copy(amount = v) } }, editable)
                     TextInput("Currency", form.currency, { v -> vm.edit { it.copy(currency = v.uppercase().take(3)) } }, editable)
-                    TextInput("Reference (deposit slip, receipt no.)", form.reference, { v -> vm.edit { it.copy(reference = v) } }, editable)
+                    if (!details) TextInput("Reference (deposit slip, receipt no.)", form.reference, { v -> vm.edit { it.copy(reference = v) } }, editable)
                     DateTimeField("Handed over", form.atMs, { v -> vm.edit { it.copy(atMs = v) } }, editable, notAfter = now)
                     TextInput("Note (who received it…)", form.note, { v -> vm.edit { it.copy(note = v) } }, editable, singleLine = false)
                 }
-                SaveSection(save, vm::save, onDone, enabled = form.amount.isNotEmpty())
+                var issues = emptyList<String>()
+                if (details) {
+                    Section(T.REMIT_METHOD) {
+                        SegmentedChoice(RemittanceMethod.entries, form.method, T::remitMethod,
+                            { m -> vm.edit { RemittanceForm.selectMethod(it, m, accounts) } }, editable)
+                        SearchablePickerField(RemittanceForm.accountLabel(req), RemittanceForm.accountOptions(accounts, form.method, form.currency),
+                            form.depositAccountId, { id -> vm.edit { RemittanceForm.selectAccount(it, id, accounts) } },
+                            noneLabel = T.REMIT_ACCOUNT_NONE, emptyText = T.REMIT_ACCOUNTS_EMPTY, enabled = editable)
+                        TextInput(RemittanceForm.referenceLabel(req, form.method), form.reference, { v -> vm.edit { it.copy(reference = v) } }, editable)
+                    }
+                    EvidencePhotos(form.photos, { p -> vm.edit { it.copy(photos = it.photos + p) } },
+                        { i -> vm.edit { it.copy(photos = it.photos.filterIndexed { j, _ -> j != i }) } }, vm::onPhotoError, editable,
+                        title = RemittanceForm.photosLabel(req), footer = T.REMIT_PHOTOS_FOOTER, photograph = T.REMIT_PHOTOGRAPH,
+                        addPhoto = T.REMIT_ADD_PHOTO, remove = T.REMIT_REMOVE_PHOTO)
+                    issues = RemittanceForm.issues(form, req, accounts)
+                    if (issues.isNotEmpty() && save.messages.isEmpty() && form.amount.isNotEmpty()) Section(null) { issues.forEach { Text(it, color = WarningColor) } }
+                }
+                SaveSection(save, vm::save, onDone, enabled = form.amount.isNotEmpty() && issues.isEmpty())
             }
             else -> FuelFields(vm, form, save, jobOptions(jobs), machines, editable, now, onDone)
         }

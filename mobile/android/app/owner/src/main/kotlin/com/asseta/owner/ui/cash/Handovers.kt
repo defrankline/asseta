@@ -48,6 +48,7 @@ import com.asseta.owner.ui.OwnerSession
 import com.asseta.owner.ui.accountability.OwnerAccountabilityTexts
 import com.asseta.owner.ui.common.BlockedNote
 import com.asseta.owner.ui.common.EmptyState
+import com.asseta.owner.ui.common.EvidencePhoto
 import com.asseta.owner.ui.common.KeyValue
 import com.asseta.owner.ui.common.OwnerColors
 import com.asseta.owner.ui.common.SectionCard
@@ -104,6 +105,20 @@ object HandoverText {
     }
 
     fun done(confirm: Boolean): String = if (confirm) CONFIRMED else DISPUTED
+
+    /**
+     * How and where the money went (DEC-031 D2), shown next to "Amount received": Method, Paid into, Reference.
+     * Older remittances (no method) show only their reference.
+     */
+    fun details(h: CashHandoverDto): List<Pair<String, String>> = listOfNotNull(
+        OwnerAccountabilityTexts.remitMethod(h.method)?.let { OwnerAccountabilityTexts.REMIT_METHOD to it },
+        (h.depositAccountName?.takeIf { it.isNotBlank() } ?: com.asseta.core.domain.accountability.DisplayNames.shortId(h.depositAccountId))
+            ?.let { OwnerAccountabilityTexts.REMIT_ACCOUNT to it },
+        h.reference?.takeIf { it.isNotBlank() }?.let { OwnerAccountabilityTexts.REMIT_REFERENCE to it },
+    )
+
+    /** "No deposit slip photo" for a bank / mobile-money remittance without one (cash and older remittances: nothing). */
+    fun noPhoto(h: CashHandoverDto): Boolean = h.evidenceAttachmentIds.isEmpty() && h.method != null && h.method != "CASH_TO_OFFICE"
 
     fun statusTone(status: String): KpiTone = when (status) {
         "CLAIMED" -> KpiTone.WARNING
@@ -190,7 +205,11 @@ fun HandoverScreen(vm: HandoverViewModel, session: OwnerSession, online: Boolean
                 SectionCard(HandoverText.CARD) {
                     Text(HandoverText.headline(h, list.name(h)), style = AssetaType.headline)
                     Text(HandoverText.claimed(h, zone), style = AssetaType.subheadline, color = palette.secondaryText)
-                    h.reference?.let { KeyValue("Reference", it) }
+                    HandoverText.details(h).forEach { (label, value) -> KeyValue(label, value) }
+                    h.evidenceAttachmentIds.forEachIndexed { i, attachmentId ->
+                        EvidencePhoto(OwnerAccountabilityTexts.remitPhoto(i + 1), online) { vm.data.remittanceEvidenceUrl(h.id.toString(), attachmentId) }
+                    }
+                    if (HandoverText.noPhoto(h)) KeyValue(OwnerAccountabilityTexts.REMIT_NO_PHOTO, "—")
                     h.note?.takeIf { it.isNotBlank() }?.let { KeyValue(HandoverText.NOTE, it) }
                     LabeledValue("Status") { StatusPill(OwnerFormat.humanize(h.status), OwnerColors.tone(HandoverText.statusTone(h.status))) }
                     h.expectedBalance?.let { KeyValue(OwnerAccountabilityTexts.REMIT_EXPECTED, OwnerFormat.money(it.value, h.currency)) }
@@ -241,6 +260,9 @@ fun HandoverScreen(vm: HandoverViewModel, session: OwnerSession, online: Boolean
             title = { Text(if (confirm) HandoverText.CONFIRM_TITLE else HandoverText.DISPUTE_TITLE) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Method, account and reference beside "Amount received", so the office checks the slip against them.
+                    val shown = state.snapshot?.data?.let(vm::handover)
+                    if (confirm) shown?.let(HandoverText::details)?.forEach { (label, value) -> KeyValue(label, value) }
                     if (confirm && askAmount) {
                         // The office records what it actually counted; a different amount opens a cash difference.
                         OutlinedTextField(

@@ -167,12 +167,23 @@ object DecisionMapper {
         proposedByName = name(c.proposedByName, c.proposedBy),
     )
 
-    fun writeOff(v: CashVarianceDto) = DecisionItem(
-        DecisionKinds.WRITE_OFF, v.id, T.rowWriteOff(money(v.amount, v.currency)), v.proposalNote, v.proposedAt ?: v.openedAt, v.proposedBy, v.status,
+    /** More received than declared ("Surplus to explain"); older servers send no kind, a negative amount means the same. */
+    fun isSurplus(v: CashVarianceDto): Boolean =
+        v.kind == "SURPLUS" || (v.kind == null && (v.amount.toBigDecimalOrNull()?.signum() ?: 0) < 0)
+
+    fun writeOff(v: CashVarianceDto): DecisionItem {
+        val surplus = isSurplus(v)
+        val difference = if (surplus) money(v.amount.removePrefix("-"), v.currency) else money(v.amount, v.currency)
+        return writeOffItem(v, if (surplus) T.rowSurplus(difference) else T.rowWriteOff(difference),
+            (if (surplus) T.VARIANCE_SURPLUS else T.F_DIFFERENCE) to difference)
+    }
+
+    private fun writeOffItem(v: CashVarianceDto, headline: String, difference: Pair<String, String>) = DecisionItem(
+        DecisionKinds.WRITE_OFF, v.id, headline, v.proposalNote, v.proposedAt ?: v.openedAt, v.proposedBy, v.status,
         v.status == "WRITE_OFF_PROPOSED",
         fields(T.F_CUSTODIAN to name(v.staffMemberName, v.staffMemberId), T.F_COUNTERPARTY to name(v.counterpartyStaffName, v.counterpartyStaffId),
             T.F_SOURCE to OwnerFormat.humanize(v.sourceType), T.F_DECLARED to money(v.declaredAmount, v.currency),
-            T.F_RECEIVED to money(v.receivedAmount, v.currency), T.F_DIFFERENCE to money(v.amount, v.currency),
+            T.F_RECEIVED to money(v.receivedAmount, v.currency), difference,
             T.F_PROPOSED_BY to name(v.proposedByName, v.proposedBy), T.F_DECIDED_BY to name(v.resolvedByName, v.resolvedBy),
             T.F_DECISION_NOTE to v.resolutionNote),
         proposedByName = name(v.proposedByName, v.proposedBy),

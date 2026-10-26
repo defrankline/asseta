@@ -28,6 +28,12 @@ object SyncCapabilities {
     const val METER_DAILY_READING = "METER_DAILY_READING"
     const val OP_METER_BASELINE = "OP_METER_BASELINE"
     const val OP_METER_CORRECTION = "OP_METER_CORRECTION"
+
+    /**
+     * DEC-031 D2: CASH_HANDOVER accepts method, deposit_account_id and evidence_upload_ids (blob purpose
+     * REMITTANCE_EVIDENCE); SyncData carries deposit_accounts.
+     */
+    const val REMITTANCE_DETAILS_V1 = "REMITTANCE_DETAILS_V1"
 }
 
 /** `ExceptionDto`: a server finding on a reading (type, severity, blocking) and its review. */

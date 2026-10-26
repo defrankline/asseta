@@ -78,6 +78,11 @@ data class CashHandoverDto(
     @SerialName("expected_balance") val expectedBalance: DecimalAmount? = null,
     /** Unretained balance not remitted (PARTIAL_REMITTANCE); null = not flagged. */
     @SerialName("partial_shortfall") val partialShortfall: DecimalAmount? = null,
+    /** DEC-031: CASH_TO_OFFICE | BANK_DEPOSIT | MOBILE_MONEY; null on older remittances (cash to the office). */
+    val method: String? = null,
+    @SerialName("deposit_account_id") val depositAccountId: String? = null,
+    @SerialName("deposit_account_name") val depositAccountName: String? = null,
+    @SerialName("evidence_attachment_ids") val evidenceAttachmentIds: List<String> = emptyList(),
 )
 
 /**

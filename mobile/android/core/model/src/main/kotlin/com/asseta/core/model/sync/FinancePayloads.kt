@@ -51,6 +51,11 @@ data class CashHandoverPayload(
     val note: String? = null,
     /** The remitting custodian when a recorder records for another custodian (tenant policy); null = the recorder. */
     @SerialName("staff_member_id") val staffMemberId: String? = null,
+    /** REMITTANCE_DETAILS_V1 only (null = not sent): CASH_TO_OFFICE | BANK_DEPOSIT | MOBILE_MONEY. */
+    val method: String? = null,
+    @SerialName("deposit_account_id") val depositAccountId: String? = null,
+    /** REMITTANCE_DETAILS_V1 only: completed blob upload ids (purpose REMITTANCE_EVIDENCE), appended per photo. */
+    @SerialName("evidence_upload_ids") val evidenceUploadIds: List<String>? = null,
 )
 
 @Serializable

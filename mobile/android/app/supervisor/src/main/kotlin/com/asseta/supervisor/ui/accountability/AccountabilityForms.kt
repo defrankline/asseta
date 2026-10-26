@@ -224,28 +224,39 @@ fun HoursSaleScreen(vm: HoursSaleViewModel, onDone: () -> Unit) {
 
 /** Payment evidence photos through the in-app camera (originals stored encrypted on save; at most ten). */
 @Composable
-fun EvidencePhotos(photos: List<CapturedPhoto>, onAdd: (CapturedPhoto) -> Unit, onRemove: (Int) -> Unit, onError: (String) -> Unit, enabled: Boolean) {
+fun EvidencePhotos(
+    photos: List<CapturedPhoto>,
+    onAdd: (CapturedPhoto) -> Unit,
+    onRemove: (Int) -> Unit,
+    onError: (String) -> Unit,
+    enabled: Boolean,
+    title: String = T.EVIDENCE,
+    footer: String = T.EVIDENCE_FOOTER,
+    photograph: String = T.PHOTOGRAPH,
+    addPhoto: String = T.ADD_PHOTO,
+    remove: String = "Remove",
+) {
     val context = LocalContext.current
     var granted by remember { mutableStateOf(context.hasAllPermissions(arrayOf(Manifest.permission.CAMERA))) }
     var open by remember { mutableStateOf(false) }
-    Section(T.EVIDENCE, footer = T.EVIDENCE_FOOTER) {
+    Section(title, footer = footer) {
         photos.forEachIndexed { index, photo ->
             Row(verticalAlignment = Alignment.CenterVertically) {
                 val preview = remember(photo) { MeterOcr.decodeForOcr(photo.jpeg, photo.rotationDegrees)?.asImageBitmap() }
-                preview?.let { Image(it, "${T.EVIDENCE} ${index + 1}", Modifier.weight(1f).heightIn(max = 120.dp), contentScale = ContentScale.Fit, alignment = Alignment.CenterStart) }
-                if (enabled) TextButton(onClick = { onRemove(index) }) { Text("Remove", color = palette.offline) }
+                preview?.let { Image(it, "$title ${index + 1}", Modifier.weight(1f).heightIn(max = 120.dp), contentScale = ContentScale.Fit, alignment = Alignment.CenterStart) }
+                if (enabled) TextButton(onClick = { onRemove(index) }) { Text(remove, color = palette.offline) }
             }
         }
         when {
             !enabled -> Unit
             open && !granted -> PermissionRationale(
                 title = "Camera",
-                rationale = T.EVIDENCE_FOOTER,
+                rationale = footer,
                 permissions = arrayOf(Manifest.permission.CAMERA),
                 onResult = { granted = it; if (!it) open = false },
             )
-            open -> CameraCapture(buttonLabel = T.PHOTOGRAPH, onCaptured = { onAdd(it); open = false }, onError = { onError(it); open = false })
-            photos.size < MAX_PHOTOS -> OutlinedButton(onClick = { open = true }) { Text(if (photos.isEmpty()) T.PHOTOGRAPH else T.ADD_PHOTO) }
+            open -> CameraCapture(buttonLabel = photograph, onCaptured = { onAdd(it); open = false }, onError = { onError(it); open = false })
+            photos.size < MAX_PHOTOS -> OutlinedButton(onClick = { open = true }) { Text(if (photos.isEmpty()) photograph else addPhoto) }
         }
     }
 }

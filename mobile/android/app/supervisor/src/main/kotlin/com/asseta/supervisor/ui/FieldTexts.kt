@@ -99,10 +99,10 @@ object FieldTexts {
     /** "WORK" -> "Work". */
     fun activityType(type: String): String = type.lowercase().replaceFirstChar { it.uppercase() }
 
-    fun waiting(reason: WaitingReason): String = when (reason) {
+    fun waiting(reason: WaitingReason, opType: String? = null): String = when (reason) {
         WaitingReason.EARLIER_ITEM -> "Waiting for an earlier item"
         WaitingReason.BLOCKED_BY_EARLIER -> "Blocked by an earlier item that needs attention"
-        WaitingReason.UPLOAD -> "Waiting for its photo/receipt/signature upload"
+        WaitingReason.UPLOAD -> if (opType == OpTypes.CASH_HANDOVER) FieldAccountabilityTexts.OUTBOX_WAITING_PHOTOS else "Waiting for its photo/receipt/signature upload"
     }
 
     fun signOutMessage(unsynced: Int): String =

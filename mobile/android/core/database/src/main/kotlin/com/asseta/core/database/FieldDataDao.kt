@@ -54,6 +54,12 @@ abstract class FieldDataDao {
     @Query("DELETE FROM reference_record WHERE tenant_id = :tenantId")
     abstract suspend fun deleteAllReferences(tenantId: String): Int
 
+    @Query("DELETE FROM reference_record WHERE tenant_id = :tenantId AND kind = :kind AND id NOT IN (:keep)")
+    abstract suspend fun deleteReferencesNotIn(tenantId: String, kind: String, keep: List<String>): Int
+
+    @Query("DELETE FROM reference_record WHERE tenant_id = :tenantId AND kind = :kind")
+    abstract suspend fun deleteReferencesOfKind(tenantId: String, kind: String): Int
+
     @Query("DELETE FROM policy_snapshot WHERE tenant_id = :tenantId")
     abstract suspend fun deleteAllSnapshots(tenantId: String): Int
 

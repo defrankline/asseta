@@ -1,5 +1,7 @@
 package com.asseta.owner.ui.accountability
 
+import com.asseta.core.domain.owner.OwnerFormat
+
 /**
  * Wording of the Owner app's accountability screens, shared with iOS word for word
  * (docs/requirements/accountability-mobile-strings.md, keys `owner.*`).
@@ -199,4 +201,27 @@ object OwnerAccountabilityTexts {
     const val OVERDUE_DETAIL_TITLE = "Overdue remittance"
     const val OVERDUE_EMPTY = "No overdue remittances today."
     fun overdueLine(h: Int, day: String) = "Still held after the ${hour(h)} cut-off on $day."
+
+    // --- DEC-031 Phase 3: remittance details, surplus, holding allowance ------------------------------------------
+    const val REMIT_METHOD = "Method"
+    const val REMIT_ACCOUNT = "Paid into"
+    const val REMIT_REFERENCE = "Reference"
+    const val REMIT_NO_PHOTO = "No deposit slip photo"
+    fun remitPhoto(n: Int) = "deposit slip photo $n"
+    fun remitMethod(wire: String?): String? = when (wire) {
+        "CASH_TO_OFFICE" -> "Cash to the office"
+        "BANK_DEPOSIT" -> "Bank deposit"
+        "MOBILE_MONEY" -> "Mobile money"
+        null -> null
+        else -> OwnerFormat.humanize(wire)
+    }
+    const val VARIANCE_SURPLUS = "Surplus to explain"
+    fun rowSurplus(money: String) = "Surplus to explain: $money"
+    const val OVERDUE_REASON_CUTOFF = "Not remitted by the daily cut-off"
+    const val OVERDUE_REASON_HELD = "Held longer than allowed"
+    const val F_HELD_SINCE = "Held since"
+    const val F_ALLOWED = "Allowed"
+    const val OVERDUE_HELD_LINE_SHORT = "Held longer than allowed."
+    fun days(n: Int) = if (n == 1) "1 day" else "$n days"
+    fun overdueHeldLine(date: String, days: Int) = "Held since $date, longer than the allowed ${days(days)}."
 }

@@ -15,6 +15,7 @@ import com.asseta.core.model.sync.DeviceSessionDto
 import com.asseta.core.model.sync.PolicySnapshotDto
 import com.asseta.core.model.sync.SyncCapabilities
 import com.asseta.core.model.sync.SyncData
+import com.asseta.core.model.sync.SyncDepositAccountDto
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
@@ -62,6 +63,12 @@ class ServerDataWriter(private val db: () -> AssetaDatabase, private val json: J
             if (categories.isEmpty()) finance.deleteAllCategories(tenantId) else finance.deleteCategoriesNotIn(tenantId, categories)
             // The bootstrap inbox is the server's full window: start it afresh (later pages arrive as changes).
             if (SyncCapabilities.SUPERVISOR_INBOX_V1 in dto.capabilities) database.inboxDao().deleteTenant(tenantId)
+            // Deposit accounts in the bootstrap are the full list: accounts no longer delivered leave the picker.
+            dto.data.depositAccounts?.let { accounts ->
+                val keepAccounts = accounts.map { it.id }
+                if (keepAccounts.isEmpty()) field.deleteReferencesOfKind(tenantId, KIND_DEPOSIT_ACCOUNT)
+                else field.deleteReferencesNotIn(tenantId, KIND_DEPOSIT_ACCOUNT, keepAccounts)
+            }
             applyData(database, tenantId, dto.data)
             applySnapshots(database, tenantId, dto.policySnapshots)
             val states = database.syncStateDao()
@@ -114,8 +121,22 @@ class ServerDataWriter(private val db: () -> AssetaDatabase, private val json: J
             data.contracts.map { ref(KIND_CONTRACT, it.id, tenantId, it.contractNumber, json.encodeToString(it)) } +
             data.staff.map { ref(KIND_STAFF, it.id, tenantId, it.fullName, json.encodeToString(it)) }
         if (refs.isNotEmpty()) field.upsertReferences(refs)
+        applyDepositAccounts(database, tenantId, data.depositAccounts.orEmpty())
         applyFinance(database, tenantId, data)
         InboxWriter(json).apply(database, tenantId, data)
+    }
+
+    /** Deposit accounts upsert by sync revision (an older revision never replaces a newer one; deactivations kept). */
+    private suspend fun applyDepositAccounts(database: AssetaDatabase, tenantId: String, accounts: List<SyncDepositAccountDto>) {
+        if (accounts.isEmpty()) return
+        val field = database.fieldDataDao()
+        val newer = accounts.filter { incoming ->
+            val stored = field.reference(KIND_DEPOSIT_ACCOUNT, incoming.id)?.let {
+                runCatching { json.decodeFromString(SyncDepositAccountDto.serializer(), it.json) }.getOrNull()
+            }
+            stored == null || incoming.syncRevision >= stored.syncRevision
+        }
+        if (newer.isNotEmpty()) field.upsertReferences(newer.map { ref(KIND_DEPOSIT_ACCOUNT, it.id, tenantId, it.name, json.encodeToString(it)) })
     }
 
     /** Expense categories upsert by sync revision (deactivations arrive as is_active=false); custody is replaced. */
@@ -171,5 +192,6 @@ class ServerDataWriter(private val db: () -> AssetaDatabase, private val json: J
         const val KIND_CUSTOMER = "customer"
         const val KIND_CONTRACT = "contract"
         const val KIND_STAFF = "staff"
+        const val KIND_DEPOSIT_ACCOUNT = "deposit_account"
     }
 }

@@ -79,10 +79,29 @@ object CashRecords {
 
     fun overdueName(o: RemittanceOverdueDto): String = DisplayNames.of(o.staffMemberName, o.staffMemberId).orEmpty()
 
+    /** Held longer than the allowance (DEC-031 D3) rather than past the daily cut-off. */
+    fun heldTooLong(o: RemittanceOverdueDto): Boolean = o.reason == RemittanceOverdueDto.HELD_TOO_LONG
+
+    fun overdueReason(o: RemittanceOverdueDto): String = if (heldTooLong(o)) T.OVERDUE_REASON_HELD else T.OVERDUE_REASON_CUTOFF
+
+    private fun heldSince(o: RemittanceOverdueDto, zone: ZoneId): String? = o.heldSince?.let { OwnerFormat.date(it, zone) }?.takeIf { it != "—" }
+
+    /** The cut-off row belongs to CUTOFF flags only; HELD_TOO_LONG shows since when the cash is held and the allowance. */
     fun overdueFields(o: RemittanceOverdueDto, zone: ZoneId): List<DecisionField> = fields(
-        T.F_CUSTODIAN to overdueName(o), T.F_NOT_REMITTED to amounts(o), T.F_DAY to o.localDay, T.F_CUTOFF to T.hour(o.cutoffHour),
+        T.F_CUSTODIAN to overdueName(o), T.F_NOT_REMITTED to amounts(o), T.F_REASON to overdueReason(o), T.F_DAY to o.localDay,
+        T.F_CUTOFF to T.hour(o.cutoffHour).takeIf { !heldTooLong(o) },
+        T.F_HELD_SINCE to heldSince(o, zone)?.takeIf { heldTooLong(o) },
+        T.F_ALLOWED to o.maxHoldingDays?.takeIf { heldTooLong(o) }?.let(T::days),
         T.F_FLAGGED to OwnerFormat.dateTime(o.flaggedAt, zone),
     )
+
+    /** The detail footer: the cut-off line, or since when the cash is held against the allowance. */
+    fun overdueLine(o: RemittanceOverdueDto, zone: ZoneId): String {
+        if (!heldTooLong(o)) return T.overdueLine(o.cutoffHour, o.localDay)
+        val since = heldSince(o, zone)
+        val days = o.maxHoldingDays
+        return if (since != null && days != null) T.overdueHeldLine(since, days) else T.OVERDUE_HELD_LINE_SHORT
+    }
 }
 
 class CashRecordViewModel(data: OwnerData, val kind: String, id: String, refreshOn: Flow<Unit>) :
@@ -128,6 +147,7 @@ fun RemittanceOverdueListScreen(vm: RemittanceOverdueListViewModel, onOpen: (Own
                         Column(Modifier.semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(CashRecords.overdueName(o), style = AssetaType.headline)
                             Text(CashRecords.amounts(o), style = AssetaType.subheadline, color = palette.secondaryText)
+                            Text(CashRecords.overdueReason(o), style = AssetaType.caption, color = palette.secondaryText)
                         }
                     }
                 },
@@ -143,7 +163,7 @@ fun RemittanceOverdueScreen(vm: RemittanceOverdueViewModel) {
         val zone = ZoneId.systemDefault()
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 16.dp, bottom = 16.dp)) {
             item {
-                SectionCard(null, footer = T.overdueLine(o.cutoffHour, o.localDay)) {
+                SectionCard(null, footer = CashRecords.overdueLine(o, zone)) {
                     Text(CashRecords.overdueName(o), style = AssetaType.headline)
                     CashRecords.overdueFields(o, zone).forEach { KeyValue(it.label, it.value) }
                 }

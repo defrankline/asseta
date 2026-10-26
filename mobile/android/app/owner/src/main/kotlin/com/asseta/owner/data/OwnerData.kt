@@ -341,6 +341,7 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
     // --- online-only helpers (never cached) -------------------------------------------------------------------
     suspend fun attachmentUrl(attachmentId: String) = repo.act { attachmentUrl(attachmentId) }
     suspend fun receiptUrl(expenseId: String, attachmentId: String) = repo.act { receiptUrl(expenseId, attachmentId) }
+    suspend fun remittanceEvidenceUrl(handoverId: String, attachmentId: String) = repo.act { remittanceEvidenceUrl(handoverId, attachmentId) }
     suspend fun expense(id: String) = repo.act { expense(id) }
     suspend fun notification(id: String) = repo.act { notification(id) }
     suspend fun markRead(ids: List<String>) = repo.act { markRead(com.asseta.core.model.owner.NotificationMarkReadIn(ids)) }

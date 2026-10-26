@@ -3,6 +3,9 @@ package com.asseta.core.sync.usecase
 import com.asseta.core.database.AssetaDatabase
 import com.asseta.core.database.AttachmentEntity
 import com.asseta.core.database.inTransaction
+import com.asseta.core.domain.accountability.RemittanceMethod
+import com.asseta.core.domain.accountability.RemittanceRequirements
+import com.asseta.core.domain.accountability.RemittanceRules
 import com.asseta.core.domain.capture.GpsOutcome
 import com.asseta.core.domain.finance.CashRules
 import com.asseta.core.domain.finance.ExpenseDraft
@@ -18,6 +21,7 @@ import com.asseta.core.model.sync.CashHandoverPayload
 import com.asseta.core.model.sync.ExpensePayload
 import com.asseta.core.model.sync.FuelEventPayload
 import com.asseta.core.model.sync.OpTypes
+import com.asseta.core.model.sync.SyncCapabilities
 import com.asseta.core.sync.data.FieldOps
 import com.asseta.core.sync.data.FieldOutbox
 import com.asseta.core.sync.data.FieldRepository
@@ -79,6 +83,16 @@ data class CashHandoverRequest(
     val handedAtMs: Long,
     /** Another custodian remitting (recorders may record for others per tenant policy); null = me. */
     val cashHolderId: String? = null,
+    /** DEC-031 D2 details, sent only when the server announces REMITTANCE_DETAILS_V1 (null = form without them). */
+    val details: RemittanceDetails? = null,
+)
+
+/** How and where the money went, with the deposit slip photos (original JPEGs, stored encrypted on save). */
+class RemittanceDetails(
+    val method: RemittanceMethod,
+    val depositAccountId: String?,
+    val evidenceJpegs: List<ByteArray>,
+    val requirements: RemittanceRequirements,
 )
 
 data class FuelEventRequest(
@@ -195,12 +209,49 @@ class FinanceCapture(
             is FormCheck.Invalid -> return FinanceResult.Invalid(check.messages)
             is FormCheck.Valid -> check.value
         }
+        val d = r.details
+        if (d != null && !supports(r.tenantId, SyncCapabilities.REMITTANCE_DETAILS_V1)) {
+            return FinanceResult.Blocked(CaptureMeterReading.SERVER_TOO_OLD)
+        }
+        val evidence = d?.evidenceJpegs.orEmpty().filter { it.isNotEmpty() }
+        if (d != null) {
+            val account = d.depositAccountId?.let { finance.depositAccount(it) }
+            val issues = RemittanceRules.check(d.requirements, d.method, d.depositAccountId, account, values.currency, values.reference.orEmpty(), evidence.size)
+            if (issues.isNotEmpty()) return FinanceResult.Invalid(issues)
+        }
         val payload = CashHandoverPayload(
             r.clientId, DecimalAmount.of(values.amount), values.currency, IsoTime.format(r.handedAtMs), values.reference, values.note,
             r.cashHolderId,
+            method = d?.method?.wire,
+            depositAccountId = d?.depositAccountId,
+            evidenceUploadIds = d?.let { emptyList() }, // filled in as each photo upload completes, before the op is sent
         )
-        return queue(r.tenantId, OpTypes.CASH_HANDOVER, FieldOps.CASH_HANDOVER, r.clientId, CashHandoverPayload.serializer(), payload)
+        if (evidence.isEmpty()) {
+            return queue(r.tenantId, OpTypes.CASH_HANDOVER, FieldOps.CASH_HANDOVER, r.clientId, CashHandoverPayload.serializer(), payload)
+        }
+        if (alreadySaved(r.tenantId, FieldOps.CASH_HANDOVER, r.clientId)) return FinanceResult.AlreadySaved
+        val stored = evidence.map { bytes -> StoredReceipt(UUID.randomUUID().toString(), files.write(bytes), bytes) }
+        val database = db()
+        return database.inTransaction {
+            if (alreadySaved(r.tenantId, FieldOps.CASH_HANDOVER, r.clientId)) {
+                stored.forEach { files.delete(it.fileName) }
+                return@inTransaction FinanceResult.AlreadySaved
+            }
+            stored.forEach { photo ->
+                database.evidenceDao().insertAttachment(
+                    AttachmentEntity(photo.id, r.tenantId, BlobPurpose.REMITTANCE_EVIDENCE, photo.fileName, Sha256.hex(photo.bytes),
+                        photo.bytes.size.toLong(), "image/jpeg", AttachmentEntity.PENDING, createdAt = r.handedAtMs),
+                )
+            }
+            val opId = enqueue(
+                r.tenantId, OpTypes.CASH_HANDOVER, FieldOps.CASH_HANDOVER, r.clientId, CashHandoverPayload.serializer(), payload, stored.map { it.id },
+            )
+            FinanceResult.Saved(r.clientId, opId)
+        }.also { if (it is FinanceResult.Saved) onQueued() }
     }
+
+    private suspend fun supports(tenantId: String, capability: String): Boolean =
+        db().syncStateDao().get(tenantId)?.supports(capability) == true
 
     suspend fun fuelEvent(r: FuelEventRequest): FinanceResult {
         val job = r.jobId?.let { field.job(it) ?: return FinanceResult.Blocked("This job is no longer assigned to you.") }

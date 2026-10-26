@@ -114,7 +114,7 @@ class AccountabilityContractTest {
         ContractCheck.check("CorrectionIn", CorrectionPayload.serializer().descriptor, request = true)
         ContractCheck.check("MeterCaptureIn", MeterCaptureIn.serializer().descriptor, request = true)
         ContractCheck.check("CashCollectionIn", CashCollectionPayload.serializer().descriptor, extra = setOf("client_id"), request = true)
-        ContractCheck.check("CashHandoverIn", CashHandoverPayload.serializer().descriptor, extra = setOf("client_id"), request = true)
+        ContractCheck.check("CashHandoverIn", CashHandoverPayload.serializer().descriptor, extra = setOf("client_id", "evidence_upload_ids"), request = true)
         ContractCheck.check("CashRetentionIn", CashRetentionIn.serializer().descriptor, request = true)
     }
 

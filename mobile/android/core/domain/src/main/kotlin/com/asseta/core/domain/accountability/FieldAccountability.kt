@@ -23,7 +23,15 @@ data class CashCustodyPolicy(
     val floatAckRequired: Boolean,
     val remitFullBalance: Boolean,
     val retentionAllowed: Boolean,
+    /** DEC-031 D2 remittance requirements (missing from older servers = not required). */
+    val remittanceReferenceRequired: Boolean = false,
+    val remittanceEvidenceRequired: Boolean = false,
+    val remittanceAccountRequired: Boolean = false,
 ) {
+    /** The remittance requirements the form enforces (the server applies them as well). */
+    val remittanceRequirements: RemittanceRequirements
+        get() = RemittanceRequirements(remittanceAccountRequired, remittanceReferenceRequired, remittanceEvidenceRequired)
+
     companion object {
         const val TYPE = "CASH_CUSTODY"
 
@@ -35,6 +43,9 @@ data class CashCustodyPolicy(
                 floatAckRequired = values.flag("float_ack_required"),
                 remitFullBalance = values.flag("remit_full_balance"),
                 retentionAllowed = values.flag("retention_allowed"),
+                remittanceReferenceRequired = values.optionalFlag("remittance_reference_required"),
+                remittanceEvidenceRequired = values.optionalFlag("remittance_evidence_required"),
+                remittanceAccountRequired = values.optionalFlag("remittance_account_required"),
             )
         }.getOrNull()
     }
@@ -62,6 +73,9 @@ data class CustomerHoursPolicy(
 }
 
 private fun JsonObject.flag(key: String): Boolean = (this[key] as JsonPrimitive).booleanOrNull!!
+
+/** A key newer servers send: missing or not a boolean reads as off (today's behaviour). */
+private fun JsonObject.optionalFlag(key: String): Boolean = (this[key] as? JsonPrimitive)?.booleanOrNull ?: false
 
 /**
  * What the field app offers, from the server's sync capabilities, the user's permissions and the tenant policies
@@ -103,6 +117,13 @@ data class FieldAccess(
     val dailyReading: Boolean get() = engineHours && supports(SyncCapabilities.METER_DAILY_READING) && can(METER_CAPTURE)
     val proposeBaseline: Boolean get() = engineHours && supports(SyncCapabilities.OP_METER_BASELINE) && can(METER_CAPTURE)
     val proposeCorrection: Boolean get() = engineHours && supports(SyncCapabilities.OP_METER_CORRECTION) && can(METER_CAPTURE)
+
+    /** The handover form offers method, deposit account and deposit slip photos (DEC-031 D2). */
+    val remittanceDetails: Boolean get() = supports(SyncCapabilities.REMITTANCE_DETAILS_V1)
+
+    /** What the tenant requires on a remittance; nothing while CASH_CUSTODY is off or the policy is unknown. */
+    val remittanceRequirements: RemittanceRequirements
+        get() = cash?.takeIf { cashCustody && remittanceDetails }?.remittanceRequirements ?: RemittanceRequirements()
 
     companion object {
         const val HOURS_PURCHASE = "tenant.hours.purchase"

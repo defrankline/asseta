@@ -5,6 +5,7 @@ import com.asseta.core.database.CashCustodyBalanceEntity
 import com.asseta.core.database.ClientOperationEntity
 import com.asseta.core.database.ExpenseCategoryEntity
 import com.asseta.core.database.MachineEntity
+import com.asseta.core.domain.accountability.DepositAccountOption
 import com.asseta.core.domain.finance.CustodyBalance
 import com.asseta.core.domain.finance.CustodyLine
 import com.asseta.core.domain.finance.CustodySummary
@@ -17,6 +18,7 @@ import com.asseta.core.model.ClientOperationStatus
 import com.asseta.core.model.sync.ContractDto
 import com.asseta.core.model.sync.CustomerDto
 import com.asseta.core.model.sync.OpTypes
+import com.asseta.core.model.sync.SyncDepositAccountDto
 import com.asseta.core.sync.SyncClock
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -80,6 +82,18 @@ class FinanceRepository(
                 .map { CustomerOption(it.id, it.code, it.name, it.contactName) }
                 .sortedBy { it.name.lowercase() }
         }
+
+    /** Company deposit accounts saved from sync (inactive ones included, so a chosen account that left is noticed). */
+    fun observeDepositAccounts(tenantId: String): Flow<List<DepositAccountOption>> =
+        db().fieldDataDao().observeReferences(tenantId, ServerDataWriter.KIND_DEPOSIT_ACCOUNT).map { rows ->
+            rows.mapNotNull { runCatching { json.decodeFromString(SyncDepositAccountDto.serializer(), it.json) }.getOrNull() }
+                .map { DepositAccountOption(it.id, it.name, it.accountType, it.institution, it.accountNumberMasked, it.currency, it.isActive) }
+        }
+
+    suspend fun depositAccount(id: String): DepositAccountOption? =
+        db().fieldDataDao().reference(ServerDataWriter.KIND_DEPOSIT_ACCOUNT, id)
+            ?.let { runCatching { json.decodeFromString(SyncDepositAccountDto.serializer(), it.json) }.getOrNull() }
+            ?.let { DepositAccountOption(it.id, it.name, it.accountType, it.institution, it.accountNumberMasked, it.currency, it.isActive) }
 
     suspend fun activeCustomer(id: String): CustomerDto? =
         db().fieldDataDao().reference(ServerDataWriter.KIND_CUSTOMER, id)
