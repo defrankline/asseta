@@ -19,7 +19,8 @@ from asseta.modules.expenses.models import FuelEvent, FuelEventType
 from asseta.modules.finance.models import HireInvoiceLine, HireInvoiceStatus, TenantHireInvoice
 from asseta.modules.fleet.models import Machine
 from asseta.modules.hours.models import HoursLedgerEntry, HoursPurchase, LedgerEntryType
-from asseta.modules.intelligence.models import RiskSignal, RuleCode, SignalStatus
+from asseta.modules.intelligence.linking import engine_day_key
+from asseta.modules.intelligence.models import AnomalyCase, RiskSignal, RuleCode, SignalStatus
 from asseta.modules.jobs.charges import ChargeKind
 from asseta.modules.jobs.models import (
     ActivityType,
@@ -70,6 +71,7 @@ from asseta.modules.revenue.models import NonRevenueApproval, RevenueDifference,
 from asseta.modules.tenancy.models import TenantSettings
 
 HOURS_STEP = Decimal("0.01")
+LITRES_PER_HOUR = Decimal("0.01")
 REVENUE_LINE_KINDS = (ChargeKind.HIRE, ChargeKind.STANDBY, ChargeKind.MOBILIZATION, ChargeKind.DISCOUNT)
 FUEL_INTO_MACHINE = (FuelEventType.ISSUE, FuelEventType.PURCHASE)
 
@@ -491,6 +493,7 @@ class DailySheet:
             unexplained_hours=h(acc.unexplained),
             pending_review_hours=h(acc.pending),
             fuel_litres=fuel,
+            fuel_litres_per_engine_hour=(fuel / acc.engine).quantize(LITRES_PER_HOUR) if acc.engine > 0 else None,
             jobs=jobs,
             money=money,
             flags=flags,
@@ -543,7 +546,9 @@ class _DayFacts:
                 )
         signal_flags = {
             RuleCode.UNREPORTED_ENGINE_ACTIVITY: SheetFlag.ENGINE_ON_WITHOUT_JOB,
+            RuleCode.ENGINE_RUNNING_WITHOUT_WORK: SheetFlag.ENGINE_ON_WITHOUT_JOB,
             RuleCode.FUEL_ALLOWANCE_EXCEEDED: SheetFlag.FUEL_ABOVE_NORM,
+            RuleCode.MACHINE_FUEL_ABOVE_NORM: SheetFlag.FUEL_ABOVE_NORM,
         }
         for sig in s.execute(
             select(RiskSignal).where(
@@ -561,6 +566,19 @@ class _DayFacts:
                     SheetFlagRefDto(flag=signal_flags[sig.rule_code], record_type="risk_signal", record_id=sig.id)
                 )
                 d += timedelta(days=1)
+        day_keys: dict[str, date] = {}
+        d = first
+        while d <= last:
+            day_keys[engine_day_key(machine_id, d)] = d
+            d += timedelta(days=1)
+        for case_id, key in s.execute(  # one case per machine-day (S1): the sheet links to it
+            select(AnomalyCase.id, AnomalyCase.group_key).where(
+                AnomalyCase.machine_id == machine_id, AnomalyCase.group_key.in_(list(day_keys))
+            )
+        ).all():
+            self.flag_refs[day_keys[str(key)]].append(
+                SheetFlagRefDto(flag=SheetFlag.ENGINE_ON_WITHOUT_JOB, record_type="anomaly_case", record_id=case_id)
+            )
         for diff in s.execute(
             select(RevenueDifference).where(
                 RevenueDifference.machine_id == machine_id,

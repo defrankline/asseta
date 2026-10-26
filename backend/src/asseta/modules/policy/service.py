@@ -1,8 +1,8 @@
 """Deterministic policy resolution `get_effective_policy(type, tenant, machine, site, at)` and versioning.
 
 Resolution merges, for instant `at`, the latest effective version at each scope:
-platform default -> tenant default -> machine override -> site override -> staff override (only fields allowed per
-scope),
+platform default -> tenant default -> machine-category override -> machine override -> site override -> staff
+override (only fields allowed per scope),
 then validates the merged result against the typed schema. The returned `version_stamp` is recorded on every
 evaluated event so later policy changes never silently reinterpret accepted history.
 """
@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 from asseta.core.audit import AuditActor, AuditService
 from asseta.core.db import utcnow
 from asseta.core.errors import BusinessRuleViolation, ErrorDetail
+from asseta.modules.fleet.models import Machine
 from asseta.modules.policy.engine_hours import EngineHoursPolicy
 from asseta.modules.policy.models import PolicyVersion
 from asseta.modules.policy.revenue import RevenueReconciliationPolicy
@@ -45,8 +46,19 @@ _ABBR = {
     PolicyScope.MACHINE: "M",
     PolicyScope.SITE: "S",
     PolicyScope.STAFF: "E",
+    PolicyScope.MACHINE_CATEGORY: "C",
 }
-REF_SCOPES = (PolicyScope.MACHINE, PolicyScope.SITE, PolicyScope.STAFF)
+REF_SCOPES = (PolicyScope.MACHINE, PolicyScope.SITE, PolicyScope.STAFF, PolicyScope.MACHINE_CATEGORY)
+LAYER_ORDER = (
+    PolicyScope.PLATFORM,
+    PolicyScope.TENANT,
+    PolicyScope.MACHINE_CATEGORY,
+    PolicyScope.MACHINE,
+    PolicyScope.SITE,
+    PolicyScope.STAFF,
+)
+# Scopes whose overrides exist only where the policy type lists fields for them (others take none).
+OPT_IN_SCOPES = (PolicyScope.STAFF, PolicyScope.MACHINE_CATEGORY)
 
 
 @dataclass(frozen=True)
@@ -77,6 +89,40 @@ class PolicyService:
             .limit(1)
         ).scalar_one_or_none()
 
+    def _layers(
+        self,
+        ptype: PolicyType,
+        tenant_id: uuid.UUID | None,
+        machine_id: uuid.UUID | None,
+        site_id: uuid.UUID | None,
+        staff_id: uuid.UUID | None,
+        category_id: uuid.UUID | None,
+        at: datetime,
+    ) -> list[PolicyVersion]:
+        """The latest version at each applicable scope, least specific first. A machine's category layer applies
+        when the type has category overrides (the machine's own category unless `category_id` names one)."""
+        layers: list[tuple[PolicyScope, uuid.UUID | None, uuid.UUID | None]] = [(PolicyScope.PLATFORM, None, None)]
+        if tenant_id is not None:
+            layers.append((PolicyScope.TENANT, tenant_id, None))
+            if (
+                category_id is None
+                and machine_id is not None
+                and PolicyScope.MACHINE_CATEGORY in OVERRIDABLE.get(ptype, {})
+            ):
+                category_id = self._s.execute(
+                    select(Machine.category_id).where(Machine.id == machine_id)
+                ).scalar_one_or_none()
+            if category_id is not None:
+                layers.append((PolicyScope.MACHINE_CATEGORY, tenant_id, category_id))
+            if machine_id is not None:
+                layers.append((PolicyScope.MACHINE, tenant_id, machine_id))
+            if site_id is not None:
+                layers.append((PolicyScope.SITE, tenant_id, site_id))
+            if staff_id is not None:
+                layers.append((PolicyScope.STAFF, tenant_id, staff_id))
+        rows = [self._latest(ptype, scope, tid, ref, at) for scope, tid, ref in layers]
+        return [r for r in rows if r is not None]
+
     def resolve(
         self,
         ptype: PolicyType,
@@ -85,32 +131,33 @@ class PolicyService:
         machine_id: uuid.UUID | None = None,
         site_id: uuid.UUID | None = None,
         staff_id: uuid.UUID | None = None,
+        category_id: uuid.UUID | None = None,
         at: datetime | None = None,
     ) -> EffectivePolicy[BaseModel]:
         at = at or utcnow()
-        layers: list[tuple[PolicyScope, uuid.UUID | None, uuid.UUID | None]] = [(PolicyScope.PLATFORM, None, None)]
-        if tenant_id is not None:
-            layers.append((PolicyScope.TENANT, tenant_id, None))
-            if machine_id is not None:
-                layers.append((PolicyScope.MACHINE, tenant_id, machine_id))
-            if site_id is not None:
-                layers.append((PolicyScope.SITE, tenant_id, site_id))
-            if staff_id is not None:
-                layers.append((PolicyScope.STAFF, tenant_id, staff_id))
-        merged: dict[str, Any] = {}
-        stamp, ids = [], []
-        for scope, tid, ref in layers:
-            row = self._latest(ptype, scope, tid, ref, at)
-            if row is None:
-                continue
-            merged.update(row.values)
-            stamp.append(f"{_ABBR[scope]}{row.version}")
-            ids.append(row.id)
-        if not ids:
+        rows = self._layers(ptype, tenant_id, machine_id, site_id, staff_id, category_id, at)
+        if not rows:
             raise BusinessRuleViolation(f"No {ptype.value} policy configured", code="POLICY_NOT_CONFIGURED")
+        merged: dict[str, Any] = {}
+        for row in rows:
+            merged.update(row.values)
+        stamp = ".".join(f"{_ABBR[r.scope]}{r.version}" for r in rows)
         schema = SCHEMAS[ptype]
         self._validate(schema, merged)
-        return EffectivePolicy(schema.model_validate(merged), f"{ptype.value}@{'.'.join(stamp)}", tuple(ids))
+        return EffectivePolicy(schema.model_validate(merged), f"{ptype.value}@{stamp}", tuple(r.id for r in rows))
+
+    def value_source(
+        self,
+        ptype: PolicyType,
+        key: str,
+        tenant_id: uuid.UUID,
+        *,
+        machine_id: uuid.UUID | None = None,
+        at: datetime | None = None,
+    ) -> PolicyScope | None:
+        """The most specific scope whose version sets `key` (where an effective value comes from)."""
+        rows = self._layers(ptype, tenant_id, machine_id, None, None, None, at or utcnow())
+        return next((r.scope for r in reversed(rows) if key in r.values), None)
 
     def tracking(
         self,
@@ -197,9 +244,8 @@ class PolicyService:
         }
         if set(version_ids) - rows.keys() or any(r.policy_type is not ptype for r in rows.values()):
             raise BusinessRuleViolation("Unknown policy snapshot", code="POLICY_SNAPSHOT_UNKNOWN")
-        order = [PolicyScope.PLATFORM, PolicyScope.TENANT, PolicyScope.MACHINE, PolicyScope.SITE, PolicyScope.STAFF]
         merged: dict[str, Any] = {}
-        for row in sorted(rows.values(), key=lambda r: order.index(r.scope)):
+        for row in sorted(rows.values(), key=lambda r: LAYER_ORDER.index(r.scope)):
             merged.update(row.values)
         return merged
 
@@ -222,8 +268,10 @@ class PolicyService:
         if (scope is PolicyScope.PLATFORM) != (tenant_id is None):
             raise BusinessRuleViolation("Platform policies have no tenant; others require one", code="POLICY_SCOPE")
         if (scope in REF_SCOPES) != (scope_ref_id is not None):
-            raise BusinessRuleViolation("Machine/site/staff policies require scope_ref_id", code="POLICY_SCOPE")
-        allowed = OVERRIDABLE.get(ptype, {}).get(scope, frozenset() if scope is PolicyScope.STAFF else None)
+            raise BusinessRuleViolation(
+                "Machine/category/site/staff policies require scope_ref_id", code="POLICY_SCOPE"
+            )
+        allowed = OVERRIDABLE.get(ptype, {}).get(scope, frozenset() if scope in OPT_IN_SCOPES else None)
         if allowed is not None and (extra := set(values) - allowed):
             raise BusinessRuleViolation(
                 f"Fields not overridable at {scope.value}: {sorted(extra)}", code="POLICY_FIELD_NOT_OVERRIDABLE"
@@ -272,6 +320,7 @@ class PolicyService:
             machine_id=scope_ref_id if scope is PolicyScope.MACHINE else None,
             site_id=scope_ref_id if scope is PolicyScope.SITE else None,
             staff_id=scope_ref_id if scope is PolicyScope.STAFF else None,
+            category_id=scope_ref_id if scope is PolicyScope.MACHINE_CATEGORY else None,
             at=effective,
         )
         AuditService(self._s).record(

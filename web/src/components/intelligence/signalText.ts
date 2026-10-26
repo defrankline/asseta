@@ -22,6 +22,8 @@ export const RULE_LABELS: Readonly<Record<RuleCode, string>> = {
   CASH_NOT_HANDED_OVER: 'Cash held beyond the handover limits',
   WORK_WITHOUT_AUTHORIZATION: 'Work recorded outside an authorized job',
   UNEXPLAINED_ENGINE_HOURS: 'Engine hours still unexplained after the review period',
+  ENGINE_RUNNING_WITHOUT_WORK: 'Engine running without work during the day',
+  MACHINE_FUEL_ABOVE_NORM: 'Fuel above the norm for the engine hours',
 };
 
 export const SOURCE_TYPE_LABELS: Readonly<Record<CaseSourceType, string>> = {
@@ -202,6 +204,33 @@ const RULE_EXPLAIN: Readonly<Record<RuleCode, Explainer>> = {
     `${f.text('end_reading')}) are not allocated to a job and have not been explained for ` +
     `${f.text('age_days')} days (review period: ${f.text('investigation_after_days')} days). ` +
     'They stay unexplained until a person records an approved explanation.',
+  ENGINE_RUNNING_WITHOUT_WORK: (f) => {
+    const movements = Number(f.raw('after_hours_movements') ?? 0);
+    return (
+      `On ${f.text('day')} the machine ran for ${f.minutes('minutes_without_work')} without work: ` +
+      `${f.minutes('tracker_minutes_without_job')} of tracker engine-on time with no job in progress and ` +
+      `${f.text('meter_unexplained_hours')} unexplained meter hours outside jobs (the larger counts; they may ` +
+      `describe the same running). The day's threshold is ${f.minutes('threshold_minutes')}.` +
+      (movements > 0
+        ? ` ${plural(movements, 'movement', 'movements')} outside the approved operating window that day.`
+        : '')
+    );
+  },
+  MACHINE_FUEL_ABOVE_NORM: (f) => {
+    const source: Readonly<Record<string, string>> = {
+      MACHINE: "the machine's norm",
+      MACHINE_CATEGORY: "the machine category's norm",
+      TENANT: 'the company norm',
+    };
+    return (
+      `In ${f.text('period_kind') === 'WEEK' ? 'week' : 'the day'} ${f.text('period')}, ` +
+      `${f.text('litres_into_machine')} L of fuel were issued or purchased into the machine for ` +
+      `${f.text('engine_hours')} engine hours (${f.text('engine_hours_in_jobs')} h in jobs, ` +
+      `${f.text('engine_hours_outside_jobs')} h outside jobs): ${f.text('litres_per_engine_hour')} L per ` +
+      `engine hour against ${source[f.text('norm_source')] ?? 'the norm'} of ` +
+      `${f.text('norm_litres_per_engine_hour')} L per engine hour.`
+    );
+  },
 };
 
 /** One-sentence, neutral explanation of a risk signal from its recorded evidence. */

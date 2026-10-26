@@ -126,6 +126,31 @@ export const RULE_EVIDENCE = {
     investigation_after_days: 3,
     classification: 'UNEXPLAINED',
   },
+  ENGINE_RUNNING_WITHOUT_WORK: {
+    day: '2026-10-20',
+    minutes_without_work: 45,
+    tracker_minutes_without_job: 45,
+    meter_unexplained_hours: '0.50',
+    after_hours_movements: 1,
+    threshold_minutes: 30,
+    tracker_periods: [],
+    meter_intervals: [],
+    movement_alerts: [],
+    related_signal_ids: [],
+  },
+  MACHINE_FUEL_ABOVE_NORM: {
+    period_kind: 'DAY',
+    period: '2026-10-20',
+    litres_into_machine: '50.000',
+    engine_hours: '10.00',
+    engine_hours_in_jobs: '6.00',
+    engine_hours_outside_jobs: '4.00',
+    litres_per_engine_hour: '5.000',
+    norm_litres_per_engine_hour: '4.5',
+    norm_source: 'MACHINE',
+    job_numbers: ['J-1003'],
+    fuel_event_ids: [],
+  },
 } as const;
 
 export function makeCaseSignal(overrides: Partial<CaseSignalDto> = {}): CaseSignalDto {

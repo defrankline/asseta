@@ -18,8 +18,10 @@ Note = Annotated[str, StringConstraints(min_length=5, max_length=2000, strip_whi
 class SheetFlag(StrEnum):
     MISSING_DAILY_REPORT = "MISSING_DAILY_REPORT"  # no daily/job reading by the cut-off (engine-hours control)
     UNEXPLAINED_HOURS = "UNEXPLAINED_HOURS"  # verified engine hours outside any job, not yet explained
-    ENGINE_ON_WITHOUT_JOB = "ENGINE_ON_WITHOUT_JOB"  # tracker engine-on without a running job (risk signal)
-    FUEL_ABOVE_NORM = "FUEL_ABOVE_NORM"  # fuel above the tenant's litres-per-hour allowance (risk signal)
+    # engine running without work: tracker engine-on without a running job, or the machine-day summary / case (S1)
+    ENGINE_ON_WITHOUT_JOB = "ENGINE_ON_WITHOUT_JOB"
+    # fuel above the norm: per job (litres per meter hour) or per machine-period (litres per engine hour, S2)
+    FUEL_ABOVE_NORM = "FUEL_ABOVE_NORM"
     REVENUE_DIFFERENCE = "REVENUE_DIFFERENCE"  # completed work this day not matched by money beyond tolerance
 
 
@@ -76,6 +78,9 @@ class DailyMachineSheetRowDto(BaseModel):
     unexplained_hours: Decimal
     pending_review_hours: Decimal
     fuel_litres: Decimal
+    fuel_litres_per_engine_hour: Decimal | None = Field(
+        default=None, description="fuel_litres / engine_hours of the day (null when no engine hours)"
+    )
     jobs: list[SheetJobDto]
     money: list[SheetMoneyDto]
     flags: list[SheetFlag]
@@ -119,7 +124,7 @@ class SheetMoneySourceDto(BaseModel):
 
 class SheetFlagRefDto(BaseModel):
     flag: SheetFlag
-    record_type: str = Field(description="job_exception | risk_signal | revenue_difference")
+    record_type: str = Field(description="job_exception | risk_signal | revenue_difference | anomaly_case")
     record_id: uuid.UUID
 
 

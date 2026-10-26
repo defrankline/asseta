@@ -31,6 +31,7 @@ class PolicyScope(StrEnum):
     MACHINE = "MACHINE"
     SITE = "SITE"
     STAFF = "STAFF"  # one staff member (e.g. a custodian's cash allowance); most specific layer
+    MACHINE_CATEGORY = "MACHINE_CATEGORY"  # every machine of one category (between tenant and machine)
 
 
 class TrackingPolicy(BaseModel):
@@ -137,6 +138,11 @@ class ExpenseCapturePolicy(BaseModel):
     auto_approve_limit: Decimal = Field(ge=0)  # amount <= limit => APPROVED automatically; 0 => all need approval
 
 
+class FuelCheckPeriod(StrEnum):
+    DAY = "DAY"  # tenant-local day
+    WEEK = "WEEK"  # tenant-local ISO week (Monday-Sunday)
+
+
 class FraudControlsPolicy(BaseModel):
     """Deterministic risk-signal thresholds (R1-H, ADR-007). Signals are evidence for human review, never verdicts.
     A nullable threshold switches its rule off. Amounts are in the tenant's base currency (no implicit FX)."""
@@ -152,6 +158,14 @@ class FraudControlsPolicy(BaseModel):
     duplicate_receipt_lookback_days: int = Field(ge=1, le=3660)
     authorization_tolerance_minutes: int = Field(ge=0, le=24 * 60)  # clock tolerance around job authorization
     detection_lookback_hours: int = Field(ge=1, le=24 * 90)  # how far back each periodic sweep re-examines facts
+    # DEC-031 S1: engine running without work (tracker engine-on without a job, unexplained meter hours outside
+    # jobs, after-hours movement) of one machine and tenant-local day form ONE case; a day with at least this many
+    # minutes adds a summary signal with all evidence. Null = off (each signal follows the usual case grouping).
+    engine_without_work_case_min_minutes: int | None = Field(default=None, ge=1, le=24 * 60)
+    # DEC-031 S2: all fuel issued/purchased into a machine vs its engine hours per tenant-local DAY or ISO WEEK,
+    # inside or outside jobs. Off while either the period or the norm (machine > category > tenant) is empty.
+    fuel_check_period: FuelCheckPeriod | None = None
+    fuel_litres_per_hour_max: Decimal | None = Field(default=None, gt=0, le=Decimal(1000))
 
 
 class BillingMode(StrEnum):
@@ -282,8 +296,8 @@ SCHEMAS: dict[PolicyType, type[BaseModel]] = {
     PolicyType.REVENUE_RECONCILIATION: RevenueReconciliationPolicy,
 }
 
-# Fields a lower scope may override (platform/tenant may override any field). A type without a STAFF entry has no
-# staff-level overrides.
+# Fields a lower scope may override (platform/tenant may override any field). A type without a STAFF or
+# MACHINE_CATEGORY entry has no overrides at that scope.
 OVERRIDABLE: dict[PolicyType, dict[PolicyScope, frozenset[str]]] = {
     PolicyType.ENGINE_HOURS: {
         PolicyScope.MACHINE: frozenset({"baseline_required_before_start", "daily_report_required"}),
@@ -328,8 +342,15 @@ OVERRIDABLE: dict[PolicyType, dict[PolicyScope, frozenset[str]]] = {
     },
     PolicyType.OVERSIGHT: {PolicyScope.MACHINE: frozenset(), PolicyScope.SITE: frozenset()},
     PolicyType.FRAUD_CONTROLS: {
+        PolicyScope.MACHINE_CATEGORY: frozenset({"fuel_litres_per_hour_max"}),
         PolicyScope.MACHINE: frozenset(
-            {"engine_activity_min_minutes", "fuel_max_litres_per_meter_hour", "expense_threshold_per_machine_per_week"}
+            {
+                "engine_activity_min_minutes",
+                "fuel_max_litres_per_meter_hour",
+                "expense_threshold_per_machine_per_week",
+                "engine_without_work_case_min_minutes",
+                "fuel_litres_per_hour_max",
+            }
         ),
         PolicyScope.SITE: frozenset(),
     },
@@ -395,6 +416,9 @@ SEED_DEFAULTS: dict[PolicyType, dict[str, object]] = {
         "duplicate_receipt_lookback_days": 90,
         "authorization_tolerance_minutes": 5,
         "detection_lookback_hours": 168,
+        "engine_without_work_case_min_minutes": None,
+        "fuel_check_period": None,
+        "fuel_litres_per_hour_max": None,
     },
     PolicyType.CASH_CUSTODY: {
         "enabled": True,

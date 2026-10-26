@@ -7,6 +7,7 @@ import { CASH_CUSTODY_FIELDS, OVERSIGHT_FIELDS } from './accountabilityPolicyFie
 import { CUSTOMER_HOURS_FIELDS } from './customerHoursPolicyFields';
 import { ENGINE_HOURS_FIELDS } from './engineHoursPolicyFields';
 import { REVENUE_RECONCILIATION_FIELDS } from './revenuePolicyFields';
+import { FRAUD_CONTROLS_FIELDS } from './riskPolicyFields';
 
 /** `decimal` values stay strings end to end (never parsed to float). */
 export type FieldKind =
@@ -199,62 +200,6 @@ export const EXPENSE_CAPTURE_FIELDS: readonly PolicyFieldDef[] = [
   },
 ];
 
-export const FRAUD_CONTROLS_FIELDS: readonly PolicyFieldDef[] = [
-  {
-    key: 'engine_activity_min_minutes',
-    label: 'Engine activity without a running job',
-    kind: 'int',
-    unit: 'min',
-    help: 'Verified ignition / engine-hour activity at least this long with no job in progress needs review.',
-  },
-  {
-    key: 'fuel_max_litres_per_meter_hour',
-    label: 'Fuel allowance',
-    kind: 'nullableDecimal',
-    unit: 'L per meter hour',
-    help: 'Leave empty to switch the fuel allowance check off.',
-  },
-  {
-    key: 'expense_threshold_per_machine_per_week',
-    label: 'Weekly spending per machine',
-    kind: 'nullableDecimal',
-    help: 'Approved + pending expenses (tenant currency) above this per ISO week need review; empty = off.',
-  },
-  { key: 'cash_outstanding_max_hours', label: 'Cash held at most', kind: 'int', unit: 'h' },
-  {
-    key: 'cash_outstanding_max_amount',
-    label: 'Cash held up to',
-    kind: 'nullableDecimal',
-    help: 'Outstanding supervisor custody above this amount needs review; empty = off.',
-  },
-  {
-    key: 'case_grouping_window_hours',
-    label: 'Case grouping window',
-    kind: 'int',
-    unit: 'h',
-    help: 'New signals on the same subject join its open case within this window.',
-  },
-  {
-    key: 'duplicate_receipt_lookback_days',
-    label: 'Duplicate receipt lookback',
-    kind: 'int',
-    unit: 'days',
-  },
-  {
-    key: 'authorization_tolerance_minutes',
-    label: 'Job authorization clock tolerance',
-    kind: 'int',
-    unit: 'min',
-  },
-  {
-    key: 'detection_lookback_hours',
-    label: 'Detection lookback',
-    kind: 'int',
-    unit: 'h',
-    help: 'How far back each periodic check re-examines records.',
-  },
-];
-
 export const POLICY_FIELDS: Readonly<Record<PolicyType, readonly PolicyFieldDef[]>> = {
   TRACKING: TRACKING_FIELDS,
   METER_CAPTURE: METER_CAPTURE_FIELDS,
@@ -337,6 +282,8 @@ const SCOPE_FIELDS: Readonly<Record<PolicyType, LowerScopeFields | null>> = {
       'engine_activity_min_minutes',
       'fuel_max_litres_per_meter_hour',
       'expense_threshold_per_machine_per_week',
+      'engine_without_work_case_min_minutes',
+      'fuel_litres_per_hour_max',
     ]),
     SITE: new Set<string>(),
   },
@@ -412,8 +359,9 @@ export function fromInputValue(def: PolicyFieldDef, input: string): unknown {
     case 'time':
       return v === '' ? null : v;
     case 'decimal':
-    case 'enum':
       return v;
+    case 'enum':
+      return v === '' ? null : v; // an empty option ('Off') stores null
     case 'nullableDecimal':
       return v === '' ? null : v;
     case 'bool':

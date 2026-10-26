@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from asseta.modules.geospatial.models import TrackingAlert
+from asseta.modules.intelligence.detectors_asset_safety import detect_engine_without_work, detect_machine_fuel
 from asseta.modules.intelligence.detectors_engine_hours import (
     detect_aged_unexplained_hours,
     refresh_engine_hour_flags,
@@ -71,6 +72,8 @@ def sweep_tenant(s: Session, tenant_id: uuid.UUID, now: datetime) -> Intelligenc
     ]
     refresh_engine_hour_flags(s, tenant_id, now)
     findings += detect_aged_unexplained_hours(s, tenant_id, now)
+    findings += detect_engine_without_work(s, tenant_id, now, since)
+    findings += detect_machine_fuel(s, tenant_id, now, since)
     linker = CaseLinker(s, tenant_id, now, eff.policy.case_grouping_window_hours)
     added = _finish(s, tenant_id, findings, linker, now)
     link_sources(s, linker, since, eff.version_stamp)

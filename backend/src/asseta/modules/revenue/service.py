@@ -141,6 +141,7 @@ class RevenueService:
             "unexplained_hours",
             "pending_review_hours",
             "fuel_litres",
+            "fuel_litres_per_engine_hour",
             "jobs",
             "customers",
             *(f"{c}_{k}" for c in currencies for k in ("expected", "in_progress", "attributed", "difference")),
@@ -169,6 +170,7 @@ class RevenueService:
                     r.unexplained_hours,
                     r.pending_review_hours,
                     r.fuel_litres,
+                    r.fuel_litres_per_engine_hour if r.fuel_litres_per_engine_hour is not None else "",
                     "; ".join(j.job_number or str(j.job_id) for j in r.jobs),
                     "; ".join(sorted({j.customer_name or "" for j in r.jobs} - {""})),
                     *(

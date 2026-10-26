@@ -42,6 +42,8 @@ class RuleCode(StrEnum):
     CASH_NOT_HANDED_OVER = "CASH_NOT_HANDED_OVER"
     WORK_WITHOUT_AUTHORIZATION = "WORK_WITHOUT_AUTHORIZATION"
     UNEXPLAINED_ENGINE_HOURS = "UNEXPLAINED_ENGINE_HOURS"  # unexplained engine hours older than the policy age
+    ENGINE_RUNNING_WITHOUT_WORK = "ENGINE_RUNNING_WITHOUT_WORK"  # one machine-day summary (DEC-031 S1)
+    MACHINE_FUEL_ABOVE_NORM = "MACHINE_FUEL_ABOVE_NORM"  # litres per engine hour per machine-period (DEC-031 S2)
 
 
 class SubjectType(StrEnum):
@@ -125,6 +127,7 @@ class AnomalyCase(UuidPk, Base):
         UniqueConstraint("tenant_id", "case_number", name="uq_anomaly_case_number"),
         Index("ix_anomaly_case_subject", "tenant_id", "subject_type", "subject_id", "status"),
         Index("ix_anomaly_case_status", "tenant_id", "status", "last_signal_at"),
+        Index("ix_anomaly_case_group", "tenant_id", "group_key"),
     )
 
     tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenant.id"), nullable=False)
@@ -143,6 +146,9 @@ class AnomalyCase(UuidPk, Base):
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     resolved_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     policy_version: Mapped[str] = mapped_column(String(80), nullable=False)
+    # Signals sharing this key join one active case instead of the subject's time window (e.g. one case per
+    # machine and tenant-local day for engine running without work, DEC-031 S1). Null = usual grouping.
+    group_key: Mapped[str | None] = mapped_column(String(120))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)

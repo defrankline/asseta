@@ -189,3 +189,26 @@ Ambiguities resolved while building R1–R3 (all tenant-configurable where a rul
 - **Daily sheet fuel** = litres issued or purchased into the machine that day (USAGE logs are not added, to avoid
   double counting). Flags come from existing records: MISSING_DAILY_REPORT exceptions, UNREPORTED_ENGINE_ACTIVITY and
   FUEL_ALLOWANCE_EXCEEDED risk signals, unexplained ledger hours, and revenue differences covering the day.
+
+## Implementation notes — Phase 2 (backend, 2026-10-26)
+
+Both items are FRAUD_CONTROLS ("Risk signals") keys, null on the platform default = off (today's behaviour).
+
+- **S1 engine running without work.** `engine_without_work_case_min_minutes` (tenant; machine override). While set for
+  a machine, its tracker engine-on-without-job signals (UNREPORTED_ENGINE_ACTIVITY), after-hours movement alerts
+  (UNAUTHORIZED_MOVEMENT) and the day summary of one tenant-local day join ONE case keyed by machine and day
+  (`anomaly_case.group_key`, title "Engine running without work: {machine} on {day}"); that case takes no other
+  signals and other signals never join it. After the day closes, the sweep adds the summary signal
+  ENGINE_RUNNING_WITHOUT_WORK when engine time without work reaches the minimum: the larger (never the sum, both may
+  describe the same running) of verified tracker engine-on time with no running job (any length) and unexplained
+  meter hours outside jobs (reconciled machines; wall-clock share of the day). Evidence lists the tracker periods,
+  meter intervals, movement alerts and related signal ids. Unexplained meter hours alone can therefore open the case.
+- **S2 fuel against engine hours.** `fuel_check_period` DAY | WEEK (tenant) and `fuel_litres_per_hour_max` (tenant,
+  new policy scope MACHINE_CATEGORY, machine; the most specific applies). Per machine and closed tenant-local period:
+  litres ISSUE + PURCHASE into the machine (USAGE logs never added) / engine hours from the meter ledger inside and
+  outside jobs (split by wall-clock time); judged only when readings cover the whole period and hours > 0. Above the
+  norm → MACHINE_FUEL_ABOVE_NORM signal (evidence: litres, hours in/outside jobs, rate, norm and where it is set) →
+  case by the usual grouping. The per-job FUEL_ALLOWANCE_EXCEEDED rule is unchanged.
+- **Daily machine sheet.** Row gains `fuel_litres_per_engine_hour` (null without engine hours; also in the CSV).
+  ENGINE_ON_WITHOUT_JOB also comes from the S1 summary and links the machine-day case (`flag_records` entry
+  `record_type = "anomaly_case"`); FUEL_ABOVE_NORM also comes from the S2 signal.

@@ -8274,6 +8274,18 @@
             "title": "Fuel Litres",
             "type": "string"
           },
+          "fuel_litres_per_engine_hour": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "fuel_litres / engine_hours of the day (null when no engine hours)",
+            "title": "Fuel Litres Per Engine Hour"
+          },
           "identified_variance_hours": {
             "title": "Identified Variance Hours",
             "type": "string"
@@ -8457,6 +8469,18 @@
           "fuel_litres": {
             "title": "Fuel Litres",
             "type": "string"
+          },
+          "fuel_litres_per_engine_hour": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "fuel_litres / engine_hours of the day (null when no engine hours)",
+            "title": "Fuel Litres Per Engine Hour"
           },
           "identified_variance_hours": {
             "title": "Identified Variance Hours",
@@ -22612,7 +22636,8 @@
           "TENANT",
           "MACHINE",
           "SITE",
-          "STAFF"
+          "STAFF",
+          "MACHINE_CATEGORY"
         ],
         "title": "PolicyScope",
         "type": "string"
@@ -25552,7 +25577,9 @@
           "EXPENSE_THRESHOLD_EXCEEDED",
           "CASH_NOT_HANDED_OVER",
           "WORK_WITHOUT_AUTHORIZATION",
-          "UNEXPLAINED_ENGINE_HOURS"
+          "UNEXPLAINED_ENGINE_HOURS",
+          "ENGINE_RUNNING_WITHOUT_WORK",
+          "MACHINE_FUEL_ABOVE_NORM"
         ],
         "title": "RuleCode",
         "type": "string"
@@ -25868,7 +25895,7 @@
             "type": "string"
           },
           "record_type": {
-            "description": "job_exception | risk_signal | revenue_difference",
+            "description": "job_exception | risk_signal | revenue_difference | anomaly_case",
             "title": "Record Type",
             "type": "string"
           }
@@ -90930,6 +90957,23 @@
                 }
               ],
               "title": "Staff Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "category_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Category Id"
             }
           },
           {

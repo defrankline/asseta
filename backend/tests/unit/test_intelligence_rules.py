@@ -7,17 +7,24 @@ from decimal import Decimal
 from asseta.modules.intelligence.models import RuleCode, SignalSeverity, SubjectType
 from asseta.modules.intelligence.rules import (
     CustodyPosition,
+    EngineDay,
     EngineHoursSample,
     EngineState,
     FuelWindow,
     JobWindow,
+    MachineFuelPeriod,
     MachineWeekSpend,
+    MeterGap,
+    MovementAlert,
     ReceiptUse,
+    TrackerGap,
     WorkRecord,
     cash_not_handed_over,
     duplicate_receipts,
+    engine_running_without_work,
     expense_threshold_exceeded,
     fuel_allowance_exceeded,
+    machine_fuel_above_norm,
     runs_from_engine_hours,
     runs_from_states,
     uncovered,
@@ -38,6 +45,8 @@ def h(hours: float) -> datetime:
 def test_seed_defaults_validate_and_rules_are_off_by_default() -> None:
     p = FraudControlsPolicy.model_validate(SEED_DEFAULTS[PolicyType.FRAUD_CONTROLS])
     assert p.fuel_max_litres_per_meter_hour is None and p.expense_threshold_per_machine_per_week is None
+    assert p.engine_without_work_case_min_minutes is None and p.fuel_check_period is None
+    assert p.fuel_litres_per_hour_max is None
 
 
 def test_engine_runs_from_states_and_uncovered_segments() -> None:
@@ -151,3 +160,43 @@ def test_no_finding_text_mentions_fraud() -> None:
         ]
     ]
     assert texts and not any("fraud" in t.lower() for t in texts)
+
+
+def test_engine_running_without_work_takes_the_larger_source_never_the_sum() -> None:
+    gap = MeterGap(uuid.uuid4(), uuid.uuid4(), h(0), h(4), Decimal(100), Decimal(102), Decimal(2), Decimal("0.5"))
+    day = EngineDay(
+        M,
+        T0.date(),
+        h(-8),
+        h(16),
+        tracker=(TrackerGap(h(1), h(1.5), "IGNITION"),),  # 30 min
+        meter=(gap,),  # 0.5 h = 30 min of the day
+        movements=(MovementAlert(uuid.uuid4(), h(12), "Moving after hours"),),
+    )
+    assert engine_running_without_work(day, None, PV) is None  # off
+    assert engine_running_without_work(day, 31, PV) is None  # 30 + 30 never adds up to 60
+    f = engine_running_without_work(day, 30, PV)
+    assert f is not None and f.rule_code is RuleCode.ENGINE_RUNNING_WITHOUT_WORK
+    assert f.dedupe_key == f"EWW:{M}:{T0.date().isoformat()}" and f.subject_type is SubjectType.MACHINE
+    ev = f.evidence
+    assert (ev["minutes_without_work"], ev["tracker_minutes_without_job"], ev["meter_unexplained_hours"]) == (
+        30.0,
+        30.0,
+        "0.50",
+    )
+    assert ev["after_hours_movements"] == 1 and ev["threshold_minutes"] == 30
+
+
+def test_machine_fuel_above_norm_boundary_and_zero_hours() -> None:
+    p = MachineFuelPeriod(
+        M, "WEEK", "2026-W45", h(0), h(168), Decimal(50), Decimal(10), Decimal(6), (uuid.uuid4(),), (), ("J-1",)
+    )
+    assert machine_fuel_above_norm(p, None, "TENANT", PV) is None  # off
+    assert machine_fuel_above_norm(p, Decimal(5), "TENANT", PV) is None  # exactly at the norm
+    f = machine_fuel_above_norm(p, Decimal("4.9"), "MACHINE_CATEGORY", PV)
+    assert f is not None and f.rule_code is RuleCode.MACHINE_FUEL_ABOVE_NORM
+    assert f.dedupe_key == f"MFUEL:{M}:2026-W45" and f.evidence["litres_per_engine_hour"] == "5.000"
+    assert (f.evidence["engine_hours_in_jobs"], f.evidence["engine_hours_outside_jobs"]) == ("6.00", "4.00")
+    assert f.evidence["norm_source"] == "MACHINE_CATEGORY" and f.evidence["job_numbers"] == ["J-1"]
+    idle = MachineFuelPeriod(M, "DAY", "2026-11-02", h(0), h(24), Decimal(50), Decimal(0), Decimal(0), (), ())
+    assert machine_fuel_above_norm(idle, Decimal(1), "TENANT", PV) is None  # no engine hours: not judged

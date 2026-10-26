@@ -83,13 +83,20 @@ def effective(
     machine_id: uuid.UUID | None = None,
     site_id: uuid.UUID | None = None,
     staff_id: uuid.UUID | None = None,
+    category_id: uuid.UUID | None = None,
     at: datetime | None = None,
 ) -> EffectivePolicyDto:
     """Policy readers see every type; a field user sees only the capture policy their capture permission covers."""
     if "tenant.policy.read" not in ctx.permissions and CAPTURE_POLICY_READERS.get(ptype) not in ctx.permissions:
         raise PermissionDenied("Missing permission tenant.policy.read")
     eff = PolicyService(session).resolve(
-        ptype, ctx.tenant_id, machine_id=machine_id, site_id=site_id, staff_id=staff_id, at=at
+        ptype,
+        ctx.tenant_id,
+        machine_id=machine_id,
+        site_id=site_id,
+        staff_id=staff_id,
+        category_id=category_id,
+        at=at,
     )
     return EffectivePolicyDto(policy_type=ptype, version_stamp=eff.version_stamp, values=eff.policy.model_dump())
 
@@ -123,11 +130,16 @@ def create_tenant_version(
         PolicyScope.MACHINE: "SELECT 1 FROM machine WHERE id = :i",
         PolicyScope.SITE: "SELECT 1 FROM job_site WHERE id = :i",
         PolicyScope.STAFF: "SELECT 1 FROM staff_member WHERE id = :i",
+        PolicyScope.MACHINE_CATEGORY: "SELECT 1 FROM machine_category WHERE id = :i",
     }.get(body.scope)
     if ref_sql and (
         body.scope_ref_id is None or session.execute(text(ref_sql), {"i": body.scope_ref_id}).first() is None
     ):
-        ref_table = {PolicyScope.MACHINE: "machine", PolicyScope.SITE: "job_site"}.get(body.scope, "staff_member")
+        ref_table = {
+            PolicyScope.MACHINE: "machine",
+            PolicyScope.SITE: "job_site",
+            PolicyScope.MACHINE_CATEGORY: "machine_category",
+        }.get(body.scope, "staff_member")
         raise NotFound(f"{ref_table} not found")  # RLS-scoped: only the tenant's own records resolve
     row = PolicyService(session).create_version(
         ptype=ptype,

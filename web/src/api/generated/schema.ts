@@ -9424,6 +9424,11 @@ export interface components {
             fuel_events: components["schemas"]["SheetFuelDto"][];
             /** Fuel Litres */
             fuel_litres: string;
+            /**
+             * Fuel Litres Per Engine Hour
+             * @description fuel_litres / engine_hours of the day (null when no engine hours)
+             */
+            fuel_litres_per_engine_hour?: string | null;
             /** Identified Variance Hours */
             identified_variance_hours: string;
             /** Jobs */
@@ -9499,6 +9504,11 @@ export interface components {
             flags: components["schemas"]["SheetFlag"][];
             /** Fuel Litres */
             fuel_litres: string;
+            /**
+             * Fuel Litres Per Engine Hour
+             * @description fuel_litres / engine_hours of the day (null when no engine hours)
+             */
+            fuel_litres_per_engine_hour?: string | null;
             /** Identified Variance Hours */
             identified_variance_hours: string;
             /** Jobs */
@@ -14606,7 +14616,7 @@ export interface components {
          * PolicyScope
          * @enum {string}
          */
-        PolicyScope: "PLATFORM" | "TENANT" | "MACHINE" | "SITE" | "STAFF";
+        PolicyScope: "PLATFORM" | "TENANT" | "MACHINE" | "SITE" | "STAFF" | "MACHINE_CATEGORY";
         /** PolicySnapshotDto */
         PolicySnapshotDto: {
             /** Policy Type */
@@ -15762,7 +15772,7 @@ export interface components {
          * RuleCode
          * @enum {string}
          */
-        RuleCode: "UNREPORTED_ENGINE_ACTIVITY" | "DUPLICATE_RECEIPT" | "FUEL_ALLOWANCE_EXCEEDED" | "EXPENSE_THRESHOLD_EXCEEDED" | "CASH_NOT_HANDED_OVER" | "WORK_WITHOUT_AUTHORIZATION" | "UNEXPLAINED_ENGINE_HOURS";
+        RuleCode: "UNREPORTED_ENGINE_ACTIVITY" | "DUPLICATE_RECEIPT" | "FUEL_ALLOWANCE_EXCEEDED" | "EXPENSE_THRESHOLD_EXCEEDED" | "CASH_NOT_HANDED_OVER" | "WORK_WITHOUT_AUTHORIZATION" | "UNEXPLAINED_ENGINE_HOURS" | "ENGINE_RUNNING_WITHOUT_WORK" | "MACHINE_FUEL_ABOVE_NORM";
         /** SecurityEventDto */
         SecurityEventDto: {
             /** Action */
@@ -15865,7 +15875,7 @@ export interface components {
             record_id: string;
             /**
              * Record Type
-             * @description job_exception | risk_signal | revenue_difference
+             * @description job_exception | risk_signal | revenue_difference | anomaly_case
              */
             record_type: string;
         };
@@ -52330,6 +52340,7 @@ export interface operations {
                 machine_id?: string | null;
                 site_id?: string | null;
                 staff_id?: string | null;
+                category_id?: string | null;
                 at?: string | null;
             };
             header?: {

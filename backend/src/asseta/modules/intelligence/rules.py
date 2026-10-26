@@ -7,7 +7,7 @@ import uuid
 from collections import defaultdict
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -191,6 +191,167 @@ def unreported_engine_activity(
                 )
             )
     return out
+
+
+# --- ENGINE_RUNNING_WITHOUT_WORK (DEC-031 S1) -------------------------------------------------------------------
+@dataclass(frozen=True)
+class TrackerGap:
+    """Verified engine-on time (tracker) with no running job, clipped to one day."""
+
+    start: datetime
+    end: datetime
+    basis: str  # IGNITION | ENGINE_HOURS
+
+
+@dataclass(frozen=True)
+class MeterGap:
+    """An unexplained meter interval outside jobs; `hours_in_day` is its wall-clock share of the day."""
+
+    start_ref: uuid.UUID
+    end_ref: uuid.UUID
+    start_at: datetime
+    end_at: datetime
+    start_reading: Decimal
+    end_reading: Decimal
+    hours: Decimal
+    hours_in_day: Decimal
+
+
+@dataclass(frozen=True)
+class MovementAlert:
+    alert_id: uuid.UUID
+    at: datetime
+    title: str
+
+
+@dataclass(frozen=True)
+class EngineDay:
+    machine_id: uuid.UUID
+    day: date  # tenant-local
+    start: datetime
+    end: datetime
+    tracker: tuple[TrackerGap, ...] = ()
+    meter: tuple[MeterGap, ...] = ()
+    movements: tuple[MovementAlert, ...] = ()
+    related_signal_ids: tuple[uuid.UUID, ...] = ()
+    supervisors: tuple[uuid.UUID, ...] = ()
+
+
+def engine_running_without_work(d: EngineDay, min_minutes: int | None, policy_version: str) -> SignalFinding | None:
+    """One summary per machine and tenant-local day: engine time without work from the tracker (engine on, no job)
+    or the meter (unexplained hours outside jobs) — the larger of the two, never added together since both may
+    describe the same running — of at least `min_minutes`. After-hours movements of the day are attached as
+    evidence. Off when `min_minutes` is None."""
+    if min_minutes is None:
+        return None
+    tracker_minutes = sum((g.end - g.start).total_seconds() for g in d.tracker) / 60
+    meter_hours = sum((g.hours_in_day for g in d.meter), Decimal(0))
+    meter_minutes = float(meter_hours * 60)
+    minutes = max(tracker_minutes, meter_minutes)
+    if minutes < min_minutes:
+        return None
+    return SignalFinding(
+        RuleCode.ENGINE_RUNNING_WITHOUT_WORK,
+        SignalSeverity.WARNING,
+        SubjectType.MACHINE,
+        d.machine_id,
+        d.start,
+        d.end,
+        f"EWW:{d.machine_id}:{d.day.isoformat()}",
+        {
+            "day": d.day.isoformat(),
+            "minutes_without_work": round(minutes, 1),
+            "tracker_minutes_without_job": round(tracker_minutes, 1),
+            "meter_unexplained_hours": str(meter_hours.quantize(Decimal("0.01"))),
+            "after_hours_movements": len(d.movements),
+            "threshold_minutes": min_minutes,
+            "tracker_periods": [
+                {
+                    "from": _iso(g.start),
+                    "until": _iso(g.end),
+                    "minutes": round((g.end - g.start).total_seconds() / 60, 1),
+                    "basis": g.basis,
+                }
+                for g in d.tracker
+            ],
+            "meter_intervals": [
+                {
+                    "start_ref": str(g.start_ref),
+                    "end_ref": str(g.end_ref),
+                    "from": _iso(g.start_at),
+                    "until": _iso(g.end_at),
+                    "start_reading": str(g.start_reading),
+                    "end_reading": str(g.end_reading),
+                    "hours": str(g.hours),
+                    "hours_in_day": str(g.hours_in_day.quantize(Decimal("0.01"))),
+                }
+                for g in d.meter
+            ],
+            "movement_alerts": [{"alert_id": str(m.alert_id), "at": _iso(m.at), "title": m.title} for m in d.movements],
+            "related_signal_ids": [str(i) for i in d.related_signal_ids],
+        },
+        policy_version=policy_version,
+        machine_id=d.machine_id,
+        involved_staff_ids=_ids(d.supervisors),
+    )
+
+
+# --- MACHINE_FUEL_ABOVE_NORM (DEC-031 S2) ----------------------------------------------------------------------
+@dataclass(frozen=True)
+class MachineFuelPeriod:
+    """All fuel issued or purchased into a machine in one tenant-local period vs its engine hours (meter ledger,
+    inside and outside jobs)."""
+
+    machine_id: uuid.UUID
+    period_kind: str  # DAY | WEEK
+    period_key: str  # 2026-11-01 | 2026-W44
+    start: datetime
+    end: datetime
+    litres_into_machine: Decimal
+    engine_hours: Decimal
+    engine_hours_in_jobs: Decimal
+    fuel_event_ids: tuple[uuid.UUID, ...]
+    recorded_by: tuple[uuid.UUID, ...]
+    job_numbers: tuple[str, ...] = ()
+
+
+def machine_fuel_above_norm(
+    p: MachineFuelPeriod, norm: Decimal | None, norm_source: str, policy_version: str
+) -> SignalFinding | None:
+    """Litres per engine hour above the norm for the machine. No signal when the rule is off (no norm) or the
+    period's engine hours are zero."""
+    if norm is None or p.engine_hours <= 0:
+        return None
+    rate = (p.litres_into_machine / p.engine_hours).quantize(LITRES_PER_HOUR_PLACES)
+    if rate <= norm:
+        return None
+    hours = p.engine_hours.quantize(Decimal("0.01"))
+    in_jobs = p.engine_hours_in_jobs.quantize(Decimal("0.01"))
+    return SignalFinding(
+        RuleCode.MACHINE_FUEL_ABOVE_NORM,
+        SignalSeverity.WARNING,
+        SubjectType.MACHINE,
+        p.machine_id,
+        p.start,
+        p.end,
+        f"MFUEL:{p.machine_id}:{p.period_key}",
+        {
+            "period_kind": p.period_kind,
+            "period": p.period_key,
+            "litres_into_machine": str(p.litres_into_machine),
+            "engine_hours": str(hours),
+            "engine_hours_in_jobs": str(in_jobs),
+            "engine_hours_outside_jobs": str(hours - in_jobs),
+            "litres_per_engine_hour": str(rate),
+            "norm_litres_per_engine_hour": str(norm),
+            "norm_source": norm_source,
+            "job_numbers": list(p.job_numbers),
+            "fuel_event_ids": [str(i) for i in p.fuel_event_ids],
+        },
+        policy_version=policy_version,
+        machine_id=p.machine_id,
+        involved_user_ids=_ids(p.recorded_by),
+    )
 
 
 # --- DUPLICATE_RECEIPT -----------------------------------------------------------------------------------------

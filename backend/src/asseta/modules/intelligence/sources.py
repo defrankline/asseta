@@ -35,6 +35,8 @@ RULE_TITLES: dict[str, str] = {
     RuleCode.CASH_NOT_HANDED_OVER: "Cash held beyond the handover limits",
     RuleCode.WORK_WITHOUT_AUTHORIZATION: "Work recorded outside an authorized job",
     RuleCode.UNEXPLAINED_ENGINE_HOURS: "Engine hours still unexplained after the review period",
+    RuleCode.ENGINE_RUNNING_WITHOUT_WORK: "Engine running without work during the day",
+    RuleCode.MACHINE_FUEL_ABOVE_NORM: "Fuel above the norm for the engine hours",
 }
 ALERT_TITLES = {
     AlertType.TAMPER: "Tracker tamper signal",
