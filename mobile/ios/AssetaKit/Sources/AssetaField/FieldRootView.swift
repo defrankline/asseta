@@ -12,6 +12,8 @@ enum FieldRoute: Hashable {
     case retention(UUID)
     /// An overdue-remittance flag of mine (read online).
     case remittanceOverdue(UUID)
+    /// My site check-in schedule and check-ins (DEC-031 Phase 5).
+    case siteCheckins
 }
 
 /// Forms presented as sheets (Cancel / Save), as before.
@@ -170,6 +172,7 @@ public struct FieldRootView: View {
         case .syncStatus: SyncStatusView(model: model)
         case let .retention(id): RetentionStatusView(model: model, id: id)
         case let .remittanceOverdue(id): RemittanceOverdueView(model: model, id: id)
+        case .siteCheckins: SiteCheckinView(model: model)
         }
     }
 
@@ -348,6 +351,7 @@ struct JobsTabView: View {
     var body: some View {
         List {
             FieldBanners(model: model)
+            if model.access.siteCheckin { SiteCheckinEntryRow(model: model) }
             FilterChips(options: JobSegment.allCases.map { ($0, $0.label) },
                         selection: Binding(get: { segment }, set: { segment = $0; chosen = true }))
             if segment == .machines {

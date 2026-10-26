@@ -254,7 +254,7 @@ struct OperationRow: View {
         case .meterResetRequest: return "Meter reset request"
         case .jobRequest: return JobRequestText.operation
         case .hoursPurchase, .hoursTransferRequest, .cashTransfer, .cashTransferAcknowledgement, .cashFloatAcknowledgement,
-             .meterBaseline, .meterCorrection, .cashRetentionRequest, nil: return operation.opType
+             .meterBaseline, .meterCorrection, .cashRetentionRequest, .siteCheckin, nil: return operation.opType
         }
     }
 }

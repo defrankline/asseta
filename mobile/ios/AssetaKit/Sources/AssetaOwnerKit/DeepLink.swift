@@ -52,6 +52,14 @@ public enum OwnerRoute: Hashable, Sendable {
     case hoursPurchase(UUID)
     /// The hours statement of one customer (`name` shown until the statement arrives).
     case hoursStatement(customer: UUID, name: String?)
+    /// People scorecard: counts of items to look at per person (DEC-031 Phase 5, read-only).
+    case scorecard
+    /// One person's scorecard for the local days `from`…`to` (nil: the default period); `name` shown until it loads.
+    case scorecardPerson(UUID, name: String?, from: String?, to: String?)
+    /// Completed jobs not invoiced yet (read-only).
+    case unbilledWork
+    /// Machines idle for a while (read-only).
+    case idleMachines
 }
 
 /// A route plus the tenant it belongs to (a push may concern another company the user belongs to).
@@ -91,6 +99,8 @@ public enum DeepLinkParser {
         case .revenueDifference: return .revenueDifference(id)
         case .nonRevenueApproval: return .decision(.nonRevenue, id)
         case .hoursPurchase: return .hoursPurchase(id)
+        // DEC-031 Phase 5: UNBILLED_WORK names the job.
+        case .job: return .job(id)
         }
     }
 
@@ -207,6 +217,9 @@ public enum DeepLinkParser {
             return .fleet
         case let ("machines", id?): return .machine(id)
         case ("machines", nil): return .fleet
+        case ("scorecard", _): return id.map { .scorecardPerson($0, name: nil, from: nil, to: nil) } ?? .scorecard
+        case ("unbilled-work", _): return .unbilledWork
+        case ("idle-machines", _): return .idleMachines
         case let ("notifications", id?): return .notification(id)
         case ("notifications", nil): return .notifications
         default: return nil
@@ -265,9 +278,10 @@ extension OwnerRoute {
     public var identifiesRecord: Bool {
         switch self {
         case .machine, .alert, .approval, .investigation, .job, .meterReset, .handover, .exception, .notification, .decision,
-             .cashTransfer, .cashFloat, .overdueRemittance, .revenueDifference, .dailySheetDay, .hoursPurchase: true
+             .cashTransfer, .cashFloat, .overdueRemittance, .revenueDifference, .dailySheetDay, .hoursPurchase, .scorecardPerson: true
         case .fleet, .jobs, .investigations, .alerts, .approvals, .exceptions, .fieldSpend, .cash, .notifications,
-             .accountability, .overdueRemittances, .dailySheet, .customerHours, .hoursStatement: false
+             .accountability, .overdueRemittances, .dailySheet, .customerHours, .hoursStatement, .scorecard, .unbilledWork,
+             .idleMachines: false
         }
     }
 }

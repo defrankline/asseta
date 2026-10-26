@@ -239,7 +239,13 @@ public enum AccountabilityRules {
     }
 
     /// Provisional hours (in use by running jobs) as plain text, nil when there are none (DEC-031 Phase 4).
-    public static func inUse(_ value: Decimal) -> String? { value > 0 ? plain(value) : nil }
+    public static func inUse(_ value: Decimal) -> String? { value > 0 ? hoursNumber(value) : nil }
+
+    /// An hours figure in the phone's number format: grouping, 0–2 decimals, no trailing zeros ("12", "1,234.5"); the
+    /// same rule as the Owner app and Android (strings doc "DEC-031 Phase 5", hours parity).
+    public static func hoursNumber(_ value: Decimal, locale: Locale = .current) -> String {
+        value.formatted(.number.precision(.fractionLength(0...2)).locale(locale))
+    }
 
     /// Plain decimal text without trailing zeros ("12.50" -> "12.5").
     public static func plain(_ value: Decimal) -> String {

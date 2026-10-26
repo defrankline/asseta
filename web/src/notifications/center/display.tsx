@@ -74,7 +74,10 @@ const BY_ENTITY: Readonly<Record<string, (id: string | null) => string>> = {
 function exactRecordPath(data: Readonly<Record<string, unknown>> | undefined): string | null {
   const kind = data?.kind;
   const id = data?.record_id;
-  return isRecordKind(kind) && typeof id === 'string' && id !== '' ? recordPath(kind, id) : null;
+  if (typeof id !== 'string' || id === '') return null;
+  // UNBILLED_WORK (DEC-031 M2) carries the job itself.
+  if (kind === 'JOB') return jobDetailPath(id);
+  return isRecordKind(kind) ? recordPath(kind, id) : null;
 }
 
 /**

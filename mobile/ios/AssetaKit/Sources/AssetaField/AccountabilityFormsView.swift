@@ -25,7 +25,7 @@ private func unavailableMessage(_ access: FieldAccess) -> String { access.capabi
 private func purchaseOptions(_ purchases: [HoursPurchaseDTO]) -> [PickerOption] {
     purchases.map {
         PickerOption(id: $0.id, title: T.transferPurchaseOption(number: $0.purchaseNumber,
-                                                                hours: AccountabilityRules.plain($0.totals.remaining.value),
+                                                                hours: AccountabilityRules.hoursNumber($0.totals.remaining.value),
                                                                 provisional: AccountabilityRules.inUse($0.totals.provisional.value)),
                      subtitle: $0.customerName)
     }

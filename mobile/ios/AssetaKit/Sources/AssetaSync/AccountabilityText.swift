@@ -258,6 +258,8 @@ public enum FieldAccountabilityTexts {
         case "DEPOSIT_ACCOUNT_INACTIVE": "The account you chose is no longer in use. Record the handover again with another account."
         case "REMITTANCE_ACCOUNT_MISMATCH":
             "The account you chose does not match how the money was handed over. Record the handover again."
+        case "SITE_CHECKIN_DISABLED", "CHECKIN_ID_CONFLICT", "STAFF_NOT_LINKED", "CHECKIN_IN_FUTURE", "JOB_SITE_NOT_FOUND":
+            SiteCheckinTexts.conflict(code)
         case "DEPOSIT_ACCOUNT_CURRENCY_MISMATCH":
             "The account you chose holds a different currency. Record the handover again with another account."
         default: nil
@@ -311,6 +313,7 @@ public enum FieldAccountabilityTexts {
         case .meterBaseline: outboxBaseline
         case .meterCorrection: outboxCorrection
         case .cashRetentionRequest: outboxRetention
+        case .siteCheckin: SiteCheckinTexts.outbox
         case .meterCapture where payload?["kind"]?.stringValue == ReadingKind.daily.rawValue: outboxDailyReading
         default: nil
         }

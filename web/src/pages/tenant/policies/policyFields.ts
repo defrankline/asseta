@@ -21,7 +21,9 @@ export type FieldKind =
   | 'bool'
   | 'enum'
   /** A list of values from `options` (e.g. allowed billing modes); stored as a JSON array. */
-  | 'multiEnum';
+  | 'multiEnum'
+  /** A list of tenant-local times of day (HH:MM); stored as a sorted JSON array of "HH:MM:SS". */
+  | 'timeList';
 
 export interface FieldOption {
   value: string;
@@ -322,6 +324,9 @@ export function findField(ptype: PolicyType, key: string): PolicyFieldDef | unde
 
 export const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
 
+/** A 24-hour time of day, HH:MM. */
+export const TIME_OF_DAY = /^([01]\d|2[0-3]):[0-5]\d$/;
+
 /** Human display of a policy value. */
 export function formatPolicyValue(def: PolicyFieldDef | undefined, value: unknown): string {
   if (value === null || value === undefined) return '—';
@@ -331,6 +336,9 @@ export function formatPolicyValue(def: PolicyFieldDef | undefined, value: unknow
       .join(', ');
   }
   if (def?.kind === 'bool' && typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (def?.kind === 'timeList' && Array.isArray(value)) {
+    return value.length === 0 ? 'None' : value.map((t) => String(t).slice(0, 5)).join(', ');
+  }
   if (def?.kind === 'multiEnum' && Array.isArray(value)) {
     if (value.length === 0) return 'None';
     return value.map((v) => def.options?.find((o) => o.value === v)?.label ?? String(v)).join(', ');
@@ -350,6 +358,9 @@ export function toInputValue(def: PolicyFieldDef, value: unknown): string {
   if (value === null || value === undefined) return '';
   if (def.kind === 'weekdays') return Array.isArray(value) ? value.map(String).join(',') : '';
   if (def.kind === 'multiEnum') return Array.isArray(value) ? value.map(String).join(',') : '';
+  if (def.kind === 'timeList') {
+    return Array.isArray(value) ? value.map((t) => String(t).slice(0, 5)).join(',') : '';
+  }
   if (def.kind === 'time' && typeof value === 'string') return value.slice(0, 5);
   if (def.kind === 'bool') return value === true ? 'true' : 'false';
   return typeof value === 'number' || typeof value === 'string' ? String(value) : '';
@@ -376,6 +387,8 @@ export function fromInputValue(def: PolicyFieldDef, input: string): unknown {
       return v === 'true';
     case 'multiEnum':
       return v === '' ? [] : splitMulti(def, v);
+    case 'timeList':
+      return splitTimes(v).map((t) => `${t}:00`);
     case 'weekdays':
       return v === ''
         ? []
@@ -408,6 +421,10 @@ export function inputError(def: PolicyFieldDef, input: string): string | null {
       return v === 'true' || v === 'false' ? null : 'Choose yes or no';
     case 'enum':
       return def.options?.some((o) => o.value === v) === true ? null : 'Choose a value';
+    case 'timeList':
+      return v.split(',').every((t) => t.trim() === '' || TIME_OF_DAY.test(t.trim()))
+        ? null
+        : 'Use HH:MM (24 h) for every time';
     case 'multiEnum': {
       const chosen = v === '' ? [] : v.split(',');
       const min = def.minItems ?? 1;
@@ -419,6 +436,15 @@ export function inputError(def: PolicyFieldDef, input: string): string | null {
         : `Choose at least ${String(min)} value${min === 1 ? '' : 's'}`;
     }
   }
+}
+
+/** Time-list input ('12:00,06:30') → sorted, distinct HH:MM values (blanks dropped). */
+export function splitTimes(input: string): string[] {
+  const times = input
+    .split(',')
+    .map((t) => t.trim())
+    .filter((t) => t !== '');
+  return [...new Set(times)].sort();
 }
 
 /** Multi-select input ('A,B') → values in the order of `options` (stable, no duplicates). */

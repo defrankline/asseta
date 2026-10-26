@@ -35,6 +35,8 @@ const schema: ObjectSchema<DraftValues> = object({
 interface CreateInvoiceDialogProps {
   /** Pre-selects the customer (e.g. from the customer page). */
   customerId?: string;
+  /** Pre-selects jobs of that customer (e.g. "Create invoice" from the unbilled work list). */
+  jobIds?: readonly string[];
   onClose: () => void;
   onCreated: (invoice: HireInvoiceDto) => void;
 }
@@ -42,6 +44,7 @@ interface CreateInvoiceDialogProps {
 /** Customer → billable COMPLETED jobs → Review. Creates a DRAFT; issuing is a separate step. */
 export function CreateInvoiceDialog({
   customerId = '',
+  jobIds = [],
   onClose,
   onCreated,
 }: CreateInvoiceDialogProps) {
@@ -64,7 +67,10 @@ export function CreateInvoiceDialog({
             required
             onOptionChange={(c) => {
               setCustomer(c);
-              if (formik.values.job_ids.length > 0) void formik.setFieldValue('job_ids', []);
+              // Resolving the pre-selected customer keeps the pre-selected jobs; a new customer clears them.
+              const changed = (c?.id ?? '') !== formik.values.customer_id;
+              if (changed && formik.values.job_ids.length > 0)
+                void formik.setFieldValue('job_ids', []);
             }}
           />
           <FormikTextField name="notes" label="Notes (optional)" multiline minRows={2} />
@@ -97,7 +103,7 @@ export function CreateInvoiceDialog({
       open
       title="New hire invoice (draft)"
       steps={steps}
-      initialValues={{ customer_id: customerId, notes: '', job_ids: [] }}
+      initialValues={{ customer_id: customerId, notes: '', job_ids: [...jobIds] }}
       validationSchema={schema}
       submitLabel="Create draft"
       maxWidth="lg"

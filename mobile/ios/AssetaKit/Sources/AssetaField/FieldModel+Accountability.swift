@@ -11,6 +11,7 @@ extension FieldModel {
         await services.online.refreshAccountability(permissions: tenant.permissions, myStaffID: myStaffID,
                                                     disabledCapabilities: tenant.disabledCapabilities)
         refresh()
+        await refreshSiteCheckins()
     }
 
     /// My overdue-remittance flag, read online (kept for this session); nil offline or when the server does not show

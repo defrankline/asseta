@@ -205,6 +205,8 @@ public enum InboxLink: Sendable, Equatable {
         case .cashFloat: .cashToAcknowledge(record.id, isFloat: true)
         case .cashRetention: .retention(record.id)
         case .remittanceOverdue: .remittanceOverdue(record.id)
+        // DEC-031 Phase 5: UNBILLED_WORK names the job.
+        case .job: .job(record.id)
         default: nil
         }
     }

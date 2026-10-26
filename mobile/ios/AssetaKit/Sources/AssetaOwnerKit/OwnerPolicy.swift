@@ -57,6 +57,19 @@ public struct OwnerFeatures: Equatable, Sendable {
     /// Decide on revenue differences (`tenant.revenue.decide`).
     public var revenueDecide: Bool { revenueRead && permissions.contains(RevenuePermission.decide) }
 
+    /// People scorecard (DEC-031 Phase 5): `SCORECARD` on + `tenant.oversight.scorecard.read`.
+    public var scorecard: Bool {
+        !disabledCapabilities.contains(TenantCapability.scorecard) && permissions.contains("tenant.oversight.scorecard.read")
+    }
+    /// Unbilled work list: `UNBILLED_WORK` on + `tenant.oversight.read`.
+    public var unbilledWork: Bool {
+        !disabledCapabilities.contains(TenantCapability.unbilledWork) && permissions.contains("tenant.oversight.read")
+    }
+    /// Idle machines list: `IDLE_MACHINES` on + `tenant.oversight.read`.
+    public var idleMachines: Bool {
+        !disabledCapabilities.contains(TenantCapability.idleMachines) && permissions.contains("tenant.oversight.read")
+    }
+
     /// The Approvals screen shows approval requests or at least one kind of accountability decision.
     public var approvalsScreen: Bool { approvals || !decisionKinds.isEmpty || revenueRead }
 

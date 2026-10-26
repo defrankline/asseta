@@ -1,5 +1,6 @@
 import { PERMISSIONS } from '../access/permissionCodes';
 import { HOURS_MENU_PATHS } from './hoursRoutes';
+import { OVERSIGHT_MENU_PATHS } from './oversightRoutes';
 import { RECORD_LIST_ROUTES } from './recordRoutes';
 
 export const ROUTES = {
@@ -298,6 +299,7 @@ export const IMPLEMENTED_PATHS: ReadonlySet<string> = new Set([
   ROUTES.fieldExpenses,
   ROUTES.fieldCash,
   ...HOURS_MENU_PATHS,
+  ...OVERSIGHT_MENU_PATHS,
   // Exact-record list routes (cash ones open the cash custody page on that list).
   ...Object.values(RECORD_LIST_ROUTES),
 ]);

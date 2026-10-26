@@ -154,7 +154,7 @@ public struct UsageLine: Hashable, Sendable {
 public enum CustomerHoursPresentation {
     typealias T = CustomerHoursTexts
 
-    static func num(_ value: DecimalString) -> String { PendingDecision.num(value) }
+    static func num(_ value: DecimalString) -> String { OwnerFormat.hoursNumber(value) }
     static func h(_ value: DecimalString) -> String { OwnerFormat.hours(value) }
     static func positive(_ value: DecimalString) -> Bool { value.value > 0 }
 

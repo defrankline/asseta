@@ -30,6 +30,8 @@ public struct PushOutcomeApplier: Sendable {
         // Stronger remittances (DEC-031 D2): a requirement switched on, or the account deactivated, after queueing.
         "REMITTANCE_REFERENCE_REQUIRED", "REMITTANCE_EVIDENCE_REQUIRED", "REMITTANCE_ACCOUNT_REQUIRED",
         "DEPOSIT_ACCOUNT_INACTIVE",
+        // Site check-ins (DEC-031 Phase 5): switched off after queueing, or a client id reused for another check-in.
+        "SITE_CHECKIN_DISABLED", "CHECKIN_ID_CONFLICT",
     ]
 
     let outbox: any ClientOperationRepository

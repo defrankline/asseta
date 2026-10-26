@@ -12,6 +12,7 @@ import {
 import { useCallback, useState } from 'react';
 import { Link as RouterLink, useNavigate } from 'react-router';
 import { CanMutate } from '../../../access/CanMutate';
+import { CAPABILITY, useCapabilityEnabled } from '../../../access/capabilities';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import { jobService } from '../../../api/services/jobService';
 import type { JobDto, Page } from '../../../api/types';
@@ -23,6 +24,7 @@ import { EmptyState } from '../../../components/feedback/EmptyState';
 import { PageHeader } from '../../../components/feedback/PageHeader';
 import { useAsyncResource } from '../../../hooks/useAsyncResource';
 import { useDisplayTimeZone } from '../../../hooks/useDisplayTimeZone';
+import { OVERSIGHT_ROUTES } from '../../../navigation/oversightRoutes';
 import { fieldJobPath } from '../../../navigation/routes';
 import { ENTITY } from '../../../realtime/entities';
 import { useLiveRefresh } from '../../../realtime/hooks';
@@ -45,6 +47,7 @@ export function MyJobsPage() {
   const timeZone = useDisplayTimeZone();
   const navigate = useNavigate();
   const seesAll = useSeesAllJobs();
+  const checkins = useCapabilityEnabled(CAPABILITY.siteCheckin);
   // Job managers are often not linked to a staff record, so they start on every job.
   const [scope, setScope] = useState<Scope>(seesAll ? 'all' : 'mine');
   const machineLabel = useFieldMachineLabels();
@@ -142,6 +145,17 @@ export function MyJobsPage() {
                 Request a job
               </Button>
             </CanMutate>
+            {checkins && (
+              <CanMutate permission={PERMISSIONS.tenantSiteCheckinRecord}>
+                <Button
+                  component={RouterLink}
+                  to={OVERSIGHT_ROUTES.fieldCheckin}
+                  variant="outlined"
+                >
+                  Site check-in
+                </Button>
+              </CanMutate>
+            )}
             {seesAll && (
               <ToggleButtonGroup
                 size="small"

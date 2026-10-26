@@ -160,6 +160,8 @@ public enum OperationType: String, Codable, Sendable, CaseIterable {
     case meterBaseline = "METER_BASELINE", meterCorrection = "METER_CORRECTION"
     /// Ask to keep cash (`CashRetentionIn` with `client_id`); needs ``SyncCapability/cashRetentionRequest``.
     case cashRetentionRequest = "CASH_RETENTION_REQUEST"
+    /// A supervisor's GPS check-in at the site (`SiteCheckinIn`); needs ``SyncCapability/siteCheckin``.
+    case siteCheckin = "SITE_CHECKIN"
 }
 
 public enum GpsStatus: String, Codable, Sendable, CaseIterable {

@@ -7,7 +7,7 @@ import SwiftUI
 enum OwnerTab: Hashable { case overview, fleet, jobs, alerts, more }
 
 /// Lists reachable from the "More" tab.
-enum MoreItem: Hashable { case approvals, accountability, customerHours, exceptions, fieldSpend, cash, investigations, notifications, settings }
+enum MoreItem: Hashable { case approvals, accountability, customerHours, scorecard, exceptions, fieldSpend, cash, investigations, notifications, settings }
 
 /// Owner home for one tenant: tabs, deep links from notification taps, offline/stale state.
 public struct OwnerRootView: View {
@@ -148,6 +148,14 @@ public struct OwnerRootView: View {
             target = .more; path.append(MoreItem.customerHours)
         case .hoursPurchase where model.features.allows(route), .hoursStatement where model.features.allows(route):
             target = .more; path.append(MoreItem.customerHours); path.append(route)
+        case .scorecard where model.features.allows(route):
+            target = .more; path.append(MoreItem.scorecard)
+        case .scorecardPerson where model.features.allows(route):
+            target = .more; path.append(MoreItem.scorecard); path.append(route)
+        case .unbilledWork where model.features.allows(route), .idleMachines where model.features.allows(route):
+            target = .more
+            if model.features.accountability { path.append(MoreItem.accountability) }
+            path.append(route)
         case .investigation:
             target = .more; path.append(MoreItem.investigations); path.append(route)
         case .notification:
@@ -197,6 +205,10 @@ struct RouteView: View {
         case let .hoursPurchase(id): HoursPurchaseView(model: model, purchaseID: id)
         case .customerHours: CustomerHoursView(model: model)
         case let .hoursStatement(customer, name): HoursStatementView(model: model, customerID: customer, customerName: name)
+        case .scorecard: ScorecardView(model: model)
+        case let .scorecardPerson(id, name, from, to): ScorecardPersonView(model: model, staffID: id, name: name, from: from, to: to)
+        case .unbilledWork: UnbilledWorkView(model: model)
+        case .idleMachines: IdleMachinesView(model: model)
         }
     }
 }
@@ -210,6 +222,7 @@ struct MoreDestination: View {
         case .approvals: ApprovalsView(model: model)
         case .accountability: AccountabilityDashboardView(model: model)
         case .customerHours: CustomerHoursView(model: model)
+        case .scorecard: ScorecardView(model: model)
         case .exceptions: ExceptionsView(model: model, jobID: nil)
         case .fieldSpend: FieldSpendView(model: model)
         case .cash: CashView(model: model)
@@ -237,6 +250,11 @@ struct MoreView: View {
                 if model.features.hoursRead {
                     NavigationLink(value: MoreItem.customerHours) {
                         Label(CustomerHoursTexts.more, systemImage: "hourglass")
+                    }
+                }
+                if model.features.scorecard {
+                    NavigationLink(value: MoreItem.scorecard) {
+                        Label(OversightTexts.scoreMore, systemImage: "person.text.rectangle")
                     }
                 }
                 if model.features.meterEvidence {

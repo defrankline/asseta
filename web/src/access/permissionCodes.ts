@@ -183,4 +183,11 @@ export const PERMISSIONS = {
   tenantHoursCancelApprove: 'tenant.hours.cancel_approve',
   /** The tenant's discount / credit / transfer / cancellation reason lists. */
   tenantHoursReasons: 'tenant.hours.reasons',
+  // ---- Oversight (DEC-031 Phase 5) ----
+  /** The people scorecard: per-person items to look at (read). */
+  tenantOversightScorecardRead: 'tenant.oversight.scorecard.read',
+  /** Unbilled work, idle machines and everyone's site check-ins (read). */
+  tenantOversightRead: 'tenant.oversight.read',
+  /** Check in at the site (GPS) and see one's own check-ins and schedule. */
+  tenantSiteCheckinRecord: 'tenant.site_checkin.record',
 } as const;

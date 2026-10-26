@@ -8,6 +8,7 @@ import { withQuery } from '../../../navigation/urlFilters';
 import { formatMoney } from '../../../utils/money';
 import { humanize } from '../../../utils/text';
 import type { KpiRow } from '../dashboard/KpiCard';
+import { idleMachinesTile, unbilledWorkTile } from './oversightTiles';
 import { revenueDifferencesTile } from './revenueTile';
 import { disabledCapabilities, type TileOptions } from './tileCapabilities';
 import {
@@ -33,6 +34,8 @@ export const TILE_LABELS: Readonly<Record<string, string>> = {
   unexplained_hours: 'Unexplained engine hours',
   missing_daily_reports: 'Missing daily reports',
   revenue_differences: 'Revenue differences',
+  unbilled_work: 'Unbilled work',
+  idle_machines: 'Idle machines',
   investigations: 'Open investigations',
   cash: 'Cash per custodian',
   payments: 'Payments awaiting confirmation',
@@ -202,6 +205,10 @@ export function buildTiles(
   }
   const revenue = off.has(CAPABILITY.revenue) ? null : revenueDifferencesTile(s, can);
   if (revenue !== null) tiles.push(revenue);
+  const unbilled = off.has(CAPABILITY.unbilledWork) ? null : unbilledWorkTile(s, can);
+  if (unbilled !== null) tiles.push(unbilled);
+  const idle = off.has(CAPABILITY.idleMachines) ? null : idleMachinesTile(s, can);
+  if (idle !== null) tiles.push(idle);
   if (s.investigations) {
     const i = s.investigations;
     const caseRead = can(PERMISSIONS.tenantCaseRead);

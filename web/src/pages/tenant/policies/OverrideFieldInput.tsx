@@ -1,6 +1,8 @@
 import {
   Box,
+  Button,
   Checkbox,
+  Chip,
   FormControlLabel,
   MenuItem,
   Switch,
@@ -8,8 +10,9 @@ import {
   Typography,
 } from '@mui/material';
 import { getIn, useFormikContext } from 'formik';
+import { useState } from 'react';
 import type { PolicyFormValues } from './policyForm';
-import { WEEKDAYS, type PolicyFieldDef } from './policyFields';
+import { splitTimes, TIME_OF_DAY, WEEKDAYS, type PolicyFieldDef } from './policyFields';
 
 const BOOL_OPTIONS = [
   { value: 'true', label: 'Yes' },
@@ -101,6 +104,86 @@ function MultiOptionPicker({
   );
 }
 
+/** Times of day as removable chips plus an HH:MM entry; the value is the sorted times joined by ','. */
+function TimeListPicker({
+  def,
+  value,
+  onChange,
+  disabled,
+}: {
+  def: PolicyFieldDef;
+  value: string;
+  onChange: (v: string) => void;
+  disabled: boolean;
+}) {
+  const [draft, setDraft] = useState('');
+  const times = splitTimes(value);
+  const entry = draft.trim();
+  const valid = TIME_OF_DAY.test(entry);
+  const duplicate = valid && times.includes(entry);
+  const add = () => {
+    if (!valid || duplicate) return;
+    onChange(splitTimes([...times, entry].join(',')).join(','));
+    setDraft('');
+  };
+  return (
+    <Box className="flex flex-col gap-2" role="group" aria-label={def.label}>
+      <Box className="flex flex-wrap gap-1">
+        {times.length === 0 ? (
+          <Typography variant="body2" color="text.secondary">
+            No times
+          </Typography>
+        ) : (
+          times.map((t) => (
+            <Chip
+              key={t}
+              label={t}
+              size="small"
+              disabled={disabled}
+              onDelete={() => {
+                onChange(times.filter((x) => x !== t).join(','));
+              }}
+              slotProps={{ root: { 'aria-label': `Time ${t}` } }}
+            />
+          ))
+        )}
+      </Box>
+      <Box className="flex flex-wrap items-start gap-2">
+        <TextField
+          size="small"
+          label="Add a time (HH:MM)"
+          value={draft}
+          disabled={disabled}
+          placeholder="HH:MM"
+          onChange={(e) => {
+            setDraft(e.target.value);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              add();
+            }
+          }}
+          error={entry !== '' && (!valid || duplicate)}
+          helperText={
+            entry === ''
+              ? undefined
+              : !valid
+                ? 'Use HH:MM (24 h)'
+                : duplicate
+                  ? 'Already in the list'
+                  : undefined
+          }
+          sx={{ maxWidth: 180 }}
+        />
+        <Button variant="outlined" disabled={disabled || !valid || duplicate} onClick={add}>
+          Add time
+        </Button>
+      </Box>
+    </Box>
+  );
+}
+
 /** One overridable policy field: an "Override" switch plus a typed input. */
 export function OverrideFieldInput({ def }: { def: PolicyFieldDef }) {
   const formik = useFormikContext<PolicyFormValues>();
@@ -133,6 +216,15 @@ export function OverrideFieldInput({ def }: { def: PolicyFieldDef }) {
           {error !== undefined && (
             <Typography variant="caption" color="error">
               {error}
+            </Typography>
+          )}
+        </Box>
+      ) : def.kind === 'timeList' ? (
+        <Box>
+          <TimeListPicker def={def} value={value} onChange={setValue} disabled={!enabled} />
+          {(error ?? def.help) !== undefined && (
+            <Typography variant="caption" color={error !== undefined ? 'error' : 'text.secondary'}>
+              {error ?? def.help}
             </Typography>
           )}
         </Box>

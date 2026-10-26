@@ -24,6 +24,9 @@ public struct AccountabilitySummaryDTO: Codable, Hashable, Sendable {
     public let outstandingApprovals: Approvals?
     /// DEC-031 R3 revenue differences tile (open object, read leniently).
     public let revenueDifferences: JSONValue?
+    /// DEC-031 Phase 5 tiles (open objects, read leniently).
+    public let unbilledWork: JSONValue?
+    public let idleMachines: JSONValue?
 
     public struct CountAmount: Codable, Hashable, Sendable {
         public let currency: String
@@ -120,6 +123,7 @@ public struct AccountabilitySummaryDTO: Codable, Hashable, Sendable {
         case unexplainedHours = "unexplained_hours", missingDailyReports = "missing_daily_reports"
         case unauthorizedAttempts = "unauthorized_attempts", outstandingApprovals = "outstanding_approvals"
         case revenueDifferences = "revenue_differences"
+        case unbilledWork = "unbilled_work", idleMachines = "idle_machines"
     }
 
     public init(from decoder: any Decoder) throws {
@@ -139,6 +143,8 @@ public struct AccountabilitySummaryDTO: Codable, Hashable, Sendable {
         unexplainedHours = open(.unexplainedHours)
         missingDailyReports = open(.missingDailyReports)
         revenueDifferences = open(.revenueDifferences)
+        unbilledWork = open(.unbilledWork)
+        idleMachines = open(.idleMachines)
         // A tile that does not decode is left out rather than failing the whole dashboard.
         investigations = (try? c.decodeIfPresent(Investigations.self, forKey: .investigations)) ?? nil
         cash = (try? c.decodeIfPresent(Cash.self, forKey: .cash)) ?? nil
@@ -311,6 +317,7 @@ public enum AccountabilityDashboard {
             out.append(DashboardTile(id: "missing_daily_reports", title: T.dashMissingReports, rows: rows, route: nil))
         }
         if let revenue = revenueTile(s.revenueDifferences, off: off, revenueRead: revenueRead) { out.append(revenue) }
+        out += OversightPresentation.tiles(unbilled: s.unbilledWork, idle: s.idleMachines, off: off)
         return out
     }
 

@@ -230,6 +230,8 @@ public enum RecordKind: String, CaseIterable, Sendable, Hashable {
     case nonRevenueApproval = "NON_REVENUE_APPROVAL"
     /// DEC-031 Phase 4: a prepaid-hours purchase (low balance, expiring, expired).
     case hoursPurchase = "HOURS_PURCHASE"
+    /// DEC-031 Phase 5: a job (UNBILLED_WORK: completed work not invoiced yet).
+    case job = "JOB"
 
     /// From a notification target entity (`cash_transfer`, `supervisor_cash_custody`, `baseline`, ...).
     public init?(entity: String?) {

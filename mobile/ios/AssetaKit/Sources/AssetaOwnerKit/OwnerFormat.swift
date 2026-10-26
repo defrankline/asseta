@@ -18,7 +18,13 @@ public enum OwnerFormat {
     /// Hours from a decimal string, e.g. `12.5 h`; `—` when absent.
     public static func hours(_ value: DecimalString?, locale: Locale = .current) -> String {
         guard let value else { return "—" }
-        return "\(value.value.formatted(.number.precision(.fractionLength(0...2)).locale(locale))) h"
+        return "\(hoursNumber(value, locale: locale)) h"
+    }
+
+    /// An hours figure without the unit: the phone's number format, grouping, 0–2 decimals ("12", "1,234.5"), as Android
+    /// `OwnerFormat.hoursNumber`.
+    public static func hoursNumber(_ value: DecimalString, locale: Locale = .current) -> String {
+        value.value.formatted(.number.precision(.fractionLength(0...2)).locale(locale))
     }
 
     public static func kilometres(_ value: Double, locale: Locale = .current) -> String {

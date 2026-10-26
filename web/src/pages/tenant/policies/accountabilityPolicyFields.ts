@@ -97,12 +97,6 @@ const SCORECARD_ITEMS: readonly FieldOption[] = [
   { value: 'MISSED_CHECKIN', label: 'Missed site check-ins' },
 ];
 
-/** Check-in times every half hour; values as the API returns times (HH:MM:SS, tenant-local). */
-const CHECKIN_TIMES: readonly FieldOption[] = Array.from({ length: 48 }, (_, i) => {
-  const hhmm = `${String(Math.floor(i / 2)).padStart(2, '0')}:${i % 2 ? '30' : '00'}`;
-  return { value: `${hhmm}:00`, label: hhmm };
-});
-
 /** DEC-031 Phase 5 (all off by default): people scorecard, unbilled work, idle machines, site check-ins. */
 const PHASE5_OVERSIGHT_FIELDS: readonly PolicyFieldDef[] = [
   {
@@ -155,9 +149,8 @@ const PHASE5_OVERSIGHT_FIELDS: readonly PolicyFieldDef[] = [
   {
     key: 'site_checkin_times',
     label: 'Check-in times',
-    kind: 'multiEnum',
-    options: CHECKIN_TIMES,
-    minItems: 0,
+    kind: 'timeList',
+    help: 'Tenant local times of day (HH:MM, 24 h). Add as many as needed; leave none for no check-ins.',
   },
   {
     key: 'site_checkin_window_minutes',

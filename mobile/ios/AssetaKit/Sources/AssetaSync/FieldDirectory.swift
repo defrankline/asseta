@@ -45,7 +45,7 @@ public struct OutboxItem: Sendable, Equatable, Identifiable {
         case .meterResetRequest: "Meter reset request"
         case .jobRequest: JobRequestText.operation
         case .hoursPurchase, .hoursTransferRequest, .cashTransfer, .cashTransferAcknowledgement, .cashFloatAcknowledgement,
-             .meterBaseline, .meterCorrection, .cashRetentionRequest, nil: operation.opType
+             .meterBaseline, .meterCorrection, .cashRetentionRequest, .siteCheckin, nil: operation.opType
         }
     }
 }

@@ -161,6 +161,13 @@ extension OwnerFeatures {
         // Customer hours switched off or not readable: the dashboard, as before these screens existed (as Android).
         case .customerHours, .hoursPurchase, .hoursStatement:
             hoursRead ? route : .accountability
+        // DEC-031 Phase 5: a closed gate opens the Accountability dashboard (as Android).
+        case .scorecard, .scorecardPerson:
+            scorecard ? route : .accountability
+        case .unbilledWork:
+            unbilledWork ? route : .accountability
+        case .idleMachines:
+            idleMachines ? route : .accountability
         default: route
         }
     }
@@ -183,6 +190,9 @@ extension OwnerFeatures {
         case .revenueDifference: revenueRead
         case .dailySheet, .dailySheetDay: revenueRead && fleet
         case .customerHours, .hoursPurchase, .hoursStatement: hoursRead
+        case .scorecard, .scorecardPerson: scorecard
+        case .unbilledWork: unbilledWork
+        case .idleMachines: idleMachines
         case .notifications, .notification: notifications
         }
     }
@@ -190,7 +200,7 @@ extension OwnerFeatures {
     /// Entries of the More tab, in order.
     public var moreEntries: [String] {
         (approvalsScreen ? ["Approvals"] : []) + (accountability ? [OwnerAccountabilityTexts.moreAccountability] : [])
-            + (hoursRead ? [CustomerHoursTexts.more] : [])
+            + (hoursRead ? [CustomerHoursTexts.more] : []) + (scorecard ? [OversightTexts.scoreMore] : [])
             + (meterEvidence ? ["Meter exceptions"] : []) + (expenses ? ["Field spend"] : [])
             + (finance ? ["Cash with supervisors"] : []) + (cases ? ["Investigations"] : [])
             + (notifications ? ["Notifications"] : []) + ["Settings"]
@@ -391,6 +401,7 @@ public enum CaseText {
         switch code {
         case "ENGINE_RUNNING_WITHOUT_WORK": "Engine running without work during the day"
         case "MACHINE_FUEL_ABOVE_NORM": "Fuel above the norm for the engine hours"
+        case "REPEATED_PATTERN": "Repeated items to look at for one person"
         default: OwnerFormat.humanize(code)
         }
     }
