@@ -111,6 +111,7 @@ _TYPES = (
         "HOURS_APPROVAL_DECIDED", "Customer hours decision", Category.INFO, Severity.INFO, T, low_priority=True
     ),
     NotificationType("HOURS_EXPIRING", "Customer hours expiring", Category.REMINDER, Severity.WARNING, T),
+    NotificationType("HOURS_LOW_BALANCE", "Customer hours running low", Category.REMINDER, Severity.WARNING, T),
     NotificationType("HOURS_EXPIRED", "Customer hours expired", Category.INFO, Severity.INFO, T, low_priority=True),
     # Operations: reminders
     NotificationType("CASH_NOT_HANDED_OVER", "Cash not handed over", Category.REMINDER, Severity.WARNING, T, True),

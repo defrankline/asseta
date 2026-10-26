@@ -48,6 +48,8 @@ export const LEDGER_ENTRY_TYPES: readonly LedgerEntryType[] = [
   'TRANSFER_IN',
   'EXPIRED',
   'REVERSAL',
+  'PROVISIONAL',
+  'PROVISIONAL_REVERSED',
 ];
 export const ACTIVATION_SOURCES: readonly ActivationSource[] = ['PAYMENT', 'CREDIT'];
 export const REQUEST_STATUSES: readonly RequestStatus[] = [
@@ -92,6 +94,7 @@ export const machineHoursSchema: Schema<MachineHoursDto> = object({
   reversed: text(),
   transferred_in: text(),
   transferred_out: text(),
+  provisional: text().default('0'),
 });
 
 export const purchaseTotalsSchema: ObjectSchema<PurchaseTotalsDto> = object({
@@ -105,6 +108,7 @@ export const purchaseTotalsSchema: ObjectSchema<PurchaseTotalsDto> = object({
   remaining: text(),
   reversed: text(),
   transferred: text(),
+  provisional: text().default('0'),
   amount_claimed_unverified: text(),
   amount_outstanding: text(),
   amount_verified: text(),
@@ -156,6 +160,7 @@ export const hoursBalanceSchema: Schema<HoursBalanceDto> = object({
   reversed: text(),
   transferred_in: text(),
   transferred_out: text(),
+  provisional: text().default('0'),
 });
 
 export const ledgerEntrySchema: Schema<LedgerEntryDto> = object({

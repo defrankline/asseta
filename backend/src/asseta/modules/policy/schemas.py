@@ -183,6 +183,11 @@ class OverConsumption(StrEnum):
     FLAG_EXCESS = "FLAG_EXCESS"  # it may start; any excess on completion is flagged (never silently consumed)
 
 
+class HoursDrawdown(StrEnum):
+    AT_COMPLETION = "AT_COMPLETION"  # a prepaid job's hours are taken from the balance when it completes (as before)
+    DAILY = "DAILY"  # each day's customer-work hours are drawn provisionally; the final allocation replaces them
+
+
 class CustomerHoursPolicy(BaseModel):
     """Customer prepaid hours (accountability 3.1). Every rule a tenant may want differently is here; the platform
     default is only a starting point. Segregation of duties on approvals is always enforced (never relaxable)."""
@@ -207,6 +212,14 @@ class CustomerHoursPolicy(BaseModel):
     max_discount_percent: Decimal = Field(ge=0, le=Decimal(100))
     credit_allowed: bool
     reason_code_required: bool  # approvals/proposals must cite a tenant reason code (tenant list)
+    # DEC-031 P1: when a running prepaid job's hours leave the balance. DAILY draws each tenant-local day's
+    # customer-work hours (from readings, after the job's billing deductions) provisionally; the final allocation at
+    # completion replaces them, so totals always reconcile. AT_COMPLETION = today's behaviour.
+    drawdown: HoursDrawdown = HoursDrawdown.AT_COMPLETION
+    # DEC-031 P2: warn the office (HOURS_LOW_BALANCE) once when a purchase's remaining hours fall to this many hours
+    # (and the customer has no more on that machine). Null = no low-balance warning.
+    low_balance_hours: Decimal | None = Field(default=None, gt=0, le=Decimal(100000))
+    low_balance_notify_customer: bool = False  # also SMS the customer's contact phone (uses the tenant's SMS credits)
 
     @model_validator(mode="after")
     def _consistent(self) -> "CustomerHoursPolicy":
@@ -456,5 +469,8 @@ SEED_DEFAULTS: dict[PolicyType, dict[str, object]] = {
         "max_discount_percent": "100",
         "credit_allowed": True,
         "reason_code_required": False,
+        "drawdown": "AT_COMPLETION",
+        "low_balance_hours": None,
+        "low_balance_notify_customer": False,
     },
 }

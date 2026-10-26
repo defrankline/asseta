@@ -2,13 +2,17 @@
 evidence, the hours ledger, balances, work execution allocations, transfers and cancellations."""
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated
+from urllib.parse import urlencode
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, File, Header, UploadFile
+from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from asseta.core.audit import AuditService
 from asseta.core.clock import get_now
 from asseta.core.config import get_settings
 from asseta.core.db import get_session
@@ -20,6 +24,7 @@ from asseta.core.search import ilike_any
 from asseta.core.storage import ObjectStore
 from asseta.modules.accountability.names import named
 from asseta.modules.finance import permissions as _finance_permissions  # noqa: F401  (declares finance codes)
+from asseta.modules.finance.common import tenant_settings
 from asseta.modules.fleet.models import Machine
 from asseta.modules.fleet.photos import PhotoUrlDto, get_object_store
 from asseta.modules.hours.approvals import HoursApprovals, proposal_query, reason_code_query, request_query
@@ -40,7 +45,9 @@ from asseta.modules.hours.dto import (
     HoursBalanceDto,
     HoursPurchaseDto,
     HoursPurchaseIn,
+    HoursStatementDto,
     LedgerEntryDto,
+    LowBalanceAlertDto,
     PaymentEvidenceDto,
     PurchaseAllocationIn,
     ReasonCodeDto,
@@ -58,6 +65,7 @@ from asseta.modules.hours.models import (
     CustomerDiscount,
     HoursCancellation,
     HoursLedgerEntry,
+    HoursLowBalanceAlert,
     HoursPurchase,
     HoursTransfer,
     LedgerEntryType,
@@ -89,14 +97,18 @@ from asseta.modules.hours.service import (
     purchase_dto,
     purchase_query,
 )
+from asseta.modules.hours.statement import StatementQuery, build_statement, default_period, statement_pdf
 from asseta.modules.identity.catalog import PermissionScope as S
 from asseta.modules.identity.dependencies import requires, requires_any
+from asseta.modules.identity.models import AppUser
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.jobs.dto import CustomerDto
 from asseta.modules.jobs.models import Customer
 from asseta.modules.meter.dto import AttachmentDto
 from asseta.modules.meter.models import CaptureAttachment
 from asseta.modules.meter.router import save_attachment
+from asseta.modules.reports.definitions import ReportEnv
+from asseta.modules.tenancy.models import Tenant
 
 router = APIRouter(prefix="/api/v1/tenant", tags=["hours"], responses=ERROR_RESPONSES)
 DbSession = Annotated[Session, Depends(get_session)]
@@ -823,3 +835,137 @@ def evidence_url(
         raise NotFound("Evidence not found")
     ttl = get_settings().presigned_url_ttl_seconds
     return PhotoUrlDto(url=store.presigned_get(row.object_key, ttl), expires_in_seconds=ttl)
+
+
+# --- low-balance alerts (DEC-031 P2) ----------------------------------------------------------------------------
+@router.get(
+    "/hours-low-balance-alerts", response_model=Page[LowBalanceAlertDto], operation_id="listHoursLowBalanceAlerts"
+)
+@named
+def list_low_balance_alerts(
+    session: DbSession,
+    _: Read,
+    paging: Paging,
+    purchase_id: uuid.UUID | None = None,
+    customer_id: uuid.UUID | None = None,
+    machine_id: uuid.UUID | None = None,
+    armed: bool | None = None,
+) -> Page[LowBalanceAlertDto]:
+    stmt = select(HoursLowBalanceAlert).order_by(HoursLowBalanceAlert.crossed_at.desc(), HoursLowBalanceAlert.id)
+    for col, value in (
+        (HoursLowBalanceAlert.purchase_id, purchase_id),
+        (HoursLowBalanceAlert.customer_id, customer_id),
+        (HoursLowBalanceAlert.machine_id, machine_id),
+    ):
+        if value is not None:
+            stmt = stmt.where(col == value)
+    if armed is not None:
+        stmt = stmt.where(
+            HoursLowBalanceAlert.rearmed_at.is_(None) if armed else HoursLowBalanceAlert.rearmed_at.is_not(None)
+        )
+    rows, total = paginate(session, stmt, paging)
+    return Page(
+        items=[LowBalanceAlertDto.model_validate(a) for a in rows],
+        total=total,
+        page=paging.page,
+        page_size=paging.page_size,
+    )
+
+
+@router.get(
+    "/hours-low-balance-alerts/{alert_id}", response_model=LowBalanceAlertDto, operation_id="getHoursLowBalanceAlert"
+)
+@named
+def get_low_balance_alert(alert_id: uuid.UUID, session: DbSession, _: Read) -> LowBalanceAlertDto:
+    row = session.get(HoursLowBalanceAlert, alert_id)
+    if row is None:
+        raise NotFound("Low-balance alert not found")
+    return LowBalanceAlertDto.model_validate(row)
+
+
+# --- customer hours statement (DEC-031 P3) ----------------------------------------------------------------------
+def _statement(
+    session: Session,
+    ctx: RequestContext,
+    now: datetime,
+    customer_id: uuid.UUID,
+    machine_id: uuid.UUID | None,
+    date_from: date | None,
+    date_to: date | None,
+) -> tuple[HoursStatementDto, ZoneInfo]:
+    assert ctx.tenant_id is not None
+    tz = ZoneInfo(tenant_settings(session, ctx.tenant_id).timezone)
+    start, end = default_period(now.astimezone(tz).date())
+    query = StatementQuery(customer_id, machine_id, date_from or start, date_to or end)
+    params = {"date_from": query.date_from.isoformat(), "date_to": query.date_to.isoformat()}
+    if machine_id is not None:
+        params["machine_id"] = str(machine_id)
+    pdf_path = f"/api/v1/tenant/customers/{customer_id}/hours-statement.pdf?{urlencode(params)}"
+    return build_statement(session, tz, query, now, pdf_path), tz
+
+
+@router.get(
+    "/customers/{customer_id}/hours-statement",
+    response_model=HoursStatementDto,
+    operation_id="getCustomerHoursStatement",
+)
+def customer_statement(
+    customer_id: uuid.UUID,
+    session: DbSession,
+    now: Now,
+    ctx: Read,
+    machine_id: uuid.UUID | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+) -> HoursStatementDto:
+    """Bought, activated, used per day and job, transferred, expired, cancelled and remaining hours of one customer
+    (optionally one machine) for a tenant-local period (default: this month to date)."""
+    return _statement(session, ctx, now, customer_id, machine_id, date_from, date_to)[0]
+
+
+@router.get(
+    "/customers/{customer_id}/hours-statement.pdf",
+    response_class=Response,
+    responses={200: {"content": {"application/pdf": {}}, "description": "The statement as a PDF"}},
+    operation_id="downloadCustomerHoursStatementPdf",
+)
+def customer_statement_pdf(
+    customer_id: uuid.UUID,
+    session: DbSession,
+    now: Now,
+    ctx: Read,
+    machine_id: uuid.UUID | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+) -> Response:
+    dto, tz = _statement(session, ctx, now, customer_id, machine_id, date_from, date_to)
+    assert ctx.tenant_id is not None
+    tenant = session.get(Tenant, ctx.tenant_id)
+    user = session.get(AppUser, ctx.user_id)
+    env = ReportEnv(
+        str(tz),
+        tenant.display_name if tenant else str(ctx.tenant_id),
+        now,
+        user.display_name if user else str(ctx.user_id),
+    )
+    content = statement_pdf(dto, env)
+    AuditService(session).record(
+        actor=ctx.audit_actor(),
+        action="hours.statement_exported",
+        entity_type="customer",
+        entity_id=customer_id,
+        tenant_id=ctx.tenant_id,
+        after={
+            "format": "pdf",
+            "machine_id": str(machine_id) if machine_id else None,
+            "date_from": dto.date_from.isoformat(),
+            "date_to": dto.date_to.isoformat(),
+        },
+    )
+    session.flush()
+    name = f"asseta-hours-statement-{dto.date_from.isoformat()}-{dto.date_to.isoformat()}.pdf"
+    return Response(
+        content,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{name}"', "Cache-Control": "no-store"},
+    )

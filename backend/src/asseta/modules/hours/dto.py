@@ -296,6 +296,9 @@ class MachineHoursDto(BaseModel):
     expired: Decimal
     reversed: Decimal
     remaining: Decimal
+    provisional: Decimal = Field(
+        default=Decimal(0), description="Hours held provisionally by running jobs (daily drawdown; final at completion)"
+    )
 
 
 class PurchaseTotalsDto(BaseModel):
@@ -311,6 +314,9 @@ class PurchaseTotalsDto(BaseModel):
     expired: Decimal
     reversed: Decimal
     remaining: Decimal
+    provisional: Decimal = Field(
+        default=Decimal(0), description="Hours held provisionally by running jobs (daily drawdown; final at completion)"
+    )
     amount_verified: Money
     amount_claimed_unverified: Money
     amount_outstanding: Money
@@ -374,6 +380,7 @@ class LedgerEntryDto(Dto):
     cancellation_id: uuid.UUID | None
     reason: str | None
     policy_version: str | None
+    usage_day: date | None = Field(default=None, description="Daily drawdown entries: the tenant-local day of use")
     created_by: uuid.UUID | None
     created_at: datetime
 
@@ -395,6 +402,9 @@ class HoursBalanceDto(BaseModel):
     reversed: Decimal
     remaining: Decimal
     awaiting_activation: Decimal
+    provisional: Decimal = Field(
+        default=Decimal(0), description="Hours held provisionally by running jobs (daily drawdown; final at completion)"
+    )
 
 
 # --- transfers & cancellations ----------------------------------------------------------------------------------
@@ -494,3 +504,121 @@ class PaymentEvidenceDto(Dto):
     attachment_id: uuid.UUID
     created_by: uuid.UUID | None
     created_at: datetime
+
+
+# --- low-balance alerts (DEC-031 P2) ----------------------------------------------------------------------------
+LowBalanceSmsStatus = Literal["NOT_REQUESTED", "PENDING", "QUEUED", "NO_PHONE"]
+
+
+class LowBalanceAlertDto(Dto):
+    """One crossing of the tenant's low-balance threshold by a purchase (the office was told once)."""
+
+    id: uuid.UUID
+    purchase_id: uuid.UUID
+    purchase_number: str | None = None
+    customer_id: uuid.UUID
+    customer_name: str | None = None
+    machine_id: uuid.UUID
+    machine_code: str | None = None
+    machine_name: str | None = None
+    sequence: int
+    threshold_hours: Decimal
+    remaining_hours: Decimal
+    available_hours: Decimal
+    crossed_at: datetime
+    notify_customer: bool
+    customer_sms_status: LowBalanceSmsStatus
+    customer_sms_id: uuid.UUID | None
+    rearmed_at: datetime | None
+    policy_version: str
+
+
+# --- customer hours statement (DEC-031 P3) ----------------------------------------------------------------------
+HoursStatementUsageBasis = Literal["DAILY", "FINAL"]
+
+
+class HoursStatementTotalsDto(BaseModel):
+    """Movements inside the period (hours). closing = opening + activated + transferred_in - used - transferred_out
+    - expired - cancelled."""
+
+    opening_balance: Decimal
+    bought: Decimal = Field(description="Hours of purchases recorded in the period (activated once paid)")
+    activated: Decimal
+    used: Decimal = Field(description="Final allocations plus provisional daily drawdown of running jobs")
+    transferred_in: Decimal
+    transferred_out: Decimal
+    expired: Decimal
+    cancelled: Decimal = Field(description="Activated hours withdrawn by approved cancellations")
+    closing_balance: Decimal
+    provisional_at_close: Decimal = Field(description="Of `used`: still provisional (jobs running at period end)")
+    awaiting_activation: Decimal = Field(description="Hours bought but not yet paid / activated (now)")
+
+
+class HoursStatementPurchaseDto(BaseModel):
+    purchase_id: uuid.UUID
+    purchase_number: str | None = None
+    machine_id: uuid.UUID
+    machine_code: str | None = None
+    machine_name: str | None = None
+    bought_at: datetime
+    hours: Decimal
+    currency: CurrencyCode
+    effective_rate: Money
+    amount: Money
+    status: PurchaseStatus
+    activated: Decimal
+    remaining_at_close: Decimal
+    next_expiry_at: datetime | None
+    expiring_hours: Decimal = Field(description="Hours that will expire at next_expiry_at unless used first")
+    cancelled_at: datetime | None
+
+
+class HoursStatementUsageDto(BaseModel):
+    """Hours used on one day for one job. DAILY: drawn day by day while the job ran; FINAL: the final allocation's
+    difference to what was drawn daily (all of the job's hours for jobs allocated at completion)."""
+
+    day: date
+    job_id: uuid.UUID | None
+    job_number: str | None = None
+    machine_id: uuid.UUID
+    machine_code: str | None = None
+    machine_name: str | None = None
+    hours: Decimal
+    basis: HoursStatementUsageBasis
+    job_running: bool
+
+
+class HoursStatementLineDto(BaseModel):
+    """One ledger movement in the period, in order, with the running balance."""
+
+    entry_id: uuid.UUID
+    day: date
+    occurred_at: datetime
+    entry_type: LedgerEntryType
+    purchase_id: uuid.UUID
+    purchase_number: str | None = None
+    machine_id: uuid.UUID
+    machine_code: str | None = None
+    machine_name: str | None = None
+    job_id: uuid.UUID | None
+    job_number: str | None = None
+    hours: Decimal = Field(description="Signed: + adds to the balance, - takes from it")
+    balance_after: Decimal
+    reason: str | None
+
+
+class HoursStatementDto(BaseModel):
+    customer_id: uuid.UUID
+    customer_name: str | None = None
+    machine_id: uuid.UUID | None
+    machine_code: str | None = None
+    machine_name: str | None = None
+    date_from: date
+    date_to: date
+    timezone: str
+    generated_at: datetime
+    totals: HoursStatementTotalsDto
+    purchases: list[HoursStatementPurchaseDto]
+    usage: list[HoursStatementUsageDto]
+    lines: list[HoursStatementLineDto]
+    pdf_path: str = Field(description="Same statement as a PDF (GET, same query)")

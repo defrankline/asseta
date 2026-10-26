@@ -51,6 +51,8 @@ export const LEDGER_TYPE_LABELS: Readonly<Record<LedgerEntryType, string>> = {
   TRANSFER_IN: 'Transferred in',
   EXPIRED: 'Expired',
   REVERSAL: 'Reversed',
+  PROVISIONAL: 'Used today (provisional)',
+  PROVISIONAL_REVERSED: 'Provisional use given back',
 };
 export const LEDGER_TYPE_OPTIONS: readonly Option<LedgerEntryType>[] = LEDGER_ENTRY_TYPES.map(
   (t) => ({ value: t, label: LEDGER_TYPE_LABELS[t] }),

@@ -85,4 +85,26 @@ export const CUSTOMER_HOURS_FIELDS: readonly PolicyFieldDef[] = [
   { key: 'max_discount_percent', label: 'Highest discount', kind: 'decimal', unit: '%' },
   { key: 'credit_allowed', label: 'Credit arrangements allowed', kind: 'bool' },
   { key: 'reason_code_required', label: 'A reason from the tenant list is required', kind: 'bool' },
+  {
+    key: 'drawdown',
+    label: 'Take prepaid hours from the balance',
+    kind: 'enum',
+    options: [
+      { value: 'AT_COMPLETION', label: 'When the job is completed' },
+      { value: 'DAILY', label: 'Every day from the readings (final at completion)' },
+    ],
+    help: 'Daily: the balance goes down each day the machine works; completion replaces the daily figures.',
+  },
+  {
+    key: 'low_balance_hours',
+    label: 'Warn the office when hours left fall to',
+    kind: 'nullableDecimal',
+    unit: 'h',
+    help: 'Once per purchase each time it falls to this level; leave empty for no warning.',
+  },
+  {
+    key: 'low_balance_notify_customer',
+    label: 'Also send the customer an SMS (uses SMS credits)',
+    kind: 'bool',
+  },
 ];

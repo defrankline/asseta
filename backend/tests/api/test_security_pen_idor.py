@@ -184,7 +184,20 @@ def _customer_hours_b(api: Api, f: FinCtx) -> dict[tuple[str, str], str]:
         c=f.customer_id,
         m=f.c.t.machine_id,
     )
+    alert = str(uuid.uuid4())
+    sql(
+        "INSERT INTO hours_low_balance_alert (id, tenant_id, purchase_id, customer_id, machine_id, sequence,"
+        " threshold_hours, remaining_hours, available_hours, crossed_at, notify_customer, customer_sms_status,"
+        " policy_version, created_at) VALUES (:i, :t, :p, :c, :m, 1, 2, 1, 1, now(), false, 'NOT_REQUESTED',"
+        " 'test', now())",
+        i=alert,
+        t=f.tid,
+        p=bought.json()["id"],
+        c=f.customer_id,
+        m=f.c.t.machine_id,
+    )
     return {
+        ("/hours-low-balance-alerts/", "alert_id"): alert,
         ("/hours-reason-codes/", "code_id"): reason.json()["id"],
         ("/customer-discounts/", "discount_id"): disc.json()["id"],
         ("/credit-arrangements/", "arrangement_id"): credit.json()["id"],
@@ -408,7 +421,11 @@ def test_every_tenant_read_by_id_of_another_tenant_is_not_found(
 
 
 def _b_state(f: FinCtx, urls: list[str]) -> dict[str, Any]:
-    return {u: f.owner.get(u, **_query(u)).json() for u in urls}
+    out: dict[str, Any] = {}
+    for u in urls:
+        r = f.owner.get(u, **_query(u))
+        out[u] = r.json() if r.headers.get("content-type", "").startswith("application/json") else len(r.content)
+    return out
 
 
 def test_every_tenant_write_on_another_tenants_ids_fails_and_changes_nothing(

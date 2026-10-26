@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from asseta.modules.fleet.models import AssignmentRole, Machine, MachineAssignment, StaffMember
 from asseta.modules.geospatial.models import JobSite
+from asseta.modules.jobs.models import Customer
 from asseta.modules.notification.types import Severity
 
 
@@ -74,6 +75,7 @@ RECORDS: dict[str, tuple[str, str]] = {
     "custody_adjustment": ("CUSTODY_ADJUSTMENT", f"{CASH}/adjustments"),
     "cash_handover": ("CASH_REMITTANCE", f"{CASH}/remittances"),
     "cash_remittance_overdue": ("REMITTANCE_OVERDUE", f"{CASH}/remittance-overdue"),
+    "hours_purchase": ("HOURS_PURCHASE", "/tenant/hours/purchases"),
     "customer_discount": ("HOURS_DISCOUNT", "/tenant/hours/discounts"),
     "credit_arrangement": ("HOURS_CREDIT", "/tenant/hours/credit"),
     "hours_transfer": ("HOURS_TRANSFER", "/tenant/hours/transfers"),
@@ -518,6 +520,35 @@ def _hours_overrun(session: Session, e: DomainEvent) -> list[Intent]:
             "/tenant/exceptions",
             "job_exception",
             p["exception_id"],
+        )
+    ]
+
+
+@rule("CustomerHoursLowBalance")
+def _hours_low_balance(session: Session, e: DomainEvent) -> list[Intent]:
+    """DEC-031 P2: a purchase fell to the tenant's low-balance threshold (once per crossing)."""
+    p = e.payload
+    customer = session.execute(select(Customer.name).where(Customer.id == uuid.UUID(p["customer_id"]))).scalar()
+    return [
+        Intent(
+            "HOURS_LOW_BALANCE",
+            (perm("tenant.hours.read"),),
+            f"Hours running low — {p['purchase_number']}",
+            f"{customer or 'A customer'} has {p['available_hours']} prepaid hours left on "
+            f"{_machine_label(session, p.get('machine_id'))} ({p['remaining_hours']} on {p['purchase_number']}; "
+            f"warning at {p['threshold_hours']} hours). Offer a top-up before the work stops.",
+            f"hours-low-balance:{p['alert_id']}",
+            f"/tenant/hours/purchases/{p['purchase_id']}",
+            "hours_purchase",
+            p["purchase_id"],
+            data={
+                "alert_id": p["alert_id"],
+                "customer_id": p["customer_id"],
+                "machine_id": p["machine_id"],
+                "remaining_hours": p["remaining_hours"],
+                "available_hours": p["available_hours"],
+                "threshold_hours": p["threshold_hours"],
+            },
         )
     ]
 

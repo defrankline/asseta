@@ -13,6 +13,7 @@ import csv
 import io
 import unicodedata
 from collections.abc import Iterator
+from dataclasses import dataclass
 
 from fpdf import FPDF
 from fpdf.fonts import FontFace
@@ -157,3 +158,84 @@ def _note(pdf: FPDF, text: str) -> None:
     pdf.multi_cell(0, 5, latin1(text), new_x="LMARGIN", new_y="NEXT")
     pdf.set_text_color(0, 0, 0)
     pdf.set_font("Helvetica", size=7)
+
+
+@dataclass(frozen=True)
+class PdfColumn:
+    label: str
+    width: float  # relative
+    numeric: bool = False
+
+
+@dataclass(frozen=True)
+class PdfSection:
+    """One titled table of a statement-style document (cells already formatted as text)."""
+
+    heading: str
+    columns: tuple[PdfColumn, ...]
+    rows: list[list[str]]
+    empty_text: str = "Nothing in this period."
+
+
+def document_pdf(
+    title: str,
+    env: ReportEnv,
+    meta: list[str],
+    summary: list[tuple[str, str]],
+    sections: list[PdfSection],
+) -> bytes:
+    """A statement-style PDF on the report layout (same header, footer and Latin-1 handling as report exports): a
+    title, metadata lines, a two-column summary, then one table per section."""
+    generated = format_value(env.generated_at, "instant", env.timezone, human=True)
+    footer = f"Asseta - {title} - {env.owner_name} - generated {generated} ({env.timezone})"
+    pdf = _ReportPdf(title, footer, landscape=False)
+    pdf.set_title(latin1(f"{title} - {env.owner_name}"))
+    pdf.set_creator("Asseta")
+    pdf.add_page()
+    pdf.set_font("Helvetica", style="B", size=15)
+    pdf.cell(0, 8, latin1(title), new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Helvetica", size=9)
+    for line in [env.owner_name, *meta, f"Generated {generated} ({env.timezone}) by {env.generated_by}"]:
+        pdf.multi_cell(0, 4.6, latin1(line), new_x="LMARGIN", new_y="NEXT")
+    if summary:
+        pdf.ln(2)
+        with pdf.table(
+            col_widths=(pdf.epw * 0.6, pdf.epw * 0.4),
+            text_align=("LEFT", "RIGHT"),
+            line_height=4.2,
+            first_row_as_headings=False,
+            borders_layout="HORIZONTAL_LINES",
+            padding=0.8,
+        ) as table:
+            for label, value in summary:
+                row = table.row()
+                row.cell(latin1(label))
+                row.cell(latin1(value))
+    headings = FontFace(emphasis="BOLD", fill_color=(232, 236, 241))
+    for section in sections:
+        pdf.ln(3)
+        pdf.set_font("Helvetica", style="B", size=11)
+        pdf.cell(0, 6, latin1(section.heading), new_x="LMARGIN", new_y="NEXT")
+        pdf.set_font("Helvetica", size=7)
+        if not section.rows:
+            pdf.set_font("Helvetica", style="I", size=9)
+            pdf.cell(0, 6, latin1(section.empty_text), new_x="LMARGIN", new_y="NEXT")
+            continue
+        total = sum(c.width for c in section.columns)
+        with pdf.table(
+            col_widths=tuple(c.width / total * pdf.epw for c in section.columns),
+            text_align=tuple("RIGHT" if c.numeric else "LEFT" for c in section.columns),
+            line_height=3.6,
+            headings_style=headings,
+            repeat_headings=1,
+            borders_layout="HORIZONTAL_LINES",
+            padding=0.8,
+        ) as table:
+            header = table.row()
+            for c in section.columns:
+                header.cell(latin1(c.label))
+            for values in section.rows:
+                cells = table.row()
+                for value in values:
+                    cells.cell(latin1(value))
+    return bytes(pdf.output())

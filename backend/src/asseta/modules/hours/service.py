@@ -121,6 +121,7 @@ def purchase_dto(session: Session, p: HoursPurchase, payment: CustomerPaymentDto
             expired=m.by_type[T.EXPIRED],
             reversed=m.by_type[T.REVERSAL],
             remaining=m.remaining,
+            provisional=m.by_type[T.PROVISIONAL] - m.by_type[T.PROVISIONAL_REVERSED],
         )
         for mid, m in totals.machines.items()
     ]
@@ -160,6 +161,7 @@ def purchase_dto(session: Session, p: HoursPurchase, payment: CustomerPaymentDto
             expired=totals.total(T.EXPIRED),
             reversed=totals.total(T.REVERSAL),
             remaining=totals.remaining,
+            provisional=totals.provisional,
             amount_verified=verified,
             amount_claimed_unverified=claimed,
             amount_outstanding=max(ZERO, p.amount - verified) if p.cancelled_at is None else ZERO,
@@ -281,6 +283,7 @@ def balances(
                 reversed=by[T.REVERSAL],
                 remaining=sum((SIGN[t] * v for t, v in by.items()), ZERO),
                 awaiting_activation=r["awaiting"],
+                provisional=by[T.PROVISIONAL] - by[T.PROVISIONAL_REVERSED],
             )
         )
     return out

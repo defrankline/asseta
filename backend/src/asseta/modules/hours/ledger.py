@@ -7,7 +7,7 @@ Expiry is FIFO over activation lots: deductions use the earliest-expiring lots f
 import uuid
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from decimal import ROUND_FLOOR, Decimal
 
 from sqlalchemy import func, select
@@ -64,6 +64,11 @@ class PurchaseTotals:
     @property
     def remaining(self) -> Decimal:
         return sum((m.remaining for m in self.machines.values()), ZERO)
+
+    @property
+    def provisional(self) -> Decimal:
+        """Hours currently held by running jobs under daily drawdown (drawn provisionally, not yet final)."""
+        return self.total(T.PROVISIONAL) - self.total(T.PROVISIONAL_REVERSED)
 
     def remaining_on(self, machine_id: uuid.UUID) -> Decimal:
         m = self.machines.get(machine_id)
@@ -131,7 +136,8 @@ def derived_status(purchase: HoursPurchase, totals: PurchaseTotals) -> str:
         return "PARTLY_ACTIVE"
     if totals.remaining > 0:
         return "ACTIVE"
-    return "EXPIRED" if totals.total(T.EXPIRED) > 0 and totals.total(T.CONSUMED) <= 0 else "CONSUMED"
+    used = totals.total(T.CONSUMED) + totals.provisional
+    return "EXPIRED" if totals.total(T.EXPIRED) > 0 and used <= 0 else "CONSUMED"
 
 
 class LedgerWriter:
@@ -154,6 +160,7 @@ class LedgerWriter:
         cancellation_id: uuid.UUID | None = None,
         reason: str | None = None,
         policy_version: str | None = None,
+        usage_day: date | None = None,
     ) -> HoursLedgerEntry:
         entry = HoursLedgerEntry(
             id=uuid.uuid4(),
@@ -173,6 +180,7 @@ class LedgerWriter:
             cancellation_id=cancellation_id,
             reason=reason,
             policy_version=policy_version,
+            usage_day=usage_day,
             created_by=self._actor,
             created_at=self._now,
         )
@@ -197,7 +205,7 @@ def due_to_expire(session: Session, purchase: HoursPurchase, totals: PurchaseTot
             )
         ).scalar_one()
     )
-    used = totals.total(T.CONSUMED) + totals.total(T.REVERSAL) + totals.total(T.EXPIRED)
+    used = totals.total(T.CONSUMED) + totals.total(T.REVERSAL) + totals.total(T.EXPIRED) + totals.provisional
     return min(max(ZERO, lots_due - used), max(ZERO, totals.remaining))
 
 

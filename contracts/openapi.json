@@ -12332,6 +12332,12 @@
             ],
             "title": "Machine Name"
           },
+          "provisional": {
+            "default": "0",
+            "description": "Hours held provisionally by running jobs (daily drawdown; final at completion)",
+            "title": "Provisional",
+            "type": "string"
+          },
           "purchases": {
             "title": "Purchases",
             "type": "integer"
@@ -12747,6 +12753,536 @@
           "hours"
         ],
         "title": "HoursPurchaseIn",
+        "type": "object"
+      },
+      "HoursStatementDto": {
+        "properties": {
+          "customer_id": {
+            "format": "uuid",
+            "title": "Customer Id",
+            "type": "string"
+          },
+          "customer_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Name"
+          },
+          "date_from": {
+            "format": "date",
+            "title": "Date From",
+            "type": "string"
+          },
+          "date_to": {
+            "format": "date",
+            "title": "Date To",
+            "type": "string"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/HoursStatementLineDto"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "machine_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Code"
+          },
+          "machine_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Id"
+          },
+          "machine_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Name"
+          },
+          "pdf_path": {
+            "description": "Same statement as a PDF (GET, same query)",
+            "title": "Pdf Path",
+            "type": "string"
+          },
+          "purchases": {
+            "items": {
+              "$ref": "#/components/schemas/HoursStatementPurchaseDto"
+            },
+            "title": "Purchases",
+            "type": "array"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/HoursStatementTotalsDto"
+          },
+          "usage": {
+            "items": {
+              "$ref": "#/components/schemas/HoursStatementUsageDto"
+            },
+            "title": "Usage",
+            "type": "array"
+          }
+        },
+        "required": [
+          "customer_id",
+          "machine_id",
+          "date_from",
+          "date_to",
+          "timezone",
+          "generated_at",
+          "totals",
+          "purchases",
+          "usage",
+          "lines",
+          "pdf_path"
+        ],
+        "title": "HoursStatementDto",
+        "type": "object"
+      },
+      "HoursStatementLineDto": {
+        "description": "One ledger movement in the period, in order, with the running balance.",
+        "properties": {
+          "balance_after": {
+            "title": "Balance After",
+            "type": "string"
+          },
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "entry_id": {
+            "format": "uuid",
+            "title": "Entry Id",
+            "type": "string"
+          },
+          "entry_type": {
+            "$ref": "#/components/schemas/LedgerEntryType"
+          },
+          "hours": {
+            "description": "Signed: + adds to the balance, - takes from it",
+            "title": "Hours",
+            "type": "string"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "job_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Number"
+          },
+          "machine_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Code"
+          },
+          "machine_id": {
+            "format": "uuid",
+            "title": "Machine Id",
+            "type": "string"
+          },
+          "machine_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Name"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "purchase_id": {
+            "format": "uuid",
+            "title": "Purchase Id",
+            "type": "string"
+          },
+          "purchase_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purchase Number"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "entry_id",
+          "day",
+          "occurred_at",
+          "entry_type",
+          "purchase_id",
+          "machine_id",
+          "job_id",
+          "hours",
+          "balance_after",
+          "reason"
+        ],
+        "title": "HoursStatementLineDto",
+        "type": "object"
+      },
+      "HoursStatementPurchaseDto": {
+        "properties": {
+          "activated": {
+            "title": "Activated",
+            "type": "string"
+          },
+          "amount": {
+            "title": "Amount",
+            "type": "string"
+          },
+          "bought_at": {
+            "format": "date-time",
+            "title": "Bought At",
+            "type": "string"
+          },
+          "cancelled_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancelled At"
+          },
+          "currency": {
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "type": "string"
+          },
+          "effective_rate": {
+            "title": "Effective Rate",
+            "type": "string"
+          },
+          "expiring_hours": {
+            "description": "Hours that will expire at next_expiry_at unless used first",
+            "title": "Expiring Hours",
+            "type": "string"
+          },
+          "hours": {
+            "title": "Hours",
+            "type": "string"
+          },
+          "machine_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Code"
+          },
+          "machine_id": {
+            "format": "uuid",
+            "title": "Machine Id",
+            "type": "string"
+          },
+          "machine_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Name"
+          },
+          "next_expiry_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Expiry At"
+          },
+          "purchase_id": {
+            "format": "uuid",
+            "title": "Purchase Id",
+            "type": "string"
+          },
+          "purchase_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purchase Number"
+          },
+          "remaining_at_close": {
+            "title": "Remaining At Close",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "AWAITING_PAYMENT",
+              "PARTLY_ACTIVE",
+              "ACTIVE",
+              "CONSUMED",
+              "EXPIRED",
+              "CANCELLED"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "purchase_id",
+          "machine_id",
+          "bought_at",
+          "hours",
+          "currency",
+          "effective_rate",
+          "amount",
+          "status",
+          "activated",
+          "remaining_at_close",
+          "next_expiry_at",
+          "expiring_hours",
+          "cancelled_at"
+        ],
+        "title": "HoursStatementPurchaseDto",
+        "type": "object"
+      },
+      "HoursStatementTotalsDto": {
+        "description": "Movements inside the period (hours). closing = opening + activated + transferred_in - used - transferred_out\n- expired - cancelled.",
+        "properties": {
+          "activated": {
+            "title": "Activated",
+            "type": "string"
+          },
+          "awaiting_activation": {
+            "description": "Hours bought but not yet paid / activated (now)",
+            "title": "Awaiting Activation",
+            "type": "string"
+          },
+          "bought": {
+            "description": "Hours of purchases recorded in the period (activated once paid)",
+            "title": "Bought",
+            "type": "string"
+          },
+          "cancelled": {
+            "description": "Activated hours withdrawn by approved cancellations",
+            "title": "Cancelled",
+            "type": "string"
+          },
+          "closing_balance": {
+            "title": "Closing Balance",
+            "type": "string"
+          },
+          "expired": {
+            "title": "Expired",
+            "type": "string"
+          },
+          "opening_balance": {
+            "title": "Opening Balance",
+            "type": "string"
+          },
+          "provisional_at_close": {
+            "description": "Of `used`: still provisional (jobs running at period end)",
+            "title": "Provisional At Close",
+            "type": "string"
+          },
+          "transferred_in": {
+            "title": "Transferred In",
+            "type": "string"
+          },
+          "transferred_out": {
+            "title": "Transferred Out",
+            "type": "string"
+          },
+          "used": {
+            "description": "Final allocations plus provisional daily drawdown of running jobs",
+            "title": "Used",
+            "type": "string"
+          }
+        },
+        "required": [
+          "opening_balance",
+          "bought",
+          "activated",
+          "used",
+          "transferred_in",
+          "transferred_out",
+          "expired",
+          "cancelled",
+          "closing_balance",
+          "provisional_at_close",
+          "awaiting_activation"
+        ],
+        "title": "HoursStatementTotalsDto",
+        "type": "object"
+      },
+      "HoursStatementUsageDto": {
+        "description": "Hours used on one day for one job. DAILY: drawn day by day while the job ran; FINAL: the final allocation's\ndifference to what was drawn daily (all of the job's hours for jobs allocated at completion).",
+        "properties": {
+          "basis": {
+            "enum": [
+              "DAILY",
+              "FINAL"
+            ],
+            "title": "Basis",
+            "type": "string"
+          },
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "hours": {
+            "title": "Hours",
+            "type": "string"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "job_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Number"
+          },
+          "job_running": {
+            "title": "Job Running",
+            "type": "boolean"
+          },
+          "machine_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Code"
+          },
+          "machine_id": {
+            "format": "uuid",
+            "title": "Machine Id",
+            "type": "string"
+          },
+          "machine_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Name"
+          }
+        },
+        "required": [
+          "day",
+          "job_id",
+          "machine_id",
+          "hours",
+          "basis",
+          "job_running"
+        ],
+        "title": "HoursStatementUsageDto",
         "type": "object"
       },
       "InferenceOutcome": {
@@ -14686,6 +15222,19 @@
               }
             ],
             "title": "Transfer Id"
+          },
+          "usage_day": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Daily drawdown entries: the tenant-local day of use",
+            "title": "Usage Day"
           }
         },
         "required": [
@@ -14718,7 +15267,9 @@
           "TRANSFER_OUT",
           "TRANSFER_IN",
           "EXPIRED",
-          "REVERSAL"
+          "REVERSAL",
+          "PROVISIONAL",
+          "PROVISIONAL_REVERSED"
         ],
         "title": "LedgerEntryType",
         "type": "string"
@@ -14821,6 +15372,156 @@
           "amount"
         ],
         "title": "LineAllocationIn",
+        "type": "object"
+      },
+      "LowBalanceAlertDto": {
+        "description": "One crossing of the tenant's low-balance threshold by a purchase (the office was told once).",
+        "properties": {
+          "available_hours": {
+            "title": "Available Hours",
+            "type": "string"
+          },
+          "crossed_at": {
+            "format": "date-time",
+            "title": "Crossed At",
+            "type": "string"
+          },
+          "customer_id": {
+            "format": "uuid",
+            "title": "Customer Id",
+            "type": "string"
+          },
+          "customer_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Name"
+          },
+          "customer_sms_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Sms Id"
+          },
+          "customer_sms_status": {
+            "enum": [
+              "NOT_REQUESTED",
+              "PENDING",
+              "QUEUED",
+              "NO_PHONE"
+            ],
+            "title": "Customer Sms Status",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "machine_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Code"
+          },
+          "machine_id": {
+            "format": "uuid",
+            "title": "Machine Id",
+            "type": "string"
+          },
+          "machine_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Name"
+          },
+          "notify_customer": {
+            "title": "Notify Customer",
+            "type": "boolean"
+          },
+          "policy_version": {
+            "title": "Policy Version",
+            "type": "string"
+          },
+          "purchase_id": {
+            "format": "uuid",
+            "title": "Purchase Id",
+            "type": "string"
+          },
+          "purchase_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purchase Number"
+          },
+          "rearmed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rearmed At"
+          },
+          "remaining_hours": {
+            "title": "Remaining Hours",
+            "type": "string"
+          },
+          "sequence": {
+            "title": "Sequence",
+            "type": "integer"
+          },
+          "threshold_hours": {
+            "title": "Threshold Hours",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "purchase_id",
+          "customer_id",
+          "machine_id",
+          "sequence",
+          "threshold_hours",
+          "remaining_hours",
+          "available_hours",
+          "crossed_at",
+          "notify_customer",
+          "customer_sms_status",
+          "customer_sms_id",
+          "rearmed_at",
+          "policy_version"
+        ],
+        "title": "LowBalanceAlertDto",
         "type": "object"
       },
       "MachineCreateIn": {
@@ -15331,6 +16032,12 @@
               }
             ],
             "title": "Machine Name"
+          },
+          "provisional": {
+            "default": "0",
+            "description": "Hours held provisionally by running jobs (daily drawdown; final at completion)",
+            "title": "Provisional",
+            "type": "string"
           },
           "remaining": {
             "title": "Remaining",
@@ -21150,6 +21857,37 @@
         "title": "Page[LedgerEntryDto]",
         "type": "object"
       },
+      "Page_LowBalanceAlertDto_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LowBalanceAlertDto"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "Page[LowBalanceAlertDto]",
+        "type": "object"
+      },
       "Page_MachineDto_": {
         "properties": {
           "items": {
@@ -23439,6 +24177,12 @@
           },
           "expired": {
             "title": "Expired",
+            "type": "string"
+          },
+          "provisional": {
+            "default": "0",
+            "description": "Hours held provisionally by running jobs (daily drawdown; final at completion)",
+            "title": "Provisional",
             "type": "string"
           },
           "purchased": {
@@ -64724,6 +65468,375 @@
         ]
       }
     },
+    "/api/v1/tenant/customers/{customer_id}/hours-statement": {
+      "get": {
+        "description": "Bought, activated, used per day and job, transferred, expired, cancelled and remaining hours of one customer\n(optionally one machine) for a tenant-local period (default: this month to date).",
+        "operationId": "getCustomerHoursStatement",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "customer_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Customer Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "machine_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Machine Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "date_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "date_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date To"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HoursStatementDto"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Customer Statement",
+        "tags": [
+          "hours"
+        ]
+      }
+    },
+    "/api/v1/tenant/customers/{customer_id}/hours-statement.pdf": {
+      "get": {
+        "operationId": "downloadCustomerHoursStatementPdf",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "customer_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Customer Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "machine_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Machine Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "date_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "date_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date To"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/pdf": {}
+            },
+            "description": "The statement as a PDF"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Customer Statement Pdf",
+        "tags": [
+          "hours"
+        ]
+      }
+    },
     "/api/v1/tenant/customers/{customer_id}/reactivate": {
       "post": {
         "operationId": "reactivateCustomer",
@@ -75390,6 +76503,390 @@
           }
         },
         "summary": "List Ledger",
+        "tags": [
+          "hours"
+        ]
+      }
+    },
+    "/api/v1/tenant/hours-low-balance-alerts": {
+      "get": {
+        "operationId": "listHoursLowBalanceAlerts",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "purchase_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Purchase Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "customer_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Customer Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "machine_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Machine Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "armed",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Armed"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sort"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_LowBalanceAlertDto_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "List Low Balance Alerts",
+        "tags": [
+          "hours"
+        ]
+      }
+    },
+    "/api/v1/tenant/hours-low-balance-alerts/{alert_id}": {
+      "get": {
+        "operationId": "getHoursLowBalanceAlert",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "alert_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Alert Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LowBalanceAlertDto"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Low Balance Alert",
         "tags": [
           "hours"
         ]

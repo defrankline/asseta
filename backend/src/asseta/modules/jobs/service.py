@@ -6,7 +6,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import ColumnElement, Integer, and_, cast, func, or_, select, text
+from sqlalchemy import ColumnElement, Integer, cast, func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -52,7 +52,7 @@ from asseta.modules.jobs.models import (
 )
 from asseta.modules.jobs.scope import own_staff
 from asseta.modules.meter.engine_hours import (
-    approved_non_revenue_ids,
+    billing_deduction_filter,
     ensure_job_can_complete,
     ensure_job_can_start,
     ensure_no_activity_overlap,
@@ -466,19 +466,7 @@ class JobService:
 
     # --- summary ------------------------------------------------------------------------------------
     def _nonbillable_filter(self, job: Job) -> ColumnElement[bool]:
-        """Non-billable work-log entries subtracted from the meter hours: DOWNTIME and STANDBY (as always) plus, when
-        the tenant's revenue-hour basis deducts them (DEC-031 R1, policy in force when the job started), its declared
-        non-revenue types — from an INVOICE job's billable hours and/or a PREPAID job's drawdown; when the tenant
-        requires it, only entries explained and approved by a second person."""
-        policy = PolicyService(self._s).revenue_reconciliation(self._tid, at=job.started_at or utcnow()).policy
-        always, approved_only = policy.billing_deductions(job.billing_mode is BillingMode.PREPAID_HOURS)
-        cond: ColumnElement[bool] = JobActivity.activity_type.in_(always)
-        if approved_only:
-            cond = or_(
-                cond,
-                and_(JobActivity.activity_type.in_(approved_only), JobActivity.id.in_(approved_non_revenue_ids())),
-            )
-        return cond
+        return billing_deduction_filter(self._s, self._tid, job)
 
     def summary(self, job_id: uuid.UUID) -> JobSummaryDto:
         job = self.job(job_id)

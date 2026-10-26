@@ -626,7 +626,8 @@ class HoursApprovals:
     def _check_cancellable(self, purchase: HoursPurchase) -> None:
         if purchase.cancelled_at is not None:
             raise Conflict("The purchase is already cancelled", code="PURCHASE_CANCELLED")
-        consumed = purchase_totals(self._s, purchase).total(T.CONSUMED)
+        totals = purchase_totals(self._s, purchase)
+        consumed = totals.total(T.CONSUMED) + totals.provisional  # hours held by running jobs count as used
         if consumed > 0 and not self.engine.policy.cancellation_after_consumption_allowed:
             raise BusinessRuleViolation(
                 "Hours of this purchase were already used; tenant policy allows cancelling only unused purchases",
@@ -696,7 +697,7 @@ class HoursApprovals:
                 )
                 reversed_total += m.remaining
         released = ZERO
-        if totals.total(T.CONSUMED) <= 0:  # nothing used: the money goes back to the customer's credit
+        if totals.total(T.CONSUMED) + totals.provisional <= 0:  # nothing used: the money returns to customer credit
             for alloc in self._s.execute(
                 select(HoursPaymentAllocation).where(
                     HoursPaymentAllocation.purchase_id == purchase.id, HoursPaymentAllocation.released_at.is_(None)

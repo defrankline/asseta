@@ -68,6 +68,12 @@ class LedgerEntryType(StrEnum):
     TRANSFER_IN = "TRANSFER_IN"  # + the receiving machine
     EXPIRED = "EXPIRED"  # - unused activated hours past the tenant expiry period
     REVERSAL = "REVERSAL"  # - activated hours withdrawn (approved cancellation)
+    # Daily drawdown (DEC-031 P1, policy CUSTOMER_HOURS.drawdown = DAILY): a running prepaid job's customer-work hours
+    # of one tenant-local day (`usage_day`), drawn provisionally; PROVISIONAL_REVERSED gives them back (a corrected
+    # reading, a cancelled job, or the final work execution allocation at completion, which then consumes the job's
+    # billable hours as CONSUMED). Provisional minus reversed is what running jobs currently hold.
+    PROVISIONAL = "PROVISIONAL"  # -
+    PROVISIONAL_REVERSED = "PROVISIONAL_REVERSED"  # +
 
 
 class ActivationSource(StrEnum):
@@ -82,6 +88,8 @@ SIGN: dict[LedgerEntryType, int] = {
     LedgerEntryType.TRANSFER_OUT: -1,
     LedgerEntryType.EXPIRED: -1,
     LedgerEntryType.REVERSAL: -1,
+    LedgerEntryType.PROVISIONAL: -1,
+    LedgerEntryType.PROVISIONAL_REVERSED: 1,
 }
 
 
@@ -323,13 +331,14 @@ class HoursLedgerEntry(UuidPk, Base):
         ),
         Index("ix_hours_ledger_purchase", "purchase_id", "occurred_at"),
         Index("ix_hours_ledger_customer_machine", "tenant_id", "customer_id", "machine_id"),
+        Index("ix_hours_ledger_job_type", "job_id", "entry_type"),
     )
 
     tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenant.id"), nullable=False)
     purchase_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("hours_purchase.id"), nullable=False)
     customer_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("customer.id"), nullable=False)
     machine_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("machine.id"), nullable=False, index=True)
-    entry_type: Mapped[LedgerEntryType] = mapped_column(_enum(LedgerEntryType, 16), nullable=False)
+    entry_type: Mapped[LedgerEntryType] = mapped_column(_enum(LedgerEntryType, 24), nullable=False)
     hours: Mapped[Decimal] = mapped_column(HOURS, nullable=False)
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     activation_source: Mapped[ActivationSource | None] = mapped_column(_enum(ActivationSource, 16))
@@ -341,5 +350,41 @@ class HoursLedgerEntry(UuidPk, Base):
     cancellation_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("hours_cancellation.id"))
     reason: Mapped[str | None] = mapped_column(Text)
     policy_version: Mapped[str | None] = mapped_column(String(80))
+    usage_day: Mapped[date | None] = mapped_column(Date)  # PROVISIONAL / PROVISIONAL_REVERSED: the tenant-local day
     created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class HoursLowBalanceAlert(UuidPk, Base):
+    """One low-balance crossing of a purchase (DEC-031 P2, `CUSTOMER_HOURS.low_balance_hours`): written when the
+    purchase's remaining hours (and the customer's hours left on that machine) fall to the threshold, re-armed when
+    the purchase is back above it. At most one armed alert per purchase, so the office (and, when the tenant
+    switches it on, the customer by SMS) is told once per crossing."""
+
+    __tablename__ = "hours_low_balance_alert"
+    __table_args__ = (
+        UniqueConstraint("purchase_id", "sequence", name="uq_hours_low_balance_alert_sequence"),
+        Index(
+            "uq_hours_low_balance_alert_armed",
+            "purchase_id",
+            unique=True,
+            postgresql_where=text("rearmed_at IS NULL"),
+        ),
+    )
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenant.id"), nullable=False, index=True)
+    purchase_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("hours_purchase.id"), nullable=False, index=True)
+    customer_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("customer.id"), nullable=False, index=True)
+    machine_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("machine.id"), nullable=False)
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    threshold_hours: Mapped[Decimal] = mapped_column(HOURS, nullable=False)
+    remaining_hours: Mapped[Decimal] = mapped_column(HOURS, nullable=False)  # purchase remaining when it crossed
+    available_hours: Mapped[Decimal] = mapped_column(HOURS, nullable=False)  # customer's hours left on the machine
+    crossed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    notify_customer: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    # customer SMS: NOT_REQUESTED | PENDING | QUEUED | NO_PHONE
+    customer_sms_status: Mapped[str] = mapped_column(String(16), nullable=False)
+    customer_sms_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    rearmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    policy_version: Mapped[str] = mapped_column(String(80), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)

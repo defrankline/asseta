@@ -3235,6 +3235,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenant/customers/{customer_id}/hours-statement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Customer Statement
+         * @description Bought, activated, used per day and job, transferred, expired, cancelled and remaining hours of one customer
+         *     (optionally one machine) for a tenant-local period (default: this month to date).
+         */
+        get: operations["getCustomerHoursStatement"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/customers/{customer_id}/hours-statement.pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Customer Statement Pdf */
+        get: operations["downloadCustomerHoursStatementPdf"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenant/customers/{customer_id}/reactivate": {
         parameters: {
             query?: never;
@@ -4208,6 +4246,40 @@ export interface paths {
         };
         /** List Ledger */
         get: operations["listHoursLedger"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/hours-low-balance-alerts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Low Balance Alerts */
+        get: operations["listHoursLowBalanceAlerts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/hours-low-balance-alerts/{alert_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Low Balance Alert */
+        get: operations["getHoursLowBalanceAlert"];
         put?: never;
         post?: never;
         delete?: never;
@@ -10827,6 +10899,12 @@ export interface components {
             machine_id: string;
             /** Machine Name */
             machine_name?: string | null;
+            /**
+             * Provisional
+             * @description Hours held provisionally by running jobs (daily drawdown; final at completion)
+             * @default 0
+             */
+            provisional: string;
             /** Purchases */
             purchases: number;
             /** Remaining */
@@ -10953,6 +11031,230 @@ export interface components {
             note?: string | null;
             payment?: components["schemas"]["PurchasePaymentIn"] | null;
             walk_in?: components["schemas"]["WalkInCustomerIn"] | null;
+        };
+        /** HoursStatementDto */
+        HoursStatementDto: {
+            /**
+             * Customer Id
+             * Format: uuid
+             */
+            customer_id: string;
+            /** Customer Name */
+            customer_name?: string | null;
+            /**
+             * Date From
+             * Format: date
+             */
+            date_from: string;
+            /**
+             * Date To
+             * Format: date
+             */
+            date_to: string;
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /** Lines */
+            lines: components["schemas"]["HoursStatementLineDto"][];
+            /** Machine Code */
+            machine_code?: string | null;
+            /** Machine Id */
+            machine_id: string | null;
+            /** Machine Name */
+            machine_name?: string | null;
+            /**
+             * Pdf Path
+             * @description Same statement as a PDF (GET, same query)
+             */
+            pdf_path: string;
+            /** Purchases */
+            purchases: components["schemas"]["HoursStatementPurchaseDto"][];
+            /** Timezone */
+            timezone: string;
+            totals: components["schemas"]["HoursStatementTotalsDto"];
+            /** Usage */
+            usage: components["schemas"]["HoursStatementUsageDto"][];
+        };
+        /**
+         * HoursStatementLineDto
+         * @description One ledger movement in the period, in order, with the running balance.
+         */
+        HoursStatementLineDto: {
+            /** Balance After */
+            balance_after: string;
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /**
+             * Entry Id
+             * Format: uuid
+             */
+            entry_id: string;
+            entry_type: components["schemas"]["LedgerEntryType"];
+            /**
+             * Hours
+             * @description Signed: + adds to the balance, - takes from it
+             */
+            hours: string;
+            /** Job Id */
+            job_id: string | null;
+            /** Job Number */
+            job_number?: string | null;
+            /** Machine Code */
+            machine_code?: string | null;
+            /**
+             * Machine Id
+             * Format: uuid
+             */
+            machine_id: string;
+            /** Machine Name */
+            machine_name?: string | null;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /**
+             * Purchase Id
+             * Format: uuid
+             */
+            purchase_id: string;
+            /** Purchase Number */
+            purchase_number?: string | null;
+            /** Reason */
+            reason: string | null;
+        };
+        /** HoursStatementPurchaseDto */
+        HoursStatementPurchaseDto: {
+            /** Activated */
+            activated: string;
+            /** Amount */
+            amount: string;
+            /**
+             * Bought At
+             * Format: date-time
+             */
+            bought_at: string;
+            /** Cancelled At */
+            cancelled_at: string | null;
+            /** Currency */
+            currency: string;
+            /** Effective Rate */
+            effective_rate: string;
+            /**
+             * Expiring Hours
+             * @description Hours that will expire at next_expiry_at unless used first
+             */
+            expiring_hours: string;
+            /** Hours */
+            hours: string;
+            /** Machine Code */
+            machine_code?: string | null;
+            /**
+             * Machine Id
+             * Format: uuid
+             */
+            machine_id: string;
+            /** Machine Name */
+            machine_name?: string | null;
+            /** Next Expiry At */
+            next_expiry_at: string | null;
+            /**
+             * Purchase Id
+             * Format: uuid
+             */
+            purchase_id: string;
+            /** Purchase Number */
+            purchase_number?: string | null;
+            /** Remaining At Close */
+            remaining_at_close: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "AWAITING_PAYMENT" | "PARTLY_ACTIVE" | "ACTIVE" | "CONSUMED" | "EXPIRED" | "CANCELLED";
+        };
+        /**
+         * HoursStatementTotalsDto
+         * @description Movements inside the period (hours). closing = opening + activated + transferred_in - used - transferred_out
+         *     - expired - cancelled.
+         */
+        HoursStatementTotalsDto: {
+            /** Activated */
+            activated: string;
+            /**
+             * Awaiting Activation
+             * @description Hours bought but not yet paid / activated (now)
+             */
+            awaiting_activation: string;
+            /**
+             * Bought
+             * @description Hours of purchases recorded in the period (activated once paid)
+             */
+            bought: string;
+            /**
+             * Cancelled
+             * @description Activated hours withdrawn by approved cancellations
+             */
+            cancelled: string;
+            /** Closing Balance */
+            closing_balance: string;
+            /** Expired */
+            expired: string;
+            /** Opening Balance */
+            opening_balance: string;
+            /**
+             * Provisional At Close
+             * @description Of `used`: still provisional (jobs running at period end)
+             */
+            provisional_at_close: string;
+            /** Transferred In */
+            transferred_in: string;
+            /** Transferred Out */
+            transferred_out: string;
+            /**
+             * Used
+             * @description Final allocations plus provisional daily drawdown of running jobs
+             */
+            used: string;
+        };
+        /**
+         * HoursStatementUsageDto
+         * @description Hours used on one day for one job. DAILY: drawn day by day while the job ran; FINAL: the final allocation's
+         *     difference to what was drawn daily (all of the job's hours for jobs allocated at completion).
+         */
+        HoursStatementUsageDto: {
+            /**
+             * Basis
+             * @enum {string}
+             */
+            basis: "DAILY" | "FINAL";
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /** Hours */
+            hours: string;
+            /** Job Id */
+            job_id: string | null;
+            /** Job Number */
+            job_number?: string | null;
+            /** Job Running */
+            job_running: boolean;
+            /** Machine Code */
+            machine_code?: string | null;
+            /**
+             * Machine Id
+             * Format: uuid
+             */
+            machine_id: string;
+            /** Machine Name */
+            machine_name?: string | null;
         };
         /**
          * InferenceOutcome
@@ -11618,12 +11920,17 @@ export interface components {
             signed_hours: string;
             /** Transfer Id */
             transfer_id: string | null;
+            /**
+             * Usage Day
+             * @description Daily drawdown entries: the tenant-local day of use
+             */
+            usage_day?: string | null;
         };
         /**
          * LedgerEntryType
          * @enum {string}
          */
-        LedgerEntryType: "ACTIVATED" | "CONSUMED" | "TRANSFER_OUT" | "TRANSFER_IN" | "EXPIRED" | "REVERSAL";
+        LedgerEntryType: "ACTIVATED" | "CONSUMED" | "TRANSFER_OUT" | "TRANSFER_IN" | "EXPIRED" | "REVERSAL" | "PROVISIONAL" | "PROVISIONAL_REVERSED";
         /** LedgerPointDto */
         LedgerPointDto: {
             /**
@@ -11668,6 +11975,66 @@ export interface components {
              * Format: uuid
              */
             line_id: string;
+        };
+        /**
+         * LowBalanceAlertDto
+         * @description One crossing of the tenant's low-balance threshold by a purchase (the office was told once).
+         */
+        LowBalanceAlertDto: {
+            /** Available Hours */
+            available_hours: string;
+            /**
+             * Crossed At
+             * Format: date-time
+             */
+            crossed_at: string;
+            /**
+             * Customer Id
+             * Format: uuid
+             */
+            customer_id: string;
+            /** Customer Name */
+            customer_name?: string | null;
+            /** Customer Sms Id */
+            customer_sms_id: string | null;
+            /**
+             * Customer Sms Status
+             * @enum {string}
+             */
+            customer_sms_status: "NOT_REQUESTED" | "PENDING" | "QUEUED" | "NO_PHONE";
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Machine Code */
+            machine_code?: string | null;
+            /**
+             * Machine Id
+             * Format: uuid
+             */
+            machine_id: string;
+            /** Machine Name */
+            machine_name?: string | null;
+            /** Notify Customer */
+            notify_customer: boolean;
+            /** Policy Version */
+            policy_version: string;
+            /**
+             * Purchase Id
+             * Format: uuid
+             */
+            purchase_id: string;
+            /** Purchase Number */
+            purchase_number?: string | null;
+            /** Rearmed At */
+            rearmed_at: string | null;
+            /** Remaining Hours */
+            remaining_hours: string;
+            /** Sequence */
+            sequence: number;
+            /** Threshold Hours */
+            threshold_hours: string;
         };
         /** MachineCreateIn */
         MachineCreateIn: {
@@ -11807,6 +12174,12 @@ export interface components {
             machine_id: string;
             /** Machine Name */
             machine_name?: string | null;
+            /**
+             * Provisional
+             * @description Hours held provisionally by running jobs (daily drawdown; final at completion)
+             * @default 0
+             */
+            provisional: string;
             /** Remaining */
             remaining: string;
             /** Reversed */
@@ -14044,6 +14417,17 @@ export interface components {
             /** Total */
             total: number;
         };
+        /** Page[LowBalanceAlertDto] */
+        Page_LowBalanceAlertDto_: {
+            /** Items */
+            items: components["schemas"]["LowBalanceAlertDto"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+        };
         /** Page[MachineDto] */
         Page_MachineDto_: {
             /** Items */
@@ -14943,6 +15327,12 @@ export interface components {
             consumed: string;
             /** Expired */
             expired: string;
+            /**
+             * Provisional
+             * @description Hours held provisionally by running jobs (daily drawdown; final at completion)
+             * @default 0
+             */
+            provisional: string;
             /** Purchased */
             purchased: string;
             /** Remaining */
@@ -37163,6 +37553,190 @@ export interface operations {
             };
         };
     };
+    getCustomerHoursStatement: {
+        parameters: {
+            query?: {
+                machine_id?: string | null;
+                date_from?: string | null;
+                date_to?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                customer_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HoursStatementDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    downloadCustomerHoursStatementPdf: {
+        parameters: {
+            query?: {
+                machine_id?: string | null;
+                date_from?: string | null;
+                date_to?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                customer_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The statement as a PDF */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": unknown;
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     reactivateCustomer: {
         parameters: {
             query?: never;
@@ -43118,6 +43692,189 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Page_LedgerEntryDto_"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listHoursLowBalanceAlerts: {
+        parameters: {
+            query?: {
+                purchase_id?: string | null;
+                customer_id?: string | null;
+                machine_id?: string | null;
+                armed?: boolean | null;
+                page?: number;
+                page_size?: number;
+                q?: string | null;
+                sort?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_LowBalanceAlertDto_"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getHoursLowBalanceAlert: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                alert_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LowBalanceAlertDto"];
                 };
             };
             /** @description Bad Request */

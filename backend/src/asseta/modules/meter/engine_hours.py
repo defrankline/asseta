@@ -9,10 +9,11 @@ from datetime import date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import Select, and_, exists, or_, select
+from sqlalchemy import ColumnElement, Select, and_, exists, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
+from asseta.core.db import utcnow
 from asseta.core.errors import BusinessRuleViolation
 from asseta.core.outbox import OutboxWriter
 from asseta.modules.fleet.models import Machine
@@ -39,6 +40,7 @@ from asseta.modules.meter.models import (
     ReadingKind,
 )
 from asseta.modules.policy.engine_hours import EngineHoursPolicy
+from asseta.modules.policy.schemas import BillingMode
 from asseta.modules.policy.service import EffectivePolicy, PolicyService
 from asseta.modules.telemetry.models import MachineStateEvent, StateDimension
 from asseta.modules.tenancy.models import TenantSettings
@@ -151,6 +153,23 @@ def approved_non_revenue_ids() -> Select[uuid.UUID]:
     )
 
     return select(NonRevenueApproval.activity_id).where(NonRevenueApproval.status == NonRevenueApprovalStatus.APPROVED)
+
+
+def billing_deduction_filter(s: Session, tenant_id: uuid.UUID, job: Job) -> ColumnElement[bool]:
+    """Non-billable work-log entries subtracted from a job's meter hours: DOWNTIME and STANDBY (as always) plus, when
+    the tenant's revenue-hour basis deducts them (DEC-031 R1, policy in force when the job started), its declared
+    non-revenue types — from an INVOICE job's billable hours and/or a PREPAID job's drawdown; when the tenant
+    requires it, only entries explained and approved by a second person. (Callers also require `billable` false and
+    an end time.)"""
+    policy = PolicyService(s).revenue_reconciliation(tenant_id, at=job.started_at or utcnow()).policy
+    always, approved_only = policy.billing_deductions(job.billing_mode is BillingMode.PREPAID_HOURS)
+    cond: ColumnElement[bool] = JobActivity.activity_type.in_(always)
+    if approved_only:
+        cond = or_(
+            cond,
+            and_(JobActivity.activity_type.in_(approved_only), JobActivity.id.in_(approved_non_revenue_ids())),
+        )
+    return cond
 
 
 def non_revenue_activities(

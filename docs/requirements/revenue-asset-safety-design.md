@@ -212,3 +212,37 @@ Both items are FRAUD_CONTROLS ("Risk signals") keys, null on the platform defaul
 - **Daily machine sheet.** Row gains `fuel_litres_per_engine_hour` (null without engine hours; also in the CSV).
   ENGINE_ON_WITHOUT_JOB also comes from the S1 summary and links the machine-day case (`flag_records` entry
   `record_type = "anomaly_case"`); FUEL_ABOVE_NORM also comes from the S2 signal.
+
+## Implementation notes — Phase 4 (backend, 2026-10-26)
+
+- **Policy keys (`CUSTOMER_HOURS`, platform default = today):** `drawdown` AT_COMPLETION | DAILY, `low_balance_hours`
+  (null = off), `low_balance_notify_customer` (false). Tenant scope only (no machine/site overrides).
+- **P1 daily drawdown.** The scheduler sweep (every cycle, tenant time zone) takes each running PREPAID_HOURS job's
+  customer-work hours per tenant-local day from the engine-hour ledger's intervals inside the job window (an
+  interval spanning midnight is split by wall-clock time), less the job's billing deductions (DOWNTIME / STANDBY and,
+  under R1, approved non-revenue time when `deduct_non_revenue_from_prepaid_hours` — the same filter the final
+  billable hours use, policy at job start), rounded cumulatively with the hire-billing increment (no minimum hours:
+  that is the final allocation's business). Each day holds PROVISIONAL ledger entries (`usage_day`); the sweep writes
+  only the difference between what a day should hold and what it holds (idempotent), giving hours back
+  (PROVISIONAL_REVERSED) when readings come down. On COMPLETE the job's provisional hours are reversed (entries carry
+  the allocation id) and the final work execution allocation consumes the billable hours exactly as before, so
+  provisional − reversed = 0 and CONSUMED = billable for every completed job. A job that stops running without
+  completing gives its provisional hours back at the next sweep. Switching DAILY off mid-job draws nothing more; the
+  hours already held are replaced at completion.
+- **Over-consumption the day it happens:** when a day needs more hours than the customer has on the machine, only the
+  available hours are drawn and the job gets one HOURS_OVERRUN exception (dedupe `<job>:HOURS_OVERRUN:DAILY`,
+  blocking per `overrun_exception_blocking`, HOURS_OVERRUN notification as today); it is closed automatically
+  (EXPLAINED "Covered by newly activated hours") when new hours cover the shortfall, re-opened if the job runs short
+  again, and closed as replaced by the final allocation at completion (which raises its own overrun if still short).
+- **P2 low balance:** a purchase crosses when its remaining hours fall to `low_balance_hours` while the customer has no
+  more than that left on the machine; one `hours_low_balance_alert` per crossing (re-armed when back above the
+  threshold), one HOURS_LOW_BALANCE notification to `tenant.hours.read` holders (data kind HOURS_PURCHASE, record_id =
+  purchase id, link `/tenant/hours/purchases/{id}`, plus alert_id and the hour figures). Crossings are detected right
+  after daily drawdown / final allocation and by the sweep (threshold changes); purchases used up before a threshold
+  was set are never warned about retroactively. With `low_balance_notify_customer` the customer's contact phone gets
+  one SMS per crossing through the SMS channel (tenant SMS credits, quiet hours, rate limits); no phone → NO_PHONE.
+- **P3 statement:** read model over the hours ledger, per customer (optional machine) and tenant-local period (default
+  this month to date, at most 366 days): opening, bought, activated, used (DAILY lines per usage day, FINAL lines =
+  final allocation less daily draws), transferred in/out, expired, cancelled, closing, still-provisional, awaiting
+  activation; purchases with remaining at close and next expiry; every movement with the running balance. JSON and a
+  PDF on the report layout; `tenant.hours.read`; PDF downloads are audited.

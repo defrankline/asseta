@@ -3,10 +3,10 @@ completion (FIFO under row locks), overrun handling, the START gate. Called from
 decision and the jobs lifecycle; every write is a ledger entry plus an audit event."""
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import exists, select
+from sqlalchemy import exists, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -325,7 +325,9 @@ class HoursEngine:
 
     def allocate_job(self, job: Job, billable: Decimal) -> WorkExecutionAllocation | None:
         """Work Execution Allocation on COMPLETE: consume the billable hours FIFO; hours beyond what is available are
-        not consumed but raised as an HOURS_OVERRUN exception (cleared by new activation or a reviewed write-off)."""
+        not consumed but raised as an HOURS_OVERRUN exception (cleared by new activation or a reviewed write-off).
+        Hours the job held under daily drawdown (PROVISIONAL) are given back first and replaced by this final
+        allocation, so the job's total always equals its billable hours."""
         if job.billing_mode is not BillingMode.PREPAID_HOURS:
             return None
         existing = self._s.execute(
@@ -346,11 +348,11 @@ class HoursEngine:
             created_at=self._now,
         )
         # The exception id must be known before the allocation row is written (append-only), so the plan comes first.
-        available = sum(
-            (
-                purchase_totals(self._s, p).remaining_on(job.machine_id)
-                for p in self._candidates(customer_id, job.machine_id)
-            ),
+        candidates = self._candidates(customer_id, job.machine_id)
+        open_ids = {p.id for p in candidates}
+        held = sum((h for (pid, _, _), h in self.provisional_held(job.id).items() if pid in open_ids), ZERO)
+        available = held + sum(
+            (purchase_totals(self._s, p).remaining_on(job.machine_id) for p in candidates),
             ZERO,
         )
         excess = max(ZERO, billable - available)
@@ -358,6 +360,8 @@ class HoursEngine:
             wea.exception_id = self._overrun(job, billable, billable - excess, excess)
         self._s.add(wea)
         self._s.flush()
+        released = self.release_provisional(job, "Replaced by the final allocation at completion", wea.id)
+        self._close_daily_overrun(job, "Replaced by the final work execution allocation at completion")
         consumed = self._consume(wea, billable)
         self._audit.record(
             actor=self._actor,
@@ -370,10 +374,230 @@ class HoursEngine:
                 "billable_hours": str(billable),
                 "consumed": str(consumed),
                 "overrun": str(billable - consumed),
+                "provisional_replaced": str(released),
             },
             policy_version=self.eff.version_stamp[:64],
         )
+        self.check_low_balance(customer_id, job.machine_id)
         return wea
+
+    # --- daily drawdown (DEC-031 P1) ---------------------------------------------------------------------------
+    def provisional_held(self, job_id: uuid.UUID) -> dict[tuple[uuid.UUID, uuid.UUID, date | None], Decimal]:
+        """Net provisional hours the job holds, per (purchase, machine, usage day); zero entries left out."""
+        held: dict[tuple[uuid.UUID, uuid.UUID, date | None], Decimal] = {}
+        for pid, mid, day, t, hours in self._s.execute(
+            select(
+                HoursLedgerEntry.purchase_id,
+                HoursLedgerEntry.machine_id,
+                HoursLedgerEntry.usage_day,
+                HoursLedgerEntry.entry_type,
+                func.sum(HoursLedgerEntry.hours),
+            )
+            .where(
+                HoursLedgerEntry.job_id == job_id,
+                HoursLedgerEntry.entry_type.in_([T.PROVISIONAL, T.PROVISIONAL_REVERSED]),
+            )
+            .group_by(
+                HoursLedgerEntry.purchase_id,
+                HoursLedgerEntry.machine_id,
+                HoursLedgerEntry.usage_day,
+                HoursLedgerEntry.entry_type,
+            )
+        ):
+            key = (pid, mid, day)
+            held[key] = held.get(key, ZERO) - SIGN[t] * Decimal(hours)
+        return {k: v for k, v in held.items() if v != 0}
+
+    def draw_day(self, job: Job, customer_id: uuid.UUID, day: date, wanted: Decimal) -> Decimal:
+        """Draw `wanted` hours of one day provisionally, FIFO over the customer's purchases on the job's machine;
+        returns what could be drawn (the rest is the day's shortfall)."""
+        taken = ZERO
+        for purchase in self._candidates(customer_id, job.machine_id):
+            if taken >= wanted:
+                break
+            take = min(purchase_totals(self._s, purchase).remaining_on(job.machine_id), wanted - taken)
+            if take <= 0:
+                continue
+            self._ledger.add(
+                purchase,
+                job.machine_id,
+                T.PROVISIONAL,
+                take,
+                job_id=job.id,
+                reason=f"Daily drawdown {day.isoformat()}",
+                policy_version=self.eff.version_stamp,
+                usage_day=day,
+            )
+            taken += take
+        return taken
+
+    def give_back(
+        self,
+        job: Job,
+        hours: Decimal,
+        reason: str,
+        *,
+        day: date | None = None,
+        allocation_id: uuid.UUID | None = None,
+    ) -> Decimal:
+        """Reverse provisional hours of the job (one day, or every day when `day` is None), newest purchase first."""
+        held = sorted(
+            ((k, v) for k, v in self.provisional_held(job.id).items() if day is None or k[2] == day),
+            key=lambda kv: (str(kv[0][2]), str(kv[0][0])),
+            reverse=True,
+        )
+        purchases = {
+            p.id: p
+            for p in self._s.execute(
+                select(HoursPurchase).where(HoursPurchase.id.in_({k[0] for k, _ in held}))
+            ).scalars()
+        }
+        left = hours
+        for (pid, mid, usage_day), amount in held:
+            if left <= 0:
+                break
+            back = min(amount, left)
+            if back <= 0:
+                continue
+            self._ledger.add(
+                purchases[pid],
+                mid,
+                T.PROVISIONAL_REVERSED,
+                back,
+                job_id=job.id,
+                allocation_id=allocation_id,
+                reason=reason,
+                policy_version=self.eff.version_stamp,
+                usage_day=usage_day,
+            )
+            left -= back
+        return hours - max(left, ZERO)
+
+    def release_provisional(self, job: Job, reason: str, allocation_id: uuid.UUID | None = None) -> Decimal:
+        """Give back everything the job holds provisionally (completion, cancellation)."""
+        total = sum(self.provisional_held(job.id).values(), ZERO)
+        if total <= 0:
+            return ZERO
+        released = self.give_back(job, total, reason, allocation_id=allocation_id)
+        self._audit.record(
+            actor=self._actor,
+            action="hours.provisional_released",
+            entity_type="job",
+            entity_id=job.id,
+            tenant_id=self._tid,
+            after={"hours": str(released), "allocation_id": str(allocation_id) if allocation_id else None},
+            reason=reason,
+            policy_version=self.eff.version_stamp[:64],
+        )
+        return released
+
+    def daily_overrun(self, job: Job, day: date, wanted: Decimal, covered: Decimal) -> uuid.UUID:
+        """The over-consumption rule applied the day it happens: a running job drew more than the customer has left.
+        One exception per job (re-opened if it was covered and the job runs short again)."""
+        key = f"{job.id}:{ExceptionType.HOURS_OVERRUN.value}:DAILY"
+        row = self._s.execute(
+            select(JobException).where(JobException.dedupe_key == key).with_for_update()
+        ).scalar_one_or_none()
+        excess = wanted - covered
+        if row is not None:
+            if row.status is not ExceptionStatus.OPEN:
+                row.status, row.reviewed_by, row.reviewed_at = ExceptionStatus.OPEN, None, None
+                row.review_note = f"Daily drawdown short again on {day.isoformat()}"
+                self._s.flush()
+                self._emit_overrun(row.id, job, wanted, excess, day)
+            return row.id
+        exc_id = uuid.uuid4()
+        self._s.execute(
+            insert(JobException)
+            .values(
+                id=exc_id,
+                tenant_id=self._tid,
+                job_id=job.id,
+                machine_id=job.machine_id,
+                meter_capture_id=None,
+                exception_type=ExceptionType.HOURS_OVERRUN,
+                severity="WARNING",
+                blocking=self.policy.overrun_exception_blocking,
+                dedupe_key=key,
+                evidence={
+                    "drawdown": "DAILY",
+                    "day": day.isoformat(),
+                    "billable_hours_to_date": str(wanted),
+                    "covered_hours": str(covered),
+                    "excess_hours": str(excess),
+                },
+                policy_version=self.eff.version_stamp,
+                status=ExceptionStatus.OPEN,
+                created_at=self._now,
+            )
+            .on_conflict_do_nothing()
+        )
+        self._emit_overrun(exc_id, job, wanted, excess, day)
+        return exc_id
+
+    def _close_daily_overrun(self, job: Job, note: str) -> bool:
+        key = f"{job.id}:{ExceptionType.HOURS_OVERRUN.value}:DAILY"
+        row = self._s.execute(
+            select(JobException)
+            .where(JobException.dedupe_key == key, JobException.status == ExceptionStatus.OPEN)
+            .with_for_update()
+        ).scalar_one_or_none()
+        if row is None:
+            return False
+        row.status = ExceptionStatus.EXPLAINED
+        row.reviewed_by, row.reviewed_at, row.review_note = self._actor.user_id, self._now, note
+        self._s.flush()
+        self._audit.record(
+            actor=self._actor,
+            action="hours.overrun_covered",
+            entity_type="job_exception",
+            entity_id=row.id,
+            tenant_id=self._tid,
+            before={"status": "OPEN"},
+            after={"status": "EXPLAINED", "job_id": str(job.id), "note": note},
+        )
+        return True
+
+    def cover_daily_overrun(self, job: Job) -> bool:
+        return self._close_daily_overrun(job, "Covered by newly activated hours")
+
+    def _emit_overrun(self, exc_id: uuid.UUID, job: Job, billable: Decimal, excess: Decimal, day: date) -> None:
+        OutboxWriter(self._s).emit(
+            topic=TOPIC,
+            event_type="CustomerHoursOverrun",
+            key=str(job.machine_id),
+            payload={
+                "exception_id": str(exc_id),
+                "job_id": str(job.id),
+                "job_number": job.job_number,
+                "machine_id": str(job.machine_id),
+                "billable_hours": str(billable),
+                "excess_hours": str(excess),
+                "drawdown": "DAILY",
+                "day": day.isoformat(),
+            },
+            tenant_id=self._tid,
+        )
+
+    # --- low balance (DEC-031 P2) ------------------------------------------------------------------------------
+    def check_low_balance(self, customer_id: uuid.UUID, machine_id: uuid.UUID) -> None:
+        """After hours left the balance: tell the office once when a purchase falls to the tenant's threshold."""
+        if self.policy.low_balance_hours is None:
+            return
+        from asseta.modules.hours.low_balance import LowBalanceMonitor  # lazy: builds on the engine
+
+        monitor = LowBalanceMonitor(self._s, self._tid, self._now, self.eff)
+        for purchase in self._candidates(customer_id, machine_id):
+            just_used = self._s.execute(
+                select(HoursLedgerEntry.id)
+                .where(
+                    HoursLedgerEntry.purchase_id == purchase.id,
+                    HoursLedgerEntry.occurred_at == self._now,
+                    HoursLedgerEntry.entry_type.in_([T.CONSUMED, T.PROVISIONAL]),
+                )
+                .limit(1)
+            ).first()
+            monitor.check(purchase, after_deduction=just_used is not None)  # an empty purchase only if just used
 
     def _overrun(self, job: Job, billable: Decimal, covered: Decimal, excess: Decimal) -> uuid.UUID:
         exc_id = uuid.uuid4()
