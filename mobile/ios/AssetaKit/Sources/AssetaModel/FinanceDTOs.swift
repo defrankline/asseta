@@ -145,7 +145,11 @@ public struct CashCollectionPayload: Codable, Hashable, Sendable {
     }
 }
 
-/// `CASH_HANDOVER`: cash handed to the office (CLAIMED until finance verifies it).
+/// `CASH_HANDOVER`: cash handed to the office (CLAIMED until finance verifies it). With REMITTANCE_DETAILS_V1 it
+/// also says how the money reached the company (`method`), the company account it was paid into and evidence
+/// photos: resumable uploads (purpose REMITTANCE_EVIDENCE) whose session ids are appended to `evidence_upload_ids`
+/// when complete (the server DEFERs the op with ATTACHMENT_PENDING until then). The new keys are only written when
+/// set, so a server without the capability receives today's payload.
 public struct CashHandoverPayload: Codable, Hashable, Sendable {
     public let clientID: UUID
     public let amount: DecimalString
@@ -156,9 +160,14 @@ public struct CashHandoverPayload: Codable, Hashable, Sendable {
 
     /// The custodian who remits when a recorder records for someone else (nil = the recorder).
     public let staffMemberID: UUID?
+    public let method: RemittanceMethod?
+    public let depositAccountID: UUID?
+    /// Nil = no evidence photos (key omitted); otherwise starts empty and fills as uploads complete.
+    public let evidenceUploadIDs: [UUID]?
 
     public init(clientID: UUID, amount: Decimal, currency: String?, handedAt: Date, reference: String?, note: String?,
-                staffMemberID: UUID? = nil) {
+                staffMemberID: UUID? = nil, method: RemittanceMethod? = nil, depositAccountID: UUID? = nil,
+                evidenceUploadIDs: [UUID]? = nil) {
         self.clientID = clientID
         self.amount = DecimalString(amount)
         self.currency = currency
@@ -166,11 +175,15 @@ public struct CashHandoverPayload: Codable, Hashable, Sendable {
         self.reference = reference
         self.note = note
         self.staffMemberID = staffMemberID
+        self.method = method
+        self.depositAccountID = depositAccountID
+        self.evidenceUploadIDs = evidenceUploadIDs
     }
 
     enum CodingKeys: String, CodingKey {
-        case amount, currency, reference, note, clientID = "client_id", handedAt = "handed_at"
-        case staffMemberID = "staff_member_id"
+        case amount, currency, reference, note, method, clientID = "client_id", handedAt = "handed_at"
+        case staffMemberID = "staff_member_id", depositAccountID = "deposit_account_id"
+        case evidenceUploadIDs = "evidence_upload_ids"
     }
 }
 

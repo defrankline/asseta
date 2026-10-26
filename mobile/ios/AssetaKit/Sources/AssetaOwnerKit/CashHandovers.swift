@@ -31,8 +31,18 @@ public struct CashHandoverDTO: Codable, Hashable, Sendable, Identifiable {
     public let staffMemberName: String?
     public let recordedByName: String?
     public let verifiedByName: String?
+    /// DEC-031 D2 (nil on remittances recorded before it): `RemittanceMethod`, the company account, slip photos.
+    public let method: String?
+    public let depositAccountID: UUID?
+    public let depositAccountName: String?
+    public let evidenceAttachmentIDs: [UUID]?
+
+    /// Evidence photo ids (empty when none or from an older server).
+    public var evidence: [UUID] { evidenceAttachmentIDs ?? [] }
 
     enum CodingKeys: String, CodingKey {
+        case method, depositAccountID = "deposit_account_id", depositAccountName = "deposit_account_name"
+        case evidenceAttachmentIDs = "evidence_attachment_ids"
         case staffMemberName = "staff_member_name", recordedByName = "recorded_by_name", verifiedByName = "verified_by_name"
         case id, amount, currency, reference, note, status, source
         case clientID = "client_id", staffMemberID = "staff_member_id", handedAt = "handed_at"
@@ -127,6 +137,11 @@ extension OwnerAPI {
                       idempotencyKey: idempotencyKey)
     }
 
+    /// Presigned URL of a remittance's deposit slip photo, fetched on demand only (never cached).
+    public static func remittanceEvidenceURL(handoverID: UUID, attachmentID: UUID) -> APIRequest<PhotoURLDTO> {
+        .get("\(tenant)/cash/handovers/\(handoverID.lowercased)/evidence/\(attachmentID.lowercased)/url")
+    }
+
     /// Issues a cash float into a supervisor's custody (added to what they must account for).
     public static func issueFloat(staffMemberID: UUID, amount: Decimal, currency: String?, note: String?,
                                   idempotencyKey: UUID) throws -> APIRequest<CashCustodyEntryDTO> {
@@ -197,6 +212,21 @@ public enum HandoverText {
 
     /// The declared amount as the editable starting value ("150000.5").
     public static func prefill(_ h: CashHandoverDTO) -> String { h.amount.description }
+
+    /// Method, Paid into and Reference of a remittance (DEC-031 D2), in screen order; empty values left out. Shown
+    /// in the Handover card and repeated read-only in the confirm dialog above "Amount received".
+    public static func details(_ h: CashHandoverDTO) -> [DecisionField] {
+        typealias T = OwnerAccountabilityTexts
+        let account = h.depositAccountID.map { DisplayName.or(h.depositAccountName, id: $0) }
+        return PendingDecision.fields([(T.remitMethod, T.remitMethodText(h.method)), (T.remitAccount, account),
+                                       (T.remitReference, h.reference)])
+    }
+
+    /// "No deposit slip photo" applies: a bank / mobile-money remittance (method other than cash) without a photo.
+    public static func missingPhoto(_ h: CashHandoverDTO) -> Bool {
+        guard let method = h.method, method != RemittanceMethod.cashToOffice.rawValue else { return false }
+        return h.evidence.isEmpty
+    }
 
     public static func done(confirm: Bool) -> String { confirm ? confirmed : disputed }
 

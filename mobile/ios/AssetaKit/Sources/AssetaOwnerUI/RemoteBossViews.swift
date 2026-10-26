@@ -94,6 +94,7 @@ struct HandoverDetailView: View {
     @State private var names: [UUID: String] = [:]
     @State private var sheet: Mode?
     @State private var message: String?
+    @State private var photo: Int?
 
     enum Mode: String, Identifiable { case confirm, dispute; var id: String { rawValue } }
 
@@ -105,7 +106,15 @@ struct HandoverDetailView: View {
                 Section(HandoverText.card) {
                     Text(HandoverText.title(handover, supervisor: names[handover.staffMemberID])).font(.headline)
                     Text(HandoverText.claimed(handover)).foregroundStyle(.secondary)
-                    if let reference = handover.reference { LabeledContent("Reference", value: reference) }
+                    // How and where the money went (DEC-031 D2), with the deposit slip photos (online only).
+                    ForEach(HandoverText.details(handover), id: \.self) { LabeledContent($0.label, value: $0.value) }
+                    ForEach(Array(handover.evidence.enumerated()), id: \.offset) { index, _ in
+                        PhotoButton(label: OwnerAccountabilityTexts.remitPhoto(index + 1), isOnline: model.isOnline) {
+                            photo = index
+                        }
+                        .accessibilityIdentifier("handover.photo.\(index + 1)")
+                    }
+                    if HandoverText.missingPhoto(handover) { LabeledContent(OwnerAccountabilityTexts.remitNoPhoto, value: "—") }
                     if let note = handover.note, !note.isEmpty { LabeledContent(HandoverText.note, value: note) }
                     LabeledContent("Status") {
                         Pill(text: OwnerFormat.humanize(handover.status), color: HandoverText.statusTone(handover.status).color)
@@ -139,6 +148,13 @@ struct HandoverDetailView: View {
         .navigationTitle(HandoverText.screenTitle)
         .refreshable { await reload() }
         .task(id: model.changeTick) { await reload() }
+        .sheet(isPresented: Binding(get: { photo != nil }, set: { if !$0 { photo = nil } })) {
+            if let handover, let index = photo, handover.evidence.indices.contains(index) {
+                EvidencePhotoView(model: model, title: OwnerAccountabilityTexts.remitPhoto(index + 1).capitalizedFirst,
+                                  request: OwnerAPI.remittanceEvidenceURL(handoverID: handover.id,
+                                                                          attachmentID: handover.evidence[index]))
+            }
+        }
         .sheet(item: $sheet) { mode in
             if let handover {
                 HandoverDecisionSheet(model: model, handover: handover, supervisor: names[handover.staffMemberID],
@@ -206,6 +222,10 @@ struct HandoverDecisionSheet: View {
                 Section {
                     Text(HandoverText.title(handover, supervisor: supervisor))
                     Text(HandoverText.claimed(handover)).foregroundStyle(.secondary)
+                    // Method, account and reference beside "Amount received", so the office checks the slip against them.
+                    if confirm {
+                        ForEach(HandoverText.details(handover), id: \.self) { LabeledContent($0.label, value: $0.value) }
+                    }
                 }
                 if askAmount {
                     Section {

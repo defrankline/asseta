@@ -59,8 +59,9 @@ struct CapabilitySwitchTests {
     @Test func overdueRemittanceScreenRowsAndFooter() throws {
         let o = try AssetaJSON.decoder().decode(RemittanceOverdueDTO.self, from: Data(Self.overdueJSON.utf8))
         let rows = RemittanceOverduePresentation.rows(o, flagged: { _ in "24 Oct 2026, 07:05" })
-        #expect(rows.map(\.label) == ["Cash held by", "Not remitted", "Day", "Cut-off", "Flagged"])
-        #expect(rows.map(\.value) == ["Juma Field", "TZS 150,000.00, USD 20.00", "2026-10-24", "07:00", "24 Oct 2026, 07:05"])
+        #expect(rows.map(\.label) == ["Cash held by", "Not remitted", "Reason", "Day", "Cut-off", "Flagged"])
+        #expect(rows.map(\.value) == ["Juma Field", "TZS 150,000.00, USD 20.00", "Not remitted by the daily cut-off", "2026-10-24",
+                                      "07:00", "24 Oct 2026, 07:05"])
         #expect(RemittanceOverduePresentation.footer(o)
             == "Still held after the 07:00 cut-off on 2026-10-24. Remit this cash to the office as soon as you can.")
         #expect(FieldAccountabilityTexts.titleRemittanceOverdue == "Overdue remittance")

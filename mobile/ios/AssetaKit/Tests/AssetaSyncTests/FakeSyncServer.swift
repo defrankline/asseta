@@ -34,6 +34,7 @@ final class FakeSyncServer: @unchecked Sendable {
     var customers: [[String: Any]] = []
     var expenseCategories: [[String: Any]] = []
     var cashCustody: [[String: Any]] = []
+    var depositAccounts: [[String: Any]] = []
     /// Advertised protocol capabilities (nil: an older server that sends none).
     var capabilities: [String]? = ["SUPERVISOR_INBOX_V1", "OP_METER_RESET_REQUEST", "OP_JOB_REQUEST"]
     /// Supervisor inbox lists sent with every bootstrap/changes (`my_expenses` → rows); empty: not sent.
@@ -190,8 +191,8 @@ final class FakeSyncServer: @unchecked Sendable {
             applyOrder.append(id)
             return ["id": id.uuidString.lowercased(), "status": "ACKED", "result": result, "error": NSNull()]
         }
-        if op["op_type"] as? String == "HOURS_PURCHASE" {
-            // Mirrors push.py `_hours_purchase`: incomplete evidence uploads defer; an unknown one is rejected.
+        if ["HOURS_PURCHASE", "CASH_HANDOVER"].contains(op["op_type"] as? String) {
+            // Mirrors push.py `_hours_purchase` / `_handover`: incomplete evidence uploads defer; an unknown one is rejected.
             let uploads = (payload["evidence_upload_ids"] as? [String] ?? []).compactMap(UUID.init(uuidString:))
             if uploads.contains(where: { blobs[$0] != nil && blobs[$0]?.attachmentID == nil }) {
                 return ["id": id.uuidString.lowercased(), "status": "DEFERRED", "error": ["code": "ATTACHMENT_PENDING"]]
@@ -316,7 +317,8 @@ final class FakeSyncServer: @unchecked Sendable {
 
     private func data() -> [String: Any] {
         var data: [String: Any] = ["jobs": jobs, "machines": machines, "sites": [], "customers": customers, "contracts": [],
-                                   "staff": [], "expense_categories": expenseCategories, "cash_custody": cashCustody]
+                                   "staff": [], "expense_categories": expenseCategories, "cash_custody": cashCustody,
+                                   "deposit_accounts": depositAccounts]
         for (key, rows) in inbox { data[key] = rows }
         return data
     }

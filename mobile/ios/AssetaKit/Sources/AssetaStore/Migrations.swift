@@ -160,6 +160,11 @@ public enum AssetaSchema {
             name: "accountability_evidence",
             statements: AccountabilityV7.statements
         ),
+        Migration(
+            version: 8,
+            name: "remittance_evidence",
+            statements: RemittanceV8.statements
+        ),
     ]
 }
 

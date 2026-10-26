@@ -1,5 +1,6 @@
 #if os(iOS)
 import AssetaAppShell
+import AssetaCapture
 import AssetaModel
 import AssetaSync
 import SwiftUI
@@ -91,8 +92,11 @@ struct CashCollectionFormView: View {
     }
 }
 
-/// Hand over cash (`CASH_HANDOVER`) to the office; it stays "claimed" until finance verifies it.
+/// Hand over cash (`CASH_HANDOVER`) to the office; it stays "claimed" until finance verifies it. With the server's
+/// REMITTANCE_DETAILS_V1 it also says how the money went (method), where (company account) and carries deposit slip
+/// photos, enforcing the tenant's requirements (DEC-031 D2; same layout as Android `CashFormScreen`).
 struct CashHandoverFormView: View {
+    typealias T = FieldAccountabilityTexts
     let model: FieldModel
     @Environment(\.dismiss) private var dismiss
     @State private var clientID = UUID()
@@ -102,9 +106,16 @@ struct CashHandoverFormView: View {
     @State private var note = ""
     @State private var handedAt = Date()
     @State private var holderID: UUID?
+    @State private var remittance = RemittanceDraft()
+    @State private var photos: [(evidence: StoredEvidence, data: Data)] = []
     @State private var error: String?
 
     var body: some View {
+        let details = model.access.remittanceDetails
+        let requirements = model.access.remittanceRequirements
+        let accounts = model.depositAccounts
+        let issues = details ? RemittanceForm.issues(remittance, requirements: requirements, accounts: accounts, currency: currency,
+                                                     reference: reference, photoCount: photos.count) : []
         NavigationStack {
             Form {
                 if let summary = model.cashSummary(), !summary.lines.isEmpty {
@@ -121,11 +132,38 @@ struct CashHandoverFormView: View {
                         .font(.title3.monospacedDigit()).accessibilityIdentifier("handover.amount")
                     TextField("Currency", text: $currency)
                         .textInputAutocapitalization(.characters).autocorrectionDisabled()
-                    TextField("Reference (deposit slip, receipt no.)", text: $reference)
+                    if !details { TextField("Reference (deposit slip, receipt no.)", text: $reference) }
                     DatePicker("Handed over", selection: $handedAt, in: ...Date())
                     TextField("Note (who received it…)", text: $note, axis: .vertical)
                 } footer: {
                     Text("Your custody goes down only when finance verifies the handover.")
+                }
+                if details {
+                    Section(T.remitMethod) {
+                        Picker(T.remitMethod, selection: Binding(
+                            get: { remittance.method },
+                            set: { RemittanceForm.selectMethod(&remittance, method: $0, accounts: accounts) })) {
+                            ForEach(RemittanceMethod.allCases, id: \.self) { Text(T.remitMethodText($0)).tag($0) }
+                        }
+                        .pickerStyle(.segmented).accessibilityIdentifier("handover.method")
+                        SearchablePickerField(label: RemittanceForm.accountLabel(requirements),
+                                              options: model.depositAccountOptions(method: remittance.method, currency: currency),
+                                              selection: Binding(
+                                                  get: { remittance.accountID },
+                                                  set: { RemittanceForm.selectAccount(&remittance, accountID: $0, accounts: accounts) }),
+                                              noneTitle: T.remitAccountNone, emptyMessage: T.remitAccountsEmpty,
+                                              identifier: "handover.account")
+                        TextField(RemittanceForm.referenceLabel(requirements, method: remittance.method), text: $reference)
+                            .accessibilityIdentifier("handover.reference")
+                    }
+                    EvidencePhotosSection(model: model, photos: $photos, error: $error,
+                                          title: RemittanceForm.photosLabel(requirements), footer: T.remitPhotosFooter,
+                                          photograph: T.remitPhotograph, addPhoto: T.remitAddPhoto, removeLabel: T.remitRemovePhoto)
+                    if !issues.isEmpty && error == nil && !amount.isEmpty {
+                        Section {
+                            ForEach(issues, id: \.self) { Text($0).foregroundStyle(Palette.warning) }
+                        }
+                    }
                 }
                 if let error { Text(error).foregroundStyle(Palette.offline) }
             }
@@ -133,20 +171,33 @@ struct CashHandoverFormView: View {
             .navigationBarTitleDisplayMode(.inline)
             .onAppear { if currency.isEmpty { currency = model.baseCurrency ?? "" } }
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { discardPhotos(); dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save", action: save).disabled(amount.isEmpty).accessibilityIdentifier("handover.save")
+                    Button("Save", action: save).disabled(amount.isEmpty || !issues.isEmpty)
+                        .accessibilityIdentifier("handover.save")
                 }
             }
         }
+        .interactiveDismissDisabled(!photos.isEmpty)
+    }
+
+    private func discardPhotos() {
+        photos.forEach { model.discardEvidence($0.evidence) }
+        photos = []
     }
 
     private func save() {
+        let details = model.access.remittanceDetails
         do {
             try model.perform {
                 try $0.recordCashHandover(amountText: amount, currency: currency, reference: reference, note: note,
-                                          custodianID: holder, handedAt: handedAt, clientID: clientID)
+                                          custodianID: holder, handedAt: handedAt,
+                                          method: details ? remittance.method : nil,
+                                          depositAccountID: details ? remittance.accountID : nil,
+                                          requirements: model.access.remittanceRequirements,
+                                          evidence: details ? photos.map(\.evidence) : [], clientID: clientID)
             }
+            photos = [] // now owned by the queued handover
             dismiss()
         } catch {
             self.error = JobDetailView.describe(error)

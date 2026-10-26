@@ -27,6 +27,9 @@ public struct PushOutcomeApplier: Sendable {
         "RETENTION_NOT_ALLOWED", "DUPLICATE_RETENTION",
         // A capability the tenant's policy switched off (F1).
         "ENGINE_HOURS_DISABLED", "CASH_CUSTODY_DISABLED",
+        // Stronger remittances (DEC-031 D2): a requirement switched on, or the account deactivated, after queueing.
+        "REMITTANCE_REFERENCE_REQUIRED", "REMITTANCE_EVIDENCE_REQUIRED", "REMITTANCE_ACCOUNT_REQUIRED",
+        "DEPOSIT_ACCOUNT_INACTIVE",
     ]
 
     let outbox: any ClientOperationRepository

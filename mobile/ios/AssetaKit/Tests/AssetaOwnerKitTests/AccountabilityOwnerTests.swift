@@ -54,7 +54,7 @@ struct AccountabilityOwnerTests {
         """),
         (.writeOff, "CashVarianceDto", """
         {"id":"\(id(8))","source_type":"TRANSFER","source_id":"\(id(98))","staff_member_id":null,"counterparty_staff_id":null,
-         "currency":"TZS","declared_amount":"50000","received_amount":"45000","amount":"5000","case_id":null,
+         "currency":"TZS","declared_amount":"50000","received_amount":"45000","amount":"5000","kind":"SHORTFALL","case_id":null,
          "opened_at":"2026-10-24T07:00:00Z","opened_by":null,"status":"WRITE_OFF_PROPOSED","reason_id":null,"proposed_by":"\(other)",
          "proposed_at":"2026-10-24T08:00:00Z","proposal_note":"Counting error","outcome":null,"resolved_by":null,"resolved_at":null,
          "resolution_note":null}

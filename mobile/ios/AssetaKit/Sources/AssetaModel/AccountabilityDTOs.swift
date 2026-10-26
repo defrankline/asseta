@@ -437,21 +437,54 @@ public struct CashCustodyPolicyValues: Codable, Hashable, Sendable {
     public let floatAckRequired: Bool
     public let remitFullBalance: Bool
     public let retentionAllowed: Bool
+    /// DEC-031 D2 remittance requirements (off when absent: a server before DEC-031 never asks for them).
+    /// A bank / mobile-money remittance needs its transaction reference (cash to the office never does).
+    public let remittanceReferenceRequired: Bool
+    /// A photo of the deposit slip or payment confirmation.
+    public let remittanceEvidenceRequired: Bool
+    /// The company deposit account the money was paid into.
+    public let remittanceAccountRequired: Bool
+    /// Days a custodian may hold unremitted cash (nil = no limit). Informational on the phone (D3).
+    public let maxHoldingDays: Int?
 
     public init(recordersMayRecordForOthers: Bool, transferAckRequired: Bool, recorderReceiverCountsAsAck: Bool,
-                floatAckRequired: Bool, remitFullBalance: Bool, retentionAllowed: Bool) {
+                floatAckRequired: Bool, remitFullBalance: Bool, retentionAllowed: Bool,
+                remittanceReferenceRequired: Bool = false, remittanceEvidenceRequired: Bool = false,
+                remittanceAccountRequired: Bool = false, maxHoldingDays: Int? = nil) {
         self.recordersMayRecordForOthers = recordersMayRecordForOthers
         self.transferAckRequired = transferAckRequired
         self.recorderReceiverCountsAsAck = recorderReceiverCountsAsAck
         self.floatAckRequired = floatAckRequired
         self.remitFullBalance = remitFullBalance
         self.retentionAllowed = retentionAllowed
+        self.remittanceReferenceRequired = remittanceReferenceRequired
+        self.remittanceEvidenceRequired = remittanceEvidenceRequired
+        self.remittanceAccountRequired = remittanceAccountRequired
+        self.maxHoldingDays = maxHoldingDays
+    }
+
+    /// The DEC-030 switches are strict (a missing one makes the policy unknown); the DEC-031 keys default to off.
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        recordersMayRecordForOthers = try c.decode(Bool.self, forKey: .recordersMayRecordForOthers)
+        transferAckRequired = try c.decode(Bool.self, forKey: .transferAckRequired)
+        recorderReceiverCountsAsAck = try c.decode(Bool.self, forKey: .recorderReceiverCountsAsAck)
+        floatAckRequired = try c.decode(Bool.self, forKey: .floatAckRequired)
+        remitFullBalance = try c.decode(Bool.self, forKey: .remitFullBalance)
+        retentionAllowed = try c.decode(Bool.self, forKey: .retentionAllowed)
+        remittanceReferenceRequired = try c.decodeIfPresent(Bool.self, forKey: .remittanceReferenceRequired) ?? false
+        remittanceEvidenceRequired = try c.decodeIfPresent(Bool.self, forKey: .remittanceEvidenceRequired) ?? false
+        remittanceAccountRequired = try c.decodeIfPresent(Bool.self, forKey: .remittanceAccountRequired) ?? false
+        maxHoldingDays = try c.decodeIfPresent(Int.self, forKey: .maxHoldingDays)
     }
 
     enum CodingKeys: String, CodingKey {
         case recordersMayRecordForOthers = "recorders_may_record_for_others", transferAckRequired = "transfer_ack_required"
         case recorderReceiverCountsAsAck = "recorder_receiver_counts_as_ack", floatAckRequired = "float_ack_required"
         case remitFullBalance = "remit_full_balance", retentionAllowed = "retention_allowed"
+        case remittanceReferenceRequired = "remittance_reference_required"
+        case remittanceEvidenceRequired = "remittance_evidence_required"
+        case remittanceAccountRequired = "remittance_account_required", maxHoldingDays = "max_holding_days"
     }
 }
 
@@ -521,8 +554,9 @@ public enum DisplayName {
     public static func shortID(_ id: UUID) -> String { String(id.uuidString.lowercased().prefix(8)) }
 }
 
-/// `RemittanceOverdueDto`: a custodian still holding unremitted cash after the tenant's daily cut-off (one per
-/// custodian per tenant-local day; evidence, never edited).
+/// `RemittanceOverdueDto`: a custodian still holding unremitted cash after the tenant's daily cut-off (reason
+/// CUTOFF) or longer than their holding allowance (reason HELD_TOO_LONG, DEC-031 D3). One per custodian per
+/// tenant-local day per reason; evidence, never edited.
 public struct RemittanceOverdueDTO: Codable, Hashable, Sendable, Identifiable {
     public struct Amount: Codable, Hashable, Sendable {
         public let currency: String
@@ -534,13 +568,41 @@ public struct RemittanceOverdueDTO: Codable, Hashable, Sendable, Identifiable {
     public let staffMemberName: String?
     /// Tenant-local day (`YYYY-MM-DD`).
     public let localDay: String
+    /// CUTOFF: the daily cut-off hour; HELD_TOO_LONG: the tenant-local hour it was flagged (never shown as a cut-off).
     public let cutoffHour: Int
     public let amounts: [Amount]
     public let flaggedAt: Date
     public let policyVersion: String
+    /// Kept as text (nil from a server before DEC-031 = CUTOFF); see ``overdueReason``.
+    public let reason: String?
+    /// When the oldest unremitted cash was received.
+    public let heldSince: Date?
+    /// The holding allowance that applied.
+    public let maxHoldingDays: Int?
+
+    public init(id: UUID, staffMemberID: UUID, staffMemberName: String?, localDay: String, cutoffHour: Int,
+                amounts: [Amount], flaggedAt: Date, policyVersion: String, reason: String? = nil, heldSince: Date? = nil,
+                maxHoldingDays: Int? = nil) {
+        self.id = id
+        self.staffMemberID = staffMemberID
+        self.staffMemberName = staffMemberName
+        self.localDay = localDay
+        self.cutoffHour = cutoffHour
+        self.amounts = amounts
+        self.flaggedAt = flaggedAt
+        self.policyVersion = policyVersion
+        self.reason = reason
+        self.heldSince = heldSince
+        self.maxHoldingDays = maxHoldingDays
+    }
+
+    /// HELD_TOO_LONG only when the server says so; anything else reads as the daily cut-off.
+    public var overdueReason: OverdueReason { reason.flatMap(OverdueReason.init(rawValue:)) ?? .cutoff }
+    public var heldTooLong: Bool { overdueReason == .heldTooLong }
 
     enum CodingKeys: String, CodingKey {
-        case id, amounts, staffMemberID = "staff_member_id", staffMemberName = "staff_member_name", localDay = "local_day"
+        case id, amounts, reason, staffMemberID = "staff_member_id", staffMemberName = "staff_member_name", localDay = "local_day"
         case cutoffHour = "cutoff_hour", flaggedAt = "flagged_at", policyVersion = "policy_version"
+        case heldSince = "held_since", maxHoldingDays = "max_holding_days"
     }
 }

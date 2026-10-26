@@ -142,6 +142,12 @@ struct EvidencePhotosSection: View {
     let model: FieldModel
     @Binding var photos: [(evidence: StoredEvidence, data: Data)]
     @Binding var error: String?
+    /// Wording (the hours sale's by default; the hand-over form passes the deposit slip lines).
+    var title = T.hoursEvidence
+    var footer = T.hoursEvidenceFooter
+    var photograph = T.hoursPhotograph
+    var addPhoto = T.hoursAddPhoto
+    var removeLabel = "Remove"
     @State private var showCamera = false
     @State private var cameraDenied = false
     @Environment(\.openURL) private var openURL
@@ -152,18 +158,18 @@ struct EvidencePhotosSection: View {
                 HStack {
                     if let image = UIImage(data: photo.data) {
                         Image(uiImage: image).resizable().scaledToFit().frame(height: 120)
-                            .accessibilityLabel("\(T.hoursEvidence) \(index + 1)")
+                            .accessibilityLabel("\(title) \(index + 1)")
                     }
                     Spacer()
-                    Button("Remove", role: .destructive) { remove(index) }.buttonStyle(.borderless)
+                    Button(removeLabel, role: .destructive) { remove(index) }.buttonStyle(.borderless)
                 }
             }
             if photos.count < AccountabilityRules.maxEvidence {
-                Button(photos.isEmpty ? T.hoursPhotograph : T.hoursAddPhoto, systemImage: "camera") {
+                Button(photos.isEmpty ? photograph : addPhoto, systemImage: "camera") {
                     Task { if await CameraAccess.request() { showCamera = true } else { cameraDenied = true } }
                 }
             }
-        } header: { Text(T.hoursEvidence) } footer: { Text(T.hoursEvidenceFooter) }
+        } header: { Text(title) } footer: { Text(footer) }
             .fullScreenCover(isPresented: $showCamera) {
                 CameraCaptureView { data in
                     showCamera = false
@@ -174,7 +180,7 @@ struct EvidencePhotosSection: View {
             .alert("Camera access needed", isPresented: $cameraDenied) {
                 Button("Open Settings") { if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) } }
                 Button("Cancel", role: .cancel) {}
-            } message: { Text(T.hoursEvidenceFooter) }
+            } message: { Text(footer) }
     }
 
     private func add(_ data: Data) {

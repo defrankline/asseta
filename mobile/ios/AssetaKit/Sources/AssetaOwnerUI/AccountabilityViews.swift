@@ -269,7 +269,8 @@ struct OverdueRemittanceView: View {
     @State private var loader = Loader<RemittanceOverdueDTO>()
 
     var body: some View {
-        RecordForm(loader: loader, model: model, title: T.overdueDetailTitle, fields: { CashRecordPresentation.overdue($0) }) {
+        RecordForm(loader: loader, model: model, title: T.overdueDetailTitle, fields: { CashRecordPresentation.overdue($0) },
+                   footer: { CashRecordPresentation.overdueFooter($0) }) {
             await loader.load(model, .overdueRemittance(overdueID), OwnerAPI.remittanceOverdue(overdueID))
         }
     }
@@ -281,12 +282,14 @@ private struct RecordForm<Value: Codable & Sendable>: View {
     let model: OwnerModel
     let title: String
     let fields: (Value) -> [DecisionField]
+    /// Optional line under the fields (the overdue reason's sentence).
+    var footer: ((Value) -> String)? = nil
     let reload: () async -> Void
 
     var body: some View {
         Form {
             if let value = loader.value {
-                Section { FieldRows(fields: fields(value)) }
+                Section { FieldRows(fields: fields(value)) } footer: { if let footer { Text(footer(value)) } }
             } else if let error = loader.error {
                 LoadFailure(message: error) { await reload() }
             } else {

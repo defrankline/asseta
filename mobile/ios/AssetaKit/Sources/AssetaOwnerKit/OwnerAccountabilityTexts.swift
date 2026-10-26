@@ -128,6 +128,44 @@ public enum OwnerAccountabilityTexts {
     public static func overdueLine(hour: Int, day: String) -> String { // owner.overdue.line
         "Still held after the \(twoDigits(hour)):00 cut-off on \(day)."
     }
+    // DEC-031 D3: held longer than allowed
+    public static let overdueReasonCutoff = "Not remitted by the daily cut-off" // owner.overdue.reasonCutoff
+    public static let overdueReasonHeld = "Held longer than allowed" // owner.overdue.reasonHeld
+    public static let fieldHeldSince = "Held since" // owner.field.heldSince
+    public static let fieldAllowed = "Allowed" // owner.field.allowed
+    public static let overdueHeldLineShort = "Held longer than allowed." // owner.overdue.heldLineShort
+    /// "1 day" / "N days" (owner.overdue.days).
+    public static func days(_ n: Int) -> String { n == 1 ? "1 day" : "\(n) days" }
+    /// "Held since {date}, longer than the allowed {days}." (owner.overdue.heldLine)
+    public static func overdueHeldLine(date: String, days: Int) -> String {
+        "Held since \(date), longer than the allowed \(Self.days(days))."
+    }
+
+    // DEC-031 D2: remittance details
+    public static let remitMethod = "Method" // owner.remit.method
+    public static let remitMethodCash = "Cash to the office" // owner.remit.methodCash
+    public static let remitMethodBank = "Bank deposit" // owner.remit.methodBank
+    public static let remitMethodMobile = "Mobile money" // owner.remit.methodMobile
+    public static let remitAccount = "Paid into" // owner.remit.account
+    public static let remitReference = "Reference" // owner.remit.reference
+    /// "deposit slip photo {n}" (shown as "View deposit slip photo 1").
+    public static func remitPhoto(_ n: Int) -> String { "deposit slip photo \(n)" } // owner.remit.photo
+    public static let remitNoPhoto = "No deposit slip photo" // owner.remit.noPhoto
+    public static let varianceSurplus = "Surplus to explain" // owner.variance.surplus
+    /// "Surplus to explain: TZS 5,000.00" (owner.row.surplus).
+    public static func rowSurplus(_ money: String) -> String { "Surplus to explain: \(money)" }
+
+    /// The method's label (unknown methods humanized; nil = an older remittance, nothing shown).
+    public static func remitMethodText(_ raw: String?) -> String? {
+        switch raw {
+        case nil: nil
+        case "CASH_TO_OFFICE": remitMethodCash
+        case "BANK_DEPOSIT": remitMethodBank
+        case "MOBILE_MONEY": remitMethodMobile
+        case let other?: OwnerFormat.humanize(other)
+        }
+    }
+
     static func twoDigits(_ hour: Int) -> String { hour < 10 ? "0\(hour)" : "\(hour)" }
 
     public static func outcome(_ raw: String) -> String {

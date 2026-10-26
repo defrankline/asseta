@@ -181,6 +181,53 @@ public enum FieldAccountabilityTexts {
     public static let overdueFlagged = "Flagged" // field.overdue.flagged
     public static let overdueHint = "Remit this cash to the office as soon as you can." // field.overdue.hint
 
+    // DEC-031 D3: held longer than allowed
+    public static let overdueReason = "Reason" // field.overdue.reason
+    public static let overdueReasonCutoff = "Not remitted by the daily cut-off" // field.overdue.reasonCutoff
+    public static let overdueReasonHeld = "Held longer than allowed" // field.overdue.reasonHeld
+    public static let overdueHeldSince = "Held since" // field.overdue.heldSince
+    public static let overdueAllowed = "Allowed" // field.overdue.allowed
+    public static let overdueHeldLineShort = "Held longer than allowed." // field.overdue.heldLineShort
+
+    /// "1 day" / "N days" (field.overdue.days).
+    public static func days(_ n: Int) -> String { n == 1 ? "1 day" : "\(n) days" }
+
+    /// "Held since {date}, longer than the allowed {days}." (field.overdue.heldLine)
+    public static func overdueHeldLine(date: String, days: Int) -> String {
+        "Held since \(date), longer than the allowed \(Self.days(days))."
+    }
+
+    // DEC-031 D2: remittance details on "Hand over cash"
+    public static let remitMethod = "How was it handed over?" // field.remit.method
+    public static let remitMethodCash = "Cash to the office" // field.remit.methodCash
+    public static let remitMethodBank = "Bank deposit" // field.remit.methodBank
+    public static let remitMethodMobile = "Mobile money" // field.remit.methodMobile
+    public static let remitAccount = "Paid into" // field.remit.account
+    public static let remitAccountOptional = "Paid into (optional)" // field.remit.accountOptional
+    public static let remitAccountNone = "No account" // field.remit.accountNone
+    public static let remitAccountsEmpty = "Your company's accounts for this currency appear here after a sync." // field.remit.accountsEmpty
+    public static let remitReference = "Transaction reference" // field.remit.reference
+    public static let remitReferenceOptional = "Reference (deposit slip, transaction no.) (optional)" // field.remit.referenceOptional
+    public static let remitPhotos = "Deposit slip or payment confirmation" // field.remit.photos
+    public static let remitPhotosOptional = "Deposit slip or payment confirmation (optional)" // field.remit.photosOptional
+    public static let remitPhotosFooter = "Stored encrypted on this phone and uploaded before the handover is sent." // field.remit.photosFooter
+    public static let remitPhotograph = "Photograph the slip" // field.remit.photograph
+    public static let remitAddPhoto = "Add another photo" // field.remit.addPhoto
+    public static let remitRemovePhoto = "Remove" // field.remit.removePhoto
+    public static let remitErrAccount = "Choose the company account the money was paid into." // field.remit.errAccount
+    public static let remitErrReference = "Enter the transaction reference of the bank deposit or mobile-money payment." // field.remit.errReference
+    public static let remitErrEvidence = "Photograph the deposit slip or payment confirmation." // field.remit.errEvidence
+    public static let outboxWaitingPhotos = "Waiting for its photos to upload" // field.outbox.waitingPhotos
+
+    /// The method's label (field.remit.method*).
+    public static func remitMethodText(_ method: RemittanceMethod) -> String {
+        switch method {
+        case .cashToOffice: remitMethodCash
+        case .bankDeposit: remitMethodBank
+        case .mobileMoney: remitMethodMobile
+        }
+    }
+
     /// "07:00" (two-digit hour).
     public static func hour(_ h: Int) -> String { String(format: "%02d:00", h) }
 
@@ -196,6 +243,17 @@ public enum FieldAccountabilityTexts {
         case "DUPLICATE_RETENTION": "This request to keep cash was already sent."
         case "ENGINE_HOURS_DISABLED": "Your company has switched off engine-hour controls, so this was not accepted."
         case "CASH_CUSTODY_DISABLED": "Your company has switched off cash custody controls, so this was not accepted."
+        case "REMITTANCE_REFERENCE_REQUIRED":
+            "Your company requires the transaction reference for bank and mobile-money remittances. Record the handover again with the reference."
+        case "REMITTANCE_EVIDENCE_REQUIRED":
+            "Your company requires a photo of the deposit slip or payment confirmation. Record the handover again with a photo."
+        case "REMITTANCE_ACCOUNT_REQUIRED":
+            "Your company requires the account the money was paid into. Record the handover again and choose the account."
+        case "DEPOSIT_ACCOUNT_INACTIVE": "The account you chose is no longer in use. Record the handover again with another account."
+        case "REMITTANCE_ACCOUNT_MISMATCH":
+            "The account you chose does not match how the money was handed over. Record the handover again."
+        case "DEPOSIT_ACCOUNT_CURRENCY_MISMATCH":
+            "The account you chose holds a different currency. Record the handover again with another account."
         default: nil
         }
     }
@@ -271,20 +329,52 @@ public enum RemittanceOverduePresentation {
         o.amounts.map { money($0.amount.value, currency: $0.currency) }.joined(separator: ", ")
     }
 
-    /// Label/value rows in screen order (`flagged` formats the server timestamp); blank values are left out.
-    public static func rows(_ o: RemittanceOverdueDTO, flagged: (Date) -> String) -> [(label: String, value: String)] {
-        [(T.overdueCustodian, name(o)),
-         (T.overdueNotRemitted, amounts(o)),
-         (T.overdueDay, o.localDay),
-         (T.overdueCutoff, T.hour(o.cutoffHour)),
-         (T.overdueFlagged, flagged(o.flaggedAt))]
-            .filter { !$0.1.trimmingCharacters(in: .whitespaces).isEmpty }
-            .map { (label: $0.0, value: $0.1) }
+    /// The reason in plain words (field.overdue.reasonCutoff / reasonHeld).
+    public static func reason(_ o: RemittanceOverdueDTO) -> String { o.heldTooLong ? T.overdueReasonHeld : T.overdueReasonCutoff }
+
+    /// "20 Oct 2026": the day the oldest unremitted cash was received (nil when the server sent none).
+    public static func heldSince(_ o: RemittanceOverdueDTO, timeZone: TimeZone = .current) -> String? {
+        o.heldSince.map { day($0, timeZone: timeZone) }
     }
 
-    /// "Still held after the 18:00 cut-off on 2026-10-25. Remit this cash to the office as soon as you can."
-    public static func footer(_ o: RemittanceOverdueDTO) -> String {
-        "\(T.overdueLine(cutoffHour: o.cutoffHour, day: o.localDay)) \(T.overdueHint)"
+    /// Label/value rows in screen order (`flagged` formats the server timestamp); blank values are left out.
+    /// Cash held by, Not remitted, Reason, Day, Cut-off (CUTOFF only), Held since and Allowed (HELD_TOO_LONG only),
+    /// Flagged.
+    public static func rows(_ o: RemittanceOverdueDTO, flagged: (Date) -> String,
+                            timeZone: TimeZone = .current) -> [(label: String, value: String)] {
+        var pairs: [(String, String?)] = [(T.overdueCustodian, name(o)), (T.overdueNotRemitted, amounts(o)),
+                                          (T.overdueReason, reason(o)), (T.overdueDay, o.localDay)]
+        if o.heldTooLong {
+            pairs += [(T.overdueHeldSince, heldSince(o, timeZone: timeZone)), (T.overdueAllowed, o.maxHoldingDays.map(T.days))]
+        } else {
+            pairs.append((T.overdueCutoff, T.hour(o.cutoffHour)))
+        }
+        pairs.append((T.overdueFlagged, flagged(o.flaggedAt)))
+        return pairs.compactMap { label, value in
+            guard let value, !value.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
+            return (label: label, value: value)
+        }
+    }
+
+    /// The reason's line, then the hint: "Still held after the 18:00 cut-off on 2026-10-25. Remit this cash to the
+    /// office as soon as you can." / "Held since 2026-10-20, longer than the allowed 3 days. Remit …"
+    public static func footer(_ o: RemittanceOverdueDTO, timeZone: TimeZone = .current) -> String {
+        "\(line(o, timeZone: timeZone)) \(T.overdueHint)"
+    }
+
+    static func line(_ o: RemittanceOverdueDTO, timeZone: TimeZone) -> String {
+        guard o.heldTooLong else { return T.overdueLine(cutoffHour: o.cutoffHour, day: o.localDay) }
+        guard let since = heldSince(o, timeZone: timeZone), let days = o.maxHoldingDays else { return T.overdueHeldLineShort }
+        return T.overdueHeldLine(date: since, days: days)
+    }
+
+    /// "24 Oct 2026": the day of `date` in `timeZone` (English month, as Android `OwnerFormat.date`).
+    static func day(_ date: Date, timeZone: TimeZone) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = timeZone
+        f.dateFormat = "d MMM yyyy"
+        return f.string(from: date)
     }
 
     /// "TZS 50,000.00": the currency code, then the amount with grouping and two decimals (as Android).

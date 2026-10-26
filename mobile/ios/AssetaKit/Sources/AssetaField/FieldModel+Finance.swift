@@ -15,6 +15,8 @@ extension FieldModel {
     var customers: [CustomerDTO] { (try? services?.directory.customers()) ?? [] }
     var machines: [MachineDTO] { (try? services?.directory.machines()) ?? [] }
     var baseCurrency: String? { services?.directory.baseCurrency() }
+    /// Company deposit accounts saved from sync (deactivated ones included; the picker shows active ones).
+    var depositAccounts: [DepositAccountDTO] { (try? services?.directory.allDepositAccounts()) ?? [] }
 
     func expenseGate() -> ExpenseGate {
         (try? services?.directory.expenseGate()) ?? .blocked(.noSnapshot)
@@ -37,6 +39,14 @@ extension FieldModel {
 
     var customerOptions: [PickerOption] {
         customers.map { PickerOption(id: $0.id, title: $0.name, subtitle: $0.code) }
+    }
+
+    /// Account picker rows: active accounts of `currency` matching `method`; subtitle "{institution} · {masked}".
+    func depositAccountOptions(method: RemittanceMethod, currency: String) -> [PickerOption] {
+        RemittanceRules.accounts(depositAccounts, currency: currency, method: method).map {
+            let subtitle = RemittanceRules.subtitle($0)
+            return PickerOption(id: $0.id, title: $0.name, subtitle: subtitle.isEmpty ? nil : subtitle)
+        }
     }
 
     var categoryOptions: [PickerOption] {

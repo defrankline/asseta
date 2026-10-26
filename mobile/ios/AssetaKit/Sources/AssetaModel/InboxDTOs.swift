@@ -358,9 +358,16 @@ public struct SyncCashHandoverDTO: Codable, Hashable, Sendable, Identifiable {
     public let verifiedBy: UUID?
     public let source: String
     public let syncRevision: Int64
+    /// DEC-031 D2 (nil from older servers / remittances recorded before it).
+    public let method: String?
+    public let depositAccountID: UUID?
+    public let depositAccountName: String?
+    public let evidenceAttachmentIDs: [UUID]?
 
     enum CodingKeys: String, CodingKey {
-        case id, amount, currency, status, reference, note, source
+        case id, amount, currency, status, reference, note, source, method
+        case depositAccountID = "deposit_account_id", depositAccountName = "deposit_account_name"
+        case evidenceAttachmentIDs = "evidence_attachment_ids"
         case clientID = "client_id", staffMemberID = "staff_member_id", decisionNote = "decision_note"
         case handedAt = "handed_at", recordedAt = "recorded_at", recordedBy = "recorded_by", verifiedAt = "verified_at"
         case verifiedBy = "verified_by", syncRevision = "sync_revision"

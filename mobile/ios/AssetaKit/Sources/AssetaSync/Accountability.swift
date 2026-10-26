@@ -56,6 +56,15 @@ public struct FieldAccess: Sendable, Equatable {
     /// "Ask to keep cash" is queued in the outbox (works offline) when the server takes `CASH_RETENTION_REQUEST`;
     /// otherwise it is sent online as before.
     public var retentionOffline: Bool { askToKeepCash && supports(SyncCapability.cashRetentionRequest) }
+    /// DEC-031 D2: the hand-over form offers method, deposit account and slip photos (server REMITTANCE_DETAILS_V1).
+    public var remittanceDetails: Bool { supports(SyncCapability.remittanceDetails) }
+    /// The tenant's remittance requirements; all off without the capability, while CASH_CUSTODY is switched off,
+    /// or while the policy is unknown.
+    public var remittanceRequirements: RemittanceRequirements {
+        guard remittanceDetails, cashCustodyOn, let cash else { return RemittanceRequirements() }
+        return RemittanceRequirements(account: cash.remittanceAccountRequired, reference: cash.remittanceReferenceRequired,
+                                      evidence: cash.remittanceEvidenceRequired)
+    }
     public var dailyReading: Bool { supports(SyncCapability.meterDailyReading) && can(Self.meterCapture) && engineHoursOn }
     public var proposeBaseline: Bool { supports(SyncCapability.meterBaseline) && can(Self.meterCapture) && engineHoursOn }
     public var proposeCorrection: Bool { supports(SyncCapability.meterCorrection) && can(Self.meterCapture) && engineHoursOn }

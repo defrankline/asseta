@@ -43,15 +43,37 @@ public enum CashRecordPresentation {
         items.isEmpty ? T.dashNone : items.map { OwnerFormat.money($0.amount, currency: $0.currency) }.joined(separator: "\n")
     }
 
-    /// Row of the overdue list: the custodian, what they still hold and the cut-off they missed.
-    public static func overdueRow(_ o: RemittanceOverdueDTO) -> (title: String, amounts: String, line: String) {
-        (DisplayName.or(o.staffMemberName, id: o.staffMemberID), amounts(o.amounts), T.overdueLine(hour: o.cutoffHour, day: o.localDay))
+    /// The reason in plain words (owner.overdue.reasonCutoff / reasonHeld).
+    public static func overdueReason(_ o: RemittanceOverdueDTO) -> String {
+        o.heldTooLong ? T.overdueReasonHeld : T.overdueReasonCutoff
     }
 
+    /// Row of the overdue list: the custodian, what they still hold and, beneath, the reason.
+    public static func overdueRow(_ o: RemittanceOverdueDTO) -> (title: String, amounts: String, line: String) {
+        (DisplayName.or(o.staffMemberName, id: o.staffMemberID), amounts(o.amounts), overdueReason(o))
+    }
+
+    /// Custodian, Not remitted, Reason, Day, Cut-off (CUTOFF only) or Held since and Allowed (HELD_TOO_LONG only),
+    /// Flagged (as Android `CashRecords.overdueFields`).
     public static func overdue(_ o: RemittanceOverdueDTO, timeZone: TimeZone = .current) -> [DecisionField] {
-        fields([(T.fieldCustodian, DisplayName.or(o.staffMemberName, id: o.staffMemberID)), (T.fieldDay, o.localDay),
-                (T.fieldCutoff, "\(T.twoDigits(o.cutoffHour)):00"), (T.fieldNotRemitted, amounts(o.amounts)),
-                (T.fieldFlagged, OwnerFormat.stamp(o.flaggedAt, timeZone: timeZone))])
+        var pairs: [(String, String?)] = [(T.fieldCustodian, DisplayName.or(o.staffMemberName, id: o.staffMemberID)),
+                                          (T.fieldNotRemitted, amounts(o.amounts)), (T.fieldReason, overdueReason(o)),
+                                          (T.fieldDay, o.localDay)]
+        if o.heldTooLong {
+            pairs += [(T.fieldHeldSince, o.heldSince.map { OwnerFormat.date($0, timeZone: timeZone) }),
+                      (T.fieldAllowed, o.maxHoldingDays.map(T.days))]
+        } else {
+            pairs.append((T.fieldCutoff, "\(T.twoDigits(o.cutoffHour)):00"))
+        }
+        pairs.append((T.fieldFlagged, OwnerFormat.stamp(o.flaggedAt, timeZone: timeZone)))
+        return fields(pairs)
+    }
+
+    /// The detail footer: the cut-off line, or the held-too-long line (short form when a figure is missing).
+    public static func overdueFooter(_ o: RemittanceOverdueDTO, timeZone: TimeZone = .current) -> String {
+        guard o.heldTooLong else { return T.overdueLine(hour: o.cutoffHour, day: o.localDay) }
+        guard let since = o.heldSince, let days = o.maxHoldingDays else { return T.overdueHeldLineShort }
+        return T.overdueHeldLine(date: OwnerFormat.date(since, timeZone: timeZone), days: days)
     }
 
     public static func transfer(_ t: CashTransferDTO, timeZone: TimeZone = .current) -> [DecisionField] {

@@ -157,7 +157,8 @@ public struct FieldDirectory: Sendable {
                 waiting = parent.status == .failed || parent.status == .conflict
                     ? "Blocked by an earlier item that needs attention" : "Waiting for an earlier item"
             } else if awaitingUpload.contains(op.id) {
-                waiting = "Waiting for its photo/receipt/signature upload"
+                waiting = op.opType == OperationType.cashHandover.rawValue
+                    ? FieldAccountabilityTexts.outboxWaitingPhotos : "Waiting for its photo/receipt/signature upload"
             }
             return OutboxItem(operation: op, jobID: payload?["job_id"]?.stringValue.flatMap(UUID.init(uuidString:)),
                               serverState: state, waitingFor: waiting)

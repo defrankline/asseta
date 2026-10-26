@@ -270,7 +270,12 @@ struct CashVarianceDTO: Codable, Sendable {
     let amount: DecimalString, status: String, proposedBy: UUID?, proposedAt: Date?, proposalNote: String?, openedAt: Date
     let staffMemberID: UUID?, staffMemberName: String?, counterpartyStaffName: String?, proposedByName: String?
     let counterpartyStaffID: UUID?, resolvedBy: UUID?, resolvedByName: String?, resolutionNote: String?
+    /// SHORTFALL / SURPLUS (DEC-031); nil from older servers.
+    let kind: String?
+    /// More received than declared ("Surplus to explain"); without a kind a negative amount means the same.
+    var isSurplus: Bool { kind == "SURPLUS" || (kind == nil && amount.value < 0) }
     enum CodingKeys: String, CodingKey {
+        case kind
         case counterpartyStaffID = "counterparty_staff_id", resolvedBy = "resolved_by", resolvedByName = "resolved_by_name"
         case resolutionNote = "resolution_note"
         case staffMemberID = "staff_member_id", staffMemberName = "staff_member_name"
@@ -396,12 +401,15 @@ extension PendingDecision {
                         machine: c.machineID, name: c.proposedByName)
         case .writeOff:
             guard let v = try? json.decode(as: CashVarianceDTO.self) else { return nil }
-            return item(v.id, T.rowWriteOff(money(v.amount, v.currency)), v.proposalNote, v.proposedAt ?? v.openedAt, v.proposedBy,
-                        v.status,
+            // A surplus (more received than declared) reads "Surplus to explain" with the positive amount.
+            let difference = v.isSurplus ? money(DecimalString(abs(v.amount.value)), v.currency) : money(v.amount, v.currency)
+            return item(v.id, v.isSurplus ? T.rowSurplus(difference) : T.rowWriteOff(difference), v.proposalNote,
+                        v.proposedAt ?? v.openedAt, v.proposedBy, v.status,
                         fields([(T.fieldCustodian, who(v.staffMemberName, v.staffMemberID)),
                                 (T.fieldCounterparty, who(v.counterpartyStaffName, v.counterpartyStaffID)),
                                 (T.fieldSource, OwnerFormat.humanize(v.sourceType)), (T.fieldDeclared, money(v.declaredAmount, v.currency)),
-                                (T.fieldReceived, money(v.receivedAmount, v.currency)), (T.fieldDifference, money(v.amount, v.currency)),
+                                (T.fieldReceived, money(v.receivedAmount, v.currency)),
+                                (v.isSurplus ? T.varianceSurplus : T.fieldDifference, difference),
                                 (T.fieldProposedBy, who(v.proposedByName, v.proposedBy))]
                                + decided(v.resolvedByName, v.resolvedBy, v.resolutionNote)),
                         name: v.proposedByName)

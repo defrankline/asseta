@@ -44,6 +44,7 @@ mobile/ios/
 | 4 | `finance_receipts_cash_custody` | Non-destructive rebuild (row copy; child table renamed before its parent so `foreign_keys=ON` holds) of `local_attachment` (purpose `EXPENSE_RECEIPT`) and `operation_attachment` (field `receipt_upload_ids`); new `cash_custody_balance` (server custody per staff/currency, replaced on every bootstrap/changes response, older lists ignored). Expense categories live in `sync_entity` (`expense_category`) |
 
 | 7 | `accountability_evidence` | Non-destructive rebuild of `local_attachment` (purpose `PAYMENT_EVIDENCE`) and `operation_attachment` (fields `evidence_upload_ids`, `replacement.photo_attachment_id`) |
+| 8 | `remittance_evidence` | Non-destructive rebuild of `local_attachment` (purpose `REMITTANCE_EVIDENCE`: deposit slip / payment confirmation photos of a `CASH_HANDOVER`, appended to `evidence_upload_ids` when uploaded); `operation_attachment` copied unchanged |
 
 `EncryptedDatabase.transaction` nests as savepoints, so composed repository calls stay atomic.
 

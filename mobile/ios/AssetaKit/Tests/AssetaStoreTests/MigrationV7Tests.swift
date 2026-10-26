@@ -27,7 +27,7 @@ struct MigrationV7Tests {
             """, [.text(op.lowercased), .text(tenant.lowercased), .text(UUID().lowercased)])
         try db.execute("INSERT INTO operation_attachment (operation_id, attachment_local_id, payload_field) VALUES (?, ?, ?)",
                        [.text(op.lowercased), .text(file.lowercased), .text("photo_attachment_id")])
-        #expect(try Migrator.asseta.migrate(db) == 7)
+        #expect(try Migrator(migrations: Array(AssetaSchema.migrations.prefix(7))).migrate(db) == 7)
         return (db, op, file)
     }
 

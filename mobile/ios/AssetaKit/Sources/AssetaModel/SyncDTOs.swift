@@ -79,13 +79,16 @@ public struct SyncData: Codable, Hashable, Sendable {
     /// The supervisor's current custody per currency. Not an entity (no `id`) and always complete,
     /// so it replaces the local copy instead of being merged.
     public var cashCustody: [JSONValue]
+    /// Company deposit accounts for the remittance picker (REMITTANCE_DETAILS_V1; bootstrap: active ones; deltas:
+    /// every change, deactivations included). Stored as entities of type `deposit_account`.
+    public var depositAccounts: [JSONValue]
     /// Supervisor inbox lists (SUPERVISOR_INBOX_V1), raw as sent; `nil` when the server did not send
     /// the field (an older server): the stored inbox is then left untouched.
     public var inbox: [InboxList: [JSONValue]] = [:]
 
     public init(jobs: [JSONValue] = [], machines: [JSONValue] = [], sites: [JSONValue] = [],
                 customers: [JSONValue] = [], contracts: [JSONValue] = [], staff: [JSONValue] = [],
-                expenseCategories: [JSONValue] = [], cashCustody: [JSONValue] = []) {
+                expenseCategories: [JSONValue] = [], cashCustody: [JSONValue] = [], depositAccounts: [JSONValue] = []) {
         self.jobs = jobs
         self.machines = machines
         self.sites = sites
@@ -94,11 +97,13 @@ public struct SyncData: Codable, Hashable, Sendable {
         self.staff = staff
         self.expenseCategories = expenseCategories
         self.cashCustody = cashCustody
+        self.depositAccounts = depositAccounts
     }
 
     enum CodingKeys: String, CodingKey {
         case jobs, machines, sites, customers, contracts, staff
         case expenseCategories = "expense_categories", cashCustody = "cash_custody"
+        case depositAccounts = "deposit_accounts"
     }
 
     /// The `my_*` inbox lists of `SyncData`.
@@ -119,6 +124,7 @@ public struct SyncData: Codable, Hashable, Sendable {
         try c.encode(staff, forKey: .staff)
         try c.encode(expenseCategories, forKey: .expenseCategories)
         try c.encode(cashCustody, forKey: .cashCustody)
+        try c.encode(depositAccounts, forKey: .depositAccounts)
         var lists = encoder.container(keyedBy: InboxList.self)
         for (key, rows) in inbox { try lists.encode(rows, forKey: key) }
     }
@@ -136,6 +142,7 @@ public struct SyncData: Codable, Hashable, Sendable {
         staff = try c.decodeIfPresent([JSONValue].self, forKey: .staff) ?? []
         expenseCategories = try c.decodeIfPresent([JSONValue].self, forKey: .expenseCategories) ?? []
         cashCustody = try c.decodeIfPresent([JSONValue].self, forKey: .cashCustody) ?? []
+        depositAccounts = try c.decodeIfPresent([JSONValue].self, forKey: .depositAccounts) ?? []
         let lists = try decoder.container(keyedBy: InboxList.self)
         for key in InboxList.allCases {
             if let rows = try lists.decodeIfPresent([JSONValue].self, forKey: key) { inbox[key] = rows }
@@ -145,7 +152,8 @@ public struct SyncData: Codable, Hashable, Sendable {
     /// Entity type name → objects, in a stable order.
     public var byType: [(String, [JSONValue])] {
         [("job", jobs), ("machine", machines), ("site", sites), ("customer", customers),
-         ("contract", contracts), ("staff", staff), ("expense_category", expenseCategories)]
+         ("contract", contracts), ("staff", staff), ("expense_category", expenseCategories),
+         ("deposit_account", depositAccounts)]
     }
 }
 
@@ -288,6 +296,8 @@ public enum BlobPurpose: String, Codable, Sendable, CaseIterable {
     case expenseReceipt = "EXPENSE_RECEIPT"
     /// Receipt photo / mobile-money screenshot of a payment taken with an hours purchase.
     case paymentEvidence = "PAYMENT_EVIDENCE"
+    /// Deposit slip / payment confirmation of a remittance (CASH_HANDOVER, REMITTANCE_DETAILS_V1).
+    case remittanceEvidence = "REMITTANCE_EVIDENCE"
 }
 
 public struct BlobStartIn: Codable, Hashable, Sendable {
