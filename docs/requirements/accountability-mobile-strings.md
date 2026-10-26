@@ -919,3 +919,120 @@ Supervisor details: the status line is a caption under the work-log entry (warni
 for PROPOSED, live for APPROVED); "Explain" is a small text button on the same line, shown only to explain holders for
 NONE / REJECTED and disabled offline. Other refusals show the server message. After sending, the form closes and the
 work log re-reads the statuses.
+
+## DEC-031 Phases 2 and 4 — engine running without work, fuel per engine hour, prepaid hours over days
+
+Rules shared by both apps:
+- **Online only, read-only.** No new sync operations. Owner reads go through the snapshot cache like every other
+  Owner screen (stale banner as today). Nothing here is decided in the apps.
+- **Gates.** Phase 2 additions live on screens that already exist (daily machine sheet: `REVENUE_RECONCILIATION` +
+  `tenant.revenue.read`; Investigation: `tenant.case.read`). Customer hours screens need `tenant.hours.read` and the
+  capability `CUSTOMER_HOURS` not switched off (the existing Owner `customerHours` feature); otherwise the entry is
+  hidden and a customer-hours deep link opens the Accountability dashboard (as today).
+- **Hours:** decimal formatter (2 dp, no trailing zeros) + ` h`; litres per engine hour with 2 dp. `provisional` is
+  already taken out of `remaining` by the server: it is shown beside it, never subtracted again. A provisional
+  figure of zero is not shown.
+- **Days / periods:** local date (`26 Oct 2026`); periods `{from} – {to}`.
+
+Screens that change:
+| App | Screen | Change |
+|---|---|---|
+| Owner | Machine day (daily machine sheet) | Fuel card gains "Litres per engine hour" (`fuel_litres_per_engine_hour`, row hidden when null). Flags card: one "Open investigation" row per distinct `flag_records[]` entry with `record_type` `anomaly_case` → Investigation (existing screen, `/tenant/cases/{id}`); hidden without `tenant.case.read` |
+| Owner | Investigation (case detail) | Signal names: `ENGINE_RUNNING_WITHOUT_WORK`, `MACHINE_FUEL_ABOVE_NORM` worded below; other codes humanized as today |
+| Owner | More | New entry "Customer hours" (customer-hours gate) |
+| Owner | Customer hours (new list) | `GET /hours-purchases?cancelled=false&page_size=100`, purchases with hours left or in use, newest first. Row: headline `{purchase number} · {customer}`, subtitle machine, line `owner.hours.left` + `owner.hours.inUse` when provisional > 0 |
+| Owner | Hours purchase (new, read-only) | `GET /hours-purchases/{id}`: Hours card, Machines card (only when the hours are on more than one machine), then "Hours statement" row → Customer hours statement of that customer; footer `owner.hours.provisionalFooter` |
+| Owner | Customer hours statement (new, read-only) | `GET /customers/{id}/hours-statement?date_from&date_to`: period chips, Totals card, Usage card, "Open PDF" (`GET …/hours-statement.pdf`, same query, saved to the app cache and opened in the phone's PDF viewer) |
+| Owner | Deep links | kind `HOURS_PURCHASE` + `record_id` (HOURS_LOW_BALANCE, HOURS_EXPIRING, HOURS_EXPIRED), entity `hours_purchase`, path `/tenant/hours/purchases/{id}` → Hours purchase; `/tenant/hours/purchases` → Customer hours |
+| Supervisor | Request hours transfer | Purchase picker row and the hours shown for the chosen purchase add `field.hours.inUse` when provisional > 0 |
+
+### Owner
+| Key | English |
+|---|---|
+| owner.sheet.litresPerHour | Litres per engine hour |
+| owner.sheet.litresPerHourValue | {litres} L/h |
+| owner.sheet.openCase | Open investigation |
+| owner.signal.ENGINE_RUNNING_WITHOUT_WORK | Engine running without work during the day |
+| owner.signal.MACHINE_FUEL_ABOVE_NORM | Fuel above the norm for the engine hours |
+| owner.hours.more | Customer hours |
+| owner.hours.listTitle | Customer hours |
+| owner.hours.empty | No prepaid hours with hours left. |
+| owner.hours.listFooter | Prepaid hours with hours left or in use by running jobs. Selling and moving hours is done in the field app or on the web. |
+| owner.hours.row | {purchase} · {customer} |
+| owner.hours.left | {hours} h left |
+| owner.hours.inUse | {hours} h in use by running jobs |
+| owner.hours.purchaseTitle | Hours purchase |
+| owner.hours.hours | Hours |
+| owner.hours.customer | Customer |
+| owner.hours.machine | Machine |
+| owner.hours.status | Status |
+| owner.hours.bought | Bought |
+| owner.hours.activated | Activated |
+| owner.hours.used | Used |
+| owner.hours.provisional | In use by running jobs |
+| owner.hours.transferred | Moved to other machines |
+| owner.hours.expired | Expired |
+| owner.hours.remaining | Left |
+| owner.hours.awaiting | Awaiting activation |
+| owner.hours.machines | Machines |
+| owner.hours.machineLine | {left} |
+| owner.hours.openStatement | Hours statement |
+| owner.hours.provisionalFooter | Hours in use by running jobs are drawn day by day and become final when the job is completed. |
+| owner.hours.status.AWAITING_PAYMENT | Awaiting payment |
+| owner.hours.status.PARTLY_ACTIVE | Partly active |
+| owner.hours.status.ACTIVE | Active |
+| owner.hours.status.EXHAUSTED | Used up |
+| owner.hours.status.EXPIRED | Expired |
+| owner.hours.status.CANCELLED | Cancelled |
+| owner.stmt.title | Hours statement |
+| owner.stmt.header | {customer} · {period} |
+| owner.stmt.period.THIS_MONTH | This month |
+| owner.stmt.period.LAST_MONTH | Last month |
+| owner.stmt.period.LAST_3_MONTHS | Last 3 months |
+| owner.stmt.period.THIS_YEAR | This year |
+| owner.stmt.totals | Totals |
+| owner.stmt.opening | Opening balance |
+| owner.stmt.bought | Bought |
+| owner.stmt.activated | Activated |
+| owner.stmt.used | Used |
+| owner.stmt.provisionalAtClose | Of which in use by running jobs |
+| owner.stmt.transferredIn | Moved in |
+| owner.stmt.transferredOut | Moved out |
+| owner.stmt.expired | Expired |
+| owner.stmt.cancelled | Cancelled |
+| owner.stmt.closing | Closing balance |
+| owner.stmt.awaiting | Awaiting activation (now) |
+| owner.stmt.usage | Hours used |
+| owner.stmt.usageEmpty | No hours used in this period. |
+| owner.stmt.usageRow | {day} · {job} |
+| owner.stmt.basis.DAILY | Drawn day by day |
+| owner.stmt.basis.FINAL | Final |
+| owner.stmt.running | Job still running |
+| owner.stmt.openPdf | Open PDF |
+| owner.stmt.pdfFailed | Could not get the PDF. Check your connection and try again. |
+| owner.stmt.noPdfApp | No app on this phone can open PDFs. |
+| owner.stmt.footer | Times are in {timezone}. Generated {time}. |
+
+Purchase status: unknown wire → humanized. Hours card order: Customer, Machine, Status, Bought, Activated, Used, In
+use by running jobs (only when > 0), Moved to other machines (only when > 0), Expired (only when > 0), Left, Awaiting
+activation (only when > 0). Machines card row: label = machine code (else name, else short id), value
+`owner.hours.left` + " · " + `owner.hours.inUse` when that machine's provisional > 0.
+
+Statement: default chip This month (first of the month – today, local). Last month = whole previous month; Last 3
+months = first day of the month two months back – today; This year = 1 Jan – today. Header `owner.stmt.header`
+(customer name from the statement, else the purchase's). Totals rows in the key order above; Of which in use by
+running jobs, Moved in, Moved out, Expired, Cancelled and Awaiting activation only when > 0. Usage rows newest day
+first: label `owner.stmt.usageRow` (job number, else "—"), value `{hours} h`, caption = machine · basis wording,
+plus " · " + `owner.stmt.running` when `job_running`. Server refusals (`INVALID_PERIOD`, `PERIOD_TOO_LONG`) show the
+server message. Open PDF is disabled offline (usual offline note).
+
+### Supervisor
+| Key | English |
+|---|---|
+| field.hours.purchaseOption | {purchase} · {hours} h left |
+| field.hours.inUse | {hours} h in use by running jobs |
+
+Picker row: `field.hours.purchaseOption` + " · " + `field.hours.inUse` when the purchase's provisional > 0. Under the
+"From machine" field, when the chosen purchase has provisional hours on that machine, a caption
+`field.hours.inUse` (secondary colour). The transfer limit stays `remaining` (provisional hours are already taken
+out of it and cannot be moved).
