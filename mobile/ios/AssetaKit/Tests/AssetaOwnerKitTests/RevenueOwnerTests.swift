@@ -147,6 +147,8 @@ struct RevenueOwnerTests {
         let item = try #require(PendingDecision.from(try JSONValue.parse(Self.nonRevenueApproval), kind: .nonRevenue, timeZone: utc))
         #expect(item.headline == "1.5 h Mobilization · EX-01")
         #expect(item.reason == "Move to site" && item.proposedByName == "Asha")
+        // The reason shows once on the decision screen (its field row, no generic line).
+        #expect(item.reasonLine == nil && item.fields.filter { $0.label == "Reason" }.count == 1)
         #expect(item.isPending && item.isOwn(userID: Self.explainer))
         #expect(item.fields.map(\.label) == ["Machine", "Job", "Type", "Time", "Hours", "Reason", "Note", "Proposed by"])
         #expect(item.fields[3].value == "26 Oct 2026, 06:00 – 26 Oct 2026, 07:30")

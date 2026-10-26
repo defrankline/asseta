@@ -77,7 +77,7 @@ struct DecisionDetailView: View {
                     ForEach(item.fields, id: \.self) { field in
                         if !field.value.isEmpty { LabeledContent(field.label, value: field.value) }
                     }
-                    if let reason = item.reason, !reason.isEmpty { LabeledContent(T.fieldReason, value: reason) }
+                    if let reason = item.reasonLine { LabeledContent(T.fieldReason, value: reason) }
                     LabeledContent(T.fieldProposed, value: item.proposedAt.shortStamp)
                     LabeledContent(T.fieldStatus, value: OwnerFormat.humanize(item.status))
                     if let photo = item.photoAttachmentID {

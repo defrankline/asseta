@@ -185,6 +185,14 @@ public struct PendingDecision: Codable, Hashable, Sendable, Identifiable {
 
     /// The signed-in user proposed it: someone else must decide (the server refuses it too).
     public func isOwn(userID: UUID?) -> Bool { userID != nil && proposedBy == userID }
+
+    /// The detail screen's generic "Reason" line: nil when blank or when the fields already show a "Reason" row
+    /// (non-revenue hours), so the reason is shown once (as Android `DecisionMapper.reasonLine`).
+    public var reasonLine: String? {
+        guard let reason, !reason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              !fields.contains(where: { $0.label == OwnerAccountabilityTexts.fieldReason }) else { return nil }
+        return reason
+    }
 }
 
 // MARK: - DTOs (the part the Owner app shows)
