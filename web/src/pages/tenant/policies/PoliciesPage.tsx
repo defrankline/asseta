@@ -15,7 +15,7 @@ import { CanMutate } from '../../../access/CanMutate';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import { geofenceService } from '../../../api/services/geofenceService';
 import { policyService } from '../../../api/services/policyService';
-import type { JobSiteDto, MachineDto, PolicyType, StaffDto } from '../../../api/types';
+import type { CategoryDto, JobSiteDto, MachineDto, PolicyType, StaffDto } from '../../../api/types';
 import { AsyncContent } from '../../../components/feedback/AsyncContent';
 import { EmptyState } from '../../../components/feedback/EmptyState';
 import { PageHeader } from '../../../components/feedback/PageHeader';
@@ -25,7 +25,7 @@ import { useNotify } from '../../../notifications/useNotify';
 import { useSession } from '../../../session/useSession';
 import { machineLabel } from '../shared/display';
 import { StaffFilter } from '../shared/financePickers';
-import { JobSiteFilter } from '../shared/lookupPickers';
+import { CategoryFilter, JobSiteFilter } from '../shared/lookupPickers';
 import { MachinePicker } from '../shared/MachinePicker';
 import { EffectivePolicyView } from './EffectivePolicyView';
 import { POLICY_TYPE_LABELS, scopesFor, type OverrideScope } from './policyFields';
@@ -55,7 +55,7 @@ const SUBTITLES: Readonly<Record<PolicyType, string>> = {
   EXPENSE_CAPTURE:
     'Expense capture: receipts, GPS and approval limits for field expenses (tenant-wide only)',
   FRAUD_CONTROLS:
-    'Risk signals: thresholds for deterministic checks that open investigation cases (machine overrides)',
+    'Risk signals: thresholds for deterministic checks that open investigation cases (machine category / machine overrides)',
   CASH_CUSTODY:
     'Cash custody: recording for custodians, acknowledgements, remittance evidence, write-off approval and the cash holding allowance (site / staff overrides)',
   OVERSIGHT: 'Oversight: accountability dashboard tiles and windows (tenant-wide only)',
@@ -83,6 +83,8 @@ export function PoliciesPage() {
   const siteId = site?.id ?? '';
   const [staff, setStaff] = useState<StaffDto | null>(null);
   const staffId = staff?.id ?? '';
+  const [category, setCategory] = useState<CategoryDto | null>(null);
+  const categoryId = category?.id ?? '';
   const [creating, setCreating] = useState(false);
   const [version, setVersion] = useState(0);
 
@@ -97,7 +99,9 @@ export function PoliciesPage() {
         ? siteId || null
         : scope === 'STAFF'
           ? staffId || null
-          : 'tenant';
+          : scope === 'MACHINE_CATEGORY'
+            ? categoryId || null
+            : 'tenant';
   const loadEffective = useCallback(
     (signal: AbortSignal) =>
       policyService.effective(
@@ -106,10 +110,11 @@ export function PoliciesPage() {
           machine_id: scope === 'MACHINE' ? machine?.id : undefined,
           site_id: scope === 'SITE' ? siteId : undefined,
           staff_id: scope === 'STAFF' ? staffId : undefined,
+          category_id: scope === 'MACHINE_CATEGORY' ? categoryId : undefined,
         },
         signal,
       ),
-    [ptype, scope, machine, siteId, staffId],
+    [ptype, scope, machine, siteId, staffId, categoryId],
   );
   const effective = useAsyncResource(loadEffective, [version], target !== null);
   const loadVersions = useCallback(
@@ -123,8 +128,9 @@ export function PoliciesPage() {
     for (const s of siteList ?? []) m.set(s.id, `${s.code} · ${s.name}`);
     if (machine !== null) m.set(machine.id, machineLabel(machine));
     if (staff !== null) m.set(staff.id, staff.full_name);
+    if (category !== null) m.set(category.id, category.name);
     return m;
-  }, [siteList, machine, staff]);
+  }, [siteList, machine, staff, category]);
 
   return (
     <>
@@ -175,6 +181,9 @@ export function PoliciesPage() {
                 aria-label="Policy scope"
               >
                 <ToggleButton value="TENANT">Tenant</ToggleButton>
+                {scopes.includes('MACHINE_CATEGORY') && (
+                  <ToggleButton value="MACHINE_CATEGORY">Machine category</ToggleButton>
+                )}
                 {scopes.includes('MACHINE') && <ToggleButton value="MACHINE">Machine</ToggleButton>}
                 {canSites && scopes.includes('SITE') && (
                   <ToggleButton value="SITE">Site</ToggleButton>
@@ -183,6 +192,15 @@ export function PoliciesPage() {
                   <ToggleButton value="STAFF">Staff member</ToggleButton>
                 )}
               </ToggleButtonGroup>
+              {scope === 'MACHINE_CATEGORY' && (
+                <Box sx={{ minWidth: 260 }}>
+                  <CategoryFilter
+                    label="Machine category"
+                    value={category}
+                    onChange={setCategory}
+                  />
+                </Box>
+              )}
               {scope === 'MACHINE' && (
                 <Box className="min-w-72">
                   <MachinePicker value={machine} onChange={setMachine} />
@@ -214,7 +232,9 @@ export function PoliciesPage() {
                     ? 'Select a machine'
                     : scope === 'STAFF'
                       ? 'Select a staff member'
-                      : 'Select a job site'
+                      : scope === 'MACHINE_CATEGORY'
+                        ? 'Select a machine category'
+                        : 'Select a job site'
                 }
                 description="The effective policy combines platform, tenant and override versions."
               />
@@ -252,6 +272,7 @@ export function PoliciesPage() {
           initialMachine={machine}
           initialSiteId={siteId}
           initialStaffId={staffId}
+          initialCategoryId={categoryId}
           current={effective.data?.values ?? null}
           sites={siteList}
           timeZone={tz}

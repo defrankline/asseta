@@ -104,6 +104,7 @@ const rowFields = {
   unexplained_hours: text(),
   pending_review_hours: text(),
   fuel_litres: text(),
+  fuel_litres_per_engine_hour: nullableText().optional(),
   jobs: array(jobSchema).required(),
   money: array(moneySchema).required(),
   flags: array(oneOf(SHEET_FLAGS)).required(),

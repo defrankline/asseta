@@ -12,6 +12,7 @@ import { useDisplayTimeZone } from '../../../hooks/useDisplayTimeZone';
 import { hoursPurchasePath } from '../../../navigation/hoursRoutes';
 import { jobDetailPath } from '../../../navigation/routes';
 import { initialFilter } from '../../../navigation/urlFilters';
+import { formatDate } from '../../../utils/dates';
 import { formatInstantIn } from '../../../utils/time';
 import { CustomerFilter, MachineFilter } from '../shared/financePickers';
 import { PersonName } from '../shared/PersonName';
@@ -46,6 +47,11 @@ export function HoursLedgerPage() {
       render: (e) => formatInstantIn(e.occurred_at, timeZone),
     },
     { id: 'type', header: 'Entry', render: (e) => LEDGER_TYPE_LABELS[e.entry_type] },
+    {
+      id: 'day',
+      header: 'Day of use',
+      render: (e) => (e.usage_day == null ? '—' : formatDate(e.usage_day)),
+    },
     {
       id: 'hours',
       header: 'Hours',
@@ -96,7 +102,7 @@ export function HoursLedgerPage() {
     <>
       <PageHeader
         title="Hours ledger"
-        subtitle="Every change to customer hours, in order; balances are always derived from it"
+        subtitle="Every change to customer hours, in order (provisional entries: hours drawn day by day while a job runs); balances are always derived from it"
       />
       <Stack spacing={2}>
         {(purchaseId !== undefined || jobId !== undefined) && (

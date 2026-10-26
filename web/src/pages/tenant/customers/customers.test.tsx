@@ -205,4 +205,19 @@ describe('customer details page', () => {
     expect(screen.getByRole('button', { name: 'Deactivate' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'New contract' })).toBeInTheDocument();
   });
+
+  it('offers the Hours statement tab to hours readers while customer hours are on', async () => {
+    const hours = [...READ, 'tenant.hours.read'];
+    const { unmount } = renderWithProviders(<CustomerDetailPage />, { tenantPermissions: hours });
+    expect(await screen.findByRole('tab', { name: 'Hours statement' })).toBeInTheDocument();
+    // Finance tabs stay with finance readers.
+    expect(screen.queryByRole('tab', { name: 'Balance' })).not.toBeInTheDocument();
+    unmount();
+    renderWithProviders(<CustomerDetailPage />, {
+      tenantPermissions: hours,
+      disabledCapabilities: ['CUSTOMER_HOURS'],
+    });
+    expect(await screen.findByRole('heading', { name: 'C-01 · Acme Roads' })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Hours statement' })).not.toBeInTheDocument();
+  });
 });

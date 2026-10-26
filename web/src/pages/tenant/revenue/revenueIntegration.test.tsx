@@ -155,6 +155,58 @@ describe('Daily machine sheet', () => {
   });
 });
 
+describe('Daily machine sheet: engine running without work and fuel per engine hour (DEC-031 S1/S2)', () => {
+  it('shows litres per engine hour in the list', async () => {
+    renderWithProviders(<DailySheetPage />, { tenantPermissions: [READ] });
+    expect(await screen.findByText('12.00 L per engine h')).toBeInTheDocument();
+  });
+
+  it('links the machine-day case and shows the fuel rate on the day', async () => {
+    mocks.sheetDay.mockResolvedValue(
+      makeSheetDay({
+        flags: ['ENGINE_ON_WITHOUT_JOB'],
+        flag_records: [
+          { flag: 'ENGINE_ON_WITHOUT_JOB', record_type: 'anomaly_case', record_id: 'case-1' },
+        ],
+      }),
+    );
+    renderWithProviders(
+      <Routes>
+        <Route
+          path="/tenant/engine-hours/daily-sheet/:machineId/:day"
+          element={<DailySheetDayPage />}
+        />
+      </Routes>,
+      {
+        tenantPermissions: [READ],
+        route: `/tenant/engine-hours/daily-sheet/${MACHINE_ID}/2026-10-20`,
+      },
+    );
+    expect(await screen.findByRole('link', { name: 'Engine on without a job' })).toHaveAttribute(
+      'href',
+      '/tenant/cases/case-1',
+    );
+    expect(screen.getByText('12.00 L per engine h')).toBeInTheDocument();
+  });
+
+  it('shows no rate without engine hours', async () => {
+    mocks.sheetDay.mockResolvedValue(makeSheetDay({ fuel_litres_per_engine_hour: null }));
+    renderWithProviders(
+      <Routes>
+        <Route
+          path="/tenant/engine-hours/daily-sheet/:machineId/:day"
+          element={<DailySheetDayPage />}
+        />
+      </Routes>,
+      {
+        tenantPermissions: [READ],
+        route: `/tenant/engine-hours/daily-sheet/${MACHINE_ID}/2026-10-20`,
+      },
+    );
+    expect(await screen.findByText('— (no engine hours)')).toBeInTheDocument();
+  });
+});
+
 const ACTIVITY: ActivityDto = {
   id: ACTIVITY_ID,
   job_id: JOB_ID,

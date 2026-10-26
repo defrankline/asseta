@@ -69,6 +69,14 @@ const HoursReasonsPage = page(
   () => import('../pages/tenant/hours/HoursReasonsPage'),
   'HoursReasonsPage',
 );
+const LowBalanceAlertsPage = page(
+  () => import('../pages/tenant/hours/LowBalanceAlertsPage'),
+  'LowBalanceAlertsPage',
+);
+const LowBalanceAlertDetailPage = page(
+  () => import('../pages/tenant/hours/LowBalanceAlertsPage'),
+  'LowBalanceAlertDetailPage',
+);
 const FieldHoursPage = page(() => import('../pages/tenant/hours/FieldHoursPage'), 'FieldHoursPage');
 
 type Guard = (permission: string, page: ReactNode) => ReactNode;
@@ -95,6 +103,8 @@ export function hoursRouteElements(guard: Guard): ReactNode[] {
     [HOURS_ROUTES.creditDetail, read, <CreditArrangementDetailPage key="crd" />],
     [HOURS_ROUTES.walkIns, read, <WalkInCustomersPage key="w" />],
     [HOURS_ROUTES.reasons, read, <HoursReasonsPage key="r" />],
+    [HOURS_ROUTES.lowBalanceAlerts, read, <LowBalanceAlertsPage key="lb" />],
+    [HOURS_ROUTES.lowBalanceAlertDetail, read, <LowBalanceAlertDetailPage key="lbd" />],
     [HOURS_ROUTES.field, PERMISSIONS.tenantHoursPurchase, <FieldHoursPage key="f" />],
   ];
   return routes.map(([path, permission, element]) => (

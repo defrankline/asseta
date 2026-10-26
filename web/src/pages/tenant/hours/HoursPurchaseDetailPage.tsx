@@ -14,7 +14,12 @@ import { EntityDetailsLayout } from '../../../components/lifecycle/EntityDetails
 import type { RowAction } from '../../../components/lifecycle/rowActions';
 import { useAsyncResource } from '../../../hooks/useAsyncResource';
 import { useDisplayTimeZone } from '../../../hooks/useDisplayTimeZone';
-import { HOURS_ROUTES, hoursLedgerPath } from '../../../navigation/hoursRoutes';
+import {
+  HOURS_ROUTES,
+  hoursLedgerPath,
+  lowBalanceAlertsPath,
+} from '../../../navigation/hoursRoutes';
+import { customerDetailPath } from '../../../navigation/routes';
 import { useNotify } from '../../../notifications/useNotify';
 import { isZeroDecimal } from '../../../utils/money';
 import { formatInstantIn } from '../../../utils/time';
@@ -22,7 +27,12 @@ import { shortId } from '../shared/financeDisplay';
 import { PersonName } from '../shared/PersonName';
 import { machineText, nameOr } from '../shared/names';
 import { HoursOffNotice, ReasonDialog } from './HoursDialogs';
-import { hoursText, PURCHASE_STATUS_LABELS, PURCHASE_STATUS_TONES } from './hoursDisplay';
+import {
+  hoursText,
+  PROVISIONAL_LABEL,
+  PURCHASE_STATUS_LABELS,
+  PURCHASE_STATUS_TONES,
+} from './hoursDisplay';
 import { PaymentEvidenceDialog } from './PaymentEvidenceDialog';
 import {
   ActivateOnCreditDialog,
@@ -259,6 +269,7 @@ export function HoursPurchaseDetailPage() {
                   { label: 'On credit', value: hoursText(d.totals.activated_on_credit) },
                   { label: 'Awaiting activation', value: hoursText(d.totals.awaiting_activation) },
                   { label: 'Used on jobs', value: hoursText(d.totals.consumed) },
+                  { label: PROVISIONAL_LABEL, value: hoursText(d.totals.provisional) },
                   { label: 'Transferred', value: hoursText(d.totals.transferred) },
                   { label: 'Expired', value: hoursText(d.totals.expired) },
                   { label: 'Reversed', value: hoursText(d.totals.reversed) },
@@ -300,6 +311,12 @@ export function HoursPurchaseDetailPage() {
                     render: (m) => hoursText(m.consumed),
                   },
                   {
+                    id: 'prov',
+                    header: PROVISIONAL_LABEL,
+                    align: 'right',
+                    render: (m) => hoursText(m.provisional),
+                  },
+                  {
                     id: 'rem',
                     header: 'Remaining',
                     align: 'right',
@@ -307,14 +324,25 @@ export function HoursPurchaseDetailPage() {
                   },
                 ]}
               />
-              <Button
-                component={RouterLink}
-                to={hoursLedgerPath({ purchase_id: d.id })}
-                variant="outlined"
-                sx={{ alignSelf: 'flex-start' }}
-              >
-                Open the hours ledger
-              </Button>
+              <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>
+                <Button
+                  component={RouterLink}
+                  to={hoursLedgerPath({ purchase_id: d.id })}
+                  variant="outlined"
+                >
+                  Open the hours ledger
+                </Button>
+                <Button
+                  component={RouterLink}
+                  to={lowBalanceAlertsPath({ purchase_id: d.id })}
+                  variant="outlined"
+                >
+                  Low-balance warnings
+                </Button>
+                <Button component={RouterLink} to={customerDetailPath(d.customer_id)}>
+                  Customer hours statement
+                </Button>
+              </Stack>
             </Section>
             <Section title="Payments">
               <KeyValueGrid

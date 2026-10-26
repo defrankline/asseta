@@ -185,6 +185,7 @@ export const ledgerEntrySchema: Schema<LedgerEntryDto> = object({
   expires_at: nullableText(),
   policy_version: nullableText(),
   reason: nullableText(),
+  usage_day: string().nullable().default(null),
 });
 
 export const allocationLineSchema: Schema<AllocationLineDto> = object({

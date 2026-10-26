@@ -121,8 +121,12 @@ const EXPLAIN: Readonly<Record<ExceptionType, Explainer>> = {
         `the reading was taken at ${g('captured_at')}.`
       : `The offline policy the device applied was not issued to device ${g('device_id')}.`,
   HOURS_OVERRUN: (g) =>
-    `${g('excess_hours')} of ${g('billable_hours')} billable hours were not covered by the customer's activated ` +
-    `hours on this machine; new activated hours cover them, or a reviewer records the outcome.`,
+    g('drawdown') === 'DAILY'
+      ? `On ${g('day')} the job had used ${g('billable_hours_to_date')} billable hours to date; ` +
+        `${g('excess_hours')} of them were not covered by the customer's activated hours on this machine ` +
+        `(drawn day by day). New activated hours cover them, or the final allocation at completion replaces this.`
+      : `${g('excess_hours')} of ${g('billable_hours')} billable hours were not covered by the customer's activated ` +
+        `hours on this machine; new activated hours cover them, or a reviewer records the outcome.`,
   MISSING_DAILY_REPORT: (g) =>
     `The machine worked on ${g('day')} but no meter reading was recorded before ${g('cutoff_hour')}:00 ` +
     `(basis: ${g('basis')}).`,

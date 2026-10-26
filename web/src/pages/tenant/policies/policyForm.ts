@@ -21,6 +21,8 @@ export interface PolicyFormValues {
   site_id: string;
   /** STAFF scope: the staff member whose own value this is (e.g. a custodian's cash allowance). */
   staff_id: string;
+  /** MACHINE_CATEGORY scope: the machine category whose value this is (e.g. its fuel norm). */
+  category_id: string;
   /** UTC ISO instant or '' for "now". */
   effective_from: string;
   reason: string;
@@ -34,6 +36,7 @@ export function initialPolicyValues(
   machine: MachineDto | null,
   siteId: string,
   staffId = '',
+  categoryId = '',
 ): PolicyFormValues {
   const overrides: Record<string, FieldOverride> = {};
   for (const def of POLICY_FIELDS[policyType]) {
@@ -45,6 +48,7 @@ export function initialPolicyValues(
     machine,
     site_id: siteId,
     staff_id: staffId,
+    category_id: categoryId,
     effective_from: '',
     reason: '',
     overrides,
@@ -64,7 +68,9 @@ export const policyFormSchema = object({
   policy_type: mixed<PolicyType>()
     .oneOf(Object.keys(POLICY_FIELDS) as PolicyType[])
     .required(),
-  scope: mixed<OverrideScope>().oneOf(['TENANT', 'MACHINE', 'SITE', 'STAFF']).required(),
+  scope: mixed<OverrideScope>()
+    .oneOf(['TENANT', 'MACHINE_CATEGORY', 'MACHINE', 'SITE', 'STAFF'])
+    .required(),
   machine: mixed<MachineDto>()
     .nullable()
     .defined()
@@ -81,6 +87,11 @@ export const policyFormSchema = object({
     .default('')
     .test('staff', 'Select a staff member', function (value) {
       return (this.parent as { scope: OverrideScope }).scope !== 'STAFF' || value !== '';
+    }),
+  category_id: string()
+    .default('')
+    .test('category', 'Select a machine category', function (value) {
+      return (this.parent as { scope: OverrideScope }).scope !== 'MACHINE_CATEGORY' || value !== '';
     }),
   effective_from: string().default(''),
   reason: string()
@@ -122,7 +133,9 @@ export function toPolicyPayload(v: PolicyFormValues): PolicyVersionIn {
         ? v.site_id
         : v.scope === 'STAFF'
           ? v.staff_id
-          : null;
+          : v.scope === 'MACHINE_CATEGORY'
+            ? v.category_id
+            : null;
   return {
     scope: v.scope,
     scope_ref_id: scopeRef,

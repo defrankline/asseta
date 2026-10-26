@@ -85,6 +85,7 @@ export const POLICY_SCOPES: readonly PolicyScope[] = [
   'MACHINE',
   'SITE',
   'STAFF',
+  'MACHINE_CATEGORY',
 ];
 // A Record so a policy type added to the API fails typecheck here instead of failing validation at runtime.
 const POLICY_TYPE_SET: Readonly<Record<PolicyType, true>> = {

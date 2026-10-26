@@ -1,5 +1,14 @@
-import { Box, Paper, Stack, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
+import {
+  Box,
+  Button,
+  Paper,
+  Stack,
+  ToggleButton,
+  ToggleButtonGroup,
+  Typography,
+} from '@mui/material';
 import { useCallback, useState } from 'react';
+import { Link as RouterLink } from 'react-router';
 import type { HoursBalanceDto } from '../../../api/hoursTypes';
 import { hoursService } from '../../../api/services/hoursService';
 import type { CustomerDto, MachineDto } from '../../../api/types';
@@ -10,9 +19,11 @@ import { AsyncContent } from '../../../components/feedback/AsyncContent';
 import { EmptyState } from '../../../components/feedback/EmptyState';
 import { PageHeader } from '../../../components/feedback/PageHeader';
 import { useAsyncResource } from '../../../hooks/useAsyncResource';
+import { lowBalanceAlertsPath } from '../../../navigation/hoursRoutes';
+import { customerDetailPath } from '../../../navigation/routes';
 import { CustomerFilter, MachineFilter } from '../shared/financePickers';
 import { machineText, nameOr } from '../shared/names';
-import { hoursText } from './hoursDisplay';
+import { hoursText, PROVISIONAL_LABEL } from './hoursDisplay';
 
 type View = 'customer' | 'machine';
 
@@ -55,6 +66,12 @@ function BalanceTable({ rows, by }: { rows: HoursBalanceDto[]; by: View }) {
           render: (b) => hoursText(b.transferred_out),
         },
         { id: 'used', header: 'Used', align: 'right', render: (b) => hoursText(b.consumed) },
+        {
+          id: 'prov',
+          header: PROVISIONAL_LABEL,
+          align: 'right',
+          render: (b) => hoursText(b.provisional),
+        },
         { id: 'exp', header: 'Expired', align: 'right', render: (b) => hoursText(b.expired) },
         { id: 'rev', header: 'Reversed', align: 'right', render: (b) => hoursText(b.reversed) },
         {
@@ -121,6 +138,18 @@ function CustomerBalances({ customer }: { customer: CustomerDto }) {
           ) : (
             <BalanceTable rows={d.balances} by="customer" />
           )}
+          <Box className="flex flex-wrap gap-2">
+            <Button component={RouterLink} to={customerDetailPath(customer.id)} size="small">
+              Hours statement (customer page)
+            </Button>
+            <Button
+              component={RouterLink}
+              to={lowBalanceAlertsPath({ customer_id: customer.id })}
+              size="small"
+            >
+              Low-balance warnings
+            </Button>
+          </Box>
         </Stack>
       )}
     </AsyncContent>

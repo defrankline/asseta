@@ -168,6 +168,7 @@ export function makeSheetRow(over: Partial<DailyMachineSheetRowDto> = {}): Daily
     unexplained_hours: '1.00',
     pending_review_hours: '0.00',
     fuel_litres: '120.0',
+    fuel_litres_per_engine_hour: '12.00',
     jobs: [
       {
         job_id: JOB_ID,

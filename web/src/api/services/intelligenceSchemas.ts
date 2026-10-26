@@ -19,25 +19,34 @@ import { id, int, nullableId, nullableOneOf, nullableText, oneOf, record, text }
 
 // ---- Risk signals and investigation cases (ADR-007) ----
 
-export const RULE_CODES: readonly RuleCode[] = [
-  'UNREPORTED_ENGINE_ACTIVITY',
-  'DUPLICATE_RECEIPT',
-  'FUEL_ALLOWANCE_EXCEEDED',
-  'EXPENSE_THRESHOLD_EXCEEDED',
-  'CASH_NOT_HANDED_OVER',
-  'WORK_WITHOUT_AUTHORIZATION',
-];
+// Records so a rule code / case source added to the API fails typecheck here instead of failing
+// validation at runtime (a signal or case of a new rule would otherwise not load).
+const RULE_CODE_SET: Readonly<Record<RuleCode, true>> = {
+  UNREPORTED_ENGINE_ACTIVITY: true,
+  DUPLICATE_RECEIPT: true,
+  FUEL_ALLOWANCE_EXCEEDED: true,
+  EXPENSE_THRESHOLD_EXCEEDED: true,
+  CASH_NOT_HANDED_OVER: true,
+  WORK_WITHOUT_AUTHORIZATION: true,
+  UNEXPLAINED_ENGINE_HOURS: true,
+  ENGINE_RUNNING_WITHOUT_WORK: true,
+  MACHINE_FUEL_ABOVE_NORM: true,
+};
+export const RULE_CODES = Object.keys(RULE_CODE_SET) as readonly RuleCode[];
 export const SIGNAL_SEVERITIES: readonly SignalSeverity[] = ['INFO', 'WARNING', 'CRITICAL'];
 export const SIGNAL_STATUSES: readonly SignalStatus[] = ['OPEN', 'LINKED', 'DISMISSED'];
 export const SUBJECT_TYPES: readonly SubjectType[] = ['MACHINE', 'JOB', 'STAFF', 'EXPENSE', 'USER'];
 export const CASE_STATUSES: readonly CaseStatus[] = ['OPEN', 'IN_REVIEW', 'RESOLVED'];
-export const CASE_SOURCE_TYPES: readonly CaseSourceType[] = [
-  'RISK_SIGNAL',
-  'METER_EXCEPTION',
-  'TRACKING_ALERT',
-  'SOD_EVENT',
-  'PREDICTION',
-];
+const CASE_SOURCE_TYPE_SET: Readonly<Record<CaseSourceType, true>> = {
+  RISK_SIGNAL: true,
+  METER_EXCEPTION: true,
+  TRACKING_ALERT: true,
+  SOD_EVENT: true,
+  PREDICTION: true,
+  CASH_VARIANCE: true,
+  REVENUE_DIFFERENCE: true,
+};
+export const CASE_SOURCE_TYPES = Object.keys(CASE_SOURCE_TYPE_SET) as readonly CaseSourceType[];
 export const CASE_NOTE_KINDS: readonly CaseNoteKind[] = ['NOTE', 'REOPEN'];
 export const CASE_OUTCOMES: readonly CaseOutcomeKind[] = [
   'CONFIRMED_ISSUE',

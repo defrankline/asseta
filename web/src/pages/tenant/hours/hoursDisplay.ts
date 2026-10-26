@@ -1,6 +1,8 @@
 /** Plain-English labels, tones, filter options and error hints for customer hours screens. */
 import type {
   BillingMode,
+  HoursStatementUsageDto,
+  LowBalanceSmsStatus,
   HoursPurchaseDto,
   ReasonCodeDto,
   HoursPurchaseStatus,
@@ -51,7 +53,7 @@ export const LEDGER_TYPE_LABELS: Readonly<Record<LedgerEntryType, string>> = {
   TRANSFER_IN: 'Transferred in',
   EXPIRED: 'Expired',
   REVERSAL: 'Reversed',
-  PROVISIONAL: 'Used today (provisional)',
+  PROVISIONAL: 'Used that day (provisional)',
   PROVISIONAL_REVERSED: 'Provisional use given back',
 };
 export const LEDGER_TYPE_OPTIONS: readonly Option<LedgerEntryType>[] = LEDGER_ENTRY_TYPES.map(
@@ -161,3 +163,28 @@ export const purchaseLabel = (p: HoursPurchaseDto): string =>
   `${p.purchase_number} · ${p.hours} h · ${PURCHASE_STATUS_LABELS[p.status]}`;
 export const paymentLabel = (p: CustomerPaymentDto): string =>
   `${formatMoney(p.amount, p.currency)} · ${p.reference ?? p.method} · ${SETTLEMENT_LABELS[p.status]}`;
+
+/** Daily drawdown (DEC-031 P1): hours held by running jobs until the final allocation at completion. */
+export const PROVISIONAL_LABEL = 'In use by running jobs';
+
+/** Low-balance warnings (DEC-031 P2): `armed` = the balance is still at or below the threshold. */
+export const LOW_BALANCE_STATE_OPTIONS: readonly Option[] = [
+  { value: 'true', label: 'Still low' },
+  { value: 'false', label: 'Topped up since' },
+];
+export const LOW_BALANCE_SMS_LABELS: Readonly<Record<LowBalanceSmsStatus, string>> = {
+  NOT_REQUESTED: 'Not sent (customer SMS is off)',
+  PENDING: 'Waiting to send',
+  QUEUED: 'Sent to the SMS channel',
+  NO_PHONE: 'Not sent: the customer has no phone number',
+};
+
+/** Customer hours statement (DEC-031 P3). */
+export const USAGE_BASIS_LABELS: Readonly<Record<HoursStatementUsageDto['basis'], string>> = {
+  DAILY: 'Drawn that day',
+  FINAL: 'Final allocation',
+};
+export const STATEMENT_ERROR_HINTS: Readonly<Record<string, string>> = {
+  INVALID_PERIOD: 'Choose a valid period: the start must not be after the end.',
+  PERIOD_TOO_LONG: 'Choose a period of at most 366 days.',
+};

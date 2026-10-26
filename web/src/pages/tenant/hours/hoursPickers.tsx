@@ -6,7 +6,7 @@ import type { HoursPurchaseDto, ReasonCodeDto, ReasonKind } from '../../../api/h
 import { customerPaymentService } from '../../../api/services/financeService';
 import { hoursReasonService, hoursService } from '../../../api/services/hoursService';
 import type { CustomerPaymentDto } from '../../../api/types';
-import { LOOKUP_PAGE_SIZE } from '../../../components/data/AsyncAutocomplete';
+import { AsyncAutocomplete, LOOKUP_PAGE_SIZE } from '../../../components/data/AsyncAutocomplete';
 import { FormikAsyncIdAutocomplete } from '../../../components/forms/FormikAsyncIdAutocomplete';
 import { optionId } from '../shared/lookups';
 import { paymentLabel, purchaseLabel, reasonCodeLabel } from './hoursDisplay';
@@ -82,6 +82,30 @@ export function FormikCustomerPaymentPicker({
       getOptionId={optionId}
       getOptionLabel={paymentLabel}
       noOptionsText="No payment of this customer matches"
+    />
+  );
+}
+
+/** List filter: one hours purchase (purchase-number search). */
+export function PurchaseFilter({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: HoursPurchaseDto | null;
+  onChange: (value: HoursPurchaseDto | null) => void;
+}) {
+  return (
+    <AsyncAutocomplete<HoursPurchaseDto>
+      label={label}
+      size="small"
+      placeholder="All purchases"
+      value={value}
+      onChange={onChange}
+      fetchOptions={async (q, signal) => (await hoursService.listPurchases(one(q), signal)).items}
+      getOptionLabel={purchaseLabel}
+      isOptionEqualToValue={(a, b) => a.id === b.id}
     />
   );
 }

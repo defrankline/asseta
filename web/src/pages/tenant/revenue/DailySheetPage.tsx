@@ -112,7 +112,21 @@ const columns: DataColumn<DailyMachineSheetRowDto>[] = [
     ),
   },
   { id: 'jobs', header: 'Jobs', render: (r) => <JobLinks jobs={r.jobs} /> },
-  { id: 'fuel', header: 'Fuel L', align: 'right', render: (r) => hours(r.fuel_litres) },
+  {
+    id: 'fuel',
+    header: 'Fuel L',
+    align: 'right',
+    render: (r) => (
+      <HoursWithNote
+        value={r.fuel_litres}
+        note={
+          r.fuel_litres_per_engine_hour == null
+            ? null
+            : `${r.fuel_litres_per_engine_hour} L per engine h`
+        }
+      />
+    ),
+  },
   { id: 'money', header: 'Money', render: (r) => <MoneyLines money={r.money} /> },
   {
     id: 'flags',

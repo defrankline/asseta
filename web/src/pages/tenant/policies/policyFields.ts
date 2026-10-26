@@ -228,13 +228,19 @@ export const POLICY_TYPE_LABELS: Readonly<Record<PolicyType, string>> = {
   REVENUE_RECONCILIATION: 'Revenue checks',
 };
 
-export type OverrideScope = 'TENANT' | 'MACHINE' | 'SITE' | 'STAFF';
+export type OverrideScope = 'TENANT' | 'MACHINE_CATEGORY' | 'MACHINE' | 'SITE' | 'STAFF';
 
 type LowerScope = Exclude<OverrideScope, 'TENANT'>;
 
-/** MACHINE and SITE are listed for every overridable type; STAFF only where the backend allows it. */
+/**
+ * MACHINE and SITE are listed for every overridable type; STAFF and MACHINE_CATEGORY only where the
+ * backend allows them.
+ */
 type LowerScopeFields = Readonly<
-  Record<'MACHINE' | 'SITE', ReadonlySet<string>> & { STAFF?: ReadonlySet<string> }
+  Record<'MACHINE' | 'SITE', ReadonlySet<string>> & {
+    STAFF?: ReadonlySet<string>;
+    MACHINE_CATEGORY?: ReadonlySet<string>;
+  }
 >;
 
 /** Fields a lower scope may override (mirrors the backend OVERRIDABLE table; tenant = all). */
@@ -286,6 +292,8 @@ const SCOPE_FIELDS: Readonly<Record<PolicyType, LowerScopeFields | null>> = {
       'fuel_litres_per_hour_max',
     ]),
     SITE: new Set<string>(),
+    // The fuel norm per engine hour varies by machine category (DEC-031 S2).
+    MACHINE_CATEGORY: new Set(['fuel_litres_per_hour_max']),
   },
   ENGINE_HOURS: {
     MACHINE: new Set(['baseline_required_before_start', 'daily_report_required']),
@@ -297,7 +305,7 @@ const SCOPE_FIELDS: Readonly<Record<PolicyType, LowerScopeFields | null>> = {
 export function scopesFor(ptype: PolicyType): readonly OverrideScope[] {
   const lower = SCOPE_FIELDS[ptype];
   if (lower === null) return ['TENANT'];
-  const scopes: LowerScope[] = ['MACHINE', 'SITE', 'STAFF'];
+  const scopes: LowerScope[] = ['MACHINE_CATEGORY', 'MACHINE', 'SITE', 'STAFF'];
   return ['TENANT', ...scopes.filter((scope) => (lower[scope]?.size ?? 0) > 0)];
 }
 

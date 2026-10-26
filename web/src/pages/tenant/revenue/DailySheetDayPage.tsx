@@ -150,6 +150,13 @@ function Sections({ d, timeZone }: { d: DailyMachineSheetDetailDto; timeZone: st
                   : `${d.first_reading ?? '—'} → ${d.last_reading ?? '—'} (${String(d.reading_count)})`,
             },
             { label: 'Fuel into the machine', value: `${d.fuel_litres} L` },
+            {
+              label: 'Fuel per engine hour',
+              value:
+                d.fuel_litres_per_engine_hour == null
+                  ? '— (no engine hours)'
+                  : `${d.fuel_litres_per_engine_hour} L per engine h`,
+            },
           ]}
         />
       </DetailSection>

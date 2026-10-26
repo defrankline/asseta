@@ -3,6 +3,7 @@ import { getIn, type FormikProps } from 'formik';
 import { useCallback, useState } from 'react';
 import { policyService } from '../../../api/services/policyService';
 import type {
+  CategoryDto,
   JobSiteDto,
   MachineDto,
   PolicyType,
@@ -17,8 +18,8 @@ import { useIdempotencyKey } from '../../../hooks/useIdempotencyKey';
 import { formatInstantIn } from '../../../utils/time';
 import { machineLabel } from '../shared/display';
 import { FormikStaffIdPicker } from '../shared/financePickers';
-import { FormikJobSitePicker } from '../shared/lookupPickers';
-import { jobSiteLabel } from '../shared/lookups';
+import { FormikCategoryPicker, FormikJobSitePicker } from '../shared/lookupPickers';
+import { categoryLabel, jobSiteLabel } from '../shared/lookups';
 import { MachinePicker } from '../shared/MachinePicker';
 import { OverrideFieldInput } from './OverrideFieldInput';
 import { withPolicyErrorCode } from './policyErrors';
@@ -45,6 +46,8 @@ interface PolicyOverrideDialogProps {
   initialSiteId: string;
   /** STAFF scope: the staff member chosen on the page ('' = none). */
   initialStaffId?: string;
+  /** MACHINE_CATEGORY scope: the category chosen on the page ('' = none). */
+  initialCategoryId?: string;
   /** Current effective values, used to prefill inputs. */
   current: Record<string, unknown> | null;
   sites: readonly JobSiteDto[] | null;
@@ -53,9 +56,16 @@ interface PolicyOverrideDialogProps {
   onCreated: (version: PolicyVersionDto) => void;
 }
 
-const SCOPE_ORDER: readonly OverrideScope[] = ['TENANT', 'MACHINE', 'SITE', 'STAFF'];
+const SCOPE_ORDER: readonly OverrideScope[] = [
+  'TENANT',
+  'MACHINE_CATEGORY',
+  'MACHINE',
+  'SITE',
+  'STAFF',
+];
 const SCOPE_LABELS: Readonly<Record<OverrideScope, string>> = {
   TENANT: 'Tenant default (all fields)',
+  MACHINE_CATEGORY: 'Machine category override',
   MACHINE: 'Machine override',
   SITE: 'Site override',
   STAFF: 'Staff member override',
@@ -63,6 +73,7 @@ const SCOPE_LABELS: Readonly<Record<OverrideScope, string>> = {
 
 const SCOPE_NOUNS: Readonly<Record<OverrideScope, string>> = {
   TENANT: 'tenant',
+  MACHINE_CATEGORY: 'machine category',
   MACHINE: 'machine',
   SITE: 'site',
   STAFF: 'staff member',
@@ -74,12 +85,14 @@ function ScopeStep({
   timeZone,
   onSiteChange,
   onStaffChange,
+  onCategoryChange,
 }: {
   formik: FormikProps<PolicyFormValues>;
   sites: readonly JobSiteDto[] | null;
   timeZone: string;
   onSiteChange: (site: JobSiteDto | null) => void;
   onStaffChange: (staff: StaffDto | null) => void;
+  onCategoryChange: (category: CategoryDto | null) => void;
 }) {
   const { values, setFieldValue, touched, errors } = formik;
   /** The page already holds the job sites (for labels): resolve a preselected id from them. */
@@ -115,6 +128,15 @@ function ScopeStep({
           ) : null,
         )}
       </TextField>
+      {values.scope === 'MACHINE_CATEGORY' && (
+        <FormikCategoryPicker
+          name="category_id"
+          label="Machine category"
+          required
+          onOptionChange={onCategoryChange}
+          helperText="Machines of this category use this value unless a machine has its own."
+        />
+      )}
       {values.scope === 'MACHINE' && (
         <MachinePicker
           value={values.machine}
@@ -189,15 +211,17 @@ export function PolicyOverrideDialog(props: PolicyOverrideDialogProps) {
       props.initialMachine,
       props.initialSiteId,
       props.initialStaffId ?? '',
+      props.initialCategoryId ?? '',
     ),
   );
   const [site, setSite] = useState<JobSiteDto | null>(null);
   const [staff, setStaff] = useState<StaffDto | null>(null);
+  const [category, setCategory] = useState<CategoryDto | null>(null);
 
   const steps: FormStep<PolicyFormValues>[] = [
     {
       label: 'Scope',
-      fields: ['scope', 'machine', 'site_id', 'staff_id', 'reason'],
+      fields: ['scope', 'machine', 'site_id', 'staff_id', 'category_id', 'reason'],
       render: (formik) => (
         <ScopeStep
           formik={formik}
@@ -205,6 +229,7 @@ export function PolicyOverrideDialog(props: PolicyOverrideDialogProps) {
           timeZone={timeZone}
           onSiteChange={setSite}
           onStaffChange={setStaff}
+          onCategoryChange={setCategory}
         />
       ),
     },
@@ -233,7 +258,11 @@ export function PolicyOverrideDialog(props: PolicyOverrideDialogProps) {
                 ? staff?.id === v.staff_id
                   ? staff.full_name
                   : v.staff_id
-                : 'Whole tenant';
+                : v.scope === 'MACHINE_CATEGORY'
+                  ? category?.id === v.category_id
+                    ? categoryLabel(category)
+                    : v.category_id
+                  : 'Whole tenant';
         return (
           <>
             <KeyValueGrid

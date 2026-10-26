@@ -15,6 +15,9 @@ export const HOURS_ROUTES = {
   creditDetail: '/tenant/hours/credit/:id',
   walkIns: '/tenant/hours/walk-ins',
   reasons: '/tenant/hours/reasons',
+  /** No menu entry (none in the backend catalog): reached from purchases, customers and balances. */
+  lowBalanceAlerts: '/tenant/hours/low-balance-alerts',
+  lowBalanceAlertDetail: '/tenant/hours/low-balance-alerts/:id',
   field: '/tenant/field/hours',
 } as const;
 
@@ -41,4 +44,14 @@ export function hoursPurchasePath(purchaseId: string): string {
 export function hoursLedgerPath(filters: Readonly<Record<string, string>>): string {
   const qs = new URLSearchParams(filters).toString();
   return qs === '' ? HOURS_ROUTES.ledger : `${HOURS_ROUTES.ledger}?${qs}`;
+}
+
+/** Low-balance warnings pre-filtered (e.g. one purchase or customer). */
+export function lowBalanceAlertsPath(filters: Readonly<Record<string, string>> = {}): string {
+  const qs = new URLSearchParams(filters).toString();
+  return qs === '' ? HOURS_ROUTES.lowBalanceAlerts : `${HOURS_ROUTES.lowBalanceAlerts}?${qs}`;
+}
+
+export function lowBalanceAlertPath(alertId: string): string {
+  return `${HOURS_ROUTES.lowBalanceAlerts}/${encodeURIComponent(alertId)}`;
 }

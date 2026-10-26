@@ -12,6 +12,8 @@ export const RECORD_LIST_ROUTES = {
   CUSTODY_ADJUSTMENT: `${CASH_BASE}/adjustments`,
   CASH_REMITTANCE: `${CASH_BASE}/remittances`,
   REMITTANCE_OVERDUE: `${CASH_BASE}/remittance-overdue`,
+  /** HOURS_LOW_BALANCE / HOURS_EXPIRING / HOURS_EXPIRED notifications open the purchase. */
+  HOURS_PURCHASE: '/tenant/hours/purchases',
   HOURS_DISCOUNT: '/tenant/hours/discounts',
   HOURS_CREDIT: '/tenant/hours/credit',
   HOURS_TRANSFER: '/tenant/hours/transfers',
@@ -46,6 +48,7 @@ export const RECORD_KIND_BY_ENTITY: Readonly<Record<string, RecordKind>> = {
   custody_adjustment: 'CUSTODY_ADJUSTMENT',
   cash_handover: 'CASH_REMITTANCE',
   cash_remittance_overdue: 'REMITTANCE_OVERDUE',
+  hours_purchase: 'HOURS_PURCHASE',
   customer_discount: 'HOURS_DISCOUNT',
   credit_arrangement: 'HOURS_CREDIT',
   hours_transfer: 'HOURS_TRANSFER',
@@ -59,6 +62,7 @@ export const RECORD_KIND_BY_ENTITY: Readonly<Record<string, RecordKind>> = {
 
 /** Hours records belong to the customer hours capability. */
 export const HOURS_RECORD_KINDS: ReadonlySet<RecordKind> = new Set([
+  'HOURS_PURCHASE',
   'HOURS_DISCOUNT',
   'HOURS_CREDIT',
   'HOURS_TRANSFER',

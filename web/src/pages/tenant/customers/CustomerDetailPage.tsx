@@ -1,6 +1,7 @@
 import { Box, Paper, Tab, Tabs } from '@mui/material';
 import { useCallback, useState, type ReactNode } from 'react';
 import { useParams } from 'react-router';
+import { CAPABILITY, useCapabilityEnabled } from '../../../access/capabilities';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import { customerService } from '../../../api/services/customerService';
 import { AsyncContent } from '../../../components/feedback/AsyncContent';
@@ -15,19 +16,26 @@ import { useDisplayTimeZone } from '../../../hooks/useDisplayTimeZone';
 import { ROUTES } from '../../../navigation/routes';
 import { useSession } from '../../../session/useSession';
 import { formatInstantIn } from '../../../utils/time';
+import { HoursStatementPanel } from '../hours/HoursStatementPanel';
 import { CustomerBalanceTab, CustomerStatementTab } from './CustomerFinanceTabs';
 import { ContractsPanel } from './ContractsPanel';
 import { CustomerFields } from './CustomerViews';
 import { customerLabel, useCustomerActions } from './useCustomerActions';
 
-type TabKey = 'contracts' | 'balance' | 'statement';
+type TabKey = 'contracts' | 'balance' | 'statement' | 'hours';
 
-/** Contracts, and with `tenant.finance.read` the receivable Balance and Statement (per currency). */
+/**
+ * Contracts; with `tenant.finance.read` the receivable Balance and Statement (per currency); with
+ * `tenant.hours.read` (customer hours on) the prepaid Hours statement.
+ */
 function CustomerTabs({ customerId, children }: { customerId: string; children: ReactNode }) {
   const { hasPermission } = useSession();
   const timeZone = useDisplayTimeZone();
+  const hoursOn = useCapabilityEnabled(CAPABILITY.customerHours);
   const [tab, setTab] = useState<TabKey>('contracts');
-  if (!hasPermission(PERMISSIONS.tenantFinanceRead)) return <>{children}</>;
+  const finance = hasPermission(PERMISSIONS.tenantFinanceRead);
+  const hours = hoursOn && hasPermission(PERMISSIONS.tenantHoursRead);
+  if (!finance && !hours) return <>{children}</>;
   return (
     <Paper variant="outlined">
       <Tabs
@@ -38,8 +46,9 @@ function CustomerTabs({ customerId, children }: { customerId: string; children: 
         }}
       >
         <Tab value="contracts" label="Contracts" />
-        <Tab value="balance" label="Balance" />
-        <Tab value="statement" label="Statement" />
+        {finance && <Tab value="balance" label="Balance" />}
+        {finance && <Tab value="statement" label="Statement" />}
+        {hours && <Tab value="hours" label="Hours statement" />}
       </Tabs>
       <Box className="p-3">
         {tab === 'contracts' && children}
@@ -47,6 +56,7 @@ function CustomerTabs({ customerId, children }: { customerId: string; children: 
         {tab === 'statement' && (
           <CustomerStatementTab customerId={customerId} timeZone={timeZone} />
         )}
+        {tab === 'hours' && <HoursStatementPanel customerId={customerId} timeZone={timeZone} />}
       </Box>
     </Paper>
   );

@@ -1,15 +1,20 @@
 import type { SheetFlagRefDto } from '../../../api/types';
 import { recordPath } from '../../../navigation/recordRoutes';
-import { engineHoursMachinePath, ROUTES } from '../../../navigation/routes';
+import { caseDetailPath, engineHoursMachinePath, ROUTES } from '../../../navigation/routes';
 import { withQuery } from '../../../navigation/urlFilters';
 
-/** Where a flag's record lives (exceptions, observations, the difference itself, the ledger). */
+/**
+ * Where a flag's record lives (exceptions, observations, the machine-day investigation case, the
+ * difference itself, the ledger).
+ */
 export function flagRecordPath(ref: SheetFlagRefDto, machineId: string): string {
   switch (ref.record_type) {
     case 'revenue_difference':
       return recordPath('REVENUE_DIFFERENCE', ref.record_id);
     case 'job_exception':
       return withQuery(ROUTES.tenantExceptions, { exception_type: 'MISSING_DAILY_REPORT' });
+    case 'anomaly_case':
+      return caseDetailPath(ref.record_id);
     case 'risk_signal':
       return withQuery(ROUTES.tenantInsights, { tab: 'observations' });
     default:
