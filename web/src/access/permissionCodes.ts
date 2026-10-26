@@ -97,6 +97,12 @@ export const PERMISSIONS = {
   tenantMeterClassify: 'tenant.meter.classify',
   /** Manage engine-hour activity categories and variance reasons (tenant lists). */
   tenantMeterReasons: 'tenant.meter.reasons',
+  /** Revenue checks (DEC-031): daily machine sheet and revenue differences (read). */
+  tenantRevenueRead: 'tenant.revenue.read',
+  /** Explain a revenue difference or non-revenue time inside a job. */
+  tenantRevenueExplain: 'tenant.revenue.explain',
+  /** Decide explanations (never one's own) and manage the revenue reason list. */
+  tenantRevenueDecide: 'tenant.revenue.decide',
   /** Users & roles (Keycloak group membership): view; invite and grant/revoke roles. */
   tenantAccessRead: 'tenant.access.read',
   tenantAccessManage: 'tenant.access.manage',

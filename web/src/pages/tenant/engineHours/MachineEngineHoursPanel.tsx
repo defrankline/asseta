@@ -1,15 +1,9 @@
 import { Alert, Box, Button, Chip, Link, Paper, Stack, Tooltip, Typography } from '@mui/material';
 import { useCallback, useState } from 'react';
-import { Link as RouterLink } from 'react-router';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import { useMutationGuard } from '../../../access/useCanMutate';
 import { engineHoursService } from '../../../api/services/engineHoursService';
-import type {
-  BaselineDto,
-  IntervalDto,
-  MachineEngineHoursDto,
-  SegmentDto,
-} from '../../../api/types';
+import type { BaselineDto, IntervalDto, MachineEngineHoursDto } from '../../../api/types';
 import type { DataColumn } from '../../../components/data/ServerDataTable';
 import { StaticTable } from '../../../components/data/StaticTable';
 import { KeyValueGrid } from '../../../components/display/KeyValueGrid';
@@ -19,18 +13,14 @@ import { DateTimeField } from '../../../components/forms/DateTimeField';
 import { DetailSection } from '../../../components/lifecycle/EntityDetailsLayout';
 import { useAsyncResource } from '../../../hooks/useAsyncResource';
 import { useDisplayTimeZone } from '../../../hooks/useDisplayTimeZone';
-import { jobDetailPath } from '../../../navigation/routes';
 import { useNotify } from '../../../notifications/useNotify';
 import { formatInstantIn } from '../../../utils/time';
 import { PersonName } from '../shared/PersonName';
 import { ProposeBaselineDialog, ProposeBaselineFromReadingDialog } from './BaselineDialogs';
 import { ClassifyHoursDialog, type SegmentRef } from './ClassifyHoursDialog';
 import {
-  CLASSIFICATION_LABELS,
-  CLASSIFICATION_TONES,
   hoursText,
   isOpenItem,
-  OUTCOME_LABELS,
   PROPOSAL_STATUS_LABELS,
   PROPOSAL_STATUS_TONES,
   RECONCILIATION_LABELS,
@@ -40,70 +30,7 @@ import {
 } from './engineHoursDisplay';
 import { DecideBaselineDialog } from './DecideDialogs';
 import { DecideButton } from './MeterDecisionDialog';
-
-function SegmentChip({ segment }: { segment: SegmentDto }) {
-  if (segment.kind === 'CUSTOMER_WORK') {
-    const label = `Job ${segment.job_number ?? '—'} · ${hoursText(segment.hours)}`;
-    return segment.job_id === null ? (
-      <Chip size="small" color="success" label={label} />
-    ) : (
-      <Chip
-        size="small"
-        color="success"
-        label={label}
-        component={RouterLink}
-        to={jobDetailPath(segment.job_id)}
-        clickable
-      />
-    );
-  }
-  const pending =
-    segment.proposal !== null ? ` · ${OUTCOME_LABELS[segment.proposal.outcome]} proposed` : '';
-  return (
-    <StatusChip
-      status={segment.classification}
-      tones={CLASSIFICATION_TONES}
-      label={`${CLASSIFICATION_LABELS[segment.classification]} · ${hoursText(segment.hours)}${pending}`}
-    />
-  );
-}
-
-/** Proportional bar of an interval's segments (customer work vs unallocated), labelled for screen readers. */
-function SegmentBar({ interval }: { interval: IntervalDto }) {
-  const total = interval.segments.reduce((sum, s) => sum + Math.max(Number(s.hours), 0), 0);
-  if (total <= 0) return null;
-  return (
-    <Box
-      role="img"
-      aria-label={interval.segments
-        .map((s) => `${s.kind === 'CUSTOMER_WORK' ? 'customer work' : 'unallocated'} ${s.hours} h`)
-        .join(', ')}
-      sx={{
-        display: 'flex',
-        height: 6,
-        borderRadius: 1,
-        overflow: 'hidden',
-        mt: 0.5,
-        minWidth: 120,
-      }}
-    >
-      {interval.segments.map((s, i) => (
-        <Box
-          key={i}
-          sx={{
-            flexGrow: Math.max(Number(s.hours), 0),
-            bgcolor:
-              s.kind === 'CUSTOMER_WORK'
-                ? 'success.main'
-                : s.classification === 'UNEXPLAINED'
-                  ? 'warning.main'
-                  : 'info.main',
-          }}
-        />
-      ))}
-    </Box>
-  );
-}
+import { SegmentBar, SegmentChip } from './SegmentDisplay';
 
 function BaselineSummary({ baseline, timeZone }: { baseline: BaselineDto; timeZone: string }) {
   return (
@@ -325,6 +252,9 @@ function LedgerView({ data, timeZone, onChanged }: LedgerViewProps) {
           items={[
             { label: 'Engine hours', value: hoursText(t.total_hours) },
             { label: 'Customer work', value: hoursText(t.customer_work_hours) },
+            ...(Number(t.non_revenue_hours) !== 0
+              ? [{ label: 'Non-revenue time (in jobs)', value: hoursText(t.non_revenue_hours) }]
+              : []),
             { label: 'Unallocated', value: hoursText(t.unallocated_hours) },
             { label: 'Not yet explained', value: hoursText(t.unexplained_hours) },
             { label: 'Explanation proposed', value: hoursText(t.proposed_hours) },

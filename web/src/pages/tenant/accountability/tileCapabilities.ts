@@ -14,10 +14,14 @@ export const ENGINE_HOURS_TILES: ReadonlySet<string> = new Set([
   'missing_daily_reports',
 ]);
 
+/** Tiles of the revenue checks (not shown when the tenant switched them off). */
+export const REVENUE_TILES: ReadonlySet<string> = new Set(['revenue_differences']);
+
 /** Tiles that belong wholly to a capability: never mentioned while it is switched off. */
 export const CAPABILITY_TILES: Readonly<Record<string, ReadonlySet<string>>> = {
   [CAPABILITY.customerHours]: CUSTOMER_HOURS_TILES,
   [CAPABILITY.engineHours]: ENGINE_HOURS_TILES,
+  [CAPABILITY.revenue]: REVENUE_TILES,
 };
 
 /** True when the tile belongs to a switched-off capability. */

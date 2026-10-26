@@ -54,7 +54,11 @@ export const RECONCILIATION_STATUSES: readonly ReconciliationStatus[] = [
   'UNEXPLAINED',
 ];
 export const READING_REVIEWS: readonly ReadingReview[] = ['VERIFIED', 'PENDING_REVIEW'];
-export const SEGMENT_KINDS: readonly SegmentKind[] = ['CUSTOMER_WORK', 'UNALLOCATED'];
+export const SEGMENT_KINDS: readonly SegmentKind[] = [
+  'CUSTOMER_WORK',
+  'UNALLOCATED',
+  'NON_REVENUE',
+];
 export const SEGMENT_CLASSIFICATIONS: readonly SegmentClassification[] = [
   'NOT_APPLICABLE',
   'UNEXPLAINED',
@@ -130,6 +134,7 @@ const segmentSchema: Schema<SegmentDto> = object({
   classification: oneOf(SEGMENT_CLASSIFICATIONS),
   job_id: nullableId(),
   job_number: nullableText(),
+  activity_type: optionalText(),
   approved: nullableRef(),
   proposal: nullableRef(),
 });

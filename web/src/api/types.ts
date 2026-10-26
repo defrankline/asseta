@@ -258,6 +258,9 @@ export type ClassificationIn = Schemas['ClassificationIn'];
 export type CorrectionDto = Schemas['CorrectionDto'];
 export type CorrectionIn = Schemas['CorrectionIn'];
 
+// Revenue reconciliation (DEC-031 R1–R3): daily machine sheet, revenue differences, non-revenue time.
+export type * from './revenueTypes';
+
 // ---- Managed service (DEC-018): consented, audited platform access to a client tenant ----
 
 export type MandateScope = Schemas['MandateScope'];

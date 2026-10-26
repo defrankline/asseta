@@ -11,6 +11,7 @@ export const CAPABILITY = {
   customerHours: 'CUSTOMER_HOURS',
   engineHours: 'ENGINE_HOURS',
   cashCustody: 'CASH_CUSTODY',
+  revenue: 'REVENUE_RECONCILIATION',
 } as const;
 
 export type CapabilityCode = (typeof CAPABILITY)[keyof typeof CAPABILITY];
@@ -20,6 +21,7 @@ export const CAPABILITY_FEATURE: Readonly<Record<CapabilityCode, string>> = {
   CUSTOMER_HOURS: 'Customer hours',
   ENGINE_HOURS: 'Engine hours',
   CASH_CUSTODY: 'This cash custody control',
+  REVENUE_RECONCILIATION: 'Revenue checks',
 };
 
 /** The capability each exact-record kind belongs to (cash floats and remittances are the basics). */
@@ -36,11 +38,18 @@ export const RECORD_KIND_CAPABILITY: Readonly<Partial<Record<RecordKind, Capabil
   CASH_RETENTION: CAPABILITY.cashCustody,
   CUSTODY_ADJUSTMENT: CAPABILITY.cashCustody,
   REMITTANCE_OVERDUE: CAPABILITY.cashCustody,
+  REVENUE_DIFFERENCE: CAPABILITY.revenue,
+  NON_REVENUE_APPROVAL: CAPABILITY.revenue,
 };
 
 /** Page path prefixes owned by a capability (direct links fall back when it is off). */
 const PATH_CAPABILITY: readonly [string, CapabilityCode][] = [
   ['/tenant/hours/', CAPABILITY.customerHours],
+  // Before the engine-hours prefix: the daily machine sheet belongs to revenue checks.
+  ['/tenant/engine-hours/daily-sheet', CAPABILITY.revenue],
+  ['/tenant/revenue-differences', CAPABILITY.revenue],
+  ['/tenant/revenue-reasons', CAPABILITY.revenue],
+  ['/tenant/non-revenue-approvals', CAPABILITY.revenue],
   ['/tenant/engine-hours', CAPABILITY.engineHours],
   ['/tenant/meter-baselines', CAPABILITY.engineHours],
   ['/tenant/meter-corrections', CAPABILITY.engineHours],

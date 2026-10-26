@@ -277,6 +277,7 @@ export const accountabilitySummarySchema: Schema<AccountabilitySummaryDto> = obj
   engine_hours: nullableRecord().default(null),
   unexplained_hours: nullableRecord().default(null),
   missing_daily_reports: nullableRecord().default(null),
+  revenue_differences: nullableRecord().default(null),
   investigations: object({ open: int(), in_review: int() }).nullable().default(null),
   cash: object({
     custodians: array(

@@ -1,23 +1,29 @@
-import type { ReactNode } from 'react';
 import { CAPABILITY } from '../../../access/capabilities';
 import { PERMISSIONS } from '../../../access/permissionCodes';
-import type { AccountabilitySummaryDto, CountAmountDto } from '../../../api/custodyTypes';
+import type { AccountabilitySummaryDto } from '../../../api/custodyTypes';
 import { MoneyText } from '../../../components/display/MoneyText';
-import {
-  cashTabPath,
-  financeTabPath,
-  IMPLEMENTED_PATHS,
-  machineDetailPath,
-  ROUTES,
-} from '../../../navigation/routes';
+import { cashTabPath, financeTabPath, machineDetailPath, ROUTES } from '../../../navigation/routes';
 import { RECORD_LIST_ROUTES } from '../../../navigation/recordRoutes';
 import { withQuery } from '../../../navigation/urlFilters';
 import { formatMoney } from '../../../utils/money';
 import { humanize } from '../../../utils/text';
 import type { KpiRow } from '../dashboard/KpiCard';
+import { revenueDifferencesTile } from './revenueTile';
 import { disabledCapabilities, type TileOptions } from './tileCapabilities';
+import {
+  asList,
+  asNumber,
+  asRecord,
+  asText,
+  count,
+  linkIf,
+  perCurrency,
+  totalCount,
+  type Can,
+  type Tile,
+} from './tileKit';
 
-export type Can = (permission: string) => boolean;
+export type { Can, Tile } from './tileKit';
 
 /** Tile keys of `GET /accountability/summary` (also the OVERSIGHT policy's `hidden_dashboard_tiles`). */
 export const TILE_LABELS: Readonly<Record<string, string>> = {
@@ -26,6 +32,7 @@ export const TILE_LABELS: Readonly<Record<string, string>> = {
   engine_hours: 'Engine-hour reconciliation',
   unexplained_hours: 'Unexplained engine hours',
   missing_daily_reports: 'Missing daily reports',
+  revenue_differences: 'Revenue differences',
   investigations: 'Open investigations',
   cash: 'Cash per custodian',
   payments: 'Payments awaiting confirmation',
@@ -42,50 +49,6 @@ const HOURS_READ = 'tenant.hours.read';
 const ENGINE_HOURS = '/tenant/engine-hours';
 const ENGINE_UNALLOCATED = '/tenant/engine-hours/unallocated';
 const engineMachine = (id: string) => `${ENGINE_HOURS}/machines/${encodeURIComponent(id)}`;
-
-const pathOnly = (to: string) => to.split('?')[0] ?? to;
-/** A link target only when the page exists in this build and the viewer may open it. */
-function linkIf(ok: boolean, to: string, base: string = pathOnly(to)): string | undefined {
-  return ok && IMPLEMENTED_PATHS.has(base) ? to : undefined;
-}
-
-const asRecord = (v: unknown): Record<string, unknown> =>
-  typeof v === 'object' && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
-const asNumber = (v: unknown): number => (typeof v === 'number' ? v : Number(v ?? 0) || 0);
-const asText = (v: unknown, fallback = '0'): string =>
-  typeof v === 'string' ? v : typeof v === 'number' ? String(v) : fallback;
-const asList = (v: unknown): Record<string, unknown>[] => (Array.isArray(v) ? v.map(asRecord) : []);
-
-const count = (key: string, label: string, n: number, to?: string): KpiRow => ({
-  key,
-  label,
-  value: n,
-  valueText: String(n),
-  to,
-});
-
-/** One row per currency: "<count> · <amount>". */
-function perCurrency(key: string, rows: readonly CountAmountDto[], to?: string): KpiRow[] {
-  return rows.map((r) => ({
-    key: `${key}-${r.currency}`,
-    label: `${String(r.count)} in ${r.currency}`,
-    value: <MoneyText amount={r.amount} currency={r.currency} />,
-    valueText: `${String(r.count)}, ${formatMoney(r.amount, r.currency)}`,
-    to,
-  }));
-}
-
-const totalCount = (rows: readonly CountAmountDto[]) => rows.reduce((n, r) => n + r.count, 0);
-
-export interface Tile {
-  key: string;
-  title: string;
-  value?: ReactNode;
-  valueText?: string;
-  to?: string | undefined;
-  description?: string;
-  rows?: KpiRow[];
-}
 
 /** The tiles the summary returned (hidden or unavailable ones are null and skipped), each linking to its list. */
 export function buildTiles(
@@ -237,6 +200,8 @@ export function buildTiles(
         })),
     });
   }
+  const revenue = off.has(CAPABILITY.revenue) ? null : revenueDifferencesTile(s, can);
+  if (revenue !== null) tiles.push(revenue);
   if (s.investigations) {
     const i = s.investigations;
     const caseRead = can(PERMISSIONS.tenantCaseRead);

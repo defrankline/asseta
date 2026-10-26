@@ -87,6 +87,12 @@ export const ROUTES = {
   tenantMeterBaselines: '/tenant/meter-baselines',
   tenantMeterCorrections: '/tenant/meter-corrections',
   tenantEngineHourReasons: '/tenant/engine-hour-reasons',
+  // Revenue checks (DEC-031; backend menus tenant.engine_hours.daily_sheet / .non_revenue, tenant.revenue_*).
+  tenantDailySheet: '/tenant/engine-hours/daily-sheet',
+  tenantDailySheetDay: '/tenant/engine-hours/daily-sheet/:machineId/:day',
+  tenantRevenueDifferences: '/tenant/revenue-differences',
+  tenantRevenueReasons: '/tenant/revenue-reasons',
+  tenantNonRevenueApprovals: '/tenant/non-revenue-approvals',
   /** Matches the backend `tenant.cases` menu path ("Investigations"). */
   tenantCases: '/tenant/cases',
   tenantCaseDetail: '/tenant/cases/:caseId',
@@ -133,6 +139,11 @@ export function fieldJobPath(jobId: string): string {
 /** A machine's engine-hour ledger (intervals, segments, totals). */
 export function engineHoursMachinePath(machineId: string): string {
   return `${ROUTES.tenantEngineHours}/machines/${encodeURIComponent(machineId)}`;
+}
+
+/** One machine-day of the daily machine sheet (readings, segments, jobs, money, fuel, flags). */
+export function dailySheetDayPath(machineId: string, day: string): string {
+  return `${ROUTES.tenantDailySheet}/${encodeURIComponent(machineId)}/${encodeURIComponent(day)}`;
 }
 
 export function jobDetailPath(jobId: string): string {
@@ -275,6 +286,8 @@ export const IMPLEMENTED_PATHS: ReadonlySet<string> = new Set([
   ROUTES.tenantMeterBaselines,
   ROUTES.tenantMeterCorrections,
   ROUTES.tenantEngineHourReasons,
+  ROUTES.tenantDailySheet,
+  ROUTES.tenantRevenueReasons,
   ROUTES.tenantCases,
   ROUTES.tenantInsights,
   ROUTES.tenantAccess,

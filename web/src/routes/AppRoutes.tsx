@@ -20,6 +20,7 @@ import { SystemStatusPage } from '../pages/SystemStatusPage';
 import { engineHoursDetailRouteElements } from './engineHoursRoutes';
 import { hoursRouteElements } from './hoursRoutes';
 import { cashRecordRouteElements } from './cashRoutes';
+import { revenueRouteElements } from './revenueRoutes';
 import {
   AccessPage,
   CatalogPage,
@@ -119,6 +120,18 @@ function engineGuard(permission: string, page: ReactNode) {
     <RequireCapability
       capability={CAPABILITY.engineHours}
       feature={CAPABILITY_FEATURE[CAPABILITY.engineHours]}
+    >
+      {guard(permission, page)}
+    </RequireCapability>
+  );
+}
+
+/** Revenue-check pages: shown only while the tenant's REVENUE_RECONCILIATION capability is on. */
+function revenueGuard(permission: string, page: ReactNode) {
+  return (
+    <RequireCapability
+      capability={CAPABILITY.revenue}
+      feature={CAPABILITY_FEATURE[CAPABILITY.revenue]}
     >
       {guard(permission, page)}
     </RequireCapability>
@@ -408,6 +421,7 @@ export function AppRoutes() {
         {cashRecordRouteElements(guard, guardAny)}
         {hoursRouteElements(guard)}
         {engineHoursDetailRouteElements(engineGuard)}
+        {revenueRouteElements(revenueGuard)}
         <Route path={ROUTES.forbidden} element={<ForbiddenPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>

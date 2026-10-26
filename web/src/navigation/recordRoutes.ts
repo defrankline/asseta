@@ -19,6 +19,8 @@ export const RECORD_LIST_ROUTES = {
   METER_BASELINE: '/tenant/meter-baselines',
   METER_CORRECTION: '/tenant/meter-corrections',
   ENGINE_HOURS_CLASSIFICATION: '/tenant/engine-hours/classifications',
+  REVENUE_DIFFERENCE: '/tenant/revenue-differences',
+  NON_REVENUE_APPROVAL: '/tenant/non-revenue-approvals',
 } as const;
 
 export type RecordKind = keyof typeof RECORD_LIST_ROUTES;
@@ -51,6 +53,8 @@ export const RECORD_KIND_BY_ENTITY: Readonly<Record<string, RecordKind>> = {
   baseline: 'METER_BASELINE',
   correction: 'METER_CORRECTION',
   classification: 'ENGINE_HOURS_CLASSIFICATION',
+  revenue_difference: 'REVENUE_DIFFERENCE',
+  non_revenue_approval: 'NON_REVENUE_APPROVAL',
 };
 
 /** Hours records belong to the customer hours capability. */
