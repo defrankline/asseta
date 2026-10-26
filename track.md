@@ -259,6 +259,17 @@
 - **Not yet verified:** the new flows on real phones against https://asseta.co.tz (needs deploy + new app builds).
 - **Next smallest action:** deploy, then walk request → approve → start → complete with the demo supervisor and owner accounts on both platforms.
 
+### 2026-10-27 — DEC-031 revenue and asset safety built (all 5 phases)
+- **Goal (owner):** maximum revenue and maximum safety of assets. Design `docs/requirements/revenue-asset-safety-design.md` (with implementation notes), backlog row, commit 9fd00b3. Everything is tenant policy, default off; approvals by permission, proposer ≠ approver.
+- **Phase 1 revenue checks** (REVENUE_RECONCILIATION): non-revenue work-log time and unexplained hours outside jobs count as revenue until a second person approves them (owner rule 2026-10-26); daily machine sheet; revenue differences (explain/decide/confirm, adjustments, cases); revenue reasons. Backend 90b752d, web 1a62f3d, Android f29ffbc/d524a0d, iOS fe5df81/c8c3598.
+- **Phase 2 asset safety**: engine running without work = one case per machine-day; fuel against engine hours per machine (norm per tenant/category/machine, new MACHINE_CATEGORY scope). Backend 9d476d9, web 70f2623, Android ac525ad, iOS 0dd731e.
+- **Phase 3 deposits**: company deposit accounts; remittance method/account/reference/slip photos (offline), requirement switches, surplus to explain, holding-days allowance per site/staff (new STAFF scope). Backend efffb7f, web b52cebb, Android 6b9516e, iOS d58db3d.
+- **Phase 4 prepaid hours**: daily drawdown (provisional), low-balance warning (+ customer SMS), customer hours statement + PDF. Backend fe32fd0, web 70f2623, Android ac525ad, iOS 0dd731e.
+- **Phase 5 oversight**: people scorecard + repeated-items case, unbilled work, idle machines, optional site check-in (sync op SITE_CHECKIN). Backend 2638f1c/52e8412, web 5a68687, Android 71d9692, iOS 15e7104/e32df83 (most iOS Phase 5 files landed inside web commit 5a68687 because of the shared git index; content complete, history mislabelled, not rewritten).
+- **Manual:** 4423019, 3989706; Claude Doc synced (all six tabs).
+- **Verified on 52e8412:** backend full pytest, ruff, format, mypy (430 files), openapi check, single head dec31p5ovs01; web tsc, eslint, prettier, gen-api no diff, vitest 135 files / 796 tests; Android unit tests + assembleDebug exit 0; iOS swift test 405.
+- **Open:** cash-in matching basis for revenue checks (only invoiced/prepaid built); no slot-time reminder notification on mobile (no local scheduling infra); scorecard records of alerts/exceptions/security events open lists (no GET-by-id); low-balance alert list web-only; no device/simulator hand test of DEC-031 yet; client questions Q9–Q14.
+
 ### 2026-10-25 — DEC-030 follow-up: master switches, Supervisor overdue screen, hand test
 - **Completed:** `enabled` master switch (default on) on ENGINE_HOURS and CASH_CUSTODY policies, capabilities ENGINE_HOURS / CASH_CUSTODY beside CUSTOMER_HOURS (menus, pages, endpoints 422 *_DISABLED, sync ops not announced + CONFLICT *_DISABLED, sweeps skipped, dashboard tiles/sub-figures hidden; cash basics stay when cash controls are off); field users read their own overdue-remittance record; Supervisor "Overdue remittance" screen on Android and iOS; user manual (repo + Claude Doc) updated.
 - **Commits:** d15effc backend (migration capsw0000001), dda53b4 strings, 960c199 Android, 54600cd iOS, 661a71e/532bec6/6657394 web, 96e52fd manual.
