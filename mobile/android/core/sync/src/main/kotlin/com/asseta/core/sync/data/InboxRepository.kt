@@ -148,6 +148,8 @@ data class ActivityItem(
     val status: InboxStatus,
     val server: SyncJobActivityDto?,
     val op: ClientOperationEntity?,
+    /** The server's activity id: the synced record, else the acknowledged operation's result (DEC-031: matches `NonRevenueActivityDto.activity_id`). */
+    val serverId: String? = null,
 )
 
 data class AcknowledgementItem(
@@ -374,6 +376,7 @@ class InboxRepository(
                 startMs = s?.startedAt?.let(::ms) ?: e!!.startedAt, endMs = s?.endedAt?.let(::ms) ?: e?.endedAt,
                 note = s?.note ?: e?.note, billable = s?.billable, running = s == null && e?.operationId == null,
                 status = InboxStatusRules.combined(op?.status, s?.let { InboxStatus.RECORDED }), server = s, op = op,
+                serverId = s?.id ?: op?.let(::serverIdOf),
             )
         }
 

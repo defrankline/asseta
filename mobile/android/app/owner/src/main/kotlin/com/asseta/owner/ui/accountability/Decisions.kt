@@ -220,6 +220,10 @@ object DecisionMapper {
         proposedByName = name(a.createdByName, a.createdBy),
     )
 
+    /** The detail screen's generic "Reason" line: null when blank or when the fields already show a reason row. */
+    fun reasonLine(item: DecisionItem): String? =
+        item.reason?.takeIf { it.isNotBlank() && item.fields.none { f -> f.label == T.F_REASON } }
+
     /** Waiting for someone: to explain (OPEN) or for a decision on the explanation. */
     fun revenuePending(status: String): Boolean =
         status == RevenueDifferenceDto.OPEN || status == RevenueDifferenceDto.EXPLANATION_PROPOSED

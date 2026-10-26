@@ -39,6 +39,8 @@ import com.asseta.supervisor.R
 import com.asseta.core.ui.R as CoreR
 import kotlinx.serialization.json.Json
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import com.asseta.core.domain.accountability.FieldAccess
 import com.asseta.core.model.owner.NonRevenueActivityDto
 import com.asseta.supervisor.ui.accountability.NonRevenueText
@@ -49,6 +51,7 @@ import kotlinx.serialization.json.jsonObject
  * One job: details, a summary (readings, meter hours, work totals, findings), the next allowed actions, my readings,
  * the work log (server + this phone), the customer acknowledgement, expenses & fuel, and the local timeline.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun JobDetailScreen(
     vm: JobDetailViewModel,
@@ -75,6 +78,9 @@ fun JobDetailScreen(
         return
     }
     val actions = ui.actions
+    val refreshing by vm.refreshing.collectAsStateWithLifecycle()
+    // Pull to refresh re-reads the non-revenue statuses (online; same as iOS).
+    PullToRefreshBox(isRefreshing = refreshing, onRefresh = { if (showNonRevenue && online) vm.loadNonRevenue() }, modifier = Modifier.fillMaxSize()) {
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -129,6 +135,7 @@ fun JobDetailScreen(
             }
         }
     }
+    }
     confirm?.let { action ->
         AlertDialog(
             onDismissRequest = { confirm = null },
@@ -172,7 +179,7 @@ private fun WorkLogSection(
                 if (!e.running) StatusPill(e.status)
             }
             // Non-revenue time (DEC-031 R1): its approval status and, for explain holders, "Explain" (online only).
-            e.server?.id?.let(nonRevenue::get)?.let { nr ->
+            e.serverId?.let(nonRevenue::get)?.let { nr ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         NonRevenueText.status(nr.approvalStatus), style = AssetaType.caption,

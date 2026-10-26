@@ -78,10 +78,21 @@ class JobDetailViewModel(private val field: FieldGraph, private val tenantId: St
     /** The job's non-revenue entries by server activity id (DEC-031 R1, read online; empty offline or when hidden). */
     val nonRevenue: StateFlow<Map<String, NonRevenueActivityDto>> = _nonRevenue.asStateFlow()
 
+    private val _refreshing = MutableStateFlow(false)
+
+    /** A pull to refresh of the statuses is running. */
+    val refreshing: StateFlow<Boolean> = _refreshing.asStateFlow()
+
     /** Re-reads the statuses online; a failed read keeps the last ones shown. */
     fun loadNonRevenue() {
+        if (_refreshing.value) return
+        _refreshing.value = true
         viewModelScope.launch {
-            field.accountability.nonRevenueActivities(tenantId, jobId)?.let { _nonRevenue.value = NonRevenueText.byActivity(it) }
+            try {
+                field.accountability.nonRevenueActivities(tenantId, jobId)?.let { _nonRevenue.value = NonRevenueText.byActivity(it) }
+            } finally {
+                _refreshing.value = false
+            }
         }
     }
 

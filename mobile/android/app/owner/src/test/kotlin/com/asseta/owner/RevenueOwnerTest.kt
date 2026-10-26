@@ -115,6 +115,9 @@ class RevenueOwnerTest {
         assertEquals("2.5 h Mobilization · EX-01", item.headline)
         assertTrue(item.pending)
         assertTrue(item.isOwn(me))
+        // The reason is shown once on the decision screen (its field row, no second generic line).
+        assertEquals(1, item.fields.count { it.label == "Reason" })
+        assertNull(DecisionMapper.reasonLine(item))
         assertTrue(item.fields.any { it.label == "Type" && it.value == "Mobilization" })
         assertTrue(item.fields.any { it.label == "Time" && it.value == "26 Oct 2026, 06:00 – 26 Oct 2026, 08:30" })
         // Note of at least 5 characters for both Approve and Reject (server Note).

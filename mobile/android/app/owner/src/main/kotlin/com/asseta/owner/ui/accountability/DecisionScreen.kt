@@ -118,7 +118,8 @@ fun DecisionScreen(vm: DecisionViewModel, session: OwnerSession, online: Boolean
                 SectionCard(T.REQUEST) {
                     Text(item.headline, style = AssetaType.headline)
                     item.fields.forEach { KeyValue(it.label, it.value) }
-                    item.reason?.takeIf { it.isNotBlank() }?.let { KeyValue(T.F_REASON, it) }
+                    // Shown once: kinds whose fields already carry a "Reason" row (revenue) skip the generic line.
+                    DecisionMapper.reasonLine(item)?.let { KeyValue(T.F_REASON, it) }
                     item.proposedAt?.let { KeyValue(T.F_PROPOSED, OwnerFormat.dateTime(it, zone)) }
                     LabeledValue(T.F_STATUS) { StatusPill(OwnerFormat.humanize(item.status), ApprovalText.statusColor(item.status)) }
                     item.photoAttachmentId?.let { pid -> EvidencePhoto("meter", online && !state.stale) { vm.data.attachmentUrl(pid) } }
