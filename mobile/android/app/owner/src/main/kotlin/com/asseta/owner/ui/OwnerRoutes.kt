@@ -17,6 +17,12 @@ import com.asseta.owner.ui.accountability.DecisionKind
 import com.asseta.owner.ui.accountability.DecisionScreen
 import com.asseta.owner.ui.accountability.DecisionViewModel
 import com.asseta.owner.ui.accountability.OwnerAccountabilityTexts
+import com.asseta.owner.ui.accountability.DailySheetScreen
+import com.asseta.owner.ui.accountability.DailySheetViewModel
+import com.asseta.owner.ui.accountability.RevenueDifferenceScreen
+import com.asseta.owner.ui.accountability.RevenueDifferenceViewModel
+import com.asseta.owner.ui.accountability.SheetDayScreen
+import com.asseta.owner.ui.accountability.SheetDayViewModel
 import com.asseta.owner.ui.alerts.AlertDetailScreen
 import com.asseta.owner.ui.alerts.AlertDetailViewModel
 import com.asseta.owner.ui.alerts.AlertsScreen
@@ -62,7 +68,7 @@ import com.asseta.owner.ui.spend.FieldSpendViewModel
 /** Live-update entities of the accountability decisions (WebSocket "entity changed" frames). */
 private val ACCOUNTABILITY_ENTITIES = arrayOf(
     "customer_discount", "credit_arrangement", "hours_transfer", "hours_cancellation", "meter_baseline", "meter_correction",
-    "engine_hour_classification", "cash_variance", "cash_retention", "custody_adjustment",
+    "engine_hour_classification", "cash_variance", "cash_retention", "custody_adjustment", "revenue_difference", "non_revenue_approval",
 )
 
 /** One screen per destination; view models are keyed by tenant (and id) so switching tenant never mixes data. */
@@ -123,6 +129,7 @@ fun OwnerRoutes(
                         graph.refreshTriggers("approval", "expense", "meter_reset", "job", "cash_handover", "meter_exception", "exception", *ACCOUNTABILITY_ENTITIES),
                         meterResets = features.meterEvidence, jobs = features.jobs, handovers = features.finance, exceptions = features.meterEvidence,
                         decisions = DecisionKind.visible(features),
+                        revenueOpen = features.revenueExplain || features.revenueDecide,
                     )
                 }
                 ApprovalsScreen(vm, open)
@@ -193,7 +200,12 @@ fun OwnerRoutes(
         OwnerDestination.More -> MoreScreen(session, unread, open)
         is OwnerDestination.Decision -> {
             val kind = DecisionKind.of(route.kind)
-            if (kind == null) {
+            if (kind == DecisionKind.REVENUE_DIFFERENCE) {
+                val vm: RevenueDifferenceViewModel = viewModel(key = "revenue-difference-$t-${route.id}") {
+                    RevenueDifferenceViewModel(data, route.id, features.revenueExplain, graph.refreshTriggers("revenue_difference"))
+                }
+                RevenueDifferenceScreen(vm, session, online)
+            } else if (kind == null) {
                 com.asseta.owner.ui.common.EmptyState(OwnerAccountabilityTexts.NOT_FOUND_TITLE, OwnerAccountabilityTexts.NOT_FOUND_MESSAGE)
             } else {
                 val vm: DecisionViewModel = viewModel(key = "decision-$t-${route.kind}-${route.id}") {
@@ -221,6 +233,18 @@ fun OwnerRoutes(
                 }
                 RemittanceOverdueScreen(vm)
             }
+        }
+        is OwnerDestination.DailySheet -> {
+            val vm: DailySheetViewModel = viewModel(key = "daily-sheet-$t-${route.machineId}") {
+                DailySheetViewModel(data, route.machineId, graph.refreshTriggers("revenue_difference", "meter_capture"))
+            }
+            DailySheetScreen(vm, open)
+        }
+        is OwnerDestination.SheetDay -> {
+            val vm: SheetDayViewModel = viewModel(key = "sheet-day-$t-${route.machineId}-${route.day}") {
+                SheetDayViewModel(data, route.machineId, route.day, graph.refreshTriggers("revenue_difference", "meter_capture"))
+            }
+            SheetDayScreen(vm)
         }
         OwnerDestination.Accountability -> {
             val vm: AccountabilityViewModel = viewModel(key = "accountability-$t") {

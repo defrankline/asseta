@@ -15,6 +15,8 @@ import com.asseta.core.sync.data.JobSummary
 import com.asseta.core.sync.usecase.JobWorkflow
 import com.asseta.core.sync.usecase.WorkflowResult
 import com.asseta.supervisor.FieldGraph
+import com.asseta.core.model.owner.NonRevenueActivityDto
+import com.asseta.supervisor.ui.accountability.NonRevenueText
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -70,6 +72,18 @@ class JobDetailViewModel(private val field: FieldGraph, private val tenantId: St
         val blocked = job?.let { (field.repository.capturePolicy(tenantId, it.machineId) as? CapturePolicyDecision.Blocked)?.message }
         JobDetailUi(true, job, jobs.firstOrNull { it.job.id == jobId }, job?.let { field.repository.fieldState(it, ops) }, ops, log, blocked)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), JobDetailUi())
+
+    private val _nonRevenue = MutableStateFlow<Map<String, NonRevenueActivityDto>>(emptyMap())
+
+    /** The job's non-revenue entries by server activity id (DEC-031 R1, read online; empty offline or when hidden). */
+    val nonRevenue: StateFlow<Map<String, NonRevenueActivityDto>> = _nonRevenue.asStateFlow()
+
+    /** Re-reads the statuses online; a failed read keeps the last ones shown. */
+    fun loadNonRevenue() {
+        viewModelScope.launch {
+            field.accountability.nonRevenueActivities(tenantId, jobId)?.let { _nonRevenue.value = NonRevenueText.byActivity(it) }
+        }
+    }
 
     fun start() = run { field.workflow.transition(tenantId, jobId, JobWorkflow.START) }
     fun complete() = run { field.workflow.transition(tenantId, jobId, JobWorkflow.COMPLETE) }

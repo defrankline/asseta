@@ -391,4 +391,6 @@ data class AccountabilitySummaryDto(
     @SerialName("engine_hours") val engineHours: JsonObject? = null,
     @SerialName("unexplained_hours") val unexplainedHours: JsonObject? = null,
     @SerialName("missing_daily_reports") val missingDailyReports: JsonObject? = null,
+    /** DEC-031 R3: revenue differences to explain / decide (null while REVENUE_RECONCILIATION is off). */
+    @SerialName("revenue_differences") val revenueDifferences: JsonObject? = null,
 )

@@ -122,6 +122,14 @@ fun MachineScreen(vm: MachineViewModel, features: OwnerFeatures, online: Boolean
             if (features.jobs) item { CurrentJob(jobs, zone, onOpen) }
             item { RecentAlerts(alerts, zone, onOpen) }
             if (features.meterEvidence) item { Readings(vm.data, readings, online, zone) }
+            // DEC-031 R2: the machine's daily sheet (revenue reconciliation on, tenant.revenue.read).
+            if (features.revenueRead) item {
+                SectionCard(null) {
+                    com.asseta.core.ui.components.NavigationRow(com.asseta.owner.ui.accountability.OwnerAccountabilityTexts.SHEET_OPEN) {
+                        onOpen(OwnerDestination.DailySheet(vm.machineId))
+                    }
+                }
+            }
         }
     }
 }

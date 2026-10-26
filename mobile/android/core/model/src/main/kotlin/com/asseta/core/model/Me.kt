@@ -42,6 +42,9 @@ data class TenantAccess(
 
         /** The DEC-030 cash custody additions (CASH_CUSTODY policy `enabled`); collections, floats and remittances stay. */
         const val CASH_CUSTODY = "CASH_CUSTODY"
+
+        /** Revenue reconciliation (REVENUE_RECONCILIATION policy `enabled`, DEC-031; platform default off). */
+        const val REVENUE_RECONCILIATION = "REVENUE_RECONCILIATION"
     }
 }
 

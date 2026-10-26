@@ -66,6 +66,12 @@ data class FieldAccountabilityCache(
         purchases.filter { (it.totals.remaining.toBigDecimalOrNull() ?: BigDecimal.ZERO).signum() > 0 }
 }
 
+/** Outcome of explaining non-revenue time (online only): the server's record, or the refusal [code] and message. */
+sealed interface NonRevenueResult {
+    data class Sent(val approval: com.asseta.core.model.owner.NonRevenueApprovalDto) : NonRevenueResult
+    data class Refused(val code: String?, val message: String) : NonRevenueResult
+}
+
 /** Outcome of the online retention request. */
 sealed interface RetentionResult {
     data class Sent(val retention: CashRetentionDto) : RetentionResult
@@ -229,6 +235,41 @@ class FieldAccountabilityData(
         throw e
     } catch (e: Exception) {
         null
+    }
+
+    // --- DEC-031 R1: non-revenue time inside a job (online only; tenant.revenue.read / .explain) ----------------
+
+    /**
+     * The job's non-revenue work-log entries with their approval status (`GET /non-revenue-activities?job_id=`; the
+     * server applies the tenant's declared types). Null offline, on any refusal, or while revenue checks are off.
+     */
+    suspend fun nonRevenueActivities(tenantId: String, jobId: String): List<com.asseta.core.model.owner.NonRevenueActivityDto>? {
+        if (TenantAccess.REVENUE_RECONCILIATION in disabledFor(tenantId)) return null
+        return try {
+            api().nonRevenueActivities(jobId = jobId, pageSize = PAGE).items
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /** Active revenue reasons by name (the explain picker); null offline or on a refusal. */
+    suspend fun revenueReasons(): List<com.asseta.core.model.owner.RevenueReasonDto>? = try {
+        api().revenueReasons(pageSize = PAGE).items.filter { it.isActive }.sortedBy { it.name.lowercase() }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        null
+    }
+
+    /** Explain a non-revenue entry (`POST /non-revenue-approvals`); someone else approves it. */
+    suspend fun explainNonRevenue(activityId: String, reasonId: String, note: String): NonRevenueResult = try {
+        NonRevenueResult.Sent(api().proposeNonRevenue(com.asseta.core.model.owner.NonRevenueApprovalIn(activityId, reasonId, note.trim())))
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        NonRevenueResult.Refused((e as? com.asseta.core.network.ApiException)?.code, e.message ?: "The explanation could not be sent.")
     }
 
     /** The server request id from an acked `CASH_RETENTION_REQUEST` result (`{"entity": CashRetentionDto}`). */

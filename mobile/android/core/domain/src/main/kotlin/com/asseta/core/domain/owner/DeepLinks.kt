@@ -40,6 +40,12 @@ sealed interface OwnerDestination {
 
     /** Overdue remittances flagged today ([id] null) or one flag (REMITTANCE_OVERDUE). */
     data class RemittanceOverdue(val id: String? = null) : OwnerDestination
+
+    /** The daily machine sheet of one machine: its last days (DEC-031 R2, read-only). */
+    data class DailySheet(val machineId: String) : OwnerDestination
+
+    /** One machine on one local [day] (`yyyy-MM-dd`) of the daily machine sheet. */
+    data class SheetDay(val machineId: String, val day: String) : OwnerDestination
 }
 
 /**
@@ -61,6 +67,8 @@ object RecordKinds {
     const val METER_BASELINE = "METER_BASELINE"
     const val METER_CORRECTION = "METER_CORRECTION"
     const val ENGINE_HOURS_CLASSIFICATION = "ENGINE_HOURS_CLASSIFICATION"
+    const val REVENUE_DIFFERENCE = "REVENUE_DIFFERENCE"
+    const val NON_REVENUE_APPROVAL = "NON_REVENUE_APPROVAL"
 
     /** Record kind -> the decision kind whose screen shows it (and decides it while it waits). */
     val DECISIONS = mapOf(
@@ -74,6 +82,8 @@ object RecordKinds {
         METER_BASELINE to DecisionKinds.BASELINE,
         METER_CORRECTION to DecisionKinds.CORRECTION,
         ENGINE_HOURS_CLASSIFICATION to DecisionKinds.CLASSIFICATION,
+        REVENUE_DIFFERENCE to DecisionKinds.REVENUE_DIFFERENCE,
+        NON_REVENUE_APPROVAL to DecisionKinds.NON_REVENUE,
     )
 
     /** Web detail route segment(s) -> record kind (`/tenant/finance/cash/<segment>/<id>`, `/tenant/hours/<segment>/<id>`). */
@@ -110,6 +120,8 @@ object DecisionKinds {
     const val WRITE_OFF = "WRITE_OFF"
     const val RETENTION = "RETENTION"
     const val ADJUSTMENT = "ADJUSTMENT"
+    const val REVENUE_DIFFERENCE = "REVENUE_DIFFERENCE"
+    const val NON_REVENUE = "NON_REVENUE"
 
     /** Notification target entity -> decision kind (backend notification rules). */
     val BY_ENTITY = mapOf(
@@ -125,6 +137,8 @@ object DecisionKinds {
         "cash_variance" to WRITE_OFF,
         "cash_retention" to RETENTION,
         "custody_adjustment" to ADJUSTMENT,
+        "revenue_difference" to REVENUE_DIFFERENCE,
+        "non_revenue_approval" to NON_REVENUE,
     )
 }
 
@@ -205,6 +219,8 @@ object DeepLinkRouter {
             "engine-hours" -> when (rest.getOrNull(1)) {
                 "machines" -> id(rest.getOrNull(2))?.let { OwnerDestination.Machine(it) } ?: OwnerDestination.Fleet
                 "classifications" -> RecordKinds.destination(RecordKinds.ENGINE_HOURS_CLASSIFICATION, id(rest.getOrNull(2))) ?: OwnerDestination.Approvals()
+                // The daily machine sheet is per machine in the app: the fleet to choose one.
+                "daily-sheet" -> OwnerDestination.Fleet
                 else -> OwnerDestination.Approvals()
             }
             // Web console detail routes of the cash custody chain: /tenant/finance/cash/<segment>/<id>.
@@ -214,6 +230,9 @@ object DeepLinkRouter {
                 else -> cashPath(rest.getOrNull(1), id(rest.getOrNull(2)))
             }
             "accountability" -> OwnerDestination.Accountability
+            // Revenue reconciliation (DEC-031): the record, or Approvals where they are listed.
+            "revenue-differences" -> RecordKinds.destination(RecordKinds.REVENUE_DIFFERENCE, second) ?: OwnerDestination.Approvals()
+            "non-revenue-approvals" -> RecordKinds.destination(RecordKinds.NON_REVENUE_APPROVAL, second) ?: OwnerDestination.Approvals()
             else -> null
         }
     }

@@ -125,7 +125,7 @@ fun DecisionScreen(vm: DecisionViewModel, session: OwnerSession, online: Boolean
                 }
             }
             if (item.pending) item {
-                SectionCard(T.DECISION, footer = T.FOOTER) {
+                SectionCard(T.DECISION, footer = if (vm.kind == DecisionKind.NON_REVENUE) T.NONREV_FOOTER else T.FOOTER) {
                     val gate = session.can(vm.kind.action, online, state.snapshot?.source)
                     val own = item.isOwn(session.userId)
                     when {

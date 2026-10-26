@@ -80,5 +80,7 @@ object OwnerNavigation {
             if (d.kind == RecordKinds.CASH_FLOAT) OwnerAccountabilityTexts.RECORD_FLOAT_TITLE else OwnerAccountabilityTexts.RECORD_TRANSFER_TITLE
         is OwnerDestination.RemittanceOverdue ->
             if (d.id == null) OwnerAccountabilityTexts.OVERDUE_TITLE else OwnerAccountabilityTexts.OVERDUE_DETAIL_TITLE
+        is OwnerDestination.DailySheet -> OwnerAccountabilityTexts.SHEET_TITLE
+        is OwnerDestination.SheetDay -> com.asseta.owner.ui.accountability.RevenuePresentation.day(d.day)
     }
 }

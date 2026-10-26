@@ -142,6 +142,8 @@ sealed interface Route {
     data class DailyReading(val machineId: String) : Route
     data class Baseline(val machineId: String) : Route
     data class Correction(val readingId: String) : Route
+    /** Explain a non-revenue work-log entry (DEC-031 R1, online only). */
+    data class ExplainNonRevenue(val activity: com.asseta.core.model.owner.NonRevenueActivityDto) : Route
 }
 
 val SupervisorTab.root: Route
@@ -190,6 +192,7 @@ fun Route.title(companyName: String): String = when (this) {
     is Route.DailyReading -> FieldAccountabilityTexts.TITLE_DAILY
     is Route.Baseline -> FieldAccountabilityTexts.TITLE_BASELINE
     is Route.Correction -> FieldAccountabilityTexts.TITLE_CORRECTION
+    is Route.ExplainNonRevenue -> com.asseta.supervisor.ui.accountability.NonRevenueText.TITLE
 }
 
 /** Routes the iOS app presents as sheets (Cancel / Save in the navigation bar, no tab bar). */
@@ -197,7 +200,7 @@ val Route.isForm: Boolean
     get() = this is Route.Capture || this is Route.Acknowledge || this is Route.WorkLogEntry || this == Route.RecordExpense ||
         this is Route.CashForm || this is Route.ResetRequest || this == Route.RequestJob || this == Route.HoursSale ||
         this == Route.HoursTransfer || this == Route.CashTransfer || this is Route.CashAck || this == Route.Retention ||
-        this is Route.DailyReading || this is Route.Baseline || this is Route.Correction
+        this is Route.DailyReading || this is Route.Baseline || this is Route.Correction || this is Route.ExplainNonRevenue
 
 /** Back stacks of the five tabs; selecting the current tab again returns to its first screen (as on iOS). */
 data class TabStacks(val tab: SupervisorTab = SupervisorTab.JOBS, val stacks: Map<SupervisorTab, List<Route>> = SupervisorTab.entries.associateWith { listOf(it.root) }) {
@@ -521,6 +524,15 @@ private fun RouteContent(
                 onWorkLogEntry = { push(Route.WorkLogEntry(route.jobId)) },
                 onRoute = push,
                 field = field,
+                access = access,
+                online = rememberOnline(),
+            )
+        }
+        is Route.ExplainNonRevenue -> {
+            val visit = remember(route) { System.nanoTime() }
+            com.asseta.supervisor.ui.accountability.ExplainNonRevenueScreen(
+                viewModel(key = "explain-nonrev-$visit") { com.asseta.supervisor.ui.accountability.ExplainNonRevenueViewModel(field, route.activity) },
+                online = rememberOnline(), onDone = pop,
             )
         }
         is Route.Capture -> {

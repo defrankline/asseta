@@ -161,6 +161,10 @@ object DashboardPresentation {
             }
             add(DashboardTile("missing_daily_reports", T.DASH_MISSING_REPORTS, rows))
         }
+        // DEC-031 R3: revenue differences (REVENUE_RECONCILIATION on and the role may read them).
+        if (features.revenueRead) {
+            RevenuePresentation.tile(s.revenueDifferences)?.let(::add)
+        }
     }
 }
 

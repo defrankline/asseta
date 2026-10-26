@@ -38,6 +38,11 @@ import com.asseta.core.ui.theme.palette
 import com.asseta.supervisor.R
 import com.asseta.core.ui.R as CoreR
 import kotlinx.serialization.json.Json
+import androidx.compose.runtime.LaunchedEffect
+import com.asseta.core.domain.accountability.FieldAccess
+import com.asseta.core.model.owner.NonRevenueActivityDto
+import com.asseta.supervisor.ui.accountability.NonRevenueText
+import com.asseta.supervisor.ui.accountability.nonRevenueColor
 import kotlinx.serialization.json.jsonObject
 
 /**
@@ -53,8 +58,14 @@ fun JobDetailScreen(
     onWorkLogEntry: () -> Unit,
     onRoute: (Route) -> Unit,
     field: FieldGraph,
+    access: FieldAccess? = null,
+    online: Boolean = false,
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
+    val nonRevenue by vm.nonRevenue.collectAsStateWithLifecycle()
+    val showNonRevenue = access?.nonRevenueStatus == true
+    // DEC-031 R1: statuses of the job's non-revenue entries, read online (again after an explanation was sent).
+    LaunchedEffect(showNonRevenue, online) { if (showNonRevenue && online) vm.loadNonRevenue() }
     val error by vm.error.collectAsStateWithLifecycle()
     var confirm by remember { mutableStateOf<String?>(null) } // START | COMPLETE
     val job = ui.job
@@ -101,7 +112,12 @@ fun JobDetailScreen(
 
         JobReadingsSection(snapshot, job.id, onRoute)
 
-        WorkLogSection(ui, vm, snapshot, job.id, actions.canLogWork, onWorkLogEntry)
+        WorkLogSection(
+            ui, vm, snapshot, job.id, actions.canLogWork, onWorkLogEntry,
+            nonRevenue = if (showNonRevenue) nonRevenue else emptyMap(),
+            canExplain = access?.explainNonRevenue == true, online = online,
+            onExplain = { onRoute(Route.ExplainNonRevenue(it)) },
+        )
 
         AcknowledgementSection(field, snapshot, job.id)
 
@@ -137,6 +153,10 @@ private fun WorkLogSection(
     jobId: String,
     canLog: Boolean,
     onWorkLogEntry: () -> Unit,
+    nonRevenue: Map<String, NonRevenueActivityDto> = emptyMap(),
+    canExplain: Boolean = false,
+    online: Boolean = false,
+    onExplain: (NonRevenueActivityDto) -> Unit = {},
 ) {
     val entries = snapshot.activities.filter { it.jobId == jobId }
     if (entries.isEmpty() && !canLog) return
@@ -150,6 +170,18 @@ private fun WorkLogSection(
                     style = AssetaType.subheadline, modifier = Modifier.weight(1f),
                 )
                 if (!e.running) StatusPill(e.status)
+            }
+            // Non-revenue time (DEC-031 R1): its approval status and, for explain holders, "Explain" (online only).
+            e.server?.id?.let(nonRevenue::get)?.let { nr ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        NonRevenueText.status(nr.approvalStatus), style = AssetaType.caption,
+                        color = nonRevenueColor(NonRevenueText.tone(nr.approvalStatus)), modifier = Modifier.weight(1f),
+                    )
+                    if (canExplain && NonRevenueText.canExplain(nr.approvalStatus)) {
+                        TextButton(onClick = { onExplain(nr) }, enabled = online) { Text(NonRevenueText.EXPLAIN) }
+                    }
+                }
             }
         }
         if (canLog) {

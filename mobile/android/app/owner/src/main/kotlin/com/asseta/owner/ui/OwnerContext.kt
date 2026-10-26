@@ -74,6 +74,18 @@ data class OwnerFeatures(val permissions: Set<String>, val disabled: Set<String>
     /** The DEC-030 cash custody additions are in use (CASH_CUSTODY not switched off); the cash basics always stay. */
     val cashCustody get() = TenantAccess.CASH_CUSTODY !in disabled
 
+    /** Revenue reconciliation is in use (DEC-031; platform default off, so `/me` lists it while it is off). */
+    val revenueOn get() = TenantAccess.REVENUE_RECONCILIATION !in disabled
+
+    /** Daily machine sheet, revenue differences and non-revenue hours (tenant.revenue.read). */
+    val revenueRead get() = revenueOn && "tenant.revenue.read" in permissions
+
+    /** Explain a revenue difference (needs read too, for the reason list). */
+    val revenueExplain get() = revenueRead && "tenant.revenue.explain" in permissions
+
+    /** Decide revenue differences and non-revenue hours. */
+    val revenueDecide get() = revenueRead && "tenant.revenue.decide" in permissions
+
     /** The same features with more switched-off capabilities (e.g. the dashboard's `disabled_capabilities`). */
     fun without(capabilities: Collection<String>): OwnerFeatures =
         if (capabilities.all { it in disabled }) this else copy(disabled = disabled + capabilities)
@@ -85,6 +97,8 @@ data class OwnerFeatures(val permissions: Set<String>, val disabled: Set<String>
     fun route(d: OwnerDestination): OwnerDestination = when (d) {
         is OwnerDestination.Decision -> if (DecisionKind.of(d.kind)?.switchedOff(this) == true) OwnerDestination.Approvals() else d
         is OwnerDestination.CashRecord, is OwnerDestination.RemittanceOverdue -> if (cashCustody) d else OwnerDestination.Cash
+        is OwnerDestination.DailySheet -> if (revenueRead) d else OwnerDestination.Machine(d.machineId)
+        is OwnerDestination.SheetDay -> if (revenueRead) d else OwnerDestination.Machine(d.machineId)
         else -> d
     }
     val custodyRead get() = finance || "tenant.collection.record" in permissions

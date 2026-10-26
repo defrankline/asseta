@@ -87,6 +87,30 @@ class AccountabilityContractTest {
     }
 
     @Test
+    fun `revenue DTOs match the contract`() {
+        mapOf<String, KSerializer<*>>(
+            "RevenueDifferenceDto" to com.asseta.core.model.owner.RevenueDifferenceDto.serializer(),
+            "RevenueAdjustmentDto" to com.asseta.core.model.owner.RevenueAdjustmentDto.serializer(),
+            "RevenueReasonDto" to com.asseta.core.model.owner.RevenueReasonDto.serializer(),
+            "NonRevenueActivityDto" to com.asseta.core.model.owner.NonRevenueActivityDto.serializer(),
+            "NonRevenueApprovalDto" to com.asseta.core.model.owner.NonRevenueApprovalDto.serializer(),
+            "DailyMachineSheetRowDto" to com.asseta.core.model.owner.DailyMachineSheetRowDto.serializer(),
+            "DailyMachineSheetDetailDto" to com.asseta.core.model.owner.DailyMachineSheetDetailDto.serializer(),
+            "SheetJobDto" to com.asseta.core.model.owner.SheetJobDto.serializer(),
+            "SheetMoneyDto" to com.asseta.core.model.owner.SheetMoneyDto.serializer(),
+            "SheetReadingDto" to com.asseta.core.model.owner.SheetReadingDto.serializer(),
+            "SheetSegmentDto" to com.asseta.core.model.owner.SheetSegmentDto.serializer(),
+            "SheetMoneySourceDto" to com.asseta.core.model.owner.SheetMoneySourceDto.serializer(),
+            "SheetFlagRefDto" to com.asseta.core.model.owner.SheetFlagRefDto.serializer(),
+            "SheetFuelDto" to com.asseta.core.model.owner.SheetFuelDto.serializer(),
+        ).forEach { (name, serializer) -> ContractCheck.check(name, serializer.descriptor) }
+        ContractCheck.check("RevenueExplanationIn", com.asseta.core.model.owner.RevenueExplanationIn.serializer().descriptor, request = true)
+        ContractCheck.check("RevenueDecisionIn", com.asseta.core.model.owner.RevenueDecisionIn.serializer().descriptor, request = true)
+        ContractCheck.check("NonRevenueApprovalIn", com.asseta.core.model.owner.NonRevenueApprovalIn.serializer().descriptor, request = true)
+        ContractCheck.check("NonRevenueDecisionIn", com.asseta.core.model.owner.NonRevenueDecisionIn.serializer().descriptor, request = true)
+    }
+
+    @Test
     fun `field reads match the contract`() {
         mapOf<String, KSerializer<*>>(
             "CustodianDto" to CustodianDto.serializer(),

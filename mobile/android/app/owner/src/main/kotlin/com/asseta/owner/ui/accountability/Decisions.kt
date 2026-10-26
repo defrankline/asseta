@@ -15,6 +15,8 @@ import com.asseta.core.model.owner.CustodyAdjustmentDto
 import com.asseta.core.model.owner.DiscountDto
 import com.asseta.core.model.owner.HoursCancellationDto
 import com.asseta.core.model.owner.HoursTransferDto
+import com.asseta.core.model.owner.NonRevenueApprovalDto
+import com.asseta.core.model.owner.RevenueDifferenceDto
 import com.asseta.owner.ui.OwnerFeatures
 import kotlinx.serialization.Serializable
 import java.time.ZoneId
@@ -47,7 +49,19 @@ enum class DecisionKind(
     CORRECTION(DecisionKinds.CORRECTION, T.CORRECTIONS, T.CORRECTIONS_EMPTY, T.TITLE_CORRECTION, OwnerAction.DECIDE_CORRECTION, true, "PROPOSED", { it.meterEvidence }, TenantAccess.ENGINE_HOURS),
     WRITE_OFF(DecisionKinds.WRITE_OFF, T.WRITE_OFFS, T.WRITE_OFFS_EMPTY, T.TITLE_WRITE_OFF, OwnerAction.DECIDE_WRITE_OFF, false, "WRITE_OFF_PROPOSED", { it.finance }, TenantAccess.CASH_CUSTODY),
     RETENTION(DecisionKinds.RETENTION, T.RETENTIONS, T.RETENTIONS_EMPTY, T.TITLE_RETENTION, OwnerAction.DECIDE_RETENTION, false, "PENDING", { it.custodyRead }, TenantAccess.CASH_CUSTODY),
-    ADJUSTMENT(DecisionKinds.ADJUSTMENT, T.ADJUSTMENTS, T.ADJUSTMENTS_EMPTY, T.TITLE_ADJUSTMENT, OwnerAction.DECIDE_ADJUSTMENT, false, "PENDING", { it.finance }, TenantAccess.CASH_CUSTODY);
+    ADJUSTMENT(DecisionKinds.ADJUSTMENT, T.ADJUSTMENTS, T.ADJUSTMENTS_EMPTY, T.TITLE_ADJUSTMENT, OwnerAction.DECIDE_ADJUSTMENT, false, "PENDING", { it.finance }, TenantAccess.CASH_CUSTODY),
+
+    /** DEC-031 R3: listed while OPEN (to explain) or EXPLANATION_PROPOSED; its own screen (explain, approve/reject/confirm). */
+    REVENUE_DIFFERENCE(
+        DecisionKinds.REVENUE_DIFFERENCE, T.REV_SECTION_DIFFERENCES, T.REV_DIFFERENCES_EMPTY, T.REV_TITLE_DIFFERENCE, OwnerAction.DECIDE_REVENUE, true,
+        "EXPLANATION_PROPOSED", { it.revenueRead }, TenantAccess.REVENUE_RECONCILIATION,
+    ),
+
+    /** DEC-031 R1: non-revenue work-log time explained by one person, approved by another (note of at least 5 characters). */
+    NON_REVENUE(
+        DecisionKinds.NON_REVENUE, T.REV_SECTION_NON_REVENUE, T.REV_NON_REVENUE_EMPTY, T.REV_TITLE_NON_REVENUE, OwnerAction.DECIDE_NON_REVENUE, true,
+        "PROPOSED", { it.revenueRead }, TenantAccess.REVENUE_RECONCILIATION,
+    );
 
     /** The tenant switched off the capability this kind belongs to (its section and screen are hidden). */
     fun switchedOff(features: OwnerFeatures): Boolean = capability in features.disabled
@@ -205,6 +219,46 @@ object DecisionMapper {
             T.F_PROPOSED_BY to name(a.createdByName, a.createdBy), *decided(a.decidedByName, a.decidedBy, a.decisionNote)),
         proposedByName = name(a.createdByName, a.createdBy),
     )
+
+    /** Waiting for someone: to explain (OPEN) or for a decision on the explanation. */
+    fun revenuePending(status: String): Boolean =
+        status == RevenueDifferenceDto.OPEN || status == RevenueDifferenceDto.EXPLANATION_PROPOSED
+
+    /** "26 Oct 2026" or "19 Oct 2026 – 25 Oct 2026" from the local days of a period. */
+    fun period(from: String, to: String): String {
+        val f = RevenuePresentation.day(from)
+        val t = RevenuePresentation.day(to)
+        return if (from == to) f else "$f – $t"
+    }
+
+    fun revenueDifference(d: RevenueDifferenceDto, zone: ZoneId): DecisionItem {
+        val machine = d.machineCode ?: d.machineName ?: DisplayNames.shortId(d.machineId).orEmpty()
+        val shown = d.adjustedDifference ?: d.difference
+        return DecisionItem(
+            DecisionKinds.REVENUE_DIFFERENCE, d.id, T.rowDifference(money(shown, d.currency), machine),
+            "${period(d.localFrom, d.localTo)} · ${T.revStatus(d.status)}", d.explainedAt, d.explainedBy, d.status, revenuePending(d.status),
+            fields(T.REV_MACHINE to DisplayNames.machine(d.machineCode, d.machineName, d.machineId), T.REV_PERIOD to period(d.localFrom, d.localTo),
+                T.REV_JOB to d.jobId?.let { DisplayNames.of(d.jobNumber, it) }, T.REV_EXPECTED to money(d.expectedAmount, d.currency),
+                T.REV_ATTRIBUTED to money(d.attributedAmount, d.currency), T.REV_DIFFERENCE to money(shown, d.currency),
+                T.REV_REASON to d.reasonName, T.REV_EXPLAINED_BY to d.explainedBy?.let { name(d.explainedByName, it) },
+                *decided(d.decidedByName, d.decidedBy, d.decisionNote)),
+            proposedByName = d.explainedBy?.let { name(d.explainedByName, it) },
+        )
+    }
+
+    fun nonRevenue(a: NonRevenueApprovalDto, zone: ZoneId): DecisionItem {
+        val machine = a.machineCode ?: a.machineName ?: DisplayNames.shortId(a.machineId).orEmpty()
+        val type = OwnerFormat.humanize(a.activityType)
+        return DecisionItem(
+            DecisionKinds.NON_REVENUE, a.id, T.rowNonRevenue(num(a.hours), type, machine), a.reasonName ?: a.note, a.proposedAt, a.proposedBy, a.status,
+            a.status == "PROPOSED",
+            fields(T.REV_MACHINE to DisplayNames.machine(a.machineCode, a.machineName, a.machineId), T.REV_JOB to DisplayNames.of(a.jobNumber, a.jobId),
+                T.NONREV_TYPE to type, T.NONREV_TIME to "${date(a.startedAt, zone)} – ${date(a.endedAt, zone)}", T.NONREV_HOURS to num(a.hours),
+                T.REV_REASON to a.reasonName, T.REV_NOTE to a.note, T.F_PROPOSED_BY to name(a.proposedByName, a.proposedBy),
+                *decided(a.decidedByName, a.decidedBy, a.decisionNote)),
+            proposedByName = name(a.proposedByName, a.proposedBy),
+        )
+    }
 
     fun outcome(code: String): String = when (code) {
         "APPROVED_NON_CUSTOMER" -> T.OUTCOME_NON_CUSTOMER

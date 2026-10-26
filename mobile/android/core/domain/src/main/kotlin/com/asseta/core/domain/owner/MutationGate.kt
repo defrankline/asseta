@@ -33,6 +33,11 @@ enum class OwnerAction(val permission: String) {
     DECIDE_WRITE_OFF("tenant.finance.writeoff"),
     DECIDE_RETENTION("tenant.finance.retention_approve"),
     DECIDE_ADJUSTMENT("tenant.finance.adjustment_approve"),
+
+    // Revenue reconciliation (DEC-031): explain, then a second person decides.
+    EXPLAIN_REVENUE("tenant.revenue.explain"),
+    DECIDE_REVENUE("tenant.revenue.decide"),
+    DECIDE_NON_REVENUE("tenant.revenue.decide"),
 }
 
 sealed interface MutationCheck {

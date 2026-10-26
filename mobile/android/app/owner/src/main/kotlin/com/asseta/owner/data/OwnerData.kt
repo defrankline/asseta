@@ -32,6 +32,13 @@ import com.asseta.core.model.owner.AccountabilitySummaryDto
 import com.asseta.core.model.owner.DecisionIn
 import com.asseta.core.model.owner.MeterDecisionIn
 import com.asseta.core.model.owner.RemittanceOverdueDto
+import com.asseta.core.model.owner.DailyMachineSheetDetailDto
+import com.asseta.core.model.owner.DailyMachineSheetRowDto
+import com.asseta.core.model.owner.NonRevenueDecisionIn
+import com.asseta.core.model.owner.RevenueDecisionIn
+import com.asseta.core.model.owner.RevenueDifferenceDto
+import com.asseta.core.model.owner.RevenueExplanationIn
+import com.asseta.core.model.owner.RevenueReasonDto
 import com.asseta.owner.ui.accountability.CashRecord
 import com.asseta.owner.ui.accountability.CashRecords
 import com.asseta.owner.ui.accountability.DecisionItem
@@ -210,6 +217,10 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
                 DecisionKind.WRITE_OFF -> cashVariances(status).items.map(DecisionMapper::writeOff)
                 DecisionKind.RETENTION -> cashRetentions(status).items.map { DecisionMapper.retention(it, zone) }
                 DecisionKind.ADJUSTMENT -> custodyAdjustments(status).items.map { DecisionMapper.adjustment(it, zone) }
+                // Waiting for someone: to explain (OPEN) and explanations waiting for a decision.
+                DecisionKind.REVENUE_DIFFERENCE -> (revenueDifferences("OPEN").items + revenueDifferences(status).items)
+                    .map { DecisionMapper.revenueDifference(it, zone) }
+                DecisionKind.NON_REVENUE -> nonRevenueApprovals(status).items.map { DecisionMapper.nonRevenue(it, zone) }
             }
         }
     }
@@ -233,6 +244,8 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
                     DecisionKind.WRITE_OFF -> DecisionMapper.writeOff(cashVariance(id))
                     DecisionKind.RETENTION -> DecisionMapper.retention(cashRetention(id), zone)
                     DecisionKind.ADJUSTMENT -> DecisionMapper.adjustment(custodyAdjustment(id), zone)
+                    DecisionKind.REVENUE_DIFFERENCE -> DecisionMapper.revenueDifference(revenueDifference(id), zone)
+                    DecisionKind.NON_REVENUE -> DecisionMapper.nonRevenue(nonRevenueApproval(id), zone)
                 },
             )
         }
@@ -276,10 +289,42 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
                 DecisionKind.WRITE_OFF -> decideCashWriteOff(id, decision)
                 DecisionKind.RETENTION -> decideCashRetention(id, decision)
                 DecisionKind.ADJUSTMENT -> decideCustodyAdjustment(id, decision)
+                DecisionKind.REVENUE_DIFFERENCE -> decideRevenueDifference(id, RevenueDecisionIn(meter.decision, meter.note))
+                DecisionKind.NON_REVENUE -> decideNonRevenue(id, NonRevenueDecisionIn(meter.decision, meter.note))
             }
             Unit
         }
     }
+
+    // --- revenue reconciliation (DEC-031 Phase 1; online actions, cached reads) ----------------------------------
+    /** One revenue difference (any status), cached per record for offline viewing. */
+    suspend fun revenueDifference(id: String): Load<RevenueDifferenceDto> =
+        repo.load(tenantId, "revenue_difference:$id", RevenueDifferenceDto.serializer()) { revenueDifference(id) }
+
+    /** The tenant's active revenue reasons, by name (the explain picker). */
+    suspend fun revenueReasons(): Load<List<RevenueReasonDto>> =
+        repo.load(tenantId, "revenue_reasons", ListSerializer(RevenueReasonDto.serializer())) {
+            revenueReasons(pageSize = LIST_PAGE).items.filter { it.isActive }.sortedBy { it.name.lowercase() }
+        }
+
+    /** Explain an OPEN difference (tenant.revenue.explain); someone else decides. */
+    suspend fun explainRevenue(id: String, reasonId: String, note: String) =
+        repo.act { explainRevenueDifference(id, RevenueExplanationIn(reasonId, note.trim())) }
+
+    /** APPROVE / REJECT the explanation, or CONFIRM the difference (tenant.revenue.decide; never the explainer). */
+    suspend fun decideRevenue(id: String, decision: String, note: String) =
+        repo.act { decideRevenueDifference(id, RevenueDecisionIn(decision, note.trim())) }
+
+    /** The daily machine sheet of [machineId] for the local days [from]..[to] (newest first). */
+    suspend fun dailySheet(machineId: String, from: java.time.LocalDate, to: java.time.LocalDate): Load<List<DailyMachineSheetRowDto>> =
+        repo.load(tenantId, "daily_sheet:$machineId", ListSerializer(DailyMachineSheetRowDto.serializer())) {
+            dailyMachineSheet(machineId = machineId, dayFrom = from.toString(), dayTo = to.toString(), pageSize = LIST_PAGE).items
+                .sortedByDescending { it.day }
+        }
+
+    /** One machine on one local day, with its readings, jobs, money and flags. */
+    suspend fun sheetDay(machineId: String, day: String): Load<DailyMachineSheetDetailDto> =
+        repo.load(tenantId, "sheet_day:$machineId:$day", DailyMachineSheetDetailDto.serializer()) { dailyMachineSheetDay(machineId, day) }
 
     /** The accountability dashboard summary (tiles the tenant hides come back null). */
     suspend fun accountabilitySummary(): Load<AccountabilitySummaryDto> =

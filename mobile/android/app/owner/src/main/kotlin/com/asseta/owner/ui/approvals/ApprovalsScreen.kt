@@ -59,6 +59,7 @@ import com.asseta.owner.ui.accountability.DecisionRow
 import com.asseta.owner.data.ExceptionList
 import com.asseta.owner.data.HandoverList
 import com.asseta.owner.data.OwnerData
+import com.asseta.owner.data.map
 import com.asseta.owner.ui.OwnerSession
 import com.asseta.owner.ui.common.BlockedNote
 import com.asseta.owner.ui.common.EmptyState
@@ -124,6 +125,7 @@ class ApprovalsViewModel private constructor(
     handovers: Boolean,
     exceptions: Boolean,
     decisions: List<DecisionKind>,
+    revenueOpen: Boolean,
 ) : SnapshotViewModel<PageDto<ApprovalRequestDto>>({ data.approvals(selected.value) }, refreshOn) {
     /**
      * [meterResets]: also list pending meter reset requests (`tenant.meter.read`); [jobs]: also list jobs waiting for
@@ -139,7 +141,9 @@ class ApprovalsViewModel private constructor(
         handovers: Boolean = false,
         exceptions: Boolean = false,
         decisions: List<DecisionKind> = emptyList(),
-    ) : this(data, MutableStateFlow(ApprovalText.DEFAULT_FILTER), refreshOn, meterResets, jobs, handovers, exceptions, decisions)
+        /** Also list revenue differences still to explain (explain or decide holders); otherwise only proposed ones. */
+        revenueOpen: Boolean = true,
+    ) : this(data, MutableStateFlow(ApprovalText.DEFAULT_FILTER), refreshOn, meterResets, jobs, handovers, exceptions, decisions, revenueOpen)
 
     val status: StateFlow<String?> get() = selected
 
@@ -156,7 +160,11 @@ class ApprovalsViewModel private constructor(
     val openExceptions: Section<ExceptionList>? = if (exceptions) Section(viewModelScope) { data.openExceptions(jobNumbers = jobs) } else null
 
     /** Accountability requests waiting for a decision, one independently loaded section per kind the role may see. */
-    val decisionSections: List<Pair<DecisionKind, Section<List<DecisionItem>>>> = decisions.map { k -> k to Section(viewModelScope) { data.decisions(k) } }
+    val decisionSections: List<Pair<DecisionKind, Section<List<DecisionItem>>>> = decisions.map { k ->
+        k to Section(viewModelScope) {
+            data.decisions(k).map { list -> if (k == DecisionKind.REVENUE_DIFFERENCE && !revenueOpen) list.filter { it.status != "OPEN" } else list }
+        }
+    }
 
     private val sections get() = listOfNotNull(resets, pendingJobs, claimedHandovers, openExceptions) + decisionSections.map { it.second }
 

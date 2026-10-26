@@ -499,4 +499,73 @@ interface TenantApi {
 
     @GET("api/v1/tenant/cash/remittance-overdue/{id}")
     suspend fun remittanceOverdueFlag(@Path("id") id: String): RemittanceOverdueDto
+
+    // --- DEC-031 Phase 1: revenue reconciliation (online only; 422 REVENUE_RECONCILIATION_DISABLED while off) ------
+    /** listDailyMachineSheet (tenant.revenue.read): one row per machine per local day, at most 93 days. */
+    @GET("api/v1/tenant/daily-machine-sheet")
+    suspend fun dailyMachineSheet(
+        @Query("machine_id") machineId: String? = null,
+        @Query("day_from") dayFrom: String? = null,
+        @Query("day_to") dayTo: String? = null,
+        @Query("page_size") pageSize: Int = 100,
+    ): PageDto<com.asseta.core.model.owner.DailyMachineSheetRowDto>
+
+    @GET("api/v1/tenant/daily-machine-sheet/{machine_id}/{day}")
+    suspend fun dailyMachineSheetDay(@Path("machine_id") machineId: String, @Path("day") day: String): com.asseta.core.model.owner.DailyMachineSheetDetailDto
+
+    @GET("api/v1/tenant/revenue-differences")
+    suspend fun revenueDifferences(
+        @Query("status") status: String? = null,
+        @Query("machine_id") machineId: String? = null,
+        @Query("page_size") pageSize: Int = 100,
+    ): PageDto<com.asseta.core.model.owner.RevenueDifferenceDto>
+
+    @GET("api/v1/tenant/revenue-differences/{id}")
+    suspend fun revenueDifference(@Path("id") id: String): com.asseta.core.model.owner.RevenueDifferenceDto
+
+    /** explainRevenueDifference (tenant.revenue.explain): OPEN -> EXPLANATION_PROPOSED. */
+    @POST("api/v1/tenant/revenue-differences/{id}/explanation")
+    suspend fun explainRevenueDifference(
+        @Path("id") id: String,
+        @Body body: com.asseta.core.model.owner.RevenueExplanationIn,
+    ): com.asseta.core.model.owner.RevenueDifferenceDto
+
+    /** decideRevenueDifference (tenant.revenue.decide; never the explainer). */
+    @POST("api/v1/tenant/revenue-differences/{id}/decision")
+    suspend fun decideRevenueDifference(
+        @Path("id") id: String,
+        @Body body: com.asseta.core.model.owner.RevenueDecisionIn,
+    ): com.asseta.core.model.owner.RevenueDifferenceDto
+
+    /** listRevenueReasons (tenant.revenue.read); inactive ones are left out unless asked for. */
+    @GET("api/v1/tenant/revenue-reasons")
+    suspend fun revenueReasons(@Query("page_size") pageSize: Int = 100): PageDto<com.asseta.core.model.owner.RevenueReasonDto>
+
+    /** listNonRevenueActivities (tenant.revenue.read): non-revenue work-log entries with their approval status. */
+    @GET("api/v1/tenant/non-revenue-activities")
+    suspend fun nonRevenueActivities(
+        @Query("job_id") jobId: String? = null,
+        @Query("machine_id") machineId: String? = null,
+        @Query("page_size") pageSize: Int = 100,
+    ): PageDto<com.asseta.core.model.owner.NonRevenueActivityDto>
+
+    @GET("api/v1/tenant/non-revenue-approvals")
+    suspend fun nonRevenueApprovals(
+        @Query("status") status: String? = null,
+        @Query("page_size") pageSize: Int = 100,
+    ): PageDto<com.asseta.core.model.owner.NonRevenueApprovalDto>
+
+    @GET("api/v1/tenant/non-revenue-approvals/{id}")
+    suspend fun nonRevenueApproval(@Path("id") id: String): com.asseta.core.model.owner.NonRevenueApprovalDto
+
+    /** proposeNonRevenue (tenant.revenue.explain): 409 NON_REVENUE_PENDING, 422 NON_REVENUE_APPROVAL_NOT_REQUIRED. */
+    @POST("api/v1/tenant/non-revenue-approvals")
+    suspend fun proposeNonRevenue(@Body body: com.asseta.core.model.owner.NonRevenueApprovalIn): com.asseta.core.model.owner.NonRevenueApprovalDto
+
+    /** decideNonRevenue (tenant.revenue.decide; never the proposer). */
+    @POST("api/v1/tenant/non-revenue-approvals/{id}/decision")
+    suspend fun decideNonRevenue(
+        @Path("id") id: String,
+        @Body body: com.asseta.core.model.owner.NonRevenueDecisionIn,
+    ): com.asseta.core.model.owner.NonRevenueApprovalDto
 }

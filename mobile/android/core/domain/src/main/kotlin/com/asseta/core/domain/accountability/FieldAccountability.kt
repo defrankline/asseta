@@ -118,6 +118,15 @@ data class FieldAccess(
     val proposeBaseline: Boolean get() = engineHours && supports(SyncCapabilities.OP_METER_BASELINE) && can(METER_CAPTURE)
     val proposeCorrection: Boolean get() = engineHours && supports(SyncCapabilities.OP_METER_CORRECTION) && can(METER_CAPTURE)
 
+    /** Revenue checks are in use (REVENUE_RECONCILIATION, platform default off, listed in `/me` while off). */
+    val revenueOn: Boolean get() = TenantAccess.REVENUE_RECONCILIATION !in disabled
+
+    /** Work-log entries show their non-revenue status (online read, DEC-031 R1). */
+    val nonRevenueStatus: Boolean get() = revenueOn && can(REVENUE_READ)
+
+    /** "Explain" on a non-revenue entry (online only; the reason list needs read too). */
+    val explainNonRevenue: Boolean get() = nonRevenueStatus && can(REVENUE_EXPLAIN)
+
     /** The handover form offers method, deposit account and deposit slip photos (DEC-031 D2). */
     val remittanceDetails: Boolean get() = supports(SyncCapabilities.REMITTANCE_DETAILS_V1)
 
@@ -131,6 +140,8 @@ data class FieldAccess(
         const val HOURS_READ = "tenant.hours.read"
         const val COLLECTION_RECORD = "tenant.collection.record"
         const val METER_CAPTURE = "tenant.meter.capture"
+        const val REVENUE_READ = "tenant.revenue.read"
+        const val REVENUE_EXPLAIN = "tenant.revenue.explain"
     }
 }
 
