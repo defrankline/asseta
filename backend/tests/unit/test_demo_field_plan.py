@@ -199,3 +199,23 @@ def test_demo_supervisor_only_accepts_the_seeded_account(demo: ModuleType, tmp_p
     state["users"]["supervisor"]["preexisting"] = True
     with pytest.raises(demo.Refuse):
         demo.demo_supervisor(args, state)
+
+
+def test_seed_refuses_a_tenant_whose_data_was_reset_for_go_live(demo: ModuleType) -> None:
+    class FakeApi:
+        def __init__(self, total: int):
+            self.total = total
+            self.calls: list[tuple[str, dict[str, Any]]] = []
+
+        def get(self, path: str, params: dict[str, Any]) -> dict[str, Any]:
+            self.calls.append((path, params))
+            return {"total": self.total, "items": [{"occurred_at": "2026-10-28T10:00:00Z"}] * self.total}
+
+    tenant = {"id": "t1", "display_name": "Real Co"}
+    fresh = FakeApi(0)
+    demo.refuse_if_reset(fresh, tenant)
+    assert fresh.calls == [
+        ("/platform/audit-events", {"tenant_id": "t1", "action_prefix": "platform.tenant.data_reset", "page_size": 1})
+    ]
+    with pytest.raises(demo.Refuse, match="data reset for go-live"):
+        demo.refuse_if_reset(FakeApi(1), tenant)

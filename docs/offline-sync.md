@@ -75,6 +75,7 @@ Job meter readings (OPENING/CLOSING), cash collections and remittances are never
 | Long offline period | Captures validated against the device snapshot; offline grant bounded by `offline_grant_hours`; late GPS attaches by event time | `test_jobs_meter.py`, `test_trackers_ingestion.py` |
 | Lost / stolen phone | Owner revokes → `DEVICE_REVOKED` + `WIPE_LOCAL_DATA`; re-registration refused | `test_sync.py::…revocation` |
 | Expired/revoked device session | Same as above; Keycloak token revocation also applies | — |
+| Tenant data reset before go-live ([runbook §11](operating-runbook.md#11-reset-a-tenants-data-before-go-live)) | Every session revoked with the reset reason → `DEVICE_REVOKED` + `WIPE_LOCAL_DATA`; the phone may register again, and a re-registered session that has not bootstrapped is told to wipe on its first pull/upload/push, so erased data never comes back | `test_reset_tenant_data.py` |
 | Suspended subscription | `QUARANTINED`, applied after reactivation | `test_sync.py::…quarantine…` |
 | Job reassigned/cancelled/machine changed | `CONFLICT` with `server_state`; delta pull delivers the new job state | `test_sync.py` |
 | GPS disabled / denied | Capture records the failed attempt; SOFT → PROVISIONAL + exception, HARD → REJECTED | `test_jobs_meter.py` |

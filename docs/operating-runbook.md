@@ -310,3 +310,63 @@ Operational consequences of the drills:
   create `asseta.telemetry.position` with N partitions (key = machine id keeps per-machine order).
 * **Recovery is automatic** for Kafka, MinIO and worker restarts; no manual replay was needed in any drill. Relay
   retry backoff is capped at 300 s, so after a long broker outage the drain can start up to 5 min after recovery.
+
+## 11. Reset a tenant's data before go-live
+
+For a tenant that was used for demos or a trial and now goes live as the real company: erase its business data and
+keep the company itself. One-off, per tenant, production-safe; it never touches another tenant or platform data.
+
+| Kept | Deleted (every row of this tenant) |
+|---|---|
+| The tenant row and its settings (name, timezone, currency) | Machines, categories, operating areas, photos, trackers, positions, alerts, telemetry ingestion |
+| Asseta subscription and platform billing: agreement, rate versions, subscription and its status/entitlement events, platform invoices (as issued), payments, credits, SMS wallet | Sites, geofences, site check-ins; per-machine billing enrollments of the deleted machines and their un-invoiced charges |
+| Keycloak accounts and their tenant groups (not touched at all), the role mirror, tenant memberships | Customers, contracts, rate cards, jobs, readings, work logs, exceptions, acknowledgements, approvals |
+| Staff records and their login links | Expenses, categories, fuel, receipts; the whole cash chain (custody, handovers, transfers, variances, retentions, adjustments, overdue); deposit accounts |
+| Managed-service mandates, push-device registrations | Hire invoices, customer payments, allocations, evidence; customer hours; engine-hour baselines/corrections/classifications; revenue reconciliation |
+| Platform-level audit events (`platform.*`, `billing.*`) | Cases, signals, insights, ML trained on the tenant's data; notifications, inbox, SMS log; reason lists; the tenant's own policy versions (platform defaults apply again); number counters (job, `HP-`, `HINV-` numbering restarts); the tenant's business audit and security events; its object-store files (`tenants/<id>/`, `platform/ml-models/<id>/`) |
+
+Tables are discovered from the schema; a tenant-scoped table that `backend/scripts/reset_tenant_data.py` does not
+classify stops the run before anything changes (classify it there when a new module adds one). The database part is
+one transaction as the schema owner (guard triggers and forced RLS are lifted only inside it), so it either completes
+or changes nothing. An issued platform invoice line that billed a demo machine keeps every printed field; only its
+internal pointer to the deleted per-machine charge is cleared. Platform invoices already issued for demo machines
+stay as they are; credit them in Platform -> Billing if the client should not pay them.
+
+Before: deploy this release (the API must know the reset revocation, or phones could not register again), stop the
+demo feed if it runs (Ctrl-C in its terminal, or `docker stop` the `asseta-api-run-*` container running it), and pick a quiet moment: the transaction locks the
+tenant tables for a few seconds (other tenants' requests wait, they do not fail).
+
+```bash
+cd /home/asseta
+scripts/backup-live.sh                                                        # 1. backup (required: < 2 h old)
+scripts/reset-tenant-data.sh --registration-number 2026/10/0001               # 2. dry run: tenant, id, counts
+scripts/reset-tenant-data.sh --registration-number 2026/10/0001 --yes         # 3. real run: type the tenant name
+#   with Traccar clean-up: TRACCAR_ADMIN_EMAIL=you@example.com scripts/reset-tenant-data.sh ... --yes --remove-traccar-devices
+scripts/reset-tenant-data.sh --registration-number 2026/10/0001               # 4. verify: TOTAL rows 0, objects 0
+```
+`--tenant-id <uuid>` selects by id instead. The dry run prints the tenant name and id, the rows per table that would
+be deleted and kept, the object-store object count, the active phone sessions and the Traccar devices of the trackers
+(remove them in Traccar, or let `--remove-traccar-devices` do it). The real run also needs `--yes`, a complete
+`scripts/backup-live.sh` backup younger than `RESET_BACKUP_MAX_AGE_MIN` (120) minutes under `BACKUP_ROOT` (or
+`--backup-confirmed` when you have one elsewhere) and the tenant name typed exactly. It records the platform audit
+event `platform.tenant.data_reset` (counts, operator = `--operator`, default `<user>@<host>`, backup directory),
+deletes the objects after the commit (if that part fails, run the same command again: the database part is then a
+no-op) and moves the seeder's `.deploy/demo-*-state.json` of the tenant aside.
+
+Verify (step 4 plus): Platform -> Audit log shows `platform.tenant.data_reset` for the tenant; signed in as the
+tenant owner, Fleet, Jobs, Finance and the dashboards are empty; Platform -> Tenants shows the subscription unchanged.
+
+What users see:
+* **Web:** same sign-in, same roles; every list is empty and numbering starts again (first job `J-<year>-001`).
+* **Phones** (supervisor app, Android and iOS): every device session of the tenant is revoked with the reset reason.
+  On its next sync the app gets the wipe instruction: it erases its local database, evidence files and tokens and
+  returns to the sign-in screen with the revocation message ("revoked by your administrator ... local data was
+  erased"). Tell users to simply sign in again: the reset revocation does not lock the phone out; it registers again
+  and starts from a fresh bootstrap (an empty fleet until real data exists). A phone that registers but still holds
+  the old data is told to wipe on its first delta pull or upload, so demo data never comes back. Unsynced work on a
+  phone at the time of the reset is discarded with the rest (it belonged to the erased records).
+
+Afterwards `scripts/seed-demo-tenant.sh seed` refuses this tenant (it carries the reset event): demo data goes only
+into a separate demo tenant. The demo accounts and demo staff that `seed` created remain (accounts are never touched);
+deactivate them in People and Keycloak if the company does not use them. Undo = restore the backup of step 1 (§6.2):
+that restores the whole database, i.e. every tenant, to that moment.

@@ -22,6 +22,13 @@ class DeviceStatus(StrEnum):
     REVOKED = "REVOKED"  # lost/stolen/offboarded: next contact -> wipe instruction
 
 
+# `revoke_reason` written by backend/scripts/reset_tenant_data.py on every device of a tenant whose data was reset
+# (docs/operating-runbook.md, "Reset a tenant's data before go-live"). Unlike an administrator's revocation, the
+# device may register again: its next sync call is answered with the wipe instruction (the phone drops its local
+# data, which belongs to the erased records), and after signing in again it starts from a fresh bootstrap.
+TENANT_DATA_RESET_REVOKE_REASON = "TENANT_DATA_RESET: the company's data was reset; sign in again to start afresh"
+
+
 class OperationStatus(StrEnum):
     ACKED = "ACKED"
     REJECTED = "REJECTED"

@@ -41,7 +41,12 @@ from asseta.modules.sync.dto import (
     announced_capabilities,
 )
 from asseta.modules.sync.inbox import OPEN_JOB_STATES, InboxReader
-from asseta.modules.sync.models import DevicePolicySnapshot, DeviceSession, DeviceStatus
+from asseta.modules.sync.models import (
+    TENANT_DATA_RESET_REVOKE_REASON,
+    DevicePolicySnapshot,
+    DeviceSession,
+    DeviceStatus,
+)
 
 LOOKBACK = 500
 PAGE = 500
@@ -52,6 +57,10 @@ CLOSED_JOB_WINDOW = timedelta(days=14)  # bootstrap ships recently closed jobs s
 class DeviceRevoked(AppError):
     status_code = 403
     code = "DEVICE_REVOKED"
+
+
+def _reset_revoked(row: DeviceSession) -> bool:
+    return row.status is DeviceStatus.REVOKED and row.revoke_reason == TENANT_DATA_RESET_REVOKE_REASON
 
 
 class SyncService:
@@ -68,7 +77,7 @@ class SyncService:
             .order_by(DeviceSession.registered_at.desc())
             .limit(1)
         ).scalar_one_or_none()
-        if existing is not None and existing.status is DeviceStatus.REVOKED:
+        if existing is not None and existing.status is DeviceStatus.REVOKED and not _reset_revoked(existing):
             raise DeviceRevoked(
                 "This device was revoked; contact your administrator",
                 details=[ErrorDetail(field=None, issue="WIPE_LOCAL_DATA")],
@@ -76,7 +85,7 @@ class SyncService:
         grant = self._now + timedelta(
             hours=self._policies.device_sync(self._tid, at=self._now).policy.offline_grant_hours
         )
-        if existing is not None:
+        if existing is not None and existing.status is DeviceStatus.ACTIVE:
             existing.app_version, existing.platform, existing.offline_grant_until = (
                 body.app_version,
                 body.platform,
@@ -98,7 +107,10 @@ class SyncService:
         self._s.flush()
         return session
 
-    def active_device(self, device_id: str | None) -> DeviceSession:
+    def active_device(self, device_id: str | None, *, bootstrap: bool = False) -> DeviceSession:
+        """The caller's current session for `device_id`. Answers the wipe instruction for a revoked session, and for
+        a session registered after a tenant data reset that has not bootstrapped yet unless this is the bootstrap:
+        such a phone still holds the erased records (and their cursor), so it must drop them first."""
         if not device_id:
             raise PermissionDenied("X-Device-Id header required for sync", code="DEVICE_NOT_REGISTERED")
         row = self._s.execute(
@@ -109,12 +121,30 @@ class SyncService:
         ).scalar_one_or_none()
         if row is None:
             raise PermissionDenied("Device not registered for this user", code="DEVICE_NOT_REGISTERED")
-        if row.status is DeviceStatus.REVOKED:
+        if row.status is DeviceStatus.REVOKED or (
+            not bootstrap and row.last_sync_at is None and self._reset_before(row)
+        ):
             raise DeviceRevoked(
                 "This device was revoked; local data must be wiped",
                 details=[ErrorDetail(field=None, issue="WIPE_LOCAL_DATA")],
             )
         return row
+
+    def _reset_before(self, row: DeviceSession) -> bool:
+        """True when this device + user had a session revoked by a tenant data reset (it may hold erased data)."""
+        return (
+            self._s.execute(
+                select(DeviceSession.id)
+                .where(
+                    DeviceSession.device_id == row.device_id,
+                    DeviceSession.user_id == row.user_id,
+                    DeviceSession.status == DeviceStatus.REVOKED,
+                    DeviceSession.revoke_reason == TENANT_DATA_RESET_REVOKE_REASON,
+                )
+                .limit(1)
+            ).first()
+            is not None
+        )
 
     def touch(self, device: DeviceSession, clock_offset_s: float | None = None) -> None:
         policy = self._policies.device_sync(self._tid, at=self._now).policy
@@ -278,7 +308,7 @@ class SyncService:
 
     # --- endpoints ----------------------------------------------------------------------------------
     def bootstrap(self, device_id: str | None) -> BootstrapDto:
-        device = self.active_device(device_id)
+        device = self.active_device(device_id, bootstrap=True)
         data, cursor, _ = self._data(None)
         self.touch(device)
         return BootstrapDto(

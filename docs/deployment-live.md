@@ -385,6 +385,11 @@ contracts, customers and staff, revokes the demo users' roles and disables their
 devices if `TRACCAR_ADMIN_EMAIL` is set). A step the API refuses is reported; run it again later. Job history,
 positions and audit events remain, as for any retired machine.
 
+**Going live without demo data.** When the demo tenant becomes the real company, erase its demo data instead (keeps
+the tenant, subscription, accounts, staff and platform audit): backup, dry run, real run with
+`scripts/reset-tenant-data.sh`, see [operating-runbook.md §11](operating-runbook.md#11-reset-a-tenants-data-before-go-live).
+`seed` refuses a tenant once it was reset.
+
 **Local rehearsal** against the dev stack (`compose.yaml`, Keycloak without `/auth`):
 ```bash
 ENV_FILE=$PWD/.env COMPOSE_FILE=$PWD/compose.yaml STATE_FILE=/nonexistent DEMO_DIR=/tmp/demo \

@@ -5,7 +5,8 @@ image on the compose network.
   seed    Finds the tenant (registration number, else exact name), checks it is verified, ACTIVE and entitled, then
           acts on it under a temporary managed-service mandate (DEC-018): machines, sites + geofences, enrollments,
           simulated trackers, staff, two demo users (supervisor, accountant), customers, contracts, jobs. Sends a
-          few hours of GPS history and leaves the fleet parked. Refuses when the tenant already has machines.
+          few hours of GPS history and leaves the fleet parked. Refuses when the tenant already has machines, and a
+          tenant whose data was reset for go-live (scripts/reset-tenant-data.sh: platform.tenant.data_reset).
   feed    Keeps the demo fleet live for --minutes: working machines move slowly on their site with the engine on
           (in work runs shorter than the tenant's unreported-engine-activity threshold), parked machines report
           stationary with the ignition off. Time only moves forward (one writer, a lock file, the last sent time
@@ -456,6 +457,22 @@ def find_tenant(p: Api, registration: str, name: str) -> dict[str, Any]:
     return matches[0]
 
 
+RESET_ACTION = (
+    "platform.tenant.data_reset"  # written by scripts/reset-tenant-data.sh (backend/scripts/reset_tenant_data.py)
+)
+
+
+def refuse_if_reset(p: Api, t: dict[str, Any]) -> None:
+    """A tenant whose data was reset for go-live is a real company now: demo data never goes back into it."""
+    page = p.get("/platform/audit-events", {"tenant_id": t["id"], "action_prefix": RESET_ACTION, "page_size": 1})
+    if page.get("total"):
+        when = (page.get("items") or [{}])[0].get("occurred_at", "?")
+        raise Refuse(
+            f"'{t['display_name']}' had its data reset for go-live ({RESET_ACTION}, {when}); it is a live company.",
+            "Demo data is only added to a demo tenant: onboard a separate demo tenant and pass --registration-number.",
+        )
+
+
 def check_entitled(p: Api, t: dict[str, Any]) -> dict[str, Any]:
     sub = p.get(f"/platform/tenants/{t['id']}/subscription")
     problems = []
@@ -887,6 +904,7 @@ def seed(a: argparse.Namespace) -> int:
     sender = Sender(gateway_key, tl if all(tl) else None)
     with platform_session(kc, a.demo_domain) as pf:
         tenant = find_tenant(pf.api, a.registration_number, a.tenant_name)
+        refuse_if_reset(pf.api, tenant)
         sub = check_entitled(pf.api, tenant)
         log(f"tenant {tenant['display_name']} ({tenant['id']}): verified, subscription ACTIVE, access FULL")
         if sub.get("enrolled_assets"):
