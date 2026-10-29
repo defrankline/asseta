@@ -34,6 +34,7 @@ class MainActivity : ComponentActivity() {
                         canSwitchTenant = ready.me.tenants.count { it.accessState.canEnter } > 1,
                         userId = ready.me.userId.toString(),
                         disabledCapabilities = tenant.disabledCapabilities.toSet(),
+                        setup = com.asseta.owner.ui.setup.SetupProgress.fromMe(tenant),
                     )
                     OwnerHome(app.graph, session, modifier)
                 }

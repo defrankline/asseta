@@ -149,6 +149,19 @@ class AccountabilityContractTest {
     }
 
     @Test
+    fun `go-live checklist DTOs match the contract`() {
+        mapOf<String, KSerializer<*>>(
+            "SetupChecklistDto" to com.asseta.core.model.owner.SetupChecklistDto.serializer(),
+            "SetupStepDto" to com.asseta.core.model.owner.SetupStepDto.serializer(),
+            "SetupCheckDto" to com.asseta.core.model.owner.SetupCheckDto.serializer(),
+            "NotNeededDto" to com.asseta.core.model.owner.SetupNotNeededDto.serializer(),
+        ).forEach { (name, serializer) -> ContractCheck.check(name, serializer.descriptor) }
+        ContractCheck.check("NotNeededIn", com.asseta.core.model.owner.SetupNotNeededIn.serializer().descriptor, request = true)
+        ContractCheck.check("ConfirmControlsIn", com.asseta.core.model.owner.SetupConfirmControlsIn.serializer().descriptor, request = true)
+        ContractCheck.check("TenantAccessDto", TenantAccess.serializer().descriptor, subset = true)
+    }
+
+    @Test
     fun `oversight DTOs match the contract`() {
         mapOf<String, KSerializer<*>>(
             "AmountByCurrencyDto" to com.asseta.core.model.owner.AmountByCurrencyDto.serializer(),

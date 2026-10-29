@@ -50,7 +50,7 @@ import com.asseta.owner.ui.common.LocalOnline
 @Composable
 fun OwnerHome(graph: OwnerGraph, session: OwnerSession, modifier: Modifier = Modifier) {
     val tenantId = session.tenantId
-    val data = remember(tenantId) { graph.data(tenantId) }
+    val data = remember(tenantId) { graph.data(tenantId).also { it.seedSetupProgress(session.setup) } }
     val features = session.features
     val tabs = remember(session.permissions) { OwnerNavigation.tabs(features) }
     var stack by remember(tenantId) { mutableStateOf(listOf(OwnerNavigation.start(features))) }

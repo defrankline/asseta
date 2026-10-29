@@ -1,6 +1,8 @@
 package com.asseta.owner.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.asseta.core.domain.owner.OwnerDestination
 import com.asseta.owner.OwnerGraph
@@ -100,7 +102,9 @@ fun OwnerRoutes(
     when (route) {
         OwnerDestination.Home -> {
             val vm: HomeViewModel = viewModel(key = "home-$t") { HomeViewModel(data, graph.refreshTriggers("alert", "approval", "job", "case", "fleet.position", debounceMs = 10_000)) }
-            HomeScreen(vm, features, now, open)
+            val setup by data.setupProgress.collectAsStateWithLifecycle()
+            val banner = setup?.takeIf { features.setupRead && it.showBanner }
+            HomeScreen(vm, features, now, open, header = banner?.let { b -> { com.asseta.owner.ui.setup.SetupBanner(b) { open(OwnerDestination.SetupChecklist) } } })
         }
         OwnerDestination.Fleet -> {
             val vm: FleetViewModel = viewModel(key = "fleet-$t") { FleetViewModel(data, graph.refreshTriggers("fleet.position", "alert", debounceMs = 10_000)) }
@@ -301,6 +305,12 @@ fun OwnerRoutes(
                 com.asseta.owner.ui.accountability.IdleMachinesViewModel(data, graph.refreshTriggers("job", "machine"))
             }
             com.asseta.owner.ui.accountability.IdleMachinesScreen(vm, features, open)
+        }
+        OwnerDestination.SetupChecklist -> {
+            val vm: com.asseta.owner.ui.setup.SetupChecklistViewModel = viewModel(key = "setup-$t") {
+                com.asseta.owner.ui.setup.SetupChecklistViewModel(data, graph.refreshTriggers())
+            }
+            com.asseta.owner.ui.setup.SetupChecklistScreen(vm, session, online, com.asseta.core.network.NetworkFactory.defaultWebBaseUrl, open)
         }
         OwnerDestination.Accountability -> {
             val vm: AccountabilityViewModel = viewModel(key = "accountability-$t") {

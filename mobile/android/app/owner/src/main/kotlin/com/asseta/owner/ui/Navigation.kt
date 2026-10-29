@@ -89,5 +89,6 @@ object OwnerNavigation {
         is OwnerDestination.ScorecardPerson -> d.name ?: com.asseta.owner.ui.accountability.OversightTexts.SCORE_TITLE
         OwnerDestination.UnbilledWork -> com.asseta.owner.ui.accountability.OversightTexts.UNBILLED_TITLE
         OwnerDestination.IdleMachines -> com.asseta.owner.ui.accountability.OversightTexts.IDLE_TITLE
+        OwnerDestination.SetupChecklist -> com.asseta.owner.ui.setup.SetupTexts.TITLE
     }
 }

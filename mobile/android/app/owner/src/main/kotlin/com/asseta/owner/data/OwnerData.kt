@@ -364,6 +364,38 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
     suspend fun idleMachines(): Load<List<com.asseta.core.model.owner.IdleMachineDto>> =
         repo.load(tenantId, "idle_machines", ListSerializer(com.asseta.core.model.owner.IdleMachineDto.serializer())) { idleMachines(pageSize = LIST_PAGE).items }
 
+    // --- go-live setup checklist -------------------------------------------------------------------------------------
+    /**
+     * Dashboard banner figures: seeded from `/me` when the company is entered, then replaced by every checklist this
+     * session loads live or changes (so the banner follows the checklist without re-reading `/me`).
+     */
+    val setupProgress = kotlinx.coroutines.flow.MutableStateFlow<com.asseta.owner.ui.setup.SetupProgress?>(null)
+
+    /** Seeds [setupProgress] from `/me` unless a checklist was already seen in this session. */
+    fun seedSetupProgress(fromMe: com.asseta.owner.ui.setup.SetupProgress?) {
+        if (setupProgress.value == null) setupProgress.value = fromMe
+    }
+
+    suspend fun setupChecklist(): Load<com.asseta.core.model.owner.SetupChecklistDto> =
+        repo.load(tenantId, "setup_checklist", com.asseta.core.model.owner.SetupChecklistDto.serializer()) { setupChecklist() }.also {
+            if (it is Load.Ok && !it.snapshot.stale) setupProgress.value = com.asseta.owner.ui.setup.SetupProgress.of(it.snapshot.data)
+        }
+
+    suspend fun markSetupStepNotNeeded(key: String, reason: String): ActionResult<com.asseta.core.model.owner.SetupChecklistDto> =
+        setupWrite { markSetupStepNotNeeded(key, com.asseta.core.model.owner.SetupNotNeededIn(reason.trim())) }
+
+    suspend fun undoSetupStepNotNeeded(key: String): ActionResult<com.asseta.core.model.owner.SetupChecklistDto> =
+        setupWrite { undoSetupStepNotNeeded(key) }
+
+    suspend fun confirmSetupControls(note: String?): ActionResult<com.asseta.core.model.owner.SetupChecklistDto> =
+        setupWrite { confirmSetupControls(com.asseta.core.model.owner.SetupConfirmControlsIn(note?.trim()?.takeIf { n -> n.isNotEmpty() })) }
+
+    private suspend fun setupWrite(
+        block: suspend com.asseta.core.network.TenantApi.() -> com.asseta.core.model.owner.SetupChecklistDto,
+    ): ActionResult<com.asseta.core.model.owner.SetupChecklistDto> = repo.act(block).also {
+        if (it is ActionResult.Done) setupProgress.value = com.asseta.owner.ui.setup.SetupProgress.of(it.value)
+    }
+
     /** The accountability dashboard summary (tiles the tenant hides come back null). */
     suspend fun accountabilitySummary(): Load<AccountabilitySummaryDto> =
         repo.load(tenantId, "accountability_summary", AccountabilitySummaryDto.serializer()) { accountabilitySummary() }

@@ -31,6 +31,8 @@ data class OwnerSession(
     val userId: String? = null,
     /** Tenant capabilities switched off by policy (`/me` `disabled_capabilities`, e.g. CUSTOMER_HOURS). */
     val disabledCapabilities: Set<String> = emptySet(),
+    /** Go-live banner figures from `/me` (null without tenant.setup.read). */
+    val setup: com.asseta.owner.ui.setup.SetupProgress? = null,
 ) {
     val features: OwnerFeatures get() = OwnerFeatures(permissions, disabledCapabilities)
 
@@ -98,6 +100,12 @@ data class OwnerFeatures(val permissions: Set<String>, val disabled: Set<String>
     /** Idle machines list (DEC-031 M2): IDLE_MACHINES on and tenant.oversight.read. */
     val idleMachines get() = oversightRead && TenantAccess.IDLE_MACHINES !in disabled
 
+    /** Go-live checklist (banner, More entry, screen). */
+    val setupRead get() = "tenant.setup.read" in permissions
+
+    /** Mark steps as not needed / undo, confirm the default controls. */
+    val setupManage get() = setupRead && "tenant.setup.manage" in permissions
+
     /** The same features with more switched-off capabilities (e.g. the dashboard's `disabled_capabilities`). */
     fun without(capabilities: Collection<String>): OwnerFeatures =
         if (capabilities.all { it in disabled }) this else copy(disabled = disabled + capabilities)
@@ -118,6 +126,7 @@ data class OwnerFeatures(val permissions: Set<String>, val disabled: Set<String>
         OwnerDestination.Scorecard, is OwnerDestination.ScorecardPerson -> if (scorecard) d else OwnerDestination.Accountability
         OwnerDestination.UnbilledWork -> if (unbilledWork) d else OwnerDestination.Accountability
         OwnerDestination.IdleMachines -> if (idleMachines) d else OwnerDestination.Accountability
+        OwnerDestination.SetupChecklist -> if (setupRead) d else OwnerDestination.More
         else -> d
     }
     val custodyRead get() = finance || "tenant.collection.record" in permissions

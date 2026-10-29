@@ -64,6 +64,9 @@ object NetworkFactory {
     /** The build-type API base URL (also the origin of the `/api/v1/ws` WebSocket). */
     val defaultBaseUrl: String get() = BuildConfig.API_BASE_URL
 
+    /** The build-type web console origin ("Open on the web" links), e.g. `https://asseta.co.tz/`. */
+    val defaultWebBaseUrl: String get() = BuildConfig.WEB_BASE_URL
+
     /** Whether this build may talk to a cleartext (http/ws) endpoint (debug emulator only). */
     val defaultAllowCleartext: Boolean get() = BuildConfig.ALLOW_CLEARTEXT
 

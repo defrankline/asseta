@@ -32,6 +32,12 @@ data class TenantAccess(
     @SerialName("menu_groups") val menuGroups: List<MenuGroup> = emptyList(),
     /** Tenant capabilities switched off by policy (e.g. `CUSTOMER_HOURS`); their entry points are hidden. */
     @SerialName("disabled_capabilities") val disabledCapabilities: List<String> = emptyList(),
+    /** Go-live checklist figures for the dashboard banner; all null without `tenant.setup.read`. */
+    @SerialName("setup_complete") val setupComplete: Boolean? = null,
+    @SerialName("setup_percent") val setupPercent: Int? = null,
+    @SerialName("setup_steps_done") val setupStepsDone: Int? = null,
+    @SerialName("setup_steps_total") val setupStepsTotal: Int? = null,
+    @SerialName("setup_dismissed") val setupDismissed: Boolean? = null,
 ) {
     companion object {
         /** The tenant's customer-hours capability (CUSTOMER_HOURS policy `enabled`). */

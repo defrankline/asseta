@@ -44,11 +44,19 @@ class HomeViewModel(data: OwnerData, refreshOn: Flow<Unit>) : SnapshotViewModel<
  * KPIs as a grid of tiles (label above a big, tinted figure), then the section's links. Content shared with iOS.
  */
 @Composable
-fun HomeScreen(vm: HomeViewModel, features: OwnerFeatures, now: () -> Long, onOpen: (OwnerDestination) -> Unit) {
+fun HomeScreen(
+    vm: HomeViewModel,
+    features: OwnerFeatures,
+    now: () -> Long,
+    onOpen: (OwnerDestination) -> Unit,
+    /** Shown above the sections (the go-live banner). */
+    header: (@Composable () -> Unit)? = null,
+) {
     val state by vm.state.collectAsStateWithLifecycle()
     SnapshotScaffold(state, vm::refresh) { o ->
         val sections = OverviewPresentation.sections(o, state.stale, now())
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+            header?.let { h -> item(key = "header") { h() } }
             sections.forEach { section ->
                 item(key = section.title) {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {

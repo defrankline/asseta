@@ -67,6 +67,9 @@ sealed interface OwnerDestination {
 
     /** Machines idle for a while (DEC-031 M2, read-only). */
     data object IdleMachines : OwnerDestination
+
+    /** The go-live setup checklist (tenant.setup.read). */
+    data object SetupChecklist : OwnerDestination
 }
 
 /**
@@ -264,6 +267,7 @@ object DeepLinkRouter {
             "scorecard" -> second?.let { OwnerDestination.ScorecardPerson(it) } ?: OwnerDestination.Scorecard
             "unbilled-work" -> OwnerDestination.UnbilledWork
             "idle-machines" -> OwnerDestination.IdleMachines
+            "setup" -> OwnerDestination.SetupChecklist
             else -> null
         }
     }

@@ -21,6 +21,7 @@ import com.asseta.owner.ui.common.KeyValue
 
 /** Entries of the More tab the role may open (same gating and order as iOS `MoreView`). */
 fun moreEntries(features: OwnerFeatures): List<Pair<String, OwnerDestination>> = listOfNotNull(
+    (com.asseta.owner.ui.setup.SetupTexts.MORE to OwnerDestination.SetupChecklist).takeIf { features.setupRead },
     ("Approvals" to OwnerDestination.Approvals()).takeIf { features.approvals },
     (OwnerAccountabilityTexts.MORE_ACCOUNTABILITY to OwnerDestination.Accountability).takeIf { features.accountability },
     (OwnerAccountabilityTexts.HOURS_MORE to OwnerDestination.CustomerHours).takeIf { features.customerHours },
@@ -67,6 +68,7 @@ private fun moreIcon(d: OwnerDestination): Int = when (d) {
     OwnerDestination.Accountability -> R.drawable.ic_approval
     OwnerDestination.CustomerHours -> R.drawable.ic_receipt
     OwnerDestination.Scorecard -> R.drawable.ic_investigation
+    OwnerDestination.SetupChecklist -> R.drawable.ic_approval
     OwnerDestination.Cases -> R.drawable.ic_investigation
     is OwnerDestination.Notifications -> R.drawable.ic_bell
     else -> R.drawable.ic_settings

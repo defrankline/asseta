@@ -642,4 +642,25 @@ interface TenantApi {
         @Query("day_from") dayFrom: String? = null,
         @Query("day_to") dayTo: String? = null,
     ): com.asseta.core.model.owner.MySiteCheckinsDto
+
+    // --- go-live setup checklist ------------------------------------------------------------------------------------
+
+    /** getSetupChecklist (tenant.setup.read). */
+    @GET("api/v1/tenant/setup-checklist")
+    suspend fun setupChecklist(): com.asseta.core.model.owner.SetupChecklistDto
+
+    /** markSetupStepNotNeeded (tenant.setup.manage); 422 SETUP_STEP_REQUIRED for a step that cannot be skipped. */
+    @POST("api/v1/tenant/setup-checklist/steps/{key}/not-needed")
+    suspend fun markSetupStepNotNeeded(
+        @Path("key") key: String,
+        @Body body: com.asseta.core.model.owner.SetupNotNeededIn,
+    ): com.asseta.core.model.owner.SetupChecklistDto
+
+    /** undoSetupStepNotNeeded (tenant.setup.manage). */
+    @DELETE("api/v1/tenant/setup-checklist/steps/{key}/not-needed")
+    suspend fun undoSetupStepNotNeeded(@Path("key") key: String): com.asseta.core.model.owner.SetupChecklistDto
+
+    /** confirmSetupControls (tenant.setup.manage): the default controls are fine. */
+    @POST("api/v1/tenant/setup-checklist/confirm-controls")
+    suspend fun confirmSetupControls(@Body body: com.asseta.core.model.owner.SetupConfirmControlsIn): com.asseta.core.model.owner.SetupChecklistDto
 }
