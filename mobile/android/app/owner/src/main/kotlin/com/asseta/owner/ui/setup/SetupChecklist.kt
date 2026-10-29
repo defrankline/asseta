@@ -167,11 +167,17 @@ object SetupLinks {
         }
     }
 
-    /** [base] (e.g. `https://asseta.co.tz/`) + [link] (`/tenant/policies`), with exactly one slash between. */
-    fun webUrl(base: String, link: String): String = base.trimEnd('/') + "/" + link.trimStart('/')
+    /** Only relative web console routes (`/tenant/...`) may be opened: never an absolute or `//host` link. */
+    fun isSafeLink(link: String): Boolean =
+        link.startsWith("/tenant/") && !link.startsWith("//") && "://" !in link && '\\' !in link
 
-    fun target(link: String, f: OwnerFeatures, webBase: String): SetupTarget =
-        appScreen(link, f)?.let { SetupTarget.App(it, SetupTexts.openScreen(OwnerNavigation.title(it))) } ?: SetupTarget.Web(webUrl(webBase, link))
+    /** [base] (e.g. `https://asseta.co.tz/`) + [link] (`/tenant/policies`); null when the link could leave the web site. */
+    fun webUrl(base: String, link: String): String? = if (isSafeLink(link)) base.trimEnd('/') + link else null
+
+    /** The app screen, else the web console; null (no action) for a link that is not a relative `/tenant/` route. */
+    fun target(link: String, f: OwnerFeatures, webBase: String): SetupTarget? =
+        appScreen(link, f)?.let { SetupTarget.App(it, SetupTexts.openScreen(OwnerNavigation.title(it))) }
+            ?: webUrl(webBase, link)?.let { SetupTarget.Web(it) }
 }
 
 /** What the screen offers on one step (pure, unit tested). */
@@ -354,8 +360,9 @@ private fun StepCard(
         }
         if (SetupPresentation.hasAction(step)) {
             if (SetupPresentation.needsAccess(step, permissions)) FootNote(SetupTexts.NEEDS_ACCESS)
-            val target = SetupLinks.target(step.link, features, webBase)
-            ButtonRow(target.label, Modifier.testTag("setup-open-${step.key}")) { go(target) }
+            SetupLinks.target(step.link, features, webBase)?.let { target ->
+                ButtonRow(target.label, Modifier.testTag("setup-open-${step.key}")) { go(target) }
+            }
         }
         if (features.setupManage) {
             if (SetupPresentation.canConfirmControls(step, c)) {

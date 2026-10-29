@@ -81,8 +81,18 @@ class SetupChecklistOwnerTest {
         assertEquals(SetupTarget.App(OwnerDestination.Jobs, "Open Jobs"), SetupLinks.target("/tenant/jobs", owner, web))
         val webTarget = SetupLinks.target("/tenant/geofences?tab=sites", owner, web)
         assertEquals(SetupTarget.Web("https://asseta.co.tz/tenant/geofences?tab=sites"), webTarget)
-        assertEquals("Open on the web", webTarget.label)
-        assertEquals("http://h:8/tenant/access", SetupLinks.webUrl("http://h:8", "tenant/access"))
+        assertEquals("Open on the web", webTarget!!.label)
+        assertEquals("http://h:8/tenant/access", SetupLinks.webUrl("http://h:8/", "/tenant/access"))
+    }
+
+    @Test
+    fun `only relative tenant links open on the web`() {
+        listOf("https://evil.example/tenant/x", "//evil.example/tenant/x", "tenant/access", "/admin/x", "javascript:alert(1)", "/tenant/\\evil.example")
+            .forEach { link ->
+                assertNull(link, SetupLinks.webUrl(web, link))
+                assertNull(link, SetupLinks.target(link, owner, web))
+            }
+        assertEquals(SetupTarget.Web("https://asseta.co.tz/tenant/policies"), SetupLinks.target("/tenant/policies", owner, web))
     }
 
     @Test
