@@ -14,6 +14,7 @@ import { useLiveRefresh } from '../../../realtime/hooks';
 import { useSession } from '../../../session/useSession';
 import { formatInstantIn } from '../../../utils/time';
 import { AccountabilityDashboardSection } from '../accountability/AccountabilityPage';
+import { SetupBanner } from '../setup/SetupBanner';
 import { DASHBOARD_LIVE_ENTITIES } from './dashboardModel';
 import {
   FleetSection,
@@ -89,6 +90,7 @@ export function DashboardPage() {
         }
       />
       <Stack spacing={4}>
+        <SetupBanner />
         {hasPermission(PERMISSIONS.tenantAccountabilityRead) && <AccountabilityDashboardSection />}
         <AsyncContent
           resource={overview}

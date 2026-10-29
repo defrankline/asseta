@@ -19,6 +19,8 @@ const mocks = vi.hoisted(() => ({
   reactivate: vi.fn<typeof machineService.reactivate>(),
 }));
 vi.mock('../../../api/services/machineService', () => ({ machineService: mocks }));
+const trackers = vi.hoisted(() => ({ list: vi.fn() }));
+vi.mock('../../../api/services/trackerService', () => ({ trackerService: trackers }));
 
 const READ = ['tenant.machine.read'];
 const WRITE = ['tenant.machine.read', 'tenant.machine.write'];
@@ -36,6 +38,57 @@ async function openMenuItem(user: ReturnType<typeof userEvent.setup>, item: stri
   await user.click(await screen.findByRole('button', { name: MENU }));
   await user.click(screen.getByRole('menuitem', { name: item }));
 }
+
+describe('machine list ?missing= views (go-live checklist links)', () => {
+  it('?missing=tracker lists only active machines without a current main tracker', async () => {
+    const fitted = makeMachine({ id: 'm-fitted', asset_code: 'EX-02', name: 'Excavator 2' });
+    mocks.list.mockResolvedValue(page([makeMachine(), fitted]));
+    trackers.list.mockResolvedValue({
+      items: [
+        {
+          id: 't-1',
+          current_assignment: {
+            id: 'a-1',
+            tracker_id: 't-1',
+            machine_id: 'm-fitted',
+            is_primary: true,
+            effective_from: '2026-10-01T00:00:00Z',
+            effective_to: null,
+            reason: null,
+          },
+        },
+      ],
+      total: 1,
+      page: 1,
+      page_size: 200,
+    });
+    renderWithProviders(<MachinesPage />, {
+      tenantPermissions: READ,
+      route: '/tenant/machines?missing=tracker',
+    });
+    expect(await screen.findByText('Excavator 1')).toBeInTheDocument();
+    expect(screen.queryByText('Excavator 2')).not.toBeInTheDocument();
+    expect(screen.getByText(/do not have a main tracker fitted yet/)).toBeInTheDocument();
+    expect(mocks.list.mock.calls[0]?.[0]).toMatchObject({
+      page: 1,
+      page_size: 200,
+      filters: { status: 'ACTIVE' },
+    });
+  });
+
+  it('?missing=enrollment lists active machines with how to enrol them; Show all clears it', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<MachinesPage />, {
+      tenantPermissions: READ,
+      route: '/tenant/machines?missing=enrollment',
+    });
+    expect(await screen.findByText('Excavator 1')).toBeInTheDocument();
+    expect(screen.getByText(/Enroll as billable asset/)).toBeInTheDocument();
+    expect(mocks.list.mock.calls[0]?.[0].filters).toEqual({ status: 'ACTIVE' });
+    await user.click(screen.getByRole('button', { name: 'Show all machines' }));
+    expect(screen.queryByText(/Enroll as billable asset/)).not.toBeInTheDocument();
+  });
+});
 
 describe('machine list row actions', () => {
   it('opens Edit prefilled from the list and saves with the version that was read', async () => {

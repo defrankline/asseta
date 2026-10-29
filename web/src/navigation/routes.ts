@@ -48,6 +48,8 @@ export const ROUTES = {
   tenantGeofences: '/tenant/geofences',
   tenantAlerts: '/tenant/alerts',
   tenantPolicies: '/tenant/policies',
+  /** Matches the backend `tenant.setup` menu path (Overview group): the go-live checklist. */
+  tenantSetup: '/tenant/setup',
   tenantSubscription: '/tenant/subscription',
   tenantCustomers: '/tenant/customers',
   tenantCustomerDetail: '/tenant/customers/:customerId',
@@ -267,6 +269,7 @@ export const IMPLEMENTED_PATHS: ReadonlySet<string> = new Set([
   ROUTES.tenantGeofences,
   ROUTES.tenantAlerts,
   ROUTES.tenantPolicies,
+  ROUTES.tenantSetup,
   ROUTES.tenantSubscription,
   ROUTES.tenantCustomers,
   ROUTES.tenantExpenses,

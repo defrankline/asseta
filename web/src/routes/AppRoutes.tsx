@@ -71,6 +71,7 @@ import {
   TrackerDetailPage,
   TrackersPage,
   DashboardPage,
+  SetupChecklistPage,
   AccountabilityPage,
   SecurityEventsPage,
   SyncConflictsPage,
@@ -224,6 +225,10 @@ export function AppRoutes() {
         <Route
           path={ROUTES.tenantDashboard}
           element={guard(PERMISSIONS.tenantFleetRead, <DashboardPage />)}
+        />
+        <Route
+          path={ROUTES.tenantSetup}
+          element={guard(PERMISSIONS.tenantSetupRead, <SetupChecklistPage />)}
         />
         <Route
           path={ROUTES.tenantAccountability}

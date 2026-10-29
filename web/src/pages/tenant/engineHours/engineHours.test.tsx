@@ -20,6 +20,7 @@ import { UnallocatedHoursPage } from './UnallocatedHoursPage';
 
 const mocks = vi.hoisted(() => ({
   listBaselines: vi.fn<typeof engineHoursService.listBaselines>(),
+  listMachines: vi.fn<typeof engineHoursService.listMachines>(),
   decideBaseline: vi.fn<typeof engineHoursService.decideBaseline>(),
   machine: vi.fn<typeof engineHoursService.machine>(),
   listUnallocated: vi.fn<typeof engineHoursService.listUnallocated>(),
@@ -229,6 +230,45 @@ describe('MeterBaselinesPage', () => {
       );
     });
     expect(await screen.findByText('Baseline approved.')).toBeInTheDocument();
+  });
+});
+
+describe('MeterBaselinesPage ?missing=true', () => {
+  it('lists machines without an approved baseline and proposes one for a machine', async () => {
+    const user = userEvent.setup();
+    mocks.listBaselines.mockResolvedValue(page([]));
+    mocks.listMachines.mockResolvedValue(
+      page([
+        {
+          machine_id: MACHINE_ID,
+          machine_code: 'EX-01',
+          machine_name: 'Excavator',
+          status: 'NO_BASELINE',
+          baseline_reading: null,
+          baseline_pending: false,
+          last_reading: null,
+          last_reading_at: null,
+          open_items: 0,
+          oldest_open_item_days: null,
+          totals: {} as never,
+        },
+      ]),
+    );
+    renderWithProviders(<MeterBaselinesPage />, {
+      tenantPermissions: ['tenant.meter.read', 'tenant.meter.capture', 'tenant.machine.read'],
+      route: '/?missing=true',
+    });
+    expect(await screen.findByText('Not proposed yet')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Machines without a baseline' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(mocks.listMachines.mock.calls[0]?.[0].filters).toEqual({ status: 'NO_BASELINE' });
+    expect(mocks.listBaselines).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Propose' }));
+    expect(
+      await screen.findByRole('dialog', { name: 'Propose meter baseline · EX-01 · Excavator' }),
+    ).toBeInTheDocument();
   });
 });
 

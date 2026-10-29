@@ -68,6 +68,9 @@ export const PERMISSIONS = {
   tenantGeofenceWrite: 'tenant.geofence.write',
   tenantPolicyRead: 'tenant.policy.read',
   tenantPolicyManage: 'tenant.policy.manage',
+  /** Go-live setup checklist: read it (and see the dashboard banner); mark steps / confirm / hide the banner. */
+  tenantSetupRead: 'tenant.setup.read',
+  tenantSetupManage: 'tenant.setup.manage',
   /** Own subscription and platform invoices (read-only). */
   tenantBillingRead: 'tenant.billing.read',
   /** Enroll a machine as a billable asset (proration preview first). */

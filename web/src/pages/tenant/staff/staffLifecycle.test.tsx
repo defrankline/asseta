@@ -50,6 +50,12 @@ async function menu(user: ReturnType<typeof userEvent.setup>, item: string) {
 }
 
 describe('staff list', () => {
+  it('opens on the kind given in the link (e.g. ?kind=SUPERVISOR from the go-live checklist)', async () => {
+    renderWithProviders(<StaffPage />, { tenantPermissions: READ, route: '/?kind=SUPERVISOR' });
+    expect(await screen.findByText('Asha Mwita')).toBeInTheDocument();
+    expect(mocks.list.mock.calls[0]?.[0].filters).toMatchObject({ kind: 'SUPERVISOR' });
+  });
+
   it('passes include_inactive only when Show inactive is on', async () => {
     const user = userEvent.setup();
     renderWithProviders(<StaffPage />, { tenantPermissions: READ });

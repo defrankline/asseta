@@ -1,6 +1,7 @@
 import Add from '@mui/icons-material/Add';
 import { Box, Button, Paper, Stack, Typography } from '@mui/material';
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import { useSearchParams } from 'react-router';
 import { CanMutate } from '../../../access/CanMutate';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import { useCanMutate } from '../../../access/useCanMutate';
@@ -14,6 +15,7 @@ import { standardRowActions } from '../../../components/lifecycle/rowActions';
 import { ShowInactiveToggle } from '../../../components/lifecycle/ShowInactiveToggle';
 import { useLifecycleDialog } from '../../../components/lifecycle/useLifecycleDialog';
 import { useAsyncResource } from '../../../hooks/useAsyncResource';
+import { useScrollIntoView } from '../../../hooks/useScrollIntoView';
 import { useNotify } from '../../../notifications/useNotify';
 import { useSession } from '../../../session/useSession';
 import { machineLabel } from '../shared/display';
@@ -77,6 +79,12 @@ export function GeofencesPage() {
     [inactiveSites],
   );
   const sites = useAsyncResource(loadSites, [inactiveSites]);
+  const [params] = useSearchParams();
+  /** `?tab=sites` (e.g. from the go-live checklist) opens on the job sites, once both lists loaded. */
+  const sitesRef = useScrollIntoView<HTMLDivElement>(
+    params.get('tab') === 'sites',
+    sites.data !== null && geofences.data !== null,
+  );
   // Machine names for "applies to" (best effort; needs tenant.machine.read).
   const canMachines = hasPermission(PERMISSIONS.tenantMachineRead);
   const loadMachines = useCallback(
@@ -269,7 +277,13 @@ export function GeofencesPage() {
             </AsyncContent>
           </Paper>
         </Box>
-        <Paper variant="outlined" className="p-3">
+        <Paper
+          ref={sitesRef}
+          id="job-sites"
+          variant="outlined"
+          className="p-3"
+          sx={{ scrollMarginTop: 80 }}
+        >
           <SectionTitle
             title="Job sites"
             toggle={

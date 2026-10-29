@@ -1,4 +1,4 @@
-import { array, mixed, number, object, string, type Schema } from 'yup';
+import { array, boolean, mixed, number, object, string, type Schema } from 'yup';
 import { apiClient } from '../client';
 import type { MenuDto, MenuGroupDto, MeResponse, TenantAccess, TenantAccessState } from '../types';
 import { parseResponse } from '../validation';
@@ -30,6 +30,12 @@ const tenantSchema: Schema<TenantAccess> = object({
   mandate: optionalMandateBadge(),
   /** Capabilities the tenant's policy switches off (e.g. CUSTOMER_HOURS); their menus are omitted. */
   disabled_capabilities: array(string().required()).optional(),
+  /** Go-live checklist figures for the dashboard banner (null without `tenant.setup.read`). */
+  setup_complete: boolean().nullable().optional(),
+  setup_dismissed: boolean().nullable().optional(),
+  setup_percent: number().integer().nullable().optional(),
+  setup_steps_done: number().integer().nullable().optional(),
+  setup_steps_total: number().integer().nullable().optional(),
 });
 
 const meSchema: Schema<MeResponse> = object({

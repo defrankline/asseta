@@ -1,7 +1,7 @@
 import Add from '@mui/icons-material/Add';
-import { Box, Button, MenuItem, TextField } from '@mui/material';
+import { Alert, Box, Button, MenuItem, TextField } from '@mui/material';
 import { useCallback, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router';
 import { CanMutate } from '../../../access/CanMutate';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import { inactiveFilter } from '../../../api/lifecycle';
@@ -14,7 +14,7 @@ import { StatusChip } from '../../../components/display/StatusChip';
 import { ShowInactiveToggle } from '../../../components/lifecycle/ShowInactiveToggle';
 import { RowActionsMenu } from '../../../components/lifecycle/RowActionsMenu';
 import { useAsyncResource } from '../../../hooks/useAsyncResource';
-import { machineDetailPath } from '../../../navigation/routes';
+import { machineDetailPath, ROUTES } from '../../../navigation/routes';
 import { useNotify } from '../../../notifications/useNotify';
 import {
   MACHINE_STATUS_OPTIONS,
@@ -25,14 +25,48 @@ import {
 } from '../shared/display';
 import { CategoryFilter } from '../shared/lookupPickers';
 import { CreateMachineDialog } from './CreateMachineDialog';
+import { fetchMachinesWithoutTracker, missingViewOf, type MissingView } from './missingFilters';
 import { useMachineActions } from './useMachineActions';
 
 const ALL = '';
+
+const MISSING_NOTES: Readonly<Record<MissingView, string>> = {
+  tracker:
+    'Showing active machines that do not have a main tracker fitted yet. Fit one from Trackers by assigning a tracker to the machine as its main tracker.',
+  enrollment:
+    'Showing active machines. Enrol each one for tracking with "Enroll as billable asset" in its row menu; machines already enrolled are not marked in this list.',
+};
+
+function MissingNote({ view, onClear }: { view: MissingView; onClear: () => void }) {
+  return (
+    <Alert
+      severity="info"
+      className="mb-3"
+      action={
+        <Box className="flex flex-wrap gap-1">
+          {view === 'tracker' && (
+            <Button component={RouterLink} to={ROUTES.tenantTrackers} color="inherit" size="small">
+              Go to Trackers
+            </Button>
+          )}
+          <Button color="inherit" size="small" onClick={onClear}>
+            Show all machines
+          </Button>
+        </Box>
+      }
+    >
+      {MISSING_NOTES[view]}
+    </Alert>
+  );
+}
 
 /** Machine registry list: search, status / category filters, show retired, row actions. */
 export function MachineListPanel() {
   const navigate = useNavigate();
   const notify = useNotify();
+  const [params, setParams] = useSearchParams();
+  /** `?missing=tracker|enrollment` (go-live checklist links): active machines still to set up. */
+  const missing = missingViewOf(params.get('missing'));
   const [creating, setCreating] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const refresh = () => {
@@ -62,20 +96,25 @@ export function MachineListPanel() {
 
   const fetchPage = useCallback(
     (q: ServerQuery, signal: AbortSignal) =>
-      machineService.list(
-        { page: q.page, page_size: q.page_size, q: q.q, filters: q.filters },
-        signal,
-      ),
-    [],
+      missing === 'tracker'
+        ? fetchMachinesWithoutTracker(q, signal)
+        : machineService.list(
+            { page: q.page, page_size: q.page_size, q: q.q, filters: q.filters },
+            signal,
+          ),
+    [missing],
   );
   const filters = useMemo(
-    () => ({
-      status: status || undefined,
-      category_id: category?.id,
-      // An explicit status filter (e.g. Disposed) overrides the default hiding of retired machines.
-      ...inactiveFilter(showInactive),
-    }),
-    [status, category, showInactive],
+    () =>
+      missing !== null
+        ? { status: 'ACTIVE' }
+        : {
+            status: status || undefined,
+            category_id: category?.id,
+            // An explicit status filter (e.g. Disposed) overrides the default hiding of retired machines.
+            ...inactiveFilter(showInactive),
+          },
+    [missing, status, category, showInactive],
   );
 
   const columns: DataColumn<MachineDto>[] = [
@@ -158,15 +197,25 @@ export function MachineListPanel() {
           </Button>
         </CanMutate>
       </Box>
+      {missing !== null && (
+        <MissingNote
+          view={missing}
+          onClear={() => {
+            setParams({});
+          }}
+        />
+      )}
       <ServerDataTable<MachineDto>
         columns={columns}
         fetchPage={fetchPage}
         getRowId={(m) => m.id}
         filters={filters}
-        toolbar={toolbar}
+        toolbar={missing === null ? toolbar : undefined}
         searchPlaceholder="Search asset code or name"
         onSearchChange={setSearch}
-        emptyTitle="No machines found"
+        emptyTitle={
+          missing === 'tracker' ? 'Every active machine has a main tracker' : 'No machines found'
+        }
         emptyDescription="Register machines to track and bill them."
         reloadKey={reloadKey}
         isRowMuted={(m) => m.status === 'DISPOSED'}

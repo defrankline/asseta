@@ -1,7 +1,7 @@
 import Add from '@mui/icons-material/Add';
-import { Button, Stack } from '@mui/material';
+import { Box, Button, Stack } from '@mui/material';
 import { useCallback, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { CanMutate } from '../../../access/CanMutate';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import { inactiveFilter } from '../../../api/lifecycle';
@@ -14,6 +14,7 @@ import { ActiveChip } from '../../../components/lifecycle/ActiveChip';
 import { RowActionsMenu } from '../../../components/lifecycle/RowActionsMenu';
 import { ShowInactiveToggle } from '../../../components/lifecycle/ShowInactiveToggle';
 import { useDisplayTimeZone } from '../../../hooks/useDisplayTimeZone';
+import { useScrollIntoView } from '../../../hooks/useScrollIntoView';
 import { customerDetailPath } from '../../../navigation/routes';
 import { useNotify } from '../../../notifications/useNotify';
 import { CreateCustomerDialog } from './CreateCustomerDialog';
@@ -26,6 +27,9 @@ export function CustomersPage() {
   const notify = useNotify();
   const timeZone = useDisplayTimeZone();
   const [creating, setCreating] = useState(false);
+  const [params] = useSearchParams();
+  /** `?section=rate-cards` (e.g. from the go-live checklist) opens on the rate cards. */
+  const rateCardsRef = useScrollIntoView<HTMLDivElement>(params.get('section') === 'rate-cards');
   const [showInactive, setShowInactive] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const refresh = () => {
@@ -99,7 +103,9 @@ export function CustomersPage() {
           isRowMuted={(c) => !c.is_active}
           onRowClick={view}
         />
-        <RateCardSection timeZone={timeZone} />
+        <Box ref={rateCardsRef} id="rate-cards" sx={{ scrollMarginTop: 80 }}>
+          <RateCardSection timeZone={timeZone} />
+        </Box>
       </Stack>
       {creating && (
         <CreateCustomerDialog

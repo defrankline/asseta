@@ -1,7 +1,7 @@
 import Add from '@mui/icons-material/Add';
 import { Button, MenuItem, TextField } from '@mui/material';
 import { useCallback, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { CanMutate } from '../../../access/CanMutate';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import { inactiveFilter } from '../../../api/lifecycle';
@@ -15,6 +15,7 @@ import { ActiveChip } from '../../../components/lifecycle/ActiveChip';
 import { RowActionsMenu } from '../../../components/lifecycle/RowActionsMenu';
 import { ShowInactiveToggle } from '../../../components/lifecycle/ShowInactiveToggle';
 import { staffDetailPath } from '../../../navigation/routes';
+import { initialFilter } from '../../../navigation/urlFilters';
 import { useNotify } from '../../../notifications/useNotify';
 import { STAFF_KIND_OPTIONS, labelOf } from '../shared/display';
 import { CreateStaffDialog } from './CreateStaffDialog';
@@ -26,7 +27,8 @@ export function StaffPage() {
   const notify = useNotify();
   const [creating, setCreating] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
-  const [kind, setKind] = useState('');
+  const [params] = useSearchParams();
+  const [kind, setKind] = useState(() => initialFilter(params, 'kind', STAFF_KIND_OPTIONS, ''));
   const [showInactive, setShowInactive] = useState(false);
   const refresh = () => {
     setReloadKey((k) => k + 1);

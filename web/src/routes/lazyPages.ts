@@ -199,6 +199,11 @@ export const SmsDeliveriesPage = lazy(() =>
     default: m.SmsDeliveriesPage,
   })),
 );
+export const SetupChecklistPage = lazy(() =>
+  import('../pages/tenant/setup/SetupChecklistPage').then((m) => ({
+    default: m.SetupChecklistPage,
+  })),
+);
 export const DashboardPage = lazy(() =>
   import('../pages/tenant/dashboard/DashboardPage').then((m) => ({ default: m.DashboardPage })),
 );
