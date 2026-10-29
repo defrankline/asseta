@@ -19,7 +19,8 @@ from asseta.modules.finance.cash_service import CashCustodyService
 from asseta.modules.finance.deposit_accounts import SyncDepositAccountDto
 from asseta.modules.finance.deposit_models import CompanyDepositAccount
 from asseta.modules.finance.dto import CashCustodyBalanceDto
-from asseta.modules.fleet.dto import MachineDto, StaffDto
+from asseta.modules.fleet.dto import StaffDto
+from asseta.modules.fleet.machine_view import machine_dtos
 from asseta.modules.fleet.models import Machine, MachineAssignment, StaffMember
 from asseta.modules.geospatial.models import JobSite
 from asseta.modules.geospatial.sites_service import SiteService
@@ -216,7 +217,7 @@ class SyncService:
         inbox = InboxReader(self._s, self._ctx, self._now, staff, PAGE).read(min_revision)
         data = SyncData(
             jobs=job_dtos(self._s, jobs),
-            machines=[MachineDto.model_validate(m) for m in changed(Machine, machine_ids, fresh_assigned)],
+            machines=machine_dtos(self._s, changed(Machine, machine_ids, fresh_assigned), self._now),
             sites=[sites_svc.site_dto(s) for s in changed(JobSite, site_ids)],
             customers=[CustomerDto.model_validate(c) for c in customers],
             contracts=[ContractDto.model_validate(c) for c in contracts],

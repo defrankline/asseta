@@ -93,7 +93,7 @@ export function useMachineActions({ onChanged, onReload, onView }: UseMachineAct
       {
         key: 'enroll',
         label: 'Enroll as billable asset',
-        hidden: !canEnroll || disposed,
+        hidden: !canEnroll || disposed || m.billing_enrolled,
         onClick: () => {
           setOpen({ kind: 'enroll', machine: m });
         },
@@ -171,6 +171,7 @@ export function useMachineActions({ onChanged, onReload, onView }: UseMachineAct
               ? `${r.enrollment.asset_label} enrolled as a billable asset.`
               : `${r.enrollment.asset_label} enrolled; pending ${formatMoney(r.charge.amount, r.charge.currency)} recorded.`,
           );
+          onChanged(open.machine);
         }}
       />
     );

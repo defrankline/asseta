@@ -25,16 +25,18 @@ import {
 } from '../shared/display';
 import { CategoryFilter } from '../shared/lookupPickers';
 import { CreateMachineDialog } from './CreateMachineDialog';
-import { fetchMachinesWithoutTracker, missingViewOf, type MissingView } from './missingFilters';
+import { missingViewOf, type MissingView } from './missingFilters';
 import { useMachineActions } from './useMachineActions';
 
 const ALL = '';
+
+const ENROLLED_TONES = { ENROLLED: 'success', NOT_ENROLLED: 'warning' } as const;
 
 const MISSING_NOTES: Readonly<Record<MissingView, string>> = {
   tracker:
     'Showing active machines that do not have a main tracker fitted yet. Fit one from Trackers by assigning a tracker to the machine as its main tracker.',
   enrollment:
-    'Showing active machines. Enrol each one for tracking with "Enroll as billable asset" in its row menu; machines already enrolled are not marked in this list.',
+    'Showing active machines not yet enrolled as billable assets. Enroll each one with "Enroll as billable asset" on its row.',
 };
 
 function MissingNote({ view, onClear }: { view: MissingView; onClear: () => void }) {
@@ -96,18 +98,16 @@ export function MachineListPanel() {
 
   const fetchPage = useCallback(
     (q: ServerQuery, signal: AbortSignal) =>
-      missing === 'tracker'
-        ? fetchMachinesWithoutTracker(q, signal)
-        : machineService.list(
-            { page: q.page, page_size: q.page_size, q: q.q, filters: q.filters },
-            signal,
-          ),
-    [missing],
+      machineService.list(
+        { page: q.page, page_size: q.page_size, q: q.q, filters: q.filters },
+        signal,
+      ),
+    [],
   );
   const filters = useMemo(
     () =>
       missing !== null
-        ? { status: 'ACTIVE' }
+        ? { missing }
         : {
             status: status || undefined,
             category_id: category?.id,
@@ -142,12 +142,48 @@ export function MachineListPanel() {
         />
       ),
     },
+    {
+      id: 'tracker',
+      header: 'Main tracker',
+      render: (m) => m.primary_tracker_label ?? 'None',
+    },
+    {
+      id: 'enrolled',
+      header: 'Billing',
+      render: (m) => (
+        <StatusChip
+          status={m.billing_enrolled ? 'ENROLLED' : 'NOT_ENROLLED'}
+          tones={ENROLLED_TONES}
+          label={m.billing_enrolled ? 'Enrolled' : 'Not enrolled'}
+        />
+      ),
+    },
     { id: 'meter', header: 'Meter dp', align: 'right', render: (m) => m.meter_decimal_places },
     {
       id: 'actions',
       header: '',
       align: 'right',
-      render: (m) => <RowActionsMenu label={machineLabel(m)} actions={actionsFor(m)} />,
+      render: (m) => {
+        const actions = actionsFor(m);
+        const enroll = actions.find((a) => a.key === 'enroll' && a.hidden !== true);
+        return (
+          <Box className="flex items-center justify-end gap-1">
+            {missing === 'enrollment' && enroll !== undefined && (
+              <Button
+                size="small"
+                variant="contained"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  enroll.onClick();
+                }}
+              >
+                {enroll.label}
+              </Button>
+            )}
+            <RowActionsMenu label={machineLabel(m)} actions={actions} />
+          </Box>
+        );
+      },
     },
   ];
 
@@ -214,7 +250,11 @@ export function MachineListPanel() {
         searchPlaceholder="Search asset code or name"
         onSearchChange={setSearch}
         emptyTitle={
-          missing === 'tracker' ? 'Every active machine has a main tracker' : 'No machines found'
+          missing === 'tracker'
+            ? 'Every active machine has a main tracker'
+            : missing === 'enrollment'
+              ? 'Every active machine is enrolled as a billable asset'
+              : 'No machines found'
         }
         emptyDescription="Register machines to track and bill them."
         reloadKey={reloadKey}

@@ -21,7 +21,7 @@ from asseta.modules.fleet.dto import (
     CategoryDto,
     CategoryIn,
     MachineCreateIn,
-    MachineDto,
+    MachineRecordDto,
     MachineUpdateIn,
     StaffDto,
     StaffIn,
@@ -96,15 +96,15 @@ class MachineService:
         return machine
 
     # --- machines -----------------------------------------------------------------------------------
-    def create(self, body: MachineCreateIn) -> MachineDto:
+    def create(self, body: MachineCreateIn) -> MachineRecordDto:
         self._check_refs(body.category_id, body.operating_area_id)
         machine = Machine(id=uuid.uuid4(), tenant_id=self._tenant_id, status=MachineStatus.ACTIVE, **body.model_dump())
         self._insert(machine, "DUPLICATE_ASSET_CODE", "Asset code already used in this tenant")
-        dto = MachineDto.model_validate(machine)
+        dto = MachineRecordDto.model_validate(machine)
         self._record("fleet.machine.created", "machine", machine.id, None, dto.model_dump(mode="json"))
         return dto
 
-    def update(self, machine_id: uuid.UUID, body: MachineUpdateIn, now: datetime | None = None) -> MachineDto:
+    def update(self, machine_id: uuid.UUID, body: MachineUpdateIn, now: datetime | None = None) -> MachineRecordDto:
         machine = self.machine(machine_id)
         if machine.version != body.version:
             raise Conflict("Machine was modified by someone else; reload and retry", code="STALE_VERSION")
@@ -113,7 +113,7 @@ class MachineService:
                 "Disposed machines are read-only; reactivate the machine first", code="MACHINE_DISPOSED"
             )
         self._check_refs(body.category_id, body.operating_area_id, machine)
-        before = MachineDto.model_validate(machine).model_dump(mode="json")
+        before = MachineRecordDto.model_validate(machine).model_dump(mode="json")
         if body.status is MachineStatus.DISPOSED:  # retiring via edit: same integrity rules as /deactivate
             lifecycle = FleetLifecycleService(self._s, self._ctx, now or utcnow())
             lifecycle.guard_machine_retirement(machine)
@@ -126,7 +126,7 @@ class MachineService:
             self._s.flush()
         except StaleDataError as exc:
             raise Conflict("Machine was modified concurrently", code="STALE_VERSION") from exc
-        dto = MachineDto.model_validate(machine)
+        dto = MachineRecordDto.model_validate(machine)
         self._record("fleet.machine.updated", "machine", machine.id, before, dto.model_dump(mode="json"))
         return dto
 

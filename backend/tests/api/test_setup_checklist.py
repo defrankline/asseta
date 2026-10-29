@@ -247,3 +247,39 @@ def test_tenant_isolation(api: Api) -> None:
     # A user of one tenant cannot read another tenant's checklist.
     assert f.owner.get(S, tenant=other["tenant"]["id"]).status_code in (403, 404)
     assert tenant_sql(f.tid, "SELECT count(*) FROM tenant_setup_choice")[0][0] == 0
+
+
+def test_machine_list_carries_setup_state_and_missing_filters(api: Api) -> None:
+    """The checklist's 'machines missing a tracker / enrollment' links land on a server-side filter; every machine
+    response says whether it is enrolled today and which tracker is its primary one."""
+    f = setup_finance(api, "Fleet Setup Co", "FSET-1")
+    o, tracked = f.owner, f.c.t.machine_id
+    bare = _ok(o.post(f"{T}/machines", {"asset_code": "EX-BARE", "name": "Bare excavator"}), 201)
+    assert (bare["billing_enrolled"], bare["primary_tracker_id"], bare["primary_tracker_label"]) == (False, None, None)
+    parked = _ok(o.post(f"{T}/machines", {"asset_code": "EX-PARK", "name": "Parked excavator"}), 201)
+    _ok(o.put(f"{T}/machines/{parked['id']}", {"name": "Parked excavator", "status": "OUT_OF_SERVICE", "version": 1}))
+
+    items = {m["id"]: m for m in _ok(o.get(f"{T}/machines"))["items"]}
+    assert items[tracked]["billing_enrolled"] is True
+    assert items[tracked]["primary_tracker_id"] is not None and items[tracked]["primary_tracker_label"]
+    assert items[tracked]["primary_tracker_label"] == next(
+        t["label"] for t in _ok(o.get(f"{T}/trackers"))["items"] if t["id"] == items[tracked]["primary_tracker_id"]
+    )
+    assert items[bare["id"]]["billing_enrolled"] is False and items[bare["id"]]["primary_tracker_id"] is None
+    single = _ok(o.get(f"{T}/machines/{tracked}"))
+    assert (single["billing_enrolled"], single["primary_tracker_id"]) == (True, items[tracked]["primary_tracker_id"])
+
+    # missing=… lists ACTIVE machines only (the checklist counts active ones); an explicit status overrides that.
+    for missing in ("tracker", "enrollment"):
+        page = _ok(o.get(f"{T}/machines", missing=missing))
+        assert [m["id"] for m in page["items"]] == [bare["id"]] and page["total"] == 1
+        out = _ok(o.get(f"{T}/machines", missing=missing, status="OUT_OF_SERVICE"))
+        assert [m["id"] for m in out["items"]] == [parked["id"]]
+    assert o.get(f"{T}/machines", missing="nothing").status_code == 422
+    # Search and paging still apply on top of the filter.
+    assert _ok(o.get(f"{T}/machines", missing="tracker", q="zzz-none"))["total"] == 0
+
+    # The checklist's links are exactly these filters.
+    trackers_step = _steps(_ok(o.get(S)))["TRACKERS"]
+    links = {c["link"] for c in trackers_step["checks"]}
+    assert {"/tenant/machines?missing=tracker", "/tenant/machines?missing=enrollment"} <= links

@@ -19,7 +19,7 @@ from asseta.modules.fleet.dto import (
     AreaUpdateIn,
     CategoryDto,
     CategoryUpdateIn,
-    MachineDto,
+    MachineRecordDto,
     StaffDto,
     StaffUpdateIn,
 )
@@ -226,10 +226,12 @@ class FleetLifecycleService:
             reason,
         )
 
-    def set_machine_active(self, machine_id: uuid.UUID, active: bool, reason: str, version: int | None) -> MachineDto:
+    def set_machine_active(
+        self, machine_id: uuid.UUID, active: bool, reason: str, version: int | None
+    ) -> MachineRecordDto:
         machine = self._get(Machine, machine_id, "Machine")
         check_version(machine.version, version, "Machine")
-        before = MachineDto.model_validate(machine).model_dump(mode="json")
+        before = MachineRecordDto.model_validate(machine).model_dump(mode="json")
         if active:
             if machine.status is not MachineStatus.DISPOSED:
                 raise Conflict("Machine is not retired", code="ALREADY_ACTIVE")
@@ -247,7 +249,7 @@ class FleetLifecycleService:
                 reason,
             )
         flush_versioned(self._s, "Machine")
-        dto = MachineDto.model_validate(machine)
+        dto = MachineRecordDto.model_validate(machine)
         verb = "reinstated" if active else "retired"
         self._record(f"fleet.machine.{verb}", "machine", machine.id, before, dto.model_dump(mode="json"), reason)
         return dto

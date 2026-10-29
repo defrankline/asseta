@@ -88,6 +88,9 @@ export const MACHINE: MachineDto = {
   status: 'ACTIVE',
   version: 1,
   created_at: '2026-10-01T00:00:00Z',
+  billing_enrolled: false,
+  primary_tracker_id: null,
+  primary_tracker_label: null,
 };
 
 export function makeCapture(overrides: Partial<MeterCaptureDto> = {}): MeterCaptureDto {

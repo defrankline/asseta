@@ -33,7 +33,10 @@ const machinePageSchema = tenantPageSchema(machineSchema);
 const m = (id: string) => `/tenant/machines/${seg(id)}`;
 
 export const machineService = {
-  /** GET /tenant/machines (listMachines). Filters: `status`, `category_id`, `include_inactive`. */
+  /**
+   * GET /tenant/machines (listMachines). Filters: `status`, `category_id`, `include_inactive`,
+   * `missing` (`tracker` | `enrollment`: active machines still lacking that go-live part).
+   */
   list(query: TenantListQuery, signal?: AbortSignal): Promise<Page<MachineDto>> {
     return tenantPage('/tenant/machines', machinePageSchema, query, 'machine page', signal);
   },

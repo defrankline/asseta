@@ -1,12 +1,14 @@
 """Tenant customers, rate cards, contracts, jobs, work logs and acknowledgements."""
 
 import uuid
+from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, Query
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
+from asseta.core.clock import get_now
 from asseta.core.db import get_session
 from asseta.core.errors import ERROR_RESPONSES, PermissionDenied
 from asseta.core.idempotency import IdempotencyGuard, request_hash
@@ -14,6 +16,7 @@ from asseta.core.lifecycle import IncludeInactive, LifecycleChangeIn
 from asseta.core.paging import Page, PageParams, page_params, paginate
 from asseta.core.search import ilike_any
 from asseta.modules.fleet.dto import MachineDto
+from asseta.modules.fleet.machine_view import machine_dtos
 from asseta.modules.fleet.models import Machine
 from asseta.modules.geospatial.models import JobSite
 from asseta.modules.identity.catalog import CATALOG, MenuDef
@@ -350,7 +353,10 @@ def acknowledgements(
 
 @router.get("/field/machines", response_model=list[MachineDto], operation_id="listMyFieldMachines")
 def field_machines(
-    session: DbSession, ctx: Annotated[RequestContext, Depends(JOB_READ)], q: str | None = None
+    session: DbSession,
+    ctx: Annotated[RequestContext, Depends(JOB_READ)],
+    now: Annotated[datetime, Depends(get_now)],
+    q: str | None = None,
 ) -> list[MachineDto]:
     """Machines the caller works on in the field: assigned to them or on a job they supervise (by asset code / name,
     at most 100). Field users have no machine register access; this is what the field apps receive on sync."""
@@ -366,7 +372,7 @@ def field_machines(
     )
     if (match := ilike_any(q, Machine.asset_code, Machine.name)) is not None:
         stmt = stmt.where(match)
-    return [MachineDto.model_validate(m) for m in session.execute(stmt).scalars()]
+    return machine_dtos(session, list(session.execute(stmt).scalars()), now)
 
 
 @router.get("/field/contracts", response_model=list[FieldContractDto], operation_id="listFieldContracts")

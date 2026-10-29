@@ -19,8 +19,6 @@ const mocks = vi.hoisted(() => ({
   reactivate: vi.fn<typeof machineService.reactivate>(),
 }));
 vi.mock('../../../api/services/machineService', () => ({ machineService: mocks }));
-const trackers = vi.hoisted(() => ({ list: vi.fn() }));
-vi.mock('../../../api/services/trackerService', () => ({ trackerService: trackers }));
 
 const READ = ['tenant.machine.read'];
 const WRITE = ['tenant.machine.read', 'tenant.machine.write'];
@@ -40,53 +38,60 @@ async function openMenuItem(user: ReturnType<typeof userEvent.setup>, item: stri
 }
 
 describe('machine list ?missing= views (go-live checklist links)', () => {
-  it('?missing=tracker lists only active machines without a current main tracker', async () => {
-    const fitted = makeMachine({ id: 'm-fitted', asset_code: 'EX-02', name: 'Excavator 2' });
-    mocks.list.mockResolvedValue(page([makeMachine(), fitted]));
-    trackers.list.mockResolvedValue({
-      items: [
-        {
-          id: 't-1',
-          current_assignment: {
-            id: 'a-1',
-            tracker_id: 't-1',
-            machine_id: 'm-fitted',
-            is_primary: true,
-            effective_from: '2026-10-01T00:00:00Z',
-            effective_to: null,
-            reason: null,
-          },
-        },
-      ],
-      total: 1,
-      page: 1,
-      page_size: 200,
-    });
+  it('?missing=tracker asks the server for machines without a main tracker', async () => {
     renderWithProviders(<MachinesPage />, {
       tenantPermissions: READ,
       route: '/tenant/machines?missing=tracker',
     });
     expect(await screen.findByText('Excavator 1')).toBeInTheDocument();
-    expect(screen.queryByText('Excavator 2')).not.toBeInTheDocument();
     expect(screen.getByText(/do not have a main tracker fitted yet/)).toBeInTheDocument();
     expect(mocks.list.mock.calls[0]?.[0]).toMatchObject({
       page: 1,
-      page_size: 200,
-      filters: { status: 'ACTIVE' },
+      filters: { missing: 'tracker' },
     });
+    expect(screen.getByText('None')).toBeInTheDocument();
   });
 
-  it('?missing=enrollment lists active machines with how to enrol them; Show all clears it', async () => {
+  it('?missing=enrollment filters on the server and puts Enroll on the row; Show all clears it', async () => {
     const user = userEvent.setup();
     renderWithProviders(<MachinesPage />, {
-      tenantPermissions: READ,
+      tenantPermissions: [...READ, 'tenant.billing.enroll'],
       route: '/tenant/machines?missing=enrollment',
     });
     expect(await screen.findByText('Excavator 1')).toBeInTheDocument();
-    expect(screen.getByText(/Enroll as billable asset/)).toBeInTheDocument();
-    expect(mocks.list.mock.calls[0]?.[0].filters).toEqual({ status: 'ACTIVE' });
+    expect(mocks.list.mock.calls[0]?.[0].filters).toEqual({ missing: 'enrollment' });
+    expect(screen.getByText('Not enrolled')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Enroll as billable asset' })).toBeVisible();
     await user.click(screen.getByRole('button', { name: 'Show all machines' }));
-    expect(screen.queryByText(/Enroll as billable asset/)).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByText(/not yet enrolled as billable assets/)).not.toBeInTheDocument();
+    });
+    expect(
+      screen.queryByRole('button', { name: 'Enroll as billable asset' }),
+    ).not.toBeInTheDocument();
+    expect(mocks.list.mock.calls.at(-1)?.[0].filters).not.toHaveProperty('missing');
+  });
+
+  it('shows the main tracker and enrolled state on every row; no Enroll once enrolled', async () => {
+    mocks.list.mockResolvedValue(
+      page([
+        makeMachine({
+          billing_enrolled: true,
+          primary_tracker_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+          primary_tracker_label: 'GPS-77',
+        }),
+      ]),
+    );
+    const user = userEvent.setup();
+    renderWithProviders(<MachinesPage />, {
+      tenantPermissions: [...WRITE, 'tenant.billing.enroll'],
+    });
+    expect(await screen.findByText('GPS-77')).toBeInTheDocument();
+    expect(screen.getByText('Enrolled')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: MENU }));
+    expect(
+      screen.queryByRole('menuitem', { name: 'Enroll as billable asset' }),
+    ).not.toBeInTheDocument();
   });
 });
 

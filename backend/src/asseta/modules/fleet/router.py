@@ -25,13 +25,15 @@ from asseta.modules.fleet.dto import (
     EndAssignmentIn,
     MachineCreateIn,
     MachineDto,
+    MachineMissing,
     MachineUpdateIn,
     StaffDto,
     StaffIn,
     StaffUpdateIn,
 )
 from asseta.modules.fleet.lifecycle import FleetLifecycleService
-from asseta.modules.fleet.models import MachineStatus, StaffKind
+from asseta.modules.fleet.machine_view import machine_dto, machine_dtos, missing_clause
+from asseta.modules.fleet.models import Machine, MachineStatus, StaffKind
 from asseta.modules.fleet.service import MachineService
 from asseta.modules.identity.catalog import CATALOG, MenuDef
 from asseta.modules.identity.catalog import PermissionScope as S
@@ -62,12 +64,16 @@ StaffWrite = Annotated[RequestContext, Depends(STAFF_WRITE)]
 
 @router.post("/machines", response_model=MachineDto, status_code=201, operation_id="createMachine")
 def create_machine(
-    body: MachineCreateIn, session: DbSession, ctx: Write, idempotency_key: Annotated[str | None, Header()] = None
+    body: MachineCreateIn,
+    session: DbSession,
+    ctx: Write,
+    now: Now,
+    idempotency_key: Annotated[str | None, Header()] = None,
 ) -> MachineDto:
     guard = IdempotencyGuard(session, str(ctx.tenant_id), "createMachine", idempotency_key, request_hash(body))
-    if (replay := guard.begin()) is not None:
-        return MachineDto.model_validate(replay)
-    dto = MachineService(session, ctx).create(body)
+    if (replay := guard.begin()) is not None:  # current setup state of the machine the first call created
+        return machine_dto(session, MachineService(session, ctx).machine(uuid.UUID(str(replay["id"]))), now)
+    dto = machine_dto(session, MachineService(session, ctx).create(body), now)
     guard.complete(dto, 201)
     return dto
 
@@ -76,21 +82,31 @@ def create_machine(
 def list_machines(
     session: DbSession,
     ctx: Read,
+    now: Now,
     paging: Annotated[PageParams, Depends(page_params)],
     status: MachineStatus | None = None,
     category_id: uuid.UUID | None = None,
     include_inactive: IncludeInactive = False,
+    missing: Annotated[
+        MachineMissing | None,
+        Query(
+            description="Only ACTIVE machines (unless `status` is given) still lacking a go-live part: `tracker` = no "
+            "current primary tracker, `enrollment` = not enrolled as a billable asset today"
+        ),
+    ] = None,
 ) -> Page[MachineDto]:
     stmt = MachineService(session, ctx).list_query(paging.q, status, category_id, include_inactive)
+    if missing is not None:
+        stmt = stmt.where(missing_clause(missing, now))
+        if status is None:
+            stmt = stmt.where(Machine.status == MachineStatus.ACTIVE)
     rows, total = paginate(session, stmt, paging)
-    return Page(
-        items=[MachineDto.model_validate(m) for m in rows], total=total, page=paging.page, page_size=paging.page_size
-    )
+    return Page(items=machine_dtos(session, rows, now), total=total, page=paging.page, page_size=paging.page_size)
 
 
 @router.get("/machines/{machine_id}", response_model=MachineDto, operation_id="getMachine")
-def get_machine(machine_id: uuid.UUID, session: DbSession, ctx: Read) -> MachineDto:
-    return MachineDto.model_validate(MachineService(session, ctx).machine(machine_id))
+def get_machine(machine_id: uuid.UUID, session: DbSession, ctx: Read, now: Now) -> MachineDto:
+    return machine_dto(session, MachineService(session, ctx).machine(machine_id), now)
 
 
 @router.put("/machines/{machine_id}", response_model=MachineDto, operation_id="updateMachine")
@@ -98,7 +114,7 @@ def update_machine(
     machine_id: uuid.UUID, body: MachineUpdateIn, session: DbSession, now: Now, ctx: Write
 ) -> MachineDto:
     """Setting status DISPOSED applies the same integrity rules as `/deactivate`."""
-    return MachineService(session, ctx).update(machine_id, body, now)
+    return machine_dto(session, MachineService(session, ctx).update(machine_id, body, now), now)
 
 
 @router.post("/machines/{machine_id}/deactivate", response_model=MachineDto, operation_id="deactivateMachine")
@@ -107,7 +123,8 @@ def deactivate_machine(
 ) -> MachineDto:
     """Retire (status DISPOSED). Refused while the machine has open jobs, an assigned tracker or an active billing
     enrollment; open staff assignments are ended."""
-    return FleetLifecycleService(session, ctx, now).set_machine_active(machine_id, False, body.reason, body.version)
+    dto = FleetLifecycleService(session, ctx, now).set_machine_active(machine_id, False, body.reason, body.version)
+    return machine_dto(session, dto, now)
 
 
 @router.post("/machines/{machine_id}/reactivate", response_model=MachineDto, operation_id="reactivateMachine")
@@ -115,7 +132,8 @@ def reactivate_machine(
     machine_id: uuid.UUID, body: LifecycleChangeIn, session: DbSession, now: Now, ctx: Write
 ) -> MachineDto:
     """Reinstate a retired machine (status ACTIVE)."""
-    return FleetLifecycleService(session, ctx, now).set_machine_active(machine_id, True, body.reason, body.version)
+    dto = FleetLifecycleService(session, ctx, now).set_machine_active(machine_id, True, body.reason, body.version)
+    return machine_dto(session, dto, now)
 
 
 @router.get("/machine-categories", response_model=list[CategoryDto], operation_id="listMachineCategories")

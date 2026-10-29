@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime
 from decimal import Decimal
+from enum import StrEnum
 from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
@@ -50,7 +51,9 @@ class MachineUpdateIn(MachineFields):
     version: int = Field(ge=1, description="Optimistic concurrency token from the last read")
 
 
-class MachineDto(Dto):
+class MachineRecordDto(Dto):
+    """The machine row itself (audit snapshots); API responses use `MachineDto`."""
+
     id: uuid.UUID
     asset_code: str
     name: str
@@ -69,6 +72,21 @@ class MachineDto(Dto):
     created_at: datetime
     deactivated_at: datetime | None = None
     deactivation_reason: str | None = None
+
+
+class MachineDto(MachineRecordDto):
+    billing_enrolled: bool = Field(
+        description="Enrolled as a billable asset on the subscription today (an open enrollment covering today)"
+    )
+    primary_tracker_id: uuid.UUID | None = Field(description="Tracker currently assigned as the primary one")
+    primary_tracker_label: str | None = Field(description="Label of the current primary tracker")
+
+
+class MachineMissing(StrEnum):
+    """`GET /machines?missing=...`: active machines still lacking a go-live setup part."""
+
+    TRACKER = "tracker"
+    ENROLLMENT = "enrollment"
 
 
 class CategoryIn(BaseModel):

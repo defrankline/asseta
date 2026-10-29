@@ -12417,6 +12417,11 @@ export interface components {
         MachineDto: {
             /** Asset Code */
             asset_code: string;
+            /**
+             * Billing Enrolled
+             * @description Enrolled as a billable asset on the subscription today (an open enrollment covering today)
+             */
+            billing_enrolled: boolean;
             /** Capacity Unit */
             capacity_unit: string | null;
             /** Capacity Value */
@@ -12448,6 +12453,16 @@ export interface components {
             /** Operating Area Id */
             operating_area_id: string | null;
             ownership: components["schemas"]["Ownership"];
+            /**
+             * Primary Tracker Id
+             * @description Tracker currently assigned as the primary one
+             */
+            primary_tracker_id: string | null;
+            /**
+             * Primary Tracker Label
+             * @description Label of the current primary tracker
+             */
+            primary_tracker_label: string | null;
             /** Serial Number */
             serial_number: string | null;
             status: components["schemas"]["MachineStatus"];
@@ -12586,6 +12601,12 @@ export interface components {
             /** Tracker State */
             tracker_state: string | null;
         };
+        /**
+         * MachineMissing
+         * @description `GET /machines?missing=...`: active machines still lacking a go-live setup part.
+         * @enum {string}
+         */
+        MachineMissing: "tracker" | "enrollment";
         /** MachinePhotoDto */
         MachinePhotoDto: {
             /** Caption */
@@ -48852,6 +48873,8 @@ export interface operations {
                 category_id?: string | null;
                 /** @description Also return deactivated/retired/closed records (hidden by default) */
                 include_inactive?: boolean;
+                /** @description Only ACTIVE machines (unless `status` is given) still lacking a go-live part: `tracker` = no current primary tracker, `enrollment` = not enrolled as a billable asset today */
+                missing?: components["schemas"]["MachineMissing"] | null;
                 page?: number;
                 page_size?: number;
                 q?: string | null;

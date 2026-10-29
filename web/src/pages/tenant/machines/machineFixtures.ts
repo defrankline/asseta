@@ -18,6 +18,9 @@ export function makeMachine(overrides: Partial<MachineDto> = {}): MachineDto {
     status: 'ACTIVE',
     version: 3,
     created_at: '2026-09-01T08:00:00Z',
+    billing_enrolled: false,
+    primary_tracker_id: null,
+    primary_tracker_label: null,
     ...overrides,
   };
 }

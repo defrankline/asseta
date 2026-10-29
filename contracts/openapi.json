@@ -15977,6 +15977,11 @@
             "title": "Asset Code",
             "type": "string"
           },
+          "billing_enrolled": {
+            "description": "Enrolled as a billable asset on the subscription today (an open enrollment covering today)",
+            "title": "Billing Enrolled",
+            "type": "boolean"
+          },
           "capacity_unit": {
             "anyOf": [
               {
@@ -16089,6 +16094,31 @@
           "ownership": {
             "$ref": "#/components/schemas/Ownership"
           },
+          "primary_tracker_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Tracker currently assigned as the primary one",
+            "title": "Primary Tracker Id"
+          },
+          "primary_tracker_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Label of the current primary tracker",
+            "title": "Primary Tracker Label"
+          },
           "serial_number": {
             "anyOf": [
               {
@@ -16135,7 +16165,10 @@
           "ownership",
           "status",
           "version",
-          "created_at"
+          "created_at",
+          "billing_enrolled",
+          "primary_tracker_id",
+          "primary_tracker_label"
         ],
         "title": "MachineDto",
         "type": "object"
@@ -16594,6 +16627,15 @@
         ],
         "title": "MachineMapDto",
         "type": "object"
+      },
+      "MachineMissing": {
+        "description": "`GET /machines?missing=...`: active machines still lacking a go-live setup part.",
+        "enum": [
+          "tracker",
+          "enrollment"
+        ],
+        "title": "MachineMissing",
+        "type": "string"
       },
       "MachinePhotoDto": {
         "properties": {
@@ -85462,6 +85504,24 @@
               "description": "Also return deactivated/retired/closed records (hidden by default)",
               "title": "Include Inactive",
               "type": "boolean"
+            }
+          },
+          {
+            "description": "Only ACTIVE machines (unless `status` is given) still lacking a go-live part: `tracker` = no current primary tracker, `enrollment` = not enrolled as a billable asset today",
+            "in": "query",
+            "name": "missing",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/MachineMissing"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only ACTIVE machines (unless `status` is given) still lacking a go-live part: `tracker` = no current primary tracker, `enrollment` = not enrolled as a billable asset today",
+              "title": "Missing"
             }
           },
           {

@@ -47,6 +47,9 @@ export const machineSchema: Schema<MachineDto> = object({
   created_at: text(),
   deactivated_at: nullableText().default(null),
   deactivation_reason: nullableText().default(null),
+  billing_enrolled: bool(),
+  primary_tracker_id: nullableId(),
+  primary_tracker_label: nullableText(),
 });
 
 export const categorySchema: Schema<CategoryDto> = object({
