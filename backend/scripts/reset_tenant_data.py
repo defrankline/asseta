@@ -137,6 +137,8 @@ DELETE: frozenset[str] = frozenset(
         "device_policy_snapshot",
         # the tenant's own policy versions (platform defaults have no tenant)
         "policy_version",
+        # the go-live checklist choices made for the erased setup (not needed marks, confirmations, dismissal)
+        "tenant_setup_choice",
         # the tenant's accountability trail of the erased records, and its undelivered events
         "security_event", "outbox_event",
     }

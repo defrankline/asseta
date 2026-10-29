@@ -46,6 +46,7 @@ from asseta.modules.notification import channels_router as notification_channels
 from asseta.modules.notification import gateway as notification_gateway
 from asseta.modules.notification import router as notification_router
 from asseta.modules.notification.realtime import RealtimeBroker, RedisBroker
+from asseta.modules.onboarding import router as onboarding_router
 from asseta.modules.oversight import router as oversight_router
 from asseta.modules.overview import router as overview_router
 from asseta.modules.platform_billing import commerce_router
@@ -150,6 +151,7 @@ def create_app(
         meter_engine_router.router,
         revenue_router.router,
         oversight_router.router,
+        onboarding_router.router,
         sync_router.router,
         managed_service_router.router,
         finance_router.router,

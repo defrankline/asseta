@@ -55,6 +55,8 @@ TENANT_TEMPLATES = (
             "tenant.revenue.",
             # Oversight (DEC-031 Phase 5): the people scorecard, unbilled work, idle machines and site check-ins.
             "tenant.oversight.",
+            # Go-live setup checklist: see progress, mark steps not needed, confirm default controls.
+            "tenant.setup.",
         ),
     ),
     RoleTemplate(

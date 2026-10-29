@@ -6318,6 +6318,99 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenant/setup-checklist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Setup Checklist
+         * @description The ordered go-live steps, each computed live from the tenant's data: DONE, TODO, NOT_NEEDED (the owner marked
+         *     it) or NOT_APPLICABLE (the capability it configures is switched off). `steps_done` of `steps_total` (NOT_NEEDED
+         *     counts as done; NOT_APPLICABLE steps are left out) and `percent` give the progress; each step links to the exact
+         *     screen that completes it.
+         */
+        get: operations["getSetupChecklist"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/setup-checklist/confirm-controls": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Controls
+         * @description The owner confirms that the platform default controls are fine (completes CONTROLS_CHOSEN without changing a
+         *     policy).
+         */
+        post: operations["confirmSetupControls"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/setup-checklist/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dismiss Checklist
+         * @description Hide the go-live banner for everyone in the tenant (the checklist page stays available).
+         */
+        post: operations["dismissSetupChecklist"];
+        /**
+         * Undismiss Checklist
+         * @description Show the go-live banner again.
+         */
+        delete: operations["undismissSetupChecklist"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/setup-checklist/steps/{key}/not-needed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark Step Not Needed
+         * @description Mark a step as not needed for the business (with a reason). Refused with 422 SETUP_STEP_REQUIRED for steps
+         *     every tenant needs. A step whose data is complete stays DONE.
+         */
+        post: operations["markSetupStepNotNeeded"];
+        /**
+         * Undo Step Not Needed
+         * @description Undo a "not needed" mark (the step counts again).
+         */
+        delete: operations["undoSetupStepNotNeeded"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenant/site-checkins": {
         parameters: {
             query?: never;
@@ -8901,6 +8994,11 @@ export interface components {
          * @enum {string}
          */
         Compliance: "COMPLIANT" | "NON_COMPLIANT" | "UNKNOWN";
+        /** ConfirmControlsIn */
+        ConfirmControlsIn: {
+            /** Note */
+            note?: string | null;
+        };
         /**
          * Connectivity
          * @enum {string}
@@ -13807,6 +13905,31 @@ export interface components {
             /** Note */
             note: string;
         };
+        /** NotNeededDto */
+        NotNeededDto: {
+            /**
+             * Marked At
+             * Format: date-time
+             */
+            marked_at: string;
+            /**
+             * Marked By
+             * Format: uuid
+             */
+            marked_by: string;
+            /** Marked By Name */
+            marked_by_name?: string | null;
+            /** Reason */
+            reason: string | null;
+        };
+        /** NotNeededIn */
+        NotNeededIn: {
+            /**
+             * Reason
+             * @description Why this step does not apply to the business
+             */
+            reason: string;
+        };
         /** NotificationChannelDeliveryDto */
         NotificationChannelDeliveryDto: {
             /** Attempts */
@@ -16740,6 +16863,112 @@ export interface components {
          * @enum {string}
          */
         SettlementStatus: "CLAIMED" | "VERIFIED" | "REJECTED";
+        /** SetupCheckDto */
+        SetupCheckDto: {
+            /** Done */
+            done: boolean;
+            /** Done Count */
+            done_count: number | null;
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /**
+             * Link
+             * @description Web route of the screen that fixes this part
+             */
+            link: string;
+            /**
+             * Optional
+             * @description Advice only: never holds the step back
+             */
+            optional: boolean;
+            /** Required Permission */
+            required_permission: string;
+            /** Total Count */
+            total_count: number | null;
+        };
+        /** SetupChecklistDto */
+        SetupChecklistDto: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Complete */
+            complete: boolean;
+            /** Controls Confirmed At */
+            controls_confirmed_at?: string | null;
+            /** Controls Confirmed By */
+            controls_confirmed_by?: string | null;
+            /** Controls Confirmed By Name */
+            controls_confirmed_by_name?: string | null;
+            /** Dismissed */
+            dismissed: boolean;
+            /** Dismissed At */
+            dismissed_at?: string | null;
+            /** Dismissed By */
+            dismissed_by?: string | null;
+            /** Dismissed By Name */
+            dismissed_by_name?: string | null;
+            /** Percent */
+            percent: number;
+            /** Steps */
+            steps: components["schemas"]["SetupStepDto"][];
+            /**
+             * Steps Done
+             * @description DONE + NOT_NEEDED steps
+             */
+            steps_done: number;
+            /**
+             * Steps Total
+             * @description Steps that apply (NOT_APPLICABLE excluded)
+             */
+            steps_total: number;
+        };
+        /** SetupStepDto */
+        SetupStepDto: {
+            /** Can Mark Not Needed */
+            can_mark_not_needed: boolean;
+            /**
+             * Checks
+             * @description The parts of the step, each with a link
+             */
+            checks?: components["schemas"]["SetupCheckDto"][];
+            /**
+             * Description
+             * @description Plain-English explanation of what to do and why
+             */
+            description: string;
+            /**
+             * Done Count
+             * @description e.g. machines with an approved starting reading
+             */
+            done_count: number | null;
+            key: components["schemas"]["StepKey"];
+            /**
+             * Link
+             * @description Web route of the screen to do it (the first part still to do)
+             */
+            link: string;
+            /** @description Set while the owner marked it as not needed */
+            not_needed?: components["schemas"]["NotNeededDto"] | null;
+            /** Order */
+            order: number;
+            /**
+             * Required Permission
+             * @description Permission needed to do this step on that screen
+             */
+            required_permission: string;
+            status: components["schemas"]["StepStatus"];
+            /** Title */
+            title: string;
+            /**
+             * Total Count
+             * @description e.g. active machines; null when a count means nothing
+             */
+            total_count: number | null;
+        };
         /**
          * Severity
          * @enum {string}
@@ -17236,6 +17465,16 @@ export interface components {
             /** Running Balance */
             running_balance: string;
         };
+        /**
+         * StepKey
+         * @enum {string}
+         */
+        StepKey: "COMPANY_SETTINGS" | "PEOPLE" | "MACHINE_TYPES_AND_RATES" | "MACHINES" | "TRACKERS" | "SITES" | "CUSTOMERS_AND_CONTRACTS" | "CONTROLS_CHOSEN" | "REASON_LISTS" | "DEPOSIT_ACCOUNTS" | "METER_BASELINES" | "FIELD_APP_SIGNED_IN" | "FIRST_JOB";
+        /**
+         * StepStatus
+         * @enum {string}
+         */
+        StepStatus: "DONE" | "TODO" | "NOT_NEEDED" | "NOT_APPLICABLE";
         /** StopDto */
         StopDto: {
             /** Duration Seconds */
@@ -18034,6 +18273,31 @@ export interface components {
             name: string;
             /** Permissions */
             permissions: string[];
+            /**
+             * Setup Complete
+             * @description All applicable go-live steps done
+             */
+            setup_complete?: boolean | null;
+            /**
+             * Setup Dismissed
+             * @description The owner hid the go-live banner
+             */
+            setup_dismissed?: boolean | null;
+            /**
+             * Setup Percent
+             * @description Go-live checklist progress, 0-100
+             */
+            setup_percent?: number | null;
+            /**
+             * Setup Steps Done
+             * @description e.g. 2 (of setup_steps_total)
+             */
+            setup_steps_done?: number | null;
+            /**
+             * Setup Steps Total
+             * @description Applicable go-live steps (e.g. 13)
+             */
+            setup_steps_total?: number | null;
             status: components["schemas"]["TenantStatus"];
             /**
              * Tenant Id
@@ -57038,6 +57302,534 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Page_SecurityEventDto_"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getSetupChecklist: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetupChecklistDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    confirmSetupControls: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfirmControlsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetupChecklistDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    dismissSetupChecklist: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetupChecklistDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    undismissSetupChecklist: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetupChecklistDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    markSetupStepNotNeeded: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                key: components["schemas"]["StepKey"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotNeededIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetupChecklistDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    undoSetupStepNotNeeded: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                key: components["schemas"]["StepKey"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetupChecklistDto"];
                 };
             };
             /** @description Bad Request */

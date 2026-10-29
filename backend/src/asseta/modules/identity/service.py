@@ -1,7 +1,7 @@
 """Identity use cases."""
 
 import uuid
-from datetime import date
+from datetime import date, datetime
 
 from sqlalchemy.orm import Session
 
@@ -13,6 +13,8 @@ from asseta.modules.identity.principal import TokenClaims
 from asseta.modules.identity.repository import IdentityRepository
 from asseta.modules.identity.tokens import parse_group_grants
 from asseta.modules.managed_service.gate import MandateGrant, grants_for_user, has_assignment_history
+from asseta.modules.onboarding.checklist import SETUP_READ_PERMISSION
+from asseta.modules.onboarding.checklist import compute as compute_setup
 from asseta.modules.policy.capabilities import disabled_capabilities
 
 
@@ -43,7 +45,7 @@ class IdentityService:
         self._s = session
         self._repo = IdentityRepository(session)
 
-    def me(self, claims: TokenClaims, today: date) -> MeDto:
+    def me(self, claims: TokenClaims, today: date, now: datetime | None = None) -> MeDto:
         """Tenants the user may enter. Platform staff reach clients only through in-force mandates (DEC-018); the
         Keycloak groups those mandates create are never shown as ordinary tenant membership."""
         user = self._repo.upsert_user_from_claims(claims)
@@ -69,6 +71,9 @@ class IdentityService:
             apply_scope(self._s, DbScope.TENANT, tenant.id, user.id)  # the tenant's own effective policy
             disabled = disabled_capabilities(self._s, tenant.id, utcnow())
             tenant_menus, tenant_groups = menus_for(menus, "TENANT", perms, disabled)
+            setup = (
+                compute_setup(self._s, tenant.id, now or utcnow(), disabled) if SETUP_READ_PERMISSION in perms else None
+            )
             tenants.append(
                 TenantAccessDto(
                     tenant_id=tenant.id,
@@ -87,6 +92,11 @@ class IdentityService:
                     )
                     if grant
                     else None,
+                    setup_complete=setup.complete if setup else None,
+                    setup_percent=setup.percent if setup else None,
+                    setup_steps_done=setup.steps_done if setup else None,
+                    setup_steps_total=setup.steps_total if setup else None,
+                    setup_dismissed=setup.choices.dismissed if setup else None,
                 )
             )
         platform_menus, platform_menu_groups = menus_for(menus, "PLATFORM", platform_perms)

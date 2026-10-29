@@ -46,6 +46,12 @@ class TenantAccessDto(BaseModel):
         description="Tenant capabilities switched off by policy (e.g. CUSTOMER_HOURS); their menus are omitted",
     )
     mandate: MandateBadgeDto | None = None
+    # Go-live setup checklist progress for a banner (null when the user lacks tenant.setup.read).
+    setup_complete: bool | None = Field(default=None, description="All applicable go-live steps done")
+    setup_percent: int | None = Field(default=None, description="Go-live checklist progress, 0-100")
+    setup_steps_done: int | None = Field(default=None, description="e.g. 2 (of setup_steps_total)")
+    setup_steps_total: int | None = Field(default=None, description="Applicable go-live steps (e.g. 13)")
+    setup_dismissed: bool | None = Field(default=None, description="The owner hid the go-live banner")
 
 
 class MeDto(BaseModel):
