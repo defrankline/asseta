@@ -259,6 +259,12 @@
 - **Not yet verified:** the new flows on real phones against https://asseta.co.tz (needs deploy + new app builds).
 - **Next smallest action:** deploy, then walk request → approve → start → complete with the demo supervisor and owner accounts on both platforms.
 
+### 2026-10-29 — Go-live setup checklist for new tenants
+- **Ask (owner):** a guide inside the system for a new tenant's owner — what to set up before going live, shown as "N of 13 done", each step linking to the exact page.
+- **Built:** backend `modules/onboarding` (5a0a2e6): GET /tenant/setup-checklist with 13 live-computed steps (company settings, people, machine types & rates, machines, trackers & enrollment, sites, customers & contracts, controls chosen, reason lists, deposit accounts, starting meter readings, field app signed in, first job), steps_done/steps_total, per-step links and sub-checks; owner choices (not needed + reason, confirm controls, hide banner) append-only + audited; permissions tenant.setup.read/manage; /me setup_* fields. Web page + dashboard banner + filtered link targets (0968ee6); machines `?missing=tracker|enrollment` server filter + enrolled/tracker columns (ff165bd); Owner app banner + checklist on Android (187b173, f1284a4) and iOS (99c0c82). Manual "Getting started: the go-live checklist" (65416ce); Claude Doc synced.
+- **Verified on ff165bd:** backend full pytest, ruff, format, mypy (439 files), openapi check, single head setup01chk01; web tsc, eslint, prettier, gen-api no diff, vitest 136 files / 812 tests; Android unit tests exit 0; iOS swift test 412.
+- **Notes:** a fresh tenant starts at 1 of 13 (company settings are set at onboarding); phones can't hide the banner (web only); not hand-tested on devices.
+
 ### 2026-10-29 — Live tenant MZALENDO INVESTMENT LTD reset for go-live
 - The live demo tenant (registration 2026/10/0001, formerly "Wambura & Sons Ltd") was renamed by the owner to MZALENDO INVESTMENT LTD and is now the real tenant.
 - Built `scripts/reset-tenant-data.sh` + `backend/scripts/reset_tenant_data.py` (781f353; MinIO single-object delete fix 83617a6): dry run by default, real run needs --yes, typed tenant name and a backup < 2 h; schema-discovered tables with explicit keep/delete classification (fails closed on unknown tables); one transaction; phones revoked with a reset reason (wipe + fresh bootstrap); audit `platform.tenant.data_reset`; demo seeder refuses reset tenants. Runbook §11.
