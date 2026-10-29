@@ -30,6 +30,7 @@ Many day-to-day tasks are shared with other roles. This manual points to their m
 
 Everything any other role can do, plus the tasks reserved for owners by default:
 
+- **Get your company ready to go live** with the [go-live checklist](#getting-started-the-go-live-checklist).
 - **Approve jobs and set their price**, including jobs supervisors request from the field.
 - **Review meter and GPS exceptions.** This unblocks invoicing.
 - **Decide meter reset requests.**
@@ -57,7 +58,7 @@ By default the owner role holds every permission, so you can also make every dec
 
 | Group | Menus |
 |---|---|
-| Overview | Dashboard, Fleet map, Accountability, People scorecard |
+| Overview | Dashboard, Go-live checklist, Fleet map, Accountability, People scorecard |
 | Field work | My jobs, Readings, Fuel, Expenses, Cash, Customer hours, Site check-in |
 | Operations | Jobs, Customers, Staff, Site check-ins |
 | Fleet | Machines, Trackers, Sites & geofences, Alerts, Idle machines |
@@ -82,32 +83,74 @@ The top bar has:
 
 | Tab | What it holds |
 |---|---|
-| **Overview** | Your dashboard tiles (fleet, jobs, money, investigations) |
+| **Overview** | Your dashboard tiles (fleet, jobs, money, investigations), and the go-live banner until setup is finished |
 | **Fleet** | Map or list of machines with live/last-known status; a machine's **Daily machine sheet** |
 | **Jobs** | Jobs and their hours, charges, readings, work log, expenses, fuel and customer acknowledgement; **New job**; approve or decline jobs waiting for approval |
 | **Alerts** | Tracking alerts to acknowledge or resolve |
-| **More** | Approvals (expenses, meter resets, jobs, cash handovers, exceptions, the accountability requests, revenue differences and non-revenue hours), **Accountability** (with **Unbilled work** and **Idle machines**), Meter exceptions, Field spend, Cash with supervisors (with **Issue float**), **Customer hours**, **People scorecard**, Investigations, Notifications, Settings, Company |
+| **More** | **Go-live checklist**, Approvals (expenses, meter resets, jobs, cash handovers, exceptions, the accountability requests, revenue differences and non-revenue hours), **Accountability** (with **Unbilled work** and **Idle machines**), Meter exceptions, Field spend, Cash with supervisors (with **Issue float**), **Customer hours**, **People scorecard**, Investigations, Notifications, Settings, Company |
 
 ---
 
-## Getting started: setting up your company
+## Getting started: the go-live checklist
 
 The Platform Owner (the company that runs Asseta) onboards your company, agrees your subscription fee, and sends you a **temporary password** through a secure channel. Then:
 
 1. **Sign in** at <https://asseta.co.tz> and set your own password. You may also be asked to set up an authenticator app. See [Signing in](README.md#signing-in).
-2. **Check your subscription**: **Administration → Subscription** shows your agreement, price per machine and billing period.
-3. **Review your policies**: **Administration → Policies**. Asseta starts you with sensible defaults. Change them as needed (see [Task 3](#3-set-company-policies)).
-4. **Add your machines**: **Fleet → Machines**. Then enrol each one as a billable asset ([Task 2](#2-enroll-machines-as-billable-assets)).
-5. **Register trackers** and assign them to machines: **Fleet → Trackers**.
-6. **Add staff**: **Operations → Staff**. Create your supervisors and operators, and link each supervisor to their Asseta login.
-7. **Assign staff to machines** on each machine's **Staff assignments** tab. A supervisor can request jobs only on machines assigned to them (or already on their jobs).
-8. **Create job sites and geofences**: **Fleet → Sites & geofences**.
-9. **Add customers, contracts and rate cards**: **Operations → Customers**.
-10. **Create your first job** and approve it, in the web console or the Owner app. Your supervisor sees it on their phone after syncing. From then on supervisors can also request jobs from the field for you to approve.
-11. **Install the Asseta Owner app** and enable push notifications.
-12. **Decide which accountability controls to use** and switch them on: see [Switching on the controls](#switching-on-the-controls).
+2. **Install the Asseta Owner app** and enable push notifications.
+3. **Work through the go-live checklist** below. It lists, in order, everything your company needs before the team relies on Asseta, and opens the screen for each step.
 
-Steps 4 to 10 are described in the [Manager / Dispatcher manual](02-manager-dispatcher.md).
+### Where you find it
+
+- **On the dashboard**: while setup is not finished, **Overview → Dashboard** shows the banner **Get ready to go live — N of M done** ("A few setup steps help the team start working in Asseta with confidence."). Click **Continue setup**.
+- **In the menu**: **Overview → Go-live checklist** (the page is always there, even after the banner is gone).
+- **In the Owner app**: the **Overview** tab shows the same banner (tap it), and **More → Go-live checklist** is the first entry. The app shows the same steps; most of them are done on the web, so a step's button either opens the matching app screen (**Open …**) or **Open on the web**.
+
+Managers hold the checklist permission too, so an office manager can follow and finish the setup with you.
+
+### How it works
+
+- **It ticks itself.** You never tick a step by hand. Asseta checks each step against your company's real records (machines, rates, logins, contracts and so on) and marks it **Done** as soon as the work is saved. Click **Refresh** (pull down in the app) to check again.
+- **N of M done** at the top counts the steps that are done or marked not needed (N) out of the steps that apply to your company (M), with a progress bar. With every control switched on there are 13 steps.
+- **Steps that do not apply disappear.** A step that sets up a control your company has switched off in its policies is left out of the count. On the web it is listed at the bottom: "Not used by your company, so left out: …". In the Owner app it stays in its place, muted, marked **Does not apply**.
+- **Each step** shows its number, its status (**To do**, **Done**, **Not needed**), what it asks for, a count where one helps (for example "3 of 5 machines") and its parts, each ticked separately with its own **Open …** link. The main button, **Go to …**, opens the screen for the first part still to do.
+- If your role cannot open that screen, the step says "Someone with access to that screen may need to finish this step."
+- When every step is done, the page shows "Everything is in place. You are ready to go live." and **the banner goes away** from the dashboard and the Owner app.
+
+### The 13 steps
+
+| # | Step | Done when | Button goes to |
+|---|---|---|---|
+| 1 | **Company settings** | Your company's time zone and currency are set. Every day, report and amount uses them. | **Go to Subscription and settings** (**Administration → Subscription**) |
+| 2 | **People and logins** | At least one person who records work in the field has a login (a supervisor login); at least **2 people can approve**, so nobody approves their own request; and every supervisor login is linked to a staff record. | **Go to People and access** (**Administration → Users & roles**); the linking part opens **Operations → Staff** |
+| 3 | **Machine types and rates** | You have at least one machine type (category), and every active machine type has a current hourly rate. | **Go to Machines** (**Fleet → Machines**); the rates part opens the rate cards in **Operations → Customers** |
+| 4 | **Machines** | At least one active machine is registered. | **Go to Machines** (**Fleet → Machines**) |
+| 5 | **Trackers** | Every active machine has a tracker fitted as its main tracker **and** is enrolled for tracking on your subscription. | **Go to Trackers** (**Fleet → Trackers**); the parts open **Fleet → Machines** filtered to the machines still missing a tracker or enrolment ([Task 2](#2-enroll-machines-as-billable-assets)) |
+| 6 | **Job sites** | At least one job site exists. A boundary (geofence) around a site is **optional**: it is shown as advice and never holds the step back. | **Go to Sites and geofences** (**Fleet → Sites & geofences**) |
+| 7 | **Customers and contracts** | At least one active customer has an active contract, so jobs can be priced and billed. | **Go to Customers** (**Operations → Customers**) |
+| 8 | **Choose your controls** | Your company has saved its own policy version, **or** someone clicked **Our default controls are fine**. | **Go to Policies** (**Administration → Policies**); see [Set company policies](#3-set-company-policies) and [Switching on the controls](#switching-on-the-controls) |
+| 9 | **Reason lists** | Each reason list used by a control you switched on has at least one reason: customer-hours reasons, engine-hour reasons, cash reasons and revenue reasons. Only the lists of switched-on controls count ("2 of 4 lists"). | The first list still empty: **Customer hours → Reason lists**, **Engine hours → Engine-hour reasons**, **Finance → Cash custody → Reason lists** or **Finance → Revenue reasons**. Left out when none of those controls is on. |
+| 10 | **Deposit accounts** | At least one bank or mobile-money account that field cash is paid into is added. | **Go to Deposit accounts** (**Finance → Deposit accounts**). Left out when cash custody controls are off. |
+| 11 | **Hour-meter starting readings** | Every active machine has an **approved** starting hour-meter reading (meter baseline), so engine hours can be checked from day one. | **Go to Meter baselines** (**Engine hours → Meter baselines**), showing the machines still missing one ([Task 16](#16-meter-baselines)). Left out when engine-hour controls are off. |
+| 12 | **Field app signed in** | At least one supervisor has installed the Asseta Supervisor app and signed in on their phone. | **Go to People and access** (**Administration → Users & roles**) |
+| 13 | **First job** | At least one job is approved, in progress or completed. From then on Asseta checks work, hours and money every day. | **Go to Jobs** (**Operations → Jobs**) |
+
+Steps 2 to 7 and 13 are described in detail in the [Manager / Dispatcher manual](02-manager-dispatcher.md). While you set up, also assign staff to machines on each machine's **Staff assignments** tab: a supervisor can request jobs only on machines assigned to them (or already on their jobs).
+
+### Mark as not needed
+
+Some steps may not fit your business, for example **Trackers** if you do not use trackers. On a step that is still to do, click **Mark as not needed**, write **Why it is not needed** (at least 3 characters) and confirm. The step then counts as done and shows who marked it, when, and the reason. You can **Undo** it at any time, and if the step's work is later done it shows **Done** anyway.
+
+**Company settings**, **Machine types and rates**, **Machines**, **Choose your controls** and **First job** cannot be marked as not needed: every company needs them.
+
+### Keep the default controls
+
+On **Choose your controls**, if Asseta's default rules suit you, click **Our default controls are fine** (you may add a note). The step is done and shows who confirmed it and when. You can still change any control later under **Administration → Policies**.
+
+### Hide the banner
+
+To hide the dashboard banner before the checklist is finished, click **Hide checklist banner** on the checklist page (**Show banner again** brings it back). The page stays available under **Overview → Go-live checklist**.
+
+Marking steps as not needed, confirming the default controls and hiding the banner need the permission to manage the checklist; by default the Owner and Manager roles hold it. Every choice is recorded in the audit log.
 
 ---
 
@@ -115,7 +158,7 @@ Steps 4 to 10 are described in the [Manager / Dispatcher manual](02-manager-disp
 
 ### 1. Read the dashboard
 
-**Overview → Dashboard** ("Fleet, work, money and risk at a glance") has four sections:
+**Overview → Dashboard** ("Fleet, work, money and risk at a glance") has four sections. Until setup is finished, a **Get ready to go live — N of M done** banner sits above them; click **Continue setup** to open the [go-live checklist](#getting-started-the-go-live-checklist).
 
 - **Fleet**:
   - **Machines** by connectivity (Live, Recent, Stale, Offline, Never reported, No tracker)
@@ -768,6 +811,8 @@ Tiles for:
 
 Each section shows when its data was last updated. Tap a tile to go to the matching list.
 
+Until your company's setup is finished, a banner above the tiles reads **Get ready to go live — N of M done** ("Open the go-live checklist to see what is left."). Tap it to open the **Go-live checklist**; see [Getting started](#getting-started-the-go-live-checklist).
+
 ### Fleet and machine
 
 - Switch between **Map** and **List**.
@@ -960,6 +1005,8 @@ While you are looking at saved data, **all decisions are disabled**. Approvals, 
 | Customer hours, cash | See the [Manager](02-manager-dispatcher.md#statuses-and-what-they-mean) and [Accountant](04-accountant.md#statuses-and-what-they-mean) manuals |
 
 ## Switching on the controls
+
+This section is the detailed guide behind step 8, **Choose your controls**, of the [go-live checklist](#getting-started-the-go-live-checklist). Do the checklist first: it already covers the people who approve, the reason lists, the deposit accounts and the hour-meter starting readings, and ticks them as they are done. Come back here to decide which controls to switch on and how to set each one; the checklist adds or removes the matching steps as you switch controls on or off.
 
 Every accountability control is a company policy. A control that is off keeps the usual behaviour, and its menus and buttons stay hidden. Asseta starts you with safe defaults: customer hours are available, while daily reports, required baselines, float acknowledgement, full remittance, the remittance cut-off, revenue checks, the engine and fuel checks, remittance requirements, the holding allowance, daily drawdown, low-balance warnings, the people scorecard, repeated items, unbilled work, idle machines and site check-ins are **off** until you switch them on. Switch on only what your business needs, one step at a time.
 

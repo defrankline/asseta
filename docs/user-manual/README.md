@@ -43,6 +43,10 @@ The two most important users are the **Supervisor**, who records the field work,
 
 Roles are examples set up for each company. Your company can adjust them, so you may see slightly more or fewer menus than described here. If a menu is missing, your role does not include it.
 
+### New company? Start with the go-live checklist
+
+If your company has just joined Asseta, the owner (or a manager) starts with the **go-live checklist**: **Overview → Go-live checklist** in the web console, the **Get ready to go live — N of M done** banner on the dashboard, or **More → Go-live checklist** in the Owner app. It lists the setup steps in order, opens the screen for each one, and ticks each step by itself as the work is saved. See [Getting started: the go-live checklist](01-tenant-owner.md#getting-started-the-go-live-checklist).
+
 ## Signing in
 
 ### Web console
@@ -97,6 +101,7 @@ A company may show **Read only**. Its Asseta subscription is restricted, and you
 | Term | Meaning |
 |---|---|
 | **Tenant / company** | Your company's private Asseta account. |
+| **Go-live checklist** | The ordered setup steps a new company completes before relying on Asseta (company settings, people, machines and rates, trackers, sites, customers, controls, reason lists, deposit accounts, starting readings, the field app and the first job). Each step is checked against your company's records and ticks itself; steps for controls you have switched off are left out, and a step that does not fit your business can be marked **not needed** with a reason. See [Getting started](01-tenant-owner.md#getting-started-the-go-live-checklist). |
 | **Machine** | One piece of equipment, with a unique asset code. Machines can be active, out of service or retired. Your Asseta subscription is charged per **billable machine**. |
 | **Tracker** | The GPS device fitted to a machine. It reports position and, if supported, engine on/off. |
 | **Connectivity** | How fresh a machine's position is: **Live**, **Recent**, **Stale**, **Offline**, **Never reported** or **No tracker**. |

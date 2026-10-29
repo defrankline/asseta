@@ -29,6 +29,7 @@ You work mainly in the **web console** at <https://asseta.co.tz>.
 - **Revenue checks** (if your company switches them on): read the **Daily machine sheet**, explain and approve **non-revenue hours**, explain and decide **revenue differences** (never your own explanation), and keep the **revenue reasons**.
 - **Prepaid hours used over days**: follow hours **in use by running jobs**, **low-balance warnings** and the customer **hours statement**.
 - **People and machines** (if your company switches them on): the **People scorecard**, **Unbilled work**, **Idle machines** and supervisors' **Site check-ins**.
+- **Go-live checklist**: follow your company's setup progress, mark steps as not needed (with a reason), confirm the default controls and hide the dashboard banner. See below.
 - **Read-only**: Policies and the Audit log.
 
 What the Manager role does **not** include, by default:
@@ -43,7 +44,7 @@ The **Tenant Owner** handles these. Your company may customise roles.
 
 | Menu group | Menus |
 |---|---|
-| Overview | Dashboard, Fleet map, Accountability, People scorecard |
+| Overview | Dashboard, Go-live checklist, Fleet map, Accountability, People scorecard |
 | Field work | My jobs, Cash, Customer hours |
 | Operations | Jobs, Customers, Staff, Site check-ins |
 | Fleet | Machines, Trackers, Sites & geofences, Alerts, Idle machines |
@@ -56,6 +57,10 @@ The **Tenant Owner** handles these. Your company may customise roles.
 The **Customer hours** menus appear only when your company has switched customer hours on in its policies. The **Engine hours** menus and **Revenue differences** / **Revenue reasons** appear only when your company has switched revenue checks on (the Engine hours menus also need engine-hour controls). **People scorecard**, **Site check-ins**, **Idle machines** and **Unbilled work** appear only when your company switches them on in its **Oversight** policy. The decisions you see depend on the permissions your role holds; the role setup above is an example your company can change.
 
 The **Asseta Owner** phone app can also be used by managers whose company gives them access. It covers the fleet map, jobs (including **New job** and approving or declining jobs), alerts and approvals on the go; see the [Tenant Owner manual](01-tenant-owner.md#the-asseta-owner-app). The buttons shown there depend on your role's permissions.
+
+### Setting up a new company: the go-live checklist
+
+By default managers hold the go-live checklist permission, like the owner. While your company is getting ready, the dashboard shows **Get ready to go live — N of M done**; click **Continue setup**, or open **Overview → Go-live checklist**. Each step ticks itself when the work is saved, and its **Go to …** button opens the screen that does it. Most steps (people, machine types and rates, machines, trackers, sites, customers and contracts, the first job) are the tasks in this manual. You can also **Mark as not needed** a step that does not fit your business (with a reason, and **Undo** at any time) and click **Our default controls are fine**. Steps whose screen your role cannot open are left for the owner. The full step-by-step list is in [Getting started: the go-live checklist](01-tenant-owner.md#getting-started-the-go-live-checklist).
 
 ---
 
