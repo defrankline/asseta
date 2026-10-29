@@ -259,6 +259,12 @@
 - **Not yet verified:** the new flows on real phones against https://asseta.co.tz (needs deploy + new app builds).
 - **Next smallest action:** deploy, then walk request → approve → start → complete with the demo supervisor and owner accounts on both platforms.
 
+### 2026-10-29 — Live tenant MZALENDO INVESTMENT LTD reset for go-live
+- The live demo tenant (registration 2026/10/0001, formerly "Wambura & Sons Ltd") was renamed by the owner to MZALENDO INVESTMENT LTD and is now the real tenant.
+- Built `scripts/reset-tenant-data.sh` + `backend/scripts/reset_tenant_data.py` (781f353; MinIO single-object delete fix 83617a6): dry run by default, real run needs --yes, typed tenant name and a backup < 2 h; schema-discovered tables with explicit keep/delete classification (fails closed on unknown tables); one transaction; phones revoked with a reset reason (wipe + fresh bootstrap); audit `platform.tenant.data_reset`; demo seeder refuses reset tenants. Runbook §11.
+- Live run by the owner (backup 20261029T133217Z): 7,749 rows deleted, 5 device sessions revoked, 8 objects deleted; verify dry run shows 0 rows / 0 objects. Kept: 7 users + staff + roles, subscription, settings, mandates.
+- **Next (owner):** delete `/home/asseta/.deploy/demo-*-credentials.json`; remove the 6 simulated Traccar devices; deactivate non-Mzalendo users/staff; users re-sign-in on phones; configure Mzalendo policies per the manual's "Switching on the controls".
+
 ### 2026-10-27 — DEC-031 revenue and asset safety built (all 5 phases)
 - **Goal (owner):** maximum revenue and maximum safety of assets. Design `docs/requirements/revenue-asset-safety-design.md` (with implementation notes), backlog row, commit 9fd00b3. Everything is tenant policy, default off; approvals by permission, proposer ≠ approver.
 - **Phase 1 revenue checks** (REVENUE_RECONCILIATION): non-revenue work-log time and unexplained hours outside jobs count as revenue until a second person approves them (owner rule 2026-10-26); daily machine sheet; revenue differences (explain/decide/confirm, adjustments, cases); revenue reasons. Backend 90b752d, web 1a62f3d, Android f29ffbc/d524a0d, iOS fe5df81/c8c3598.
