@@ -1225,3 +1225,92 @@ Unbilled work rows (newest completion last → sort by `days_unbilled` descendin
 `owner.unbilled.completed` + " · " + `owner.unbilled.draft` when `draft_invoice_id`, trailing value total money
 (when set). Idle machines rows (longest idle first): headline machine, caption `owner.idle.since`, second caption
 `owner.idle.lastJob` (when a last job) and `owner.idle.planned` (when a planned job).
+
+## Go-live checklist
+
+Owner app only (the Supervisor app shows nothing). Backend contract: `GET /api/v1/tenant/setup-checklist`
+(`SetupChecklistDto`), writes return the checklist. Online only: nothing is queued; the last checklist is kept as the
+usual offline snapshot (read-only, actions disabled while it is shown).
+
+Rules shared by both apps:
+- **Gates.** Read: `tenant.setup.read`. Mark as not needed / Undo / "Our default controls are fine":
+  `tenant.setup.manage` + online + live data + company not read-only (the standard mutation gate and its wording).
+- **Banner** on the Overview (dashboard), above the sections: shown when `/me` tenant `setup_steps_total` is not null
+  (null = no `tenant.setup.read`), `setup_complete` is false and `setup_dismissed` is false. Text `owner.setup.banner`
+  with `setup_steps_done` / `setup_steps_total`, caption `owner.setup.bannerCaption`; tap → Go-live checklist. The
+  figures are replaced by those of the checklist whenever the checklist is loaded or changed in this session (so the
+  banner disappears when it becomes complete or is dismissed), without re-reading `/me`.
+- **More**: entry `owner.setup.more`, first in the list, while `tenant.setup.read`.
+- **Deep link** `/tenant/setup` → Go-live checklist (Overview when not allowed).
+- **Step action** (one per step; also on each sub-check row that is not done): the Owner app screen when the link
+  maps to one the role may open, else `owner.setup.openWeb`, which opens the configured web base URL (Android build
+  config `WEB_BASE_URL`, defaulting to the API base URL; release `https://asseta.co.tz`) + the link in the browser.
+  Link → app screen (path before `?`; anything else → web):
+  | Link | App screen (label `owner.setup.openScreen` with the screen title) | Needs |
+  |---|---|---|
+  | `/tenant/machines` (no query) | Fleet | `tenant.fleet.read` |
+  | `/tenant/jobs` | Jobs | `tenant.job.read` |
+  | `/tenant/approvals`, `/tenant/meter-baselines` (any query) | Approvals | `tenant.approval.read` |
+  | `/tenant/hours`, `/tenant/hours/purchases` | Customer hours | customer hours gate |
+  | `/tenant/finance/cash` (no query) | Cash with supervisors | `tenant.finance.read` |
+  `/tenant/machines?missing=…`, `/tenant/finance/cash?tab=reasons`, `/tenant/hours/reasons` and all other links → web.
+  Done steps show no action. When the user lacks the step's `required_permission`, the caption
+  `owner.setup.needsAccess` is added (the action is still offered).
+
+Screens:
+| App | Screen | Change |
+|---|---|---|
+| Owner | Overview | Go-live banner (rules above) |
+| Owner | More | Entry "Go-live checklist" |
+| Owner | Go-live checklist (new) | Pull to refresh. Progress card: `owner.setup.progress` (+ linear progress of `percent`), `owner.setup.complete` when complete, `owner.setup.asOf`. Then one card per step in `order`: title `{order}. {title}` + status pill, description, counts row `owner.setup.count` when `total_count` is not null, the sub-checks (label, ✓ done / `owner.setup.checkTodo`, `owner.setup.count` when counted, `owner.setup.optional` when optional; a not-done check opens its own link), the not-needed note, the controls-confirmed note (CONTROLS_CHOSEN), the action, then the manage buttons. Footer `owner.setup.footer` |
+| Owner | Mark as not needed (dialog) | Reason field (3–500 characters, trimmed), Cancel / confirm; `POST /steps/{key}/not-needed {reason}` |
+| Owner | Undo | `DELETE /steps/{key}/not-needed` (no confirmation) |
+| Owner | Our default controls are fine (dialog) | Optional note (≤500); `POST /confirm-controls {note}` |
+
+Manage buttons (only with the manage gate open; otherwise the gate's `BlockedNote` reason once at the top of the
+list, only for holders of `tenant.setup.manage`): `owner.setup.markNotNeeded` when `can_mark_not_needed` and status
+TODO; `owner.setup.undo` when status NOT_NEEDED; `owner.setup.controlsFine` on step CONTROLS_CHOSEN while its status is
+TODO and `controls_confirmed_at` is null. Status NOT_APPLICABLE steps stay in their place in the order, muted,
+without actions. Refusal codes: `SETUP_STEP_REQUIRED` → `owner.setup.error.SETUP_STEP_REQUIRED`; others → the
+standard wording. After a write the returned checklist replaces the screen and the banner figures.
+
+### Owner
+| Key | English |
+|---|---|
+| owner.setup.banner | Get ready to go live — {done} of {total} done |
+| owner.setup.bannerCaption | Open the go-live checklist to see what is left. |
+| owner.setup.more | Go-live checklist |
+| owner.setup.title | Go-live checklist |
+| owner.setup.progress | {done} of {total} done |
+| owner.setup.complete | Everything is ready. You can go live. |
+| owner.setup.asOf | Checked {dateTime} |
+| owner.setup.footer | Each step is checked against your company's records and updates by itself as the work is done. Most steps are done on the web. |
+| owner.setup.status.DONE | Done |
+| owner.setup.status.TODO | To do |
+| owner.setup.status.NOT_NEEDED | Not needed |
+| owner.setup.status.NOT_APPLICABLE | Does not apply |
+| owner.setup.count | {done} of {total} |
+| owner.setup.checkDone | Done |
+| owner.setup.checkTodo | To do |
+| owner.setup.optional | Optional |
+| owner.setup.openScreen | Open {screen} |
+| owner.setup.openWeb | Open on the web |
+| owner.setup.needsAccess | Someone with access to this screen must do this step. |
+| owner.setup.markNotNeeded | Mark as not needed |
+| owner.setup.notNeededTitle | Mark "{step}" as not needed? |
+| owner.setup.notNeededReason | Why this step does not apply |
+| owner.setup.notNeededHint | At least 3 characters. |
+| owner.setup.notNeededBy | Marked not needed by {name} on {date}: {reason} |
+| owner.setup.undo | Undo |
+| owner.setup.controlsFine | Our default controls are fine |
+| owner.setup.controlsTitle | Keep the default controls? |
+| owner.setup.controlsMessage | Asseta's default controls stay in place. You can change them on the web at any time. |
+| owner.setup.controlsNote | Note (optional) |
+| owner.setup.controlsConfirm | Keep the defaults |
+| owner.setup.controlsBy | Controls confirmed by {name} on {date} |
+| owner.setup.cancel | Cancel |
+| owner.setup.error.SETUP_STEP_REQUIRED | This step is needed before going live, so it cannot be marked as not needed. |
+
+`{name}` is the `*_by_name` (else "someone"); `{date}` the local date `26 Oct 2026`; `{dateTime}` `26 Oct 2026, 14:05`;
+`{reason}` omitted together with its ": " when null. `{screen}` is the app's screen title (Fleet, Jobs, Approvals,
+Customer hours, Cash with supervisors).
