@@ -567,17 +567,11 @@ class S3Store:
         return keys
 
     def delete_keys(self, keys: list[str]) -> int:
-        done = 0
-        for i in range(0, len(keys), 1000):
-            batch = keys[i : i + 1000]
-            res = self._s3.delete_objects(
-                Bucket=self._bucket, Delete={"Objects": [{"Key": k} for k in batch], "Quiet": True}
-            )
-            errors = res.get("Errors", [])
-            if errors:
-                raise RuntimeError(f"{len(errors)} object(s) not deleted, first: {errors[0]}")
-            done += len(batch)
-        return done
+        # One DeleteObject per key: MinIO refuses the batch DeleteObjects call without a Content-MD5 header, which
+        # current boto3 no longer sends. A tenant holds few enough objects for this to stay quick.
+        for key in keys:
+            self._s3.delete_object(Bucket=self._bucket, Key=key)
+        return len(keys)
 
 
 def delete_objects(store: ObjectStore, tid: uuid.UUID) -> int:
