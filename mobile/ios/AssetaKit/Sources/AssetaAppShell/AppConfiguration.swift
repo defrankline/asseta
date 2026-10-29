@@ -7,11 +7,33 @@ public struct AppConfiguration: Sendable, Equatable {
     public let apiBaseURL: URL
     public let oidc: OIDCConfiguration
     public let keychainService: String
+    /// Where the web app is served ("Open on the web" links). Falls back to the API host's origin, as in production
+    /// the web and the API share one host.
+    public let webBaseURL: URL
 
-    public init(apiBaseURL: URL, oidc: OIDCConfiguration, keychainService: String) {
+    public init(apiBaseURL: URL, oidc: OIDCConfiguration, keychainService: String, webBaseURL: URL? = nil) {
         self.apiBaseURL = apiBaseURL
         self.oidc = oidc
         self.keychainService = keychainService
+        self.webBaseURL = webBaseURL ?? Self.origin(of: apiBaseURL)
+    }
+
+    /// `https://host[:port]` of `url` (path, query and fragment dropped).
+    static func origin(of url: URL) -> URL {
+        var parts = URLComponents()
+        parts.scheme = url.scheme
+        parts.host = url.host
+        parts.port = url.port
+        return parts.url ?? url
+    }
+
+    /// The web page for a server-provided route such as `/tenant/machines?missing=tracker`. Only app-relative routes
+    /// are accepted (nil otherwise), so a link can never leave the configured web host.
+    public func webURL(for route: String) -> URL? {
+        guard route.hasPrefix("/"), !route.hasPrefix("//") else { return nil }
+        var base = webBaseURL.absoluteString
+        while base.hasSuffix("/") { base.removeLast() }
+        return URL(string: base + route)
     }
 
     public enum LoadError: Error, Equatable {
@@ -42,6 +64,13 @@ public struct AppConfiguration: Sendable, Equatable {
         } catch {
             throw LoadError.invalidURL("AssetaOIDCRedirectURI/AssetaOIDCPostLogoutRedirectURI")
         }
-        return AppConfiguration(apiBaseURL: api, oidc: oidc, keychainService: bundleID)
+        var web: URL?
+        if let raw = info["AssetaWebBaseURL"] as? String, !raw.isEmpty, !raw.hasPrefix("$(") {
+            guard let value = URL(string: raw), value.scheme != nil, value.host != nil else {
+                throw LoadError.invalidURL("AssetaWebBaseURL")
+            }
+            web = value
+        }
+        return AppConfiguration(apiBaseURL: api, oidc: oidc, keychainService: bundleID, webBaseURL: web)
     }
 }

@@ -279,7 +279,9 @@ file-protection assertion runs on physical devices only.
 
 `AssetaAPIBaseURL`, `AssetaOIDCIssuer`, `AssetaOIDCRedirectURI` and
 `AssetaOIDCPostLogoutRedirectURI` come from build settings in `project.yml`. AssetaKit hard-codes
-none of them.
+none of them. `AssetaWebBaseURL` (`ASSETA_WEB_BASE_URL`: debug `http://localhost:5173`, release
+`https://asseta.co.tz`) is where "Open on the web" links go (go-live checklist); when empty it falls back to
+the API host's origin. Only app-relative routes (`/tenant/...`) are opened there.
 
 | App | `ASSETA_OIDC_SCHEME` | Redirect | Post-logout redirect |
 |---|---|---|---|

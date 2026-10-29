@@ -7,7 +7,7 @@ import SwiftUI
 enum OwnerTab: Hashable { case overview, fleet, jobs, alerts, more }
 
 /// Lists reachable from the "More" tab.
-enum MoreItem: Hashable { case approvals, accountability, customerHours, scorecard, exceptions, fieldSpend, cash, investigations, notifications, settings }
+enum MoreItem: Hashable { case setup, approvals, accountability, customerHours, scorecard, exceptions, fieldSpend, cash, investigations, notifications, settings }
 
 /// Owner home for one tenant: tabs, deep links from notification taps, offline/stale state.
 public struct OwnerRootView: View {
@@ -156,6 +156,10 @@ public struct OwnerRootView: View {
             target = .more
             if model.features.accountability { path.append(MoreItem.accountability) }
             path.append(route)
+        case .setupChecklist where model.features.setupRead:
+            target = .more; path.append(MoreItem.setup)
+        case .setupChecklist:
+            target = model.features.overview ? .overview : .more
         case .investigation:
             target = .more; path.append(MoreItem.investigations); path.append(route)
         case .notification:
@@ -209,6 +213,7 @@ struct RouteView: View {
         case let .scorecardPerson(id, name, from, to): ScorecardPersonView(model: model, staffID: id, name: name, from: from, to: to)
         case .unbilledWork: UnbilledWorkView(model: model)
         case .idleMachines: IdleMachinesView(model: model)
+        case .setupChecklist: SetupChecklistView(model: model)
         }
     }
 }
@@ -219,6 +224,7 @@ struct MoreDestination: View {
 
     var body: some View {
         switch item {
+        case .setup: SetupChecklistView(model: model)
         case .approvals: ApprovalsView(model: model)
         case .accountability: AccountabilityDashboardView(model: model)
         case .customerHours: CustomerHoursView(model: model)
@@ -239,6 +245,9 @@ struct MoreView: View {
     var body: some View {
         List {
             Section {
+                if model.features.setupRead {
+                    NavigationLink(value: MoreItem.setup) { Label(SetupTexts.more, systemImage: "checklist") }
+                }
                 if model.features.approvalsScreen {
                     NavigationLink(value: MoreItem.approvals) { Label("Approvals", systemImage: "checkmark.seal") }
                 }

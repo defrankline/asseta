@@ -25,11 +25,13 @@ settings:
       # Local Docker Compose stack (see repo README). Override per environment.
       ASSETA_API_BASE_URL: "http://localhost:8000"
       ASSETA_OIDC_ISSUER: "http://localhost:8080/realms/asseta"
+      ASSETA_WEB_BASE_URL: "http://localhost:5173"
     Release:
       # Production (docs/deployment-live.md). Override per environment, e.g.
       #   xcodebuild ... ASSETA_API_BASE_URL=https://staging.example ASSETA_OIDC_ISSUER=https://staging.example/auth/realms/asseta
       ASSETA_API_BASE_URL: "https://asseta.co.tz"
       ASSETA_OIDC_ISSUER: "https://asseta.co.tz/auth/realms/asseta"
+      ASSETA_WEB_BASE_URL: "https://asseta.co.tz"
 
 targetTemplates:
   AssetaApp:
@@ -65,6 +67,8 @@ targetTemplates:
         # Endpoints injected from build settings (no URLs in source).
         AssetaAPIBaseURL: $(ASSETA_API_BASE_URL)
         AssetaOIDCIssuer: $(ASSETA_OIDC_ISSUER)
+        # The web app ("Open on the web" links, e.g. the go-live checklist).
+        AssetaWebBaseURL: $(ASSETA_WEB_BASE_URL)
         # Per-app OIDC redirects (each app has its own private-use scheme; see target settings).
         AssetaOIDCRedirectURI: $(ASSETA_OIDC_SCHEME):/oauth2redirect
         AssetaOIDCPostLogoutRedirectURI: $(ASSETA_OIDC_SCHEME):/logout

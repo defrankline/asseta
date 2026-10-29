@@ -193,13 +193,14 @@ extension OwnerFeatures {
         case .scorecard, .scorecardPerson: scorecard
         case .unbilledWork: unbilledWork
         case .idleMachines: idleMachines
+        case .setupChecklist: setupRead
         case .notifications, .notification: notifications
         }
     }
 
     /// Entries of the More tab, in order.
     public var moreEntries: [String] {
-        (approvalsScreen ? ["Approvals"] : []) + (accountability ? [OwnerAccountabilityTexts.moreAccountability] : [])
+        (setupRead ? [SetupTexts.more] : []) + (approvalsScreen ? ["Approvals"] : []) + (accountability ? [OwnerAccountabilityTexts.moreAccountability] : [])
             + (hoursRead ? [CustomerHoursTexts.more] : []) + (scorecard ? [OversightTexts.scoreMore] : [])
             + (meterEvidence ? ["Meter exceptions"] : []) + (expenses ? ["Field spend"] : [])
             + (finance ? ["Cash with supervisors"] : []) + (cases ? ["Investigations"] : [])

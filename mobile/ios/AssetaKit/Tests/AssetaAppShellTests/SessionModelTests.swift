@@ -147,4 +147,24 @@ struct SessionModelTests {
             try AppConfiguration.load(from: ["CFBundleIdentifier": "x"])
         }
     }
+
+    @Test func webBaseURLIsConfiguredOrFollowsTheAPIHost() throws {
+        var info: [String: Any] = [
+            "CFBundleIdentifier": "com.asseta.owner",
+            "AssetaAPIBaseURL": "https://api.example.test:8443/base",
+            "AssetaOIDCIssuer": "https://id.example.test/realms/asseta",
+            "AssetaOIDCRedirectURI": "com.asseta.owner:/oauth2redirect",
+            "AssetaOIDCPostLogoutRedirectURI": "com.asseta.owner:/logout",
+        ]
+        let fallback = try AppConfiguration.load(from: info)
+        #expect(fallback.webBaseURL.absoluteString == "https://api.example.test:8443")
+        info["AssetaWebBaseURL"] = "https://web.example.test/"
+        let config = try AppConfiguration.load(from: info)
+        #expect(config.webURL(for: "/tenant/machines?missing=tracker")?.absoluteString
+            == "https://web.example.test/tenant/machines?missing=tracker")
+        #expect(config.webURL(for: "https://evil.test/x") == nil)
+        #expect(config.webURL(for: "//evil.test/x") == nil)
+        info["AssetaWebBaseURL"] = "not a url"
+        #expect(throws: AppConfiguration.LoadError.invalidURL("AssetaWebBaseURL")) { try AppConfiguration.load(from: info) }
+    }
 }

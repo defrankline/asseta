@@ -73,6 +73,8 @@ public final class OwnerModel {
     /// Bumped when a new notification arrives; the inbox reloads on it.
     private(set) var inboxTick = 0
     private(set) var accessLostMessage: String?
+    /// Go-live banner figures: `/me` first, then those of the checklist whenever it is loaded or changed.
+    private(set) var setupProgress: SetupProgress
 
     private let connectivity = ConnectivityMonitor()
     private var realtime: RealtimeClient?
@@ -84,11 +86,18 @@ public final class OwnerModel {
         self.me = me
         self.tenant = tenant
         features = OwnerFeatures(tenant)
+        setupProgress = SetupProgress(tenant)
         let cache = OwnerCacheHolder.shared(secrets: session.secrets)
         repository = session.tenantClient.map { OwnerRepository(client: $0, cache: cache, tenantID: tenant.tenantID) }
     }
 
     var isReadOnlyTenant: Bool { tenant.accessState != .full }
+
+    /// Where "Open on the web" links go (nil only for a build without configuration).
+    var webBaseURL: URL? { session.configuration?.webBaseURL }
+
+    /// The checklist was loaded or changed: the banner follows it without re-reading `/me`.
+    func noteSetup(_ checklist: SetupChecklistDTO) { setupProgress = SetupProgress(checklist) }
 
     func start() async {
         connectivity.start { [weak self] online in

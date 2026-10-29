@@ -49,6 +49,12 @@ public struct TenantMembership: Codable, Hashable, Sendable, Identifiable {
     /// Tenant capabilities switched off by policy (e.g. `CUSTOMER_HOURS`); their entry points are hidden.
     /// Missing on older servers = nothing switched off.
     public let disabledCapabilities: [String]
+    /// Go-live checklist figures for the Owner banner; all nil without `tenant.setup.read` (or on older servers).
+    public let setupComplete: Bool?
+    public let setupPercent: Int?
+    public let setupStepsDone: Int?
+    public let setupStepsTotal: Int?
+    public let setupDismissed: Bool?
 
     public var id: UUID { tenantID }
 
@@ -59,7 +65,12 @@ public struct TenantMembership: Codable, Hashable, Sendable, Identifiable {
         accessState: TenantAccessState,
         permissions: [String],
         menus: [MenuEntry],
-        disabledCapabilities: [String] = []
+        disabledCapabilities: [String] = [],
+        setupComplete: Bool? = nil,
+        setupPercent: Int? = nil,
+        setupStepsDone: Int? = nil,
+        setupStepsTotal: Int? = nil,
+        setupDismissed: Bool? = nil
     ) {
         self.tenantID = tenantID
         self.name = name
@@ -68,6 +79,11 @@ public struct TenantMembership: Codable, Hashable, Sendable, Identifiable {
         self.permissions = permissions
         self.menus = menus
         self.disabledCapabilities = disabledCapabilities
+        self.setupComplete = setupComplete
+        self.setupPercent = setupPercent
+        self.setupStepsDone = setupStepsDone
+        self.setupStepsTotal = setupStepsTotal
+        self.setupDismissed = setupDismissed
     }
 
     /// Menus in server-defined order (ties broken by key for determinism).
@@ -80,6 +96,8 @@ public struct TenantMembership: Codable, Hashable, Sendable, Identifiable {
         case tenantID = "tenant_id"
         case accessState = "access_state"
         case disabledCapabilities = "disabled_capabilities"
+        case setupComplete = "setup_complete", setupPercent = "setup_percent", setupStepsDone = "setup_steps_done"
+        case setupStepsTotal = "setup_steps_total", setupDismissed = "setup_dismissed"
         case name, status, permissions, menus
     }
 
@@ -92,6 +110,11 @@ public struct TenantMembership: Codable, Hashable, Sendable, Identifiable {
         permissions = try c.decode([String].self, forKey: .permissions)
         menus = try c.decode([MenuEntry].self, forKey: .menus)
         disabledCapabilities = (try? c.decodeIfPresent([String].self, forKey: .disabledCapabilities)) ?? []
+        setupComplete = try? c.decodeIfPresent(Bool.self, forKey: .setupComplete)
+        setupPercent = try? c.decodeIfPresent(Int.self, forKey: .setupPercent)
+        setupStepsDone = try? c.decodeIfPresent(Int.self, forKey: .setupStepsDone)
+        setupStepsTotal = try? c.decodeIfPresent(Int.self, forKey: .setupStepsTotal)
+        setupDismissed = try? c.decodeIfPresent(Bool.self, forKey: .setupDismissed)
     }
 }
 

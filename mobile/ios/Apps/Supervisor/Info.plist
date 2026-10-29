@@ -12,6 +12,8 @@
 	<string>$(ASSETA_OIDC_SCHEME):/oauth2redirect</string>
 	<key>AssetaPushEnabled</key>
 	<string>$(ASSETA_PUSH_ENABLED)</string>
+	<key>AssetaWebBaseURL</key>
+	<string>$(ASSETA_WEB_BASE_URL)</string>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
 		<string>com.asseta.supervisor.sync</string>

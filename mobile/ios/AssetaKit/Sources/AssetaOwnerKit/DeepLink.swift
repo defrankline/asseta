@@ -60,6 +60,8 @@ public enum OwnerRoute: Hashable, Sendable {
     case unbilledWork
     /// Machines idle for a while (read-only).
     case idleMachines
+    /// The go-live setup checklist (`/tenant/setup`).
+    case setupChecklist
 }
 
 /// A route plus the tenant it belongs to (a push may concern another company the user belongs to).
@@ -220,6 +222,7 @@ public enum DeepLinkParser {
         case ("scorecard", _): return id.map { .scorecardPerson($0, name: nil, from: nil, to: nil) } ?? .scorecard
         case ("unbilled-work", _): return .unbilledWork
         case ("idle-machines", _): return .idleMachines
+        case ("setup", _): return .setupChecklist
         case let ("notifications", id?): return .notification(id)
         case ("notifications", nil): return .notifications
         default: return nil
@@ -281,7 +284,7 @@ extension OwnerRoute {
              .cashTransfer, .cashFloat, .overdueRemittance, .revenueDifference, .dailySheetDay, .hoursPurchase, .scorecardPerson: true
         case .fleet, .jobs, .investigations, .alerts, .approvals, .exceptions, .fieldSpend, .cash, .notifications,
              .accountability, .overdueRemittances, .dailySheet, .customerHours, .hoursStatement, .scorecard, .unbilledWork,
-             .idleMachines: false
+             .idleMachines, .setupChecklist: false
         }
     }
 }

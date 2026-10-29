@@ -18,6 +18,9 @@ struct OverviewView: View {
                 if loader.isFromCache {
                     StaleBanner(fetchedAt: loader.snapshot?.fetchedAt, isOnline: model.isOnline)
                 }
+                if let banner = model.setupProgress.bannerText {
+                    SetupBannerView(text: banner) { open(.setupChecklist) }
+                }
                 if let overview = loader.value {
                     let sections = OverviewPresentation.sections(overview, cached: loader.isFromCache)
                     ForEach(sections, id: \.title) { section($0) }
