@@ -2,8 +2,9 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FieldContractDto } from '../../../api/types';
-import { makeJob } from '../../../test/jobFixtures';
+import { makeJob, makeSummary } from '../../../test/jobFixtures';
 import { renderWithProviders } from '../../../test/renderWithProviders';
+import { JobSummaryPanel } from '../jobDetail/JobSummaryPanel';
 import { ChangeoverReadingDialog } from './ChangeoverReadingDialog';
 
 const m = vi.hoisted(() => ({
@@ -40,6 +41,31 @@ beforeEach(() => {
 });
 
 describe('ChangeoverReadingDialog', () => {
+  it('requires the next job when the hours after a changeover are billed to it', async () => {
+    const user = userEvent.setup();
+    m.effective.mockImplementation((type: string) =>
+      Promise.resolve({
+        values: type === 'ENGINE_HOURS' ? { changeover_splits_billing: true } : {},
+      }),
+    );
+    const job = makeJob({ status: 'IN_PROGRESS' });
+    renderWithProviders(
+      <ChangeoverReadingDialog job={job} onClose={vi.fn()} onRecorded={vi.fn()} />,
+      {
+        tenantPermissions: ['tenant.meter.capture'],
+      },
+    );
+    await screen.findByText(/Your company bills the hours after a changeover/);
+    await user.click(screen.getByRole('combobox', { name: /Next customer/ }));
+    await user.click(await screen.findByRole('option', { name: /Next Customer/ }));
+    await user.click(screen.getByRole('combobox', { name: /Capture mode/ }));
+    await user.click(await screen.findByRole('option', { name: /Manual/ }));
+    await user.type(screen.getByRole('textbox', { name: /Meter reading/ }), '1500.5');
+    await user.click(screen.getByRole('button', { name: 'Submit reading' }));
+    expect(await screen.findByText('Choose the next job')).toBeInTheDocument();
+    expect(m.submitCapture).not.toHaveBeenCalled();
+  });
+
   it('records a DAILY reading on the running job naming the next customer', async () => {
     const user = userEvent.setup();
     const job = makeJob({ status: 'IN_PROGRESS' });
@@ -67,5 +93,28 @@ describe('ChangeoverReadingDialog', () => {
       changeover_to_customer_id: CUSTOMER,
       changeover_to_job_id: null,
     });
+  });
+});
+
+describe('JobSummaryPanel', () => {
+  const panel = (carried: string) =>
+    renderWithProviders(
+      <JobSummaryPanel
+        summary={makeSummary({ changeover_carried_hours: carried })}
+        machineName="EX-01"
+        siteName="Quarry"
+        timeZone="UTC"
+        canSeeExceptions={false}
+      />,
+      { tenantPermissions: ['tenant.job.read'] },
+    );
+
+  it('shows hours carried from a changeover only when there are some', () => {
+    const { unmount } = panel('3.00');
+    expect(screen.getByText('Hours carried from a changeover')).toBeInTheDocument();
+    expect(screen.getByText('3.00 h')).toBeInTheDocument();
+    unmount();
+    panel('0.00');
+    expect(screen.queryByText('Hours carried from a changeover')).not.toBeInTheDocument();
   });
 });

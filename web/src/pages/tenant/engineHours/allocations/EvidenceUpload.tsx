@@ -1,9 +1,9 @@
 import { Box, Chip, Typography } from '@mui/material';
-import { meterService } from '../../../../api/services/meterService';
+import { meterService, type AttachmentPurpose } from '../../../../api/services/meterService';
 import type { AttachmentDto } from '../../../../api/types';
 import { AttachmentPhoto } from '../../../../components/meter/AttachmentPhoto';
 import { AttachmentUpload } from '../../../../components/meter/AttachmentUpload';
-import { useMeterPhotoUpload } from '../../jobDetail/readingEvidenceKit';
+import { useIdempotencyKey } from '../../../../hooks/useIdempotencyKey';
 
 /** The server keeps at most this many evidence attachments per record. */
 const MAX_EVIDENCE = 10;
@@ -13,6 +13,9 @@ interface EvidenceUploadProps {
   onChange: (value: AttachmentDto[]) => void;
   label?: string;
   helperText?: string;
+  /** Stored purpose of the upload; a correction's evidence is kept as a meter photo. */
+  purpose?: AttachmentPurpose;
+  required?: boolean;
 }
 
 /** Several evidence photos on one record: each file uploads at once; a chip removes it again. */
@@ -21,8 +24,16 @@ export function EvidenceUpload({
   onChange,
   label = 'Evidence (photos)',
   helperText = 'Photos are stored unchanged with their SHA-256 hash.',
+  purpose = 'METER_PHOTO',
+  required = false,
 }: EvidenceUploadProps) {
-  const upload = useMeterPhotoUpload();
+  const uploadKey = useIdempotencyKey();
+  const upload = (file: File) =>
+    meterService.upload(
+      file,
+      purpose,
+      uploadKey({ name: file.name, size: file.size, modified: file.lastModified, purpose }),
+    );
   return (
     <Box className="flex flex-col gap-1">
       {value.length < MAX_EVIDENCE && (
@@ -34,6 +45,7 @@ export function EvidenceUpload({
             if (a !== null) onChange([...value, a]);
           }}
           upload={upload}
+          required={required && value.length === 0}
           helperText={helperText}
         />
       )}

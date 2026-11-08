@@ -8,7 +8,7 @@ import { StatusChip } from '../../../components/display/StatusChip';
 import { HoursComparison } from '../../../components/meter/HoursComparison';
 import { HOURS_ROUTES } from '../../../navigation/hoursRoutes';
 import { exceptionsPath } from '../../../navigation/routes';
-import { formatPercent } from '../../../utils/money';
+import { formatPercent, isZeroDecimal } from '../../../utils/money';
 import { formatInstantIn } from '../../../utils/time';
 import { BILLING_MODE_LABELS } from '../hours/hoursDisplay';
 import { labelOf } from '../shared/display';
@@ -119,6 +119,14 @@ export function JobSummaryPanel({
               { label: 'Opening reading', value: summary.opening_reading ?? 'Not recorded' },
               { label: 'Closing reading', value: summary.closing_reading ?? 'Not recorded' },
               { label: 'Billing policy version', value: summary.policy_version },
+              ...(isZeroDecimal(summary.changeover_carried_hours)
+                ? []
+                : [
+                    {
+                      label: 'Hours carried from a changeover',
+                      value: `${summary.changeover_carried_hours} h`,
+                    },
+                  ]),
             ]}
           />
           <HoursComparison

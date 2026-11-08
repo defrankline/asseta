@@ -19,6 +19,10 @@ const m = vi.hoisted(() => ({
   reviewReport: vi.fn<typeof allocationService.reviewReport>(),
 }));
 vi.mock('../../../../api/services/allocationService', () => ({ allocationService: m }));
+const policy = vi.hoisted(() => ({ effective: vi.fn() }));
+const meter = vi.hoisted(() => ({ upload: vi.fn() }));
+vi.mock('../../../../api/services/policyService', () => ({ policyService: policy }));
+vi.mock('../../../../api/services/meterService', () => ({ meterService: meter }));
 vi.mock('../../../../api/services/jobService', () => ({
   jobService: { fieldMachines: vi.fn().mockResolvedValue([MACHINE]) },
 }));
@@ -93,6 +97,7 @@ const renderDetail = (permissions: string[]) =>
 
 beforeEach(() => {
   vi.clearAllMocks();
+  policy.effective.mockResolvedValue({ values: {} });
 });
 
 describe('DailyReportsPage', () => {
@@ -159,6 +164,52 @@ describe('SubmitDailyReportDialog', () => {
       closing_ref: CLOSING,
       billable_hours: '9',
       supersedes_id: R_ID,
+    });
+  });
+
+  it('needs a photo when the policy says so and uploads it as daily report evidence', async () => {
+    const user = userEvent.setup();
+    policy.effective.mockResolvedValue({ values: { daily_report_evidence_required: true } });
+    m.prefillReport.mockResolvedValue(prefill());
+    m.submitReport.mockResolvedValue(report());
+    meter.upload.mockResolvedValue({
+      id: 'ffffffff-0000-4000-8000-000000000001',
+      sha256: 'abcdef0123456789',
+      size_bytes: 3,
+    });
+    const onSubmitted = vi.fn();
+    renderWithProviders(
+      <SubmitDailyReportDialog
+        replaces={report({ status: 'RETURNED', unbillable: [] })}
+        onClose={vi.fn()}
+        onSubmitted={onSubmitted}
+      />,
+      { tenantPermissions: ['tenant.meter.capture'] },
+    );
+    await screen.findByText('1010.00');
+    await waitFor(() => {
+      expect(policy.effective).toHaveBeenCalledWith(
+        'ENGINE_HOURS',
+        expect.objectContaining({ machine_id: MACHINE_ID }),
+        expect.any(AbortSignal),
+      );
+    });
+    await screen.findByText('Evidence (photos) *');
+    await user.click(screen.getByRole('button', { name: 'Submit report' }));
+    expect(await screen.findByText(/requires a photo with daily reports/)).toBeInTheDocument();
+    expect(m.submitReport).not.toHaveBeenCalled();
+    await user.upload(
+      screen.getByLabelText('Evidence (photos)'),
+      new File(['abc'], 'site.png', { type: 'image/png' }),
+    );
+    await screen.findByText('Photo 1');
+    expect(meter.upload.mock.calls[0]?.[1]).toBe('DAILY_REPORT_EVIDENCE');
+    await user.click(screen.getByRole('button', { name: 'Submit report' }));
+    await waitFor(() => {
+      expect(onSubmitted).toHaveBeenCalled();
+    });
+    expect(m.submitReport.mock.calls[0]?.[0]).toMatchObject({
+      evidence_attachment_ids: ['ffffffff-0000-4000-8000-000000000001'],
     });
   });
 

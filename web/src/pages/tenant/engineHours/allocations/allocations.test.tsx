@@ -9,6 +9,8 @@ import type {
 } from '../../../../api/allocationTypes';
 import type { allocationService } from '../../../../api/services/allocationService';
 import type { Page } from '../../../../api/types';
+import { pathCapability } from '../../../../access/capabilities';
+import { ROUTES } from '../../../../navigation/routes';
 import { notificationTargetPath } from '../../../../notifications/center/display';
 import { recordPath, recordRoutePattern } from '../../../../navigation/recordRoutes';
 import { MACHINE_ID, ME_ID } from '../../../../test/jobFixtures';
@@ -144,6 +146,15 @@ describe('WorkAllocationsPage', () => {
         status: 'ACTIVE',
       });
     });
+  });
+
+  it('does not depend on revenue checks being on', async () => {
+    expect(pathCapability(ROUTES.tenantWorkAllocations)).toBe('ENGINE_HOURS');
+    renderWithProviders(<WorkAllocationsPage />, {
+      tenantPermissions: ['tenant.meter.read'],
+      disabledCapabilities: ['REVENUE_RECONCILIATION'],
+    });
+    expect(await screen.findByText('Acme Quarry · J-100')).toBeInTheDocument();
   });
 
   it('shows the day balance and highlights a difference', async () => {

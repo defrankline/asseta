@@ -13,6 +13,7 @@ import type {
 } from '../../../api/types';
 import { FormDialog } from '../../../components/forms/FormDialog';
 import { useIdempotencyKey } from '../../../hooks/useIdempotencyKey';
+import { useEngineHoursRules } from '../engineHours/allocations/useEngineHoursPolicy';
 import { ENGINE_HOURS_ERROR_HINTS } from '../engineHours/engineHoursDisplay';
 import { CONSOLE_DEVICE_ID } from '../jobDetail/capturePolicy';
 import { CaptureEvidenceFields } from '../jobDetail/ReadingEvidence';
@@ -40,11 +41,11 @@ interface ChangeoverValues {
   reading: string;
 }
 
-const schemaFor = (needsJob: boolean): ObjectSchema<ChangeoverValues> =>
+const schemaFor = (needsJob: boolean, nextJobRequired: boolean): ObjectSchema<ChangeoverValues> =>
   object({
     job_id: needsJob ? string().required('Choose the running job') : string().ensure(),
     contract_id: string().required('Choose the next customer'),
-    next_job_id: string().ensure(),
+    next_job_id: nextJobRequired ? string().required('Choose the next job') : string().ensure(),
     capture_mode: captureModeField(),
     reading: readingField(),
   });
@@ -74,6 +75,10 @@ export function ChangeoverReadingDialog({
   const [picked, setPicked] = useState<JobDto | null>(null);
   const [contract, setContract] = useState<FieldContractDto | null>(null);
   const running = job ?? picked;
+  const { changeoverJobRequired } = useEngineHoursRules(
+    running?.machine_id ?? null,
+    running?.job_site_id ?? null,
+  );
   return (
     <FormDialog<ChangeoverValues>
       open
@@ -85,7 +90,7 @@ export function ChangeoverReadingDialog({
         capture_mode: '',
         reading: '',
       }}
-      validationSchema={schemaFor(job === undefined)}
+      validationSchema={schemaFor(job === undefined, changeoverJobRequired)}
       submitLabel="Submit reading"
       maxWidth="md"
       onClose={onClose}
@@ -136,8 +141,13 @@ export function ChangeoverReadingDialog({
           />
           <FormikFieldJobIdPicker
             name="next_job_id"
-            label="Next job"
-            helperText="Needed when your company bills the hours after a changeover to the next job."
+            label={changeoverJobRequired ? 'Next job' : 'Next job (optional)'}
+            required={changeoverJobRequired}
+            helperText={
+              changeoverJobRequired
+                ? 'Your company bills the hours after a changeover to this job.'
+                : 'The job the machine moves on to, if it already exists.'
+            }
           />
           <CaptureEvidenceFields
             machineId={running?.machine_id ?? null}

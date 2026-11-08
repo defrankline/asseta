@@ -42,6 +42,12 @@ export const ACTIVITY_TYPE_OPTIONS: readonly Option<ActivityType>[] = [
   { value: 'NOTE', label: 'Note' },
 ];
 
+/** "Movement (mobilization)" etc.; unknown types humanised by the caller. */
+export const activityTypeLabel = (type: string): string =>
+  type === 'MOBILIZATION'
+    ? 'Movement (mobilization)'
+    : (ACTIVITY_TYPE_OPTIONS.find((o) => o.value === type)?.label ?? type);
+
 /** Rate source of a field-requested job with no rate card: the owner sets the price on approval. */
 export const PENDING_PRICE = 'PENDING_PRICE';
 

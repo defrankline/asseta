@@ -36,6 +36,7 @@ import {
   toHundredths,
 } from './allocationDisplay';
 import { EvidenceUpload } from './EvidenceUpload';
+import { useEngineHoursRules } from './useEngineHoursPolicy';
 
 /** The server takes at most this many unbillable lines on one report. */
 const MAX_LINES = 20;
@@ -213,6 +214,8 @@ export function SubmitDailyReportDialog({
   const keyFor = useIdempotencyKey();
   const [prefill, setPrefill] = useState<DailyReportPrefillDto | null>(null);
   const [evidence, setEvidence] = useState<AttachmentDto[]>([]);
+  const [machineId, setMachineId] = useState<string | null>(replaces?.machine_id ?? null);
+  const { reportEvidenceRequired } = useEngineHoursRules(machineId);
   const initial = useMemo<ReportValues>(
     () => ({
       machine_id: replaces?.machine_id ?? '',
@@ -253,6 +256,9 @@ export function SubmitDailyReportDialog({
             `Billable and unbillable hours (${fromHundredths(declared)}) are more than the day's ${prefill.total_hours} h.`,
           );
         }
+        if (reportEvidenceRequired && evidence.length === 0) {
+          throw refusal('Your company requires a photo with daily reports; attach one.');
+        }
         const note = v.note.trim();
         const body: DailyReportIn = {
           id: reportId,
@@ -275,7 +281,7 @@ export function SubmitDailyReportDialog({
       }}
     >
       {(formik) => {
-        const { machine_id: machineId, report_date: reportDate } = formik.values;
+        const { machine_id: chosenMachine, report_date: reportDate } = formik.values;
         return (
           <>
             <Box className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -284,6 +290,9 @@ export function SubmitDailyReportDialog({
                 label="Machine"
                 required
                 disabled={replaces !== undefined}
+                onOptionChange={(m) => {
+                  setMachineId(m?.id ?? null);
+                }}
               />
               <FormikDateField
                 name="report_date"
@@ -293,9 +302,9 @@ export function SubmitDailyReportDialog({
                 maxDate={todayIsoDate()}
               />
             </Box>
-            {machineId !== '' && reportDate !== '' && (
+            {chosenMachine !== '' && reportDate !== '' && (
               <DayPrefill
-                machineId={machineId}
+                machineId={chosenMachine}
                 reportDate={reportDate}
                 replacing={replaces !== undefined}
                 onLoaded={setPrefill}
@@ -308,7 +317,12 @@ export function SubmitDailyReportDialog({
             />
             <UnbillableLines formik={formik} />
             <FormikTextField name="note" label="Note" multiline minRows={2} />
-            <EvidenceUpload value={evidence} onChange={setEvidence} />
+            <EvidenceUpload
+              value={evidence}
+              onChange={setEvidence}
+              purpose="DAILY_REPORT_EVIDENCE"
+              required={reportEvidenceRequired}
+            />
           </>
         );
       }}

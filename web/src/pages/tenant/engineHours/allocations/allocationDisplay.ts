@@ -8,8 +8,8 @@ import type {
 } from '../../../../api/allocationTypes';
 import type { StatusTone } from '../../../../components/display/StatusChip';
 import { humanize } from '../../../../utils/text';
-import { activityTypeLabel } from '../../revenue/revenueDisplay';
 import type { Option } from '../../shared/display';
+import { activityTypeLabel } from '../../shared/jobDisplay';
 
 export const KIND_LABELS: Readonly<Record<AllocationKind, string>> = {
   CUSTOMER_WORK: 'Customer work',

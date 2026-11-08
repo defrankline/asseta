@@ -33,7 +33,8 @@ const exceptionPageSchema = tenantPageSchema(exceptionSchema);
 const capturePageSchema = tenantPageSchema(meterCaptureSchema);
 
 /** Evidence purposes accepted by uploadAttachment. */
-export type AttachmentPurpose = 'METER_PHOTO' | 'SIGNATURE' | 'RESET_EVIDENCE';
+export type AttachmentPurpose =
+  'METER_PHOTO' | 'SIGNATURE' | 'RESET_EVIDENCE' | 'DAILY_REPORT_EVIDENCE';
 
 export const meterService = {
   /** POST /tenant/attachments (uploadAttachment), multipart `file` + `purpose`. */

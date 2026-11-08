@@ -9,7 +9,7 @@ import type {
 import type { StatusTone } from '../../../components/display/StatusChip';
 import type { Option } from '../shared/display';
 import { machineText } from '../shared/names';
-import { ACTIVITY_TYPE_OPTIONS } from '../shared/jobDisplay';
+import { activityTypeLabel } from '../shared/jobDisplay';
 
 export const DIFFERENCE_STATUS_LABELS: Readonly<Record<RevenueDifferenceStatus, string>> = {
   OPEN: 'To explain',
@@ -106,11 +106,7 @@ export const APPROVAL_STATUS_OPTIONS: readonly Option[] = [
   { value: 'REJECTED', label: 'Rejected' },
 ];
 
-/** "Movement (mobilization)" etc.; unknown types humanised by the caller. */
-export const activityTypeLabel = (type: string): string =>
-  type === 'MOBILIZATION'
-    ? 'Movement (mobilization)'
-    : (ACTIVITY_TYPE_OPTIONS.find((o) => o.value === type)?.label ?? type);
+export { activityTypeLabel };
 
 /** "Movement 1.50 h · Standby 0.25 h" (hours per non-revenue type), or "—". */
 export function hoursByTypeText(byType: Readonly<Record<string, string>>): string {
