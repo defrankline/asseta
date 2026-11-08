@@ -231,6 +231,10 @@ def test_classification_needs_a_second_person_and_tenant_lists(api: Api) -> None
     }
     assert _code(o.post(f"{T}/engine-hours/classifications", body)) == "REASON_NOT_ALLOWED"
     body["reason_id"] = maint["id"]
+    # DEC-032 Phase 3: a tenant can require evidence on classifications.
+    engine_hours_policy(o, **ON, classification_evidence_required=True)
+    assert _code(o.post(f"{T}/engine-hours/classifications", body)) == "EVIDENCE_REQUIRED"
+    engine_hours_policy(o, **ON)
     proposed = _ok(o.post(f"{T}/engine-hours/classifications", body), 201)
     assert proposed["status"] == "PROPOSED" and Decimal(proposed["hours"]) == Decimal("4")
     assert _code(o.post(f"{T}/engine-hours/classifications", body)) == "CLASSIFICATION_PENDING"

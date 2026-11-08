@@ -164,6 +164,7 @@ class CreditArrangementIn(BaseModel):
     terms: Note | None = None
     reason: Reason
     reason_code_id: uuid.UUID | None = None
+    evidence_attachment_ids: list[uuid.UUID] = Field(default_factory=list, max_length=20)
 
     @model_validator(mode="after")
     def _dates(self) -> "CreditArrangementIn":
@@ -212,6 +213,7 @@ class CreditArrangementDto(Dto):
     revoked_at: datetime | None
     revoke_reason: str | None
     version: int
+    evidence_attachment_ids: list[uuid.UUID] | None = None
 
 
 class CreditExposureDto(BaseModel):
@@ -255,6 +257,7 @@ class HoursPurchaseIn(BaseModel):
     job_site_id: uuid.UUID | None = None
     note: Note | None = None
     client_id: uuid.UUID | None = Field(default=None, description="Device/client id (offline idempotency)")
+    client_created_at: datetime | None = Field(default=None, description="Device time the purchase was recorded")
     payment: PurchasePaymentIn | None = None
 
     @model_validator(mode="after")
@@ -354,6 +357,8 @@ class HoursPurchaseDto(BaseModel):
     created_at: datetime
     cancelled_at: datetime | None
     cancellation_id: uuid.UUID | None
+    client_created_at: datetime | None = None
+    pending_zero_amount_request_id: uuid.UUID | None = None
     status: PurchaseStatus
     totals: PurchaseTotalsDto
     machines: list[MachineHoursDto] = []
@@ -422,6 +427,7 @@ class TransferIn(BaseModel):
     reason: Reason
     reason_code_id: uuid.UUID | None = None
     client_id: uuid.UUID | None = None
+    evidence_attachment_ids: list[uuid.UUID] = Field(default_factory=list, max_length=20)
 
 
 class TransferDto(Dto):
@@ -447,6 +453,8 @@ class TransferDto(Dto):
     decided_by_name: str | None = None
     decided_at: datetime | None
     decision_note: str | None
+    transfer_number: str | None = None
+    evidence_attachment_ids: list[uuid.UUID] | None = None
 
 
 class CancellationIn(BaseModel):

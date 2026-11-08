@@ -41,6 +41,10 @@ from asseta.modules.finance.custody_dto import (
     DecisionIn,
     ReconciliationFigure,
     RemittanceOverdueDto,
+    VarianceAssigneeDto,
+    VarianceAssignIn,
+    VarianceEventDto,
+    VarianceExplanationIn,
     VarianceResolutionIn,
     WriteOffProposalIn,
 )
@@ -70,8 +74,10 @@ from asseta.modules.finance.permissions import (
     REASON_MANAGE,
     RETENTION_APPROVE,
     VARIANCE,
+    VARIANCE_CLOSE,
     WRITEOFF,
 )
+from asseta.modules.finance.variance_workflow import VarianceWorkflow
 from asseta.modules.fleet.photos import PhotoUrlDto, get_object_store
 from asseta.modules.identity.dependencies import gated
 from asseta.modules.identity.principal import RequestContext
@@ -251,6 +257,24 @@ def list_remittance_evidence(
     return [RemittanceEvidenceDto.model_validate(e) for e in DepositAccountService(session, ctx, now).evidence(row.id)]
 
 
+@router.post(
+    "/handovers/{handover_id}/partial-reason-decision",
+    response_model=CashHandoverDto,
+    operation_id="decidePartialRemittanceReason",
+)
+@named
+def decide_partial_reason(
+    handover_id: uuid.UUID,
+    body: DecisionIn,
+    session: DbSession,
+    now: Now,
+    ctx: Annotated[RequestContext, Depends(_cash(RETENTION_APPROVE))],
+) -> CashHandoverDto:
+    """Approve or reject the reason a remittance left part of the balance with the custodian (never the recorder or
+    the custodian). The money's own confirmation is separate."""
+    return CashCustodyService(session, ctx, now).decide_partial_reason(handover_id, body)
+
+
 @router.get(
     "/handovers/{handover_id}/evidence/{attachment_id}/url",
     response_model=PhotoUrlDto,
@@ -325,23 +349,74 @@ def acknowledge_float(
 def list_variances(
     session: DbSession,
     now: Now,
-    ctx: Annotated[RequestContext, Depends(_cash(FINANCE_READ))],
+    ctx: Annotated[RequestContext, Depends(FINANCE_READ)],
     paging: Paging,
     status: VarianceStatus | None = None,
     staff_member_id: uuid.UUID | None = None,
     source_type: VarianceSource | None = None,
+    assignee_user_id: uuid.UUID | None = None,
 ) -> Page[CashVarianceDto]:
-    stmt = CashCustodyControls(session, ctx, now).list_variances(status, staff_member_id, source_type)
+    """Cash and customer-hour variances (`source_type` CUSTOMER_HOUR). Refused per capability: CASH_CUSTODY_DISABLED,
+    or HOURS_DISABLED when asking for customer-hour variances with hours switched off."""
+    stmt = CashCustodyControls(session, ctx, now).list_variances(status, staff_member_id, source_type, assignee_user_id)
     rows, total = paginate(session, stmt, paging)
     return _page([CashVarianceDto.model_validate(v) for v in rows], total, paging)
+
+
+@router.get("/variances/assignees", response_model=list[VarianceAssigneeDto], operation_id="listVarianceAssignees")
+def list_variance_assignees(
+    session: DbSession,
+    now: Now,
+    ctx: Annotated[RequestContext, Depends(VARIANCE)],
+    q: Annotated[str | None, Query(max_length=100)] = None,
+) -> list[VarianceAssigneeDto]:
+    """Who a variance can be assigned to: everyone holding the variance permission."""
+    return VarianceWorkflow(session, ctx, now).assignees(q)
 
 
 @router.get("/variances/{variance_id}", response_model=CashVarianceDto, operation_id="getCashVariance")
 @named
 def get_variance(
-    variance_id: uuid.UUID, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(_cash(FINANCE_READ))]
+    variance_id: uuid.UUID, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(FINANCE_READ)]
 ) -> CashVarianceDto:
     return CashVarianceDto.model_validate(CashCustodyControls(session, ctx, now).variance(variance_id))
+
+
+@router.get(
+    "/variances/{variance_id}/history", response_model=list[VarianceEventDto], operation_id="listCashVarianceHistory"
+)
+@named
+def variance_history(
+    variance_id: uuid.UUID, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(FINANCE_READ)]
+) -> list[VarianceEventDto]:
+    """The investigation history, oldest first: opened, assigned, explained, closure proposed and decided, resolved."""
+    return VarianceWorkflow(session, ctx, now).history(variance_id)
+
+
+@router.post("/variances/{variance_id}/assignment", response_model=CashVarianceDto, operation_id="assignCashVariance")
+@named
+def assign_variance(
+    variance_id: uuid.UUID,
+    body: VarianceAssignIn,
+    session: DbSession,
+    now: Now,
+    ctx: Annotated[RequestContext, Depends(VARIANCE)],
+) -> CashVarianceDto:
+    """Assign the investigation to a person holding the variance permission (never a party to the difference)."""
+    return VarianceWorkflow(session, ctx, now).assign(variance_id, body)
+
+
+@router.post("/variances/{variance_id}/explanation", response_model=CashVarianceDto, operation_id="explainCashVariance")
+@named
+def explain_variance(
+    variance_id: uuid.UUID,
+    body: VarianceExplanationIn,
+    session: DbSession,
+    now: Now,
+    ctx: Annotated[RequestContext, Depends(VARIANCE)],
+) -> CashVarianceDto:
+    """Record the explanation and supporting evidence (kept in the history; the closure is a separate step)."""
+    return VarianceWorkflow(session, ctx, now).explain(variance_id, body)
 
 
 @router.post("/variances/{variance_id}/resolution", response_model=CashVarianceDto, operation_id="resolveCashVariance")
@@ -351,11 +426,30 @@ def resolve_variance(
     body: VarianceResolutionIn,
     session: DbSession,
     now: Now,
-    ctx: Annotated[RequestContext, Depends(_cash(VARIANCE))],
+    ctx: Annotated[RequestContext, Depends(VARIANCE)],
 ) -> CashVarianceDto:
-    """Resolve an open variance as RECOVERED or CORRECTED_ERROR (reason required). WRITTEN_OFF directly only when
-    the tenant does not require write-off approval, and then only with the write-off permission."""
+    """Close a variance as RECOVERED or CORRECTED_ERROR (EXPLAINED on customer-hour variances), reason required.
+    With a second person required (tenant default) this proposes the closure (status CLOSURE_PROPOSED); otherwise it
+    closes now. WRITTEN_OFF directly only when neither write-off approval nor a second person is required."""
     return CashCustodyControls(session, ctx, now).resolve_variance(variance_id, body)
+
+
+@router.post(
+    "/variances/{variance_id}/closure-decision",
+    response_model=CashVarianceDto,
+    operation_id="decideCashVarianceClosure",
+)
+@named
+def decide_variance_closure(
+    variance_id: uuid.UUID,
+    body: DecisionIn,
+    session: DbSession,
+    now: Now,
+    ctx: Annotated[RequestContext, Depends(VARIANCE_CLOSE)],
+) -> CashVarianceDto:
+    """Approve (the variance is resolved as proposed) or reject (back to OPEN) a proposed closure. Never the proposer,
+    whoever opened it, or a party to the difference."""
+    return VarianceWorkflow(session, ctx, now).decide_closure(variance_id, body)
 
 
 @router.post(
@@ -369,7 +463,7 @@ def propose_writeoff(
     body: WriteOffProposalIn,
     session: DbSession,
     now: Now,
-    ctx: Annotated[RequestContext, Depends(_cash(VARIANCE))],
+    ctx: Annotated[RequestContext, Depends(VARIANCE)],
 ) -> CashVarianceDto:
     return CashCustodyControls(session, ctx, now).propose_writeoff(variance_id, body)
 
@@ -385,7 +479,7 @@ def decide_writeoff(
     body: DecisionIn,
     session: DbSession,
     now: Now,
-    ctx: Annotated[RequestContext, Depends(_cash(WRITEOFF))],
+    ctx: Annotated[RequestContext, Depends(WRITEOFF)],
 ) -> CashVarianceDto:
     """Approve (resolves as WRITTEN_OFF; the accountable custodian's expected balance drops by the difference) or
     reject (back to OPEN) a proposed write-off. Never by the proposer."""

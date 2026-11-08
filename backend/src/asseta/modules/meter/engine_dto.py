@@ -231,10 +231,12 @@ class ClassificationIn(BaseModel):
     outcome: ClassificationOutcome
     reason_id: uuid.UUID = Field(description="Tenant list entry: a category (non-customer) or a variance reason")
     note: Note
+    evidence_attachment_ids: list[uuid.UUID] = Field(default_factory=list, max_length=20)
 
 
 class ClassificationDto(Dto):
     id: uuid.UUID
+    evidence_attachment_ids: list[uuid.UUID] | None = None
     machine_id: uuid.UUID
     machine_code: str | None = None
     machine_name: str | None = None

@@ -31,6 +31,7 @@ class AdjustmentEntryDto(Dto):
     `resulting_balance` measure)."""
 
     id: uuid.UUID
+    entry_number: str | None = None
     adjustment_type: AdjustmentType
     status: AdjustmentEntryStatus
     original_type: str
@@ -92,6 +93,32 @@ class AdjustmentRequestIn(BaseModel):
     reason: Reason
     reason_code_id: uuid.UUID | None = None  # tenant list (hours reason codes of the matching kind)
     evidence_attachment_ids: list[uuid.UUID] = Field(default_factory=list, max_length=20)
+    client_created_at: datetime | None = None  # the device's time (offline), kept alongside the server's
+
+
+class AdjustmentPreviewIn(AdjustmentRequestIn):
+    """The same fields as a request; reason and evidence are not needed to see what it would do."""
+
+    reason: Reason | None = None  # type: ignore[assignment]
+
+
+class AdjustmentPreviewDto(BaseModel):
+    """What the request would do, as of now, without saving anything (a `refused` entry names why it would fail)."""
+
+    request_type: AdjustmentRequestType
+    original_type: str
+    original_id: uuid.UUID
+    original_reference: str | None
+    customer_id: uuid.UUID | None
+    customer_name: str | None = None
+    machine_id: uuid.UUID | None
+    machine_code: str | None = None
+    machine_name: str | None = None
+    purchase_id: uuid.UUID | None
+    hours: Decimal | None
+    amount: Money | None
+    currency: str | None
+    effects: dict[str, Any] = {}
 
 
 class AdjustmentDecisionIn(BaseModel):
@@ -105,6 +132,8 @@ class AdjustmentWithdrawIn(BaseModel):
 
 class AdjustmentRequestDto(Dto):
     id: uuid.UUID
+    request_number: str | None = None
+    client_created_at: datetime | None = None
     client_id: uuid.UUID | None
     request_type: AdjustmentRequestType
     status: AdjustmentRequestStatus

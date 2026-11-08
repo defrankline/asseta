@@ -51,9 +51,11 @@ from asseta.modules.finance.custody_models import (
     CashVariance,
     CustodyAdjustment,
     RemittanceOverdue,
+    VarianceEventAction,
     VarianceOutcome,
     VarianceSource,
     VarianceStatus,
+    VarianceUnit,
 )
 from asseta.modules.finance.custody_rules import (
     RECORDER_PERMISSION,
@@ -67,15 +69,20 @@ from asseta.modules.finance.custody_rules import (
     own_staff,
     refuse_sod,
     resolve_recorded_custodian,
+    variance_event,
 )
 from asseta.modules.finance.dto import CashCustodyEntryDto
 from asseta.modules.finance.models import CashHandover, CustodyEntryType, CustomerPayment, SupervisorCashCustody
+from asseta.modules.finance.references import CASH_TRANSFER, CUSTODY_ADJUSTMENT, RETENTION, reference
 from asseta.modules.fleet.models import StaffMember
 from asseta.modules.identity.principal import RequestContext
+from asseta.modules.meter.evidence_check import check_attachments, require_evidence
+from asseta.modules.policy.capabilities import CASH_CUSTODY, CUSTOMER_HOURS, require_capability
 from asseta.modules.policy.schemas import CashCustodyPolicy
 from asseta.modules.policy.service import EffectivePolicy
 
 WRITEOFF_PERMISSION = "tenant.finance.writeoff"
+VARIANCE_CLOSE_PERMISSION = "tenant.finance.variance_close"
 FINANCE_READ_PERMISSION = "tenant.finance.read"
 REVERSIBLE: dict[str, Any] = {
     "customer_payment": CustomerPayment,
@@ -277,6 +284,7 @@ class CashCustodyControls:
             ack_method=method,
             acknowledged_by=self._ctx.user_id if method else None,
             acknowledged_at=self._now if method else None,
+            transfer_number=reference(self._s, self._tid, CASH_TRANSFER, self._now),
         )
         insert(self._s, row, "DUPLICATE_TRANSFER", "Transfer already recorded")
         self._record(
@@ -461,9 +469,21 @@ class CashCustodyControls:
 
     # --- variances ------------------------------------------------------------------------------------------
     def list_variances(
-        self, status: VarianceStatus | None, staff_id: uuid.UUID | None, source_type: VarianceSource | None
+        self,
+        status: VarianceStatus | None,
+        staff_id: uuid.UUID | None,
+        source_type: VarianceSource | None,
+        assignee_user_id: uuid.UUID | None = None,
     ) -> Select[CashVariance]:
+        require_capability(
+            self._s,
+            self._tid,
+            CUSTOMER_HOURS if source_type is VarianceSource.CUSTOMER_HOUR else CASH_CUSTODY,
+            self._now,
+        )
         stmt = select(CashVariance).order_by(CashVariance.opened_at.desc(), CashVariance.id)
+        if assignee_user_id:
+            stmt = stmt.where(CashVariance.assignee_user_id == assignee_user_id)
         if status:
             stmt = stmt.where(CashVariance.status == status)
         if staff_id:
@@ -479,7 +499,13 @@ class CashCustodyControls:
         row = self._s.execute(stmt.with_for_update() if lock else stmt).scalar_one_or_none()
         if row is None:
             raise NotFound("Variance not found", code="VARIANCE_NOT_FOUND")
+        self.gate(row)
         return row
+
+    def gate(self, v: CashVariance) -> None:
+        """A customer-hour variance belongs to the customer-hours capability; a cash one to the cash custody chain."""
+        code = CUSTOMER_HOURS if v.source_type is VarianceSource.CUSTOMER_HOUR else CASH_CUSTODY
+        require_capability(self._s, self._tid, code, self._now)
 
     def _reason_label(self, reason_id: uuid.UUID | None) -> str | None:
         row = self._s.get(CashReason, reason_id) if reason_id else None
@@ -496,12 +522,15 @@ class CashCustodyControls:
     def _post_variance(self, v: CashVariance, status: AdjustmentEntryStatus, note: str | None) -> None:
         written_off = v.outcome is VarianceOutcome.WRITTEN_OFF
         rejected = status is AdjustmentEntryStatus.REJECTED
+        hours = v.unit is VarianceUnit.HOURS
         post_adjustment(
             self._s,
             self._tid,
             self._now,
             AdjustmentPosting(
-                adjustment_type=AdjustmentType.CASH_WRITE_OFF
+                adjustment_type=AdjustmentType.HOURS_VARIANCE_RESOLUTION
+                if hours
+                else AdjustmentType.CASH_WRITE_OFF
                 if written_off or rejected
                 else AdjustmentType.CASH_VARIANCE_RESOLUTION,
                 status=status,
@@ -510,12 +539,15 @@ class CashCustodyControls:
                 original_reference=None,
                 source_type="cash_variance_write_off" if rejected else "cash_variance",
                 source_id=uuid.uuid5(v.id, v.proposed_at.isoformat() if v.proposed_at else "") if rejected else v.id,
-                unit=AdjustmentUnit.MONEY,
+                unit=AdjustmentUnit.HOURS if hours else AdjustmentUnit.MONEY,
                 original_value=v.declared_amount,
                 new_value=v.received_amount,
                 amount=v.amount,
-                currency=v.currency,
-                resulting_balance=self._custody_after(v.staff_member_id, v.currency),
+                currency=None if hours else v.currency,
+                resulting_balance=None if hours else self._custody_after(v.staff_member_id, v.currency),
+                evidence_attachment_ids=list(v.evidence_attachment_ids),
+                customer_id=v.customer_id,
+                machine_id=v.machine_id,
                 reason_id=v.reason_id,
                 reason_label=self._reason_label(v.reason_id),
                 reason=note,
@@ -525,15 +557,23 @@ class CashCustodyControls:
                 approved_by=None if rejected else v.resolved_by,
                 approved_at=None if rejected else v.resolved_at,
                 decision_note=note,
-                details={"outcome": v.outcome.value if v.outcome else None, "source_type": v.source_type.value},
+                details={
+                    "outcome": v.outcome.value if v.outcome else None,
+                    "source_type": v.source_type.value,
+                    "check_code": v.check_code,
+                },
                 policy_version=v.policy_version,
             ),
         )
 
-    def _not_own_variance(self, v: CashVariance, action: str) -> None:
+    def _not_party(self, v: CashVariance, action: str, closing: bool = False) -> None:
+        """Whoever is accountable for the difference or was on the other side of it never decides or proposes its
+        closure; whoever opened it (or proposed the closure) never closes it. Not relaxable."""
         own = own_staff(self._s, self._ctx)
-        if own is not None and own.id == v.staff_member_id:
-            refuse_sod(self._ctx, action, "cash_variance", v.id, "You cannot decide a variance you are accountable for")
+        if own is not None and own.id in (v.staff_member_id, v.counterparty_staff_id):
+            refuse_sod(self._ctx, action, "cash_variance", v.id, "You cannot decide a variance you are a party to")
+        if closing and self._ctx.user_id in (v.opened_by, v.proposed_by):
+            refuse_sod(self._ctx, action, "cash_variance", v.id, "A variance is closed by someone else")
 
     def _resolve(self, v: CashVariance, outcome: VarianceOutcome, note: str, reason_id: uuid.UUID | None) -> None:
         before = v.status.value
@@ -542,6 +582,9 @@ class CashCustodyControls:
         if reason_id is not None:
             v.reason_id = reason_id
         self._s.flush()
+        variance_event(
+            self._s, v, VarianceEventAction.RESOLVED, self._ctx.user_id, self._now, note, {"outcome": outcome.value}
+        )
         self._record(
             f"finance.cash_variance.{outcome.value.lower()}",
             "cash_variance",
@@ -556,12 +599,23 @@ class CashCustodyControls:
         self._post_variance(v, AdjustmentEntryStatus.APPROVED, note)
 
     def resolve_variance(self, variance_id: uuid.UUID, body: VarianceResolutionIn) -> CashVarianceDto:
+        """Close a variance: directly, or as a proposal another person decides when the tenant requires it."""
         v = self.variance(variance_id, lock=True)
         if v.status is not VarianceStatus.OPEN:
             raise Conflict(f"Variance is {v.status.value}", code="VARIANCE_NOT_OPEN")
-        self._not_own_variance(v, "resolve")
+        self._not_party(v, "resolve")
+        policy = self._policy().policy
+        hours = v.unit is VarianceUnit.HOURS
+        if (body.outcome is VarianceOutcome.WRITTEN_OFF and hours) or (
+            body.outcome is VarianceOutcome.EXPLAINED and not hours
+        ):
+            raise BusinessRuleViolation(
+                "This outcome does not apply to this variance", code="VARIANCE_OUTCOME_NOT_ALLOWED"
+            )
+        self._add_evidence(v, body.evidence_attachment_ids, policy.variance_evidence_required)
+        second_person = policy.variance_closure_requires_second_person
         if body.outcome is VarianceOutcome.WRITTEN_OFF:
-            if self._policy().policy.writeoff_requires_approval:
+            if policy.writeoff_requires_approval or second_person:
                 raise BusinessRuleViolation(
                     "Write-offs are proposed and approved by another person", code="WRITEOFF_APPROVAL_REQUIRED"
                 )
@@ -582,14 +636,70 @@ class CashCustodyControls:
             reason = check_reason(self._s, CashReasonKind.WRITE_OFF, body.reason_id)
         else:
             reason = check_reason(self._s, CashReasonKind.VARIANCE, body.reason_id)
+        if second_person:
+            self._propose_closure(v, body.outcome, body.note, reason)
+            return CashVarianceDto.model_validate(v)
+        self._not_party(v, "resolve", closing=True)
         self._resolve(v, body.outcome, body.note, reason)
         return CashVarianceDto.model_validate(v)
+
+    def _add_evidence(self, v: CashVariance, ids: list[uuid.UUID], required: bool) -> None:
+        check_attachments(self._s, ids)
+        merged = list(dict.fromkeys([*v.evidence_attachment_ids, *ids]))
+        if required and not merged:
+            raise BusinessRuleViolation("Attach the supporting evidence", code="EVIDENCE_REQUIRED")
+        if merged != list(v.evidence_attachment_ids):
+            v.evidence_attachment_ids = merged
+            self._s.flush()
+
+    def _propose_closure(
+        self, v: CashVariance, outcome: VarianceOutcome, note: str, reason_id: uuid.UUID | None
+    ) -> None:
+        v.status, v.proposed_outcome = VarianceStatus.CLOSURE_PROPOSED, outcome
+        v.proposed_by, v.proposed_at, v.proposal_note = self._ctx.user_id, self._now, note
+        v.reason_id = reason_id
+        self._s.flush()
+        self._record(
+            "finance.cash_variance.closure_proposed",
+            "cash_variance",
+            v.id,
+            before={"status": VarianceStatus.OPEN.value},
+            after={"status": v.status.value, "outcome": outcome.value},
+            reason=note,
+        )
+        variance_event(
+            self._s,
+            v,
+            VarianceEventAction.CLOSURE_PROPOSED,
+            self._ctx.user_id,
+            self._now,
+            note,
+            {"outcome": outcome.value},
+        )
+        self._emit(
+            "CashApprovalRequested",
+            v.id,
+            {
+                "kind": "VARIANCE_CLOSURE",
+                "permission": VARIANCE_CLOSE_PERMISSION,
+                "entity_type": "cash_variance",
+                "entity_id": str(v.id),
+                "amount": str(v.amount),
+                "currency": v.currency,
+                "unit": v.unit.value,
+            },
+        )
 
     def propose_writeoff(self, variance_id: uuid.UUID, body: WriteOffProposalIn) -> CashVarianceDto:
         v = self.variance(variance_id, lock=True)
         if v.status is not VarianceStatus.OPEN:
             raise Conflict(f"Variance is {v.status.value}", code="VARIANCE_NOT_OPEN")
-        self._not_own_variance(v, "propose_write_off")
+        self._not_party(v, "propose_write_off")
+        if v.unit is VarianceUnit.HOURS:
+            raise BusinessRuleViolation(
+                "Hours differences are closed by explanation, not written off", code="VARIANCE_OUTCOME_NOT_ALLOWED"
+            )
+        self._add_evidence(v, body.evidence_attachment_ids, self._policy().policy.variance_evidence_required)
         v.reason_id = check_reason(self._s, CashReasonKind.WRITE_OFF, body.reason_id)
         v.status, v.proposed_by, v.proposed_at, v.proposal_note = (
             VarianceStatus.WRITE_OFF_PROPOSED,
@@ -606,6 +716,7 @@ class CashCustodyControls:
             after={"status": v.status.value, "amount": str(v.amount)},
             reason=body.note,
         )
+        variance_event(self._s, v, VarianceEventAction.WRITE_OFF_PROPOSED, self._ctx.user_id, self._now, body.note)
         self._emit(
             "CashApprovalRequested",
             v.id,
@@ -628,10 +739,12 @@ class CashCustodyControls:
             refuse_sod(
                 self._ctx, "approve_write_off", "cash_variance", v.id, "The proposer cannot approve the write-off"
             )
-        self._not_own_variance(v, "approve_write_off")
+        self._not_party(v, "approve_write_off", closing=True)
         if body.approve:
+            variance_event(self._s, v, VarianceEventAction.WRITE_OFF_APPROVED, self._ctx.user_id, self._now, body.note)
             self._resolve(v, VarianceOutcome.WRITTEN_OFF, body.note or v.proposal_note or "", None)
         else:
+            variance_event(self._s, v, VarianceEventAction.WRITE_OFF_REJECTED, self._ctx.user_id, self._now, body.note)
             self._post_variance(v, AdjustmentEntryStatus.REJECTED, body.note or v.proposal_note)
             v.status, v.proposed_by, v.proposed_at, v.proposal_note = VarianceStatus.OPEN, None, None, None
             self._s.flush()
@@ -672,6 +785,8 @@ class CashCustodyControls:
             status=CashDecisionStatus.PENDING,
             created_by=self._ctx.user_id,
             created_at=self._now,
+            retention_number=reference(self._s, self._tid, RETENTION, self._now),
+            client_created_at=body.client_created_at,
         )
         insert(self._s, row, "DUPLICATE_RETENTION", "Retention request already recorded")
         self._record(
@@ -728,6 +843,9 @@ class CashCustodyControls:
             model = REVERSIBLE[body.reverses_entity_type]
             if self._s.get(model, body.reverses_entity_id) is None:
                 raise NotFound("The record to reverse was not found", code="REVERSED_RECORD_NOT_FOUND")
+        evidence = require_evidence(
+            self._s, self._policy().policy.custody_adjustment_evidence_required, body.evidence_attachment_ids
+        )
         row = CustodyAdjustment(
             id=uuid.uuid4(),
             tenant_id=self._tid,
@@ -743,6 +861,9 @@ class CashCustodyControls:
             status=CashDecisionStatus.PENDING,
             created_by=self._ctx.user_id,
             created_at=self._now,
+            adjustment_number=reference(self._s, self._tid, CUSTODY_ADJUSTMENT, self._now),
+            client_created_at=body.client_created_at,
+            evidence_attachment_ids=evidence,
         )
         self._s.add(row)
         self._s.flush()
@@ -814,6 +935,7 @@ class CashCustodyControls:
                 reason_id=row.reason_id,
                 reason_label=self._reason_label(row.reason_id),
                 reason=row.reason,
+                evidence_attachment_ids=list(row.evidence_attachment_ids),
                 staff_member_id=row.staff_member_id,
                 requested_by=row.created_by,
                 requested_at=row.created_at,

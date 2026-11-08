@@ -129,7 +129,8 @@ def test_accountability_summary(api: Api) -> None:
         ),
         201,
     )
-    _ok(mgr.post(f"{c}/handovers", {"staff_member_id": operator, "amount": "10000", "handed_at": T1}), 201)
+    body = {"staff_member_id": operator, "amount": "10000", "handed_at": T1, "partial_reason": "Bank closed early"}
+    _ok(mgr.post(f"{c}/handovers", body), 201)
     assert f.supervisor.get("/api/v1/tenant/accountability/summary").status_code == 403
 
     s = _ok(mgr.get("/api/v1/tenant/accountability/summary"))

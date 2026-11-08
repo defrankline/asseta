@@ -1663,6 +1663,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenant/adjustment-requests/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview
+         * @description What this request would do, as of now, without saving it: the same fields and checks as proposing it, and the
+         *     same `effects` forecast the decider will see. Reason and evidence are not needed yet.
+         */
+        post: operations["previewAdjustment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenant/adjustment-requests/{request_id}": {
         parameters: {
             query?: never;
@@ -2116,6 +2137,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenant/cases/{case_id}/resolution-decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Decide Case Resolution
+         * @description Approve or reject a resolution proposed under the tenant's second-person policy (never the proposer).
+         */
+        post: operations["decideAnomalyCaseResolution"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenant/cases/{case_id}/resolve": {
         parameters: {
             query?: never;
@@ -2504,6 +2545,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenant/cash/handovers/{handover_id}/partial-reason-decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Decide Partial Reason
+         * @description Approve or reject the reason a remittance left part of the balance with the custodian (never the recorder or
+         *     the custodian). The money's own confirmation is separate.
+         */
+        post: operations["decidePartialRemittanceReason"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenant/cash/reasons": {
         parameters: {
             query?: never;
@@ -2817,8 +2879,32 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Variances */
+        /**
+         * List Variances
+         * @description Cash and customer-hour variances (`source_type` CUSTOMER_HOUR). Refused per capability: CASH_CUSTODY_DISABLED,
+         *     or HOURS_DISABLED when asking for customer-hour variances with hours switched off.
+         */
         get: operations["listCashVariances"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/cash/variances/assignees": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Variance Assignees
+         * @description Who a variance can be assigned to: everyone holding the variance permission.
+         */
+        get: operations["listVarianceAssignees"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2844,6 +2930,87 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenant/cash/variances/{variance_id}/assignment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Assign Variance
+         * @description Assign the investigation to a person holding the variance permission (never a party to the difference).
+         */
+        post: operations["assignCashVariance"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/cash/variances/{variance_id}/closure-decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Decide Variance Closure
+         * @description Approve (the variance is resolved as proposed) or reject (back to OPEN) a proposed closure. Never the proposer,
+         *     whoever opened it, or a party to the difference.
+         */
+        post: operations["decideCashVarianceClosure"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/cash/variances/{variance_id}/explanation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Explain Variance
+         * @description Record the explanation and supporting evidence (kept in the history; the closure is a separate step).
+         */
+        post: operations["explainCashVariance"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/cash/variances/{variance_id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Variance History
+         * @description The investigation history, oldest first: opened, assigned, explained, closure proposed and decided, resolved.
+         */
+        get: operations["listCashVarianceHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenant/cash/variances/{variance_id}/resolution": {
         parameters: {
             query?: never;
@@ -2855,8 +3022,9 @@ export interface paths {
         put?: never;
         /**
          * Resolve Variance
-         * @description Resolve an open variance as RECOVERED or CORRECTED_ERROR (reason required). WRITTEN_OFF directly only when
-         *     the tenant does not require write-off approval, and then only with the write-off permission.
+         * @description Close a variance as RECOVERED or CORRECTED_ERROR (EXPLAINED on customer-hour variances), reason required.
+         *     With a second person required (tenant default) this proposes the closure (status CLOSURE_PROPOSED); otherwise it
+         *     closes now. WRITTEN_OFF directly only when neither write-off approval nor a second person is required.
          */
         post: operations["resolveCashVariance"];
         delete?: never;
@@ -7368,6 +7536,8 @@ export interface components {
             details: {
                 [key: string]: unknown;
             };
+            /** Entry Number */
+            entry_number?: string | null;
             /** Evidence Attachment Ids */
             evidence_attachment_ids: string[];
             /**
@@ -7432,10 +7602,86 @@ export interface components {
          * @enum {string}
          */
         AdjustmentEntryStatus: "APPROVED" | "REJECTED" | "REVOKED";
+        /**
+         * AdjustmentPreviewDto
+         * @description What the request would do, as of now, without saving anything (a `refused` entry names why it would fail).
+         */
+        AdjustmentPreviewDto: {
+            /** Amount */
+            amount: string | null;
+            /** Currency */
+            currency: string | null;
+            /** Customer Id */
+            customer_id: string | null;
+            /** Customer Name */
+            customer_name?: string | null;
+            /**
+             * Effects
+             * @default {}
+             */
+            effects: {
+                [key: string]: unknown;
+            };
+            /** Hours */
+            hours: string | null;
+            /** Machine Code */
+            machine_code?: string | null;
+            /** Machine Id */
+            machine_id: string | null;
+            /** Machine Name */
+            machine_name?: string | null;
+            /**
+             * Original Id
+             * Format: uuid
+             */
+            original_id: string;
+            /** Original Reference */
+            original_reference: string | null;
+            /** Original Type */
+            original_type: string;
+            /** Purchase Id */
+            purchase_id: string | null;
+            request_type: components["schemas"]["AdjustmentRequestType"];
+        };
+        /**
+         * AdjustmentPreviewIn
+         * @description The same fields as a request; reason and evidence are not needed to see what it would do.
+         */
+        AdjustmentPreviewIn: {
+            /** Client Created At */
+            client_created_at?: string | null;
+            /** Client Id */
+            client_id?: string | null;
+            /** Consumed Entry Id */
+            consumed_entry_id?: string | null;
+            /** Evidence Attachment Ids */
+            evidence_attachment_ids?: string[];
+            /** Hours */
+            hours?: number | string | null;
+            /** Invoice Id */
+            invoice_id?: string | null;
+            /** Job Id */
+            job_id?: string | null;
+            /** Machine Id */
+            machine_id?: string | null;
+            /** Payment Id */
+            payment_id?: string | null;
+            payout?: components["schemas"]["PayoutIn"] | null;
+            /** Purchase Id */
+            purchase_id?: string | null;
+            /** Reason */
+            reason?: string | null;
+            /** Reason Code Id */
+            reason_code_id?: string | null;
+            request_type: components["schemas"]["AdjustmentRequestType"];
+            settlement?: components["schemas"]["RefundSettlement"] | null;
+        };
         /** AdjustmentRequestDto */
         AdjustmentRequestDto: {
             /** Amount */
             amount: string | null;
+            /** Client Created At */
+            client_created_at?: string | null;
             /** Client Id */
             client_id: string | null;
             /** Currency */
@@ -7506,6 +7752,8 @@ export interface components {
             reason_code_id: string | null;
             /** Reason Label */
             reason_label?: string | null;
+            /** Request Number */
+            request_number?: string | null;
             request_type: components["schemas"]["AdjustmentRequestType"];
             settlement: components["schemas"]["RefundSettlement"] | null;
             status: components["schemas"]["AdjustmentRequestStatus"];
@@ -7516,6 +7764,8 @@ export interface components {
          *     endpoint notes (hours/machine for corrections and refunds, a payment/purchase/invoice id for reversals).
          */
         AdjustmentRequestIn: {
+            /** Client Created At */
+            client_created_at?: string | null;
             /** Client Id */
             client_id?: string | null;
             /** Consumed Entry Id */
@@ -7552,13 +7802,13 @@ export interface components {
          * @description The new reversible actions handled by the uniform propose/decide flow.
          * @enum {string}
          */
-        AdjustmentRequestType: "HOURS_CORRECTION" | "HOURS_REFUND" | "PAYMENT_REVERSAL" | "COLLECTION_REVERSAL" | "PURCHASE_REVERSAL" | "INVOICE_VOID";
+        AdjustmentRequestType: "HOURS_CORRECTION" | "HOURS_REFUND" | "PAYMENT_REVERSAL" | "COLLECTION_REVERSAL" | "PURCHASE_REVERSAL" | "INVOICE_VOID" | "ZERO_AMOUNT_ACTIVATION";
         /**
          * AdjustmentType
          * @description What kind of change the ledger entry records (guideline 4.6). Stable contract values.
          * @enum {string}
          */
-        AdjustmentType: "HOURS_TRANSFER" | "HOURS_CANCELLATION" | "HOURS_CORRECTION" | "HOURS_REFUND" | "CREDIT_ARRANGEMENT" | "METER_CORRECTION" | "ALLOCATION_CORRECTION" | "ENGINE_HOUR_CLASSIFICATION" | "NON_REVENUE_APPROVAL" | "CASH_WRITE_OFF" | "CASH_VARIANCE_RESOLUTION" | "CUSTODY_ADJUSTMENT" | "INVOICE_VOID" | "PAYMENT_REVERSAL" | "COLLECTION_REVERSAL" | "PURCHASE_REVERSAL";
+        AdjustmentType: "HOURS_TRANSFER" | "HOURS_CANCELLATION" | "HOURS_CORRECTION" | "HOURS_REFUND" | "CREDIT_ARRANGEMENT" | "METER_CORRECTION" | "ALLOCATION_CORRECTION" | "ENGINE_HOUR_CLASSIFICATION" | "NON_REVENUE_APPROVAL" | "CASH_WRITE_OFF" | "CASH_VARIANCE_RESOLUTION" | "CUSTODY_ADJUSTMENT" | "INVOICE_VOID" | "PAYMENT_REVERSAL" | "COLLECTION_REVERSAL" | "PURCHASE_REVERSAL" | "ZERO_AMOUNT_ACTIVATION" | "HOURS_VARIANCE_RESOLUTION";
         /**
          * AdjustmentUnit
          * @enum {string}
@@ -7793,6 +8043,15 @@ export interface components {
             assignee_user_id: string | null;
             /** Case Number */
             case_number: string;
+            /** Closure Explanation */
+            closure_explanation?: string | null;
+            closure_outcome?: components["schemas"]["CaseOutcomeKind"] | null;
+            /** Closure Proposed At */
+            closure_proposed_at?: string | null;
+            /** Closure Proposed By */
+            closure_proposed_by?: string | null;
+            /** Closure Proposed By Name */
+            closure_proposed_by_name?: string | null;
             /**
              * Id
              * Format: uuid
@@ -8252,7 +8511,7 @@ export interface components {
              * Purpose
              * @enum {string}
              */
-            purpose: "METER_PHOTO" | "SIGNATURE" | "RESET_EVIDENCE" | "EXPENSE_RECEIPT" | "PAYMENT_EVIDENCE" | "REMITTANCE_EVIDENCE" | "DAILY_REPORT_EVIDENCE";
+            purpose: "METER_PHOTO" | "SIGNATURE" | "RESET_EVIDENCE" | "EXPENSE_RECEIPT" | "PAYMENT_EVIDENCE" | "REMITTANCE_EVIDENCE" | "DAILY_REPORT_EVIDENCE" | "ADJUSTMENT_EVIDENCE";
             /** Sha256 */
             sha256: string;
             /** Size Bytes */
@@ -8403,6 +8662,18 @@ export interface components {
              * Format: uuid
              */
             assignee_user_id: string;
+            /**
+             * Version
+             * @description Optimistic concurrency token from last read
+             */
+            version?: number | null;
+        };
+        /** CaseClosureDecisionIn */
+        CaseClosureDecisionIn: {
+            /** Approve */
+            approve: boolean;
+            /** Note */
+            note?: string | null;
             /**
              * Version
              * @description Optimistic concurrency token from last read
@@ -8566,6 +8837,11 @@ export interface components {
             customer_id: string;
             /** Note */
             note?: string | null;
+            /**
+             * Purchase Id
+             * @description The hours purchase this cash pays for: its id, or its offline client id (DEC-032). Links up to the purchase's open amount; anything above stays as customer credit
+             */
+            purchase_id?: string | null;
             /**
              * Received At
              * Format: date-time
@@ -8774,6 +9050,7 @@ export interface components {
             deposit_account_name?: string | null;
             /** Evidence Attachment Ids */
             evidence_attachment_ids?: string[];
+            evidence_status?: components["schemas"]["RemittanceEvidenceStatus"] | null;
             /**
              * Expected Balance
              * @description Custodian's expected balance when recorded
@@ -8793,6 +9070,12 @@ export interface components {
             /** Note */
             note: string | null;
             /**
+             * Outstanding Difference
+             * @description Declared minus confirmed, once confirmed
+             */
+            outstanding_difference?: string | null;
+            partial_approval?: components["schemas"]["PartialRemittanceApprovalDto"] | null;
+            /**
              * Partial Shortfall
              * @description Unretained balance not remitted (PARTIAL_REMITTANCE flag); null = not flagged
              */
@@ -8808,6 +9091,11 @@ export interface components {
             recorded_by_name?: string | null;
             /** Reference */
             reference: string | null;
+            /**
+             * Remittance Number
+             * @description Generated (RMT-...), not the bank `reference`
+             */
+            remittance_number?: string | null;
             /** Source */
             source: string;
             /**
@@ -8852,6 +9140,16 @@ export interface components {
             method?: components["schemas"]["RemittanceMethod"] | null;
             /** Note */
             note?: string | null;
+            /**
+             * Partial Reason
+             * @description Why less than the full balance is remitted (tenant requires it when on)
+             */
+            partial_reason?: string | null;
+            /**
+             * Partial Reason Id
+             * @description A reason from the tenant's PARTIAL_REMITTANCE list
+             */
+            partial_reason_id?: string | null;
             /**
              * Reference
              * @description Deposit slip / mobile-money transaction reference (tenant may require it)
@@ -8917,7 +9215,7 @@ export interface components {
          * @description Which tenant list a reason belongs to (the reasons themselves are tenant data).
          * @enum {string}
          */
-        CashReasonKind: "VARIANCE" | "WRITE_OFF" | "RETENTION" | "ADJUSTMENT";
+        CashReasonKind: "VARIANCE" | "WRITE_OFF" | "RETENTION" | "ADJUSTMENT" | "PARTIAL_REMITTANCE";
         /** CashReasonUpdateIn */
         CashReasonUpdateIn: {
             /** Description */
@@ -9017,6 +9315,8 @@ export interface components {
         CashRetentionDto: {
             /** Amount */
             amount: string;
+            /** Client Created At */
+            client_created_at?: string | null;
             /** Client Id */
             client_id?: string | null;
             /**
@@ -9047,6 +9347,8 @@ export interface components {
             reason: string;
             /** Reason Id */
             reason_id: string | null;
+            /** Retention Number */
+            retention_number?: string | null;
             /**
              * Staff Member Id
              * Format: uuid
@@ -9062,6 +9364,11 @@ export interface components {
         CashRetentionIn: {
             /** Amount */
             amount: number | string;
+            /**
+             * Client Created At
+             * @description Device time the request was made
+             */
+            client_created_at?: string | null;
             /**
              * Client Id
              * @description Device/client id (offline idempotency)
@@ -9223,6 +9530,8 @@ export interface components {
             to_staff_id: string;
             /** To Staff Name */
             to_staff_name?: string | null;
+            /** Transfer Number */
+            transfer_number?: string | null;
             /**
              * Transferred At
              * Format: date-time
@@ -9280,27 +9589,66 @@ export interface components {
              * @description declared - received (negative: more received than declared)
              */
             amount: string;
+            /** Assigned At */
+            assigned_at?: string | null;
+            /** Assigned By */
+            assigned_by?: string | null;
+            /** Assigned By Name */
+            assigned_by_name?: string | null;
+            /** Assignee User Id */
+            assignee_user_id?: string | null;
+            /** Assignee User Name */
+            assignee_user_name?: string | null;
             /** Case Id */
             case_id: string | null;
+            /**
+             * Check Code
+             * @description Which customer-hour mismatch the sweep found
+             */
+            check_code?: string | null;
             /** Counterparty Staff Id */
             counterparty_staff_id: string | null;
             /** Counterparty Staff Name */
             counterparty_staff_name?: string | null;
             /** Currency */
             currency: string;
+            /** Customer Id */
+            customer_id?: string | null;
+            /** Customer Name */
+            customer_name?: string | null;
             /** Declared Amount */
             declared_amount: string;
+            /** Evidence Attachment Ids */
+            evidence_attachment_ids?: string[] | null;
+            /** Explained At */
+            explained_at?: string | null;
+            /** Explained By */
+            explained_by?: string | null;
+            /** Explained By Name */
+            explained_by_name?: string | null;
+            /** Explanation */
+            explanation?: string | null;
             /**
              * Id
              * Format: uuid
              */
             id: string;
+            /** Job Id */
+            job_id?: string | null;
+            /** Job Number */
+            job_number?: string | null;
             /**
              * Kind
              * @description SHORTFALL: less received than declared; SURPLUS: more ('Surplus to explain')
              * @enum {string}
              */
             readonly kind: "SHORTFALL" | "SURPLUS";
+            /** Machine Code */
+            machine_code?: string | null;
+            /** Machine Id */
+            machine_id?: string | null;
+            /** Machine Name */
+            machine_name?: string | null;
             /**
              * Opened At
              * Format: date-time
@@ -9319,6 +9667,11 @@ export interface components {
             proposed_by: string | null;
             /** Proposed By Name */
             proposed_by_name?: string | null;
+            proposed_outcome?: components["schemas"]["VarianceOutcome"] | null;
+            /** Purchase Id */
+            purchase_id?: string | null;
+            /** Purchase Number */
+            purchase_number?: string | null;
             /** Reason Id */
             reason_id: string | null;
             /** Received Amount */
@@ -9345,6 +9698,8 @@ export interface components {
             /** Staff Member Name */
             staff_member_name?: string | null;
             status: components["schemas"]["VarianceStatus"];
+            /** @description MONEY or HOURS: what the figures measure */
+            unit?: components["schemas"]["VarianceUnit"] | null;
         };
         /**
          * Category
@@ -9505,6 +9860,8 @@ export interface components {
              * Format: uuid
              */
             end_ref: string;
+            /** Evidence Attachment Ids */
+            evidence_attachment_ids?: string[] | null;
             /** Hours */
             hours: string;
             /**
@@ -9562,6 +9919,8 @@ export interface components {
              * @description The segment's end point (`end.ref` in the ledger)
              */
             end_ref: string;
+            /** Evidence Attachment Ids */
+            evidence_attachment_ids?: string[];
             /**
              * Machine Id
              * Format: uuid
@@ -9844,6 +10203,8 @@ export interface components {
             effective_from: string;
             /** Effective To */
             effective_to: string | null;
+            /** Evidence Attachment Ids */
+            evidence_attachment_ids?: string[] | null;
             /**
              * Id
              * Format: uuid
@@ -9897,6 +10258,8 @@ export interface components {
             effective_from: string;
             /** Effective To */
             effective_to?: string | null;
+            /** Evidence Attachment Ids */
+            evidence_attachment_ids?: string[];
             /** Limit Amount */
             limit_amount: number | string;
             /** Reason */
@@ -10007,8 +10370,12 @@ export interface components {
         };
         /** CustodyAdjustmentDto */
         CustodyAdjustmentDto: {
+            /** Adjustment Number */
+            adjustment_number?: string | null;
             /** Amount */
             amount: string;
+            /** Client Created At */
+            client_created_at?: string | null;
             /**
              * Created At
              * Format: date-time
@@ -10028,6 +10395,8 @@ export interface components {
             decided_by_name?: string | null;
             /** Decision Note */
             decision_note: string | null;
+            /** Evidence Attachment Ids */
+            evidence_attachment_ids?: string[] | null;
             /**
              * Id
              * Format: uuid
@@ -10063,8 +10432,15 @@ export interface components {
              * @description Signed: positive raises the expected balance, negative lowers it
              */
             amount: number | string;
+            /**
+             * Client Created At
+             * @description The device's own time, when it was recorded
+             */
+            client_created_at?: string | null;
             /** Currency */
             currency?: string | null;
+            /** Evidence Attachment Ids */
+            evidence_attachment_ids?: string[];
             kind: components["schemas"]["CustodyAdjustmentKind"];
             /** Occurred At */
             occurred_at?: string | null;
@@ -10235,6 +10611,8 @@ export interface components {
             amount: string;
             /** Client Id */
             client_id: string | null;
+            /** Collection Number */
+            collection_number?: string | null;
             /** Currency */
             currency: string;
             /**
@@ -10254,6 +10632,8 @@ export interface components {
             method: components["schemas"]["HirePaymentMethod"];
             /** Note */
             note: string | null;
+            /** Purchase Links */
+            purchase_links?: components["schemas"]["PurchaseLinkDto"][] | null;
             /**
              * Received At
              * Format: date-time
@@ -12053,6 +12433,8 @@ export interface components {
             cancellation_id: string | null;
             /** Cancelled At */
             cancelled_at: string | null;
+            /** Client Created At */
+            client_created_at?: string | null;
             /** Client Id */
             client_id: string | null;
             /**
@@ -12111,6 +12493,8 @@ export interface components {
             note: string | null;
             /** @description The payment recorded with the purchase */
             payment?: components["schemas"]["CustomerPaymentDto"] | null;
+            /** Pending Zero Amount Request Id */
+            pending_zero_amount_request_id?: string | null;
             /** Policy Version */
             policy_version: string;
             /** Purchase Number */
@@ -12131,6 +12515,11 @@ export interface components {
         };
         /** HoursPurchaseIn */
         HoursPurchaseIn: {
+            /**
+             * Client Created At
+             * @description Device time the purchase was recorded
+             */
+            client_created_at?: string | null;
             /**
              * Client Id
              * @description Device/client id (offline idempotency)
@@ -14686,6 +15075,8 @@ export interface components {
              * Format: date-time
              */
             ended_at: string;
+            /** Evidence Attachment Ids */
+            evidence_attachment_ids?: string[] | null;
             /** Hours */
             hours: string;
             /**
@@ -14747,6 +15138,8 @@ export interface components {
              * Format: uuid
              */
             activity_id: string;
+            /** Evidence Attachment Ids */
+            evidence_attachment_ids?: string[];
             /** Note */
             note: string;
             /**
@@ -16128,6 +16521,43 @@ export interface components {
             /** Total */
             total: number;
         };
+        /**
+         * PartialRemittanceApprovalDto
+         * @description The approved reason a remittance left part of the balance with the custodian (DEC-032).
+         */
+        PartialRemittanceApprovalDto: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by: string | null;
+            /** Created By Name */
+            created_by_name?: string | null;
+            /** Decided At */
+            decided_at: string | null;
+            /** Decided By */
+            decided_by: string | null;
+            /** Decided By Name */
+            decided_by_name?: string | null;
+            /** Decision Note */
+            decision_note: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Reason */
+            reason: string;
+            /** Reason Id */
+            reason_id: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "PENDING" | "APPROVED" | "REJECTED";
+        };
         /** PaymentAllocationDto */
         PaymentAllocationDto: {
             /** Amount */
@@ -16640,6 +17070,21 @@ export interface components {
             payment_id: string;
         };
         /**
+         * PurchaseLinkDto
+         * @description The hours purchase a customer payment is linked to.
+         */
+        PurchaseLinkDto: {
+            /** Amount */
+            amount: string;
+            /**
+             * Purchase Id
+             * Format: uuid
+             */
+            purchase_id: string;
+            /** Purchase Number */
+            purchase_number: string;
+        };
+        /**
          * PurchasePaymentIn
          * @description Money taken together with the purchase. It is recorded as a CLAIMED customer payment (cash enters the
          *     custodian's custody) and linked to the purchase; hours activate only when someone else verifies it.
@@ -17088,6 +17533,12 @@ export interface components {
             /** Attachment Ids */
             attachment_ids: string[];
         };
+        /**
+         * RemittanceEvidenceStatus
+         * @description Guideline 4.5: declared by the field employee, supported by evidence, independently confirmed by the company.
+         * @enum {string}
+         */
+        RemittanceEvidenceStatus: "DECLARED" | "SUPPORTED" | "CONFIRMED";
         /**
          * RemittanceMethod
          * @description How a remittance reached the company. Null on remittances recorded before DEC-031 (cash to the office).
@@ -18589,6 +19040,8 @@ export interface components {
             amount: string;
             /** Client Id */
             client_id: string | null;
+            /** Collection Number */
+            collection_number?: string | null;
             /** Currency */
             currency: string;
             /**
@@ -18608,6 +19061,8 @@ export interface components {
             method: components["schemas"]["HirePaymentMethod"];
             /** Note */
             note: string | null;
+            /** Purchase Links */
+            purchase_links?: components["schemas"]["PurchaseLinkDto"][] | null;
             /**
              * Received At
              * Format: date-time
@@ -18665,6 +19120,7 @@ export interface components {
             deposit_account_name?: string | null;
             /** Evidence Attachment Ids */
             evidence_attachment_ids?: string[];
+            evidence_status?: components["schemas"]["RemittanceEvidenceStatus"] | null;
             /**
              * Expected Balance
              * @description Custodian's expected balance when recorded
@@ -18684,6 +19140,12 @@ export interface components {
             /** Note */
             note: string | null;
             /**
+             * Outstanding Difference
+             * @description Declared minus confirmed, once confirmed
+             */
+            outstanding_difference?: string | null;
+            partial_approval?: components["schemas"]["PartialRemittanceApprovalDto"] | null;
+            /**
              * Partial Shortfall
              * @description Unretained balance not remitted (PARTIAL_REMITTANCE flag); null = not flagged
              */
@@ -18699,6 +19161,11 @@ export interface components {
             recorded_by_name?: string | null;
             /** Reference */
             reference: string | null;
+            /**
+             * Remittance Number
+             * @description Generated (RMT-...), not the bank `reference`
+             */
+            remittance_number?: string | null;
             /** Source */
             source: string;
             /**
@@ -19816,6 +20283,8 @@ export interface components {
             decided_by_name?: string | null;
             /** Decision Note */
             decision_note: string | null;
+            /** Evidence Attachment Ids */
+            evidence_attachment_ids?: string[] | null;
             /** From Machine Code */
             from_machine_code?: string | null;
             /**
@@ -19862,11 +20331,15 @@ export interface components {
             to_machine_id: string;
             /** To Machine Name */
             to_machine_name?: string | null;
+            /** Transfer Number */
+            transfer_number?: string | null;
         };
         /** TransferIn */
         TransferIn: {
             /** Client Id */
             client_id?: string | null;
+            /** Evidence Attachment Ids */
+            evidence_attachment_ids?: string[];
             /**
              * From Machine Id
              * @description Defaults to the purchase's machine
@@ -20064,13 +20537,77 @@ export interface components {
             /** Weeks Observed */
             weeks_observed: number;
         };
+        /** VarianceAssignIn */
+        VarianceAssignIn: {
+            /**
+             * Assignee User Id
+             * Format: uuid
+             */
+            assignee_user_id: string;
+        };
+        /**
+         * VarianceAssigneeDto
+         * @description Someone who can be assigned a variance (holds the variance permission in this tenant).
+         */
+        VarianceAssigneeDto: {
+            /** Display Name */
+            display_name: string;
+            /** Email */
+            email: string | null;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
+        /**
+         * VarianceEventAction
+         * @enum {string}
+         */
+        VarianceEventAction: "OPENED" | "ASSIGNED" | "EXPLAINED" | "CLOSURE_PROPOSED" | "CLOSURE_APPROVED" | "CLOSURE_REJECTED" | "WRITE_OFF_PROPOSED" | "WRITE_OFF_APPROVED" | "WRITE_OFF_REJECTED" | "RESOLVED";
+        /**
+         * VarianceEventDto
+         * @description One step of a variance's investigation (who, when, what).
+         */
+        VarianceEventDto: {
+            action: components["schemas"]["VarianceEventAction"];
+            /** Actor User Id */
+            actor_user_id: string | null;
+            /** Actor User Name */
+            actor_user_name?: string | null;
+            /** Data */
+            data: {
+                [key: string]: unknown;
+            };
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Note */
+            note: string | null;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+        };
+        /** VarianceExplanationIn */
+        VarianceExplanationIn: {
+            /** Evidence Attachment Ids */
+            evidence_attachment_ids?: string[];
+            /** Explanation */
+            explanation: string;
+        };
         /**
          * VarianceOutcome
          * @enum {string}
          */
-        VarianceOutcome: "RECOVERED" | "CORRECTED_ERROR" | "WRITTEN_OFF";
+        VarianceOutcome: "RECOVERED" | "CORRECTED_ERROR" | "WRITTEN_OFF" | "EXPLAINED";
         /** VarianceResolutionIn */
         VarianceResolutionIn: {
+            /** Evidence Attachment Ids */
+            evidence_attachment_ids?: string[];
             /** Note */
             note: string;
             outcome: components["schemas"]["VarianceOutcome"];
@@ -20081,12 +20618,17 @@ export interface components {
          * VarianceSource
          * @enum {string}
          */
-        VarianceSource: "TRANSFER" | "REMITTANCE" | "FLOAT";
+        VarianceSource: "TRANSFER" | "REMITTANCE" | "FLOAT" | "CUSTOMER_HOUR";
         /**
          * VarianceStatus
          * @enum {string}
          */
-        VarianceStatus: "OPEN" | "WRITE_OFF_PROPOSED" | "RESOLVED";
+        VarianceStatus: "OPEN" | "WRITE_OFF_PROPOSED" | "CLOSURE_PROPOSED" | "RESOLVED";
+        /**
+         * VarianceUnit
+         * @enum {string}
+         */
+        VarianceUnit: "MONEY" | "HOURS";
         /** VerificationIn */
         VerificationIn: {
             /** Note */
@@ -20317,6 +20859,8 @@ export interface components {
         };
         /** WriteOffProposalIn */
         WriteOffProposalIn: {
+            /** Evidence Attachment Ids */
+            evidence_attachment_ids?: string[];
             /** Note */
             note: string;
             /** Reason Id */
@@ -30238,6 +30782,96 @@ export interface operations {
             };
         };
     };
+    previewAdjustment: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdjustmentPreviewIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdjustmentPreviewDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     getAdjustmentRequest: {
         parameters: {
             query?: never;
@@ -32622,6 +33256,99 @@ export interface operations {
             };
         };
     };
+    decideAnomalyCaseResolution: {
+        parameters: {
+            query?: never;
+            header?: {
+                "idempotency-key"?: string | null;
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CaseClosureDecisionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnomalyCaseDetailDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     resolveAnomalyCase: {
         parameters: {
             query?: never;
@@ -34803,6 +35530,98 @@ export interface operations {
             };
         };
     };
+    decidePartialRemittanceReason: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                handover_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecisionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CashHandoverDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     listCashReasons: {
         parameters: {
             query?: {
@@ -36636,6 +37455,7 @@ export interface operations {
                 status?: components["schemas"]["VarianceStatus"] | null;
                 staff_member_id?: string | null;
                 source_type?: components["schemas"]["VarianceSource"] | null;
+                assignee_user_id?: string | null;
                 page?: number;
                 page_size?: number;
                 q?: string | null;
@@ -36724,6 +37544,94 @@ export interface operations {
             };
         };
     };
+    listVarianceAssignees: {
+        parameters: {
+            query?: {
+                q?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VarianceAssigneeDto"][];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     getCashVariance: {
         parameters: {
             query?: never;
@@ -36745,6 +37653,370 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CashVarianceDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    assignCashVariance: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                variance_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VarianceAssignIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CashVarianceDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    decideCashVarianceClosure: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                variance_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecisionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CashVarianceDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    explainCashVariance: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                variance_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VarianceExplanationIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CashVarianceDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listCashVarianceHistory: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                variance_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VarianceEventDto"][];
                 };
             };
             /** @description Bad Request */

@@ -45,6 +45,8 @@ class AdjustmentType(StrEnum):
     PAYMENT_REVERSAL = "PAYMENT_REVERSAL"
     COLLECTION_REVERSAL = "COLLECTION_REVERSAL"
     PURCHASE_REVERSAL = "PURCHASE_REVERSAL"
+    ZERO_AMOUNT_ACTIVATION = "ZERO_AMOUNT_ACTIVATION"
+    HOURS_VARIANCE_RESOLUTION = "HOURS_VARIANCE_RESOLUTION"
 
 
 class AdjustmentRequestType(StrEnum):
@@ -56,6 +58,7 @@ class AdjustmentRequestType(StrEnum):
     COLLECTION_REVERSAL = "COLLECTION_REVERSAL"
     PURCHASE_REVERSAL = "PURCHASE_REVERSAL"
     INVOICE_VOID = "INVOICE_VOID"
+    ZERO_AMOUNT_ACTIVATION = "ZERO_AMOUNT_ACTIVATION"  # a purchase that costs nothing needs a second person
 
 
 class AdjustmentEntryStatus(StrEnum):
@@ -88,6 +91,7 @@ class AdjustmentLedgerEntry(UuidPk, Base):
     __tablename__ = "adjustment_ledger_entry"
     __table_args__ = (
         UniqueConstraint("tenant_id", "source_type", "source_id", "status", name="uq_adjustment_entry_source"),
+        UniqueConstraint("tenant_id", "entry_number", name="uq_adjustment_entry_number"),
         Index("ix_adjustment_entry_type", "tenant_id", "adjustment_type", "posted_at"),
         Index("ix_adjustment_entry_posted", "tenant_id", "posted_at"),
     )
@@ -126,6 +130,7 @@ class AdjustmentLedgerEntry(UuidPk, Base):
     policy_version: Mapped[str | None] = mapped_column(String(80))
     posted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    entry_number: Mapped[str] = mapped_column(String(32), nullable=False)  # generated ADJ-<yyyy>-<nnnnn>
 
 
 class AdjustmentRequest(UuidPk, Base):
@@ -135,6 +140,7 @@ class AdjustmentRequest(UuidPk, Base):
     __tablename__ = "adjustment_request"
     __table_args__ = (
         UniqueConstraint("tenant_id", "client_id", name="uq_adjustment_request_client"),
+        UniqueConstraint("tenant_id", "request_number", name="uq_adjustment_request_number"),
         # A posted transaction is reversed at most once: one live or approved reversal per original record.
         Index(
             "uq_adjustment_request_reversal",
@@ -177,3 +183,5 @@ class AdjustmentRequest(UuidPk, Base):
     decision_note: Mapped[str | None] = mapped_column(Text)
     result: Mapped[dict[str, Any] | None] = mapped_column(JSONB)  # what the approval did (hours, money, balances)
     policy_version: Mapped[str] = mapped_column(String(80), nullable=False)
+    request_number: Mapped[str] = mapped_column(String(32), nullable=False)  # generated ARQ-<yyyy>-<nnnnn>
+    client_created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

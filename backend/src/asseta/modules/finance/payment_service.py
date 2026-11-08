@@ -19,6 +19,7 @@ from asseta.modules.finance.dto import (
     CustomerPaymentIn,
     HireAllocationDto,
     HireAllocationIn,
+    PurchaseLinkDto,
     SettlementDecisionIn,
 )
 from asseta.modules.finance.models import (
@@ -28,9 +29,11 @@ from asseta.modules.finance.models import (
     SettlementStatus,
     TenantHireInvoice,
 )
+from asseta.modules.finance.references import payment_series, reference
 from asseta.modules.fleet.models import StaffMember
 from asseta.modules.hours.engine import HoursEngine
 from asseta.modules.hours.ledger import active_allocated as hours_allocated
+from asseta.modules.hours.models import HoursPaymentAllocation, HoursPurchase
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.jobs.models import Customer
 
@@ -45,6 +48,15 @@ def payment_dto(session: Session, p: CustomerPayment) -> CustomerPaymentDto:
     ).scalars()
     dto = CustomerPaymentDto.model_validate(p)
     dto.allocations = [HireAllocationDto.model_validate(a) for a in allocs]
+    links = session.execute(
+        select(HoursPaymentAllocation, HoursPurchase.purchase_number)
+        .join(HoursPurchase, HoursPurchase.id == HoursPaymentAllocation.purchase_id)
+        .where(HoursPaymentAllocation.payment_id == p.id, HoursPaymentAllocation.released_at.is_(None))
+        .order_by(HoursPaymentAllocation.created_at)
+    )
+    dto.purchase_links = [
+        PurchaseLinkDto(purchase_id=a.purchase_id, purchase_number=number, amount=a.amount) for a, number in links
+    ]
     return dto
 
 
@@ -88,6 +100,7 @@ class CustomerPaymentService:
             source=source,
             recorded_by=self._ctx.user_id,
             recorded_at=self._now,
+            collection_number=reference(self._s, self._tid, payment_series(body.method), self._now),
         )
         insert(self._s, payment, "DUPLICATE_PAYMENT_REFERENCE", "A payment with this method and reference exists")
         self._audit.record(

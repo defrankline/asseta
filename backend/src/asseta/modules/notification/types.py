@@ -98,6 +98,26 @@ _TYPES = (
     NotificationType("CASH_APPROVAL_REQUESTED", "Cash approval requested", Category.ACTION, Severity.INFO, T),
     NotificationType("CASH_VARIANCE_OPENED", "Cash difference to review", Category.ANOMALY, Severity.WARNING, T, True),
     NotificationType("PARTIAL_REMITTANCE", "Partial remittance", Category.ANOMALY, Severity.WARNING, T, True),
+    NotificationType(
+        "PARTIAL_REMITTANCE_DECIDED",
+        "Partial remittance reason decided",
+        Category.INFO,
+        Severity.INFO,
+        T,
+        low_priority=True,
+    ),
+    NotificationType("VARIANCE_ASSIGNED", "Variance assigned to you", Category.ACTION, Severity.INFO, T),
+    NotificationType(
+        "VARIANCE_CLOSURE_DECIDED", "Variance closure decision", Category.INFO, Severity.INFO, T, low_priority=True
+    ),
+    NotificationType(
+        "CUSTOMER_HOUR_VARIANCE_OPENED",
+        "Customer hours difference to review",
+        Category.ANOMALY,
+        Severity.WARNING,
+        T,
+        True,
+    ),
     NotificationType("REMITTANCE_OVERDUE", "Remittance overdue", Category.REMINDER, Severity.WARNING, T, True),
     # Revenue reconciliation (DEC-031 R3): engine hours not matched by money, or an explanation awaiting a decision
     NotificationType(

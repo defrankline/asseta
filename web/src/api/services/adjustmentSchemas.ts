@@ -37,6 +37,8 @@ export const ADJUSTMENT_TYPES: readonly AdjustmentType[] = [
   'PAYMENT_REVERSAL',
   'COLLECTION_REVERSAL',
   'PURCHASE_REVERSAL',
+  'ZERO_AMOUNT_ACTIVATION',
+  'HOURS_VARIANCE_RESOLUTION',
 ];
 export const ADJUSTMENT_UNITS: readonly AdjustmentUnit[] = ['HOURS', 'MONEY', 'READING'];
 export const ENTRY_STATUSES: readonly AdjustmentEntryStatus[] = ['APPROVED', 'REJECTED', 'REVOKED'];
@@ -47,6 +49,7 @@ export const REQUEST_TYPES: readonly AdjustmentRequestType[] = [
   'COLLECTION_REVERSAL',
   'PURCHASE_REVERSAL',
   'INVOICE_VOID',
+  'ZERO_AMOUNT_ACTIVATION',
 ];
 export const REQUEST_STATUSES: readonly AdjustmentRequestStatus[] = [
   'PROPOSED',

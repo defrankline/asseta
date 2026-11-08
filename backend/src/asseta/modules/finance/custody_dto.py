@@ -5,7 +5,7 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 from enum import StrEnum
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, computed_field, model_validator
 
@@ -16,9 +16,11 @@ from asseta.modules.finance.custody_models import (
     CashTransferStatus,
     CustodyAdjustmentKind,
     OverdueReason,
+    VarianceEventAction,
     VarianceOutcome,
     VarianceSource,
     VarianceStatus,
+    VarianceUnit,
 )
 from asseta.modules.finance.dto import Note, PositiveAmount
 from asseta.modules.fleet.models import StaffKind
@@ -80,6 +82,7 @@ class CashAcknowledgementIn(BaseModel):
 
 class CashTransferDto(Dto):
     id: uuid.UUID
+    transfer_number: str | None = None
     client_id: uuid.UUID | None
     from_staff_id: uuid.UUID
     from_staff_name: str | None = None
@@ -104,6 +107,26 @@ class CashTransferDto(Dto):
 
 
 # --- variances ---------------------------------------------------------------------------------------------
+class VarianceEventDto(Dto):
+    """One step of a variance's investigation (who, when, what)."""
+
+    id: uuid.UUID
+    action: VarianceEventAction
+    actor_user_id: uuid.UUID | None
+    actor_user_name: str | None = None
+    note: str | None
+    data: dict[str, Any]
+    occurred_at: datetime
+
+
+class VarianceAssigneeDto(BaseModel):
+    """Someone who can be assigned a variance (holds the variance permission in this tenant)."""
+
+    user_id: uuid.UUID
+    display_name: str
+    email: str | None
+
+
 class CashVarianceDto(Dto):
     id: uuid.UUID
     source_type: VarianceSource
@@ -136,17 +159,50 @@ class CashVarianceDto(Dto):
     resolved_by_name: str | None = None
     resolved_at: datetime | None
     resolution_note: str | None
+    unit: VarianceUnit | None = Field(default=None, description="MONEY or HOURS: what the figures measure")
+    proposed_outcome: VarianceOutcome | None = None
+    assignee_user_id: uuid.UUID | None = None
+    assignee_user_name: str | None = None
+    assigned_by: uuid.UUID | None = None
+    assigned_by_name: str | None = None
+    assigned_at: datetime | None = None
+    explanation: str | None = None
+    explained_by: uuid.UUID | None = None
+    explained_by_name: str | None = None
+    explained_at: datetime | None = None
+    evidence_attachment_ids: list[uuid.UUID] | None = None
+    check_code: str | None = Field(default=None, description="Which customer-hour mismatch the sweep found")
+    customer_id: uuid.UUID | None = None
+    customer_name: str | None = None
+    machine_id: uuid.UUID | None = None
+    machine_code: str | None = None
+    machine_name: str | None = None
+    purchase_id: uuid.UUID | None = None
+    purchase_number: str | None = None
+    job_id: uuid.UUID | None = None
+    job_number: str | None = None
+
+
+class VarianceAssignIn(BaseModel):
+    assignee_user_id: uuid.UUID
+
+
+class VarianceExplanationIn(BaseModel):
+    explanation: Reason
+    evidence_attachment_ids: list[uuid.UUID] = Field(default_factory=list, max_length=20)
 
 
 class VarianceResolutionIn(BaseModel):
     outcome: VarianceOutcome
     note: Reason
     reason_id: uuid.UUID | None = None
+    evidence_attachment_ids: list[uuid.UUID] = Field(default_factory=list, max_length=20)
 
 
 class WriteOffProposalIn(BaseModel):
     note: Reason
     reason_id: uuid.UUID | None = None
+    evidence_attachment_ids: list[uuid.UUID] = Field(default_factory=list, max_length=20)
 
 
 class DecisionIn(BaseModel):
@@ -163,10 +219,13 @@ class CashRetentionIn(BaseModel):
     reason: Reason
     reason_id: uuid.UUID | None = None
     valid_until: datetime | None = None
+    client_created_at: datetime | None = Field(default=None, description="Device time the request was made")
 
 
 class CashRetentionDto(Dto):
     id: uuid.UUID
+    retention_number: str | None = None
+    client_created_at: datetime | None = None
     client_id: uuid.UUID | None = None
     staff_member_id: uuid.UUID
     staff_member_name: str | None = None
@@ -227,6 +286,8 @@ class CustodyAdjustmentIn(BaseModel):
     reverses_entity_type: ReversibleEntity | None = None
     reverses_entity_id: uuid.UUID | None = None
     occurred_at: datetime | None = None
+    client_created_at: datetime | None = Field(default=None, description="The device's own time, when it was recorded")
+    evidence_attachment_ids: list[uuid.UUID] = Field(default_factory=list, max_length=20)
 
     @model_validator(mode="after")
     def _shape(self) -> "CustodyAdjustmentIn":
@@ -241,6 +302,9 @@ class CustodyAdjustmentIn(BaseModel):
 
 class CustodyAdjustmentDto(Dto):
     id: uuid.UUID
+    adjustment_number: str | None = None
+    client_created_at: datetime | None = None
+    evidence_attachment_ids: list[uuid.UUID] | None = None
     staff_member_id: uuid.UUID
     staff_member_name: str | None = None
     kind: CustodyAdjustmentKind

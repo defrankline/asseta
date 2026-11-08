@@ -36,6 +36,11 @@ def allow_direct_void(f: "FinCtx") -> None:
         },
     )
     assert r.status_code == 201, r.text
+    r = f.owner.post(
+        "/api/v1/tenant/policies/CUSTOMER_HOURS/versions",
+        {"scope": "TENANT", "values": {"adjustment_evidence_required": False}, "reason": "No evidence for this test"},
+    )
+    assert r.status_code == 201, r.text
 
 
 def role(api: Api, tid: str, role_key: str, subject: str) -> Actor:

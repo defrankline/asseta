@@ -18,6 +18,7 @@ from asseta.core.lifecycle import check_version, flush_versioned
 from asseta.core.money import quantize
 from asseta.core.outbox import OutboxWriter
 from asseta.core.search import ilike_any
+from asseta.modules.adjustments.models import AdjustmentRequest, AdjustmentRequestStatus, AdjustmentRequestType
 from asseta.modules.finance.cash_service import CashCustodyService
 from asseta.modules.finance.common import tenant_settings
 from asseta.modules.finance.dto import CashCollectionIn, CustomerPaymentDto, CustomerPaymentIn
@@ -61,12 +62,12 @@ from asseta.modules.hours.models import (
     HoursLedgerEntry,
     HoursPaymentAllocation,
     HoursPurchase,
-    HoursSequence,
     LedgerEntryType,
     PaymentEvidence,
     ProposalStatus,
     WorkExecutionAllocation,
 )
+from asseta.modules.hours.numbering import next_number
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.jobs.dto import CustomerDto
 from asseta.modules.jobs.models import Customer, CustomerKind, RentalRatePolicy
@@ -75,19 +76,6 @@ from asseta.modules.meter.models import CaptureAttachment, JobException
 T = LedgerEntryType
 PAYMENT_RECORDERS = {HirePaymentMethod.CASH: "tenant.collection.record"}
 OFFICE_PAYMENT = "tenant.finance.payment"
-
-
-def next_number(session: Session, tenant_id: uuid.UUID, series: str, year: int) -> int:
-    """Gap-free per tenant/series/year: the counter row is locked by the upsert until the transaction ends."""
-    value: int = session.execute(
-        pg_insert(HoursSequence)
-        .values(tenant_id=tenant_id, series=series, year=year, last_number=1)
-        .on_conflict_do_update(
-            index_elements=["tenant_id", "series", "year"], set_={"last_number": HoursSequence.last_number + 1}
-        )
-        .returning(HoursSequence.last_number)
-    ).scalar_one()
-    return value
 
 
 def ledger_dto(e: HoursLedgerEntry) -> LedgerEntryDto:
@@ -152,6 +140,8 @@ def purchase_dto(session: Session, p: HoursPurchase, payment: CustomerPaymentDto
         created_at=p.created_at,
         cancelled_at=p.cancelled_at,
         cancellation_id=p.cancellation_id,
+        client_created_at=p.client_created_at,
+        pending_zero_amount_request_id=_pending_zero_amount(session, p),
         status=derived_status(p, totals),
         totals=PurchaseTotalsDto(
             purchased=p.hours,
@@ -183,6 +173,20 @@ def purchase_dto(session: Session, p: HoursPurchase, payment: CustomerPaymentDto
         allocations=allocations,
         payment=payment,
     )
+
+
+def _pending_zero_amount(session: Session, p: HoursPurchase) -> uuid.UUID | None:
+    if p.amount > 0 or p.cancelled_at is not None:
+        return None
+    return session.execute(
+        select(AdjustmentRequest.id)
+        .where(
+            AdjustmentRequest.purchase_id == p.id,
+            AdjustmentRequest.request_type == AdjustmentRequestType.ZERO_AMOUNT_ACTIVATION,
+            AdjustmentRequest.status == AdjustmentRequestStatus.PROPOSED,
+        )
+        .limit(1)
+    ).scalar_one_or_none()
 
 
 def purchase_query(
@@ -507,6 +511,7 @@ class HoursService:
             policy_version=self.engine.eff.version_stamp,
             created_by=self._ctx.user_id,
             created_at=self._now,
+            client_created_at=body.client_created_at,
         )
         self._s.add(purchase)
         self._s.flush()
@@ -541,8 +546,13 @@ class HoursService:
             },
             tenant_id=self._tid,
         )
-        if amount <= 0:
-            self.engine.activate_from_payments(purchase)
+        if amount <= 0:  # nothing to pay: a second person approves, unless the tenant lets it activate on recording
+            if self.engine.policy.zero_amount_requires_approval:
+                from asseta.modules.adjustments.requests import AdjustmentRequests  # lazy: builds on the hours modules
+
+                AdjustmentRequests(self._s, self._ctx, self._now).propose_zero_amount(purchase)
+            else:
+                self.engine.activate_from_payments(purchase)
         payment_out = None
         if body.payment is not None:
             payment_out = self._take_payment(purchase, body, source)
@@ -568,6 +578,7 @@ class HoursService:
                     note=pay.note or f"Hours purchase {purchase.purchase_number}",
                 ),
                 source,
+                link_satisfied=True,  # the allocation to this purchase follows just below
             )
         else:
             recorded = CustomerPaymentService(self._s, self._ctx, self._now).record(
@@ -645,6 +656,22 @@ class HoursService:
         if payment.status is SettlementStatus.VERIFIED:
             self.engine.activate_from_payments(purchase, payment.id)
         return purchase_dto(self._s, purchase)
+
+    def link_collection(self, payment_id: uuid.UUID, purchase_ref: uuid.UUID, amount: Decimal) -> None:
+        """Link a cash collection to the purchase it pays for: the purchase's id or its offline client id; up to the
+        open amount (anything above stays as customer credit)."""
+        purchase_id = self._s.execute(
+            select(HoursPurchase.id).where(
+                (HoursPurchase.id == purchase_ref) | (HoursPurchase.client_id == purchase_ref)
+            )
+        ).scalar_one_or_none()
+        if purchase_id is None:
+            raise NotFound("Hours purchase not found", code="PURCHASE_NOT_FOUND")
+        purchase = self.engine.lock_purchase(purchase_id)
+        open_amount = purchase.amount - active_allocated(self._s, purchase_id=purchase.id)
+        if open_amount <= 0:
+            raise BusinessRuleViolation("This purchase is already fully paid for", code="OVER_ALLOCATION")
+        self.allocate(purchase.id, PurchaseAllocationIn(payment_id=payment_id, amount=min(amount, open_amount)))
 
     def credit_activate(self, purchase_id: uuid.UUID, body: CreditActivationIn) -> HoursPurchaseDto:
         self._require_enabled()

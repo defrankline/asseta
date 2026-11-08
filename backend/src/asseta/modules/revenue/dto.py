@@ -278,6 +278,7 @@ class NonRevenueApprovalIn(BaseModel):
     activity_id: uuid.UUID
     reason_id: uuid.UUID = Field(description="Active entry of the tenant's revenue reason list")
     note: Note
+    evidence_attachment_ids: list[uuid.UUID] = Field(default_factory=list, max_length=20)
 
 
 class NonRevenueDecisionIn(BaseModel):
@@ -291,6 +292,7 @@ class NonRevenueApprovalDto(BaseModel):
     id: uuid.UUID
     activity_id: uuid.UUID
     job_id: uuid.UUID
+    evidence_attachment_ids: list[uuid.UUID] | None = None
     job_number: str | None = None
     machine_id: uuid.UUID
     machine_code: str | None = None

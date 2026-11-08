@@ -58,16 +58,23 @@ export const ACK_METHODS: readonly CashAckMethod[] = [
   'RECORDER_IS_RECEIVER',
   'NOT_REQUIRED',
 ];
-export const VARIANCE_SOURCES: readonly VarianceSource[] = ['TRANSFER', 'REMITTANCE', 'FLOAT'];
+export const VARIANCE_SOURCES: readonly VarianceSource[] = [
+  'TRANSFER',
+  'REMITTANCE',
+  'FLOAT',
+  'CUSTOMER_HOUR',
+];
 export const VARIANCE_STATUSES: readonly VarianceStatus[] = [
   'OPEN',
   'WRITE_OFF_PROPOSED',
+  'CLOSURE_PROPOSED',
   'RESOLVED',
 ];
 export const VARIANCE_OUTCOMES: readonly VarianceOutcome[] = [
   'RECOVERED',
   'CORRECTED_ERROR',
   'WRITTEN_OFF',
+  'EXPLAINED',
 ];
 export const DECISION_STATUSES: readonly CashDecisionStatus[] = ['PENDING', 'APPROVED', 'REJECTED'];
 export const ADJUSTMENT_KINDS: readonly CustodyAdjustmentKind[] = ['REVERSAL', 'ADJUSTMENT'];
@@ -76,6 +83,7 @@ export const REASON_KINDS: readonly CashReasonKind[] = [
   'WRITE_OFF',
   'RETENTION',
   'ADJUSTMENT',
+  'PARTIAL_REMITTANCE',
 ];
 export const FIGURES: readonly ReconciliationFigure[] = [
   'floats_issued',

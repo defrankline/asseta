@@ -207,18 +207,18 @@ def test_deposit_accounts_off_requires_no_account(api: Api) -> None:
 def test_managed_service_off_hides_only_the_tenant_page(api: Api) -> None:
     t = api.onboard("No Mandate Page", price="1")
     owner, tid = t["owner"], t["tenant"]["id"]
-    mandate = grant(api, tid)
     assert _ok(owner.get(f"{T}/managed-service"))
 
+    # Off only while no mandate is open (mandate safety: test_independence_evidence).
     _policy(owner, "OVERSIGHT", managed_service_enabled=False)
     assert "MANAGED_SERVICE" in _nav(owner)["disabled_capabilities"]
     assert "tenant.managed_service" not in _menu(owner)
     _refused(owner.get(f"{T}/managed-service"), "MANAGED_SERVICE_DISABLED")
-    _refused(
-        owner.post(f"{T}/managed-service/{mandate['id']}/revoke", {"reason": "Not needed"}), "MANAGED_SERVICE_DISABLED"
-    )
 
-    # The mandate stays in force and the platform still governs it.
+    # The platform still governs mandates, and one granted now shows on the tenant's page.
+    mandate = grant(api, tid)
+    assert _ok(owner.get(f"{T}/managed-service"))
+    assert "MANAGED_SERVICE" not in _nav(owner)["disabled_capabilities"]
     detail = _ok(api.platform.get(f"/api/v1/platform/mandates/{mandate['id']}"))
     assert detail["status"] == mandate["status"]
     assert [m["id"] for m in _ok(api.platform.get("/api/v1/platform/mandates")) if m["tenant_id"] == tid] == [

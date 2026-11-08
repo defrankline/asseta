@@ -14,6 +14,7 @@ from asseta.core.audit import AuditActor, AuditService
 from asseta.core.errors import BusinessRuleViolation, NotFound
 from asseta.core.money import quantize
 from asseta.core.outbox import OutboxWriter
+from asseta.core.signals import sod_violation
 from asseta.modules.finance.models import CustomerPayment, SettlementStatus
 from asseta.modules.hours.ledger import (
     ZERO,
@@ -128,10 +129,15 @@ class HoursEngine:
         )
 
     # --- activation -----------------------------------------------------------------------------------------
-    def activate_from_payments(self, purchase: HoursPurchase, payment_id: uuid.UUID | None = None) -> Decimal:
+    def activate_from_payments(
+        self, purchase: HoursPurchase, payment_id: uuid.UUID | None = None, approved: bool = False
+    ) -> Decimal:
         """Raise activated hours to what VERIFIED allocated money pays for (never anything else). Credit-activated
-        hours count as already active: later payments settle them before activating more."""
+        hours count as already active: later payments settle them before activating more. A purchase that costs
+        nothing activates only with a second person's approval (`approved`) unless the tenant waives it."""
         if purchase.cancelled_at is not None or ActivationBasis.VERIFIED_PAYMENT not in self.policy.activation_basis:
+            return ZERO
+        if purchase.amount <= 0 and self.policy.zero_amount_requires_approval and not approved:
             return ZERO
         verified, _ = allocated_amounts(self._s, purchase.id)
         if purchase.amount <= 0:
@@ -152,7 +158,7 @@ class HoursEngine:
             source=ActivationSource.PAYMENT,
             expires_at=expiry_of(self._now, self.policy.expiry_days),
             payment_id=payment_id,
-            reason="Verified payment",
+            reason="Approved: nothing to pay" if purchase.amount <= 0 else "Verified payment",
             policy_version=self.eff.version_stamp,
         )
         self._record(
@@ -198,6 +204,11 @@ class HoursEngine:
             raise BusinessRuleViolation("Credit activation is switched off by tenant policy", code="CREDIT_NOT_ALLOWED")
         if purchase.cancelled_at is not None:
             raise BusinessRuleViolation("The purchase is cancelled", code="PURCHASE_CANCELLED")
+        if purchase.created_by is not None and purchase.created_by == self._actor.user_id:
+            sod_violation(self._tid, self._actor.user_id, "credit_activate", "hours_purchase", purchase.id)
+            raise BusinessRuleViolation(
+                "The person who recorded a purchase cannot activate it on credit", code="SEGREGATION_OF_DUTIES"
+            )
         totals = purchase_totals(self._s, purchase)
         open_hours = purchase.hours - totals.net_activated
         if hours > open_hours:

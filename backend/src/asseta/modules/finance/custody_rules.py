@@ -4,9 +4,10 @@ reason-list validation, and opening a cash variance (with an investigation case 
 import uuid
 from datetime import date, datetime, time
 from decimal import Decimal
+from typing import Any
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from asseta.core.audit import AuditService
@@ -18,6 +19,8 @@ from asseta.modules.finance.custody_models import (
     CashReason,
     CashReasonKind,
     CashVariance,
+    CashVarianceEvent,
+    VarianceEventAction,
     VarianceSource,
     VarianceStatus,
 )
@@ -118,6 +121,35 @@ def check_reason(session: Session, kind: CashReasonKind, reason_id: uuid.UUID | 
     return reason.id
 
 
+def variance_event(
+    session: Session,
+    v: CashVariance,
+    action: VarianceEventAction,
+    actor: uuid.UUID | None,
+    at: datetime,
+    note: str | None = None,
+    data: dict[str, Any] | None = None,
+) -> None:
+    """Append one line to the variance's investigation history (T8). Callers hold the variance's row lock."""
+    seq = session.execute(
+        select(func.count()).select_from(CashVarianceEvent).where(CashVarianceEvent.variance_id == v.id)
+    ).scalar_one()
+    session.add(
+        CashVarianceEvent(
+            id=uuid.uuid4(),
+            tenant_id=v.tenant_id,
+            variance_id=v.id,
+            action=action,
+            actor_user_id=actor,
+            note=note,
+            data=data or {},
+            occurred_at=at,
+            seq=seq + 1,
+        )
+    )
+    session.flush()
+
+
 def open_variance(
     session: Session,
     ctx: RequestContext,
@@ -192,6 +224,7 @@ def open_variance(
     )
     session.add(row)
     session.flush()
+    variance_event(session, row, VarianceEventAction.OPENED, ctx.user_id, now)
     AuditService(session).record(
         actor=ctx.audit_actor(),
         action="finance.cash_variance.opened",

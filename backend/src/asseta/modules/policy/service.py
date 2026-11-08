@@ -72,6 +72,10 @@ class PolicyService:
     def __init__(self, session: Session):
         self._s = session
 
+    @property
+    def session(self) -> Session:
+        return self._s
+
     def _latest(
         self, ptype: PolicyType, scope: PolicyScope, tenant_id: uuid.UUID | None, ref: uuid.UUID | None, at: datetime
     ) -> PolicyVersion | None:

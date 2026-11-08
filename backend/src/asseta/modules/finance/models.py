@@ -25,7 +25,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from asseta.core.db import Base, SyncRevisioned, UuidPk, utcnow
-from asseta.modules.finance.deposit_models import RemittanceEvidence, RemittanceMethod
+from asseta.modules.finance.deposit_models import PartialRemittanceApproval, RemittanceEvidence, RemittanceMethod
 from asseta.modules.jobs.charges import ChargeKind
 
 MONEY = Numeric(18, 4)
@@ -170,6 +170,7 @@ class CustomerPayment(UuidPk, SyncRevisioned, Base):
     __table_args__ = (
         UniqueConstraint("tenant_id", "client_id", name="uq_customer_payment_client"),
         UniqueConstraint("tenant_id", "method", "reference", name="uq_customer_payment_reference"),
+        UniqueConstraint("tenant_id", "collection_number", name="uq_customer_payment_number"),
         CheckConstraint("amount > 0", name="ck_customer_payment_amount"),
         CheckConstraint("method = 'CASH' OR reference IS NOT NULL", name="ck_customer_payment_reference"),
     )
@@ -195,6 +196,8 @@ class CustomerPayment(UuidPk, SyncRevisioned, Base):
     # The payment stays as recorded; the balance offsets are separate records. Only these two columns may ever change.
     reversed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     reversal_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    # DEC-032: the generated reference (COL-<yyyy>-<nnnnn> cash, PAY-... otherwise), distinct from `reference`.
+    collection_number: Mapped[str] = mapped_column(String(32), nullable=False)
 
 
 class HirePaymentAllocation(UuidPk, Base):
@@ -242,6 +245,7 @@ class CashHandover(UuidPk, SyncRevisioned, Base):
     __tablename__ = "cash_handover"
     __table_args__ = (
         UniqueConstraint("tenant_id", "client_id", name="uq_cash_handover_client"),
+        UniqueConstraint("tenant_id", "remittance_number", name="uq_cash_handover_number"),
         CheckConstraint("amount > 0", name="ck_cash_handover_amount"),
     )
 
@@ -269,6 +273,8 @@ class CashHandover(UuidPk, SyncRevisioned, Base):
     # Stronger remittances (DEC-031 D2): how and where the money went, fixed at recording (null on older rows).
     method: Mapped[RemittanceMethod | None] = mapped_column(_enum(RemittanceMethod))
     deposit_account_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("company_deposit_account.id"))
+    # DEC-032: the generated reference RMT-<yyyy>-<nnnnn>; `reference` stays the bank/mobile transaction reference.
+    remittance_number: Mapped[str] = mapped_column(String(32), nullable=False)
     evidence: Mapped[list[RemittanceEvidence]] = relationship(
         RemittanceEvidence,
         primaryjoin="CashHandover.id == foreign(RemittanceEvidence.handover_id)",
@@ -276,7 +282,31 @@ class CashHandover(UuidPk, SyncRevisioned, Base):
         lazy="selectin",
         viewonly=True,
     )
+    partial_approval: Mapped[PartialRemittanceApproval | None] = relationship(
+        PartialRemittanceApproval,
+        primaryjoin="CashHandover.id == foreign(PartialRemittanceApproval.handover_id)",
+        uselist=False,
+        lazy="selectin",
+        viewonly=True,
+    )
 
     @property
     def evidence_attachment_ids(self) -> list[uuid.UUID]:
         return [e.attachment_id for e in self.evidence]
+
+    @property
+    def evidence_status(self) -> str:
+        """Guideline 4.5: only what the company confirmed reduces the custodian's balance. DECLARED (a claim), SUPPORTED
+        (a claim with supporting evidence), CONFIRMED (independently confirmed as received). A rejected remittance
+        keeps the evidence level it had."""
+        if self.status is SettlementStatus.VERIFIED:
+            return "CONFIRMED"
+        return "SUPPORTED" if self.evidence else "DECLARED"
+
+    @property
+    def outstanding_difference(self) -> Decimal | None:
+        """Declared minus confirmed, once confirmed (guideline 4.5); null until then."""
+        if self.status is not SettlementStatus.VERIFIED:
+            return None
+        received = self.amount_received if self.amount_received is not None else self.amount
+        return self.amount - received

@@ -40,7 +40,9 @@ export const varianceChip = (v: CashVarianceDto) => (
 export const varianceCustodian = (v: CashVarianceDto) =>
   nameOr(v.staff_member_name, v.staff_member_id);
 
-const SOURCE_KIND: Readonly<Record<CashVarianceDto['source_type'], RecordKind>> = {
+const SOURCE_KIND: Readonly<
+  Record<Exclude<CashVarianceDto['source_type'], 'CUSTOMER_HOUR'>, RecordKind>
+> = {
   TRANSFER: 'CASH_TRANSFER',
   REMITTANCE: 'CASH_REMITTANCE',
   FLOAT: 'CASH_FLOAT',
@@ -48,7 +50,9 @@ const SOURCE_KIND: Readonly<Record<CashVarianceDto['source_type'], RecordKind>> 
 
 /** The record whose declared ≠ received amount opened the variance. */
 export const varianceSourcePath = (v: CashVarianceDto) =>
-  recordPath(SOURCE_KIND[v.source_type], v.source_id);
+  v.source_type === 'CUSTOMER_HOUR'
+    ? recordPath('CASH_VARIANCE', v.id) // a sweep finding: the variance itself is the record
+    : recordPath(SOURCE_KIND[v.source_type], v.source_id);
 
 type Open = { kind: 'resolve' | 'propose' | 'decide'; v: CashVarianceDto } | null;
 

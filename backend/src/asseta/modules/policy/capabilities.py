@@ -12,6 +12,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from asseta.core.errors import BusinessRuleViolation
+from asseta.modules.policy.managed_switch import has_open_mandate
 from asseta.modules.policy.service import PolicyService
 
 Check = Callable[[PolicyService, uuid.UUID, datetime], bool]
@@ -61,8 +62,11 @@ CAPABILITIES: dict[str, Check] = {
     TRACKING: lambda svc, tid, at: svc.tracking(tid, at=at).policy.enabled,
     # Company deposit accounts (CASH_CUSTODY.deposit_accounts_enabled); off, remittance_account_required reads off.
     DEPOSIT_ACCOUNTS: lambda svc, tid, at: svc.cash_custody(tid, at=at).policy.deposit_accounts_enabled,
-    # Only the tenant's own Managed service page: mandates stay in force and platform governance is unaffected.
-    MANAGED_SERVICE: lambda svc, tid, at: svc.oversight(tid, at=at).policy.managed_service_enabled,
+    # Only the tenant's own Managed service page: mandates stay in force and platform governance is unaffected. Never
+    # off while a mandate is open, however the switch came to be off (a future-dated version, a mandate granted later).
+    MANAGED_SERVICE: lambda svc, tid, at: (
+        svc.oversight(tid, at=at).policy.managed_service_enabled or has_open_mandate(svc.session, tid, at)
+    ),
 }
 
 # Capabilities whose safe platform default is OFF (a tenant opts in): an unconfigured policy counts as off for them.

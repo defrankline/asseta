@@ -8,6 +8,7 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 from enum import StrEnum
+from typing import Any
 
 from sqlalchemy import (
     CheckConstraint,
@@ -22,7 +23,7 @@ from sqlalchemy import (
     UniqueConstraint,
     text,
 )
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from asseta.core.db import Base, SyncRevisioned, Timestamps, UuidPk, utcnow
@@ -51,11 +52,18 @@ class VarianceSource(StrEnum):
     TRANSFER = "TRANSFER"
     REMITTANCE = "REMITTANCE"
     FLOAT = "FLOAT"
+    CUSTOMER_HOUR = "CUSTOMER_HOUR"  # purchase vs consumption vs allocation mismatch found by the sweep (DEC-032)
+
+
+class VarianceUnit(StrEnum):
+    MONEY = "MONEY"  # cash differences (the figures are money in `currency`)
+    HOURS = "HOURS"  # customer-hour differences (the figures are hours; `currency` is the tenant's, not used)
 
 
 class VarianceStatus(StrEnum):
     OPEN = "OPEN"
     WRITE_OFF_PROPOSED = "WRITE_OFF_PROPOSED"
+    CLOSURE_PROPOSED = "CLOSURE_PROPOSED"  # explanation proposed by one person, awaiting a second person (DEC-032)
     RESOLVED = "RESOLVED"
 
 
@@ -63,6 +71,7 @@ class VarianceOutcome(StrEnum):
     RECOVERED = "RECOVERED"
     CORRECTED_ERROR = "CORRECTED_ERROR"
     WRITTEN_OFF = "WRITTEN_OFF"
+    EXPLAINED = "EXPLAINED"  # the records stand; the explanation is on file (customer-hour variances)
 
 
 class CashReasonKind(StrEnum):
@@ -72,6 +81,7 @@ class CashReasonKind(StrEnum):
     WRITE_OFF = "WRITE_OFF"
     RETENTION = "RETENTION"
     ADJUSTMENT = "ADJUSTMENT"
+    PARTIAL_REMITTANCE = "PARTIAL_REMITTANCE"
 
 
 class CustodyAdjustmentKind(StrEnum):
@@ -106,6 +116,19 @@ class CashReason(UuidPk, Deactivatable, Timestamps, Base):
     __mapper_args__ = {"version_id_col": version}  # noqa: RUF012
 
 
+class VarianceEventAction(StrEnum):
+    OPENED = "OPENED"
+    ASSIGNED = "ASSIGNED"
+    EXPLAINED = "EXPLAINED"
+    CLOSURE_PROPOSED = "CLOSURE_PROPOSED"
+    CLOSURE_APPROVED = "CLOSURE_APPROVED"
+    CLOSURE_REJECTED = "CLOSURE_REJECTED"
+    WRITE_OFF_PROPOSED = "WRITE_OFF_PROPOSED"
+    WRITE_OFF_APPROVED = "WRITE_OFF_APPROVED"
+    WRITE_OFF_REJECTED = "WRITE_OFF_REJECTED"
+    RESOLVED = "RESOLVED"
+
+
 class CashTransfer(UuidPk, SyncRevisioned, Base):
     """Field-to-field cash transfer. Never a company receipt: it only moves accountability between custodians, and
     only once acknowledged (the acknowledged amount moves; any difference stays with the sender as a variance)."""
@@ -113,6 +136,7 @@ class CashTransfer(UuidPk, SyncRevisioned, Base):
     __tablename__ = "cash_transfer"
     __table_args__ = (
         UniqueConstraint("tenant_id", "client_id", name="uq_cash_transfer_client"),
+        UniqueConstraint("tenant_id", "transfer_number", name="uq_cash_transfer_number"),
         CheckConstraint("amount_declared > 0", name="ck_cash_transfer_amount"),
         CheckConstraint("amount_received IS NULL OR amount_received >= 0", name="ck_cash_transfer_received"),
         CheckConstraint("from_staff_id <> to_staff_id", name="ck_cash_transfer_parties"),
@@ -136,6 +160,7 @@ class CashTransfer(UuidPk, SyncRevisioned, Base):
     acknowledged_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     ack_note: Mapped[str | None] = mapped_column(Text)
+    transfer_number: Mapped[str] = mapped_column(String(32), nullable=False)  # generated CTR-<yyyy>-<nnnnn>
 
 
 class CashFloatAcknowledgement(UuidPk, Base):
@@ -196,6 +221,40 @@ class CashVariance(UuidPk, Base):
     resolved_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     resolution_note: Mapped[str | None] = mapped_column(Text)
+    # DEC-032 T8: investigation (assignee, explanation + evidence), the closure a second person decides, what the
+    # figures measure, and the customer-hour subject (null on cash variances).
+    unit: Mapped[VarianceUnit] = mapped_column(_enum(VarianceUnit, 16), nullable=False, default=VarianceUnit.MONEY)
+    proposed_outcome: Mapped[VarianceOutcome | None] = mapped_column(_enum(VarianceOutcome))
+    assignee_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), index=True)
+    assigned_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    assigned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    explanation: Mapped[str | None] = mapped_column(Text)
+    explained_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    explained_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    evidence_attachment_ids: Mapped[list[uuid.UUID]] = mapped_column(
+        ARRAY(UUID(as_uuid=True)), nullable=False, default=list
+    )
+    check_code: Mapped[str | None] = mapped_column(String(40))  # which customer-hour mismatch (CUSTOMER_HOUR)
+    customer_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("customer.id"), index=True)
+    machine_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("machine.id"))
+    purchase_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("hours_purchase.id"), index=True)
+    job_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("job.id"))
+
+
+class CashVarianceEvent(UuidPk, Base):
+    """The investigation history of a variance (T8): who did what, when, with what note. Append-only."""
+
+    __tablename__ = "cash_variance_event"
+    __table_args__ = (UniqueConstraint("variance_id", "seq", name="uq_cash_variance_event_seq"),)
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenant.id"), nullable=False, index=True)
+    variance_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("cash_variance.id"), nullable=False)
+    action: Mapped[VarianceEventAction] = mapped_column(_enum(VarianceEventAction, 24), nullable=False)
+    actor_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    note: Mapped[str | None] = mapped_column(Text)
+    data: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    seq: Mapped[int] = mapped_column(Integer, nullable=False)  # order within the variance (row lock serialises)
 
 
 class CashRetention(UuidPk, Base):
@@ -204,6 +263,7 @@ class CashRetention(UuidPk, Base):
     __tablename__ = "cash_retention"
     __table_args__ = (
         CheckConstraint("amount > 0", name="ck_cash_retention_amount"),
+        UniqueConstraint("tenant_id", "retention_number", name="uq_cash_retention_number"),
         UniqueConstraint("tenant_id", "client_id", name="uq_cash_retention_client"),
     )
 
@@ -221,6 +281,8 @@ class CashRetention(UuidPk, Base):
     decided_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     decision_note: Mapped[str | None] = mapped_column(Text)
+    retention_number: Mapped[str] = mapped_column(String(32), nullable=False)  # generated RET-<yyyy>-<nnnnn>
+    client_created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # device time when offline
 
 
 class CustodyAdjustment(UuidPk, Base):
@@ -228,7 +290,10 @@ class CustodyAdjustment(UuidPk, Base):
     approved by another; counts only once APPROVED."""
 
     __tablename__ = "custody_adjustment"
-    __table_args__ = (CheckConstraint("amount <> 0", name="ck_custody_adjustment_amount"),)
+    __table_args__ = (
+        CheckConstraint("amount <> 0", name="ck_custody_adjustment_amount"),
+        UniqueConstraint("tenant_id", "adjustment_number", name="uq_custody_adjustment_number"),
+    )
 
     tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenant.id"), nullable=False, index=True)
     staff_member_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("staff_member.id"), nullable=False, index=True)
@@ -246,6 +311,11 @@ class CustodyAdjustment(UuidPk, Base):
     decided_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     decision_note: Mapped[str | None] = mapped_column(Text)
+    adjustment_number: Mapped[str] = mapped_column(String(32), nullable=False)  # generated CADJ-<yyyy>-<nnnnn>
+    client_created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    evidence_attachment_ids: Mapped[list[uuid.UUID]] = mapped_column(
+        ARRAY(UUID(as_uuid=True)), nullable=False, default=list
+    )
 
 
 class OverdueReason(StrEnum):

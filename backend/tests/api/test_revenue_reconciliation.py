@@ -126,6 +126,9 @@ def test_movement_counts_as_revenue_until_explained_and_approved_by_a_second_per
 
     reason = _ok(o.post(f"{T}/revenue-reasons", {"code": "MOVE", "name": "Moving between sites"}), 201)
     body = {"activity_id": activity["activity_id"], "reason_id": reason["id"], "note": "Drove to the quarry site"}
+    _policy(o, deduct_non_revenue_from_working_hours=True, non_revenue_evidence_required=True)
+    assert _code(acct.post(f"{T}/non-revenue-approvals", body), 422) == "EVIDENCE_REQUIRED"
+    _policy(o, deduct_non_revenue_from_working_hours=True)
     proposed = _ok(acct.post(f"{T}/non-revenue-approvals", body), 201)
     assert (proposed["status"], proposed["reason_name"], Decimal(proposed["hours"])) == (
         "PROPOSED",

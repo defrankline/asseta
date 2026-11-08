@@ -406,7 +406,7 @@ class AccountabilityDashboard:
         )
 
     def _discrepancies(self, _: int) -> DiscrepanciesTileDto:
-        open_states = (VarianceStatus.OPEN, VarianceStatus.WRITE_OFF_PROPOSED)
+        open_states = (VarianceStatus.OPEN, VarianceStatus.WRITE_OFF_PROPOSED, VarianceStatus.CLOSURE_PROPOSED)
         variances: dict[str, list[Any]] = defaultdict(lambda: [0, Decimal(0)])
         rows = (
             self._s.execute(

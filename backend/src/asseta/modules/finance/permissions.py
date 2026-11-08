@@ -20,6 +20,9 @@ COLLECT = requires(
 )
 # Cash custody chain controls (accountability design C). Approvals are permissions; never tied to a role.
 VARIANCE = requires("tenant.finance.variance", S.TENANT, "Resolve cash variances and propose write-offs")
+VARIANCE_CLOSE = requires(
+    "tenant.finance.variance_close", S.TENANT, "Approve or reject proposed variance closures (never your own)"
+)
 WRITEOFF = requires("tenant.finance.writeoff", S.TENANT, "Write off cash variances (approve proposed write-offs)")
 RETENTION_APPROVE = requires(
     "tenant.finance.retention_approve", S.TENANT, "Approve or reject requests to retain field cash"

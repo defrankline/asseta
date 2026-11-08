@@ -22,6 +22,7 @@ from asseta.core.signals import sod_violation
 from asseta.modules.adjustments.models import AdjustmentEntryStatus, AdjustmentType, AdjustmentUnit
 from asseta.modules.adjustments.posting import AdjustmentPosting, post_adjustment
 from asseta.modules.finance.common import currency_or_default
+from asseta.modules.finance.references import HOURS_TRANSFER, reference
 from asseta.modules.fleet.models import Machine, MachineStatus
 from asseta.modules.hours.dto import (
     CancellationDto,
@@ -57,6 +58,7 @@ from asseta.modules.hours.models import (
 )
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.jobs.models import Customer
+from asseta.modules.meter.evidence_check import require_evidence
 
 T = LedgerEntryType
 Proposal = CustomerDiscount | CreditArrangement
@@ -190,6 +192,7 @@ class HoursApprovals:
             amount=-row.limit_amount if revoked else row.limit_amount,
             currency=row.currency,
             customer_id=row.customer_id,
+            evidence_attachment_ids=list(row.evidence_attachment_ids),
             details={"effective_from": row.effective_from.isoformat()},
         )
 
@@ -479,6 +482,7 @@ class HoursApprovals:
         if not self.engine.policy.credit_allowed:
             raise BusinessRuleViolation("Credit is not allowed by tenant policy", code="CREDIT_NOT_ALLOWED")
         self._customer(body.customer_id)
+        evidence = require_evidence(self._s, self.engine.policy.credit_evidence_required, body.evidence_attachment_ids)
         row = CreditArrangement(
             id=uuid.uuid4(),
             tenant_id=self._tid,
@@ -493,6 +497,7 @@ class HoursApprovals:
             status=ProposalStatus.PROPOSED,
             proposed_by=self._ctx.user_id,
             proposed_at=self._now,
+            evidence_attachment_ids=evidence,
         )
         self._s.add(row)
         self._s.flush()
@@ -565,6 +570,9 @@ class HoursApprovals:
         if source == target.id:
             raise BusinessRuleViolation("Choose a different machine", code="SAME_MACHINE")
         self._check_remaining(purchase, source, body.hours)
+        evidence = require_evidence(
+            self._s, self.engine.policy.transfer_evidence_required, body.evidence_attachment_ids
+        )
         row = HoursTransfer(
             id=uuid.uuid4(),
             tenant_id=self._tid,
@@ -578,6 +586,8 @@ class HoursApprovals:
             status=RequestStatus.PENDING,
             requested_by=self._ctx.user_id,
             requested_at=self._now,
+            transfer_number=reference(self._s, self._tid, HOURS_TRANSFER, self._now),
+            evidence_attachment_ids=evidence,
         )
         self._s.add(row)
         self._s.flush()
@@ -671,6 +681,7 @@ class HoursApprovals:
             resulting_balance=remaining,
             customer_id=purchase.customer_id,
             machine_id=row.from_machine_id,
+            evidence_attachment_ids=list(row.evidence_attachment_ids),
             details={"to_machine_id": str(row.to_machine_id), "purchase_id": str(purchase.id)},
         )
         self.engine.cover_overruns(purchase.customer_id, row.to_machine_id)
@@ -717,6 +728,7 @@ class HoursApprovals:
                 amount=row.hours,
                 customer_id=purchase.customer_id,
                 machine_id=row.from_machine_id,
+                evidence_attachment_ids=list(row.evidence_attachment_ids),
                 details={"to_machine_id": str(row.to_machine_id)},
             )
         self._notify_decided("TRANSFER", row.id, row.requested_by, row.status.value)

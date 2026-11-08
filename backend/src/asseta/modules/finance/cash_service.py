@@ -33,10 +33,11 @@ from asseta.modules.finance.common import (
     resolve_staff,
     tenant_settings,
 )
-from asseta.modules.finance.custody_dto import CustodyTransactionDto, ReconciliationFigure
+from asseta.modules.finance.custody_dto import CustodyTransactionDto, DecisionIn, ReconciliationFigure
 from asseta.modules.finance.custody_models import (
     CashDecisionStatus,
     CashFloatAcknowledgement,
+    CashReasonKind,
     CashRetention,
     CashTransfer,
     CashTransferStatus,
@@ -45,9 +46,21 @@ from asseta.modules.finance.custody_models import (
     VarianceOutcome,
     VarianceSource,
 )
-from asseta.modules.finance.custody_rules import cash_policy, open_variance, refuse_sod, resolve_recorded_custodian
+from asseta.modules.finance.custody_rules import (
+    cash_policy,
+    check_reason,
+    open_variance,
+    own_staff,
+    refuse_sod,
+    resolve_recorded_custodian,
+)
 from asseta.modules.finance.deposit_accounts import DepositAccountService, require_active_account
-from asseta.modules.finance.deposit_models import ACCOUNT_TYPE_METHOD, CompanyDepositAccount, RemittanceMethod
+from asseta.modules.finance.deposit_models import (
+    ACCOUNT_TYPE_METHOD,
+    CompanyDepositAccount,
+    PartialRemittanceApproval,
+    RemittanceMethod,
+)
 from asseta.modules.finance.dto import (
     CashCollectionIn,
     CashCustodyBalanceDto,
@@ -70,7 +83,8 @@ from asseta.modules.finance.models import (
     SettlementStatus,
     SupervisorCashCustody,
 )
-from asseta.modules.finance.payment_service import CustomerPaymentService
+from asseta.modules.finance.payment_service import CustomerPaymentService, payment_dto
+from asseta.modules.finance.references import REMITTANCE, reference
 from asseta.modules.fleet.models import StaffKind, StaffMember
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.policy.schemas import CashCustodyPolicy
@@ -205,8 +219,32 @@ class CashCustodyService:
             )
         return custody_entry_dto(row, None)
 
-    def record_collection(self, body: CashCollectionIn, source: str = "API") -> CustomerPaymentDto:
-        staff = resolve_recorded_custodian(self._s, self._ctx, body.staff_member_id, self._policy().policy)
+    def _replayed_collection(self, client_id: uuid.UUID | None) -> CustomerPayment | None:
+        if client_id is None:
+            return None
+        return self._s.execute(
+            select(CustomerPayment).where(CustomerPayment.client_id == client_id)
+        ).scalar_one_or_none()
+
+    def record_collection(
+        self, body: CashCollectionIn, source: str = "API", link_satisfied: bool = False
+    ) -> CustomerPaymentDto:
+        """Cash received from a customer. When the tenant requires it, the collection names what it pays for: an
+        invoice (allocations), an hours purchase (purchase_id, linked up to its open amount), or both. The link is
+        checked when the collection is recorded, online or at sync (a device cannot skip it)."""
+        replay = self._replayed_collection(body.client_id)
+        policy = self._policy().policy
+        if (
+            replay is None
+            and policy.collection_link_required
+            and not link_satisfied
+            and not body.allocations
+            and body.purchase_id is None
+        ):
+            raise BusinessRuleViolation(
+                "Name the purchase or invoice this cash pays for", code="COLLECTION_LINK_REQUIRED"
+            )
+        staff = resolve_recorded_custodian(self._s, self._ctx, body.staff_member_id, policy)
         payment = CustomerPaymentIn(
             customer_id=body.customer_id,
             amount=body.amount,
@@ -219,7 +257,13 @@ class CashCustodyService:
             client_id=body.client_id,
             allocations=body.allocations,
         )
-        return CustomerPaymentService(self._s, self._ctx, self._now).record(payment, source)
+        recorded = CustomerPaymentService(self._s, self._ctx, self._now).record(payment, source)
+        if body.purchase_id is not None and replay is None:
+            from asseta.modules.hours.service import HoursService  # lazy: the hours service builds on this one
+
+            HoursService(self._s, self._ctx, self._now).link_collection(recorded.id, body.purchase_id, recorded.amount)
+            return payment_dto(self._s, CustomerPaymentService(self._s, self._ctx, self._now).payment(recorded.id))
+        return recorded
 
     def approved_retention(self, staff_id: uuid.UUID, currency: str) -> Decimal:
         """Cash the custodian is currently authorised to keep (approved, unexpired retentions)."""
@@ -257,6 +301,7 @@ class CashCustodyService:
                 - balance.approved_retention
             )
             shortfall = gap if gap > 0 else None
+        reason_id = self._partial_reason(body, shortfall)
         row = CashHandover(
             id=uuid.uuid4(),
             tenant_id=self._tid,
@@ -275,8 +320,11 @@ class CashCustodyService:
             partial_shortfall=shortfall,
             method=method,
             deposit_account_id=account.id if account is not None else None,
+            remittance_number=reference(self._s, self._tid, REMITTANCE, self._now),
         )
         insert(self._s, row, "DUPLICATE_HANDOVER", "Handover already recorded")
+        if shortfall is not None:
+            self._request_partial_approval(row, body, reason_id, shortfall)
         if body.evidence_attachment_ids:
             DepositAccountService(self._s, self._ctx, self._now).link_evidence(row.id, body.evidence_attachment_ids)
             self._s.flush()
@@ -318,6 +366,99 @@ class CashCustodyService:
                 payload={**payload, "shortfall": str(shortfall), "expected_balance": str(balance.outstanding)},
                 tenant_id=self._tid,
             )
+        return CashHandoverDto.model_validate(row)
+
+    def _partial_reason(self, body: CashHandoverIn, shortfall: Decimal | None) -> uuid.UUID | None:
+        """Under the full-remittance policy a remittance that leaves cash behind needs a reason (guideline 3.3 #9);
+        a reason from the tenant's list when it keeps one, plus the words."""
+        if shortfall is None:
+            return None
+        if not body.partial_reason:
+            raise BusinessRuleViolation(
+                "This remittance leaves part of the balance with the custodian; give the reason",
+                code="PARTIAL_REMITTANCE_REASON_REQUIRED",
+            )
+        return check_reason(self._s, CashReasonKind.PARTIAL_REMITTANCE, body.partial_reason_id)
+
+    def _request_partial_approval(
+        self, row: CashHandover, body: CashHandoverIn, reason_id: uuid.UUID | None, shortfall: Decimal
+    ) -> None:
+        assert body.partial_reason is not None
+        approval = PartialRemittanceApproval(
+            id=uuid.uuid4(),
+            tenant_id=self._tid,
+            handover_id=row.id,
+            reason_id=reason_id,
+            reason=body.partial_reason,
+            status=CashDecisionStatus.PENDING.value,
+            created_by=self._ctx.user_id,
+            created_at=self._now,
+        )
+        self._s.add(approval)
+        self._s.flush()
+        self._s.expire(row, ["partial_approval"])
+        self._audit.record(
+            actor=self._ctx.audit_actor(),
+            action="finance.handover.partial_reason_requested",
+            entity_type="cash_handover",
+            entity_id=row.id,
+            tenant_id=self._tid,
+            after={"shortfall": str(shortfall), "reason_id": str(reason_id) if reason_id else None},
+            reason=body.partial_reason,
+        )
+        OutboxWriter(self._s).emit(
+            topic=TOPIC,
+            event_type="CashApprovalRequested",
+            key=str(row.staff_member_id),
+            payload={
+                "kind": "PARTIAL_REMITTANCE",
+                "permission": "tenant.finance.retention_approve",
+                "entity_type": "cash_handover",
+                "entity_id": str(row.id),
+                "amount": str(shortfall),
+                "currency": row.currency,
+            },
+            tenant_id=self._tid,
+        )
+
+    def decide_partial_reason(self, handover_id: uuid.UUID, body: DecisionIn) -> CashHandoverDto:
+        """A second person approves or rejects the reason a remittance left cash with the custodian. Never the
+        recorder or the custodian. Independent of the money's own confirmation."""
+        approval = self._s.execute(
+            select(PartialRemittanceApproval)
+            .where(PartialRemittanceApproval.handover_id == handover_id)
+            .with_for_update()
+        ).scalar_one_or_none()
+        row = self._s.get(CashHandover, handover_id)
+        if approval is None or row is None:
+            raise NotFound("No partial remittance reason on this remittance", code="PARTIAL_APPROVAL_NOT_FOUND")
+        if approval.status != CashDecisionStatus.PENDING.value:
+            raise Conflict(f"Already {approval.status}", code="ALREADY_DECIDED")
+        own = own_staff(self._s, self._ctx)
+        if approval.created_by == self._ctx.user_id or (own is not None and own.id == row.staff_member_id):
+            refuse_sod(self._ctx, "approve", "cash_handover", row.id, "The reason is approved by someone else")
+        approval.status = CashDecisionStatus.APPROVED.value if body.approve else CashDecisionStatus.REJECTED.value
+        approval.decided_by, approval.decided_at, approval.decision_note = self._ctx.user_id, self._now, body.note
+        self._s.flush()
+        self._audit.record(
+            actor=self._ctx.audit_actor(),
+            action=f"finance.handover.partial_reason_{approval.status.lower()}",
+            entity_type="cash_handover",
+            entity_id=row.id,
+            tenant_id=self._tid,
+            before={"status": "PENDING"},
+            after={"status": approval.status},
+            reason=body.note,
+        )
+        if approval.created_by is not None and approval.created_by != self._ctx.user_id:
+            OutboxWriter(self._s).emit(
+                topic=TOPIC,
+                event_type="PartialRemittanceDecided",
+                key=str(row.id),
+                payload={"handover_id": str(row.id), "user_id": str(approval.created_by), "outcome": approval.status},
+                tenant_id=self._tid,
+            )
+        self._s.expire(row, ["partial_approval"])
         return CashHandoverDto.model_validate(row)
 
     def _remittance_destination(
@@ -367,6 +508,9 @@ class CashCustodyService:
             raise Conflict(f"Handover already {row.status.value}", code="HANDOVER_ALREADY_DECIDED")
         if row.recorded_by == self._ctx.user_id:
             refuse_sod(self._ctx, "verify", "cash_handover", row.id, "The recorder of a handover cannot verify it")
+        own = own_staff(self._s, self._ctx)  # always enforced: not even someone else's record of your own remittance
+        if own is not None and own.id == row.staff_member_id:
+            refuse_sod(self._ctx, "verify", "cash_handover", row.id, "A custodian cannot confirm their own remittance")
         if not body.verified and body.amount_received is not None:
             raise BusinessRuleViolation("A rejected remittance has no amount received", code="AMOUNT_RECEIVED_INVALID")
         row.status = SettlementStatus.VERIFIED if body.verified else SettlementStatus.REJECTED
@@ -479,7 +623,7 @@ class CashCustodyService:
                 "customer_payment",
                 p.id,
                 p.status.value,
-                p.reference,
+                p.collection_number,
                 p.note,
                 p.recorded_by,
             )
@@ -519,7 +663,7 @@ class CashCustodyService:
                         "cash_handover",
                         h.id,
                         h.status.value,
-                        h.reference,
+                        h.remittance_number,
                         h.note,
                         h.recorded_by,
                     )
@@ -540,7 +684,7 @@ class CashCustodyService:
                 "cash_transfer",
                 t.id,
                 t.status.value,
-                None,
+                t.transfer_number,
                 t.note,
                 t.recorded_by,
                 other,
@@ -566,7 +710,7 @@ class CashCustodyService:
                 "custody_adjustment",
                 a.id,
                 a.status.value,
-                None,
+                a.adjustment_number,
                 a.reason,
                 a.created_by,
             )

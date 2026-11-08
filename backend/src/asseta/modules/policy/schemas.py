@@ -235,6 +235,16 @@ class CustomerHoursPolicy(BaseModel):
     reversal_used_hours_treatment: UsedHoursTreatment = UsedHoursTreatment.RECEIVABLE
     # T7: corrections, refunds and reversals carry supporting evidence (attachments); a tenant may relax it.
     adjustment_evidence_required: bool = True
+    # DEC-032 Phase 3 (off = today): supporting evidence on hours transfers and credit arrangements.
+    transfer_evidence_required: bool = False
+    credit_evidence_required: bool = False
+    # A purchase that costs nothing (fully discounted) is not activated until a second person approves it. Off: it
+    # activates on recording (the behaviour before this control).
+    zero_amount_requires_approval: bool = True
+    # The customer-hour variance sweep compares purchases, ledger consumption and work allocations; differences at or
+    # below the tolerance (hours) are not reported. Off: no customer-hour variances are opened.
+    variance_sweep_enabled: bool = True
+    variance_tolerance_hours: Decimal = Field(default=Decimal("0.01"), ge=0, le=Decimal(1000))
 
     @model_validator(mode="after")
     def _consistent(self) -> "CustomerHoursPolicy":
@@ -279,6 +289,14 @@ class CashCustodyPolicy(BaseModel):
     # Remote-site cash allowance (DEC-031 D3): days a custodian may hold unremitted cash (beyond approved retentions)
     # before REMITTANCE_OVERDUE (reason HELD_TOO_LONG). Null = no limit. Site and staff overrides allowed.
     max_holding_days: int | None = Field(default=None, ge=1, le=365)
+    # DEC-032 Phase 3: supporting evidence on cash variance closures and custody adjustments (off = today).
+    variance_evidence_required: bool = False
+    custody_adjustment_evidence_required: bool = False
+    # Every cash collection names the purchase or invoice it pays for (online and offline). Off: free-standing.
+    collection_link_required: bool = False
+    # A variance (cash or customer-hour) is closed by a second person after someone proposes the closure. Off: a
+    # variance-permission holder closes it directly. Accountable people, the counterparty and the opener never close.
+    variance_closure_requires_second_person: bool = True
 
     def in_force(self) -> "CashCustodyPolicy":
         """The rules actually enforced: as configured when enabled; switched off as a whole otherwise (the cash
@@ -301,6 +319,10 @@ class CashCustodyPolicy(BaseModel):
                 "remittance_evidence_required": False,
                 "remittance_account_required": False,
                 "max_holding_days": None,
+                "variance_evidence_required": False,
+                "custody_adjustment_evidence_required": False,
+                "collection_link_required": False,
+                "variance_closure_requires_second_person": False,
             }
         )
 
@@ -361,6 +383,9 @@ class OversightPolicy(BaseModel):
     # Off: hides only the tenant's own Managed service page. Never revokes or ends a mandate, and the platform's
     # governance screens keep working.
     managed_service_enabled: bool = True
+    # DEC-032 T8: resolving an investigation case is proposed by one person and approved by another. Off (today): a
+    # resolve-permission holder resolves directly. People whose own records are the evidence never resolve either way.
+    case_closure_requires_second_person: bool = False
 
     @model_validator(mode="after")
     def _consistent(self) -> "OversightPolicy":
@@ -532,6 +557,10 @@ SEED_DEFAULTS: dict[PolicyType, dict[str, object]] = {
         "remittance_account_required": False,
         "deposit_accounts_enabled": True,
         "max_holding_days": None,
+        "variance_evidence_required": False,
+        "custody_adjustment_evidence_required": False,
+        "collection_link_required": False,
+        "variance_closure_requires_second_person": True,
     },
     PolicyType.OVERSIGHT: {
         "hidden_dashboard_tiles": [],
@@ -550,6 +579,7 @@ SEED_DEFAULTS: dict[PolicyType, dict[str, object]] = {
         "insights_enabled": True,
         "investigations_enabled": True,
         "managed_service_enabled": True,
+        "case_closure_requires_second_person": False,
     },
     PolicyType.CUSTOMER_HOURS: {
         "enabled": True,
@@ -576,5 +606,10 @@ SEED_DEFAULTS: dict[PolicyType, dict[str, object]] = {
         "refund_allowed": False,
         "reversal_used_hours_treatment": "RECEIVABLE",
         "adjustment_evidence_required": True,
+        "transfer_evidence_required": False,
+        "credit_evidence_required": False,
+        "zero_amount_requires_approval": True,
+        "variance_sweep_enabled": True,
+        "variance_tolerance_hours": "0.01",
     },
 }

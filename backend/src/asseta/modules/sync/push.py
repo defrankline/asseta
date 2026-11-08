@@ -93,6 +93,15 @@ CONFLICT_CODES = {
     "CHANGEOVER_SAME_CUSTOMER",
     "CHANGEOVER_JOB_REQUIRED",  # billing split switched on after the device queued the changeover
     "CHANGEOVER_JOB_INVALID",  # the follow-on job was approved, cancelled or changed since
+    # DEC-032 Phase 3: the tenant now requires a collection link or supporting evidence, the balance left a partial
+    # remittance without a reason, or the purchase a collection names changed (kept for review, never applied)
+    "COLLECTION_LINK_REQUIRED",
+    "PARTIAL_REMITTANCE_REASON_REQUIRED",
+    "EVIDENCE_REQUIRED",
+    "PURCHASE_NOT_FOUND",
+    "PURCHASE_CANCELLED",
+    "OVER_ALLOCATION",
+    "ALLOCATION_MISMATCH",
 }
 # Operations that belong to a tenant capability (sync capabilities: dto.TENANT_CAPABILITY_OF). A DAILY meter capture
 # is refused by the meter service itself (same code). Customer-hours operations keep their service refusal.
@@ -135,6 +144,7 @@ UPLOAD_FIELDS = {
     "HOURS_PURCHASE": "evidence_upload_ids",
     "CASH_HANDOVER": "evidence_upload_ids",
     "DAILY_REPORT": "evidence_upload_ids",
+    "HOURS_TRANSFER_REQUEST": "evidence_upload_ids",
 }
 
 
@@ -182,6 +192,13 @@ class CashTransferOp(CashTransferIn):
 
 class CashRetentionOp(CashRetentionIn):
     client_id: uuid.UUID
+
+
+class HoursTransferOp(TransferIn):
+    """Offline hours transfer request: evidence by resumable blob uploads (purpose ADJUSTMENT_EVIDENCE; the op waits
+    until they complete) or attachment ids uploaded online."""
+
+    evidence_upload_ids: list[uuid.UUID] = Field(default_factory=list, max_length=20)
 
 
 class CashTransferAckOp(CashAcknowledgementIn):
@@ -376,17 +393,19 @@ class PushService:
             "CASH_TRANSFER_ACKNOWLEDGEMENT": lambda: self._transfer_ack(CashTransferAckOp.model_validate(op.payload)),
             "CASH_FLOAT_ACKNOWLEDGEMENT": lambda: self._float_ack(op.id, CashFloatAckOp.model_validate(op.payload)),
             "CASH_RETENTION_REQUEST": lambda: CashCustodyControls(self._s, self._ctx, self._now).request_retention(
-                CashRetentionOp.model_validate(op.payload), "SYNC"
+                CashRetentionOp.model_validate({**op.payload, "client_created_at": op.created_at_device}), "SYNC"
             ),
             "HOURS_PURCHASE": lambda: self._hours_purchase(
-                HoursPurchaseOp.model_validate({"client_id": op.id, **op.payload})
+                HoursPurchaseOp.model_validate(
+                    {"client_id": op.id, **op.payload, "client_created_at": op.created_at_device}
+                )
             ),
             "SITE_CHECKIN": lambda: SiteCheckinService(self._s, self._ctx, self._now).record(
                 SiteCheckinIn.model_validate(op.payload), "SYNC", device_session_id=device.id
             ),
             "DAILY_REPORT": lambda: self._daily_report(DailyReportOp.model_validate({"id": op.id, **op.payload})),
-            "HOURS_TRANSFER_REQUEST": lambda: HoursApprovals(self._s, self._ctx, self._now).request_transfer(
-                TransferIn.model_validate({"client_id": op.id, **op.payload})
+            "HOURS_TRANSFER_REQUEST": lambda: self._hours_transfer(
+                HoursTransferOp.model_validate({"client_id": op.id, **op.payload})
             ),
         }
         try:
@@ -448,6 +467,18 @@ class PushService:
                 raise ValueError("evidence_upload_ids need a payment")
             purchase.payment.evidence_attachment_ids = [*purchase.payment.evidence_attachment_ids, *evidence]
         return HoursService(self._s, self._ctx, self._now).create_purchase(purchase, "SYNC")
+
+    def _hours_transfer(self, body: HoursTransferOp) -> BaseModel:
+        evidence = list(body.evidence_attachment_ids)
+        for upload_id in body.evidence_upload_ids:
+            upload = self._s.get(BlobUploadSession, upload_id)
+            if upload is None or upload.attachment_id is None:
+                raise NotFound("Evidence upload not found", code="ATTACHMENT_NOT_FOUND")
+            evidence.append(upload.attachment_id)
+        transfer = TransferIn.model_validate(
+            {**body.model_dump(exclude={"evidence_upload_ids"}), "evidence_attachment_ids": evidence}
+        )
+        return HoursApprovals(self._s, self._ctx, self._now).request_transfer(transfer)
 
     def _handover(self, body: CashHandoverOp) -> BaseModel:
         evidence = list(body.evidence_attachment_ids)

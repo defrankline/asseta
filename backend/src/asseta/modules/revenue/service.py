@@ -28,6 +28,7 @@ from asseta.modules.identity.principal import RequestContext
 from asseta.modules.intelligence.models import AnomalyCase
 from asseta.modules.jobs.models import Job, JobActivity
 from asseta.modules.meter.allocation_writer import sync_allocations
+from asseta.modules.meter.evidence_check import require_evidence
 from asseta.modules.policy.service import PolicyService
 from asseta.modules.revenue.dto import (
     DailyMachineSheetDetailDto,
@@ -522,6 +523,7 @@ class RevenueService:
             raise BusinessRuleViolation("This reason is deactivated", code="REASON_INACTIVE")
         job = self._s.get(Job, activity.job_id)
         assert job is not None
+        evidence = require_evidence(self._s, policy.non_revenue_evidence_required, body.evidence_attachment_ids)
         row = NonRevenueApproval(
             id=uuid.uuid4(),
             tenant_id=self._tid,
@@ -538,6 +540,7 @@ class RevenueService:
             proposed_by=self._ctx.user_id,
             proposed_at=self._now,
             policy_version=eff.version_stamp[:80],
+            evidence_attachment_ids=evidence,
         )
         try:
             with self._s.begin_nested():
@@ -628,6 +631,7 @@ class RevenueService:
                 reason_label=reason.name if reason else None,
                 reason=row.note,
                 machine_id=row.machine_id,
+                evidence_attachment_ids=list(row.evidence_attachment_ids),
                 requested_by=row.proposed_by,
                 requested_at=row.proposed_at,
                 approved_by=row.decided_by,

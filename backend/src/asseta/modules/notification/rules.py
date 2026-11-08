@@ -648,14 +648,21 @@ def _cash_float(_: Session, e: DomainEvent) -> list[Intent]:
 @rule("CashApprovalRequested")
 def _cash_approval(_: Session, e: DomainEvent) -> list[Intent]:
     p = e.payload
-    what = {"WRITE_OFF": "write-off", "RETENTION": "cash retention", "CUSTODY_ADJUSTMENT": "custody adjustment"}
+    what = {
+        "WRITE_OFF": "write-off",
+        "RETENTION": "cash retention",
+        "CUSTODY_ADJUSTMENT": "custody adjustment",
+        "PARTIAL_REMITTANCE": "partial remittance reason",
+        "VARIANCE_CLOSURE": "variance closure",
+    }
     label = what.get(p.get("kind", ""), "cash request")
+    amount = f"{p['amount']} hours" if p.get("unit") == "HOURS" else f"{p['currency']} {p['amount']}"
     return [
         Intent(
             "CASH_APPROVAL_REQUESTED",
             (perm(p["permission"]),),
             f"Approve {label}",
-            f"A {label} of {p['currency']} {p['amount']} awaits approval by someone other than the proposer.",
+            f"A {label} of {amount} awaits approval by someone other than the proposer.",
             _key(e),
             record_link(p["entity_type"], p["entity_id"], CASH),
             p["entity_type"],
@@ -680,6 +687,75 @@ def _cash_variance(session: Session, e: DomainEvent) -> list[Intent]:
             record_link("cash_variance", p["variance_id"], f"{CASH}/variances"),
             "cash_variance",
             p["variance_id"],
+        )
+    ]
+
+
+@rule("CustomerHourVarianceOpened")
+def _hour_variance(_: Session, e: DomainEvent) -> list[Intent]:
+    p = e.payload
+    return [
+        Intent(
+            "CUSTOMER_HOUR_VARIANCE_OPENED",
+            (perm("tenant.finance.variance"),),
+            "Customer hours difference to review",
+            f"{str(p.get('check_code', '')).replace('_', ' ').capitalize()}: expected {p['expected']} hours, the "
+            f"records show {p['actual']} hours.",
+            _key(e),
+            record_link("cash_variance", p["variance_id"], f"{CASH}/variances"),
+            "cash_variance",
+            p["variance_id"],
+        )
+    ]
+
+
+@rule("VarianceAssigned")
+def _variance_assigned(_: Session, e: DomainEvent) -> list[Intent]:
+    p = e.payload
+    return [
+        Intent(
+            "VARIANCE_ASSIGNED",
+            (user(p["user_id"]),),
+            "A variance was assigned to you",
+            "Please investigate and record the explanation and evidence.",
+            _key(e),
+            record_link("cash_variance", p["variance_id"], f"{CASH}/variances"),
+            "cash_variance",
+            p["variance_id"],
+        )
+    ]
+
+
+@rule("VarianceClosureDecided")
+def _variance_closure_decided(_: Session, e: DomainEvent) -> list[Intent]:
+    p = e.payload
+    return [
+        Intent(
+            "VARIANCE_CLOSURE_DECIDED",
+            (user(p["user_id"]),),
+            f"Your variance closure was {str(p['outcome']).lower()}",
+            f"The closure you proposed is now {p['outcome']}.",
+            _key(e),
+            record_link("cash_variance", p["variance_id"], f"{CASH}/variances"),
+            "cash_variance",
+            p["variance_id"],
+        )
+    ]
+
+
+@rule("PartialRemittanceDecided")
+def _partial_remittance_decided(_: Session, e: DomainEvent) -> list[Intent]:
+    p = e.payload
+    return [
+        Intent(
+            "PARTIAL_REMITTANCE_DECIDED",
+            (user(p["user_id"]),),
+            f"Your partial remittance reason was {str(p['outcome']).lower()}",
+            f"The reason you gave for the part not remitted is now {p['outcome']}.",
+            _key(e),
+            record_link("cash_handover", p["handover_id"], f"{CASH}/remittances"),
+            "cash_handover",
+            p["handover_id"],
         )
     ]
 

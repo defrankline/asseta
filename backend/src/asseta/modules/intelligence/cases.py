@@ -21,6 +21,7 @@ from asseta.modules.intelligence.dto import (
     AnomalyCaseDetailDto,
     AnomalyCaseDto,
     CaseAssignIn,
+    CaseClosureDecisionIn,
     CaseNoteDto,
     CaseNoteIn,
     CaseOutcomeDto,
@@ -34,10 +35,12 @@ from asseta.modules.intelligence.models import (
     CaseNote,
     CaseNoteKind,
     CaseOutcome,
+    CaseOutcomeKind,
     CaseSignal,
     CaseStatus,
     SubjectType,
 )
+from asseta.modules.policy.service import PolicyService
 
 LABEL = "Case"
 
@@ -67,13 +70,14 @@ def case_dtos(session: Session, cases: list[AnomalyCase]) -> list[AnomalyCaseDto
         .tuples()
         .all()
     )
-    names = _names(session, {c.assignee_user_id for c in cases})
+    names = _names(session, {c.assignee_user_id for c in cases} | {c.closure_proposed_by for c in cases})
     return [
         AnomalyCaseDto.model_validate(c).model_copy(
             update={
                 "signal_count": counts.get(c.id, 0),
                 "latest_outcome": latest.get(c.id) if c.status is CaseStatus.RESOLVED else None,
                 "assignee_name": names.get(c.assignee_user_id) if c.assignee_user_id else None,
+                "closure_proposed_by_name": names.get(c.closure_proposed_by) if c.closure_proposed_by else None,
             }
         )
         for c in cases
@@ -231,6 +235,7 @@ class CaseService:
         return note
 
     def resolve(self, case_id: uuid.UUID, body: CaseResolveIn) -> AnomalyCaseDetailDto:
+        """Resolve a case; or, under the tenant's second-person policy, propose its resolution for another person."""
         case = self.case(case_id, lock=True)
         check_version(case.version, body.version, LABEL)
         if case.status is CaseStatus.RESOLVED:
@@ -240,6 +245,47 @@ class CaseService:
             raise BusinessRuleViolation(
                 "You cannot resolve a case built on your own records", code="SEGREGATION_OF_DUTIES"
             )
+        if PolicyService(self._s).oversight(self._tid, at=self._now).policy.case_closure_requires_second_person:
+            if case.closure_proposed_by is not None:
+                raise Conflict("A resolution already awaits a decision", code="CASE_CLOSURE_PENDING")
+            return self._propose_resolution(case, body)
+        return self._apply_resolution(case, body.outcome, body.explanation)
+
+    def _propose_resolution(self, case: AnomalyCase, body: CaseResolveIn) -> AnomalyCaseDetailDto:
+        before = self._before(case)
+        case.closure_outcome, case.closure_explanation = body.outcome.value, body.explanation
+        case.closure_proposed_by, case.closure_proposed_at = self._ctx.user_id, self._now
+        if case.status is CaseStatus.OPEN:
+            case.status = CaseStatus.IN_REVIEW
+        self._changed(case, "closure_proposed", before, f"{body.outcome.value}: {body.explanation}")
+        return self.detail(case.id)
+
+    def decide_resolution(self, case_id: uuid.UUID, body: CaseClosureDecisionIn) -> AnomalyCaseDetailDto:
+        case = self.case(case_id, lock=True)
+        check_version(case.version, body.version, LABEL)
+        if case.closure_proposed_by is None or case.closure_outcome is None:
+            raise Conflict("No resolution is proposed for this case", code="CASE_CLOSURE_NOT_PROPOSED")
+        proposer = case.closure_proposed_by
+        if proposer == self._ctx.user_id or self._is_involved(case, self._ctx.user_id):
+            sod_violation(self._tid, self._ctx.user_id, "resolve", "anomaly_case", case.id)
+            raise BusinessRuleViolation(
+                "The proposer and people in the case cannot decide its resolution", code="SEGREGATION_OF_DUTIES"
+            )
+        outcome = CaseOutcomeKind(case.closure_outcome)
+        explanation = case.closure_explanation or ""
+        case.closure_outcome, case.closure_explanation, case.closure_proposed_by, case.closure_proposed_at = (
+            None,
+            None,
+            None,
+            None,
+        )
+        if body.approve:
+            return self._apply_resolution(case, outcome, explanation)
+        self._note(case, CaseNoteKind.NOTE, f"Proposed resolution rejected: {body.note or 'no reason given'}")
+        self._changed(case, "closure_rejected", self._before(case), body.note)
+        return self.detail(case.id)
+
+    def _apply_resolution(self, case: AnomalyCase, outcome: CaseOutcomeKind, explanation: str) -> AnomalyCaseDetailDto:
         sequence = int(
             self._s.execute(
                 select(func.coalesce(func.max(CaseOutcome.sequence), 0)).where(CaseOutcome.case_id == case.id)
@@ -251,8 +297,8 @@ class CaseService:
                 tenant_id=self._tid,
                 case_id=case.id,
                 sequence=sequence + 1,
-                outcome=body.outcome,
-                explanation=body.explanation,
+                outcome=outcome,
+                explanation=explanation,
                 decided_by=self._ctx.user_id,
                 decided_at=self._now,
             )
@@ -260,7 +306,7 @@ class CaseService:
         self._s.flush()  # the case guard requires the outcome to exist before the case becomes RESOLVED
         before = self._before(case)
         case.status, case.resolved_at, case.resolved_by = CaseStatus.RESOLVED, self._now, self._ctx.user_id
-        self._changed(case, "resolved", before, f"{body.outcome.value}: {body.explanation}")
+        self._changed(case, "resolved", before, f"{outcome.value}: {explanation}")
         return self.detail(case.id)
 
     def reopen(self, case_id: uuid.UUID, body: CaseReopenIn) -> AnomalyCaseDetailDto:

@@ -176,7 +176,8 @@ def test_remittance_received_amount_partial_flag_retention_and_writeoff(api: Api
     _collect(mgr, f, operator, "200000")
 
     # Remitting less than the expected balance without an approved retention is flagged (not refused).
-    h1 = _ok(mgr.post(f"{C}/handovers", {"staff_member_id": operator, "amount": "100000", "handed_at": T1}))
+    partial = {"staff_member_id": operator, "amount": "100000", "handed_at": T1, "partial_reason": "Bank closed early"}
+    h1 = _ok(mgr.post(f"{C}/handovers", partial))
     assert (Decimal(h1["expected_balance"]), Decimal(h1["partial_shortfall"])) == (Decimal(200000), Decimal(100000))
 
     # A retention is requested by a recorder and approved by someone else holding the approval permission.
@@ -221,7 +222,7 @@ def test_remittance_received_amount_partial_flag_retention_and_writeoff(api: Api
         acct.post(f"{C}/variances/{variance['id']}/write-off-decision", {"approve": True}), 422, "SEGREGATION_OF_DUTIES"
     )
     _err(mgr.post(f"{C}/variances/{variance['id']}/write-off-decision", {"approve": True}), 403, "PERMISSION_DENIED")
-    done = _ok(acct2.post(f"{C}/variances/{variance['id']}/write-off-decision", {"approve": True}), 200)
+    done = _ok(f.owner.post(f"{C}/variances/{variance['id']}/write-off-decision", {"approve": True}), 200)
     assert (done["status"], done["outcome"]) == ("RESOLVED", "WRITTEN_OFF")
     assert _held(acct, operator)["outstanding"] == 50000  # the written-off difference leaves custody
 
@@ -245,7 +246,9 @@ def test_remittance_received_amount_partial_flag_retention_and_writeoff(api: Api
     )
 
     # Tenants that do not require write-off approval let a write-off holder resolve directly (not their own record).
-    cash_policy(f, remit_full_balance=True, writeoff_requires_approval=False)
+    cash_policy(
+        f, remit_full_balance=True, writeoff_requires_approval=False, variance_closure_requires_second_person=False
+    )
     h3 = _ok(mgr.post(f"{C}/handovers", {"staff_member_id": operator, "amount": "10000", "handed_at": T1}))
     _ok(acct.post(f"{C}/handovers/{h3['id']}/decision", {"verified": True, "amount_received": "9000"}), 200)
     v3 = next(x for x in _ok(acct.get(f"{C}/variances", status="OPEN"), 200)["items"] if x["source_id"] == h3["id"])
@@ -288,7 +291,14 @@ def test_variance_resolution_reasons_and_adjustments(api: Api) -> None:
     body = {"outcome": "CORRECTED_ERROR", "note": "recount", "reason_id": wrong_kind["id"]}
     _err(acct.post(f"{C}/variances/{v['id']}/resolution", body), 422, "REASON_INVALID")
     body["reason_id"] = reason["id"]
-    resolved = _ok(acct.post(f"{C}/variances/{v['id']}/resolution", body), 200)
+    proposed = _ok(acct.post(f"{C}/variances/{v['id']}/resolution", body), 200)
+    assert (proposed["status"], proposed["proposed_outcome"], proposed["outcome"]) == (
+        "CLOSURE_PROPOSED",
+        "CORRECTED_ERROR",
+        None,
+    )
+    _err(acct.post(f"{C}/variances/{v['id']}/closure-decision", {"approve": True}), 422, "SEGREGATION_OF_DUTIES")
+    resolved = _ok(acct2.post(f"{C}/variances/{v['id']}/closure-decision", {"approve": True}), 200)
     assert (resolved["status"], resolved["outcome"]) == ("RESOLVED", "CORRECTED_ERROR")
     _err(acct.post(f"{C}/variances/{v['id']}/resolution", body), 409, "VARIANCE_NOT_OPEN")
 

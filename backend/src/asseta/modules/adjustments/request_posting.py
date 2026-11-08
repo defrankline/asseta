@@ -111,6 +111,11 @@ class RequestPosting:
                 "money_owed": str(plan_p.money_owed),
                 "treatment": self.engine.policy.reversal_used_hours_treatment.value,
             }
+        if t is AdjustmentRequestType.ZERO_AMOUNT_ACTIVATION:
+            purchase = self._s.get(HoursPurchase, row.original_id)
+            assert purchase is not None
+            totals = purchase_totals(self._s, purchase)
+            return {"hours_to_activate": str(purchase.hours - totals.net_activated)}
         return {"invoice_id": str(row.original_id)}
 
     def post(self, row: AdjustmentRequest, note: str | None, result: dict[str, Any]) -> None:
@@ -170,6 +175,8 @@ class RequestPosting:
 
     def _resulting(self, row: AdjustmentRequest, result: dict[str, Any], approved: bool) -> Any:
         if not approved:
+            return None
+        if row.request_type is AdjustmentRequestType.ZERO_AMOUNT_ACTIVATION:
             return None
         if row.hours is not None:
             return _decimal(result.get("lot_hours_after"))

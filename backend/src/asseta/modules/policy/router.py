@@ -4,16 +4,18 @@ import uuid
 from datetime import datetime
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
+from asseta.core.clock import get_today
 from asseta.core.db import get_session
 from asseta.core.errors import ERROR_RESPONSES, BusinessRuleViolation, NotFound, PermissionDenied
 from asseta.modules.identity.catalog import CATALOG, MenuDef, PermissionScope
 from asseta.modules.identity.dependencies import requires, requires_any
 from asseta.modules.identity.principal import RequestContext
+from asseta.modules.policy.managed_switch import guard_managed_service_switch
 from asseta.modules.policy.models import PolicyVersion
 from asseta.modules.policy.schemas import PolicyScope, PolicyType
 from asseta.modules.policy.service import PolicyService
@@ -123,7 +125,11 @@ def versions(
     operation_id="createTenantPolicyVersion",
 )
 def create_tenant_version(
-    ptype: PolicyType, body: PolicyVersionIn, session: DbSession, ctx: Annotated[RequestContext, Depends(POLICY_MANAGE)]
+    ptype: PolicyType,
+    body: PolicyVersionIn,
+    request: Request,
+    session: DbSession,
+    ctx: Annotated[RequestContext, Depends(POLICY_MANAGE)],
 ) -> PolicyVersionDto:
     if body.scope is PolicyScope.PLATFORM:
         raise BusinessRuleViolation("Tenants cannot change platform policies", code="POLICY_SCOPE")
@@ -142,6 +148,8 @@ def create_tenant_version(
             PolicyScope.MACHINE_CATEGORY: "machine_category",
         }.get(body.scope, "staff_member")
         raise NotFound(f"{ref_table} not found")  # RLS-scoped: only the tenant's own records resolve
+    if ptype is PolicyType.OVERSIGHT and body.scope is PolicyScope.TENANT:
+        guard_managed_service_switch(session, ctx, body.values, get_today(request))
     row = PolicyService(session).create_version(
         ptype=ptype,
         scope=body.scope,

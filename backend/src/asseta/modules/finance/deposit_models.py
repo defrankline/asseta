@@ -61,6 +61,26 @@ class CompanyDepositAccount(UuidPk, SyncRevisioned, Deactivatable, Timestamps, B
     __mapper_args__ = {"version_id_col": version}  # noqa: RUF012
 
 
+class PartialRemittanceApproval(UuidPk, Base):
+    """The approved reason a remittance left part of the balance with the custodian (DEC-032, guideline 3.3 #9): one
+    per remittance, proposed by the recorder, decided once by a second person (`guard_pending_decision`). Reasons are
+    the tenant's list (kind PARTIAL_REMITTANCE); the free-text reason is always kept."""
+
+    __tablename__ = "partial_remittance_approval"
+    __table_args__ = (UniqueConstraint("handover_id", name="uq_partial_remittance_handover"),)
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenant.id"), nullable=False, index=True)
+    handover_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("cash_handover.id"), nullable=False, index=True)
+    reason_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("cash_reason.id"))
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)  # CashDecisionStatus values
+    created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    decided_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    decision_note: Mapped[str | None] = mapped_column(Text)
+
+
 class RemittanceEvidence(UuidPk, Base):
     """Deposit slip / mobile-money screenshot attached to a remittance (cash handover). Evidence only: it never
     confirms anything; the office still confirms the amount received. Append-only."""

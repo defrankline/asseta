@@ -45,6 +45,7 @@ from asseta.modules.finance.permissions import (
 from asseta.modules.finance.profitability import ProfitabilityService
 from asseta.modules.finance.receivables import ReceivablesService, overdue_conditions
 from asseta.modules.identity.principal import RequestContext
+from asseta.modules.meter.evidence_check import require_evidence
 
 router = APIRouter(prefix="/api/v1/tenant", tags=["finance"], responses=ERROR_RESPONSES)
 DbSession = Annotated[Session, Depends(get_session)]
@@ -133,6 +134,7 @@ def void_invoice(
         if requests.requires_void_approval():  # a second person decides; the invoice stays ISSUED until then
             requests.propose_void(invoice_id, body)
             return invoice_dto(session, svc.invoice(invoice_id))
+        require_evidence(session, requests.engine.policy.adjustment_evidence_required, body.evidence_attachment_ids)
     return svc.void(invoice_id, body.reason)
 
 

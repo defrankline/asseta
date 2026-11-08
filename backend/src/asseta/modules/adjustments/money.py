@@ -20,6 +20,7 @@ from asseta.modules.finance.models import (
     SettlementStatus,
 )
 from asseta.modules.finance.receivables import ReceivablesService
+from asseta.modules.finance.references import CUSTODY_ADJUSTMENT, reference
 from asseta.modules.hours.models import HoursPaymentAllocation
 from asseta.modules.identity.principal import RequestContext
 
@@ -71,6 +72,7 @@ def custody_offset(
         decided_by=approved_by,
         decided_at=now,
         decision_note="Approved adjustment",
+        adjustment_number=reference(session, ctx.tenant_id, CUSTODY_ADJUSTMENT, now),
     )
     session.add(row)
     session.flush()

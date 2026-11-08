@@ -347,6 +347,7 @@ def test_purchase_reversal_keeps_money_for_used_hours_and_stamps_purchase(api: A
 
 def test_invoice_void_goes_through_approval_by_policy(api: Api) -> None:
     f = setup_finance(api)
+    hours_policy(f, adjustment_evidence_required=False)
     complete_job(api, f, f.c.job_id, "500", "510", 10)
     inv = issue_invoice(f, [f.c.job_id])
     pending = _ok(f.accountant.post(f"{T}/hire-invoices/{inv['id']}/void", {"reason": "Wrong customer on invoice"}))

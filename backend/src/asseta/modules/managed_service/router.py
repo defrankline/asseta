@@ -34,9 +34,8 @@ CLIENT_READ = gated(
     requires("tenant.managed_service.read", S.TENANT, "View the managed-service mandate and its staff"),
     MANAGED_SERVICE,
 )
-CLIENT_REVOKE = gated(
-    requires("tenant.managed_service.revoke", S.TENANT, "Revoke the managed-service mandate"), MANAGED_SERVICE
-)
+# Never refused by the switch: a tenant can always end a mandate over its data (the switch hides the page only).
+CLIENT_REVOKE = requires("tenant.managed_service.revoke", S.TENANT, "Revoke the managed-service mandate")
 CATALOG.register_menu(
     MenuDef(
         "platform.managed_service",

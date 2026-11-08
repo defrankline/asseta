@@ -3,6 +3,7 @@
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
+from enum import StrEnum
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
@@ -16,6 +17,15 @@ from asseta.modules.finance.models import (
 )
 from asseta.modules.jobs.charges import ChargeKind
 from asseta.modules.platform_billing.dto import CurrencyCode, Money, Reason
+
+
+class RemittanceEvidenceStatus(StrEnum):
+    """Guideline 4.5: declared by the field employee, supported by evidence, independently confirmed by the company."""
+
+    DECLARED = "DECLARED"
+    SUPPORTED = "SUPPORTED"
+    CONFIRMED = "CONFIRMED"
+
 
 PositiveAmount = Annotated[Decimal, Field(gt=0, max_digits=18, decimal_places=4)]
 Note = Annotated[str, StringConstraints(max_length=1000, strip_whitespace=True)]
@@ -119,6 +129,19 @@ class CashCollectionIn(BaseModel):
     reference: Ref | None = None
     note: Note | None = None
     allocations: list[HireAllocationIn] = Field(default_factory=list, max_length=50)
+    purchase_id: uuid.UUID | None = Field(
+        default=None,
+        description="The hours purchase this cash pays for: its id, or its offline client id (DEC-032). Links up to "
+        "the purchase's open amount; anything above stays as customer credit",
+    )
+
+
+class PurchaseLinkDto(BaseModel):
+    """The hours purchase a customer payment is linked to."""
+
+    purchase_id: uuid.UUID
+    purchase_number: str
+    amount: Money
 
 
 class HireAllocationDto(Dto):
@@ -155,6 +178,8 @@ class CustomerPaymentDto(Dto):
     reversed_at: datetime | None = None  # a verified payment taken back by an approved reversal (DEC-032 B4)
     reversal_id: uuid.UUID | None = None  # the adjustment request that reversed it
     allocations: list[HireAllocationDto] = []
+    collection_number: str | None = None
+    purchase_links: list[PurchaseLinkDto] | None = None
 
 
 class SettlementDecisionIn(BaseModel):
@@ -252,6 +277,28 @@ class CashHandoverIn(BaseModel):
     evidence_attachment_ids: list[uuid.UUID] = Field(
         default_factory=list, max_length=10, description="Uploaded evidence photos (uploadRemittanceEvidence)"
     )
+    partial_reason: Annotated[str, StringConstraints(min_length=3, max_length=1000, strip_whitespace=True)] | None = (
+        Field(default=None, description="Why less than the full balance is remitted (tenant requires it when on)")
+    )
+    partial_reason_id: uuid.UUID | None = Field(
+        default=None, description="A reason from the tenant's PARTIAL_REMITTANCE list"
+    )
+
+
+class PartialRemittanceApprovalDto(Dto):
+    """The approved reason a remittance left part of the balance with the custodian (DEC-032)."""
+
+    id: uuid.UUID
+    status: Literal["PENDING", "APPROVED", "REJECTED"]
+    reason_id: uuid.UUID | None
+    reason: str
+    created_by: uuid.UUID | None
+    created_by_name: str | None = None
+    created_at: datetime
+    decided_by: uuid.UUID | None
+    decided_by_name: str | None = None
+    decided_at: datetime | None
+    decision_note: str | None
 
 
 class CashHandoverDto(Dto):
@@ -284,6 +331,10 @@ class CashHandoverDto(Dto):
     deposit_account_id: uuid.UUID | None = None
     deposit_account_name: str | None = None
     evidence_attachment_ids: list[uuid.UUID] = Field(default_factory=list)
+    remittance_number: str | None = Field(default=None, description="Generated (RMT-...), not the bank `reference`")
+    evidence_status: RemittanceEvidenceStatus | None = None
+    outstanding_difference: Money | None = Field(default=None, description="Declared minus confirmed, once confirmed")
+    partial_approval: PartialRemittanceApprovalDto | None = None
 
 
 class RemittanceDecisionIn(SettlementDecisionIn):

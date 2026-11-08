@@ -68,6 +68,7 @@ from asseta.modules.meter.engine_models import (
     MeterCorrection,
     MeterProposalStatus,
 )
+from asseta.modules.meter.evidence_check import require_evidence
 from asseta.modules.meter.ledger import (
     ClassificationFact,
     LedgerInterval,
@@ -718,6 +719,7 @@ class EngineHoursService:
             )
         policy = ml.policy.policy
         direct = not policy.classification_requires_approval and CLASSIFY_PERMISSION in self._ctx.permissions
+        evidence = require_evidence(self._s, policy.classification_evidence_required, body.evidence_attachment_ids)
         row = EngineHourClassification(
             id=uuid.uuid4(),
             tenant_id=self._tid,
@@ -737,6 +739,7 @@ class EngineHoursService:
             decided_at=self._now if direct else None,
             decision_note="Approval not required by tenant policy" if direct else None,
             policy_version=ml.policy.version_stamp,
+            evidence_attachment_ids=evidence,
         )
         try:
             with self._s.begin_nested():
@@ -828,6 +831,7 @@ class EngineHoursService:
                 source_type="engine_hour_classification",
                 source_id=row.id,
                 unit=AdjustmentUnit.HOURS,
+                evidence_attachment_ids=list(row.evidence_attachment_ids),
                 original_value=row.hours,
                 amount=row.hours,
                 reason_id=row.reason_id,

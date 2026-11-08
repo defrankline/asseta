@@ -118,7 +118,7 @@ DELETE: frozenset[str] = frozenset(
         # cash custody chain
         "supervisor_cash_custody", "cash_handover", "cash_transfer", "cash_variance", "cash_retention",
         "custody_adjustment", "cash_remittance_overdue", "cash_float_acknowledgement", "cash_reason",
-        "remittance_evidence", "company_deposit_account",
+        "remittance_evidence", "company_deposit_account", "partial_remittance_approval", "cash_variance_event",
         # hire invoices, payments, allocations
         "tenant_hire_invoice", "hire_invoice_job", "hire_invoice_line", "hire_invoice_counter", "customer_payment",
         "hire_payment_allocation", "payment_evidence", "financial_adjustment",

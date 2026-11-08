@@ -787,6 +787,17 @@
             "title": "Details",
             "type": "object"
           },
+          "entry_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entry Number"
+          },
           "evidence_attachment_ids": {
             "items": {
               "format": "uuid",
@@ -1042,6 +1053,334 @@
         "title": "AdjustmentEntryStatus",
         "type": "string"
       },
+      "AdjustmentPreviewDto": {
+        "description": "What the request would do, as of now, without saving anything (a `refused` entry names why it would fail).",
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "customer_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Id"
+          },
+          "customer_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Name"
+          },
+          "effects": {
+            "additionalProperties": true,
+            "default": {},
+            "title": "Effects",
+            "type": "object"
+          },
+          "hours": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours"
+          },
+          "machine_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Code"
+          },
+          "machine_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Id"
+          },
+          "machine_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Name"
+          },
+          "original_id": {
+            "format": "uuid",
+            "title": "Original Id",
+            "type": "string"
+          },
+          "original_reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Original Reference"
+          },
+          "original_type": {
+            "title": "Original Type",
+            "type": "string"
+          },
+          "purchase_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purchase Id"
+          },
+          "request_type": {
+            "$ref": "#/components/schemas/AdjustmentRequestType"
+          }
+        },
+        "required": [
+          "request_type",
+          "original_type",
+          "original_id",
+          "original_reference",
+          "customer_id",
+          "machine_id",
+          "purchase_id",
+          "hours",
+          "amount",
+          "currency"
+        ],
+        "title": "AdjustmentPreviewDto",
+        "type": "object"
+      },
+      "AdjustmentPreviewIn": {
+        "additionalProperties": false,
+        "description": "The same fields as a request; reason and evidence are not needed to see what it would do.",
+        "properties": {
+          "client_created_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Created At"
+          },
+          "client_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
+          "consumed_entry_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consumed Entry Id"
+          },
+          "evidence_attachment_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Evidence Attachment Ids",
+            "type": "array"
+          },
+          "hours": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours"
+          },
+          "invoice_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invoice Id"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "machine_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Id"
+          },
+          "payment_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Id"
+          },
+          "payout": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PayoutIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "purchase_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purchase Id"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "minLength": 3,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "reason_code_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Code Id"
+          },
+          "request_type": {
+            "$ref": "#/components/schemas/AdjustmentRequestType"
+          },
+          "settlement": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RefundSettlement"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "request_type"
+        ],
+        "title": "AdjustmentPreviewIn",
+        "type": "object"
+      },
       "AdjustmentRequestDto": {
         "properties": {
           "amount": {
@@ -1054,6 +1393,18 @@
               }
             ],
             "title": "Amount"
+          },
+          "client_created_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Created At"
           },
           "client_id": {
             "anyOf": [
@@ -1314,6 +1665,17 @@
             ],
             "title": "Reason Label"
           },
+          "request_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Number"
+          },
           "request_type": {
             "$ref": "#/components/schemas/AdjustmentRequestType"
           },
@@ -1363,6 +1725,18 @@
         "additionalProperties": false,
         "description": "Propose a correction, refund, reversal or invoice void. Which fields apply depends on `request_type`: see the\nendpoint notes (hours/machine for corrections and refunds, a payment/purchase/invoice id for reversals).",
         "properties": {
+          "client_created_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Created At"
+          },
           "client_id": {
             "anyOf": [
               {
@@ -1537,7 +1911,8 @@
           "PAYMENT_REVERSAL",
           "COLLECTION_REVERSAL",
           "PURCHASE_REVERSAL",
-          "INVOICE_VOID"
+          "INVOICE_VOID",
+          "ZERO_AMOUNT_ACTIVATION"
         ],
         "title": "AdjustmentRequestType",
         "type": "string"
@@ -1560,7 +1935,9 @@
           "INVOICE_VOID",
           "PAYMENT_REVERSAL",
           "COLLECTION_REVERSAL",
-          "PURCHASE_REVERSAL"
+          "PURCHASE_REVERSAL",
+          "ZERO_AMOUNT_ACTIVATION",
+          "HOURS_VARIANCE_RESOLUTION"
         ],
         "title": "AdjustmentType",
         "type": "string"
@@ -2194,6 +2571,62 @@
           "case_number": {
             "title": "Case Number",
             "type": "string"
+          },
+          "closure_explanation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closure Explanation"
+          },
+          "closure_outcome": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CaseOutcomeKind"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "closure_proposed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closure Proposed At"
+          },
+          "closure_proposed_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closure Proposed By"
+          },
+          "closure_proposed_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closure Proposed By Name"
           },
           "id": {
             "format": "uuid",
@@ -3446,7 +3879,8 @@
               "EXPENSE_RECEIPT",
               "PAYMENT_EVIDENCE",
               "REMITTANCE_EVIDENCE",
-              "DAILY_REPORT_EVIDENCE"
+              "DAILY_REPORT_EVIDENCE",
+              "ADJUSTMENT_EVIDENCE"
             ],
             "title": "Purpose",
             "type": "string"
@@ -3913,6 +4347,44 @@
         "title": "CaseAssignIn",
         "type": "object"
       },
+      "CaseClosureDecisionIn": {
+        "properties": {
+          "approve": {
+            "title": "Approve",
+            "type": "boolean"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optimistic concurrency token from last read",
+            "title": "Version"
+          }
+        },
+        "required": [
+          "approve"
+        ],
+        "title": "CaseClosureDecisionIn",
+        "type": "object"
+      },
       "CaseNoteDto": {
         "properties": {
           "author_name": {
@@ -4288,6 +4760,19 @@
               }
             ],
             "title": "Note"
+          },
+          "purchase_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The hours purchase this cash pays for: its id, or its offline client id (DEC-032). Links up to the purchase's open amount; anything above stays as customer credit",
+            "title": "Purchase Id"
           },
           "received_at": {
             "format": "date-time",
@@ -4848,6 +5333,16 @@
             "title": "Evidence Attachment Ids",
             "type": "array"
           },
+          "evidence_status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RemittanceEvidenceStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "expected_balance": {
             "anyOf": [
               {
@@ -4890,6 +5385,28 @@
               }
             ],
             "title": "Note"
+          },
+          "outstanding_difference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Declared minus confirmed, once confirmed",
+            "title": "Outstanding Difference"
+          },
+          "partial_approval": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PartialRemittanceApprovalDto"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "partial_shortfall": {
             "anyOf": [
@@ -4941,6 +5458,18 @@
               }
             ],
             "title": "Reference"
+          },
+          "remittance_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Generated (RMT-...), not the bank `reference`",
+            "title": "Remittance Number"
           },
           "source": {
             "title": "Source",
@@ -5109,6 +5638,33 @@
               }
             ],
             "title": "Note"
+          },
+          "partial_reason": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "minLength": 3,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why less than the full balance is remitted (tenant requires it when on)",
+            "title": "Partial Reason"
+          },
+          "partial_reason_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A reason from the tenant's PARTIAL_REMITTANCE list",
+            "title": "Partial Reason Id"
           },
           "reference": {
             "anyOf": [
@@ -5302,7 +5858,8 @@
           "VARIANCE",
           "WRITE_OFF",
           "RETENTION",
-          "ADJUSTMENT"
+          "ADJUSTMENT",
+          "PARTIAL_REMITTANCE"
         ],
         "title": "CashReasonKind",
         "type": "string"
@@ -5493,6 +6050,18 @@
             "title": "Amount",
             "type": "string"
           },
+          "client_created_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Created At"
+          },
           "client_id": {
             "anyOf": [
               {
@@ -5604,6 +6173,17 @@
             ],
             "title": "Reason Id"
           },
+          "retention_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retention Number"
+          },
           "staff_member_id": {
             "format": "uuid",
             "title": "Staff Member Id",
@@ -5667,6 +6247,19 @@
               }
             ],
             "title": "Amount"
+          },
+          "client_created_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Device time the request was made",
+            "title": "Client Created At"
           },
           "client_id": {
             "anyOf": [
@@ -6088,6 +6681,17 @@
             ],
             "title": "To Staff Name"
           },
+          "transfer_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transfer Number"
+          },
           "transferred_at": {
             "format": "date-time",
             "title": "Transferred At",
@@ -6244,6 +6848,64 @@
             "title": "Amount",
             "type": "string"
           },
+          "assigned_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assigned At"
+          },
+          "assigned_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assigned By"
+          },
+          "assigned_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assigned By Name"
+          },
+          "assignee_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assignee User Id"
+          },
+          "assignee_user_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assignee User Name"
+          },
           "case_id": {
             "anyOf": [
               {
@@ -6255,6 +6917,18 @@
               }
             ],
             "title": "Case Id"
+          },
+          "check_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Which customer-hour mismatch the sweep found",
+            "title": "Check Code"
           },
           "counterparty_staff_id": {
             "anyOf": [
@@ -6283,14 +6957,121 @@
             "title": "Currency",
             "type": "string"
           },
+          "customer_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Id"
+          },
+          "customer_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Name"
+          },
           "declared_amount": {
             "title": "Declared Amount",
             "type": "string"
+          },
+          "evidence_attachment_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Attachment Ids"
+          },
+          "explained_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Explained At"
+          },
+          "explained_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Explained By"
+          },
+          "explained_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Explained By Name"
+          },
+          "explanation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Explanation"
           },
           "id": {
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "job_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Number"
           },
           "kind": {
             "description": "SHORTFALL: less received than declared; SURPLUS: more ('Surplus to explain')",
@@ -6301,6 +7082,40 @@
             "readOnly": true,
             "title": "Kind",
             "type": "string"
+          },
+          "machine_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Code"
+          },
+          "machine_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Id"
+          },
+          "machine_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Name"
           },
           "opened_at": {
             "format": "date-time",
@@ -6385,6 +7200,39 @@
               }
             ],
             "title": "Proposed By Name"
+          },
+          "proposed_outcome": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VarianceOutcome"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "purchase_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purchase Id"
+          },
+          "purchase_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purchase Number"
           },
           "reason_id": {
             "anyOf": [
@@ -6482,6 +7330,17 @@
           },
           "status": {
             "$ref": "#/components/schemas/VarianceStatus"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VarianceUnit"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "MONEY or HOURS: what the figures measure"
           }
         },
         "required": [
@@ -6950,6 +7809,21 @@
             "title": "End Ref",
             "type": "string"
           },
+          "evidence_attachment_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Attachment Ids"
+          },
           "hours": {
             "title": "Hours",
             "type": "string"
@@ -7084,6 +7958,15 @@
             "format": "uuid",
             "title": "End Ref",
             "type": "string"
+          },
+          "evidence_attachment_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Evidence Attachment Ids",
+            "type": "array"
           },
           "machine_id": {
             "format": "uuid",
@@ -7881,6 +8764,21 @@
             ],
             "title": "Effective To"
           },
+          "evidence_attachment_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Attachment Ids"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -8059,6 +8957,15 @@
               }
             ],
             "title": "Effective To"
+          },
+          "evidence_attachment_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Evidence Attachment Ids",
+            "type": "array"
           },
           "limit_amount": {
             "anyOf": [
@@ -8385,9 +9292,32 @@
       },
       "CustodyAdjustmentDto": {
         "properties": {
+          "adjustment_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adjustment Number"
+          },
           "amount": {
             "title": "Amount",
             "type": "string"
+          },
+          "client_created_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Created At"
           },
           "created_at": {
             "format": "date-time",
@@ -8466,6 +9396,21 @@
               }
             ],
             "title": "Decision Note"
+          },
+          "evidence_attachment_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Attachment Ids"
           },
           "id": {
             "format": "uuid",
@@ -8574,6 +9519,19 @@
             "description": "Signed: positive raises the expected balance, negative lowers it",
             "title": "Amount"
           },
+          "client_created_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The device's own time, when it was recorded",
+            "title": "Client Created At"
+          },
           "currency": {
             "anyOf": [
               {
@@ -8585,6 +9543,15 @@
               }
             ],
             "title": "Currency"
+          },
+          "evidence_attachment_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Evidence Attachment Ids",
+            "type": "array"
           },
           "kind": {
             "$ref": "#/components/schemas/CustodyAdjustmentKind"
@@ -9084,6 +10051,17 @@
             ],
             "title": "Client Id"
           },
+          "collection_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Collection Number"
+          },
           "currency": {
             "title": "Currency",
             "type": "string"
@@ -9133,6 +10111,20 @@
               }
             ],
             "title": "Note"
+          },
+          "purchase_links": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/PurchaseLinkDto"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purchase Links"
           },
           "received_at": {
             "format": "date-time",
@@ -14398,6 +15390,18 @@
             ],
             "title": "Cancelled At"
           },
+          "client_created_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Created At"
+          },
           "client_id": {
             "anyOf": [
               {
@@ -14581,6 +15585,18 @@
             ],
             "description": "The payment recorded with the purchase"
           },
+          "pending_zero_amount_request_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pending Zero Amount Request Id"
+          },
           "policy_version": {
             "title": "Policy Version",
             "type": "string"
@@ -14644,6 +15660,19 @@
       },
       "HoursPurchaseIn": {
         "properties": {
+          "client_created_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Device time the purchase was recorded",
+            "title": "Client Created At"
+          },
           "client_id": {
             "anyOf": [
               {
@@ -21705,6 +22734,21 @@
             "title": "Ended At",
             "type": "string"
           },
+          "evidence_attachment_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Attachment Ids"
+          },
           "hours": {
             "title": "Hours",
             "type": "string"
@@ -21848,6 +22892,15 @@
             "format": "uuid",
             "title": "Activity Id",
             "type": "string"
+          },
+          "evidence_attachment_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Evidence Attachment Ids",
+            "type": "array"
           },
           "note": {
             "maxLength": 2000,
@@ -25427,6 +26480,128 @@
         "title": "Page[WorkExecutionAllocationDto]",
         "type": "object"
       },
+      "PartialRemittanceApprovalDto": {
+        "description": "The approved reason a remittance left part of the balance with the custodian (DEC-032).",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "decided_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided By"
+          },
+          "decided_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided By Name"
+          },
+          "decision_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Note"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "reason_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Id"
+          },
+          "status": {
+            "enum": [
+              "PENDING",
+              "APPROVED",
+              "REJECTED"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "reason_id",
+          "reason",
+          "created_by",
+          "created_at",
+          "decided_by",
+          "decided_at",
+          "decision_note"
+        ],
+        "title": "PartialRemittanceApprovalDto",
+        "type": "object"
+      },
       "PaymentAllocationDto": {
         "properties": {
           "amount": {
@@ -26671,6 +27846,31 @@
         "title": "PurchaseAllocationIn",
         "type": "object"
       },
+      "PurchaseLinkDto": {
+        "description": "The hours purchase a customer payment is linked to.",
+        "properties": {
+          "amount": {
+            "title": "Amount",
+            "type": "string"
+          },
+          "purchase_id": {
+            "format": "uuid",
+            "title": "Purchase Id",
+            "type": "string"
+          },
+          "purchase_number": {
+            "title": "Purchase Number",
+            "type": "string"
+          }
+        },
+        "required": [
+          "purchase_id",
+          "purchase_number",
+          "amount"
+        ],
+        "title": "PurchaseLinkDto",
+        "type": "object"
+      },
       "PurchasePaymentIn": {
         "description": "Money taken together with the purchase. It is recorded as a CLAIMED customer payment (cash enters the\ncustodian's custody) and linked to the purchase; hours activate only when someone else verifies it.",
         "properties": {
@@ -27794,6 +28994,16 @@
         ],
         "title": "RemittanceEvidenceIn",
         "type": "object"
+      },
+      "RemittanceEvidenceStatus": {
+        "description": "Guideline 4.5: declared by the field employee, supported by evidence, independently confirmed by the company.",
+        "enum": [
+          "DECLARED",
+          "SUPPORTED",
+          "CONFIRMED"
+        ],
+        "title": "RemittanceEvidenceStatus",
+        "type": "string"
       },
       "RemittanceMethod": {
         "description": "How a remittance reached the company. Null on remittances recorded before DEC-031 (cash to the office).",
@@ -31645,6 +32855,17 @@
             ],
             "title": "Client Id"
           },
+          "collection_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Collection Number"
+          },
           "currency": {
             "title": "Currency",
             "type": "string"
@@ -31694,6 +32915,20 @@
               }
             ],
             "title": "Note"
+          },
+          "purchase_links": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/PurchaseLinkDto"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purchase Links"
           },
           "received_at": {
             "format": "date-time",
@@ -31932,6 +33167,16 @@
             "title": "Evidence Attachment Ids",
             "type": "array"
           },
+          "evidence_status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RemittanceEvidenceStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "expected_balance": {
             "anyOf": [
               {
@@ -31974,6 +33219,28 @@
               }
             ],
             "title": "Note"
+          },
+          "outstanding_difference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Declared minus confirmed, once confirmed",
+            "title": "Outstanding Difference"
+          },
+          "partial_approval": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PartialRemittanceApprovalDto"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "partial_shortfall": {
             "anyOf": [
@@ -32025,6 +33292,18 @@
               }
             ],
             "title": "Reference"
+          },
+          "remittance_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Generated (RMT-...), not the bank `reference`",
+            "title": "Remittance Number"
           },
           "source": {
             "title": "Source",
@@ -35098,6 +36377,21 @@
             ],
             "title": "Decision Note"
           },
+          "evidence_attachment_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Attachment Ids"
+          },
           "from_machine_code": {
             "anyOf": [
               {
@@ -35223,6 +36517,17 @@
               }
             ],
             "title": "To Machine Name"
+          },
+          "transfer_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transfer Number"
           }
         },
         "required": [
@@ -35257,6 +36562,15 @@
               }
             ],
             "title": "Client Id"
+          },
+          "evidence_attachment_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Evidence Attachment Ids",
+            "type": "array"
           },
           "from_machine_id": {
             "anyOf": [
@@ -35796,17 +37110,180 @@
         "title": "UtilisationInsightDto",
         "type": "object"
       },
+      "VarianceAssignIn": {
+        "properties": {
+          "assignee_user_id": {
+            "format": "uuid",
+            "title": "Assignee User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "assignee_user_id"
+        ],
+        "title": "VarianceAssignIn",
+        "type": "object"
+      },
+      "VarianceAssigneeDto": {
+        "description": "Someone who can be assigned a variance (holds the variance permission in this tenant).",
+        "properties": {
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "display_name",
+          "email"
+        ],
+        "title": "VarianceAssigneeDto",
+        "type": "object"
+      },
+      "VarianceEventAction": {
+        "enum": [
+          "OPENED",
+          "ASSIGNED",
+          "EXPLAINED",
+          "CLOSURE_PROPOSED",
+          "CLOSURE_APPROVED",
+          "CLOSURE_REJECTED",
+          "WRITE_OFF_PROPOSED",
+          "WRITE_OFF_APPROVED",
+          "WRITE_OFF_REJECTED",
+          "RESOLVED"
+        ],
+        "title": "VarianceEventAction",
+        "type": "string"
+      },
+      "VarianceEventDto": {
+        "description": "One step of a variance's investigation (who, when, what).",
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/VarianceEventAction"
+          },
+          "actor_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor User Id"
+          },
+          "actor_user_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor User Name"
+          },
+          "data": {
+            "additionalProperties": true,
+            "title": "Data",
+            "type": "object"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "action",
+          "actor_user_id",
+          "note",
+          "data",
+          "occurred_at"
+        ],
+        "title": "VarianceEventDto",
+        "type": "object"
+      },
+      "VarianceExplanationIn": {
+        "properties": {
+          "evidence_attachment_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Evidence Attachment Ids",
+            "type": "array"
+          },
+          "explanation": {
+            "maxLength": 1000,
+            "minLength": 3,
+            "title": "Explanation",
+            "type": "string"
+          }
+        },
+        "required": [
+          "explanation"
+        ],
+        "title": "VarianceExplanationIn",
+        "type": "object"
+      },
       "VarianceOutcome": {
         "enum": [
           "RECOVERED",
           "CORRECTED_ERROR",
-          "WRITTEN_OFF"
+          "WRITTEN_OFF",
+          "EXPLAINED"
         ],
         "title": "VarianceOutcome",
         "type": "string"
       },
       "VarianceResolutionIn": {
         "properties": {
+          "evidence_attachment_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Evidence Attachment Ids",
+            "type": "array"
+          },
           "note": {
             "maxLength": 1000,
             "minLength": 3,
@@ -35840,7 +37317,8 @@
         "enum": [
           "TRANSFER",
           "REMITTANCE",
-          "FLOAT"
+          "FLOAT",
+          "CUSTOMER_HOUR"
         ],
         "title": "VarianceSource",
         "type": "string"
@@ -35849,9 +37327,18 @@
         "enum": [
           "OPEN",
           "WRITE_OFF_PROPOSED",
+          "CLOSURE_PROPOSED",
           "RESOLVED"
         ],
         "title": "VarianceStatus",
+        "type": "string"
+      },
+      "VarianceUnit": {
+        "enum": [
+          "MONEY",
+          "HOURS"
+        ],
+        "title": "VarianceUnit",
         "type": "string"
       },
       "VerificationIn": {
@@ -36554,6 +38041,15 @@
       },
       "WriteOffProposalIn": {
         "properties": {
+          "evidence_attachment_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Evidence Attachment Ids",
+            "type": "array"
+          },
           "note": {
             "maxLength": 1000,
             "minLength": 3,
@@ -53472,6 +54968,142 @@
         ]
       }
     },
+    "/api/v1/tenant/adjustment-requests/preview": {
+      "post": {
+        "description": "What this request would do, as of now, without saving it: the same fields and checks as proposing it, and the\nsame `effects` forecast the decider will see. Reason and evidence are not needed yet.",
+        "operationId": "previewAdjustment",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdjustmentPreviewIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdjustmentPreviewDto"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Preview",
+        "tags": [
+          "adjustments"
+        ]
+      }
+    },
     "/api/v1/tenant/adjustment-requests/{request_id}": {
       "get": {
         "operationId": "getAdjustmentRequest",
@@ -58012,6 +59644,168 @@
         ]
       }
     },
+    "/api/v1/tenant/cases/{case_id}/resolution-decision": {
+      "post": {
+        "description": "Approve or reject a resolution proposed under the tenant's second-person policy (never the proposer).",
+        "operationId": "decideAnomalyCaseResolution",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "case_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Case Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CaseClosureDecisionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnomalyCaseDetailDto"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Decide Case Resolution",
+        "tags": [
+          "intelligence"
+        ]
+      }
+    },
     "/api/v1/tenant/cases/{case_id}/resolve": {
       "post": {
         "operationId": "resolveAnomalyCase",
@@ -61947,6 +63741,152 @@
         ]
       }
     },
+    "/api/v1/tenant/cash/handovers/{handover_id}/partial-reason-decision": {
+      "post": {
+        "description": "Approve or reject the reason a remittance left part of the balance with the custodian (never the recorder or\nthe custodian). The money's own confirmation is separate.",
+        "operationId": "decidePartialRemittanceReason",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "handover_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Handover Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashHandoverDto"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Decide Partial Reason",
+        "tags": [
+          "finance"
+        ]
+      }
+    },
     "/api/v1/tenant/cash/reasons": {
       "get": {
         "operationId": "listCashReasons",
@@ -65264,6 +67204,7 @@
     },
     "/api/v1/tenant/cash/variances": {
       "get": {
+        "description": "Cash and customer-hour variances (`source_type` CUSTOMER_HOUR). Refused per capability: CASH_CUSTODY_DISABLED,\nor HOURS_DISABLED when asking for customer-hour variances with hours switched off.",
         "operationId": "listCashVariances",
         "parameters": [
           {
@@ -65313,6 +67254,23 @@
                 }
               ],
               "title": "Source Type"
+            }
+          },
+          {
+            "in": "query",
+            "name": "assignee_user_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Assignee User Id"
             }
           },
           {
@@ -65493,6 +67451,153 @@
         ]
       }
     },
+    "/api/v1/tenant/cash/variances/assignees": {
+      "get": {
+        "description": "Who a variance can be assigned to: everyone holding the variance permission.",
+        "operationId": "listVarianceAssignees",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/VarianceAssigneeDto"
+                  },
+                  "title": "Response Listvarianceassignees",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "List Variance Assignees",
+        "tags": [
+          "finance"
+        ]
+      }
+    },
     "/api/v1/tenant/cash/variances/{variance_id}": {
       "get": {
         "operationId": "getCashVariance",
@@ -65628,9 +67733,587 @@
         ]
       }
     },
+    "/api/v1/tenant/cash/variances/{variance_id}/assignment": {
+      "post": {
+        "description": "Assign the investigation to a person holding the variance permission (never a party to the difference).",
+        "operationId": "assignCashVariance",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "variance_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Variance Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VarianceAssignIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashVarianceDto"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Assign Variance",
+        "tags": [
+          "finance"
+        ]
+      }
+    },
+    "/api/v1/tenant/cash/variances/{variance_id}/closure-decision": {
+      "post": {
+        "description": "Approve (the variance is resolved as proposed) or reject (back to OPEN) a proposed closure. Never the proposer,\nwhoever opened it, or a party to the difference.",
+        "operationId": "decideCashVarianceClosure",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "variance_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Variance Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashVarianceDto"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Decide Variance Closure",
+        "tags": [
+          "finance"
+        ]
+      }
+    },
+    "/api/v1/tenant/cash/variances/{variance_id}/explanation": {
+      "post": {
+        "description": "Record the explanation and supporting evidence (kept in the history; the closure is a separate step).",
+        "operationId": "explainCashVariance",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "variance_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Variance Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VarianceExplanationIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashVarianceDto"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Explain Variance",
+        "tags": [
+          "finance"
+        ]
+      }
+    },
+    "/api/v1/tenant/cash/variances/{variance_id}/history": {
+      "get": {
+        "description": "The investigation history, oldest first: opened, assigned, explained, closure proposed and decided, resolved.",
+        "operationId": "listCashVarianceHistory",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "variance_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Variance Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/VarianceEventDto"
+                  },
+                  "title": "Response Listcashvariancehistory",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Variance History",
+        "tags": [
+          "finance"
+        ]
+      }
+    },
     "/api/v1/tenant/cash/variances/{variance_id}/resolution": {
       "post": {
-        "description": "Resolve an open variance as RECOVERED or CORRECTED_ERROR (reason required). WRITTEN_OFF directly only when\nthe tenant does not require write-off approval, and then only with the write-off permission.",
+        "description": "Close a variance as RECOVERED or CORRECTED_ERROR (EXPLAINED on customer-hour variances), reason required.\nWith a second person required (tenant default) this proposes the closure (status CLOSURE_PROPOSED); otherwise it\ncloses now. WRITTEN_OFF directly only when neither write-off approval nor a second person is required.",
         "operationId": "resolveCashVariance",
         "parameters": [
           {

@@ -22,7 +22,7 @@ from sqlalchemy import (
     UniqueConstraint,
     text,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from asseta.core.db import Base, UuidPk, utcnow
@@ -189,6 +189,9 @@ class CreditArrangement(UuidPk, Base):
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     revoke_reason: Mapped[str | None] = mapped_column(Text)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    evidence_attachment_ids: Mapped[list[uuid.UUID]] = mapped_column(
+        ARRAY(UUID(as_uuid=True)), nullable=False, default=list
+    )
     __mapper_args__ = {"version_id_col": version}  # noqa: RUF012
 
 
@@ -227,6 +230,7 @@ class HoursPurchase(UuidPk, Base):
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     cancelled_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     cancellation_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    client_created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # device time when offline
 
 
 class HoursPaymentAllocation(UuidPk, Base):
@@ -286,6 +290,7 @@ class HoursTransfer(UuidPk, Base):
     __tablename__ = "hours_transfer"
     __table_args__ = (
         UniqueConstraint("tenant_id", "client_id", name="uq_hours_transfer_client"),
+        UniqueConstraint("tenant_id", "transfer_number", name="uq_hours_transfer_number"),
         CheckConstraint("hours > 0", name="ck_hours_transfer_hours"),
         CheckConstraint("from_machine_id <> to_machine_id", name="ck_hours_transfer_machines"),
     )
@@ -304,6 +309,10 @@ class HoursTransfer(UuidPk, Base):
     decided_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     decision_note: Mapped[str | None] = mapped_column(Text)
+    transfer_number: Mapped[str] = mapped_column(String(32), nullable=False)  # generated HTR-<yyyy>-<nnnnn>
+    evidence_attachment_ids: Mapped[list[uuid.UUID]] = mapped_column(
+        ARRAY(UUID(as_uuid=True)), nullable=False, default=list
+    )
 
 
 class HoursCancellation(UuidPk, Base):

@@ -12,7 +12,7 @@ from enum import StrEnum
 from typing import Any
 
 from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Index, Integer, String, Text, UniqueConstraint, text
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from asseta.core.db import Base, SyncRevisioned, Timestamps, UuidPk, utcnow
@@ -148,6 +148,9 @@ class EngineHourClassification(UuidPk, Base):
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     decision_note: Mapped[str | None] = mapped_column(Text)
     policy_version: Mapped[str] = mapped_column(String(80), nullable=False)
+    evidence_attachment_ids: Mapped[list[uuid.UUID]] = mapped_column(
+        ARRAY(UUID(as_uuid=True)), nullable=False, default=list
+    )
 
 
 class MeterCorrection(UuidPk, Base):

@@ -17,6 +17,8 @@ from asseta.modules.accountability.names import fill_names, named
 from asseta.modules.adjustments.dto import (
     AdjustmentDecisionIn,
     AdjustmentEntryDto,
+    AdjustmentPreviewDto,
+    AdjustmentPreviewIn,
     AdjustmentRequestDto,
     AdjustmentRequestIn,
     AdjustmentWithdrawIn,
@@ -170,6 +172,14 @@ def propose_adjustment(body: AdjustmentRequestIn, session: DbSession, now: Now, 
     PAYMENT_REVERSAL / COLLECTION_REVERSAL: `payment_id`. PURCHASE_REVERSAL: `purchase_id`.
     INVOICE_VOID: `invoice_id`."""
     return AdjustmentRequests(session, ctx, now).propose(body)
+
+
+@router.post("/adjustment-requests/preview", response_model=AdjustmentPreviewDto, operation_id="previewAdjustment")
+@named
+def preview(body: AdjustmentPreviewIn, session: DbSession, now: Now, ctx: Proposer) -> AdjustmentPreviewDto:
+    """What this request would do, as of now, without saving it: the same fields and checks as proposing it, and the
+    same `effects` forecast the decider will see. Reason and evidence are not needed yet."""
+    return AdjustmentRequests(session, ctx, now).preview(body)
 
 
 @router.get(

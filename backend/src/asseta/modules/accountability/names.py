@@ -4,6 +4,7 @@ record for a whole response (never one query per row), in the caller's RLS scope
 A DTO opts in by declaring nullable name fields next to its id fields; the convention is mechanical:
 
 - `<x>_by` (a user id)            -> `<x>_by_name`             (the user's display name)
+- `<x>_user_id`                   -> `<x>_user_name`
 - `<x>staff_id` / `staff_member_id` -> `<x>staff_name` / `staff_member_name` (the staff member's full name)
 - `<x>customer_id`                -> `<x>customer_name`
 - `<x>machine_id`                 -> `<x>machine_name` and `<x>machine_code` (asset code)
@@ -95,6 +96,8 @@ def _rule(field: str) -> tuple[str, dict[str, str]] | None:
     if not field.endswith("_id"):
         return None
     stem = field.removesuffix("_id")
+    if stem.endswith("_user"):
+        return "user", {"name": f"{stem}_name"}
     if stem.endswith("staff") or stem == "staff_member":
         return "staff", {"name": f"{stem}_name"}
     if stem.endswith("customer"):

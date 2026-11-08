@@ -204,6 +204,45 @@ variance assignee, explanation + evidence, second-person closure (`variance_clos
 true for the new flow, tenant-configurable), customer-hour variance type; client-created time on purchases, retentions,
 adjustments.
 
+## Phase 3 implementation notes (backend, 2026-11-08)
+
+**Independence.** The custodian of a remittance can never confirm it (always, even when someone else recorded it). The
+person who recorded a purchase can never activate it on credit. A purchase that costs nothing (fully discounted) waits
+as a `ZERO_AMOUNT_ACTIVATION` adjustment request (`CUSTOMER_HOURS.zero_amount_requires_approval`, default on).
+
+**Evidence** is an attachment id list on hours transfers, credit arrangements, classifications, non-revenue approvals,
+cash variances and custody adjustments, enforced per type (`*_evidence_required`, default off; invoice voids keep
+`adjustment_evidence_required`). Evidence never confirms money by itself. Ledger 6 carries it.
+
+**Partial remittance.** Under `remit_full_balance`, a remittance short of the balance needs a reason (tenant list kind
+PARTIAL_REMITTANCE plus the words); it stays recorded, and a second person with `tenant.finance.retention_approve` decides
+the reason. Confirming the money is a separate decision; a rejected reason does not reject the money.
+
+**References** (`finance.references`, tenant counter): COL-/PAY- collections and other customer payments, RMT- remittances,
+CTR- cash transfers, HTR- hours transfers, RET- retentions, CADJ- custody adjustments, ARQ- adjustment requests, ADJ- Ledger 6
+entries; backfilled in tenant-local years by created time. A remittance's `reference` stays the bank's or the mobile
+network's transaction reference. `collection_number` is on every customer payment: cash COL-, others PAY-.
+
+**Remittance evidence status** is derived, never stored: DECLARED, SUPPORTED (at least one attachment), CONFIRMED
+(verified by someone else; only the confirmed amount reduces custody).
+
+**Collections** can name an hours purchase (`purchase_id`, its id or an offline client id; linked up to its open
+amount, the rest stays as customer credit) as well as invoices; `collection_link_required` refuses a free-standing one.
+
+**Variances.** Assignment is to a holder of `tenant.finance.variance` (`GET /cash/variances/assignees`), never a party.
+With `variance_closure_requires_second_person` (default on) `POST .../resolution` proposes the closure (CLOSURE_PROPOSED)
+and a holder of `tenant.finance.variance_close` decides; whoever opened it, proposed the closure or is a party to it can
+never close it. A write-off is always a proposal when either that policy or `writeoff_requires_approval` is on. History is
+append-only in `cash_variance_event`. `CUSTOMER_HOUR` variances are the same row shape (unit HOURS, figures in hours,
+closed as EXPLAINED or CORRECTED_ERROR); the sweep (`CUSTOMER_HOURS.variance_sweep_enabled`) compares purchases, ledger
+consumption and work allocations, opens one per mismatch and does not reopen one already closed with the same figures.
+
+**Case closure** by a second person is off by default (`OVERSIGHT.case_closure_requires_second_person`).
+
+**Managed service switch.** `OVERSIGHT.managed_service_enabled` cannot be turned off while a mandate is open
+(`MANAGED_SERVICE_MANDATE_ACTIVE`), cannot be changed at all under a mandate (`MANAGED_SERVICE_SWITCH_LOCKED`), the capability
+reads on while a mandate is open however the switch came to be off, and revocation is never gated by it.
+
 ## Phase 4 — Management view (6, 8, 10)
 
 All section 8 figures on the accountability dashboard, each linking to its underlying transactions (add: total hours

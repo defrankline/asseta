@@ -17,6 +17,8 @@ from asseta.core.search import ilike_any
 from asseta.core.signals import sod_violation
 from asseta.modules.adjustments.dto import (
     AdjustmentDecisionIn,
+    AdjustmentPreviewDto,
+    AdjustmentPreviewIn,
     AdjustmentRequestDto,
     AdjustmentRequestIn,
 )
@@ -33,13 +35,14 @@ from asseta.modules.adjustments.reversals import ReversalEngine, used_hours_of
 from asseta.modules.finance.dto import HireInvoiceVoidIn
 from asseta.modules.finance.invoice_service import HireInvoiceService
 from asseta.modules.finance.models import CustomerPayment, HireInvoiceStatus, HirePaymentMethod, TenantHireInvoice
+from asseta.modules.finance.references import ADJUSTMENT_REQUEST, reference
 from asseta.modules.fleet.models import StaffMember
 from asseta.modules.hours.engine import TOPIC as HOURS_TOPIC
 from asseta.modules.hours.engine import HoursEngine
 from asseta.modules.hours.ledger import purchase_totals
-from asseta.modules.hours.models import HoursReasonCode, ReasonKind
+from asseta.modules.hours.models import HoursPurchase, HoursReasonCode, ReasonKind
 from asseta.modules.identity.principal import RequestContext
-from asseta.modules.meter.models import CaptureAttachment
+from asseta.modules.meter.evidence_check import require_evidence
 from asseta.modules.policy.service import PolicyService
 
 ORIGINALS = {
@@ -54,6 +57,7 @@ REASON_KINDS: dict[AdjustmentRequestType, ReasonKind] = {
     AdjustmentRequestType.COLLECTION_REVERSAL: ReasonKind.REVERSAL,
     AdjustmentRequestType.PURCHASE_REVERSAL: ReasonKind.REVERSAL,
     AdjustmentRequestType.INVOICE_VOID: ReasonKind.REVERSAL,
+    AdjustmentRequestType.ZERO_AMOUNT_ACTIVATION: ReasonKind.REVERSAL,
 }
 
 
@@ -109,11 +113,6 @@ class AdjustmentRequests:
         return dto
 
     # --- proposing --------------------------------------------------------------------------------------------
-    def _check_evidence(self, ids: list[uuid.UUID]) -> None:
-        for attachment_id in ids:
-            if self._s.get(CaptureAttachment, attachment_id) is None:
-                raise NotFound("Evidence attachment not found", code="ATTACHMENT_NOT_FOUND")
-
     def _reason_code(self, kind: ReasonKind, code_id: uuid.UUID | None) -> uuid.UUID | None:
         if code_id is None:
             if self.engine.policy.reason_code_required:
@@ -133,17 +132,64 @@ class AdjustmentRequests:
             ).scalar_one_or_none()
             if existing is not None:
                 return self.dto(existing)
-        if self.engine.policy.adjustment_evidence_required and not body.evidence_attachment_ids:
-            raise BusinessRuleViolation("Attach the supporting evidence", code="EVIDENCE_REQUIRED")
-        self._check_evidence(body.evidence_attachment_ids)
+        require_evidence(self._s, self.engine.policy.adjustment_evidence_required, body.evidence_attachment_ids)
         reason_code = self._reason_code(REASON_KINDS[body.request_type], body.reason_code_id)
         row = self._build(body, reason_code)
+        row.request_number = reference(self._s, self._tid, ADJUSTMENT_REQUEST, self._now)
         try:
             with self._s.begin_nested():
                 self._s.add(row)
                 self._s.flush()
         except IntegrityError as exc:
             raise Conflict("A reversal of this record already exists", code="REVERSAL_EXISTS") from exc
+        return self._submitted(row)
+
+    def preview(self, body: AdjustmentPreviewIn) -> AdjustmentPreviewDto:
+        """The same checks and forecast as proposing, without saving anything (no number is drawn)."""
+        row = self._build(body, None)
+        return AdjustmentPreviewDto(
+            request_type=row.request_type,
+            original_type=row.original_type,
+            original_id=row.original_id,
+            original_reference=row.original_reference,
+            customer_id=row.customer_id,
+            machine_id=row.machine_id,
+            purchase_id=row.purchase_id,
+            hours=row.hours,
+            amount=row.amount,
+            currency=row.currency,
+            effects=self.posting.forecast(row),
+        )
+
+    def propose_zero_amount(self, purchase: HoursPurchase) -> AdjustmentRequestDto:
+        """A purchase that costs nothing needs a second person before it activates (raised by the purchase itself)."""
+        row = AdjustmentRequest(
+            id=uuid.uuid4(),
+            tenant_id=self._tid,
+            client_id=None,
+            request_type=AdjustmentRequestType.ZERO_AMOUNT_ACTIVATION,
+            status=AdjustmentRequestStatus.PROPOSED,
+            original_type="hours_purchase",
+            original_id=purchase.id,
+            original_reference=purchase.purchase_number,
+            customer_id=purchase.customer_id,
+            machine_id=purchase.machine_id,
+            purchase_id=purchase.id,
+            hours=purchase.hours,
+            amount=None,
+            currency=purchase.currency,
+            settlement=None,
+            params={},
+            reason="Purchase with nothing to pay",
+            reason_code_id=None,
+            evidence_attachment_ids=[],
+            proposed_by=self._ctx.user_id,
+            proposed_at=self._now,
+            policy_version=self.engine.eff.version_stamp[:80],
+            request_number=reference(self._s, self._tid, ADJUSTMENT_REQUEST, self._now),
+        )
+        self._s.add(row)
+        self._s.flush()
         return self._submitted(row)
 
     def _submitted(self, row: AdjustmentRequest) -> AdjustmentRequestDto:
@@ -216,6 +262,8 @@ class AdjustmentRequests:
             original_type, original_id, reference = self._payment_fields(body, fields, t)
         elif t is AdjustmentRequestType.PURCHASE_REVERSAL:
             original_type, original_id, reference = self._purchase_fields(body, fields)
+        elif t is AdjustmentRequestType.ZERO_AMOUNT_ACTIVATION:
+            original_type, original_id, reference = self._zero_amount_fields(body, fields)
         else:
             original_type, original_id, reference = self._invoice_fields(body, fields)
         return AdjustmentRequest(
@@ -227,14 +275,44 @@ class AdjustmentRequests:
             original_type=original_type,
             original_id=original_id,
             original_reference=reference,
-            reason=body.reason,
+            reason=body.reason or "",
             reason_code_id=reason_code,
             evidence_attachment_ids=body.evidence_attachment_ids,
             proposed_by=self._ctx.user_id,
             proposed_at=self._now,
             policy_version=self.engine.eff.version_stamp[:80],
+            client_created_at=body.client_created_at,
             **fields,
         )
+
+    def _zero_amount_fields(self, body: AdjustmentRequestIn, fields: dict[str, Any]) -> tuple[str, uuid.UUID, str]:
+        """A re-proposal after a rejection (the first request is raised by the purchase)."""
+        if body.purchase_id is None:
+            raise BusinessRuleViolation("Name the hours purchase", code="ADJUSTMENT_FIELDS_MISSING")
+        purchase = self.engine.lock_purchase(body.purchase_id)
+        if purchase.cancelled_at is not None:
+            raise BusinessRuleViolation("The purchase is cancelled", code="PURCHASE_CANCELLED")
+        if purchase.amount > 0:
+            raise BusinessRuleViolation("This purchase has an amount to pay", code="PURCHASE_NOT_ZERO_AMOUNT")
+        if purchase_totals(self._s, purchase).net_activated > 0:
+            raise BusinessRuleViolation("Its hours are already activated", code="ALREADY_ACTIVATED")
+        pending = self._s.execute(
+            select(AdjustmentRequest.id).where(
+                AdjustmentRequest.purchase_id == purchase.id,
+                AdjustmentRequest.request_type == AdjustmentRequestType.ZERO_AMOUNT_ACTIVATION,
+                AdjustmentRequest.status == AdjustmentRequestStatus.PROPOSED,
+            )
+        ).first()
+        if pending is not None:
+            raise Conflict("A request for this purchase awaits a decision", code="ZERO_AMOUNT_PENDING")
+        fields.update(
+            customer_id=purchase.customer_id,
+            machine_id=purchase.machine_id,
+            purchase_id=purchase.id,
+            hours=purchase.hours,
+            currency=purchase.currency,
+        )
+        return "hours_purchase", purchase.id, purchase.purchase_number
 
     def _lot_fields(
         self, body: AdjustmentRequestIn, fields: dict[str, Any], t: AdjustmentRequestType
@@ -324,7 +402,7 @@ class AdjustmentRequests:
         inv = self._invoice(invoice_id, lock=True)
         if inv.status is not HireInvoiceStatus.ISSUED or inv.invoice_number is None:
             raise Conflict(f"Invoice is {inv.status.value}", code="INVOICE_NOT_ISSUED")
-        self._check_evidence(body.evidence_attachment_ids)
+        require_evidence(self._s, self.engine.policy.adjustment_evidence_required, body.evidence_attachment_ids)
         code = self._reason_code(ReasonKind.REVERSAL, body.reason_code_id)
         fields: dict[str, Any] = {
             "params": {},
@@ -351,6 +429,7 @@ class AdjustmentRequests:
             proposed_by=self._ctx.user_id,
             proposed_at=self._now,
             policy_version=self.engine.eff.version_stamp[:80],
+            request_number=reference(self._s, self._tid, ADJUSTMENT_REQUEST, self._now),
             **fields,
         )
         try:
@@ -429,6 +508,10 @@ class AdjustmentRequests:
             return self.reversals.apply_payment_reversal(row, self._payment(row.original_id, lock=True))
         if t is AdjustmentRequestType.PURCHASE_REVERSAL:
             return self.reversals.apply_purchase_reversal(row, self.engine.lock_purchase(row.original_id))
+        if t is AdjustmentRequestType.ZERO_AMOUNT_ACTIVATION:
+            purchase = self.engine.lock_purchase(row.original_id)
+            activated = self.engine.activate_from_payments(purchase, approved=True)
+            return {"hours_activated": str(activated)}
         label = self.posting.reason_label(row.reason_code_id)
         HireInvoiceService(self._s, self._ctx, self._now).void(
             row.original_id, row.reason, request=row, reason_label=label

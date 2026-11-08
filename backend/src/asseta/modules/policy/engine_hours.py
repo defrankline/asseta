@@ -55,6 +55,8 @@ class EngineHoursPolicy(BaseModel):
     unexplained_flag_amount_hours: Decimal | None = Field(default=None, gt=0, le=Decimal(100000))
     # [DEC-032 A4] Every daily operational report needs at least one evidence photo. Off (today): evidence is optional.
     daily_report_evidence_required: bool = False
+    # [DEC-032 Phase 3] Classifications of unexplained hours need at least one evidence photo. Off (today): optional.
+    classification_evidence_required: bool = False
 
     def in_force(self) -> "EngineHoursPolicy":
         """The rules actually enforced: as configured when enabled; switched off as a whole otherwise."""
@@ -73,6 +75,7 @@ class EngineHoursPolicy(BaseModel):
                 "allocation_correction_requires_approval": False,
                 "unexplained_flag_amount_hours": None,
                 "daily_report_evidence_required": False,
+                "classification_evidence_required": False,
             }
         )
 
@@ -94,4 +97,5 @@ ENGINE_HOURS_SEED: dict[str, object] = {
     "allocation_correction_requires_approval": True,
     "unexplained_flag_amount_hours": None,
     "daily_report_evidence_required": False,
+    "classification_evidence_required": False,
 }

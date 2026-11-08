@@ -7,6 +7,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -16,6 +17,7 @@ from asseta.modules.adjustments.models import (
     AdjustmentType,
     AdjustmentUnit,
 )
+from asseta.modules.finance.references import LEDGER_ENTRY, reference
 
 
 @dataclass(frozen=True)
@@ -51,6 +53,19 @@ class AdjustmentPosting:
 
 def post_adjustment(session: Session, tenant_id: uuid.UUID, now: datetime, p: AdjustmentPosting) -> None:
     """Append the entry. A retry of the same decided record (idempotent) leaves the existing entry untouched."""
+    if (
+        session.execute(
+            select(AdjustmentLedgerEntry.id)
+            .where(
+                AdjustmentLedgerEntry.source_type == p.source_type,
+                AdjustmentLedgerEntry.source_id == p.source_id,
+                AdjustmentLedgerEntry.status == p.status,
+            )
+            .limit(1)
+        ).first()
+        is not None
+    ):
+        return  # no number is drawn for a retry
     session.execute(
         insert(AdjustmentLedgerEntry)
         .values(
@@ -85,6 +100,7 @@ def post_adjustment(session: Session, tenant_id: uuid.UUID, now: datetime, p: Ad
             policy_version=p.policy_version[:80] if p.policy_version else None,
             posted_at=now,
             created_at=now,
+            entry_number=reference(session, tenant_id, LEDGER_ENTRY, now),
         )
         .on_conflict_do_nothing(constraint="uq_adjustment_entry_source")
     )

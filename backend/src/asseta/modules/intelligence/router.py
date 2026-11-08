@@ -25,6 +25,7 @@ from asseta.modules.intelligence.dto import (
     AnomalyCaseDetailDto,
     AnomalyCaseDto,
     CaseAssignIn,
+    CaseClosureDecisionIn,
     CaseNoteDto,
     CaseNoteIn,
     CaseReopenIn,
@@ -196,6 +197,28 @@ def resolve_case(
     if (replay := guard.begin()) is not None:
         return AnomalyCaseDetailDto.model_validate(replay)
     dto = CaseService(session, ctx, now).resolve(case_id, body)
+    guard.complete(dto)
+    return dto
+
+
+@router.post(
+    "/cases/{case_id}/resolution-decision",
+    response_model=AnomalyCaseDetailDto,
+    operation_id="decideAnomalyCaseResolution",
+)
+def decide_case_resolution(
+    case_id: uuid.UUID,
+    body: CaseClosureDecisionIn,
+    session: DbSession,
+    now: Now,
+    ctx: Annotated[RequestContext, Depends(CASES_RESOLVE)],
+    idempotency_key: IdemKey = None,
+) -> AnomalyCaseDetailDto:
+    """Approve or reject a resolution proposed under the tenant's second-person policy (never the proposer)."""
+    guard = _guard(session, ctx, f"decideAnomalyCaseResolution:{case_id}", idempotency_key, body)
+    if (replay := guard.begin()) is not None:
+        return AnomalyCaseDetailDto.model_validate(replay)
+    dto = CaseService(session, ctx, now).decide_resolution(case_id, body)
     guard.complete(dto)
     return dto
 

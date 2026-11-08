@@ -152,6 +152,12 @@ class AnomalyCase(UuidPk, Base):
     # Signals sharing this key join one active case instead of the subject's time window (e.g. one case per
     # machine and tenant-local day for engine running without work, DEC-031 S1). Null = usual grouping.
     group_key: Mapped[str | None] = mapped_column(String(120))
+    # DEC-032 T8 (OVERSIGHT.case_closure_requires_second_person): the resolution proposed by one person, awaiting a
+    # second person. Cleared when decided.
+    closure_outcome: Mapped[str | None] = mapped_column(String(32))
+    closure_explanation: Mapped[str | None] = mapped_column(Text)
+    closure_proposed_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    closure_proposed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)

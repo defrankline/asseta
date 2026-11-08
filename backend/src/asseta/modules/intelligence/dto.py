@@ -64,6 +64,11 @@ class AnomalyCaseDto(_Dto):
     latest_outcome: CaseOutcomeKind | None = None
     policy_version: str
     version: int
+    closure_outcome: CaseOutcomeKind | None = None  # a resolution awaiting a second person (DEC-032 T8)
+    closure_explanation: str | None = None
+    closure_proposed_by: uuid.UUID | None = None
+    closure_proposed_by_name: str | None = None
+    closure_proposed_at: datetime | None = None
 
 
 class CaseSignalDto(_Dto):
@@ -110,6 +115,12 @@ class CaseAssignIn(BaseModel):
 
 class CaseNoteIn(BaseModel):
     body: Annotated[str, StringConstraints(min_length=1, max_length=4000, strip_whitespace=True)]
+
+
+class CaseClosureDecisionIn(BaseModel):
+    approve: bool
+    note: Annotated[str, StringConstraints(max_length=2000, strip_whitespace=True)] | None = None
+    version: Version = None
 
 
 class CaseResolveIn(BaseModel):

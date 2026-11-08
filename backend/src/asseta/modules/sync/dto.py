@@ -40,6 +40,12 @@ CAPABILITIES = [
     "METER_CHANGEOVER",
     "SYNC_CHANGEOVER_JOBS",  # SyncData.changeover_jobs: pending/approved jobs on the supervisor's machines
     "SYNC_UNBILLABLE_REASONS",  # SyncData.unbillable_reasons: tenant list for daily reports (capture permission)
+    # DEC-032 Phase 3: CASH_COLLECTION accepts purchase_id (the purchase's id or offline client id; refused with
+    # COLLECTION_LINK_REQUIRED when the tenant requires a link and none is given); CASH_HANDOVER accepts
+    # partial_reason + partial_reason_id (PARTIAL_REMITTANCE_REASON_REQUIRED when the balance is not fully remitted);
+    # HOURS_TRANSFER_REQUEST accepts
+    # evidence_attachment_ids and evidence_upload_ids (purpose ADJUSTMENT_EVIDENCE; EVIDENCE_REQUIRED when required).
+    "CASH_DETAILS_V2",
 ]
 # Protocol capabilities that belong to a tenant capability (`asseta.modules.policy.capabilities`): not announced
 # while the tenant has it switched off, and their operations are then refused (CONFLICT, the capability's code).
@@ -282,6 +288,7 @@ class BlobStartIn(BaseModel):
         "PAYMENT_EVIDENCE",
         "REMITTANCE_EVIDENCE",
         "DAILY_REPORT_EVIDENCE",
+        "ADJUSTMENT_EVIDENCE",
     ]
 
 

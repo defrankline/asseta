@@ -57,11 +57,13 @@ export const FLOAT_ACK_TONES: Readonly<Record<FloatAckStatus, StatusTone>> = {
 export const VARIANCE_STATUS_LABELS: Readonly<Record<VarianceStatus, string>> = {
   OPEN: 'Open',
   WRITE_OFF_PROPOSED: 'Write-off proposed',
+  CLOSURE_PROPOSED: 'Closure awaiting decision',
   RESOLVED: 'Resolved',
 };
 export const VARIANCE_STATUS_TONES: Readonly<Record<VarianceStatus, StatusTone>> = {
   OPEN: 'warning',
   WRITE_OFF_PROPOSED: 'info',
+  CLOSURE_PROPOSED: 'info',
   RESOLVED: 'success',
 };
 export const VARIANCE_STATUS_OPTIONS = options(VARIANCE_STATUS_LABELS);
@@ -69,6 +71,7 @@ export const VARIANCE_OUTCOME_LABELS: Readonly<Record<VarianceOutcome, string>> 
   RECOVERED: 'Recovered',
   CORRECTED_ERROR: 'Corrected error',
   WRITTEN_OFF: 'Written off',
+  EXPLAINED: 'Explained',
 };
 export const VARIANCE_OUTCOME_OPTIONS = options(VARIANCE_OUTCOME_LABELS);
 
@@ -81,6 +84,7 @@ export const VARIANCE_SOURCE_LABELS: Readonly<Record<VarianceSource, string>> = 
   TRANSFER: 'Transfer',
   REMITTANCE: 'Remittance',
   FLOAT: 'Float',
+  CUSTOMER_HOUR: 'Customer hours',
 };
 export const VARIANCE_SOURCE_OPTIONS = options(VARIANCE_SOURCE_LABELS);
 
@@ -107,6 +111,7 @@ export const REASON_KIND_LABELS: Readonly<Record<CashReasonKind, string>> = {
   WRITE_OFF: 'Write-off',
   RETENTION: 'Retention',
   ADJUSTMENT: 'Adjustment',
+  PARTIAL_REMITTANCE: 'Partial remittance',
 };
 export const REASON_KIND_OPTIONS = options(REASON_KIND_LABELS);
 
