@@ -61,7 +61,7 @@ object DashboardPresentation {
         val features = sessionFeatures.without(s.disabledCapabilities)
         val cashOn = features.cashCustody
         val engineOn = features.engineHours
-        val approvals = OwnerDestination.Approvals().takeIf { features.approvals || features.finance || features.meterEvidence || features.customerHours }
+        val approvals = OwnerDestination.Approvals().takeIf { features.approvalsScreen || features.finance || features.meterEvidence || features.customerHours }
         val hoursOff = TenantAccess.CUSTOMER_HOURS in features.disabled
         s.outstandingApprovals?.let { a ->
             add(

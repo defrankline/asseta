@@ -34,6 +34,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
+import com.asseta.core.domain.owner.DataSource
 import com.asseta.core.domain.owner.MutationCheck
 import com.asseta.core.domain.owner.OwnerAction
 import com.asseta.core.domain.owner.OwnerDestination
@@ -53,12 +54,15 @@ import com.asseta.core.ui.theme.AssetaType
 import com.asseta.core.ui.theme.palette
 import com.asseta.owner.R
 import com.asseta.owner.data.ActionResult
+import com.asseta.owner.ui.accountability.AdjustmentTexts
 import com.asseta.owner.ui.accountability.DecisionItem
 import com.asseta.owner.ui.accountability.DecisionKind
 import com.asseta.owner.ui.accountability.DecisionRow
 import com.asseta.owner.data.ExceptionList
 import com.asseta.owner.data.HandoverList
+import com.asseta.owner.data.Load
 import com.asseta.owner.data.OwnerData
+import com.asseta.owner.data.Snapshot
 import com.asseta.owner.data.map
 import com.asseta.owner.ui.OwnerSession
 import com.asseta.owner.ui.common.BlockedNote
@@ -116,6 +120,10 @@ object ApprovalText {
     fun summary(a: ApprovalRequestDto): String = "${OwnerFormat.humanize(a.subjectType)} · ${a.reason}"
 }
 
+/** An empty list for a role that may not read expense requests (its other sections still load). */
+private fun noExpenseRequests(): Load<PageDto<ApprovalRequestDto>> =
+    Load.Ok(Snapshot(PageDto(emptyList(), 0, 1, 0), System.currentTimeMillis(), DataSource.LIVE))
+
 class ApprovalsViewModel private constructor(
     data: OwnerData,
     private val selected: MutableStateFlow<String?>,
@@ -126,7 +134,9 @@ class ApprovalsViewModel private constructor(
     exceptions: Boolean,
     decisions: List<DecisionKind>,
     revenueOpen: Boolean,
-) : SnapshotViewModel<PageDto<ApprovalRequestDto>>({ data.approvals(selected.value) }, refreshOn) {
+    /** The role may read expense requests (`tenant.approval.read`); otherwise they are neither asked for nor shown. */
+    val expenseRequests: Boolean,
+) : SnapshotViewModel<PageDto<ApprovalRequestDto>>({ if (expenseRequests) data.approvals(selected.value) else noExpenseRequests() }, refreshOn) {
     /**
      * [meterResets]: also list pending meter reset requests (`tenant.meter.read`); [jobs]: also list jobs waiting for
      * approval, e.g. requested from the field by a supervisor (`tenant.job.read`); [handovers]: cash handovers waiting
@@ -143,7 +153,8 @@ class ApprovalsViewModel private constructor(
         decisions: List<DecisionKind> = emptyList(),
         /** Also list revenue differences still to explain (explain or decide holders); otherwise only proposed ones. */
         revenueOpen: Boolean = true,
-    ) : this(data, MutableStateFlow(ApprovalText.DEFAULT_FILTER), refreshOn, meterResets, jobs, handovers, exceptions, decisions, revenueOpen)
+        expenseRequests: Boolean = true,
+    ) : this(data, MutableStateFlow(ApprovalText.DEFAULT_FILTER), refreshOn, meterResets, jobs, handovers, exceptions, decisions, revenueOpen, expenseRequests)
 
     val status: StateFlow<String?> get() = selected
 
@@ -226,11 +237,14 @@ fun ApprovalsScreen(vm: ApprovalsViewModel, onOpen: (OwnerDestination) -> Unit) 
     val exceptions = vm.openExceptions?.state?.collectAsStateWithLifecycle()?.value
     val decisions = vm.decisionSections.map { (kind, section) -> kind to section.state.collectAsStateWithLifecycle().value }
     Column(Modifier.fillMaxSize()) {
-        FilterChipRow(ApprovalText.FILTERS.map { (s, l) -> s as String? to l }, status, vm::filter)
+        if (vm.expenseRequests) FilterChipRow(ApprovalText.FILTERS.map { (s, l) -> s as String? to l }, status, vm::filter)
         SnapshotScaffold(state, vm::refreshAll) { page ->
             val zone = ZoneId.systemDefault()
             val rows = buildList {
-                if (page.items.isEmpty()) add(GroupedItem("empty") { EmptyState(ApprovalText.EMPTY_TITLE, ApprovalText.EMPTY_MESSAGE, R.drawable.ic_approval) })
+                if (page.items.isEmpty() && vm.expenseRequests) add(GroupedItem("empty") { EmptyState(ApprovalText.EMPTY_TITLE, ApprovalText.EMPTY_MESSAGE, R.drawable.ic_approval) })
+                if (!vm.expenseRequests && listOf(resets, jobs, handovers, exceptions).all { it == null } && decisions.all { (_, st) -> st.data.orEmpty().none { it.pending } }) {
+                    add(GroupedItem("empty") { EmptyState(ApprovalText.EMPTY_TITLE, AdjustmentTexts.EMPTY, R.drawable.ic_approval) })
+                }
                 page.items.forEach { a ->
                     add(GroupedItem(a.id.toString(), onClick = { onOpen(OwnerDestination.Approvals(a.id.toString())) }) { ApprovalRow(a, zone) })
                 }

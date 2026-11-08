@@ -21,6 +21,18 @@ data class OwnerHoursPurchaseDto(
     @SerialName("cancelled_at") val cancelledAt: String? = null,
     val totals: PurchaseTotalsDto,
     val machines: List<MachineHoursDto> = emptyList(),
+    val currency: String? = null,
+    val allocations: List<PurchaseAllocationDto> = emptyList(),
+)
+
+/** `PurchaseAllocationDto`: money of one customer payment counted towards a purchase ([releasedAt]: no longer counted). */
+@Serializable
+data class PurchaseAllocationDto(
+    val id: String,
+    @SerialName("payment_id") val paymentId: String,
+    val amount: String,
+    @SerialName("released_at") val releasedAt: String? = null,
+    @SerialName("payment_status") val paymentStatus: String? = null,
 )
 
 /** `HoursStatementTotalsDto`: movements inside the period (hours). */
@@ -37,6 +49,20 @@ data class HoursStatementTotalsDto(
     @SerialName("closing_balance") val closingBalance: String,
     @SerialName("provisional_at_close") val provisionalAtClose: String,
     @SerialName("awaiting_activation") val awaitingActivation: String,
+    val refunded: String = "0",
+    /** Net approved corrections, signed. */
+    val corrected: String = "0",
+)
+
+/** `HoursStatementLineDto`: one ledger entry of the period ([hours] signed). */
+@Serializable
+data class HoursStatementLineDto(
+    val day: String,
+    @SerialName("occurred_at") val occurredAt: String,
+    @SerialName("entry_type") val entryType: String,
+    @SerialName("purchase_number") val purchaseNumber: String? = null,
+    val hours: String,
+    val reason: String? = null,
 )
 
 /** `HoursStatementUsageDto`: hours used on one day for one job (DAILY drawdown or the FINAL allocation). */
@@ -58,7 +84,7 @@ data class HoursStatementUsageDto(
     }
 }
 
-/** `HoursStatementDto` (getCustomerHoursStatement), without the ledger lines and purchases the app does not show. */
+/** `HoursStatementDto` (getCustomerHoursStatement), without the purchases the app does not show. */
 @Serializable
 data class HoursStatementDto(
     @SerialName("customer_id") val customerId: String,
@@ -72,5 +98,6 @@ data class HoursStatementDto(
     @SerialName("generated_at") val generatedAt: String,
     val totals: HoursStatementTotalsDto,
     val usage: List<HoursStatementUsageDto> = emptyList(),
+    val lines: List<HoursStatementLineDto> = emptyList(),
     @SerialName("pdf_path") val pdfPath: String,
 )

@@ -106,6 +106,18 @@ data class OwnerFeatures(val permissions: Set<String>, val disabled: Set<String>
     /** Idle machines list (DEC-031 M2): IDLE_MACHINES on and tenant.oversight.read. */
     val idleMachines get() = oversightRead && TenantAccess.IDLE_MACHINES !in disabled
 
+    /** Adjustment requests waiting for a decision (DEC-032). */
+    val adjustmentRead get() = "tenant.adjustment.read" in permissions
+
+    /** May withdraw a request of their own while it waits. */
+    val adjustmentPropose get() = "tenant.adjustment.propose" in permissions
+
+    /** Approvals opens for expense approvers and for adjustment holders, who may hold no tenant.approval.* at all. */
+    val approvalsScreen get() = approvals || adjustmentRead
+
+    /** One customer payment can be read (to mark a reversed one). */
+    val paymentDetails get() = finance || adjustmentRead
+
     /** Go-live checklist (banner, More entry, screen). */
     val setupRead get() = "tenant.setup.read" in permissions
 

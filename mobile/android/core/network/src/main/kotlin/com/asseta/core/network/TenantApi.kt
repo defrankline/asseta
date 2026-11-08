@@ -726,4 +726,32 @@ interface TenantApi {
         @Path("id") groupId: String,
         @Body body: MeterDecisionIn,
     ): com.asseta.core.model.owner.AllocationCorrectionDto
+
+    /** listAdjustmentRequests (tenant.adjustment.read). */
+    @GET("api/v1/tenant/adjustment-requests")
+    suspend fun adjustmentRequests(
+        @Query("status") status: String? = null,
+        @Query("page_size") pageSize: Int = 100,
+    ): PageDto<com.asseta.core.model.owner.AdjustmentRequestDto>
+
+    @GET("api/v1/tenant/adjustment-requests/{id}")
+    suspend fun adjustmentRequest(@Path("id") id: String): com.asseta.core.model.owner.AdjustmentRequestDto
+
+    /** decideAdjustmentRequest (tenant.adjustment.decide; never the proposer). */
+    @POST("api/v1/tenant/adjustment-requests/{id}/decision")
+    suspend fun decideAdjustmentRequest(
+        @Path("id") id: String,
+        @Body body: com.asseta.core.model.owner.AdjustmentDecisionIn,
+    ): com.asseta.core.model.owner.AdjustmentRequestDto
+
+    /** withdrawAdjustmentRequest (proposer only). */
+    @POST("api/v1/tenant/adjustment-requests/{id}/withdraw")
+    suspend fun withdrawAdjustmentRequest(
+        @Path("id") id: String,
+        @Body body: com.asseta.core.model.owner.AdjustmentWithdrawIn,
+    ): com.asseta.core.model.owner.AdjustmentRequestDto
+
+    /** getCustomerPayment (tenant.finance.read or tenant.adjustment.read): read here only to mark a reversed payment. */
+    @GET("api/v1/tenant/customer-payments/{id}")
+    suspend fun customerPayment(@Path("id") id: String): com.asseta.core.model.owner.PaymentReversalDto
 }

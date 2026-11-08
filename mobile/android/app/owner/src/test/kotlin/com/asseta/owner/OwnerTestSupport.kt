@@ -7,8 +7,10 @@ import com.asseta.owner.data.OwnerData
 import com.asseta.owner.data.OwnerRepository
 import com.asseta.owner.data.SessionEvents
 import com.asseta.owner.data.SnapshotStore
+import mockwebserver3.Dispatcher
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
+import mockwebserver3.RecordedRequest
 
 const val TENANT = "a3c1d1f2-1111-4222-8333-944455556666"
 const val ID1 = "11111111-1111-4111-8111-111111111111"
@@ -46,6 +48,19 @@ class OwnerHarness {
     fun error(code: Int, errorCode: String, message: String = "refused") = server.enqueue(
         MockResponse.Builder().code(code).body("""{"error":{"code":"$errorCode","message":"$message","correlation_id":"cid-$code"}}""").build(),
     )
+
+    /**
+     * Answers by URL path suffix instead of the order of arrival, for screens that load several sections in parallel
+     * (a shared queue would hand one section the other's response). Anything else gets a 404.
+     */
+    fun route(vararg routes: Pair<String, String>) {
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                val body = routes.firstOrNull { (suffix, _) -> request.url.encodedPath.endsWith(suffix) }?.second
+                return if (body != null) MockResponse.Builder().code(200).body(body).build() else MockResponse.Builder().code(404).build()
+            }
+        }
+    }
 
     /** Simulates losing the network: the next calls fail to connect. */
     fun goOffline() = server.close()

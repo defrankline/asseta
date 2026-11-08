@@ -96,6 +96,7 @@ object RecordKinds {
     const val HOURS_PURCHASE = "HOURS_PURCHASE"
     const val DAILY_REPORT = "DAILY_REPORT"
     const val WORK_ALLOCATION_CORRECTION = "WORK_ALLOCATION_CORRECTION"
+    const val ADJUSTMENT_REQUEST = "ADJUSTMENT_REQUEST"
 
     /** A job (UNBILLED_WORK: completed and not invoiced yet). */
     const val JOB = "JOB"
@@ -116,6 +117,7 @@ object RecordKinds {
         NON_REVENUE_APPROVAL to DecisionKinds.NON_REVENUE,
         DAILY_REPORT to DecisionKinds.DAILY_REPORT,
         WORK_ALLOCATION_CORRECTION to DecisionKinds.ALLOCATION_CORRECTION,
+        ADJUSTMENT_REQUEST to DecisionKinds.ADJUSTMENT_REQUEST,
     )
 
     /** Web detail route segment(s) -> record kind (`/tenant/finance/cash/<segment>/<id>`, `/tenant/hours/<segment>/<id>`). */
@@ -158,6 +160,7 @@ object DecisionKinds {
     const val NON_REVENUE = "NON_REVENUE"
     const val DAILY_REPORT = "DAILY_REPORT"
     const val ALLOCATION_CORRECTION = "ALLOCATION_CORRECTION"
+    const val ADJUSTMENT_REQUEST = "ADJUSTMENT_REQUEST"
 
     /** Notification target entity -> decision kind (backend notification rules). */
     val BY_ENTITY = mapOf(
@@ -177,6 +180,7 @@ object DecisionKinds {
         "non_revenue_approval" to NON_REVENUE,
         "daily_report" to DAILY_REPORT,
         "work_allocation_correction" to ALLOCATION_CORRECTION,
+        "adjustment_request" to ADJUSTMENT_REQUEST,
     )
 }
 
@@ -262,7 +266,14 @@ object DeepLinkRouter {
                 else -> OwnerDestination.Approvals()
             }
             // Web console detail routes of the cash custody chain: /tenant/finance/cash/<segment>/<id>.
-            "finance" -> if (rest.getOrNull(1) == "cash") cashPath(rest.getOrNull(2), id(rest.getOrNull(3))) else null
+            "finance" -> when (rest.getOrNull(1)) {
+                "cash" -> cashPath(rest.getOrNull(2), id(rest.getOrNull(3)))
+                // Adjustments ledger (DEC-032): a request by id; the ledger itself is web-only, its requests wait in Approvals.
+                "adjustments" ->
+                    (if (rest.getOrNull(2) == "requests") RecordKinds.destination(RecordKinds.ADJUSTMENT_REQUEST, id(rest.getOrNull(3))) else null)
+                        ?: OwnerDestination.Approvals()
+                else -> null
+            }
             "cash" -> when (rest.getOrNull(1)) {
                 "handovers" -> id(rest.getOrNull(2))?.let { OwnerDestination.Handover(it) } ?: OwnerDestination.Approvals()
                 else -> cashPath(rest.getOrNull(1), id(rest.getOrNull(2)))

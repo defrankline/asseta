@@ -22,7 +22,7 @@ import com.asseta.owner.ui.common.KeyValue
 /** Entries of the More tab the role may open (same gating and order as iOS `MoreView`). */
 fun moreEntries(features: OwnerFeatures): List<Pair<String, OwnerDestination>> = listOfNotNull(
     (com.asseta.owner.ui.setup.SetupTexts.MORE to OwnerDestination.SetupChecklist).takeIf { features.setupRead },
-    ("Approvals" to OwnerDestination.Approvals()).takeIf { features.approvals },
+    ("Approvals" to OwnerDestination.Approvals()).takeIf { features.approvalsScreen },
     (OwnerAccountabilityTexts.MORE_ACCOUNTABILITY to OwnerDestination.Accountability).takeIf { features.accountability },
     (OwnerAccountabilityTexts.HOURS_MORE to OwnerDestination.CustomerHours).takeIf { features.customerHours },
     (com.asseta.owner.ui.accountability.OversightTexts.SCORE_MORE to OwnerDestination.Scorecard).takeIf { features.scorecard },

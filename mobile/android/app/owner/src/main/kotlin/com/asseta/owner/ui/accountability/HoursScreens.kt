@@ -30,11 +30,13 @@ import com.asseta.core.model.owner.HoursStatementUsageDto
 import com.asseta.core.model.owner.OwnerHoursPurchaseDto
 import com.asseta.core.ui.components.FilterChipRow
 import com.asseta.core.ui.components.GroupedItem
+import com.asseta.core.ui.components.LabeledValue
 import com.asseta.core.ui.components.NavigationRow
 import com.asseta.core.ui.components.groupedSection
 import com.asseta.core.ui.theme.AssetaType
 import com.asseta.core.ui.theme.palette
 import com.asseta.owner.data.ActionResult
+import com.asseta.owner.data.HoursPurchaseDetail
 import com.asseta.owner.data.OwnerData
 import com.asseta.owner.ui.common.EmptyState
 import com.asseta.owner.ui.common.FootNote
@@ -43,6 +45,7 @@ import com.asseta.owner.ui.common.OwnerColors
 import com.asseta.owner.ui.common.SectionCard
 import com.asseta.owner.ui.common.SnapshotScaffold
 import com.asseta.owner.ui.common.SnapshotViewModel
+import com.asseta.owner.ui.common.StatusPill
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -76,10 +79,14 @@ enum class StatementPeriod(val label: String) {
 /** One usage line of the statement: label, value, caption. */
 data class UsageLine(val label: String, val value: String, val caption: String)
 
+/** One payment counted (or no longer counted) on a purchase. */
+data class PaymentLine(val amount: String, val status: String, val reversed: Boolean, val released: Boolean)
+
 /** Pure presentation of customer hours, purchases and the statement (unit-tested; same rules as iOS). */
 object HoursPresentation {
     private fun dec(raw: String?): BigDecimal = raw?.toBigDecimalOrNull() ?: BigDecimal.ZERO
     private fun positive(raw: String?): Boolean = dec(raw).signum() > 0
+    private fun nonZero(raw: String?): Boolean = dec(raw).signum() != 0
     /** Hours in the phone's number format, 0–2 decimals, no trailing zeros ("12", "1,234.5"), as on iOS. */
     private fun num(raw: String?) = OwnerFormat.hoursNumber(raw)
     private fun hours(raw: String?) = "${num(raw)} h"
@@ -108,6 +115,9 @@ object HoursPresentation {
         if (positive(t.provisional)) add(T.HOURS_PROVISIONAL to hours(t.provisional))
         if (positive(t.transferred)) add(T.HOURS_TRANSFERRED to hours(t.transferred))
         if (positive(t.expired)) add(T.HOURS_EXPIRED to hours(t.expired))
+        if (positive(t.refunded)) add(T.HOURS_REFUNDED to hours(t.refunded))
+        if (nonZero(t.corrected)) add(T.HOURS_CORRECTED to AdjustmentPresentation.signedHours(t.corrected))
+        if (positive(t.reversed)) add(T.HOURS_REVERSED to hours(t.reversed))
         add(T.HOURS_REMAINING to hours(t.remaining))
         if (positive(t.awaitingActivation)) add(T.HOURS_AWAITING to hours(t.awaitingActivation))
     }
@@ -135,8 +145,32 @@ object HoursPresentation {
         if (positive(t.transferredOut)) add(T.STMT_TRANSFERRED_OUT to hours(t.transferredOut))
         if (positive(t.expired)) add(T.STMT_EXPIRED to hours(t.expired))
         if (positive(t.cancelled)) add(T.STMT_CANCELLED to hours(t.cancelled))
+        if (positive(t.refunded)) add(T.STMT_REFUNDED to hours(t.refunded))
+        if (nonZero(t.corrected)) add(T.STMT_CORRECTED to AdjustmentPresentation.signedHours(t.corrected))
         add(T.STMT_CLOSING to hours(t.closingBalance))
         if (positive(t.awaitingActivation)) add(T.STMT_AWAITING to hours(t.awaitingActivation))
+    }
+
+    private val ADJUSTMENT_ENTRIES = setOf("CORRECTION_ADD", "CORRECTION_DEDUCT", "REFUNDED", "REVERSAL")
+
+    /** Corrections, refunds and reversals of the period, newest first. */
+    fun adjustmentLines(s: HoursStatementDto): List<UsageLine> = s.lines.filter { it.entryType in ADJUSTMENT_ENTRIES }.sortedByDescending { it.occurredAt }.map { l ->
+        UsageLine(T.stmtUsageRow(RevenuePresentation.day(l.day), T.stmtLine(l.entryType)), AdjustmentPresentation.signedHours(l.hours), listOfNotNull(l.purchaseNumber, l.reason?.takeIf { it.isNotBlank() }).joinToString(" · "))
+    }
+
+    private fun localDay(raw: String, zone: ZoneId): String =
+        RevenuePresentation.day(runCatching { java.time.OffsetDateTime.parse(raw).atZoneSameInstant(zone).toLocalDate().toString() }.getOrDefault(raw))
+
+    /** The purchase's payments; a reversed one says so, whatever its settlement status. */
+    fun payments(d: HoursPurchaseDetail, zone: ZoneId): List<PaymentLine> = d.purchase.allocations.map { a ->
+        val amount = a.amount.toBigDecimalOrNull()?.let { v -> d.purchase.currency?.let { OwnerFormat.money(v, it) } } ?: a.amount
+        val reversedAt = d.reversedPayments[a.paymentId]
+        val status = when {
+            reversedAt != null -> T.hoursPaymentReversed(localDay(reversedAt, zone))
+            a.releasedAt != null -> T.HOURS_PAYMENT_RELEASED
+            else -> OwnerFormat.humanize(a.paymentStatus ?: "")
+        }
+        PaymentLine(amount, status, reversedAt != null, a.releasedAt != null)
     }
 
     /** Usage lines, newest day first. */
@@ -152,8 +186,8 @@ object HoursPresentation {
 class CustomerHoursViewModel(data: OwnerData, refreshOn: Flow<Unit>) :
     SnapshotViewModel<List<OwnerHoursPurchaseDto>>({ data.hoursPurchases() }, refreshOn)
 
-class HoursPurchaseViewModel(data: OwnerData, purchaseId: String, refreshOn: Flow<Unit>) :
-    SnapshotViewModel<OwnerHoursPurchaseDto>({ data.hoursPurchase(purchaseId) }, refreshOn)
+class HoursPurchaseViewModel(data: OwnerData, purchaseId: String, refreshOn: Flow<Unit>, payments: Boolean = false) :
+    SnapshotViewModel<HoursPurchaseDetail>({ data.hoursPurchase(purchaseId, payments) }, refreshOn)
 
 /** PDF download state of the statement screen. */
 data class PdfState(val busy: Boolean = false, val bytes: ByteArray? = null, val error: String? = null)
@@ -225,7 +259,8 @@ fun CustomerHoursScreen(vm: CustomerHoursViewModel, onOpen: (OwnerDestination) -
 @Composable
 fun HoursPurchaseScreen(vm: HoursPurchaseViewModel, onOpen: (OwnerDestination) -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
-    SnapshotScaffold(state, vm::refresh) { p ->
+    SnapshotScaffold(state, vm::refresh) { detail ->
+        val p = detail.purchase
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 16.dp, bottom = 16.dp)) {
             item {
                 SectionCard(T.HOURS_HOURS, footer = T.HOURS_PROVISIONAL_FOOTER) {
@@ -235,6 +270,16 @@ fun HoursPurchaseScreen(vm: HoursPurchaseViewModel, onOpen: (OwnerDestination) -
             }
             val machines = HoursPresentation.machineRows(p)
             if (machines.isNotEmpty()) item { SectionCard(T.HOURS_MACHINES) { machines.forEach { (l, v) -> KeyValue(l, v) } } }
+            val payments = HoursPresentation.payments(detail, ZoneId.systemDefault())
+            if (payments.isNotEmpty()) item {
+                SectionCard(T.HOURS_PAYMENTS) {
+                    payments.forEach { line ->
+                        LabeledValue(line.amount) {
+                            StatusPill(line.status, if (line.reversed) OwnerColors.Critical else if (line.released) OwnerColors.Warning else OwnerColors.Live)
+                        }
+                    }
+                }
+            }
             item {
                 SectionCard(null) {
                     NavigationRow(T.HOURS_OPEN_STATEMENT) { onOpen(OwnerDestination.HoursStatement(p.customerId, p.customerName)) }
@@ -273,6 +318,17 @@ fun HoursStatementScreen(vm: HoursStatementViewModel, online: Boolean, customerN
                             Column(Modifier.semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 KeyValue(u.label, u.value)
                                 Text(u.caption, style = AssetaType.caption, color = palette.secondaryText)
+                            }
+                        }
+                    }
+                }
+                val adjustments = HoursPresentation.adjustmentLines(s)
+                if (adjustments.isNotEmpty()) item {
+                    SectionCard(T.STMT_ADJUSTMENTS) {
+                        adjustments.forEach { u ->
+                            Column(Modifier.semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                KeyValue(u.label, u.value)
+                                if (u.caption.isNotEmpty()) Text(u.caption, style = AssetaType.caption, color = palette.secondaryText)
                             }
                         }
                     }

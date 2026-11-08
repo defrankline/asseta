@@ -1541,6 +1541,7 @@ Allocation row subject `{who}`: customer name, then ` · {job number}`; authoriz
 Rules shared by both apps:
 - **Owner is online-only for actions**; reading screens use the snapshot cache and stale banner as today. No sync changes. Supervisor app: no new screens, new fields decoded tolerantly.
 - **Permissions:** section and detail `tenant.adjustment.read`; Approve/Reject `tenant.adjustment.decide`, never the proposer (`proposed_by` = signed-in user: both buttons disabled + `owner.decision.ownRequest`-style note, as the other decision kinds); Withdraw only for the proposer, with `tenant.adjustment.propose`, only while PROPOSED.
+- **Reaching Approvals:** the Approvals entry shows with `tenant.approval.read` or `tenant.adjustment.read` (the accountant role decides adjustments and has no `tenant.approval.*`). Without `tenant.approval.read` the expense requests are not fetched and their filter chips and rows are hidden; when no other section applies and nothing waits, show the empty state with `owner.adjust.empty`.
 - **List:** `GET /adjustment-requests?status=PROPOSED&page_size=100`, section hidden when nothing waits (same as the other accountability sections). **Detail:** `GET /adjustment-requests/{id}` (any status). **Decide:** `POST .../{id}/decision {decision: APPROVE|REJECT, note?}`; note optional to approve, required to reject (same as the other non-meter kinds), at most 1000 characters. **Withdraw:** `POST .../{id}/withdraw {reason}` (3..1000 characters). After a decision or withdrawal the screen reloads so `effects` shows what actually happened.
 - **`effects`** is an open object: forecast while PROPOSED ("If approved"), the actual result once decided ("What it did"); `{refused: code}` while PROPOSED shows `owner.adjust.refused` instead of rows, and Approve stays available (the server decides at the moment of approving). Rows only for the keys below, in this order, money with the request's `currency`, hours with the decimal formatter + ` h`; unknown keys are ignored; zero rows are hidden except the two lot rows. Empty effects hide the card.
 - **Evidence:** every `evidence_attachment_ids` as a photo (`GET /attachments/{id}/url`, on demand), same as work allocation corrections.
@@ -1558,7 +1559,7 @@ Screens per app:
 | Owner | Deep links | Kind `ADJUSTMENT_REQUEST` + `record_id`, entity `adjustment_request`, path `/tenant/finance/adjustments/requests/{id}` → Adjustment request; `/tenant/finance/adjustments` and `/tenant/finance/adjustments/{id}` → Approvals |
 | Supervisor | none | Additive fields only |
 
-Request card rows, in order (each only when present): Type, Reference (`original_reference`), Customer, Machine, Purchase (`purchase_number`), Hours, Amount, Settlement, Reason category (`reason_label`), Proposed by, then the usual Reason, Proposed, Status, then Decided by, Decision note (a WITHDRAWN request shows its `decision_note` as `owner.adjust.withdrawnReason` instead).
+Request card rows, in order (each only when present): Type, Reference (`original_reference`), Customer, Machine, Purchase (`purchase_number`), Hours, Amount, Settlement, Reason category (`reason_label`), Proposed by, Decided by, Decision note (a WITHDRAWN request shows its `decision_note` as `owner.adjust.withdrawnReason` instead), then the usual Reason, Proposed, Status.
 
 ### Owner
 | Key | English |
@@ -1600,7 +1601,7 @@ Request card rows, in order (each only when present): Type, Reference (`original
 | owner.adjust.effect.usedHours | Hours already used |
 | owner.adjust.effect.usedKept | Used hours kept |
 | owner.adjust.effect.moneyOwed | Money owed for hours already used |
-| owner.adjust.effect.treatment | Hours already used |
+| owner.adjust.effect.treatment | For hours already used |
 | owner.adjust.effect.treatment.RECEIVABLE | Bill the customer |
 | owner.adjust.effect.treatment.CASE | Open an investigation case |
 | owner.adjust.effect.recoveryInvoice | Recovery invoice |
@@ -1651,4 +1652,4 @@ Request card rows, in order (each only when present): Type, Reference (`original
 | owner.stmt.line.REVERSAL | Hours reversed |
 | owner.stmt.lineRow | {day} · {kind} |
 
-Effect rows by key, in order: `lot_hours_before`, `lot_hours_after`, `purchase_remaining`, `hours_refunded`, `value`, `settlement`, `payment_amount`, `unused_hours_removed`, `used_hours`, `used_hours_kept`, `money_owed`, `treatment`, `recovery_invoice_number`, `hire_allocations_released`, `money_released_to_credit`, `customer_balance`, `custody_balance_after`, then one row per `purchases[]` (label = `purchase_number`, value = `owner.adjust.effect.purchaseLine`). Refusal codes not listed use the server's message; a `refused` code not listed uses "the record has changed. Reload to see it."
+Effect rows by key, in order: `lot_hours_before`, `lot_hours_after`, `purchase_remaining`, `hours_refunded`, `value`, `settlement`, `payment_amount`, `unused_hours_removed`, `used_hours`, `used_hours_kept`, `money_owed`, `treatment`, `recovery_invoice_number`, `hire_allocations_released`, `money_released_to_credit`, `customer_balance`, `custody_balance_after`, then one row per `purchases[]` (label = `purchase_number`, value = `owner.adjust.effect.purchaseLine`). `treatment` is shown only when `used_hours` or `money_owed` is not zero. Refusal codes not listed use the server's message; a `refused` code not listed uses "the record has changed. Reload to see it."

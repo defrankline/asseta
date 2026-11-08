@@ -79,6 +79,13 @@ data class MachineDayAllocations(
     val entries: List<com.asseta.core.model.owner.WorkAllocationDto> = emptyList(),
 )
 
+/** A purchase with its reversed payments ([reversedPayments] payment id -> when; only those that could be read). */
+@Serializable
+data class HoursPurchaseDetail(
+    val purchase: com.asseta.core.model.owner.OwnerHoursPurchaseDto,
+    val reversedPayments: Map<String, String> = emptyMap(),
+)
+
 /** Open meter exceptions with their jobs' numbers ([jobNumbers] job id -> number, when the role may read jobs). */
 @Serializable
 data class ExceptionList(val items: List<ExceptionDto>, val jobNumbers: Map<String, String> = emptyMap()) {
@@ -230,6 +237,7 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
                 DecisionKind.NON_REVENUE -> nonRevenueApprovals(status).items.map { DecisionMapper.nonRevenue(it, zone) }
                 DecisionKind.DAILY_REPORT -> dailyReports(status = status, pageSize = LIST_PAGE).items.map(DecisionMapper::dailyReport)
                 DecisionKind.ALLOCATION_CORRECTION -> DecisionMapper.allocationCorrections(workAllocations(status = status, pageSize = LIST_PAGE).items)
+                DecisionKind.ADJUSTMENT_REQUEST -> adjustmentRequests(status, LIST_PAGE).items.map(com.asseta.owner.ui.accountability.AdjustmentPresentation::item)
             }
         }
     }
@@ -261,6 +269,7 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
                         val original = c.supersedesId?.let { old -> runCatching { workAllocation(old) }.getOrNull() }
                         DecisionMapper.allocationCorrection(c.groupId, c.status, c.entries, original)
                     }
+                    DecisionKind.ADJUSTMENT_REQUEST -> com.asseta.owner.ui.accountability.AdjustmentPresentation.item(adjustmentRequest(id))
                 },
             )
         }
@@ -310,10 +319,17 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
                     id, com.asseta.core.model.owner.DailyReportReviewIn(if (approve) com.asseta.core.model.owner.DailyReportReviewIn.REVIEWED else com.asseta.core.model.owner.DailyReportReviewIn.RETURNED, note.trim()),
                 )
                 DecisionKind.ALLOCATION_CORRECTION -> decideWorkAllocationCorrection(id, meter)
+                DecisionKind.ADJUSTMENT_REQUEST -> decideAdjustmentRequest(
+                    id, com.asseta.core.model.owner.AdjustmentDecisionIn(meter.decision, text),
+                )
             }
             Unit
         }
     }
+
+    /** The proposer takes back an adjustment request that still waits (online only). */
+    suspend fun withdrawAdjustmentRequest(id: String, reason: String) =
+        repo.act { withdrawAdjustmentRequest(id, com.asseta.core.model.owner.AdjustmentWithdrawIn(reason.trim())) }
 
     // --- revenue reconciliation (DEC-031 Phase 1; online actions, cached reads) ----------------------------------
     /** One revenue difference (any status), cached per record for offline viewing. */
@@ -375,8 +391,16 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
             com.asseta.owner.ui.accountability.HoursPresentation.open(ownerHoursPurchases(pageSize = LIST_PAGE).items)
         }
 
-    suspend fun hoursPurchase(id: String): Load<com.asseta.core.model.owner.OwnerHoursPurchaseDto> =
-        repo.load(tenantId, "hours_purchase:$id", com.asseta.core.model.owner.OwnerHoursPurchaseDto.serializer()) { hoursPurchase(id) }
+    /** [payments]: also read the released payments to mark reversed ones (best effort, bounded). */
+    suspend fun hoursPurchase(id: String, payments: Boolean = false): Load<HoursPurchaseDetail> =
+        repo.load(tenantId, "hours_purchase_detail:$id", HoursPurchaseDetail.serializer()) {
+            val purchase = hoursPurchase(id)
+            val released = if (payments) purchase.allocations.filter { it.releasedAt != null }.map { it.paymentId }.distinct().take(MAX_PAYMENT_LOOKUPS) else emptyList()
+            HoursPurchaseDetail(
+                purchase,
+                released.mapNotNull { paymentId -> runCatching { customerPayment(paymentId) }.getOrNull()?.reversedAt?.let { paymentId to it } }.toMap(),
+            )
+        }
 
     /** One customer's hours statement for the local days [from]..[to] (cached per customer and period). */
     suspend fun hoursStatement(customerId: String, from: java.time.LocalDate, to: java.time.LocalDate): Load<com.asseta.core.model.owner.HoursStatementDto> =
@@ -519,5 +543,8 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
 
         /** Distinct jobs whose numbers are looked up for the open exceptions (bounded network work). */
         const val MAX_JOB_LOOKUPS = 25
+
+        /** Released payments looked up on one purchase. */
+        const val MAX_PAYMENT_LOOKUPS = 25
     }
 }

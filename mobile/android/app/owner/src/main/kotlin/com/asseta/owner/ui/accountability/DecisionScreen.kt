@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.asseta.core.domain.owner.MutationCheck
+import com.asseta.core.domain.owner.OwnerAction
 import com.asseta.core.domain.owner.OwnerFormat
 import com.asseta.core.ui.components.GroupedSection
 import com.asseta.core.ui.components.LabeledValue
@@ -74,6 +75,8 @@ class DecisionViewModel(val data: OwnerData, val kind: DecisionKind, val id: Str
     val message: StateFlow<String?> = _message.asStateFlow()
     private val _busy = MutableStateFlow(false)
     val busy: StateFlow<Boolean> = _busy.asStateFlow()
+    private val _withdrawError = MutableStateFlow<String?>(null)
+    val withdrawError: StateFlow<String?> = _withdrawError.asStateFlow()
 
     fun item(list: List<DecisionItem>): DecisionItem? = list.firstOrNull { it.id == id }
 
@@ -87,10 +90,37 @@ class DecisionViewModel(val data: OwnerData, val kind: DecisionKind, val id: Str
                     val status = if (approve) "APPROVED" else "REJECTED"
                     replaceData { list -> list.map { if (it.id == id) it.copy(status = status, pending = false) else it } }
                     _message.value = if (approve) T.APPROVED else T.REJECTED
+                    // The forecast becomes what actually happened.
+                    if (kind == DecisionKind.ADJUSTMENT_REQUEST) refresh()
                 }
                 is ActionResult.Refused -> {
-                    val error = if (kind == DecisionKind.ALLOCATION_CORRECTION) r.error.copy(message = AllocationTexts.error(r.code, r.error.message)) else r.error
+                    val error = when (kind) {
+                        DecisionKind.ALLOCATION_CORRECTION -> r.error.copy(message = AllocationTexts.error(r.code, r.error.message))
+                        DecisionKind.ADJUSTMENT_REQUEST -> r.error.copy(message = AdjustmentTexts.error(r.code, r.error.message))
+                        else -> r.error
+                    }
                     _error.value = DecisionError(id, error, r.code)
+                    if (r.reload) refresh()
+                }
+            }
+            _busy.value = false
+        }
+    }
+
+    /** The proposer takes back an adjustment request that still waits. */
+    fun withdraw(reason: String) {
+        if (_busy.value || kind != DecisionKind.ADJUSTMENT_REQUEST || !AdjustmentPresentation.withdrawReasonValid(reason)) return
+        _busy.value = true
+        _withdrawError.value = null
+        viewModelScope.launch {
+            when (val r = data.withdrawAdjustmentRequest(id, reason)) {
+                is ActionResult.Done -> {
+                    replaceData { list -> list.map { if (it.id == id) it.copy(status = "WITHDRAWN", pending = false) else it } }
+                    _message.value = AdjustmentTexts.WITHDRAWN
+                    refresh()
+                }
+                is ActionResult.Refused -> {
+                    _withdrawError.value = AdjustmentTexts.error(r.code, r.error.message)
                     if (r.reload) refresh()
                 }
             }
@@ -105,6 +135,7 @@ fun DecisionScreen(vm: DecisionViewModel, session: OwnerSession, online: Boolean
     val error by vm.error.collectAsStateWithLifecycle()
     val message by vm.message.collectAsStateWithLifecycle()
     val busy by vm.busy.collectAsStateWithLifecycle()
+    val withdrawError by vm.withdrawError.collectAsStateWithLifecycle()
     var note by rememberSaveable { mutableStateOf("") }
     var confirmReject by rememberSaveable { mutableStateOf(false) }
     SnapshotScaffold(state, vm::refresh) { list ->
@@ -127,6 +158,12 @@ fun DecisionScreen(vm: DecisionViewModel, session: OwnerSession, online: Boolean
                 }
             }
             item.originalLine?.let { line -> item { SectionCard(null) { KeyValue(AllocationTexts.ORIGINAL, line) } } }
+            if (item.effects.isNotEmpty() || item.effectsWarning != null) item {
+                SectionCard(item.effectsTitle) {
+                    item.effectsWarning?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = OwnerColors.Warning) }
+                    item.effects.forEach { KeyValue(it.label, it.value) }
+                }
+            }
             if (item.photoAttachmentIds.isNotEmpty()) item {
                 SectionCard(AllocationTexts.EVIDENCE) {
                     item.photoAttachmentIds.forEachIndexed { i, pid -> EvidencePhoto("evidence ${i + 1}", online && !state.stale) { vm.data.attachmentUrl(pid) } }
@@ -166,6 +203,9 @@ fun DecisionScreen(vm: DecisionViewModel, session: OwnerSession, online: Boolean
                     }
                 }
             }
+            if (AdjustmentPresentation.canWithdraw(item, session.userId) && session.features.adjustmentPropose) item {
+                WithdrawCard(session.can(OwnerAction.WITHDRAW_ADJUSTMENT_REQUEST, online, state.snapshot?.source), busy, withdrawError, vm::withdraw)
+            }
             message?.let { item { GroupedSection { Text(it, color = palette.accent, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) } } }
         }
     }
@@ -185,6 +225,7 @@ fun DecisionScreen(vm: DecisionViewModel, session: OwnerSession, online: Boolean
 fun DecisionRow(item: DecisionItem, zone: ZoneId) {
     Column(Modifier.semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(item.headline, style = AssetaType.headline)
+        item.subline?.let { Text(it, style = AssetaType.subheadline, color = palette.secondaryText) }
         item.reason?.takeIf { it.isNotBlank() }?.let { Text(it, style = AssetaType.subheadline, color = palette.secondaryText, maxLines = 2) }
         item.proposedAt?.let {
             val time = OwnerFormat.dateTime(it, zone)

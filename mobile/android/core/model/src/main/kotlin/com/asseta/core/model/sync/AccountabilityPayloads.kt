@@ -232,6 +232,11 @@ data class PurchaseTotalsDto(
     val expired: String = "0",
     /** Hours held by running jobs (daily drawdown, DEC-031 P4), already taken out of [remaining]. */
     val provisional: String = "0",
+    /** Unused hours refunded (DEC-032). */
+    val refunded: String = "0",
+    /** Net approved corrections, signed (DEC-032). */
+    val corrected: String = "0",
+    val reversed: String = "0",
 )
 
 /** `MachineHoursDto`: a purchase's hours on one machine (after transfers). */

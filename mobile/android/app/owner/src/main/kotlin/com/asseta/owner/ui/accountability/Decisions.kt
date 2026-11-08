@@ -39,8 +39,8 @@ enum class DecisionKind(
     val meter: Boolean,
     val pendingStatus: String,
     private val visible: (OwnerFeatures) -> Boolean,
-    /** The tenant capability (`/me` `disabled_capabilities` code) this kind belongs to. */
-    val capability: String,
+    /** The tenant capability (`/me` `disabled_capabilities` code) this kind belongs to; null when none switches it off. */
+    val capability: String?,
 ) {
     DISCOUNT(DecisionKinds.DISCOUNT, T.DISCOUNTS, T.DISCOUNTS_EMPTY, T.TITLE_DISCOUNT, OwnerAction.DECIDE_DISCOUNT, false, "PROPOSED", { it.customerHours }, TenantAccess.CUSTOMER_HOURS),
     CREDIT(DecisionKinds.CREDIT, T.CREDIT, T.CREDIT_EMPTY, T.TITLE_CREDIT, OwnerAction.DECIDE_CREDIT, false, "PROPOSED", { it.customerHours }, TenantAccess.CUSTOMER_HOURS),
@@ -75,10 +75,16 @@ enum class DecisionKind(
     ALLOCATION_CORRECTION(
         DecisionKinds.ALLOCATION_CORRECTION, AllocationTexts.SECTION, AllocationTexts.EMPTY, AllocationTexts.TITLE, OwnerAction.DECIDE_ALLOCATION_CORRECTION, true,
         "PROPOSED", { it.meterEvidence }, TenantAccess.ENGINE_HOURS,
+    ),
+
+    /** DEC-032 B: corrections, refunds, reversals and invoice voids; note optional to approve, required to reject. */
+    ADJUSTMENT_REQUEST(
+        DecisionKinds.ADJUSTMENT_REQUEST, AdjustmentTexts.SECTION, AdjustmentTexts.EMPTY, AdjustmentTexts.TITLE, OwnerAction.DECIDE_ADJUSTMENT_REQUEST, false,
+        "PROPOSED", { it.adjustmentRead }, null,
     );
 
     /** The tenant switched off the capability this kind belongs to (its section and screen are hidden). */
-    fun switchedOff(features: OwnerFeatures): Boolean = capability in features.disabled
+    fun switchedOff(features: OwnerFeatures): Boolean = capability != null && capability in features.disabled
 
     fun visibleTo(features: OwnerFeatures): Boolean = !switchedOff(features) && visible(features)
 
@@ -114,6 +120,13 @@ data class DecisionItem(
     val photoAttachmentIds: List<String> = emptyList(),
     /** Work allocation correction: what the ledger says now, shown in its own row below the request. */
     val originalLine: String? = null,
+    /** Who and what the request is about, shown under the headline of its row. */
+    val subline: String? = null,
+    /** Card title of [effects] ("If approved" / "What it did"). */
+    val effectsTitle: String? = null,
+    val effects: List<DecisionField> = emptyList(),
+    /** The server's forecast says approving would be refused. */
+    val effectsWarning: String? = null,
 ) {
     /** The signed-in user proposed this request, so someone else must decide it. */
     fun isOwn(userId: String?): Boolean = userId != null && proposedBy == userId

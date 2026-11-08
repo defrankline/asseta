@@ -77,11 +77,11 @@ import com.asseta.owner.ui.spend.FieldSpendViewModel
 private val ACCOUNTABILITY_ENTITIES = arrayOf(
     "customer_discount", "credit_arrangement", "hours_transfer", "hours_cancellation", "meter_baseline", "meter_correction",
     "engine_hour_classification", "cash_variance", "cash_retention", "custody_adjustment", "revenue_difference", "non_revenue_approval",
-    "daily_report", "work_allocation_correction", "work_allocation",
+    "daily_report", "work_allocation_correction", "work_allocation", "adjustment_request",
 )
 
 /** Live-update entities of the customer hours screens. */
-private val HOURS_ENTITIES = arrayOf("hours_purchase", "hours_transfer", "hours_cancellation", "job")
+private val HOURS_ENTITIES = arrayOf("hours_purchase", "hours_transfer", "hours_cancellation", "job", "adjustment_request")
 
 /** Live-update entities behind the people scorecard. */
 private val OVERSIGHT_ENTITIES = arrayOf("job_exception", "alert", "cash_remittance_overdue", "cash_variance", "revenue_difference", "site_checkin", "case")
@@ -147,6 +147,7 @@ fun OwnerRoutes(
                         meterResets = features.meterEvidence, jobs = features.jobs, handovers = features.finance, exceptions = features.meterEvidence,
                         decisions = DecisionKind.visible(features),
                         revenueOpen = features.revenueExplain || features.revenueDecide,
+                        expenseRequests = features.approvals,
                     )
                 }
                 ApprovalsScreen(vm, open)
@@ -284,7 +285,7 @@ fun OwnerRoutes(
         }
         is OwnerDestination.HoursPurchase -> {
             val vm: HoursPurchaseViewModel = viewModel(key = "hours-purchase-$t-${route.purchaseId}") {
-                HoursPurchaseViewModel(data, route.purchaseId, graph.refreshTriggers(*HOURS_ENTITIES))
+                HoursPurchaseViewModel(data, route.purchaseId, graph.refreshTriggers(*HOURS_ENTITIES), features.paymentDetails)
             }
             HoursPurchaseScreen(vm, open)
         }

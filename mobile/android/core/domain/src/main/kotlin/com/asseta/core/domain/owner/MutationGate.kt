@@ -40,6 +40,10 @@ enum class OwnerAction(val permission: String) {
     EXPLAIN_REVENUE("tenant.revenue.explain"),
     DECIDE_REVENUE("tenant.revenue.decide"),
     DECIDE_NON_REVENUE("tenant.revenue.decide"),
+
+    // Adjustments (DEC-032): a second person decides; only the proposer withdraws.
+    DECIDE_ADJUSTMENT_REQUEST("tenant.adjustment.decide"),
+    WITHDRAW_ADJUSTMENT_REQUEST("tenant.adjustment.propose"),
 }
 
 sealed interface MutationCheck {

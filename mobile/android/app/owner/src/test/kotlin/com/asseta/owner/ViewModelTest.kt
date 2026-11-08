@@ -102,8 +102,8 @@ class ViewModelTest {
 
     @Test
     fun `approvals load pending meter resets as their own section`() {
-        h.ok(Samples.page(Samples.approval()))
-        h.ok("[${Samples.reset()}]")
+        // The two sections load in parallel, so the answers go by URL rather than by order of arrival.
+        h.route("/approvals" to Samples.page(Samples.approval()), "/meter-resets" to "[${Samples.reset()}]")
         val vm = ApprovalsViewModel(h.data, emptyFlow(), meterResets = true)
         assertEquals(1, vm.state.settled().data!!.items.size)
         assertEquals(1, vm.resets!!.state.settled().data!!.size)
