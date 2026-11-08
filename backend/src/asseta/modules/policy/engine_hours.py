@@ -40,6 +40,21 @@ class EngineHoursPolicy(BaseModel):
     prevent_overlapping_allocation: bool
     # [3.2.5] Refuse a job activity (work log) entry that overlaps another timed entry of the same job.
     prevent_overlapping_activity: bool
+    # [DEC-032 A2] Time inside a job counts as customer work without a work-log entry (today's behaviour). Off: in-job
+    # hours need a covering work-log entry; uncovered hours are UNEXPLAINED (not billable, not drawn, not wasted).
+    # Read per job at its start, so a change never reinterprets a job already running.
+    in_job_time_counts_as_customer_work: bool = True
+    # [DEC-032 A3] A mid-job changeover reading always moves the allocation to the next customer. On: the hours after
+    # it also leave the running job's billing, drawdown and expected revenue. Off (today): the job bills as before.
+    changeover_splits_billing: bool = False
+    # [DEC-032 A1] A correction of a work allocation is proposed by one person and approved by another holding
+    # `tenant.meter.approve`. Off: an approval-permission holder's correction takes effect directly.
+    allocation_correction_requires_approval: bool = True
+    # [DEC-032 A6] Cumulative open unexplained hours of a machine above this open an investigation by amount as well
+    # as by age. Null: only age opens one.
+    unexplained_flag_amount_hours: Decimal | None = Field(default=None, gt=0, le=Decimal(100000))
+    # [DEC-032 A4] Every daily operational report needs at least one evidence photo. Off (today): evidence is optional.
+    daily_report_evidence_required: bool = False
 
     def in_force(self) -> "EngineHoursPolicy":
         """The rules actually enforced: as configured when enabled; switched off as a whole otherwise."""
@@ -53,6 +68,11 @@ class EngineHoursPolicy(BaseModel):
                 "correction_requires_second_person": False,
                 "prevent_overlapping_allocation": False,
                 "prevent_overlapping_activity": False,
+                "in_job_time_counts_as_customer_work": True,
+                "changeover_splits_billing": False,
+                "allocation_correction_requires_approval": False,
+                "unexplained_flag_amount_hours": None,
+                "daily_report_evidence_required": False,
             }
         )
 
@@ -69,4 +89,9 @@ ENGINE_HOURS_SEED: dict[str, object] = {
     "ledger_includes_unreviewed_readings": False,
     "prevent_overlapping_allocation": True,
     "prevent_overlapping_activity": True,
+    "in_job_time_counts_as_customer_work": True,
+    "changeover_splits_billing": False,
+    "allocation_correction_requires_approval": True,
+    "unexplained_flag_amount_hours": None,
+    "daily_report_evidence_required": False,
 }

@@ -15,6 +15,7 @@ from asseta.modules.finance.remittance_cutoff import run_remittance_cutoff
 from asseta.modules.hours.drawdown import run_hours_drawdown
 from asseta.modules.hours.expiry import run_hours_expiry
 from asseta.modules.identity.authz_sync import AuthzSyncService
+from asseta.modules.meter.allocation_writer import run_work_allocations
 from asseta.modules.notification.realtime import RedisBroker, SafePublisher
 from asseta.modules.notification.reminders import run_reminders
 from asseta.modules.notification.settings import get_notification_settings
@@ -58,6 +59,10 @@ def run() -> None:
             run_hours_drawdown(get_sessionmaker(), system_clock())
         except Exception:
             log.exception("hours_drawdown_cycle_failed")
+        try:  # work allocation ledger, day by day from readings (DEC-032 A1; idempotent)
+            run_work_allocations(get_sessionmaker(), system_clock())
+        except Exception:
+            log.exception("work_allocations_cycle_failed")
         try:  # daily remittance cut-off (tenant policy cash.remittance_cutoff_hour; null = off)
             run_remittance_cutoff(get_sessionmaker(), system_clock())
         except Exception:

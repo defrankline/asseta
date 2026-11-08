@@ -111,7 +111,8 @@ DELETE: frozenset[str] = frozenset(
         "customer_acknowledgement", "meter_capture", "meter_correction", "meter_reset_event", "capture_attachment",
         "approval_request", "non_revenue_approval", "work_execution_allocation",
         # engine hours
-        "engine_hour_classification", "engine_hour_reason",
+        "engine_hour_classification", "engine_hour_reason", "work_allocation", "machine_changeover",
+        "daily_operational_report",
         # expenses, fuel, receipts
         "expense", "expense_attachment", "expense_category", "fuel_event",
         # cash custody chain

@@ -10,9 +10,9 @@ prepaid hours consumed x the purchase effective rate. A job's money is spread ov
 expected revenue, so a job paid in full shows no difference in any window. Jobs still running carry their expected
 revenue as `in_progress` (not yet billable) instead of a difference.
 
-Engine hours outside jobs that nobody has had approved as non-customer activity (owner rule, 2026-10-26) are
-expected revenue too, at the tenant's chosen rate (machine rate card or a tenant rate) — or only shown when the
-tenant excludes them."""
+Engine hours nobody has had approved as non-customer activity are valued at the tenant's chosen rate (machine rate
+card or a tenant rate). By default (DEC-032 D1) that is a separate value at risk, never in expected revenue or a
+shortfall; a tenant may instead expect them as revenue (EXPECT_REVENUE) or only show the hours (EXCLUDE)."""
 
 import uuid
 from collections.abc import Iterable, Sequence
@@ -78,7 +78,8 @@ class WindowMoney:
     in_progress: Decimal = ZERO  # expected revenue of jobs still running (not yet billable)
     attributed: Decimal = ZERO
     unexplained_hours: Decimal = ZERO  # engine hours outside jobs not approved as non-customer activity
-    unexplained_expected: Decimal = ZERO  # part of `expected` (0 when the tenant excludes those hours)
+    unexplained_expected: Decimal = ZERO  # part of `expected` (EXPECT_REVENUE only)
+    value_at_risk: Decimal = ZERO  # hours x rate, kept out of `expected` and the shortfall (VALUE_AT_RISK)
     job_ids: list[uuid.UUID] = field(default_factory=list)
 
     @property
@@ -139,7 +140,8 @@ class MachineRevenue:
     money: Sequence[MoneyItem]
     unexplained: Sequence[TimeSpan] = ()  # unexplained intervals outside jobs (job_id unused)
     unexplained_hours: Sequence[Decimal] = ()  # their engine hours (same order)
-    unexplained_rate: tuple[str, Decimal] | None = None  # (currency, rate); None: not expected as revenue
+    unexplained_rate: tuple[str, Decimal] | None = None  # (currency, rate); None: only shown
+    unexplained_at_risk: bool = False  # the rate gives a value at risk instead of expected revenue
     _totals: dict[uuid.UUID, Decimal] = field(default_factory=dict)
 
     def _total_expected(self, terms: JobTerms) -> Decimal:
@@ -193,6 +195,9 @@ class MachineRevenue:
                 if currency:
                     w = out.setdefault(currency, WindowMoney(currency))
                     w.unexplained_hours += hours
-                    w.unexplained_expected += hours * rate
-                    w.expected += hours * rate
+                    if self.unexplained_at_risk:
+                        w.value_at_risk += hours * rate
+                    else:
+                        w.unexplained_expected += hours * rate
+                        w.expected += hours * rate
         return out

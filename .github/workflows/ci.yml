@@ -31,7 +31,7 @@ jobs:
           CREATE ROLE asseta_app LOGIN PASSWORD 'asseta_app';
           CREATE DATABASE asseta_test OWNER asseta_owner;
           \connect asseta_test
-          CREATE EXTENSION postgis; CREATE EXTENSION pgcrypto;
+          CREATE EXTENSION postgis; CREATE EXTENSION pgcrypto; CREATE EXTENSION btree_gist;
           ALTER SCHEMA public OWNER TO asseta_owner;
           GRANT USAGE ON SCHEMA public TO asseta_app;
           ALTER DEFAULT PRIVILEGES FOR ROLE asseta_owner IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO asseta_app;

@@ -138,7 +138,9 @@ def sequence_findings(
         "reading": str(reading),
     }
     if delta < 0:
-        findings.append(Finding(ExceptionType.METER_DECREASE, "CRITICAL", True, evidence))
+        findings.append(
+            Finding(ExceptionType.METER_DECREASE, "CRITICAL", True, {**evidence, "label": "POSSIBLE_METER_RESET"})
+        )
         return findings
     elapsed_h = Decimal(str(max((captured_at - prior.captured_at).total_seconds(), 0))) / HOUR
     if delta > elapsed_h * policy.max_hours_per_elapsed_hour + Decimal("0.05"):

@@ -153,7 +153,7 @@
                 "type": "null"
               }
             ],
-            "description": "[DEC-031 R3] revenue differences: open, awaiting_decision, amounts [{currency, count, amount}], oldest_open_days, window_days, explained/confirmed/cleared_in_window, items [{id, machine_id, machine_code, period_key, local_from, local_to, currency, difference, status}] (revenue module)",
+            "description": "[DEC-031 R3] revenue differences: open, awaiting_decision, amounts [{currency, count, amount}], value_at_risk [{currency, amount}] (DEC-032 A5, unexplained hours, never in the amounts), oldest_open_days, window_days, explained/confirmed/cleared_in_window, items [{id, machine_id, machine_code, period_key, local_from, local_to, currency, difference, status}] (revenue module)",
             "title": "Revenue Differences"
           },
           "unauthorized_attempts": {
@@ -196,7 +196,7 @@
                 "type": "null"
               }
             ],
-            "description": "[3.6.4] unexplained engine hours (meter module)",
+            "description": "[3.6.4] unexplained engine hours: machines, hours, value_at_risk [{currency, amount}] (DEC-032 A5: separate from expected revenue; empty unless the tenant uses VALUE_AT_RISK), items (meter module)",
             "title": "Unexplained Hours"
           }
         },
@@ -864,6 +864,167 @@
         "title": "AllocatePaymentIn",
         "type": "object"
       },
+      "AllocationCorrectionDto": {
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/WorkAllocationDto"
+            },
+            "title": "Entries",
+            "type": "array"
+          },
+          "group_id": {
+            "format": "uuid",
+            "title": "Group Id",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AllocationStatus",
+            "description": "PROPOSED, ACTIVE (applied) or REJECTED"
+          },
+          "supersedes_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supersedes Id"
+          }
+        },
+        "required": [
+          "group_id",
+          "status",
+          "supersedes_id",
+          "entries"
+        ],
+        "title": "AllocationCorrectionDto",
+        "type": "object"
+      },
+      "AllocationCorrectionIn": {
+        "properties": {
+          "evidence_attachment_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 10,
+            "title": "Evidence Attachment Ids",
+            "type": "array"
+          },
+          "parts": {
+            "items": {
+              "$ref": "#/components/schemas/AllocationPartIn"
+            },
+            "maxItems": 10,
+            "minItems": 1,
+            "title": "Parts",
+            "type": "array"
+          },
+          "reason": {
+            "maxLength": 2000,
+            "minLength": 5,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "parts",
+          "reason"
+        ],
+        "title": "AllocationCorrectionIn",
+        "type": "object"
+      },
+      "AllocationDayDto": {
+        "description": "Per machine and tenant-local day: total engine hours = customer + authorized + unexplained, with the difference\nshown (hours not yet allocated, for example a reading that went down with no approved reset).",
+        "properties": {
+          "allocated_hours": {
+            "title": "Allocated Hours",
+            "type": "string"
+          },
+          "authorized_hours": {
+            "title": "Authorized Hours",
+            "type": "string"
+          },
+          "customer_hours": {
+            "title": "Customer Hours",
+            "type": "string"
+          },
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "difference_hours": {
+            "title": "Difference Hours",
+            "type": "string"
+          },
+          "machine_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Code"
+          },
+          "machine_id": {
+            "format": "uuid",
+            "title": "Machine Id",
+            "type": "string"
+          },
+          "machine_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Name"
+          },
+          "reconciled": {
+            "title": "Reconciled",
+            "type": "boolean"
+          },
+          "total_engine_hours": {
+            "title": "Total Engine Hours",
+            "type": "string"
+          },
+          "unexplained_hours": {
+            "title": "Unexplained Hours",
+            "type": "string"
+          }
+        },
+        "required": [
+          "machine_id",
+          "day",
+          "total_engine_hours",
+          "customer_hours",
+          "authorized_hours",
+          "unexplained_hours",
+          "allocated_hours",
+          "difference_hours",
+          "reconciled"
+        ],
+        "title": "AllocationDayDto",
+        "type": "object"
+      },
+      "AllocationKind": {
+        "enum": [
+          "CUSTOMER_WORK",
+          "AUTHORIZED_ACTIVITY",
+          "UNEXPLAINED"
+        ],
+        "title": "AllocationKind",
+        "type": "string"
+      },
       "AllocationLineDto": {
         "properties": {
           "entry_id": {
@@ -899,6 +1060,119 @@
         ],
         "title": "AllocationLineDto",
         "type": "object"
+      },
+      "AllocationLotDto": {
+        "properties": {
+          "hours": {
+            "title": "Hours",
+            "type": "string"
+          },
+          "purchase_id": {
+            "format": "uuid",
+            "title": "Purchase Id",
+            "type": "string"
+          },
+          "purchase_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purchase Number"
+          }
+        },
+        "required": [
+          "purchase_id",
+          "hours"
+        ],
+        "title": "AllocationLotDto",
+        "type": "object"
+      },
+      "AllocationPartIn": {
+        "description": "One part of a correction. Parts are taken from the entry's meter range in the order given.",
+        "properties": {
+          "customer_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Id"
+          },
+          "hours": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 100000.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Hours"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/AllocationKind"
+          },
+          "reason_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "AUTHORIZED_ACTIVITY: tenant category or variance",
+            "title": "Reason Id"
+          }
+        },
+        "required": [
+          "hours",
+          "kind"
+        ],
+        "title": "AllocationPartIn",
+        "type": "object"
+      },
+      "AllocationSource": {
+        "enum": [
+          "DERIVED",
+          "BACKFILL",
+          "CORRECTION"
+        ],
+        "title": "AllocationSource",
+        "type": "string"
+      },
+      "AllocationStatus": {
+        "enum": [
+          "PROPOSED",
+          "ACTIVE",
+          "SUPERSEDED",
+          "REJECTED"
+        ],
+        "title": "AllocationStatus",
+        "type": "string"
       },
       "AmountByCurrencyDto": {
         "properties": {
@@ -2238,7 +2512,8 @@
               "RESET_EVIDENCE",
               "EXPENSE_RECEIPT",
               "PAYMENT_EVIDENCE",
-              "REMITTANCE_EVIDENCE"
+              "REMITTANCE_EVIDENCE",
+              "DAILY_REPORT_EVIDENCE"
             ],
             "title": "Purpose",
             "type": "string"
@@ -8774,6 +9049,572 @@
         "title": "DailyMachineSheetRowDto",
         "type": "object"
       },
+      "DailyReportDto": {
+        "properties": {
+          "allocations": {
+            "items": {
+              "$ref": "#/components/schemas/ReportAllocationDto"
+            },
+            "title": "Allocations",
+            "type": "array"
+          },
+          "billable_hours": {
+            "title": "Billable Hours",
+            "type": "string"
+          },
+          "client_created_at": {
+            "format": "date-time",
+            "title": "Client Created At",
+            "type": "string"
+          },
+          "closing_reading": {
+            "title": "Closing Reading",
+            "type": "string"
+          },
+          "closing_ref": {
+            "format": "uuid",
+            "title": "Closing Ref",
+            "type": "string"
+          },
+          "difference_hours": {
+            "title": "Difference Hours",
+            "type": "string"
+          },
+          "duplicate_of_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duplicate Of Id"
+          },
+          "evidence_attachment_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Attachment Ids",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_duplicate": {
+            "default": false,
+            "title": "Is Duplicate",
+            "type": "boolean"
+          },
+          "is_late": {
+            "title": "Is Late",
+            "type": "boolean"
+          },
+          "machine_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Code"
+          },
+          "machine_id": {
+            "format": "uuid",
+            "title": "Machine Id",
+            "type": "string"
+          },
+          "machine_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Name"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "opening_reading": {
+            "title": "Opening Reading",
+            "type": "string"
+          },
+          "opening_ref": {
+            "format": "uuid",
+            "title": "Opening Ref",
+            "type": "string"
+          },
+          "policy_version": {
+            "title": "Policy Version",
+            "type": "string"
+          },
+          "report_date": {
+            "format": "date",
+            "title": "Report Date",
+            "type": "string"
+          },
+          "review_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Note"
+          },
+          "reviewed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed At"
+          },
+          "reviewed_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed By"
+          },
+          "reviewed_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed By Name"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DailyReportStatus"
+          },
+          "submitted_at": {
+            "format": "date-time",
+            "title": "Submitted At",
+            "type": "string"
+          },
+          "submitted_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submitted By"
+          },
+          "submitted_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submitted By Name"
+          },
+          "supersedes_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supersedes Id"
+          },
+          "total_hours": {
+            "title": "Total Hours",
+            "type": "string"
+          },
+          "unbillable": {
+            "items": {
+              "$ref": "#/components/schemas/UnbillableLineDto"
+            },
+            "title": "Unbillable",
+            "type": "array"
+          },
+          "unbillable_hours": {
+            "title": "Unbillable Hours",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "machine_id",
+          "report_date",
+          "opening_ref",
+          "opening_reading",
+          "closing_ref",
+          "closing_reading",
+          "total_hours",
+          "billable_hours",
+          "unbillable_hours",
+          "difference_hours",
+          "unbillable",
+          "allocations",
+          "evidence_attachment_ids",
+          "note",
+          "status",
+          "supersedes_id",
+          "duplicate_of_id",
+          "is_late",
+          "submitted_by",
+          "submitted_at",
+          "client_created_at",
+          "reviewed_by",
+          "reviewed_at",
+          "review_note",
+          "source",
+          "policy_version"
+        ],
+        "title": "DailyReportDto",
+        "type": "object"
+      },
+      "DailyReportIn": {
+        "properties": {
+          "billable_hours": {
+            "anyOf": [
+              {
+                "maximum": 100000.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Default: total minus unbillable hours",
+            "title": "Billable Hours"
+          },
+          "client_created_at": {
+            "format": "date-time",
+            "title": "Client Created At",
+            "type": "string"
+          },
+          "closing_ref": {
+            "description": "The day's closing reading (a meter capture)",
+            "format": "uuid",
+            "title": "Closing Ref",
+            "type": "string"
+          },
+          "evidence_attachment_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 10,
+            "title": "Evidence Attachment Ids",
+            "type": "array"
+          },
+          "id": {
+            "description": "Device-generated id (offline idempotency)",
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "machine_id": {
+            "format": "uuid",
+            "title": "Machine Id",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "opening_ref": {
+            "description": "The day's opening reading (a meter capture)",
+            "format": "uuid",
+            "title": "Opening Ref",
+            "type": "string"
+          },
+          "report_date": {
+            "format": "date",
+            "title": "Report Date",
+            "type": "string"
+          },
+          "supersedes_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The report this one replaces (e.g. returned)",
+            "title": "Supersedes Id"
+          },
+          "unbillable": {
+            "items": {
+              "$ref": "#/components/schemas/UnbillableLineIn"
+            },
+            "maxItems": 20,
+            "title": "Unbillable",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "machine_id",
+          "report_date",
+          "opening_ref",
+          "closing_ref",
+          "client_created_at"
+        ],
+        "title": "DailyReportIn",
+        "type": "object"
+      },
+      "DailyReportPrefillDto": {
+        "description": "What the day's readings and allocations already say, to fill the report form.",
+        "properties": {
+          "allocations": {
+            "items": {
+              "$ref": "#/components/schemas/ReportAllocationDto"
+            },
+            "title": "Allocations",
+            "type": "array"
+          },
+          "authorized_hours": {
+            "title": "Authorized Hours",
+            "type": "string"
+          },
+          "closing_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closing At"
+          },
+          "closing_reading": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closing Reading"
+          },
+          "closing_ref": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closing Ref"
+          },
+          "customer_hours": {
+            "title": "Customer Hours",
+            "type": "string"
+          },
+          "existing_report_ids": {
+            "description": "Active reports already submitted for this machine-day",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Existing Report Ids",
+            "type": "array"
+          },
+          "machine_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Code"
+          },
+          "machine_id": {
+            "format": "uuid",
+            "title": "Machine Id",
+            "type": "string"
+          },
+          "machine_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Name"
+          },
+          "opening_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opening At"
+          },
+          "opening_reading": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opening Reading"
+          },
+          "opening_ref": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opening Ref"
+          },
+          "report_date": {
+            "format": "date",
+            "title": "Report Date",
+            "type": "string"
+          },
+          "total_hours": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Hours"
+          },
+          "unexplained_hours": {
+            "title": "Unexplained Hours",
+            "type": "string"
+          }
+        },
+        "required": [
+          "machine_id",
+          "report_date",
+          "opening_ref",
+          "opening_reading",
+          "opening_at",
+          "closing_ref",
+          "closing_reading",
+          "closing_at",
+          "total_hours",
+          "customer_hours",
+          "authorized_hours",
+          "unexplained_hours",
+          "allocations",
+          "existing_report_ids"
+        ],
+        "title": "DailyReportPrefillDto",
+        "type": "object"
+      },
+      "DailyReportReviewIn": {
+        "properties": {
+          "decision": {
+            "enum": [
+              "REVIEWED",
+              "RETURNED"
+            ],
+            "title": "Decision",
+            "type": "string"
+          },
+          "note": {
+            "maxLength": 2000,
+            "minLength": 5,
+            "title": "Note",
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision",
+          "note"
+        ],
+        "title": "DailyReportReviewIn",
+        "type": "object"
+      },
+      "DailyReportStatus": {
+        "enum": [
+          "SUBMITTED",
+          "REVIEWED",
+          "RETURNED",
+          "SUPERSEDED"
+        ],
+        "title": "DailyReportStatus",
+        "type": "string"
+      },
       "DecisionIn": {
         "properties": {
           "approve": {
@@ -9846,7 +10687,8 @@
       "EngineHourReasonKind": {
         "enum": [
           "NON_CUSTOMER_CATEGORY",
-          "VARIANCE_REASON"
+          "VARIANCE_REASON",
+          "UNBILLABLE_REASON"
         ],
         "title": "EngineHourReasonKind",
         "type": "string"
@@ -10266,7 +11108,8 @@
           "MISSING_DAILY_REPORT",
           "UNEXPLAINED_HOURS",
           "OVERLAPPING_ALLOCATION",
-          "HOURS_OVERRUN"
+          "HOURS_OVERRUN",
+          "DUPLICATE_DAILY_REPORT"
         ],
         "title": "ExceptionType",
         "type": "string"
@@ -13781,6 +14624,12 @@
             },
             "title": "Overlapping Job Ids",
             "type": "array"
+          },
+          "possible_meter_reset": {
+            "default": false,
+            "description": "The reading went down with no approved reset: labelled a possible meter reset",
+            "title": "Possible Meter Reset",
+            "type": "boolean"
           },
           "raw_hours": {
             "title": "Raw Hours",
@@ -17975,6 +18824,32 @@
             "title": "Captured At",
             "type": "string"
           },
+          "changeover_to_customer_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "DEC-032 A3: a DAILY reading on the running job at which the machine moved to this customer",
+            "title": "Changeover To Customer Id"
+          },
+          "changeover_to_job_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional: the job the machine moves on to (kept for the record)",
+            "title": "Changeover To Job Id"
+          },
           "device_id": {
             "maxLength": 128,
             "minLength": 3,
@@ -20818,7 +21693,8 @@
               "METER_BASELINE",
               "METER_CORRECTION",
               "CASH_RETENTION_REQUEST",
-              "SITE_CHECKIN"
+              "SITE_CHECKIN",
+              "DAILY_REPORT"
             ],
             "title": "Op Type",
             "type": "string"
@@ -21972,6 +22848,37 @@
           "page_size"
         ],
         "title": "Page[DailyMachineSheetRowDto]",
+        "type": "object"
+      },
+      "Page_DailyReportDto_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DailyReportDto"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "Page[DailyReportDto]",
         "type": "object"
       },
       "Page_DepositAccountDto_": {
@@ -23429,6 +24336,37 @@
           "page_size"
         ],
         "title": "Page[UnbilledJobDto]",
+        "type": "object"
+      },
+      "Page_WorkAllocationDto_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/WorkAllocationDto"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "Page[WorkAllocationDto]",
         "type": "object"
       },
       "Page_WorkExecutionAllocationDto_": {
@@ -25874,6 +26812,99 @@
         "title": "RemittanceOverdueDto",
         "type": "object"
       },
+      "ReportAllocationDto": {
+        "properties": {
+          "activity_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activity Type"
+          },
+          "allocation_id": {
+            "format": "uuid",
+            "title": "Allocation Id",
+            "type": "string"
+          },
+          "customer_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Id"
+          },
+          "customer_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Name"
+          },
+          "end_reading": {
+            "title": "End Reading",
+            "type": "string"
+          },
+          "hours": {
+            "title": "Hours",
+            "type": "string"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "job_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Number"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/AllocationKind"
+          },
+          "start_reading": {
+            "title": "Start Reading",
+            "type": "string"
+          }
+        },
+        "required": [
+          "allocation_id",
+          "kind",
+          "customer_id",
+          "job_id",
+          "activity_type",
+          "start_reading",
+          "end_reading",
+          "hours"
+        ],
+        "title": "ReportAllocationDto",
+        "type": "object"
+      },
       "ReportColumnDto": {
         "properties": {
           "key": {
@@ -26528,6 +27559,12 @@
           "unexplained_hours": {
             "description": "Engine hours outside jobs not approved as non-customer activity",
             "title": "Unexplained Hours",
+            "type": "string"
+          },
+          "value_at_risk_amount": {
+            "default": "0",
+            "description": "Unexplained hours x rate, never in expected or the difference (DEC-032 A5)",
+            "title": "Value At Risk Amount",
             "type": "string"
           }
         },
@@ -28123,7 +29160,7 @@
           },
           "unexplained_expected": {
             "default": "0",
-            "description": "Unexplained hours expected as revenue (part of `expected`; 0 when the tenant excludes them)",
+            "description": "Unexplained hours expected as revenue (part of `expected`; only under EXPECT_REVENUE)",
             "title": "Unexplained Expected",
             "type": "string"
           },
@@ -28131,6 +29168,12 @@
             "default": "0",
             "description": "Engine hours outside jobs not approved as non-customer activity",
             "title": "Unexplained Hours",
+            "type": "string"
+          },
+          "value_at_risk": {
+            "default": "0",
+            "description": "Unexplained hours x rate, shown separately: never in `expected` or `difference` (DEC-032 D1)",
+            "title": "Value At Risk",
             "type": "string"
           }
         },
@@ -33208,6 +34251,65 @@
         "title": "UnassignTrackerIn",
         "type": "object"
       },
+      "UnbillableLineDto": {
+        "properties": {
+          "hours": {
+            "title": "Hours",
+            "type": "string"
+          },
+          "reason_id": {
+            "format": "uuid",
+            "title": "Reason Id",
+            "type": "string"
+          },
+          "reason_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Name"
+          }
+        },
+        "required": [
+          "reason_id",
+          "hours"
+        ],
+        "title": "UnbillableLineDto",
+        "type": "object"
+      },
+      "UnbillableLineIn": {
+        "properties": {
+          "hours": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 100000.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Hours"
+          },
+          "reason_id": {
+            "description": "Tenant list entry of kind UNBILLABLE_REASON",
+            "format": "uuid",
+            "title": "Reason Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason_id",
+          "hours"
+        ],
+        "title": "UnbillableLineIn",
+        "type": "object"
+      },
       "UnbilledJobDto": {
         "description": "A completed, billing-ready job not on an issued invoice for more than OVERSIGHT.unbilled_after_days.",
         "properties": {
@@ -33714,6 +34816,385 @@
           "source"
         ],
         "title": "WeeklyHoursDto",
+        "type": "object"
+      },
+      "WorkAllocationDto": {
+        "properties": {
+          "activity_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activity Type"
+          },
+          "changeover_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Changeover Id"
+          },
+          "classification_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Classification Id"
+          },
+          "correction_group_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Correction Group Id"
+          },
+          "correction_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Correction Reason"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "customer_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Id"
+          },
+          "customer_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Name"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "decided_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided By"
+          },
+          "decided_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided By Name"
+          },
+          "decision_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Note"
+          },
+          "end_at": {
+            "format": "date-time",
+            "title": "End At",
+            "type": "string"
+          },
+          "end_reading": {
+            "title": "End Reading",
+            "type": "string"
+          },
+          "end_ref": {
+            "format": "uuid",
+            "title": "End Ref",
+            "type": "string"
+          },
+          "evidence_attachment_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Attachment Ids",
+            "type": "array"
+          },
+          "hours": {
+            "title": "Hours",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "job_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Number"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/AllocationKind"
+          },
+          "lots": {
+            "items": {
+              "$ref": "#/components/schemas/AllocationLotDto"
+            },
+            "title": "Lots",
+            "type": "array"
+          },
+          "machine_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Code"
+          },
+          "machine_id": {
+            "format": "uuid",
+            "title": "Machine Id",
+            "type": "string"
+          },
+          "machine_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Name"
+          },
+          "meter_epoch": {
+            "title": "Meter Epoch",
+            "type": "integer"
+          },
+          "policy_version": {
+            "title": "Policy Version",
+            "type": "string"
+          },
+          "reading_review": {
+            "title": "Reading Review",
+            "type": "string"
+          },
+          "reason_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Id"
+          },
+          "reason_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Name"
+          },
+          "recorded_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recorded By"
+          },
+          "recorded_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recorded By Name"
+          },
+          "source": {
+            "$ref": "#/components/schemas/AllocationSource"
+          },
+          "start_at": {
+            "format": "date-time",
+            "title": "Start At",
+            "type": "string"
+          },
+          "start_reading": {
+            "title": "Start Reading",
+            "type": "string"
+          },
+          "start_ref": {
+            "format": "uuid",
+            "title": "Start Ref",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AllocationStatus"
+          },
+          "superseded_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Superseded At"
+          },
+          "superseded_by_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Superseded By Ids",
+            "type": "array"
+          },
+          "supersedes_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supersedes Id"
+          },
+          "work_date": {
+            "format": "date",
+            "title": "Work Date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "machine_id",
+          "work_date",
+          "start_ref",
+          "start_reading",
+          "start_at",
+          "end_ref",
+          "end_reading",
+          "end_at",
+          "meter_epoch",
+          "hours",
+          "kind",
+          "customer_id",
+          "job_id",
+          "activity_type",
+          "reason_id",
+          "classification_id",
+          "changeover_id",
+          "reading_review",
+          "lots",
+          "evidence_attachment_ids",
+          "source",
+          "status",
+          "supersedes_id",
+          "correction_group_id",
+          "correction_reason",
+          "recorded_by",
+          "decided_by",
+          "decided_at",
+          "decision_note",
+          "superseded_at",
+          "policy_version",
+          "created_at"
+        ],
+        "title": "WorkAllocationDto",
         "type": "object"
       },
       "WorkExecutionAllocationDto": {
@@ -68701,6 +70182,815 @@
         "summary": "Get Daily Sheet Day",
         "tags": [
           "revenue"
+        ]
+      }
+    },
+    "/api/v1/tenant/daily-reports": {
+      "get": {
+        "operationId": "listDailyReports",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "machine_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Machine Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/DailyReportStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sort"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_DailyReportDto_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "List Daily Reports",
+        "tags": [
+          "engine-hours"
+        ]
+      },
+      "post": {
+        "operationId": "submitDailyReport",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DailyReportIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DailyReportDto"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Submit Daily Report",
+        "tags": [
+          "engine-hours"
+        ]
+      }
+    },
+    "/api/v1/tenant/daily-reports/prefill": {
+      "get": {
+        "description": "The day's readings and allocations, to pre-fill the report form.",
+        "operationId": "prefillDailyReport",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "machine_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Machine Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "report_date",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "Report Date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DailyReportPrefillDto"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Prefill",
+        "tags": [
+          "engine-hours"
+        ]
+      }
+    },
+    "/api/v1/tenant/daily-reports/{report_id}": {
+      "get": {
+        "operationId": "getDailyReport",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "report_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Report Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DailyReportDto"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Daily Report",
+        "tags": [
+          "engine-hours"
+        ]
+      }
+    },
+    "/api/v1/tenant/daily-reports/{report_id}/review": {
+      "post": {
+        "description": "Mark reviewed, or return it to the submitter. Never by the person who submitted it.",
+        "operationId": "reviewDailyReport",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "report_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Report Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DailyReportReviewIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DailyReportDto"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Review Daily Report",
+        "tags": [
+          "engine-hours"
         ]
       }
     },
@@ -105380,6 +107670,1036 @@
         "summary": "Create Walk In",
         "tags": [
           "hours"
+        ]
+      }
+    },
+    "/api/v1/tenant/work-allocations": {
+      "get": {
+        "description": "The work allocation ledger, latest work date first (`q`: machine code or name).",
+        "operationId": "listWorkAllocations",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "machine_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Machine Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "customer_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Customer Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/AllocationKind"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          },
+          {
+            "description": "Default: ACTIVE",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/AllocationStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Default: ACTIVE",
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "job_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Job Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sort"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_WorkAllocationDto_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "List Allocations",
+        "tags": [
+          "engine-hours"
+        ]
+      }
+    },
+    "/api/v1/tenant/work-allocations/corrections/{group_id}": {
+      "get": {
+        "operationId": "getWorkAllocationCorrection",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "group_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Group Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AllocationCorrectionDto"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Correction",
+        "tags": [
+          "engine-hours"
+        ]
+      }
+    },
+    "/api/v1/tenant/work-allocations/corrections/{group_id}/decision": {
+      "post": {
+        "operationId": "decideWorkAllocationCorrection",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "group_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Group Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MeterDecisionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AllocationCorrectionDto"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Decide Correction",
+        "tags": [
+          "engine-hours"
+        ]
+      }
+    },
+    "/api/v1/tenant/work-allocations/reconciliation": {
+      "get": {
+        "description": "Per machine and day: total engine hours = customer + authorized + unexplained, the difference displayed.",
+        "operationId": "listWorkAllocationReconciliation",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "machine_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Machine Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AllocationDayDto"
+                  },
+                  "title": "Response Listworkallocationreconciliation",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Reconciliation",
+        "tags": [
+          "engine-hours"
+        ]
+      }
+    },
+    "/api/v1/tenant/work-allocations/{allocation_id}": {
+      "get": {
+        "operationId": "getWorkAllocation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "allocation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Allocation Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkAllocationDto"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Allocation",
+        "tags": [
+          "engine-hours"
+        ]
+      }
+    },
+    "/api/v1/tenant/work-allocations/{allocation_id}/corrections": {
+      "post": {
+        "description": "Propose new entries replacing this one (one or more parts adding up to its hours; reason required).",
+        "operationId": "proposeWorkAllocationCorrection",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "allocation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Allocation Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AllocationCorrectionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AllocationCorrectionDto"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Propose Correction",
+        "tags": [
+          "engine-hours"
         ]
       }
     },

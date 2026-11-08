@@ -180,7 +180,9 @@ class AccountabilitySummaryDto(BaseModel):
         default=None, description="[3.6.3] engine-hour reconciliation per machine (meter module)"
     )
     unexplained_hours: dict[str, Any] | None = Field(
-        default=None, description="[3.6.4] unexplained engine hours (meter module)"
+        default=None,
+        description="[3.6.4] unexplained engine hours: machines, hours, value_at_risk [{currency, amount}] (DEC-032 "
+        "A5: separate from expected revenue; empty unless the tenant uses VALUE_AT_RISK), items (meter module)",
     )
     missing_daily_reports: dict[str, Any] | None = Field(
         default=None, description="[3.6.9] missing or overdue operational reports (meter module)"
@@ -188,6 +190,7 @@ class AccountabilitySummaryDto(BaseModel):
     revenue_differences: dict[str, Any] | None = Field(
         default=None,
         description="[DEC-031 R3] revenue differences: open, awaiting_decision, amounts [{currency, count, amount}], "
+        "value_at_risk [{currency, amount}] (DEC-032 A5, unexplained hours, never in the amounts), "
         "oldest_open_days, window_days, explained/confirmed/cleared_in_window, items [{id, machine_id, machine_code, "
         "period_key, local_from, local_to, currency, difference, status}] (revenue module)",
     )

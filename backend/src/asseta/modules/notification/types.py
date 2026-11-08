@@ -126,6 +126,8 @@ _TYPES = (
     NotificationType("JOB_MISSING_READINGS", "Job missing readings", Category.REMINDER, Severity.WARNING, T, True),
     NotificationType("MISSING_DAILY_REPORT", "Daily report missing", Category.REMINDER, Severity.WARNING, T, True),
     NotificationType("METER_APPROVAL_REQUESTED", "Meter approval requested", Category.ACTION, Severity.INFO, T),
+    NotificationType("DAILY_REPORT_SUBMITTED", "Daily report to review", Category.ACTION, Severity.INFO, T),
+    NotificationType("DAILY_REPORT_RETURNED", "Daily report returned", Category.ACTION, Severity.WARNING, T),
     # Anomalies
     NotificationType("TRACKING_ALERT", "Tracking alert", Category.ANOMALY, Severity.WARNING, T, True),
     NotificationType(

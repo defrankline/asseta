@@ -76,6 +76,7 @@ class ExceptionType(StrEnum):
     UNEXPLAINED_HOURS = "UNEXPLAINED_HOURS"  # an unallocated engine-hour segment nobody has explained yet
     OVERLAPPING_ALLOCATION = "OVERLAPPING_ALLOCATION"  # two jobs claim the same engine interval
     HOURS_OVERRUN = "HOURS_OVERRUN"  # prepaid job used more hours than the customer had activated on the machine
+    DUPLICATE_DAILY_REPORT = "DUPLICATE_DAILY_REPORT"  # a repeat DAILY report for one machine-day (DEC-032 A6)
 
 
 class ExceptionStatus(StrEnum):

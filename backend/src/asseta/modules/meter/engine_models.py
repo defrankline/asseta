@@ -38,6 +38,7 @@ class BaselineSource(StrEnum):
 class EngineHourReasonKind(StrEnum):
     NON_CUSTOMER_CATEGORY = "NON_CUSTOMER_CATEGORY"  # approved non-customer activity (maintenance, relocation ...)
     VARIANCE_REASON = "VARIANCE_REASON"  # identified variance (meter fault, reading error ...)
+    UNBILLABLE_REASON = "UNBILLABLE_REASON"  # why reported hours are not billable (daily operational report, A4)
 
 
 class ClassificationOutcome(StrEnum):

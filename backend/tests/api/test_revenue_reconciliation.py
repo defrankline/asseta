@@ -420,7 +420,7 @@ def _classify(api: Api, f: FinCtx, machine: str) -> None:
 def test_unexplained_hours_outside_jobs_are_expected_revenue_until_approved(api: Api) -> None:
     f = setup_finance(api, "Revenue Idle", "REV-6")
     o, machine = f.owner, f.c.t.machine_id
-    _policy(o, period="DAY")
+    _policy(o, period="DAY", unexplained_hours_treatment="EXPECT_REVENUE")
     _run(api, f, f.c.job_id, "1000", "1008", 8)
     issue_invoice(f, [f.c.job_id])  # the job's money is in: only the unexplained hours remain
     _daily(o, api, machine, "1010", api.clock.now + timedelta(hours=3))  # 2 h after the job, same local day
@@ -440,9 +440,17 @@ def test_unexplained_hours_outside_jobs_are_expected_revenue_until_approved(api:
     _policy(o, period="DAY", unexplained_hours_treatment="EXCLUDE")
     m = money()
     assert [Decimal(m[k]) for k in ("unexplained_hours", "unexplained_expected", "difference")] == [2, 0, 0]
-    _policy(o, period="DAY", unexplained_hours_rate_source="TENANT_RATE", unexplained_hours_rate="1000")
+    _policy(
+        o,
+        period="DAY",
+        unexplained_hours_treatment="EXPECT_REVENUE",
+        unexplained_hours_rate_source="TENANT_RATE",
+        unexplained_hours_rate="1000",
+    )
     assert Decimal(money()["unexplained_expected"]) == 2000
-    _policy(o, period="DAY", unexplained_hours_rate_source="MACHINE_RATE_CARD")
+    _policy(
+        o, period="DAY", unexplained_hours_treatment="EXPECT_REVENUE", unexplained_hours_rate_source="MACHINE_RATE_CARD"
+    )
 
     assert _sweep(AFTER_DAY1).opened == 1
     [diff] = _ok(o.get(f"{T}/revenue-differences"))["items"]
@@ -479,7 +487,7 @@ def test_unexplained_hours_outside_jobs_are_expected_revenue_until_approved(api:
 def test_an_open_difference_is_recomputed_when_the_hours_are_approved(api: Api) -> None:
     f = setup_finance(api, "Revenue Recompute", "REV-7")
     o, machine = f.owner, f.c.t.machine_id
-    _policy(o, period="DAY", recheck_days=1)
+    _policy(o, period="DAY", recheck_days=1, unexplained_hours_treatment="EXPECT_REVENUE")
     _run(api, f, f.c.job_id, "1000", "1008", 8)
     issue_invoice(f, [f.c.job_id])
     _daily(o, api, machine, "1010", api.clock.now + timedelta(hours=3))

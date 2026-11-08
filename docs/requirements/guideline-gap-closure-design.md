@@ -83,6 +83,58 @@ appear on the daily sheet, reconciliation and dashboard as a separate line, neve
 the investigation by amount as well as age. Repeat DAILY report for the same machine-day is flagged as a duplicate
 (`DUPLICATE_DAILY_REPORT`). A decrease is labelled as a possible meter reset.
 
+## Phase 1 implementation notes (backend, 2026-11-08)
+
+Decisions taken while building A1-A6; a settings change or a new phase can revisit any of them.
+
+**A1 allocation ledger.** `work_allocation` is written from the engine ledger on every reading, job start/complete, work-log
+entry and approved explanation, and by the scheduler sweep; the migration backfills history (if it cannot, the idempotent
+sweep does). Machines with no approved baseline are allocated too, as their readings show. An interval over midnight is
+split by wall-clock share, cumulatively rounded so ranges abut exactly. Inside one interval the order on the meter is
+customer work, then non-revenue activity, then in-job unexplained hours (the meter does not say which came first). Hours
+whose meter range was already allocated (a reading went down with no approved reset) are not allocated again; they stay in
+the day's total and show as the difference until a correction or an approved reset resolves it, which is why the
+reconciliation shows a difference rather than the database failing the reading. `meter_epoch` counts approved resets so
+the exclusion constraint only compares ranges on the same meter base. Identified variances are recorded as
+AUTHORIZED_ACTIVITY with their classification, so they are still explained hours. A correction stands while the ledger
+piece it replaced keeps the same hours; if the readings underneath change, the ledger replaces it.
+
+**A2.** The switch is read per job at its start, so a change never reinterprets a running job. Any timed work-log entry
+counts as cover (WORK, STANDBY, DOWNTIME, MOBILIZATION; NOTE does not); a still-open entry covers up to now. Uncovered hours are
+UNEXPLAINED, listed and classified like any other unexplained segment, and are not billed or drawn. Non-revenue activity stays under
+`REVENUE_RECONCILIATION`.
+
+**A3 changeover (D3).** Two paths:
+1. *Job to job*, the normal path: A's CLOSING then B's OPENING (B approved after A completes, as the one-active-job rule requires). No
+   new records are needed; a gap between the readings is UNEXPLAINED (the guideline's 6 h / 3 h / 1 h).
+2. *Mid-job*, for when B cannot be set up in time: the field recorder takes a DAILY reading on the running job with
+   `changeover_to_customer_id` (`METER_CHANGEOVER` capability; same `METER_CAPTURE` op). This writes an append-only
+   `machine_changeover`, never touches the job's status, and the one-active-job-per-machine rule stands: A remains the only
+   running job. From that reading on, the allocation ledger shows the hours as customer B's work (job A's id kept as the
+   executing job; the changeover's id on the entry).
+
+Billing: **unchanged by default** (`ENGINE_HOURS.changeover_splits_billing` false): job A still bills its whole opening-to-closing window,
+so a tenant that leaves it off gets the ledger's truth without any change to invoices. Switched on, the hours after the changeover
+to a different customer leave job A's billable hours, prepaid drawdown and expected revenue. Those hours then sit in the ledger
+as customer B's work, **not yet billed to B**: invoicing them to B (the job, rate and lot rules) is deferred; the job-to-job path is the
+way to bill both customers today.
+
+**A4.** Hours total comes only from the two named readings (reset-aware). Billable defaults to total minus unbillable; a declared billable
+that leaves a gap is stored as `difference_hours`; billable plus unbillable above the total is refused. A second report for the same
+machine-day without `supersedes_id` is kept and flagged DUPLICATE_DAILY_REPORT, never overwritten. Unbillable reasons are `EngineHourReason`
+entries of the new kind `UNBILLABLE_REASON` (tenant list).
+
+**A5.** `VALUE_AT_RISK` is now the platform default of `unexplained_hours_treatment`; a tenant that set its own value keeps it. Under it,
+unexplained hours are valued at the same rate source as before and shown separately, and only there; `EXPECT_REVENUE` and `EXCLUDE` still
+behave as they did.
+
+**A6.** `unexplained_flag_amount_hours` (cumulative per machine) raises `UNEXPLAINED_ENGINE_HOURS` with `basis: AMOUNT`, once per
+multiple of the amount. A METER_DECREASE finding is labelled `POSSIBLE_METER_RESET`. A repeat DAILY *reading* is not flagged
+(morning and evening readings are normal); the flag is on repeat daily *reports*.
+
+Deferred from Phase 1: billing post-changeover hours to the next customer (see A3); approval refs on in-job non-revenue activity entries
+(the approval is per work-log entry, the ledger aggregates by type).
+
 ## Phase 2 — Corrections (T7, 4.6)
 
 **B1. Adjustments ledger** (append-only "Ledger 6"): original transaction type + id + reference, adjustment type, original

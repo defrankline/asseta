@@ -3386,6 +3386,81 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenant/daily-reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Daily Reports */
+        get: operations["listDailyReports"];
+        put?: never;
+        /** Submit Daily Report */
+        post: operations["submitDailyReport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/daily-reports/prefill": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Prefill
+         * @description The day's readings and allocations, to pre-fill the report form.
+         */
+        get: operations["prefillDailyReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/daily-reports/{report_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Daily Report */
+        get: operations["getDailyReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/daily-reports/{report_id}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Review Daily Report
+         * @description Mark reviewed, or return it to the submitter. Never by the person who submitted it.
+         */
+        post: operations["reviewDailyReport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenant/deposit-accounts": {
         parameters: {
             query?: never;
@@ -6771,6 +6846,117 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenant/work-allocations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Allocations
+         * @description The work allocation ledger, latest work date first (`q`: machine code or name).
+         */
+        get: operations["listWorkAllocations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/work-allocations/corrections/{group_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Correction */
+        get: operations["getWorkAllocationCorrection"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/work-allocations/corrections/{group_id}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Decide Correction */
+        post: operations["decideWorkAllocationCorrection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/work-allocations/reconciliation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Reconciliation
+         * @description Per machine and day: total engine hours = customer + authorized + unexplained, the difference displayed.
+         */
+        get: operations["listWorkAllocationReconciliation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/work-allocations/{allocation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Allocation */
+        get: operations["getWorkAllocation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/work-allocations/{allocation_id}/corrections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Propose Correction
+         * @description Propose new entries replacing this one (one or more parts adding up to its hours; reason required).
+         */
+        post: operations["proposeWorkAllocationCorrection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenant/work-execution-allocations": {
         parameters: {
             query?: never;
@@ -6872,7 +7058,7 @@ export interface components {
             policy_version: string;
             /**
              * Revenue Differences
-             * @description [DEC-031 R3] revenue differences: open, awaiting_decision, amounts [{currency, count, amount}], oldest_open_days, window_days, explained/confirmed/cleared_in_window, items [{id, machine_id, machine_code, period_key, local_from, local_to, currency, difference, status}] (revenue module)
+             * @description [DEC-031 R3] revenue differences: open, awaiting_decision, amounts [{currency, count, amount}], value_at_risk [{currency, amount}] (DEC-032 A5, unexplained hours, never in the amounts), oldest_open_days, window_days, explained/confirmed/cleared_in_window, items [{id, machine_id, machine_code, period_key, local_from, local_to, currency, difference, status}] (revenue module)
              */
             revenue_differences?: {
                 [key: string]: unknown;
@@ -6889,7 +7075,7 @@ export interface components {
             } | null;
             /**
              * Unexplained Hours
-             * @description [3.6.4] unexplained engine hours (meter module)
+             * @description [3.6.4] unexplained engine hours: machines, hours, value_at_risk [{currency, amount}] (DEC-032 A5: separate from expected revenue; empty unless the tenant uses VALUE_AT_RISK), items (meter module)
              */
             unexplained_hours?: {
                 [key: string]: unknown;
@@ -7133,6 +7319,69 @@ export interface components {
              */
             allocations?: components["schemas"]["LineAllocationIn"][] | null;
         };
+        /** AllocationCorrectionDto */
+        AllocationCorrectionDto: {
+            /** Entries */
+            entries: components["schemas"]["WorkAllocationDto"][];
+            /**
+             * Group Id
+             * Format: uuid
+             */
+            group_id: string;
+            /** @description PROPOSED, ACTIVE (applied) or REJECTED */
+            status: components["schemas"]["AllocationStatus"];
+            /** Supersedes Id */
+            supersedes_id: string | null;
+        };
+        /** AllocationCorrectionIn */
+        AllocationCorrectionIn: {
+            /** Evidence Attachment Ids */
+            evidence_attachment_ids?: string[];
+            /** Parts */
+            parts: components["schemas"]["AllocationPartIn"][];
+            /** Reason */
+            reason: string;
+        };
+        /**
+         * AllocationDayDto
+         * @description Per machine and tenant-local day: total engine hours = customer + authorized + unexplained, with the difference
+         *     shown (hours not yet allocated, for example a reading that went down with no approved reset).
+         */
+        AllocationDayDto: {
+            /** Allocated Hours */
+            allocated_hours: string;
+            /** Authorized Hours */
+            authorized_hours: string;
+            /** Customer Hours */
+            customer_hours: string;
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /** Difference Hours */
+            difference_hours: string;
+            /** Machine Code */
+            machine_code?: string | null;
+            /**
+             * Machine Id
+             * Format: uuid
+             */
+            machine_id: string;
+            /** Machine Name */
+            machine_name?: string | null;
+            /** Reconciled */
+            reconciled: boolean;
+            /** Total Engine Hours */
+            total_engine_hours: string;
+            /** Unexplained Hours */
+            unexplained_hours: string;
+        };
+        /**
+         * AllocationKind
+         * @enum {string}
+         */
+        AllocationKind: "CUSTOMER_WORK" | "AUTHORIZED_ACTIVITY" | "UNEXPLAINED";
         /** AllocationLineDto */
         AllocationLineDto: {
             /**
@@ -7155,6 +7404,46 @@ export interface components {
             /** Purchase Number */
             purchase_number: string;
         };
+        /** AllocationLotDto */
+        AllocationLotDto: {
+            /** Hours */
+            hours: string;
+            /**
+             * Purchase Id
+             * Format: uuid
+             */
+            purchase_id: string;
+            /** Purchase Number */
+            purchase_number?: string | null;
+        };
+        /**
+         * AllocationPartIn
+         * @description One part of a correction. Parts are taken from the entry's meter range in the order given.
+         */
+        AllocationPartIn: {
+            /** Customer Id */
+            customer_id?: string | null;
+            /** Hours */
+            hours: number | string;
+            /** Job Id */
+            job_id?: string | null;
+            kind: components["schemas"]["AllocationKind"];
+            /**
+             * Reason Id
+             * @description AUTHORIZED_ACTIVITY: tenant category or variance
+             */
+            reason_id?: string | null;
+        };
+        /**
+         * AllocationSource
+         * @enum {string}
+         */
+        AllocationSource: "DERIVED" | "BACKFILL" | "CORRECTION";
+        /**
+         * AllocationStatus
+         * @enum {string}
+         */
+        AllocationStatus: "PROPOSED" | "ACTIVE" | "SUPERSEDED" | "REJECTED";
         /** AmountByCurrencyDto */
         AmountByCurrencyDto: {
             /** Amount */
@@ -7641,7 +7930,7 @@ export interface components {
              * Purpose
              * @enum {string}
              */
-            purpose: "METER_PHOTO" | "SIGNATURE" | "RESET_EVIDENCE" | "EXPENSE_RECEIPT" | "PAYMENT_EVIDENCE" | "REMITTANCE_EVIDENCE";
+            purpose: "METER_PHOTO" | "SIGNATURE" | "RESET_EVIDENCE" | "EXPENSE_RECEIPT" | "PAYMENT_EVIDENCE" | "REMITTANCE_EVIDENCE" | "DAILY_REPORT_EVIDENCE";
             /** Sha256 */
             sha256: string;
             /** Size Bytes */
@@ -9930,6 +10219,210 @@ export interface components {
             /** Unexplained Hours */
             unexplained_hours: string;
         };
+        /** DailyReportDto */
+        DailyReportDto: {
+            /** Allocations */
+            allocations: components["schemas"]["ReportAllocationDto"][];
+            /** Billable Hours */
+            billable_hours: string;
+            /**
+             * Client Created At
+             * Format: date-time
+             */
+            client_created_at: string;
+            /** Closing Reading */
+            closing_reading: string;
+            /**
+             * Closing Ref
+             * Format: uuid
+             */
+            closing_ref: string;
+            /** Difference Hours */
+            difference_hours: string;
+            /** Duplicate Of Id */
+            duplicate_of_id: string | null;
+            /** Evidence Attachment Ids */
+            evidence_attachment_ids: string[];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Is Duplicate
+             * @default false
+             */
+            is_duplicate: boolean;
+            /** Is Late */
+            is_late: boolean;
+            /** Machine Code */
+            machine_code?: string | null;
+            /**
+             * Machine Id
+             * Format: uuid
+             */
+            machine_id: string;
+            /** Machine Name */
+            machine_name?: string | null;
+            /** Note */
+            note: string | null;
+            /** Opening Reading */
+            opening_reading: string;
+            /**
+             * Opening Ref
+             * Format: uuid
+             */
+            opening_ref: string;
+            /** Policy Version */
+            policy_version: string;
+            /**
+             * Report Date
+             * Format: date
+             */
+            report_date: string;
+            /** Review Note */
+            review_note: string | null;
+            /** Reviewed At */
+            reviewed_at: string | null;
+            /** Reviewed By */
+            reviewed_by: string | null;
+            /** Reviewed By Name */
+            reviewed_by_name?: string | null;
+            /** Source */
+            source: string;
+            status: components["schemas"]["DailyReportStatus"];
+            /**
+             * Submitted At
+             * Format: date-time
+             */
+            submitted_at: string;
+            /** Submitted By */
+            submitted_by: string | null;
+            /** Submitted By Name */
+            submitted_by_name?: string | null;
+            /** Supersedes Id */
+            supersedes_id: string | null;
+            /** Total Hours */
+            total_hours: string;
+            /** Unbillable */
+            unbillable: components["schemas"]["UnbillableLineDto"][];
+            /** Unbillable Hours */
+            unbillable_hours: string;
+        };
+        /** DailyReportIn */
+        DailyReportIn: {
+            /**
+             * Billable Hours
+             * @description Default: total minus unbillable hours
+             */
+            billable_hours?: number | string | null;
+            /**
+             * Client Created At
+             * Format: date-time
+             */
+            client_created_at: string;
+            /**
+             * Closing Ref
+             * Format: uuid
+             * @description The day's closing reading (a meter capture)
+             */
+            closing_ref: string;
+            /** Evidence Attachment Ids */
+            evidence_attachment_ids?: string[];
+            /**
+             * Id
+             * Format: uuid
+             * @description Device-generated id (offline idempotency)
+             */
+            id: string;
+            /**
+             * Machine Id
+             * Format: uuid
+             */
+            machine_id: string;
+            /** Note */
+            note?: string | null;
+            /**
+             * Opening Ref
+             * Format: uuid
+             * @description The day's opening reading (a meter capture)
+             */
+            opening_ref: string;
+            /**
+             * Report Date
+             * Format: date
+             */
+            report_date: string;
+            /**
+             * Supersedes Id
+             * @description The report this one replaces (e.g. returned)
+             */
+            supersedes_id?: string | null;
+            /** Unbillable */
+            unbillable?: components["schemas"]["UnbillableLineIn"][];
+        };
+        /**
+         * DailyReportPrefillDto
+         * @description What the day's readings and allocations already say, to fill the report form.
+         */
+        DailyReportPrefillDto: {
+            /** Allocations */
+            allocations: components["schemas"]["ReportAllocationDto"][];
+            /** Authorized Hours */
+            authorized_hours: string;
+            /** Closing At */
+            closing_at: string | null;
+            /** Closing Reading */
+            closing_reading: string | null;
+            /** Closing Ref */
+            closing_ref: string | null;
+            /** Customer Hours */
+            customer_hours: string;
+            /**
+             * Existing Report Ids
+             * @description Active reports already submitted for this machine-day
+             */
+            existing_report_ids: string[];
+            /** Machine Code */
+            machine_code?: string | null;
+            /**
+             * Machine Id
+             * Format: uuid
+             */
+            machine_id: string;
+            /** Machine Name */
+            machine_name?: string | null;
+            /** Opening At */
+            opening_at: string | null;
+            /** Opening Reading */
+            opening_reading: string | null;
+            /** Opening Ref */
+            opening_ref: string | null;
+            /**
+             * Report Date
+             * Format: date
+             */
+            report_date: string;
+            /** Total Hours */
+            total_hours: string | null;
+            /** Unexplained Hours */
+            unexplained_hours: string;
+        };
+        /** DailyReportReviewIn */
+        DailyReportReviewIn: {
+            /**
+             * Decision
+             * @enum {string}
+             */
+            decision: "REVIEWED" | "RETURNED";
+            /** Note */
+            note: string;
+        };
+        /**
+         * DailyReportStatus
+         * @enum {string}
+         */
+        DailyReportStatus: "SUBMITTED" | "REVIEWED" | "RETURNED" | "SUPERSEDED";
         /** DecisionIn */
         DecisionIn: {
             /** Approve */
@@ -10276,7 +10769,7 @@ export interface components {
          * EngineHourReasonKind
          * @enum {string}
          */
-        EngineHourReasonKind: "NON_CUSTOMER_CATEGORY" | "VARIANCE_REASON";
+        EngineHourReasonKind: "NON_CUSTOMER_CATEGORY" | "VARIANCE_REASON" | "UNBILLABLE_REASON";
         /** EngineHourReasonUpdateIn */
         EngineHourReasonUpdateIn: {
             /** Code */
@@ -10431,7 +10924,7 @@ export interface components {
          * ExceptionType
          * @enum {string}
          */
-        ExceptionType: "GPS_UNAVAILABLE" | "GPS_INACCURATE" | "GPS_STALE" | "LOCATION_MISMATCH" | "MODE_POLICY_VIOLATION" | "PHOTO_MISSING" | "LOW_OCR_CONFIDENCE" | "MANUAL_CORRECTION" | "METER_DECREASE" | "IMPOSSIBLE_INCREMENT" | "CONTINUITY_GAP" | "DUPLICATE_IMAGE" | "TELEMETRY_MISMATCH" | "CLOCK_SKEW" | "POLICY_SNAPSHOT_UNVERIFIED" | "MISSING_DAILY_REPORT" | "UNEXPLAINED_HOURS" | "OVERLAPPING_ALLOCATION" | "HOURS_OVERRUN";
+        ExceptionType: "GPS_UNAVAILABLE" | "GPS_INACCURATE" | "GPS_STALE" | "LOCATION_MISMATCH" | "MODE_POLICY_VIOLATION" | "PHOTO_MISSING" | "LOW_OCR_CONFIDENCE" | "MANUAL_CORRECTION" | "METER_DECREASE" | "IMPOSSIBLE_INCREMENT" | "CONTINUITY_GAP" | "DUPLICATE_IMAGE" | "TELEMETRY_MISMATCH" | "CLOCK_SKEW" | "POLICY_SNAPSHOT_UNVERIFIED" | "MISSING_DAILY_REPORT" | "UNEXPLAINED_HOURS" | "OVERLAPPING_ALLOCATION" | "HOURS_OVERRUN" | "DUPLICATE_DAILY_REPORT";
         /** ExpenseCategoryDto */
         ExpenseCategoryDto: {
             /** Code */
@@ -11670,6 +12163,12 @@ export interface components {
             opened_at: string;
             /** Overlapping Job Ids */
             overlapping_job_ids: string[];
+            /**
+             * Possible Meter Reset
+             * @description The reading went down with no approved reset: labelled a possible meter reset
+             * @default false
+             */
+            possible_meter_reset: boolean;
             /** Raw Hours */
             raw_hours: string;
             /** Reset Applied */
@@ -13128,6 +13627,16 @@ export interface components {
              * Format: date-time
              */
             captured_at: string;
+            /**
+             * Changeover To Customer Id
+             * @description DEC-032 A3: a DAILY reading on the running job at which the machine moved to this customer
+             */
+            changeover_to_customer_id?: string | null;
+            /**
+             * Changeover To Job Id
+             * @description Optional: the job the machine moves on to (kept for the record)
+             */
+            changeover_to_job_id?: string | null;
             /** Device Id */
             device_id: string;
             gps: components["schemas"]["GpsIn"];
@@ -14232,7 +14741,7 @@ export interface components {
              * Op Type
              * @enum {string}
              */
-            op_type: "METER_CAPTURE" | "JOB_ACTIVITY" | "JOB_ACKNOWLEDGEMENT" | "JOB_TRANSITION" | "EXPENSE" | "CASH_COLLECTION" | "CASH_HANDOVER" | "CASH_TRANSFER" | "CASH_TRANSFER_ACKNOWLEDGEMENT" | "CASH_FLOAT_ACKNOWLEDGEMENT" | "FUEL_EVENT" | "METER_RESET_REQUEST" | "JOB_REQUEST" | "HOURS_PURCHASE" | "HOURS_TRANSFER_REQUEST" | "METER_BASELINE" | "METER_CORRECTION" | "CASH_RETENTION_REQUEST" | "SITE_CHECKIN";
+            op_type: "METER_CAPTURE" | "JOB_ACTIVITY" | "JOB_ACKNOWLEDGEMENT" | "JOB_TRANSITION" | "EXPENSE" | "CASH_COLLECTION" | "CASH_HANDOVER" | "CASH_TRANSFER" | "CASH_TRANSFER_ACKNOWLEDGEMENT" | "CASH_FLOAT_ACKNOWLEDGEMENT" | "FUEL_EVENT" | "METER_RESET_REQUEST" | "JOB_REQUEST" | "HOURS_PURCHASE" | "HOURS_TRANSFER_REQUEST" | "METER_BASELINE" | "METER_CORRECTION" | "CASH_RETENTION_REQUEST" | "SITE_CHECKIN" | "DAILY_REPORT";
             /** Payload */
             payload: {
                 [key: string]: unknown;
@@ -14704,6 +15213,17 @@ export interface components {
         Page_DailyMachineSheetRowDto_: {
             /** Items */
             items: components["schemas"]["DailyMachineSheetRowDto"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+        };
+        /** Page[DailyReportDto] */
+        Page_DailyReportDto_: {
+            /** Items */
+            items: components["schemas"]["DailyReportDto"][];
             /** Page */
             page: number;
             /** Page Size */
@@ -15221,6 +15741,17 @@ export interface components {
         Page_UnbilledJobDto_: {
             /** Items */
             items: components["schemas"]["UnbilledJobDto"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+        };
+        /** Page[WorkAllocationDto] */
+        Page_WorkAllocationDto_: {
+            /** Items */
+            items: components["schemas"]["WorkAllocationDto"][];
             /** Page */
             page: number;
             /** Page Size */
@@ -16233,6 +16764,31 @@ export interface components {
             /** Staff Member Name */
             staff_member_name?: string | null;
         };
+        /** ReportAllocationDto */
+        ReportAllocationDto: {
+            /** Activity Type */
+            activity_type: string | null;
+            /**
+             * Allocation Id
+             * Format: uuid
+             */
+            allocation_id: string;
+            /** Customer Id */
+            customer_id: string | null;
+            /** Customer Name */
+            customer_name?: string | null;
+            /** End Reading */
+            end_reading: string;
+            /** Hours */
+            hours: string;
+            /** Job Id */
+            job_id: string | null;
+            /** Job Number */
+            job_number?: string | null;
+            kind: components["schemas"]["AllocationKind"];
+            /** Start Reading */
+            start_reading: string;
+        };
         /** ReportColumnDto */
         ReportColumnDto: {
             /** Key */
@@ -16491,6 +17047,12 @@ export interface components {
              * @description Engine hours outside jobs not approved as non-customer activity
              */
             unexplained_hours: string;
+            /**
+             * Value At Risk Amount
+             * @description Unexplained hours x rate, never in expected or the difference (DEC-032 A5)
+             * @default 0
+             */
+            value_at_risk_amount: string;
         };
         /**
          * RevenueDifferenceStatus
@@ -17085,7 +17647,7 @@ export interface components {
             in_progress: string;
             /**
              * Unexplained Expected
-             * @description Unexplained hours expected as revenue (part of `expected`; 0 when the tenant excludes them)
+             * @description Unexplained hours expected as revenue (part of `expected`; only under EXPECT_REVENUE)
              * @default 0
              */
             unexplained_expected: string;
@@ -17095,6 +17657,12 @@ export interface components {
              * @default 0
              */
             unexplained_hours: string;
+            /**
+             * Value At Risk
+             * @description Unexplained hours x rate, shown separately: never in `expected` or `difference` (DEC-032 D1)
+             * @default 0
+             */
+            value_at_risk: string;
         };
         /** SheetMoneySourceDto */
         SheetMoneySourceDto: {
@@ -18935,6 +19503,29 @@ export interface components {
             /** Reason */
             reason: string;
         };
+        /** UnbillableLineDto */
+        UnbillableLineDto: {
+            /** Hours */
+            hours: string;
+            /**
+             * Reason Id
+             * Format: uuid
+             */
+            reason_id: string;
+            /** Reason Name */
+            reason_name?: string | null;
+        };
+        /** UnbillableLineIn */
+        UnbillableLineIn: {
+            /** Hours */
+            hours: number | string;
+            /**
+             * Reason Id
+             * Format: uuid
+             * @description Tenant list entry of kind UNBILLABLE_REASON
+             */
+            reason_id: string;
+        };
         /**
          * UnbilledJobDto
          * @description A completed, billing-ready job not on an issued invoice for more than OVERSIGHT.unbilled_after_days.
@@ -19121,6 +19712,112 @@ export interface components {
              * Format: date-time
              */
             week_ending: string;
+        };
+        /** WorkAllocationDto */
+        WorkAllocationDto: {
+            /** Activity Type */
+            activity_type: string | null;
+            /** Changeover Id */
+            changeover_id: string | null;
+            /** Classification Id */
+            classification_id: string | null;
+            /** Correction Group Id */
+            correction_group_id: string | null;
+            /** Correction Reason */
+            correction_reason: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Customer Id */
+            customer_id: string | null;
+            /** Customer Name */
+            customer_name?: string | null;
+            /** Decided At */
+            decided_at: string | null;
+            /** Decided By */
+            decided_by: string | null;
+            /** Decided By Name */
+            decided_by_name?: string | null;
+            /** Decision Note */
+            decision_note: string | null;
+            /**
+             * End At
+             * Format: date-time
+             */
+            end_at: string;
+            /** End Reading */
+            end_reading: string;
+            /**
+             * End Ref
+             * Format: uuid
+             */
+            end_ref: string;
+            /** Evidence Attachment Ids */
+            evidence_attachment_ids: string[];
+            /** Hours */
+            hours: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Job Id */
+            job_id: string | null;
+            /** Job Number */
+            job_number?: string | null;
+            kind: components["schemas"]["AllocationKind"];
+            /** Lots */
+            lots: components["schemas"]["AllocationLotDto"][];
+            /** Machine Code */
+            machine_code?: string | null;
+            /**
+             * Machine Id
+             * Format: uuid
+             */
+            machine_id: string;
+            /** Machine Name */
+            machine_name?: string | null;
+            /** Meter Epoch */
+            meter_epoch: number;
+            /** Policy Version */
+            policy_version: string;
+            /** Reading Review */
+            reading_review: string;
+            /** Reason Id */
+            reason_id: string | null;
+            /** Reason Name */
+            reason_name?: string | null;
+            /** Recorded By */
+            recorded_by: string | null;
+            /** Recorded By Name */
+            recorded_by_name?: string | null;
+            source: components["schemas"]["AllocationSource"];
+            /**
+             * Start At
+             * Format: date-time
+             */
+            start_at: string;
+            /** Start Reading */
+            start_reading: string;
+            /**
+             * Start Ref
+             * Format: uuid
+             */
+            start_ref: string;
+            status: components["schemas"]["AllocationStatus"];
+            /** Superseded At */
+            superseded_at: string | null;
+            /** Superseded By Ids */
+            superseded_by_ids?: string[];
+            /** Supersedes Id */
+            supersedes_id: string | null;
+            /**
+             * Work Date
+             * Format: date
+             */
+            work_date: string;
         };
         /** WorkExecutionAllocationDto */
         WorkExecutionAllocationDto: {
@@ -39148,6 +39845,460 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DailyMachineSheetDetailDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listDailyReports: {
+        parameters: {
+            query?: {
+                machine_id?: string | null;
+                from?: string | null;
+                to?: string | null;
+                status?: components["schemas"]["DailyReportStatus"] | null;
+                page?: number;
+                page_size?: number;
+                q?: string | null;
+                sort?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_DailyReportDto_"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    submitDailyReport: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DailyReportIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DailyReportDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    prefillDailyReport: {
+        parameters: {
+            query: {
+                machine_id: string;
+                report_date: string;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DailyReportPrefillDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getDailyReport: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                report_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DailyReportDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    reviewDailyReport: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                report_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DailyReportReviewIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DailyReportDto"];
                 };
             };
             /** @description Bad Request */
@@ -60046,6 +61197,555 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WalkInCustomerDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listWorkAllocations: {
+        parameters: {
+            query?: {
+                machine_id?: string | null;
+                from?: string | null;
+                to?: string | null;
+                customer_id?: string | null;
+                kind?: components["schemas"]["AllocationKind"] | null;
+                /** @description Default: ACTIVE */
+                status?: components["schemas"]["AllocationStatus"] | null;
+                job_id?: string | null;
+                page?: number;
+                page_size?: number;
+                q?: string | null;
+                sort?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_WorkAllocationDto_"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getWorkAllocationCorrection: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AllocationCorrectionDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    decideWorkAllocationCorrection: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MeterDecisionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AllocationCorrectionDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listWorkAllocationReconciliation: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+                machine_id?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AllocationDayDto"][];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getWorkAllocation: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                allocation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkAllocationDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    proposeWorkAllocationCorrection: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                allocation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AllocationCorrectionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AllocationCorrectionDto"];
                 };
             };
             /** @description Bad Request */

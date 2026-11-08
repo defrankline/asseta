@@ -33,6 +33,15 @@ def revenue_differences_tile(s: Session, _: RequestContext, now: datetime) -> di
             .order_by(RevenueDifference.currency)
         ).all()
     ]
+    at_risk = [
+        {"currency": c, "amount": str(a or Decimal(0))}
+        for c, a in s.execute(
+            select(RevenueDifference.currency, func.sum(RevenueDifference.value_at_risk_amount))
+            .where(RevenueDifference.status.in_(PENDING), RevenueDifference.value_at_risk_amount > 0)
+            .group_by(RevenueDifference.currency)
+            .order_by(RevenueDifference.currency)
+        ).all()
+    ]
     oldest = s.execute(
         select(func.min(RevenueDifference.opened_at)).where(RevenueDifference.status == RevenueDifferenceStatus.OPEN)
     ).scalar_one()
@@ -71,6 +80,7 @@ def revenue_differences_tile(s: Session, _: RequestContext, now: datetime) -> di
         "open": int(counts.get(RevenueDifferenceStatus.OPEN, 0)),
         "awaiting_decision": int(counts.get(RevenueDifferenceStatus.EXPLANATION_PROPOSED, 0)),
         "amounts": amounts,
+        "value_at_risk": at_risk,
         "oldest_open_days": (now - oldest).days if oldest is not None else None,
         "window_days": WINDOW_DAYS,
         "explained_in_window": int(decided.get(RevenueDifferenceStatus.EXPLAINED, 0)),

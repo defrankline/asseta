@@ -118,6 +118,7 @@ def unexplained_hours_tile(s: Session, ctx: RequestContext, now: datetime) -> di
     return {
         "machines": len(rows),
         "hours": str(sum((Decimal(r.totals.unexplained_hours) for r in rows), Decimal(0))),
+        "value_at_risk": _value_at_risk(s, ctx, now, rows),
         "items": [
             {
                 "machine_id": str(r.machine_id),
@@ -128,6 +129,24 @@ def unexplained_hours_tile(s: Session, ctx: RequestContext, now: datetime) -> di
             for r in rows
         ],
     }
+
+
+def _value_at_risk(s: Session, ctx: RequestContext, now: datetime, rows: list[Any]) -> list[dict[str, str]]:
+    """[DEC-032 A5] Unexplained hours x rate per currency, separate from expected revenue. Empty unless the tenant
+    treats them as VALUE_AT_RISK (the platform default)."""
+    policy_service = _optional("asseta.modules.policy.service", "PolicyService")
+    sheet = _optional("asseta.modules.revenue.sheet", "unexplained_rate")
+    machine_model = _optional("asseta.modules.fleet.models", "Machine")
+    treatment = policy_service(s).revenue_reconciliation(ctx.tenant_id, at=now).policy.unexplained_hours_treatment
+    if str(treatment) != "VALUE_AT_RISK":
+        return []
+    amounts: dict[str, Decimal] = {}
+    for r in rows:
+        machine = s.get(machine_model, r.machine_id)
+        rate = sheet(s, ctx.tenant_id, machine, now) if machine is not None else None
+        if rate is not None:
+            amounts[rate[0]] = amounts.get(rate[0], Decimal(0)) + Decimal(r.totals.unexplained_hours) * rate[1]
+    return [{"currency": c, "amount": str(a.quantize(Decimal("0.01")))} for c, a in sorted(amounts.items())]
 
 
 def missing_daily_reports_tile(s: Session, ctx: RequestContext, now: datetime) -> dict[str, Any]:

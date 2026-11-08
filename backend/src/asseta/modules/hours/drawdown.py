@@ -87,9 +87,9 @@ def daily_targets(s: Session, tenant_id: uuid.UUID, job: Job, now: datetime, tz:
         return {}
     ledger = load_machine_ledger(s, tenant_id, machine, now).ledger
     pieces = [
-        (i.start.at, i.end.at, i.hours)
+        (i.start.at, i.end.at, i.hours - i.billing_cut)  # DEC-032 A2/A3 hours are not drawn when switched on
         for i in ledger.intervals
-        if i.job_id == job.id and i.kind is SegmentKind.CUSTOMER_WORK and i.hours > 0
+        if i.job_id == job.id and i.kind is SegmentKind.CUSTOMER_WORK and i.hours > i.billing_cut
     ]
     deductions = [
         (a.started_at, a.ended_at)

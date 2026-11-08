@@ -22,6 +22,7 @@ from asseta.modules.fleet.models import Machine
 from asseta.modules.identity.models import AppUser
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.jobs.scope import METER_OVERSIGHT, assigned_machine_ids, own_staff, restricted_to_own
+from asseta.modules.meter.allocation_writer import sync_allocations
 from asseta.modules.meter.dto import MeterCaptureIn
 from asseta.modules.meter.engine_dto import (
     BaselineDto,
@@ -472,6 +473,7 @@ class EngineHoursService:
             raw_hours=i.raw_hours,
             reset_applied=i.reset_applied,
             inconsistent=i.inconsistent,
+            possible_meter_reset=i.inconsistent,
             review=i.review,
             opened_at=i.opened_at,
             age_days=max((self._now - i.opened_at).days, 0),
@@ -480,11 +482,28 @@ class EngineHoursService:
                 SegmentDto(
                     kind=i.kind,
                     hours=i.customer_work_hours if i.kind is SegmentKind.CUSTOMER_WORK else i.hours,
-                    classification=i.classification,
+                    classification=i.classification
+                    if i.kind is SegmentKind.UNALLOCATED
+                    else SegmentClassification.NOT_APPLICABLE,
                     job_id=i.job_id,
                     job_number=i.job_number,
-                    approved=_ref(i.approved),
-                    proposal=_ref(i.proposal),
+                    approved=_ref(i.approved) if i.kind is SegmentKind.UNALLOCATED else None,
+                    proposal=_ref(i.proposal) if i.kind is SegmentKind.UNALLOCATED else None,
+                ),
+                *(
+                    [
+                        SegmentDto(
+                            kind=SegmentKind.UNALLOCATED,
+                            hours=i.in_job_unexplained,
+                            classification=i.classification,
+                            job_id=i.job_id,
+                            job_number=i.job_number,
+                            approved=_ref(i.approved),
+                            proposal=_ref(i.proposal),
+                        )
+                    ]
+                    if i.in_job_unexplained > 0
+                    else []
                 ),
                 *(
                     SegmentDto(
@@ -597,7 +616,7 @@ class EngineHoursService:
                         machine_name=m.name,
                         start=_point(i.start),
                         end=_point(i.end),
-                        hours=i.hours,
+                        hours=i.explainable_hours,
                         review=i.review,
                         classification=i.classification,
                         opened_at=i.opened_at,
@@ -705,7 +724,7 @@ class EngineHoursService:
             end_ref=seg.end.ref,
             start_at=seg.start.at,
             end_at=seg.end.at,
-            hours=seg.hours,
+            hours=seg.explainable_hours,
             outcome=body.outcome,
             reason_id=reason.id,
             note=body.note,
@@ -769,7 +788,7 @@ class EngineHoursService:
         if approve:  # the segment must still be exactly the one that was explained
             ml = self.machine_ledger(row.machine_id)
             seg = next((i for i in ml.ledger.intervals if i.key == (row.start_ref, row.end_ref)), None)
-            if seg is None or seg.hours != row.hours:
+            if seg is None or seg.explainable_hours != row.hours:
                 raise Conflict(
                     "The segment changed since this was proposed (a correction or late reading); propose again",
                     code="SEGMENT_CHANGED",
@@ -793,6 +812,7 @@ class EngineHoursService:
     def _revenue_recompute(self, row: EngineHourClassification) -> None:
         """DEC-031 (owner rule): approved hours stop counting as expected revenue; recorded revenue differences of
         the affected periods are recomputed (decided ones get an adjustment entry)."""
+        sync_allocations(self._s, self._tid, row.machine_id, self._now)
         from asseta.modules.revenue.reconciliation import recompute_after_change  # lazy: revenue builds on meter
 
         recompute_after_change(

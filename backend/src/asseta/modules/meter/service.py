@@ -14,7 +14,7 @@ from asseta.core.errors import BusinessRuleViolation, Conflict, NotFound
 from asseta.core.outbox import OutboxWriter
 from asseta.modules.fleet.models import Machine, MachineAssignment, StaffMember
 from asseta.modules.identity.principal import RequestContext
-from asseta.modules.jobs.models import Job, JobStatus
+from asseta.modules.jobs.models import Customer, Job, JobStatus, RentalContract
 from asseta.modules.jobs.scope import (
     METER_OVERSIGHT,
     assigned_machine_ids,
@@ -22,6 +22,8 @@ from asseta.modules.jobs.scope import (
     restricted_to_own,
     scoped_job_ids,
 )
+from asseta.modules.meter.allocation_models import MachineChangeover
+from asseta.modules.meter.allocation_writer import sync_allocations
 from asseta.modules.meter.dto import CaptureResultDto, FindingDto, MeterCaptureDto, MeterCaptureIn, ResetDto, ResetIn
 from asseta.modules.meter.engine_hours import EngineHoursMonitor
 from asseta.modules.meter.models import (
@@ -207,6 +209,8 @@ class MeterService:
             require_capability(self._s, self._tid, ENGINE_HOURS, self._now)
         job, machine_id, site_id = self._target(body, correction_of is not None)
         now = self._now  # injected clock: server receive time and skew checks are deterministic
+        if body.changeover_to_customer_id is not None:
+            self._check_changeover_customer(body, job)
         policy, stamp = self._policy(body, machine_id, site_id)
         photo = self._s.get(CaptureAttachment, body.photo_attachment_id) if body.photo_attachment_id else None
         if body.photo_attachment_id and photo is None:
@@ -347,7 +351,48 @@ class MeterService:
                 tenant_id=self._tid,
             )
         EngineHoursMonitor(self._s, self._tid, now).flag_machine(machine_id)
+        self._changeover(body, capture, job, correction_of)
+        sync_allocations(self._s, self._tid, machine_id, now)
         return self._result(capture)
+
+    def _changeover(
+        self, body: MeterCaptureIn, capture: MeterCapture, job: Job | None, correction_of: MeterCapture | None
+    ) -> None:
+        """[DEC-032 A3] Record a mid-job changeover against this reading. A correction keeps the changeover of the
+        reading it replaces unless it names one itself. Job status and billing are not touched here."""
+        previous = (
+            self._s.execute(
+                select(MachineChangeover).where(MachineChangeover.capture_id == correction_of.id)
+            ).scalar_one_or_none()
+            if correction_of is not None
+            else None
+        )
+        to_customer = body.changeover_to_customer_id or (previous.to_customer_id if previous else None)
+        to_job = body.changeover_to_job_id or (previous.to_job_id if previous else None)
+        if to_customer is None or job is None:
+            return
+        if self._s.get(Customer, to_customer) is None:
+            raise NotFound("Customer not found", code="CUSTOMER_NOT_FOUND")
+        from_customer = self._s.execute(
+            select(RentalContract.customer_id).where(RentalContract.id == job.contract_id)
+        ).scalar_one()
+        if to_job is not None and self._s.get(Job, to_job) is None:
+            raise NotFound("Job not found")
+        self._s.add(
+            MachineChangeover(
+                id=uuid.uuid4(),
+                tenant_id=self._tid,
+                machine_id=job.machine_id,
+                capture_id=capture.id,
+                job_id=job.id,
+                from_customer_id=from_customer,
+                to_customer_id=to_customer,
+                to_job_id=to_job,
+                recorded_by=capture.supervisor_user_id,
+                created_at=self._now,
+            )
+        )
+        self._s.flush()
 
     def _result(self, capture: MeterCapture) -> CaptureResultDto:
         rows = self._s.execute(select(JobException).where(JobException.meter_capture_id == capture.id)).scalars()
@@ -358,6 +403,30 @@ class MeterService:
                 for r in rows
             ],
         )
+
+    def _check_changeover_customer(self, body: MeterCaptureIn, job: Job | None) -> None:
+        """Refused before anything is stored: the machine must really be moving to a different customer."""
+        if body.kind is not ReadingKind.DAILY or job is None or job.status is not JobStatus.IN_PROGRESS:
+            raise BusinessRuleViolation(
+                "A changeover is a DAILY reading on the job currently running", code="CHANGEOVER_NOT_ALLOWED"
+            )
+        require_capability(self._s, self._tid, ENGINE_HOURS, self._now)
+        latest = self._s.execute(
+            select(MachineChangeover.to_customer_id)
+            .where(MachineChangeover.job_id == job.id)
+            .order_by(MachineChangeover.created_at.desc())
+            .limit(1)
+        ).scalar_one_or_none()
+        current = (
+            latest
+            or self._s.execute(
+                select(RentalContract.customer_id).where(RentalContract.id == job.contract_id)
+            ).scalar_one()
+        )
+        if body.changeover_to_customer_id == current:
+            raise BusinessRuleViolation(
+                "The machine is already working for this customer", code="CHANGEOVER_SAME_CUSTOMER"
+            )
 
     def request_reset(self, body: ResetIn) -> ResetDto:
         """Documented meter replacement/rollover, PENDING until a different user with approval permission decides

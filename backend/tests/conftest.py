@@ -3,6 +3,7 @@ non-privileged asseta_app role so RLS is genuinely exercised."""
 
 import json
 import os
+from typing import Any
 
 os.environ.setdefault("ASSETA_DATABASE_URL", "postgresql+psycopg://asseta_app:asseta_app@localhost:5432/asseta_test")
 os.environ.setdefault(
@@ -21,6 +22,7 @@ from alembic.config import Config
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, create_engine, text
 
+import asseta.core.db as _core_db
 from asseta.core.config import get_settings
 from asseta.main import create_app
 from asseta.modules.identity.tokens import OidcTokenVerifier
@@ -65,6 +67,22 @@ def clean_db(owner_engine: Engine) -> None:
                 ),
                 {"t": ptype.value, "v": json.dumps(values)},
             )
+
+
+class _Datetime(datetime):
+    """`utcnow()` (`datetime.now(UTC)` in asseta.core.db) reads real time. The suite's fixtures run on a fixed calendar
+    (MutableClock, 2026-11-01), so the real date must stay before it: the wall clock is held just before that date,
+    keeping its elapsed time so ordering inside a test still works."""
+
+    _base = datetime(2026, 10, 28, 12, 0, tzinfo=UTC) - datetime.now(UTC)
+
+    @classmethod
+    def now(cls, tz: Any = None) -> "_Datetime":
+        moved = datetime.now(tz=tz or UTC) + cls._base
+        return cls.fromtimestamp(moved.timestamp(), tz=tz or UTC)
+
+
+_core_db.datetime = _Datetime  # type: ignore[attr-defined]
 
 
 class MutableClock:

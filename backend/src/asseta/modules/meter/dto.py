@@ -56,6 +56,13 @@ class MeterCaptureIn(BaseModel):
         default_factory=list, description="METER_CAPTURE snapshot the device enforced offline"
     )
     supersedes_id: uuid.UUID | None = Field(default=None, description="Approved correction of a prior capture")
+    changeover_to_customer_id: uuid.UUID | None = Field(
+        default=None,
+        description="DEC-032 A3: a DAILY reading on the running job at which the machine moved to this customer",
+    )
+    changeover_to_job_id: uuid.UUID | None = Field(
+        default=None, description="Optional: the job the machine moves on to (kept for the record)"
+    )
 
     @model_validator(mode="after")
     def _target(self) -> "MeterCaptureIn":

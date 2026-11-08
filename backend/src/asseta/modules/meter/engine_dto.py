@@ -149,6 +149,9 @@ class IntervalDto(BaseModel):
     raw_hours: Decimal
     reset_applied: bool
     inconsistent: bool
+    possible_meter_reset: bool = Field(
+        default=False, description="The reading went down with no approved reset: labelled a possible meter reset"
+    )
     review: ReadingReview
     opened_at: datetime
     age_days: int

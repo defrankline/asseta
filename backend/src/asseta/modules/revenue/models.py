@@ -91,6 +91,7 @@ class RevenueDifference(UuidPk, Base):
     # (part of expected_amount; 0 when the tenant excludes them).
     unexplained_hours: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
     unexplained_expected_amount: Mapped[Decimal] = mapped_column(MONEY, nullable=False)
+    value_at_risk_amount: Mapped[Decimal] = mapped_column(MONEY, nullable=False, default=Decimal(0), server_default="0")
     detail: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)  # jobs and money sources (drill-down)
     status: Mapped[RevenueDifferenceStatus] = mapped_column(_enum(RevenueDifferenceStatus, 24), nullable=False)
     case_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("anomaly_case.id"))

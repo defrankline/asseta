@@ -30,6 +30,8 @@ class ReconciliationBasis(StrEnum):
 class UnexplainedHoursTreatment(StrEnum):
     EXPECT_REVENUE = "EXPECT_REVENUE"  # unexplained engine hours outside jobs are expected to earn money
     EXCLUDE = "EXCLUDE"  # they are shown but not counted as expected revenue
+    # Platform default (DEC-032 D1): shown separately as hours x rate; never part of expected revenue or a shortfall.
+    VALUE_AT_RISK = "VALUE_AT_RISK"
 
 
 class UnexplainedHoursRateSource(StrEnum):
@@ -52,9 +54,10 @@ class RevenueReconciliationPolicy(BaseModel):
     # [R1, owner 2026-10-26] Non-revenue time counts as non-revenue only once one person explained it and another
     # (holding `tenant.revenue.decide`) approved it; until then it counts as revenue. Off: deducted on logging.
     non_revenue_requires_approval: bool = True
-    # [R3, owner 2026-10-26] Engine hours outside jobs not (yet) approved as non-customer activity are expected
-    # revenue at the chosen rate; only an approved non-customer classification removes them.
-    unexplained_hours_treatment: UnexplainedHoursTreatment = UnexplainedHoursTreatment.EXPECT_REVENUE
+    # [R3, owner 2026-10-26] Engine hours outside jobs not (yet) approved as non-customer activity: their treatment
+    # and rate. Only an approved non-customer classification removes them.
+    # [DEC-032 D1] Guideline 3.2.4: never automatically wasted or billable, so the default is a separate value at risk.
+    unexplained_hours_treatment: UnexplainedHoursTreatment = UnexplainedHoursTreatment.VALUE_AT_RISK
     unexplained_hours_rate_source: UnexplainedHoursRateSource = UnexplainedHoursRateSource.MACHINE_RATE_CARD
     unexplained_hours_rate: Decimal | None = Field(default=None, ge=0)  # TENANT_RATE only
     # [R3] Reconciliation period, tolerances and case threshold.
@@ -112,7 +115,7 @@ REVENUE_RECONCILIATION_SEED: dict[str, object] = {
     "deduct_non_revenue_from_working_hours": False,
     "deduct_non_revenue_from_prepaid_hours": False,
     "non_revenue_requires_approval": True,
-    "unexplained_hours_treatment": "EXPECT_REVENUE",
+    "unexplained_hours_treatment": "VALUE_AT_RISK",
     "unexplained_hours_rate_source": "MACHINE_RATE_CARD",
     "unexplained_hours_rate": None,
     "period": "WEEK",

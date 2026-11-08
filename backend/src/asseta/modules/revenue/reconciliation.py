@@ -167,6 +167,7 @@ def _zero_values(now: datetime) -> dict[str, Any]:
         "non_revenue_hours": ZERO,
         "unexplained_hours": ZERO,
         "unexplained_expected_amount": ZERO,
+        "value_at_risk_amount": ZERO,
         "computed_at": now,
     }
 
@@ -184,6 +185,7 @@ def period_values(model: MachineModel, p: Period, now: datetime) -> dict[str, di
         detail["unexplained"] = {
             "hours": str(w.unexplained_hours.quantize(Decimal("0.01"))),
             "expected": str(quantize(w.unexplained_expected, mu)),
+            "value_at_risk": str(quantize(w.value_at_risk, mu)),
         }
         out[currency] = {
             "expected_amount": expected,
@@ -194,6 +196,7 @@ def period_values(model: MachineModel, p: Period, now: datetime) -> dict[str, di
             "non_revenue_hours": non_revenue,
             "unexplained_hours": w.unexplained_hours.quantize(Decimal("0.01")),
             "unexplained_expected_amount": quantize(w.unexplained_expected, mu),
+            "value_at_risk_amount": quantize(w.value_at_risk, mu),
             "detail": detail,
             "computed_at": now,
         }

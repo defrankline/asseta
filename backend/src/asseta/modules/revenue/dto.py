@@ -37,7 +37,11 @@ class SheetMoneyDto(BaseModel):
     )
     unexplained_expected: Decimal = Field(
         default=Decimal(0),
-        description="Unexplained hours expected as revenue (part of `expected`; 0 when the tenant excludes them)",
+        description="Unexplained hours expected as revenue (part of `expected`; only under EXPECT_REVENUE)",
+    )
+    value_at_risk: Decimal = Field(
+        default=Decimal(0),
+        description="Unexplained hours x rate, shown separately: never in `expected` or `difference` (DEC-032 D1)",
     )
 
 
@@ -195,6 +199,9 @@ class RevenueDifferenceDto(BaseModel):
     non_revenue_hours: Decimal
     unexplained_hours: Decimal = Field(description="Engine hours outside jobs not approved as non-customer activity")
     unexplained_expected_amount: Decimal = Field(description="Unexplained hours expected as revenue (in expected)")
+    value_at_risk_amount: Decimal = Field(
+        default=Decimal(0), description="Unexplained hours x rate, never in expected or the difference (DEC-032 A5)"
+    )
     detail: dict[str, Any] = Field(description="jobs [{job_id, job_number, expected, attributed}] and money sources")
     status: RevenueDifferenceStatus
     case_id: uuid.UUID | None

@@ -4,8 +4,9 @@ the facts the periodic sweep ages into investigations. Runs in the tenant's RLS 
 review only; nothing here decides anything about a person."""
 
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
+from decimal import Decimal
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -17,10 +18,12 @@ from asseta.core.db import utcnow
 from asseta.core.errors import BusinessRuleViolation
 from asseta.core.outbox import OutboxWriter
 from asseta.modules.fleet.models import Machine
-from asseta.modules.jobs.models import ActivityType, Job, JobActivity, JobStatus
+from asseta.modules.jobs.models import ActivityType, Job, JobActivity, JobStatus, RentalContract
+from asseta.modules.meter.allocation_models import DailyOperationalReport, MachineChangeover
 from asseta.modules.meter.engine_models import EngineHourClassification, MachineMeterBaseline, MeterProposalStatus
 from asseta.modules.meter.ledger import (
     ActivitySpan,
+    ChangeoverPoint,
     ClassificationFact,
     JobSpan,
     Ledger,
@@ -66,7 +69,7 @@ class MachineLedger:
         if not self.reconciling:
             return []
         floor = self.policy.policy.unexplained_flag_min_hours
-        return [i for i in self.ledger.intervals if i.open_item and i.hours > floor]
+        return [i for i in self.ledger.intervals if i.open_item and i.explainable_hours > floor]
 
 
 def approved_baseline(s: Session, machine_id: uuid.UUID) -> MachineMeterBaseline | None:
@@ -139,11 +142,68 @@ def load_machine_ledger(s: Session, tenant_id: uuid.UUID, machine: Machine, now:
             )
         ).scalars()
     ]
-    spans = job_spans(s, machine.id)
+    spans = _job_rules(s, tenant_id, machine.id, job_spans(s, machine.id))
     activities = non_revenue_activities(s, tenant_id, [sp.job_id for sp in spans], now)
-    return MachineLedger(
-        machine, baseline, proposal, build_ledger(points, resets, spans, classifications, activities), eff
+    ledger = build_ledger(
+        points,
+        resets,
+        spans,
+        classifications,
+        activities,
+        _cover_entries(s, [sp.job_id for sp in spans if sp.requires_cover], now),
+        job_changeovers(s, machine.id),
     )
+    return MachineLedger(machine, baseline, proposal, ledger, eff)
+
+
+def _job_rules(s: Session, tenant_id: uuid.UUID, machine_id: uuid.UUID, spans: list[JobSpan]) -> list[JobSpan]:
+    """Each job's A2/A3 switches: the policy in force when it started, so later changes never reinterpret it."""
+    svc = PolicyService(s)
+    out = []
+    for sp in spans:
+        policy = svc.engine_hours(tenant_id, machine_id, at=sp.start).policy.in_force()
+        out.append(
+            replace(
+                sp,
+                requires_cover=not policy.in_job_time_counts_as_customer_work,
+                splits_billing=policy.changeover_splits_billing,
+            )
+        )
+    return out
+
+
+def _cover_entries(s: Session, job_ids: list[uuid.UUID], now: datetime) -> list[ActivitySpan]:
+    """[DEC-032 A2] Timed work-log entries of jobs that need cover. One still running covers up to now."""
+    if not job_ids:
+        return []
+    rows = s.execute(
+        select(JobActivity).where(JobActivity.job_id.in_(job_ids), JobActivity.activity_type != ActivityType.NOTE)
+    ).scalars()
+    return [ActivitySpan(a.job_id, a.activity_type.value, a.started_at, a.ended_at or now) for a in rows]
+
+
+def job_changeovers(s: Session, machine_id: uuid.UUID) -> list[ChangeoverPoint]:
+    """[DEC-032 A3] Changeovers whose reading is still live (a superseded reading's changeover no longer counts)."""
+    rows = s.execute(
+        select(MachineChangeover, MeterCapture.captured_at)
+        .join(MeterCapture, MeterCapture.id == MachineChangeover.capture_id)
+        .where(MachineChangeover.machine_id == machine_id, MeterCapture.state.in_(LIVE))
+    ).all()
+    return [ChangeoverPoint(c.id, at, c.job_id, c.to_customer_id) for c, at in rows]
+
+
+def job_billing_cut(s: Session, tenant_id: uuid.UUID, job: Job) -> Decimal:
+    """Engine hours of a job its billing leaves out because of A2 or A3; 0 (no ledger read) with both at their
+    defaults, so billing for tenants that did not switch either on is computed exactly as before."""
+    at = job.started_at or utcnow()
+    policy = PolicyService(s).engine_hours(tenant_id, job.machine_id, at=at).policy.in_force()
+    if policy.in_job_time_counts_as_customer_work and not policy.changeover_splits_billing:
+        return Decimal(0)
+    machine = s.get(Machine, job.machine_id)
+    if machine is None:
+        return Decimal(0)
+    intervals = load_machine_ledger(s, tenant_id, machine, utcnow()).ledger.intervals
+    return sum((i.billing_cut for i in intervals if i.job_id == job.id), Decimal(0))
 
 
 def approved_non_revenue_ids() -> Select[uuid.UUID]:
@@ -209,14 +269,16 @@ def approved_resets(s: Session, machine_id: uuid.UUID) -> list[ResetPoint]:
 def job_spans(s: Session, machine_id: uuid.UUID, exclude: uuid.UUID | None = None) -> list[JobSpan]:
     """Started jobs' engine windows on a machine, from their live opening/closing readings."""
     jobs = s.execute(
-        select(Job).where(
+        select(Job, RentalContract.customer_id)
+        .join(RentalContract, RentalContract.id == Job.contract_id)
+        .where(
             Job.machine_id == machine_id,
             Job.status.in_([JobStatus.IN_PROGRESS, JobStatus.COMPLETED]),
             Job.started_at.is_not(None),
         )
-    ).scalars()
+    ).all()
     spans = []
-    for job in jobs:
+    for job, customer_id in jobs:
         if job.id == exclude:
             continue
         reads = {
@@ -240,6 +302,7 @@ def job_spans(s: Session, machine_id: uuid.UUID, exclude: uuid.UUID | None = Non
                 closing.captured_at if closing else None,
                 opening.reading,
                 closing.reading if closing else None,
+                customer_id,
             )
         )
     return spans
@@ -339,7 +402,7 @@ def _segment_evidence(i: LedgerInterval, now: datetime) -> dict[str, Any]:
         "end_at": i.end.at.isoformat(),
         "start_reading": str(i.start.reading),
         "end_reading": str(i.end.reading),
-        "hours": str(i.hours),
+        "hours": str(i.explainable_hours),
         "opened_at": i.opened_at.isoformat(),
         "age_days": (now - i.opened_at).days,
     }
@@ -431,6 +494,20 @@ class EngineHoursMonitor:
                 {"first_job_id": str(o.first_job_id), "second_job_id": str(o.second_job_id), "basis": o.basis},
             )
         return raised
+
+    def flag_duplicate_report(self, report: DailyOperationalReport) -> bool:
+        """[DEC-032 A6] A second daily operational report for one machine-day: kept and flagged for review."""
+        return self._flag(
+            report.machine_id,
+            None,
+            ExceptionType.DUPLICATE_DAILY_REPORT,
+            f"engine:dup-report:{report.id}",
+            {
+                "day": report.report_date.isoformat(),
+                "report_id": str(report.id),
+                "duplicate_of_id": str(report.duplicate_of_id),
+            },
+        )
 
     def baselined_machines(self) -> list[Machine]:
         if not self.enabled():

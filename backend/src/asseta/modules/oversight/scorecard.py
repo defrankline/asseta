@@ -261,7 +261,7 @@ class ScorecardBuilder:
                     i.start.at,
                     machine_id=machine_id,
                     day=i.start.at.astimezone(self.tz).date(),
-                    hours=i.hours.quantize(HOURS),
+                    hours=i.explainable_hours.quantize(HOURS),
                     detail={
                         "start_at": i.start.at.isoformat(),
                         "end_at": i.end.at.isoformat(),

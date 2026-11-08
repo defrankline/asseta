@@ -113,7 +113,7 @@ class MachineModel:
     def revenue_hours(self, i: LedgerInterval) -> Decimal:
         if i.kind is not SegmentKind.CUSTOMER_WORK:
             return ZERO
-        return max(i.hours - self.deductions.get(i.key, ZERO), ZERO)
+        return max(i.hours - self.deductions.get(i.key, ZERO), ZERO)  # the deduction includes i.billing_cut
 
     def money(self, w0: datetime | None, w1: datetime | None) -> list[SheetMoneyDto]:
         out = []
@@ -129,6 +129,7 @@ class MachineModel:
                     difference=expected - progress - attributed,
                     unexplained_hours=h(w.unexplained_hours),
                     unexplained_expected=quantize(w.unexplained_expected, mu),
+                    value_at_risk=quantize(w.value_at_risk, mu),
                 )
             )
         return out
@@ -205,6 +206,7 @@ def load_machine_model(s: Session, tenant_id: uuid.UUID, machine: Machine, now: 
         if i.kind is not SegmentKind.CUSTOMER_WORK or i.job_id is None or i.job_id not in jobs:
             continue
         cut = sum(non_revenue_split(i.hours, i.start.at, i.end.at, i.job_id, billing_spans).values(), ZERO)
+        cut = min(i.hours, cut + i.billing_cut)  # DEC-032 A2/A3 when the tenant switches them on
         deductions[i.key] = cut
         pieces.append(WorkPiece(i.job_id, i.start.at, i.end.at, max(i.hours - cut, ZERO)))
     standby = [
@@ -235,11 +237,12 @@ def load_machine_model(s: Session, tenant_id: uuid.UUID, machine: Machine, now: 
     unexplained = [
         i
         for i in ml.ledger.intervals
-        if i.kind is SegmentKind.UNALLOCATED
-        and i.hours > 0
+        if (i.kind is SegmentKind.UNALLOCATED or i.in_job_unexplained > 0)
+        and i.explainable_hours > 0
         and i.classification is not SegmentClassification.APPROVED_NON_CUSTOMER
     ]
     rate = unexplained_rate(s, tenant_id, machine, now) if unexplained else None
+    treatment = PolicyService(s).revenue_reconciliation(tenant_id, at=now).policy.unexplained_hours_treatment
     currencies = {t.currency for t in terms} | {m.currency for m in money}
     minor = (
         dict(s.execute(select(Currency.code, Currency.minor_units).where(Currency.code.in_(currencies))).all())
@@ -252,8 +255,9 @@ def load_machine_model(s: Session, tenant_id: uuid.UUID, machine: Machine, now: 
         standby,
         money,
         [TimeSpan(uuid.UUID(int=0), i.start.at, i.end.at) for i in unexplained],
-        [i.hours for i in unexplained],
+        [i.explainable_hours for i in unexplained],
         rate,
+        treatment is UnexplainedHoursTreatment.VALUE_AT_RISK,
     )
     model = MachineModel(machine, ml, jobs, revenue, deductions, minor)
     model.pending_non_revenue = [TimeSpan(a.job_id, a.started_at, a.ended_at) for a in pending if a.ended_at]
@@ -261,8 +265,8 @@ def load_machine_model(s: Session, tenant_id: uuid.UUID, machine: Machine, now: 
 
 
 def unexplained_rate(s: Session, tenant_id: uuid.UUID, machine: Machine, now: datetime) -> tuple[str, Decimal] | None:
-    """(currency, hourly rate) at which unexplained engine hours are expected revenue; None when the tenant excludes
-    them (or the machine has no rate card in force)."""
+    """(currency, hourly rate) at which unexplained engine hours are valued; None when the tenant only shows them
+    (or the machine has no rate card in force)."""
     policy = PolicyService(s).revenue_reconciliation(tenant_id, at=now).policy
     if policy.unexplained_hours_treatment is UnexplainedHoursTreatment.EXCLUDE:
         return None
@@ -439,14 +443,17 @@ class DailySheet:
                     pair = acc.jobs.setdefault(i.job_id, [ZERO, ZERO])
                     pair[0] += i.customer_work_hours * f
                     pair[1] += model.revenue_hours(i) * f
-            elif i.review is ReadingReview.PENDING_REVIEW:
-                acc.pending += i.hours * f
+                if i.in_job_unexplained <= 0:
+                    continue
+            hours = i.explainable_hours * f
+            if i.review is ReadingReview.PENDING_REVIEW:
+                acc.pending += hours
             elif i.classification is SegmentClassification.APPROVED_NON_CUSTOMER:
-                acc.approved += i.hours * f
+                acc.approved += hours
             elif i.classification is SegmentClassification.IDENTIFIED_VARIANCE:
-                acc.variance += i.hours * f
+                acc.variance += hours
             elif i.classification is SegmentClassification.UNEXPLAINED:
-                acc.unexplained += i.hours * f
+                acc.unexplained += hours
         for job_id, meta in model.jobs.items():  # jobs running that day without readings inside it yet
             start = meta.job.started_at
             end = meta.job.completed_at

@@ -33,6 +33,11 @@ CAPABILITIES = [
     # SITE_CHECKIN {client_id, captured_at, gps, job_site_id?}: supervisor GPS check-in at the tenant's times
     # (DEC-031 M3); announced only while the tenant switched site check-ins on (OVERSIGHT.site_checkin_required)
     "OP_SITE_CHECKIN",
+    # DAILY_REPORT {id, machine_id, report_date, opening_ref, closing_ref, billable_hours?, unbillable[], note?,
+    # evidence_attachment_ids?, evidence_upload_ids? (purpose DAILY_REPORT_EVIDENCE), supersedes_id?, client_created_at}
+    "OP_DAILY_REPORT",
+    # METER_CAPTURE kind DAILY on a running job accepts changeover_to_customer_id (and changeover_to_job_id)
+    "METER_CHANGEOVER",
 ]
 # Protocol capabilities that belong to a tenant capability (`asseta.modules.policy.capabilities`): not announced
 # while the tenant has it switched off, and their operations are then refused (CONFLICT, the capability's code).
@@ -45,6 +50,8 @@ TENANT_CAPABILITY_OF = {
     "OP_CASH_TRANSFER": "CASH_CUSTODY",
     "OP_CASH_RETENTION_REQUEST": "CASH_CUSTODY",
     "OP_SITE_CHECKIN": "SITE_CHECKIN",
+    "OP_DAILY_REPORT": "ENGINE_HOURS",
+    "METER_CHANGEOVER": "ENGINE_HOURS",
 }
 
 
@@ -195,6 +202,7 @@ OpType = Literal[
     "METER_CORRECTION",  # reading correction proposal (approved by a second person)
     "CASH_RETENTION_REQUEST",  # payload CashRetentionIn, client_id required (tenant policy cash.retention_allowed)
     "SITE_CHECKIN",  # payload SiteCheckinIn {client_id, captured_at, gps, job_site_id?} (OVERSIGHT site check-ins)
+    "DAILY_REPORT",  # payload DailyReportIn (op id = report id) + evidence_upload_ids (DEC-032 A4)
 ]
 
 
@@ -230,7 +238,13 @@ class BlobStartIn(BaseModel):
     sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     size_bytes: int = Field(gt=0)
     purpose: Literal[
-        "METER_PHOTO", "SIGNATURE", "RESET_EVIDENCE", "EXPENSE_RECEIPT", "PAYMENT_EVIDENCE", "REMITTANCE_EVIDENCE"
+        "METER_PHOTO",
+        "SIGNATURE",
+        "RESET_EVIDENCE",
+        "EXPENSE_RECEIPT",
+        "PAYMENT_EVIDENCE",
+        "REMITTANCE_EVIDENCE",
+        "DAILY_REPORT_EVIDENCE",
     ]
 
 

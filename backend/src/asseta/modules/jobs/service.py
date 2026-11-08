@@ -51,11 +51,13 @@ from asseta.modules.jobs.models import (
     StandbyTreatment,
 )
 from asseta.modules.jobs.scope import own_staff
+from asseta.modules.meter.allocation_writer import sync_allocations
 from asseta.modules.meter.engine_hours import (
     billing_deduction_filter,
     ensure_job_can_complete,
     ensure_job_can_start,
     ensure_no_activity_overlap,
+    job_billing_cut,
 )
 from asseta.modules.meter.models import CaptureState, ExceptionStatus, JobException, MeterCapture, ReadingKind
 from asseta.modules.meter.rules import billable_hours
@@ -392,6 +394,8 @@ class JobService:
             raise Conflict("Machine already has an approved or running job", code="MACHINE_BUSY") from exc
         if action == "COMPLETE":
             self._allocate_prepaid_hours(job, now)
+        if action in ("START", "COMPLETE"):
+            sync_allocations(self._s, self._tid, job.machine_id, now)
         after: dict[str, Any] = {"status": target.value}
         if price_before is not None:
             after |= {"hourly_rate": str(job.hourly_rate), "rate_source": job.rate_source}
@@ -449,6 +453,7 @@ class JobService:
             **body.model_dump(exclude={"billable"}),
         )
         self._insert(row, "DUPLICATE_ACTIVITY", "Activity already recorded")
+        sync_allocations(self._s, self._tid, job.machine_id, utcnow())
         return ActivityDto.model_validate(row)
 
     def acknowledge(self, job_id: uuid.UUID, body: AcknowledgementIn) -> AcknowledgementDto:
@@ -482,6 +487,7 @@ class JobService:
             )
         ).scalar_one()
         nonbillable = (Decimal(str(nonbillable_seconds)) / Decimal(3600)).quantize(Decimal("0.01"))
+        nonbillable += job_billing_cut(self._s, self._tid, job)  # DEC-032 A2/A3 when the tenant switches them on
         eff = PolicyService(self._s).hire_billing(self._tid, at=job.started_at or utcnow())
         meter = (closing.reading - opening.reading) if opening and closing else None
         billable = billable_hours(meter, nonbillable, job.minimum_hours, eff.policy) if meter is not None else None

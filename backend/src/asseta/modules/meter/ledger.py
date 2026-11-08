@@ -68,6 +68,19 @@ class JobSpan:
     end: datetime | None
     start_reading: Decimal
     end_reading: Decimal | None
+    customer_id: uuid.UUID | None = None
+    requires_cover: bool = False  # DEC-032 A2: in-job hours need a covering work-log entry (policy at job start)
+    splits_billing: bool = False  # DEC-032 A3: hours after a changeover leave this job's billing (policy at job start)
+
+
+@dataclass(frozen=True)
+class ChangeoverPoint:
+    """DEC-032 A3: a mid-job changeover reading: from `at` on, this job's hours serve `to_customer_id`."""
+
+    id: uuid.UUID
+    at: datetime
+    job_id: uuid.UUID
+    to_customer_id: uuid.UUID
 
 
 @dataclass(frozen=True)
@@ -108,6 +121,11 @@ class LedgerInterval:
     approved: ClassificationFact | None = None
     proposal: ClassificationFact | None = None
     non_revenue: dict[str, Decimal] = field(default_factory=dict)  # activity type -> engine hours (R1)
+    job_customer_id: uuid.UUID | None = None
+    in_job_unexplained: Decimal = ZERO  # A2: hours of a job window no work-log entry covers
+    changeover_id: uuid.UUID | None = None  # A3: the changeover that moved this interval to another customer
+    changeover_customer_id: uuid.UUID | None = None
+    changeover_cut: Decimal = ZERO  # A3: customer-work hours leaving the job's billing (policy on, other customer)
 
     @property
     def non_revenue_hours(self) -> Decimal:
@@ -115,8 +133,20 @@ class LedgerInterval:
 
     @property
     def customer_work_hours(self) -> Decimal:
-        """Customer-work hours after the revenue-hour basis (0 for unallocated intervals)."""
-        return self.hours - self.non_revenue_hours if self.kind is SegmentKind.CUSTOMER_WORK else ZERO
+        """Customer-work hours after the revenue-hour basis and A2 (0 for unallocated intervals)."""
+        if self.kind is not SegmentKind.CUSTOMER_WORK:
+            return ZERO
+        return self.hours - self.non_revenue_hours - self.in_job_unexplained
+
+    @property
+    def explainable_hours(self) -> Decimal:
+        """The hours a classification explains: the whole of an unallocated interval, or a job's uncovered part."""
+        return self.in_job_unexplained if self.kind is SegmentKind.CUSTOMER_WORK else self.hours
+
+    @property
+    def billing_cut(self) -> Decimal:
+        """Engine hours of this interval its job does not bill (A2 uncovered, A3 served to another customer)."""
+        return self.in_job_unexplained + self.changeover_cut
 
     @property
     def key(self) -> tuple[uuid.UUID, uuid.UUID]:
@@ -131,7 +161,7 @@ class LedgerInterval:
     def open_item(self) -> bool:
         """An unallocated, verified interval with hours that nobody has explained yet."""
         return (
-            self.kind is SegmentKind.UNALLOCATED
+            (self.kind is SegmentKind.UNALLOCATED or self.in_job_unexplained > ZERO)
             and self.review is ReadingReview.VERIFIED
             and self.classification is SegmentClassification.UNEXPLAINED
         )
@@ -169,18 +199,20 @@ class Ledger:
             if i.kind is SegmentKind.CUSTOMER_WORK:
                 t.customer_work_hours += i.customer_work_hours
                 t.non_revenue_hours += i.non_revenue_hours
-                continue
-            t.unallocated_hours += i.hours
+                if i.in_job_unexplained <= ZERO:
+                    continue
+            hours = i.explainable_hours
+            t.unallocated_hours += hours
             if i.review is ReadingReview.PENDING_REVIEW:
-                t.pending_review_hours += i.hours
+                t.pending_review_hours += hours
             elif i.classification is SegmentClassification.APPROVED_NON_CUSTOMER:
-                t.approved_non_customer_hours += i.hours
+                t.approved_non_customer_hours += hours
             elif i.classification is SegmentClassification.IDENTIFIED_VARIANCE:
-                t.identified_variance_hours += i.hours
+                t.identified_variance_hours += hours
             elif i.classification is SegmentClassification.UNEXPLAINED:
-                t.unexplained_hours += i.hours
+                t.unexplained_hours += hours
                 if i.proposal is not None:
-                    t.proposed_hours += i.hours
+                    t.proposed_hours += hours
         return t
 
 
@@ -248,12 +280,49 @@ def non_revenue_split(
     return {t: v for t, v in out.items() if v > ZERO}
 
 
+def uncovered_hours(
+    hours: Decimal, start: datetime, end: datetime, job_id: uuid.UUID, cover: Sequence[ActivitySpan]
+) -> Decimal:
+    """DEC-032 A2: engine hours of a job interval with no work-log entry over them, by wall-clock share of the union
+    of the job's timed entries. A zero-length interval counts as covered."""
+    total = (end - start).total_seconds()
+    if hours <= ZERO or total <= 0:
+        return ZERO
+    windows = sorted(
+        (max(c.start, start), min(c.end, end)) for c in cover if c.job_id == job_id and c.end > start and c.start < end
+    )
+    covered, reach = 0.0, start
+    for lo, hi in windows:
+        lo = max(lo, reach)
+        if hi > lo:
+            covered += (hi - lo).total_seconds()
+            reach = hi
+    share = Decimal(str(covered)) / Decimal(str(total))
+    return max(hours - (hours * share).quantize(HOUR_STEP, rounding=ROUND_DOWN), ZERO)
+
+
+def _apply_changeover(interval: LedgerInterval, job: JobSpan, changeovers: Sequence[ChangeoverPoint]) -> None:
+    """DEC-032 A3: the latest changeover of the job at or before this interval decides which customer it served."""
+    latest = max(
+        (c for c in changeovers if c.job_id == job.job_id and c.at <= interval.start.at),
+        key=lambda c: (c.at, str(c.id)),
+        default=None,
+    )
+    if latest is None:
+        return
+    interval.changeover_id, interval.changeover_customer_id = latest.id, latest.to_customer_id
+    if job.splits_billing and latest.to_customer_id != job.customer_id:
+        interval.changeover_cut = interval.customer_work_hours
+
+
 def build_ledger(
     points: Sequence[LedgerPoint],
     resets: Sequence[ResetPoint],
     spans: Sequence[JobSpan],
     classifications: Sequence[ClassificationFact],
     non_revenue: Sequence[ActivitySpan] = (),
+    cover: Sequence[ActivitySpan] = (),
+    changeovers: Sequence[ChangeoverPoint] = (),
 ) -> Ledger:
     ordered = sorted(points, key=lambda p: (p.at, p.reading, 0 if p.source == "BASELINE" else 1, str(p.ref)))
     by_key: dict[tuple[uuid.UUID, uuid.UUID], list[ClassificationFact]] = {}
@@ -280,12 +349,17 @@ def build_ledger(
             first = min(covering, key=lambda s: (s.start, str(s.job_id)))  # one job only: never counted twice
             interval.job_id, interval.job_number = first.job_id, first.job_number
             interval.overlapping_job_ids = [s.job_id for s in covering if s.job_id != first.job_id]
+            interval.job_customer_id = first.customer_id
             if non_revenue:
                 interval.non_revenue = non_revenue_split(hours, a.at, b.at, first.job_id, non_revenue)
-        elif hours > ZERO:
+            if first.requires_cover:
+                uncovered = uncovered_hours(hours, a.at, b.at, first.job_id, cover)
+                interval.in_job_unexplained = min(uncovered, hours - interval.non_revenue_hours)
+            _apply_changeover(interval, first, changeovers)
+        if interval.explainable_hours > ZERO:
             interval.classification = SegmentClassification.UNEXPLAINED
             for c in by_key.get(interval.key, []):
-                if c.hours != hours:
+                if c.hours != interval.explainable_hours:
                     continue  # explanation of different hours (boundaries re-based): never stretched over these
                 if c.status == "APPROVED":
                     interval.approved = c

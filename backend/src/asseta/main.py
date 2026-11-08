@@ -40,6 +40,7 @@ from asseta.modules.intelligence import ml_router as intelligence_ml_router
 from asseta.modules.intelligence import router as intelligence_router
 from asseta.modules.jobs import router as jobs_router
 from asseta.modules.managed_service import router as managed_service_router
+from asseta.modules.meter import allocation_router as meter_allocation_router
 from asseta.modules.meter import engine_router as meter_engine_router
 from asseta.modules.meter import router as meter_router
 from asseta.modules.notification import channels_router as notification_channels_router
@@ -149,6 +150,7 @@ def create_app(
         jobs_router.router,
         meter_router.router,
         meter_engine_router.router,
+        meter_allocation_router.router,
         revenue_router.router,
         oversight_router.router,
         onboarding_router.router,

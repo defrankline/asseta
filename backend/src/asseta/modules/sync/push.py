@@ -33,6 +33,8 @@ from asseta.modules.identity.principal import RequestContext
 from asseta.modules.jobs.dto import AcknowledgementIn, ActivityIn, JobRequestIn
 from asseta.modules.jobs.models import Job
 from asseta.modules.jobs.service import JobService
+from asseta.modules.meter.allocation_dto import DailyReportIn
+from asseta.modules.meter.daily_report import DailyReportService
 from asseta.modules.meter.dto import MeterCaptureIn, ResetIn
 from asseta.modules.meter.engine_dto import BaselineIn, CorrectionIn
 from asseta.modules.meter.engine_service import EngineHoursService
@@ -80,6 +82,15 @@ CONFLICT_CODES = {
     # person (kept for review, never applied)
     "SITE_CHECKIN_DISABLED",
     "CHECKIN_ID_CONFLICT",
+    # DEC-032: a daily report whose readings changed or arrived differently, a repeat of its id, a report replaced
+    # already, evidence newly required, or a changeover the job's state no longer allows (kept for review)
+    "REPORT_READINGS_INVALID",
+    "REPORT_HOURS_EXCEED_TOTAL",
+    "REPORT_ID_CONFLICT",
+    "REPORT_NOT_SUPERSEDABLE",
+    "REPORT_EVIDENCE_REQUIRED",
+    "CHANGEOVER_NOT_ALLOWED",
+    "CHANGEOVER_SAME_CUSTOMER",
 }
 # Operations that belong to a tenant capability (sync capabilities: dto.TENANT_CAPABILITY_OF). A DAILY meter capture
 # is refused by the meter service itself (same code). Customer-hours operations keep their service refusal.
@@ -91,6 +102,7 @@ OP_CAPABILITY = {
     "CASH_FLOAT_ACKNOWLEDGEMENT": CASH_CUSTODY,
     "CASH_RETENTION_REQUEST": CASH_CUSTODY,
     "SITE_CHECKIN": SITE_CHECKIN,
+    "DAILY_REPORT": ENGINE_HOURS,
 }
 REQUIRED_PERMISSION = {
     "METER_CAPTURE": "tenant.meter.capture",
@@ -112,6 +124,7 @@ REQUIRED_PERMISSION = {
     "HOURS_TRANSFER_REQUEST": "tenant.hours.transfer",
     "CASH_RETENTION_REQUEST": "tenant.collection.record",
     "SITE_CHECKIN": "tenant.site_checkin.record",
+    "DAILY_REPORT": "tenant.meter.capture",
 }
 # Ops whose payload names resumable blob uploads: the op is DEFERRED (not rejected) until they complete.
 UPLOAD_FIELDS = {
@@ -119,6 +132,7 @@ UPLOAD_FIELDS = {
     "METER_RESET_REQUEST": "evidence_upload_id",
     "HOURS_PURCHASE": "evidence_upload_ids",
     "CASH_HANDOVER": "evidence_upload_ids",
+    "DAILY_REPORT": "evidence_upload_ids",
 }
 
 
@@ -143,6 +157,13 @@ class CashHandoverOp(CashHandoverIn):
     waits until they complete) and/or attachment ids uploaded online."""
 
     client_id: uuid.UUID
+    evidence_upload_ids: list[uuid.UUID] = Field(default_factory=list, max_length=10)
+
+
+class DailyReportOp(DailyReportIn):
+    """Offline daily report: the operation id is the report id; evidence by resumable blob uploads (purpose
+    DAILY_REPORT_EVIDENCE; the op waits until they complete) or attachment ids uploaded online."""
+
     evidence_upload_ids: list[uuid.UUID] = Field(default_factory=list, max_length=10)
 
 
@@ -361,6 +382,7 @@ class PushService:
             "SITE_CHECKIN": lambda: SiteCheckinService(self._s, self._ctx, self._now).record(
                 SiteCheckinIn.model_validate(op.payload), "SYNC", device_session_id=device.id
             ),
+            "DAILY_REPORT": lambda: self._daily_report(DailyReportOp.model_validate({"id": op.id, **op.payload})),
             "HOURS_TRANSFER_REQUEST": lambda: HoursApprovals(self._s, self._ctx, self._now).request_transfer(
                 TransferIn.model_validate({"client_id": op.id, **op.payload})
             ),
@@ -436,6 +458,18 @@ class PushService:
             {**body.model_dump(exclude={"evidence_upload_ids"}), "evidence_attachment_ids": evidence}
         )
         return CashCustodyService(self._s, self._ctx, self._now).record_handover(handover, "SYNC")
+
+    def _daily_report(self, body: DailyReportOp) -> BaseModel:
+        evidence = list(body.evidence_attachment_ids)
+        for upload_id in body.evidence_upload_ids:
+            upload = self._s.get(BlobUploadSession, upload_id)
+            if upload is None or upload.attachment_id is None:
+                raise NotFound("Evidence upload not found", code="ATTACHMENT_NOT_FOUND")
+            evidence.append(upload.attachment_id)
+        report = DailyReportIn.model_validate(
+            {**body.model_dump(exclude={"evidence_upload_ids"}), "evidence_attachment_ids": evidence}
+        )
+        return DailyReportService(self._s, self._ctx, self._now).submit(report, "SYNC")
 
     def _meter_reset(self, body: MeterResetOp) -> BaseModel:
         evidence = body.evidence_attachment_id

@@ -85,6 +85,8 @@ RECORDS: dict[str, tuple[str, str]] = {
     "classification": ("ENGINE_HOURS_CLASSIFICATION", "/tenant/engine-hours/classifications"),
     "revenue_difference": ("REVENUE_DIFFERENCE", "/tenant/revenue-differences"),
     "non_revenue_approval": ("NON_REVENUE_APPROVAL", "/tenant/non-revenue-approvals"),
+    "correction_group": ("WORK_ALLOCATION_CORRECTION", "/tenant/work-allocations/corrections"),
+    "daily_report": ("DAILY_REPORT", "/tenant/daily-reports"),
 }
 
 
@@ -772,6 +774,12 @@ _METER_APPROVALS: dict[str, tuple[str, str, str, str]] = {
         "tenant.meter.approve",
         "/tenant/meter-corrections",
     ),
+    "WorkAllocationCorrectionProposed": (
+        "Work allocation correction",
+        "correction_group_id",
+        "tenant.meter.approve",
+        "/tenant/work-allocations/corrections",
+    ),
     "EngineHoursClassificationProposed": (
         "Engine-hour classification",
         "classification_id",
@@ -795,6 +803,40 @@ def _meter_approval(session: Session, e: DomainEvent) -> list[Intent]:
             record_link(key.removesuffix("_id"), p.get(key), link),
             key.removesuffix("_id"),
             p.get(key),
+        )
+    ]
+
+
+@rule("DailyReportSubmitted")
+def _daily_report_submitted(session: Session, e: DomainEvent) -> list[Intent]:
+    p = e.payload
+    return [
+        Intent(
+            "DAILY_REPORT_SUBMITTED",
+            (perm("tenant.meter.review"),),
+            f"Daily report to review: {_machine_label(session, p.get('machine_id'))}",
+            f"Report for {p.get('report_date')}: {p.get('total_hours')} engine hours.",
+            _key(e),
+            record_link("daily_report", p["report_id"], "/tenant/daily-reports"),
+            "daily_report",
+            p["report_id"],
+        )
+    ]
+
+
+@rule("DailyReportReturned")
+def _daily_report_returned(session: Session, e: DomainEvent) -> list[Intent]:
+    p = e.payload
+    return [
+        Intent(
+            "DAILY_REPORT_RETURNED",
+            (user(p["submitted_by"]),),
+            f"Daily report returned: {_machine_label(session, p.get('machine_id'))}",
+            f"Report for {p.get('report_date')} was returned: {p.get('note')}",
+            _key(e),
+            record_link("daily_report", p["report_id"], "/tenant/daily-reports"),
+            "daily_report",
+            p["report_id"],
         )
     ]
 

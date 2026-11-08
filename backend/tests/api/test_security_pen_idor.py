@@ -278,7 +278,12 @@ def _revenue_policy(owner: Actor) -> None:
         f"{T}/policies/REVENUE_RECONCILIATION/versions",
         {
             "scope": "TENANT",
-            "values": {"enabled": True, "period": "DAY", "deduct_non_revenue_from_working_hours": True},
+            "values": {
+                "enabled": True,
+                "period": "DAY",
+                "deduct_non_revenue_from_working_hours": True,
+                "unexplained_hours_treatment": "EXPECT_REVENUE",
+            },
             "reason": "Revenue checks on",
         },
     )
@@ -382,11 +387,41 @@ def _engine_hours_records(api: Api, f: FinCtx) -> dict[tuple[str, str], str]:
         {"superseded_capture_id": daily["id"], "reason": "Misread the last digit", "replacement": fix},
     )
     assert corr.status_code == 201, corr.text
+    ledger = _ledger_b(o, daily)
     return {
+        **ledger,
         ("/meter-baselines/", "baseline_id"): base.json()["id"],
         ("/engine-hour-reasons/", "reason_id"): reason.json()["id"],
         ("/engine-hours/classifications/", "classification_id"): cls.json()["id"],
         ("/meter-corrections/", "correction_id"): corr.json()["id"],
+    }
+
+
+def _ledger_b(o: Actor, daily: dict[str, Any]) -> dict[tuple[str, str], str]:
+    """B's work allocation, its correction and a daily report (DEC-032 A1, A4)."""
+    entry = o.get(f"{T}/work-allocations", machine_id=daily["machine_id"]).json()["items"][0]
+    group = o.post(
+        f"{T}/work-allocations/{entry['id']}/corrections",
+        {"parts": [{"hours": entry["hours"], "kind": "UNEXPLAINED"}], "reason": "B allocation correction"},
+    )
+    assert group.status_code == 201, group.text
+    day = datetime.fromisoformat(entry["end_at"]).astimezone(ZoneInfo("Africa/Dar_es_Salaam")).date()
+    report = o.post(
+        f"{T}/daily-reports",
+        {
+            "id": str(uuid.uuid4()),
+            "machine_id": daily["machine_id"],
+            "report_date": day.isoformat(),
+            "opening_ref": str(entry["end_ref"]),  # one live reading is enough here
+            "closing_ref": str(entry["end_ref"]),
+            "client_created_at": entry["end_at"],
+        },
+    )
+    assert report.status_code == 201, report.text
+    return {
+        ("/work-allocations/", "allocation_id"): entry["id"],
+        ("/work-allocations/corrections/", "group_id"): group.json()["group_id"],
+        ("/daily-reports/", "report_id"): report.json()["id"],
     }
 
 
