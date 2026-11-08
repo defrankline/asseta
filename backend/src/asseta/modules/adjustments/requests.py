@@ -268,9 +268,9 @@ class AdjustmentRequests:
             if body.settlement is RefundSettlement.PAY_OUT and body.payout is None:
                 raise BusinessRuleViolation("Record how the refund is paid out", code="REFUND_PAYOUT_REQUIRED")
             fields["settlement"] = body.settlement
-            if body.payout is not None and body.payout.staff_member_id is not None:
-                if self._s.get(StaffMember, body.payout.staff_member_id) is None:
-                    raise NotFound("Staff member not found", code="STAFF_NOT_FOUND")
+            custodian = body.payout.staff_member_id if body.payout is not None else None
+            if custodian is not None and self._s.get(StaffMember, custodian) is None:
+                raise NotFound("Staff member not found", code="STAFF_NOT_FOUND")
             if body.payout is not None:
                 fields["params"]["payout"] = body.payout.model_dump(mode="json", exclude_none=True)
             fields["amount"] = self.hours.check_refund(purchase, machine_id, body.hours, totals)
