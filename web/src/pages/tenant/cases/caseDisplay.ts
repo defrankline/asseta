@@ -13,6 +13,7 @@ import type {
 import type { StatusTone } from '../../../components/display/StatusChip';
 import { RULE_LABELS } from '../../../components/intelligence/signalText';
 import {
+  customerDetailPath,
   exceptionsPath,
   financeTabPath,
   jobDetailPath,
@@ -20,6 +21,7 @@ import {
   ROUTES,
   staffDetailPath,
 } from '../../../navigation/routes';
+import { adjustmentRequestPath } from '../../../navigation/adjustmentRoutes';
 import type { Option } from '../shared/display';
 
 /** Case statuses, worded neutrally (a case collects evidence for review). */
@@ -81,6 +83,7 @@ export const SUBJECT_TYPE_LABELS: Readonly<Record<SubjectType, string>> = {
   STAFF: 'Staff member',
   EXPENSE: 'Expense',
   USER: 'User',
+  CUSTOMER: 'Customer',
 };
 
 /** What a reviewer found; never a judgement of a person. */
@@ -134,6 +137,8 @@ export function subjectPath(c: Pick<AnomalyCaseDto, 'subject_type' | 'subject_id
       return jobDetailPath(c.subject_id);
     case 'STAFF':
       return staffDetailPath(c.subject_id);
+    case 'CUSTOMER':
+      return customerDetailPath(c.subject_id);
     case 'EXPENSE':
     case 'USER':
       return null;
@@ -220,6 +225,14 @@ export function sourceLinks(s: CaseSignalDto, c: AnomalyCaseDto): SourceLink[] {
           kind: 'route',
           label: 'Open revenue difference',
           to: `/tenant/revenue-differences/${s.source_id}`,
+        },
+      ];
+    case 'ADJUSTMENT':
+      return [
+        {
+          kind: 'route',
+          label: 'Open the adjustment request',
+          to: adjustmentRequestPath(s.source_id),
         },
       ];
     case 'SOD_EVENT':

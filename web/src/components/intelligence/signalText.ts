@@ -35,6 +35,7 @@ export const SOURCE_TYPE_LABELS: Readonly<Record<CaseSourceType, string>> = {
   PREDICTION: 'Model output',
   CASH_VARIANCE: 'Cash difference',
   REVENUE_DIFFERENCE: 'Revenue difference',
+  ADJUSTMENT: 'Adjustment',
 };
 
 /** Tracking alert types linked to cases (backend `ALERT_TITLES`); others are humanised. */
@@ -311,6 +312,11 @@ export function explainCaseSignal(
         `Engine hours in ${f.text('period')} were not matched by money (expected ${f.text('expected_amount')}, ` +
         `attributed ${f.text('attributed_amount')} ${f.text('currency')}). It needs explaining; the difference ` +
         'is not a conclusion.'
+      );
+    case 'ADJUSTMENT':
+      return (
+        `A reversal of ${f.text('original_reference')} took back ${f.text('used_hours')} hours already used ` +
+        `(${f.text('money_owed')} ${f.text('currency')}). It needs review; the difference is not a conclusion.`
       );
     case 'PREDICTION':
       return 'A model output was surfaced for review; it is an indication, not a finding.';

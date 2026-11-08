@@ -50,6 +50,9 @@ export const LEDGER_ENTRY_TYPES: readonly LedgerEntryType[] = [
   'REVERSAL',
   'PROVISIONAL',
   'PROVISIONAL_REVERSED',
+  'CORRECTION_ADD',
+  'CORRECTION_DEDUCT',
+  'REFUNDED',
 ];
 export const ACTIVATION_SOURCES: readonly ActivationSource[] = ['PAYMENT', 'CREDIT'];
 export const REQUEST_STATUSES: readonly RequestStatus[] = [
@@ -70,6 +73,9 @@ export const REASON_KINDS: readonly ReasonKind[] = [
   'CREDIT',
   'TRANSFER',
   'CANCELLATION',
+  'CORRECTION',
+  'REFUND',
+  'REVERSAL',
 ];
 
 const optionalText = () => string().nullable().default(null);
@@ -95,6 +101,8 @@ export const machineHoursSchema: Schema<MachineHoursDto> = object({
   transferred_in: text(),
   transferred_out: text(),
   provisional: text().default('0'),
+  refunded: text().default('0'),
+  corrected: text().default('0'),
 });
 
 export const purchaseTotalsSchema: ObjectSchema<PurchaseTotalsDto> = object({
@@ -109,6 +117,8 @@ export const purchaseTotalsSchema: ObjectSchema<PurchaseTotalsDto> = object({
   reversed: text(),
   transferred: text(),
   provisional: text().default('0'),
+  refunded: text().default('0'),
+  corrected: text().default('0'),
   amount_claimed_unverified: text(),
   amount_outstanding: text(),
   amount_verified: text(),
@@ -161,6 +171,8 @@ export const hoursBalanceSchema: Schema<HoursBalanceDto> = object({
   transferred_in: text(),
   transferred_out: text(),
   provisional: text().default('0'),
+  refunded: text().default('0'),
+  corrected: text().default('0'),
 });
 
 export const ledgerEntrySchema: Schema<LedgerEntryDto> = object({

@@ -36,7 +36,14 @@ const RULE_CODE_SET: Readonly<Record<RuleCode, true>> = {
 export const RULE_CODES = Object.keys(RULE_CODE_SET) as readonly RuleCode[];
 export const SIGNAL_SEVERITIES: readonly SignalSeverity[] = ['INFO', 'WARNING', 'CRITICAL'];
 export const SIGNAL_STATUSES: readonly SignalStatus[] = ['OPEN', 'LINKED', 'DISMISSED'];
-export const SUBJECT_TYPES: readonly SubjectType[] = ['MACHINE', 'JOB', 'STAFF', 'EXPENSE', 'USER'];
+export const SUBJECT_TYPES: readonly SubjectType[] = [
+  'MACHINE',
+  'JOB',
+  'STAFF',
+  'EXPENSE',
+  'USER',
+  'CUSTOMER',
+];
 export const CASE_STATUSES: readonly CaseStatus[] = ['OPEN', 'IN_REVIEW', 'RESOLVED'];
 const CASE_SOURCE_TYPE_SET: Readonly<Record<CaseSourceType, true>> = {
   RISK_SIGNAL: true,
@@ -46,6 +53,7 @@ const CASE_SOURCE_TYPE_SET: Readonly<Record<CaseSourceType, true>> = {
   PREDICTION: true,
   CASH_VARIANCE: true,
   REVENUE_DIFFERENCE: true,
+  ADJUSTMENT: true,
 };
 export const CASE_SOURCE_TYPES = Object.keys(CASE_SOURCE_TYPE_SET) as readonly CaseSourceType[];
 export const CASE_NOTE_KINDS: readonly CaseNoteKind[] = ['NOTE', 'REOPEN'];

@@ -71,6 +71,8 @@ const totalsSchema: Schema<HoursStatementTotalsDto> = object({
   transferred_out: text(),
   expired: text(),
   cancelled: text(),
+  refunded: text().default('0'),
+  corrected: text().default('0'),
   closing_balance: text(),
   provisional_at_close: text(),
   awaiting_activation: text(),

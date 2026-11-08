@@ -55,6 +55,9 @@ export const LEDGER_TYPE_LABELS: Readonly<Record<LedgerEntryType, string>> = {
   REVERSAL: 'Reversed',
   PROVISIONAL: 'Used that day (provisional)',
   PROVISIONAL_REVERSED: 'Provisional use given back',
+  CORRECTION_ADD: 'Correction (added)',
+  CORRECTION_DEDUCT: 'Correction (taken off)',
+  REFUNDED: 'Refunded',
 };
 export const LEDGER_TYPE_OPTIONS: readonly Option<LedgerEntryType>[] = LEDGER_ENTRY_TYPES.map(
   (t) => ({ value: t, label: LEDGER_TYPE_LABELS[t] }),
@@ -99,6 +102,9 @@ export const REASON_KIND_LABELS: Readonly<Record<ReasonKind, string>> = {
   CREDIT: 'Credit',
   TRANSFER: 'Transfer',
   CANCELLATION: 'Cancellation',
+  CORRECTION: 'Correction',
+  REFUND: 'Refund',
+  REVERSAL: 'Reversal',
 };
 export const REASON_KIND_OPTIONS: readonly Option<ReasonKind>[] = REASON_KINDS.map((k) => ({
   value: k,

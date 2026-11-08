@@ -44,11 +44,17 @@ export const CHARGE_KINDS: readonly ChargeKind[] = [
   'MOBILIZATION',
   'DISCOUNT',
   'TAX',
+  'HOURS_RECOVERY',
 ];
 export const PAYMENT_STATES: readonly InvoicePaymentState[] = ['UNPAID', 'PARTIALLY_PAID', 'PAID'];
 export const PAYMENT_METHODS: readonly HirePaymentMethod[] = ['CASH', 'BANK', 'MOBILE_MONEY'];
 export const SETTLEMENT_STATUSES: readonly SettlementStatus[] = ['CLAIMED', 'VERIFIED', 'REJECTED'];
-export const STATEMENT_KINDS: readonly StatementLineKind[] = ['INVOICE', 'REVERSAL', 'PAYMENT'];
+export const STATEMENT_KINDS: readonly StatementLineKind[] = [
+  'INVOICE',
+  'REVERSAL',
+  'PAYMENT',
+  'ADJUSTMENT',
+];
 export const FLOAT_ACK_STATUSES: readonly CashCustodyEntryDto['ack_status'][] = [
   'NOT_REQUIRED',
   'PENDING',
@@ -134,6 +140,7 @@ export const customerBalanceSchema: Schema<CustomerBalanceDto> = object({
   invoiced: text(),
   reversed: text(),
   verified_payments: text(),
+  payment_reversals_and_refunds: text().default('0'),
   balance: text(),
   unallocated_credit: text(),
   claimed_unverified: text(),

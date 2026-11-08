@@ -109,6 +109,8 @@ const PURCHASE: HoursPurchaseDto = {
     reversed: '0',
     transferred: '0',
     provisional: '0',
+    refunded: '0',
+    corrected: '0',
     amount_claimed_unverified: '0',
     amount_outstanding: '500000',
     amount_verified: '0',

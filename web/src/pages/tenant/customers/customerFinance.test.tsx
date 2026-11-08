@@ -20,6 +20,7 @@ const balance = (currency: string, o: Partial<CustomerBalanceDto> = {}): Custome
   invoiced: '1416000.0000',
   reversed: '0.0000',
   verified_payments: '400000.0000',
+  payment_reversals_and_refunds: '0.0000',
   balance: '1016000.0000',
   unallocated_credit: '0.0000',
   claimed_unverified: '500000.0000',
