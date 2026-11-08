@@ -75,8 +75,12 @@ class AllocationOwnerTest {
         assertTrue(row.pending)
         assertTrue(row.isOwn(me))
         val original = allocation("UNEXPLAINED", "5.00")
-        val fields = DecisionMapper.allocationCorrection(group, "PROPOSED", parts, original).fields.associate { it.label to it.value }
-        assertEquals("Unexplained · 5 h", fields[AllocationTexts.ORIGINAL])
+        val item = DecisionMapper.allocationCorrection(group, "PROPOSED", parts + allocation("AUTHORIZED_ACTIVITY", "1.00", ""","evidence_attachment_ids":["p2","p1"]"""), original)
+        assertEquals("Unexplained · 5 h", item.originalLine)
+        assertEquals(listOf("p1", "p2"), item.photoAttachmentIds)
+        val fields = item.fields.associate { it.label to it.value }
+        assertNull(fields[AllocationTexts.ORIGINAL])
+        assertEquals("Asha", fields["Proposed by"])
         assertEquals("3 h · Mgodi Ltd · J-9", fields[AllocationTexts.part("CUSTOMER_WORK")])
         assertEquals("2 h", fields[AllocationTexts.part("UNEXPLAINED")])
     }

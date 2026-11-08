@@ -176,6 +176,9 @@ class FieldRepository(
             )
         }
 
+    /** The tenant's IANA zone as sync last sent it (null from older servers). */
+    suspend fun tenantTimezone(tenantId: String): String? = db().syncStateDao().get(tenantId)?.tenantTimezone
+
     suspend fun offlineGrant(tenantId: String): Instant? =
         db().syncStateDao().get(tenantId)?.offlineGrantUntil?.let(Instant::ofEpochMilli)
 

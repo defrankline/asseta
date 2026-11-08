@@ -189,7 +189,8 @@ class FieldAccountabilityData(
             engineHoursPolicy = part(engineOn && FieldAccess.METER_CAPTURE in permissions, old.engineHoursPolicy, null) {
                 effectivePolicy(com.asseta.core.domain.accountability.EngineHoursPolicy.TYPE)
             },
-            unbillableReasons = part(engineOn && FieldAccess.METER_READ in permissions, old.unbillableReasons, emptyList()) {
+            // Servers that announce SYNC_UNBILLABLE_REASONS deliver the list through sync instead.
+            unbillableReasons = part(engineOn && FieldAccess.METER_READ in permissions && !syncedReasons(tenantId), old.unbillableReasons, emptyList()) {
                 engineHourReasons(kind = com.asseta.core.model.owner.EngineHourReasonDto.UNBILLABLE_REASON).items
                     .filter { it.isActive }.sortedBy { it.name.lowercase() }
             },
@@ -207,6 +208,9 @@ class FieldAccountabilityData(
         save(tenantId, next)
         return fresh
     }
+
+    private suspend fun syncedReasons(tenantId: String) =
+        db().syncStateDao().get(tenantId)?.supports(com.asseta.core.model.sync.SyncCapabilities.SYNC_UNBILLABLE_REASONS) == true
 
     private sealed interface SiteCheckinRead {
         data class Fresh(val mine: com.asseta.core.model.owner.MySiteCheckinsDto) : SiteCheckinRead

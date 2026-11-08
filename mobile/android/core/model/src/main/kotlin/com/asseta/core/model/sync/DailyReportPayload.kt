@@ -28,3 +28,26 @@ data class DailyReportPayload(
     @SerialName("supersedes_id") val supersedesId: String? = null,
     @SerialName("client_created_at") val clientCreatedAt: String,
 )
+
+/** `SyncChangeoverJobDto`: a job a changeover can move on to, office-created ones included. */
+@Serializable
+data class SyncChangeoverJobDto(
+    val id: String,
+    @SerialName("job_number") val jobNumber: String,
+    @SerialName("machine_id") val machineId: String,
+    @SerialName("customer_id") val customerId: String,
+    @SerialName("customer_name") val customerName: String,
+    val status: String,
+    @SerialName("sync_revision") val syncRevision: Long,
+)
+
+/** `SyncUnbillableReasonDto`: one entry of the tenant's unbillable-reason list. */
+@Serializable
+data class SyncUnbillableReasonDto(
+    val id: String,
+    val code: String,
+    val name: String,
+    val description: String? = null,
+    @SerialName("is_active") val isActive: Boolean,
+    @SerialName("sync_revision") val syncRevision: Long,
+)

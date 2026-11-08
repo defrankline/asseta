@@ -58,13 +58,9 @@ object DailyReportMessages {
 
 object ChangeoverRules {
     private const val PENDING_APPROVAL = "PENDING_APPROVAL"
-    private const val APPROVED = "APPROVED"
 
-    /**
-     * Whether a job in [status] can be named as the next one. A job the hours are billed to ([required]) must be waiting
-     * in the approval queue: the one-active-job rule keeps it from being approved while the running job continues.
-     */
-    fun jobOffered(status: String, required: Boolean): Boolean = status == PENDING_APPROVAL || (!required && status == APPROVED)
+    /** Only a job still waiting for approval can follow: the one-active-job rule holds while the running job continues. */
+    fun jobOffered(status: String): Boolean = status == PENDING_APPROVAL
 
     /** Why this changeover cannot be saved, or null. */
     fun problem(customerId: String?, jobId: String?, jobRequired: Boolean): String? = when {

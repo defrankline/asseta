@@ -47,6 +47,10 @@ data class SyncData(
     val contracts: List<ContractDto> = emptyList(),
     val staff: List<StaffDto> = emptyList(),
     @SerialName("expense_categories") val expenseCategories: List<ExpenseCategoryDto> = emptyList(),
+    /** SYNC_CHANGEOVER_JOBS: jobs a changeover can name on my machines; a delta may carry one that no longer applies (see its status). */
+    @SerialName("changeover_jobs") val changeoverJobs: List<SyncChangeoverJobDto> = emptyList(),
+    /** SYNC_UNBILLABLE_REASONS: the tenant's list for daily reports; deltas carry deactivations. */
+    @SerialName("unbillable_reasons") val unbillableReasons: List<SyncUnbillableReasonDto> = emptyList(),
     /** Null when the server did not send the field (older server): the stored custody is then left untouched. */
     @SerialName("cash_custody") val cashCustody: List<CashCustodyBalanceDto>? = null,
     // Supervisor inbox (SUPERVISOR_INBOX_V1). Null when the server did not send the field (older server): nothing changes.
@@ -83,6 +87,8 @@ data class BootstrapDto(
     /** Optional protocol features the server supports (see [SyncCapabilities]); empty from older servers. */
     val capabilities: List<String> = emptyList(),
     @SerialName("server_time") val serverTime: String,
+    /** IANA zone of the tenant's day boundary; null from older servers. */
+    @SerialName("tenant_timezone") val tenantTimezone: String? = null,
     val cursor: Long,
     @SerialName("device_session") val deviceSession: DeviceSessionDto,
     val data: SyncData,
@@ -95,6 +101,8 @@ data class ChangesDto(
     /** Optional protocol features the server supports (see [SyncCapabilities]); empty from older servers. */
     val capabilities: List<String> = emptyList(),
     @SerialName("server_time") val serverTime: String,
+    /** IANA zone of the tenant's day boundary; null from older servers. */
+    @SerialName("tenant_timezone") val tenantTimezone: String? = null,
     val cursor: Long,
     @SerialName("has_more") val hasMore: Boolean,
     val data: SyncData,

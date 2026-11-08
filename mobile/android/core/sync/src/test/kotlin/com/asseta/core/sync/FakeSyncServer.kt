@@ -66,6 +66,8 @@ class FakeSyncServer(private val now: () -> Instant) : Dispatcher() {
     /** `Authorization` header of every push, in order (whose token sent which batch). */
     val pushAuthorizations = mutableListOf<String?>()
     /** Advertised protocol capabilities (null: an older server that sends none). */
+    /** The tenant's zone in bootstrap and changes (null: an older server). */
+    @Volatile var tenantTimezone: String? = null
     @Volatile var capabilities: List<String>? = listOf("SUPERVISOR_INBOX_V1", "OP_METER_RESET_REQUEST", "OP_JOB_REQUEST")
 
     /** Supervisor inbox lists sent with the next bootstrap/changes (`my_expenses` -> rows); empty: not sent. */
@@ -203,6 +205,7 @@ class FakeSyncServer(private val now: () -> Instant) : Dispatcher() {
     private fun bootstrap() = buildJsonObject {
         put("protocol_version", 1); put("server_time", now().toString()); put("cursor", cursor)
         capabilities?.let { c -> put("capabilities", JsonArray(c.map { JsonPrimitive(it) })) }
+        tenantTimezone?.let { put("tenant_timezone", it) }
         put("device_session", deviceSession()); put("data", data(bootstrapJobs ?: listOf(job("APPROVED", 1)), listOf(category("Fuel & oil", true, 5)), listOf(customer(true))))
         put("policy_snapshots", snapshots())
     }
@@ -210,6 +213,7 @@ class FakeSyncServer(private val now: () -> Instant) : Dispatcher() {
     private fun changes() = buildJsonObject {
         put("protocol_version", 1); put("server_time", now().toString()); put("cursor", cursor); put("has_more", false)
         capabilities?.let { c -> put("capabilities", JsonArray(c.map { JsonPrimitive(it) })) }
+        tenantTimezone?.let { put("tenant_timezone", it) }
         put("data", data(changesJobs, changesCategories, changesCustomers)); put("policy_snapshots", snapshots())
     }
 

@@ -14,7 +14,6 @@ import com.asseta.core.domain.accountability.ReportReading
 import com.asseta.core.domain.accountability.TenantZone
 import com.asseta.core.domain.accountability.UnbillableDraft
 import com.asseta.core.model.ClientOperationStatus
-import com.asseta.core.model.owner.EngineHourReasonDto
 import com.asseta.core.sync.data.IsoTime
 import com.asseta.core.sync.usecase.DailyReportRequest
 import com.asseta.core.ui.components.FilterChipRow
@@ -63,7 +62,7 @@ data class DailyReportForm(
     val repeat: Boolean = false,
     val supersedesId: String? = null,
     val evidenceRequired: Boolean = false,
-    val reasons: List<EngineHourReasonDto> = emptyList(),
+    val reasons: List<PickerOption> = emptyList(),
 ) {
     private fun value(id: String?) = readings.firstOrNull { it.id == id }?.reading
 
@@ -94,16 +93,22 @@ class DailyReportFormViewModel(
         viewModelScope.launch { load() }
     }
 
+    /** The synced list, else (older servers) the list read online and saved on the phone. */
+    private suspend fun reasonOptions(): List<PickerOption> =
+        field.financeRepository.unbillableReasons(tenantId)?.map { PickerOption(it.id, it.name, it.description) }
+            ?: field.accountability.cache.value.unbillableReasons.map { PickerOption(it.id, it.name, it.description) }
+
     private fun applyAccess() = viewModelScope.launch {
         val access = field.accountability.access(tenantId, permissions)
-        _form.update { it.copy(evidenceRequired = access.dailyReportEvidenceRequired, reasons = field.accountability.cache.value.unbillableReasons) }
+        val reasons = reasonOptions()
+        _form.update { it.copy(evidenceRequired = access.dailyReportEvidenceRequired, reasons = reasons) }
     }
 
     private suspend fun load() {
         val access = field.accountability.access(tenantId, permissions)
         if (!access.dailyReport) return _form.update { it.copy(loading = false, blocked = T.NOT_FOUND_HINT) }
         zone = TenantZone.resolve(
-            listOf(field.online.savedCash(tenantId)?.value?.reconciliations?.firstOrNull()?.timezone, field.accountability.cache.value.siteCheckins?.timezone),
+            listOf(field.repository.tenantTimezone(tenantId), field.online.savedCash(tenantId)?.value?.reconciliations?.firstOrNull()?.timezone, field.accountability.cache.value.siteCheckins?.timezone),
             device,
         )
         val snapshot = field.inbox.observe(tenantId).first()
@@ -112,11 +117,12 @@ class DailyReportFormViewModel(
             .map { ReportReading(it.id, it.reading, it.atMs, it.server != null || it.op?.status == ClientOperationStatus.ACKED) }
             .sortedByDescending { it.atMs }
         val today = Instant.ofEpochMilli(field.clock.nowMs()).atZone(zone).toLocalDate()
+        val reasons = reasonOptions()
         _form.update {
             it.copy(
                 machineLabel = machine?.let { m -> "${m.assetCode} · ${m.name}" }.orEmpty(), readings = readings, day = today.toString(),
                 days = (0L..2L).map { n -> today.minusDays(n).toString() },
-                evidenceRequired = access.dailyReportEvidenceRequired, reasons = field.accountability.cache.value.unbillableReasons,
+                evidenceRequired = access.dailyReportEvidenceRequired, reasons = reasons,
             )
         }
         val old = supersedesKey?.let { field.dailyReports.report(tenantId, it) }
@@ -230,7 +236,7 @@ fun DailyReportFormScreen(vm: DailyReportFormViewModel, onDone: () -> Unit) {
             DecimalField(T.BILLABLE, f.billable, { v -> vm.edit { it.copy(billable = v) } }, editable)
         }
         Section(T.UNBILLABLE) {
-            val reasons = f.reasons.map { PickerOption(it.id, it.name, it.description) }
+            val reasons = f.reasons
             if (reasons.isEmpty()) Text(T.REASONS_EMPTY, color = palette.secondaryText)
             f.lines.forEachIndexed { i, line ->
                 SearchablePickerField(T.CHOOSE_REASON, reasons, line.reasonId, { v -> vm.edit { it.copy(lines = it.lines.replaced(i, line.copy(reasonId = v))) } }, emptyText = T.REASONS_EMPTY, enabled = editable)

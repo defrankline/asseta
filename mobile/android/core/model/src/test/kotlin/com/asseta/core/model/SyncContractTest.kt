@@ -32,6 +32,8 @@ class SyncContractTest {
     fun `sync inbox DTOs match the contract schemas`() {
         mapOf<String, KSerializer<*>>(
             "SyncData" to SyncData.serializer(),
+            "SyncChangeoverJobDto" to com.asseta.core.model.sync.SyncChangeoverJobDto.serializer(),
+            "SyncUnbillableReasonDto" to com.asseta.core.model.sync.SyncUnbillableReasonDto.serializer(),
             "BootstrapDto" to BootstrapDto.serializer(),
             "ChangesDto" to ChangesDto.serializer(),
             "SyncMeterCaptureDto" to SyncMeterCaptureDto.serializer(),

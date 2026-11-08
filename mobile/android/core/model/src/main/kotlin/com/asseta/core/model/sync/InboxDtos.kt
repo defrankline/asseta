@@ -43,6 +43,12 @@ object SyncCapabilities {
 
     /** DEC-032 A3: METER_CAPTURE kind DAILY on the running job accepts `changeover_to_customer_id` / `changeover_to_job_id`. */
     const val METER_CHANGEOVER = "METER_CHANGEOVER"
+
+    /** SyncData.changeover_jobs: pending/approved jobs on my machines, office-created included. */
+    const val SYNC_CHANGEOVER_JOBS = "SYNC_CHANGEOVER_JOBS"
+
+    /** SyncData.unbillable_reasons: the tenant's list for daily reports. */
+    const val SYNC_UNBILLABLE_REASONS = "SYNC_UNBILLABLE_REASONS"
 }
 
 /** `ExceptionDto`: a server finding on a reading (type, severity, blocking) and its review. */

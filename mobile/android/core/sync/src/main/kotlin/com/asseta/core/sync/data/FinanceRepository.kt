@@ -1,5 +1,9 @@
 package com.asseta.core.sync.data
 
+import com.asseta.core.model.sync.SyncCapabilities
+import com.asseta.core.model.sync.SyncChangeoverJobDto
+import com.asseta.core.model.sync.SyncUnbillableReasonDto
+import kotlinx.coroutines.flow.first
 import com.asseta.core.database.AssetaDatabase
 import com.asseta.core.database.CashCustodyBalanceEntity
 import com.asseta.core.database.ClientOperationEntity
@@ -105,6 +109,23 @@ class FinanceRepository(
         db().fieldDataDao().reference(ServerDataWriter.KIND_CONTRACT, contractId)
             ?.let { runCatching { json.decodeFromString(ContractDto.serializer(), it.json) }.getOrNull() }
             ?.customerId
+
+    private suspend fun announced(tenantId: String, capability: String) = db().syncStateDao().get(tenantId)?.supports(capability) == true
+
+    /** Jobs a changeover can name, as sync delivered them; null while the server does not announce the list. */
+    suspend fun changeoverJobs(tenantId: String): List<SyncChangeoverJobDto>? {
+        if (!announced(tenantId, SyncCapabilities.SYNC_CHANGEOVER_JOBS)) return null
+        return db().fieldDataDao().observeReferences(tenantId, ServerDataWriter.KIND_CHANGEOVER_JOB).first()
+            .mapNotNull { runCatching { json.decodeFromString(SyncChangeoverJobDto.serializer(), it.json) }.getOrNull() }
+    }
+
+    /** Active unbillable reasons by name, as sync delivered them; null while the server does not announce the list. */
+    suspend fun unbillableReasons(tenantId: String): List<SyncUnbillableReasonDto>? {
+        if (!announced(tenantId, SyncCapabilities.SYNC_UNBILLABLE_REASONS)) return null
+        return db().fieldDataDao().observeReferences(tenantId, ServerDataWriter.KIND_UNBILLABLE_REASON).first()
+            .mapNotNull { runCatching { json.decodeFromString(SyncUnbillableReasonDto.serializer(), it.json) }.getOrNull() }
+            .filter { it.isActive }.sortedBy { it.name.lowercase() }
+    }
 
     fun observeMachines(tenantId: String): Flow<List<MachineEntity>> =
         db().fieldDataDao().observeMachines(tenantId).map { list -> list.sortedBy { it.assetCode } }

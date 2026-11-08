@@ -568,6 +568,8 @@ private fun RouteContent(
             InboxScreen(snapshot, notifications, offline, syncing, onRefresh, onNotification, onAttention, inbox::markAllRead)
         }
         is Route.JobDetail -> {
+            // The tenant's changeover rule (next job mandatory or not), fresh before the form opens.
+            LaunchedEffect(tenantId, access?.changeover) { if (access?.changeover == true) field.accountability.refresh(tenantId, permissions) }
             val vm: JobDetailViewModel = viewModel(key = "job-$scope-${route.jobId}") { JobDetailViewModel(field, tenantId, route.jobId) }
             JobDetailScreen(
                 vm, snapshot,

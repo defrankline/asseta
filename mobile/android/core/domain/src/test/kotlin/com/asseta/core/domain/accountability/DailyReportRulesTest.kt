@@ -86,11 +86,10 @@ class DailyReportRulesTest {
     }
 
     @Test
-    fun `a billed next job must be waiting for approval`() {
-        assertTrue(ChangeoverRules.jobOffered("PENDING_APPROVAL", required = true))
-        assertFalse(ChangeoverRules.jobOffered("APPROVED", required = true))
-        assertTrue(ChangeoverRules.jobOffered("APPROVED", required = false))
-        assertFalse(ChangeoverRules.jobOffered("IN_PROGRESS", required = false))
+    fun `only a job waiting for approval can follow a running one`() {
+        assertTrue(ChangeoverRules.jobOffered("PENDING_APPROVAL"))
+        assertFalse(ChangeoverRules.jobOffered("APPROVED"))
+        assertFalse(ChangeoverRules.jobOffered("IN_PROGRESS"))
     }
 
     @Test

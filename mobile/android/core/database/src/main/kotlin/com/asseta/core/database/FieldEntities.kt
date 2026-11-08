@@ -87,6 +87,8 @@ data class SyncStateEntity(
     @ColumnInfo(name = "owner_sub") val ownerSub: String? = null,
     /** v7: optional protocol features the server advertised on the last pull (comma separated), e.g. SUPERVISOR_INBOX_V1. */
     @ColumnInfo(name = "capabilities") val capabilities: String? = null,
+    /** v9: the tenant's IANA zone as sync last sent it (daily report day boundaries). */
+    @ColumnInfo(name = "tenant_timezone") val tenantTimezone: String? = null,
 ) {
     fun supports(capability: String): Boolean = capabilities?.split(',')?.contains(capability) == true
 }

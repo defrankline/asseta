@@ -110,6 +110,10 @@ data class DecisionItem(
     val photoAttachmentId: String? = null,
     /** Who proposed it, by name (short id when the server sends no name). */
     val proposedByName: String? = null,
+    /** Every evidence photo of the request (a work allocation correction may carry several). */
+    val photoAttachmentIds: List<String> = emptyList(),
+    /** Work allocation correction: what the ledger says now, shown in its own row below the request. */
+    val originalLine: String? = null,
 ) {
     /** The signed-in user proposed this request, so someone else must decide it. */
     fun isOwn(userId: String?): Boolean = userId != null && proposedBy == userId
@@ -152,15 +156,16 @@ object DecisionMapper {
         val A = AllocationTexts
         val machine = first.machineCode ?: first.machineName ?: DisplayNames.shortId(first.machineId).orEmpty()
         val total = parts.mapNotNull { it.hours.toBigDecimalOrNull() }.fold(java.math.BigDecimal.ZERO, java.math.BigDecimal::add)
-        val originalRow = original?.let { A.ORIGINAL to listOfNotNull(A.kind(it.kind), A.partValue(RevenuePresentation.hours(it.hours), AllocationPresentation.who(it))).joinToString(" · ") }
+        val originalLine = original?.let { listOfNotNull(A.kind(it.kind), A.partValue(RevenuePresentation.hours(it.hours), AllocationPresentation.who(it))).joinToString(" · ") }
         val rows = parts.map { A.part(it.kind) to A.partValue(RevenuePresentation.hours(it.hours), AllocationPresentation.who(it)) }
         return DecisionItem(
             DecisionKinds.ALLOCATION_CORRECTION, groupId, A.correctionRow(machine, RevenuePresentation.day(first.workDate), RevenuePresentation.num(total.toPlainString())),
             first.correctionReason, first.createdAt, first.recordedBy, status, status == WorkAllocationDto.PROPOSED,
-            fields(T.F_MACHINE to DisplayNames.machine(first.machineCode, first.machineName, first.machineId), originalRow, *rows.toTypedArray(),
-                *decided(first.decidedByName, first.decidedBy, first.decisionNote)),
-            photoAttachmentId = parts.firstNotNullOfOrNull { it.evidenceAttachmentIds.firstOrNull() },
+            fields(T.F_MACHINE to DisplayNames.machine(first.machineCode, first.machineName, first.machineId), *rows.toTypedArray(),
+                T.F_PROPOSED_BY to name(first.recordedByName, first.recordedBy), *decided(first.decidedByName, first.decidedBy, first.decisionNote)),
             proposedByName = name(first.recordedByName, first.recordedBy),
+            photoAttachmentIds = parts.flatMap { it.evidenceAttachmentIds }.distinct().sorted(),
+            originalLine = originalLine,
         )
     }
 

@@ -202,4 +202,51 @@ class DailyReportSyncTest : SyncTestBase() {
         val r = saved(capture(changeoverRequest(nextCustomer, job, true)))
         assertEquals(job, payload(r.operationId)["changeover_to_job_id"]!!.jsonPrimitive.content)
     }
+
+    private fun changeoverJob(id: String, status: String, revision: Long) = buildJsonObject {
+        put("id", id); put("job_number", "J-$revision"); put("machine_id", fake.machineId); put("customer_id", nextCustomer)
+        put("customer_name", "Next Ltd"); put("status", status); put("sync_revision", revision)
+    }
+
+    private fun reasonRow(id: String, active: Boolean, revision: Long) = buildJsonObject {
+        put("id", id); put("code", "R"); put("name", "Rain"); put("description", null as String?); put("is_active", active); put("sync_revision", revision)
+    }
+
+    @Test
+    fun tenantZoneFromSyncIsKeptAcrossPullsThatDoNotSendIt() = runBlocking {
+        fake.tenantTimezone = "Africa/Dar_es_Salaam"
+        success(engine().sync(tenant))
+        assertEquals("Africa/Dar_es_Salaam", repository.tenantTimezone(tenant))
+        fake.tenantTimezone = null
+        success(engine().sync(tenant))
+        assertEquals("Africa/Dar_es_Salaam", repository.tenantTimezone(tenant))
+    }
+
+    @Test
+    fun syncedListsFollowRevisionsAndDeactivations() = runBlocking {
+        fake.capabilities = fake.capabilities.orEmpty() + listOf(SyncCapabilities.SYNC_CHANGEOVER_JOBS, SyncCapabilities.SYNC_UNBILLABLE_REASONS)
+        val job = UUID.randomUUID().toString()
+        fake.inbox = mapOf("changeover_jobs" to listOf(changeoverJob(job, "PENDING_APPROVAL", 5)), "unbillable_reasons" to listOf(reasonRow(reason, true, 5)))
+        success(engine().sync(tenant))
+        assertEquals("PENDING_APPROVAL", financeRepository.changeoverJobs(tenant)!!.single().status)
+        assertEquals(listOf(reason), financeRepository.unbillableReasons(tenant)!!.map { it.id })
+
+        fake.cursor = 20
+        fake.inbox = mapOf("changeover_jobs" to listOf(changeoverJob(job, "CANCELLED", 3))) // older replay
+        success(engine().sync(tenant))
+        assertEquals("PENDING_APPROVAL", financeRepository.changeoverJobs(tenant)!!.single().status)
+
+        fake.cursor = 30
+        fake.inbox = mapOf("changeover_jobs" to listOf(changeoverJob(job, "APPROVED", 9)), "unbillable_reasons" to listOf(reasonRow(reason, false, 9)))
+        success(engine().sync(tenant))
+        assertEquals("APPROVED", financeRepository.changeoverJobs(tenant)!!.single().status)
+        assertTrue(financeRepository.unbillableReasons(tenant)!!.isEmpty())
+    }
+
+    @Test
+    fun listsAreNullWhileTheServerDoesNotAnnounceThem() = runBlocking {
+        success(engine().sync(tenant))
+        assertEquals(null, financeRepository.changeoverJobs(tenant))
+        assertEquals(null, financeRepository.unbillableReasons(tenant))
+    }
 }

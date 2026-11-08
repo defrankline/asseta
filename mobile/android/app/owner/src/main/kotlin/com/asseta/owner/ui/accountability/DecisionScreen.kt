@@ -126,6 +126,12 @@ fun DecisionScreen(vm: DecisionViewModel, session: OwnerSession, online: Boolean
                     item.photoAttachmentId?.let { pid -> EvidencePhoto("meter", online && !state.stale) { vm.data.attachmentUrl(pid) } }
                 }
             }
+            item.originalLine?.let { line -> item { SectionCard(null) { KeyValue(AllocationTexts.ORIGINAL, line) } } }
+            if (item.photoAttachmentIds.isNotEmpty()) item {
+                SectionCard(AllocationTexts.EVIDENCE) {
+                    item.photoAttachmentIds.forEachIndexed { i, pid -> EvidencePhoto("evidence ${i + 1}", online && !state.stale) { vm.data.attachmentUrl(pid) } }
+                }
+            }
             if (item.pending) item {
                 SectionCard(T.DECISION, footer = if (vm.kind == DecisionKind.NON_REVENUE) T.NONREV_FOOTER else T.FOOTER) {
                     val gate = session.can(vm.kind.action, online, state.snapshot?.source)

@@ -312,6 +312,17 @@ class MigrationTest {
         }
     }
 
+    @Test
+    fun migrate8To9AddsTheTenantZone() {
+        helper.createDatabase(DB, 8).use { db -> db.execSQL("INSERT INTO sync_state (tenant_id, failure_streak, server_clock_alert) VALUES ('t', 0, 0)") }
+        helper.runMigrationsAndValidate(DB, 9, true).use { db ->
+            db.query("SELECT tenant_timezone FROM sync_state WHERE tenant_id = 't'").use { c ->
+                c.moveToFirst()
+                assertEquals(true, c.isNull(0))
+            }
+        }
+    }
+
     private companion object {
         const val DB = "migration-test.db"
         val LEGACY = SyncAccount("legacy-user-sub", "sam@example.com")

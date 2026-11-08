@@ -183,11 +183,17 @@ class CaptureViewModel(
         val finance = field.financeRepository
         val running = field.repository.job(jobId)
         val current = running?.let { finance.customerOfContract(it.contractId) }
-        val required = (target as? CaptureTarget.Changeover)?.jobRequired == true
-        val customers = finance.observeCustomers(tenantId).first().filter { it.id != current }.map { PickerOption(it.id, it.name, it.code) }
-        val jobs = finance.observeJobs(tenantId).first()
-            .filter { it.job.id != jobId && it.job.machineId == running?.machineId && ChangeoverRules.jobOffered(it.job.status, required) }
-            .map { ChangeoverJob(it.job.id, listOfNotNull(it.job.jobNumber, it.siteName).joinToString(" · "), finance.customerOfContract(it.job.contractId)) }
+        val synced = finance.changeoverJobs(tenantId)
+        val jobs = synced?.filter { it.id != jobId && it.machineId == running?.machineId && ChangeoverRules.jobOffered(it.status) }
+            ?.map { ChangeoverJob(it.id, it.jobNumber, it.customerId) }
+            ?: finance.observeJobs(tenantId).first() // older servers: only the jobs already on this phone
+                .filter { it.job.id != jobId && it.job.machineId == running?.machineId && ChangeoverRules.jobOffered(it.job.status) }
+                .map { ChangeoverJob(it.job.id, listOfNotNull(it.job.jobNumber, it.siteName).joinToString(" · "), finance.customerOfContract(it.job.contractId)) }
+        // A next job's customer can be one the phone has no other record of.
+        val known = finance.observeCustomers(tenantId).first().map { PickerOption(it.id, it.name, it.code) }
+        val fromJobs = synced.orEmpty().filter { j -> jobs.any { it.id == j.id } && known.none { it.id == j.customerId } }
+            .distinctBy { it.customerId }.map { PickerOption(it.customerId, it.customerName) }
+        val customers = (known + fromJobs).filter { it.id != current }.sortedBy { it.title.lowercase() }
         _ui.update { it.copy(changeoverCustomers = customers, changeoverJobs = jobs) }
     }
 
