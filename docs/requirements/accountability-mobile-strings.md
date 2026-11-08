@@ -1314,3 +1314,212 @@ standard wording. After a write the returned checklist replaces the screen and t
 `{name}` is the `*_by_name` (else "someone"); `{date}` the local date `26 Oct 2026`; `{dateTime}` `26 Oct 2026, 14:05`;
 `{reason}` omitted together with its ": " when null. `{screen}` is the app's screen title (Fleet, Jobs, Approvals,
 Customer hours, Cash with supervisors).
+
+## DEC-032 Phase 1 — allocations and daily reports
+
+Rules shared by both apps:
+- **Supervisor is offline-first.** `DAILY_REPORT` is an outbox operation whose **operation id is the report id** (payload `DailyReportIn` without `id`, plus `evidence_upload_ids`). Photos use blob purpose `DAILY_REPORT_EVIDENCE` and the operation waits until every upload completes. It also depends on the outbox operations of any chosen reading the server does not have yet. `client_created_at` is the phone's time at save. One operation per form visit (entity type `daily_report`, entity id = the form's client id).
+- **Changeover** is a `METER_CAPTURE` of kind `DAILY` on the running job (`job_id` set, `machine_id` null) with `changeover_to_customer_id` and, when chosen, `changeover_to_job_id`; same photo, OCR and GPS rules as any reading. It waits for the job's own START operation when that is still on the phone. The current customer of the job is not offered as the next customer.
+- **Gates.** Daily report entries: server announces `OP_DAILY_REPORT`, `tenant.meter.capture`, `ENGINE_HOURS` on. Changeover: `METER_CHANGEOVER`, `tenant.meter.capture`, `ENGINE_HOURS` on, local job status `IN_PROGRESS`. Report list and detail need `tenant.meter.read`.
+- **Policy keys read by the form** (`ENGINE_HOURS` effective policy, saved on the phone, unknown = not required; the server decides either way): `changeover_splits_billing` on → the next job is mandatory; `daily_report_evidence_required` on → at least one photo.
+- **Unbillable reasons:** `GET /engine-hour-reasons?kind=UNBILLABLE_REASON` (active only), read on refresh and saved encrypted so the form works offline.
+- **Prefill** from this phone's readings of the machine for the local day (the opening is the day's first when it has at least two, otherwise the latest reading before the day; the closing is the day's last). Online, `/daily-reports/prefill` adds readings the phone does not have and `existing_report_ids` drives the repeat warning. Both pickers stay editable.
+- **Owner is online-only for actions.** Reading screens use the snapshot cache and stale banner as today. Own records are shown with the decision disabled.
+- **Hours:** decimal formatter (2 dp, no trailing zeros) + ` h`. **Dates:** `26 Oct 2026`. Money: the Owner money formatter. Value at risk is always its own row, never added to expected, attributed or difference.
+- `{name}` is the `*_by_name` value, else the short id. `{kind}` is the allocation kind label below.
+
+Screens per app:
+| App | Screen | Change |
+|---|---|---|
+| Supervisor | Readings tab | Row "Daily reports" above the lists (daily report gate), trailing badge = reports sent back to me |
+| Supervisor | Machine detail | Action "Daily report for this machine" (daily report gate) |
+| Supervisor | Job detail, Next steps | Action "Record changeover" (changeover gate) |
+| Supervisor | Daily reports (new list) | Section "Sent back to you" then "My reports" (server list of the last 60 days merged with this phone's unsent ones); saved for offline reading |
+| Supervisor | Daily report form (new) | Machine + day (fixed on a resubmission), opening/closing pickers, total, billable, unbillable lines, not-accounted figure, note, photos, Send report |
+| Supervisor | Daily report detail (new) | Status, figures, reasons, allocations, the office's note, sync state in plain words; "Correct and send again" while RETURNED |
+| Supervisor | Capture (changeover) | Next customer (required), next job (required when the policy says so) |
+| Supervisor | Sync status, job and reading sync rows | Conflict codes below in plain words |
+| Supervisor | Deep link | Kind `DAILY_REPORT` + `record_id` (DAILY_REPORT_RETURNED), entity `daily_report` → Daily report detail |
+| Owner | Approvals | Two new sections shown only when something waits: "Daily reports to review" (`tenant.meter.read`, status SUBMITTED) and "Work allocation corrections" (`tenant.meter.read`, PROPOSED, one row per correction group) |
+| Owner | Daily report review (new) | Figures, reasons, allocations, evidence, flags; note + "Mark as reviewed" / "Send back" (`tenant.meter.review`, never the submitter) |
+| Owner | Work allocation correction (existing decision screen) | Original entry, proposed parts, evidence; Approve / Reject (`tenant.meter.approve`, never the proposer), note of at least 5 characters |
+| Owner | Machine day (daily machine sheet) | Card "Hours allocated" (`/work-allocations/reconciliation`) and card "Work allocations" (each entry with lots), `tenant.meter.read` and `ENGINE_HOURS` on; money card gains "Value at risk" |
+| Owner | Accountability dashboard | Unexplained hours tile and revenue differences tile gain "Value at risk" (one row per currency, hidden when empty) |
+| Owner | Revenue difference | Figures gain "Value at risk" after the difference (hidden when zero) |
+| Owner | Deep links | Kind `DAILY_REPORT` / entity `daily_report` / path `/tenant/daily-reports/{id}` → Daily report review; kind `WORK_ALLOCATION_CORRECTION` / entity `work_allocation_correction` / path `/tenant/work-allocations/corrections/{id}` → correction decision (the record id is the group id); `/tenant/daily-reports` and `/tenant/work-allocations` → Approvals |
+
+### Supervisor
+| Key | English |
+|---|---|
+| field.report.menu | Daily reports |
+| field.report.action | Daily report for this machine |
+| field.report.listTitle | Daily reports |
+| field.report.sectionReturned | Sent back to you |
+| field.report.sectionMine | My reports |
+| field.report.empty | No daily reports yet |
+| field.report.emptyHint | Reports you send for your machines appear here. |
+| field.report.staleFooter | Connect to see the office's latest answers. |
+| field.report.rowLine | {total} h in total · {billable} h billable |
+| field.report.status.SUBMITTED | Sent |
+| field.report.status.REVIEWED | Reviewed |
+| field.report.status.RETURNED | Sent back |
+| field.report.status.SUPERSEDED | Replaced |
+| field.report.status.waiting | Waiting to sync |
+| field.report.status.notAccepted | Not accepted |
+| field.report.formTitle | Daily report |
+| field.report.resubmitTitle | Send report again |
+| field.report.machine | Machine |
+| field.report.day | Day |
+| field.report.readings | Readings |
+| field.report.opening | Opening reading |
+| field.report.closing | Closing reading |
+| field.report.chooseReading | Choose a reading |
+| field.report.readingOption | {reading} · {dateTime} |
+| field.report.readingNotSynced | {reading} · {dateTime} · not synced yet |
+| field.report.noReadings | No readings for this day on this phone. Capture a reading first. |
+| field.report.total | Hours between the readings |
+| field.report.readingsFooter | Taken from your readings. You can choose others. |
+| field.report.billable | Billable hours (optional) |
+| field.report.billableFooter | Left empty, the billable hours are the total minus the unbillable hours. |
+| field.report.unbillable | Unbillable hours |
+| field.report.reason | Reason |
+| field.report.chooseReason | Choose a reason |
+| field.report.reasonHours | Hours |
+| field.report.addReason | Add a reason |
+| field.report.removeReason | Remove |
+| field.report.reasonsEmpty | Your company has no unbillable reasons yet. Ask the office. |
+| field.report.notAccounted | Not accounted for |
+| field.report.note | Note (optional) |
+| field.report.photoOptional | Photo (optional) |
+| field.report.photoRequired | Photo (required) |
+| field.report.photoFooter | Stored encrypted on this phone and uploaded before the report is sent. |
+| field.report.takePhoto | Take photo |
+| field.report.addPhoto | Add another photo |
+| field.report.removePhoto | Remove |
+| field.report.send | Send report |
+| field.report.repeatWarning | A report for this machine and day was already sent. A repeat is kept and flagged for review. |
+| field.report.resubmitFooter | This replaces the report that was sent back. |
+| field.report.officeNote | The office's note |
+| field.report.error.opening | Choose the opening reading. |
+| field.report.error.closing | Choose the closing reading. |
+| field.report.error.sameReading | Choose two different readings. |
+| field.report.error.billable | Enter the billable hours as a number (0 or more, at most 2 decimal places). |
+| field.report.error.reasonMissing | Choose a reason for each line of unbillable hours. |
+| field.report.error.reasonHours | Enter the hours for each reason (more than 0, at most 2 decimal places). |
+| field.report.error.reasonRepeated | Each reason can be used once. |
+| field.report.error.exceeds | Billable and unbillable hours are more than the {total} h between the readings. |
+| field.report.error.photo | Your company requires a photo with this report. |
+| field.report.detailTitle | Daily report |
+| field.report.totalHours | Total hours |
+| field.report.billableHours | Billable hours |
+| field.report.unbillableHours | Unbillable hours |
+| field.report.opening.value | Opening reading |
+| field.report.closing.value | Closing reading |
+| field.report.submitted | Sent |
+| field.report.submittedBy | Sent by |
+| field.report.reviewedBy | Reviewed by |
+| field.report.returnedBy | Sent back by |
+| field.report.flagLate | Sent after the daily cut-off |
+| field.report.flagRepeat | Repeat report for this day |
+| field.report.allocations | Hours by customer |
+| field.report.resubmit | Correct and send again |
+| field.report.notFound | Report not available |
+| field.report.notFoundHint | Connect to load it, or it is no longer on this phone. |
+| field.report.outbox | Daily report |
+| field.report.waitingPhotos | Waiting for its photos to upload |
+| field.changeover.action | Record changeover |
+| field.changeover.title | Changeover reading |
+| field.changeover.footer | Take this reading when the machine moves to the next customer while this job is still running. |
+| field.changeover.nextCustomer | Next customer |
+| field.changeover.chooseCustomer | Choose the customer |
+| field.changeover.nextJob | Next job (optional) |
+| field.changeover.nextJobRequired | Next job (required) |
+| field.changeover.chooseJob | Choose the job |
+| field.changeover.noJobs | No job for this customer on this phone yet. Ask the office to create it. |
+| field.changeover.errorCustomer | Choose the next customer. |
+| field.changeover.errorJob | Choose the next job. Your company bills the hours after a changeover to that job. |
+| field.changeover.outbox | Changeover reading |
+| field.conflict.REPORT_READINGS_INVALID | The readings in this report are no longer valid or do not fit the day. Send the report again with other readings. |
+| field.conflict.REPORT_HOURS_EXCEED_TOTAL | Billable and unbillable hours are more than the hours between the readings. Send the report again. |
+| field.conflict.REPORT_ID_CONFLICT | This report could not be saved because its id is already used. Send the report again. |
+| field.conflict.REPORT_NOT_SUPERSEDABLE | That report can no longer be replaced. It may have been reviewed already. |
+| field.conflict.REPORT_EVIDENCE_REQUIRED | Your company requires a photo with this report. Send the report again with a photo. |
+| field.conflict.REASON_NOT_ALLOWED | One of the reasons is no longer in use. Send the report again with another reason. |
+| field.conflict.CHANGEOVER_NOT_ALLOWED | This job was no longer running, so the changeover was not accepted. |
+| field.conflict.CHANGEOVER_SAME_CUSTOMER | The machine is already working for this customer, so the changeover was not accepted. |
+| field.allocation.kind.CUSTOMER_WORK | Customer work |
+| field.allocation.kind.AUTHORIZED_ACTIVITY | Authorized activity |
+| field.allocation.kind.UNEXPLAINED | Unexplained |
+
+### Owner
+| Key | English |
+|---|---|
+| owner.report.section | Daily reports to review |
+| owner.report.empty | No daily reports waiting. |
+| owner.report.title | Daily report |
+| owner.report.rowHeadline | {machine} · {date} |
+| owner.report.rowLine | {total} h in total · {billable} h billable · {unbillable} h unbillable |
+| owner.report.figures | Figures |
+| owner.report.machine | Machine |
+| owner.report.day | Day |
+| owner.report.opening | Opening reading |
+| owner.report.closing | Closing reading |
+| owner.report.total | Total hours |
+| owner.report.billable | Billable hours |
+| owner.report.unbillable | Unbillable hours |
+| owner.report.notAccounted | Not accounted for |
+| owner.report.reasons | Unbillable hours by reason |
+| owner.report.allocations | Hours by customer |
+| owner.report.note | Supervisor's note |
+| owner.report.submittedBy | Sent by |
+| owner.report.submitted | Sent |
+| owner.report.flagLate | Sent after the daily cut-off |
+| owner.report.flagRepeat | Repeat report for this day |
+| owner.report.replaces | Replaces an earlier report |
+| owner.report.evidence | Evidence |
+| owner.report.review | Review |
+| owner.report.reviewFooter | Someone other than the sender reviews a report. Sending it back asks the sender to correct it. |
+| owner.report.noteLabel | Note (at least 5 characters) |
+| owner.report.markReviewed | Mark as reviewed |
+| owner.report.sendBack | Send back |
+| owner.report.reviewed | Marked as reviewed. |
+| owner.report.sentBack | Sent back to the supervisor. |
+| owner.report.own | You sent this report, so someone else must review it. |
+| owner.report.reviewedBy | Reviewed by |
+| owner.report.reviewNote | Review note |
+| owner.report.status.SUBMITTED | To review |
+| owner.report.status.REVIEWED | Reviewed |
+| owner.report.status.RETURNED | Sent back |
+| owner.report.status.SUPERSEDED | Replaced |
+| owner.report.error.REPORT_ALREADY_REVIEWED | This report was already reviewed or replaced. Reload to see it. |
+| owner.report.error.SEGREGATION_OF_DUTIES | You sent this report, so someone else must review it. |
+| owner.allocation.section | Work allocation corrections |
+| owner.allocation.empty | No corrections waiting. |
+| owner.allocation.title | Work allocation correction |
+| owner.allocation.rowHeadline | {machine} · {date} · {hours} h |
+| owner.allocation.original | Now recorded as |
+| owner.allocation.part | Proposed: {kind} |
+| owner.allocation.partValue | {hours} h · {who} |
+| owner.allocation.error.ALLOCATION_NOT_ACTIVE | The original entry has changed. Reload to see it. |
+| owner.allocation.error.ALLOCATION_CORRECTION_PENDING | Another correction of this entry is already waiting. |
+| owner.allocation.kind.CUSTOMER_WORK | Customer work |
+| owner.allocation.kind.AUTHORIZED_ACTIVITY | Authorized activity |
+| owner.allocation.kind.UNEXPLAINED | Unexplained |
+| owner.allocation.dayCard | Hours allocated |
+| owner.allocation.dayTotal | Engine hours |
+| owner.allocation.dayCustomer | Customer work |
+| owner.allocation.dayAuthorized | Authorized activity |
+| owner.allocation.dayUnexplained | Unexplained |
+| owner.allocation.dayAllocated | Allocated |
+| owner.allocation.dayDifference | Difference |
+| owner.allocation.dayReconciled | Every engine hour is allocated. |
+| owner.allocation.dayNotReconciled | Some engine hours are not allocated yet. |
+| owner.allocation.entries | Work allocations |
+| owner.allocation.entriesEmpty | No allocations for this day. |
+| owner.allocation.entryLine | {start} → {end} · {hours} h |
+| owner.allocation.lotLine | From {purchase}: {hours} h |
+| owner.allocation.proposedPill | Waiting for approval |
+| owner.valueAtRisk | Value at risk |
+| owner.valueAtRiskFooter | Unexplained hours at the job's rate. Not part of expected revenue or the shortfall. |
+
+Allocation row subject `{who}`: customer name, then ` · {job number}`; authorized activity: the reason name, else the activity type humanized; unexplained: empty. Rows use `owner.allocation.kind.*` as the title. Value-at-risk rows read `{amount}` per currency.
