@@ -70,6 +70,14 @@ class DailyReportRulesTest {
     }
 
     @Test
+    fun `the tenant zone wins over the phone and bad ids are skipped`() {
+        val device = java.time.ZoneId.of("Asia/Dubai")
+        assertEquals(java.time.ZoneId.of("Africa/Dar_es_Salaam"), TenantZone.resolve(listOf("Africa/Dar_es_Salaam", "UTC"), device))
+        assertEquals(java.time.ZoneId.of("UTC"), TenantZone.resolve(listOf(null, "Not/AZone", "UTC"), device))
+        assertEquals(device, TenantZone.resolve(listOf(null), device))
+    }
+
+    @Test
     fun `changeover needs a customer and the job only when the tenant requires it`() {
         assertEquals(DailyReportMessages.CHANGEOVER_CUSTOMER, ChangeoverRules.problem(null, null, false))
         assertNull(ChangeoverRules.problem("c", null, false))

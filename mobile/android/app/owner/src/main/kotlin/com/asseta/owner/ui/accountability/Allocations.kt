@@ -2,9 +2,24 @@ package com.asseta.owner.ui.accountability
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.asseta.core.domain.owner.OwnerDestination
+import com.asseta.core.ui.components.GroupedItem
+import com.asseta.core.ui.components.groupedSection
+import com.asseta.owner.data.OwnerData
+import com.asseta.owner.ui.common.EmptyState
+import com.asseta.owner.ui.common.SnapshotScaffold
+import com.asseta.owner.ui.common.SnapshotViewModel
+import kotlinx.coroutines.flow.Flow
+import java.time.LocalDate
 import com.asseta.core.domain.accountability.DisplayNames
 import com.asseta.core.domain.owner.OwnerFormat
 import com.asseta.core.model.owner.AllocationDayDto
@@ -73,6 +88,7 @@ object AllocationTexts {
     const val DAY_NOT_RECONCILED = "Some engine hours are not allocated yet."
     const val ENTRIES = "Work allocations"
     const val ENTRIES_EMPTY = "No allocations for this day."
+    const val DAYS_EMPTY = "No engine hours in the last 14 days."
     const val VALUE_AT_RISK = "Value at risk"
     const val VALUE_AT_RISK_FOOTER = "Unexplained hours at the job's rate. Not part of expected revenue or the shortfall."
 
@@ -102,6 +118,10 @@ object AllocationTexts {
     fun correctionRow(machine: String, date: String, hours: String) = "$machine · $date · $hours h"
 
     fun entryLine(start: String, end: String, hours: String) = "$start → $end · $hours h"
+
+    fun dayLine(engine: String, allocated: String) = "$engine h engine · $allocated h allocated"
+
+    fun dayUnexplained(hours: String) = "$hours h unexplained"
 
     fun lotLine(purchase: String, hours: String) = "From $purchase: $hours h"
 
@@ -153,12 +173,17 @@ object AllocationPresentation {
 /** The ledger's two cards on the machine day ([state] null: the role cannot read the ledger or ENGINE_HOURS is off). */
 @Composable
 fun AllocationCards(state: ScreenState<MachineDayAllocations>) {
-    val T = AllocationTexts
     val data = state.data
     if (data == null) {
-        state.error?.let { SectionCard(T.DAY_CARD) { FootNote(it.message) } }
+        state.error?.let { SectionCard(AllocationTexts.DAY_CARD) { FootNote(it.message) } }
         return
     }
+    AllocationCards(data)
+}
+
+@Composable
+fun AllocationCards(data: MachineDayAllocations) {
+    val T = AllocationTexts
     data.day?.let { d ->
         SectionCard(T.DAY_CARD, footer = if (d.reconciled) T.DAY_RECONCILED else T.DAY_NOT_RECONCILED) {
             AllocationPresentation.dayRows(d).forEach { (l, v) -> KeyValue(l, v) }
@@ -173,6 +198,55 @@ fun AllocationCards(state: ScreenState<MachineDayAllocations>) {
                 Text(T.entryLine(RevenuePresentation.num(a.startReading), RevenuePresentation.num(a.endReading), RevenuePresentation.num(a.hours)), style = AssetaType.subheadline, color = palette.secondaryText)
                 AllocationPresentation.lots(a).forEach { Text(it, style = AssetaType.caption, color = palette.secondaryText) }
             }
+        }
+    }
+}
+
+// --- machine days while revenue checks are off: the ledger alone, no money ------------------------------------------
+
+/** The last 14 local days of the ledger of one machine (the daily sheet needs revenue checks on). */
+class LedgerDaysViewModel(data: OwnerData, val machineId: String, refreshOn: Flow<Unit>, today: () -> LocalDate = { LocalDate.now() }) :
+    SnapshotViewModel<List<AllocationDayDto>>({
+        val (from, to) = RevenuePresentation.window(today())
+        data.allocationDays(machineId, from, to)
+    }, refreshOn)
+
+class LedgerDayViewModel(data: OwnerData, machineId: String, day: String, refreshOn: Flow<Unit>) :
+    SnapshotViewModel<MachineDayAllocations>({ data.machineDayAllocations(machineId, day) }, refreshOn)
+
+@Composable
+fun LedgerDaysScreen(vm: LedgerDaysViewModel, onOpen: (OwnerDestination) -> Unit) {
+    val state by vm.state.collectAsStateWithLifecycle()
+    val T = AllocationTexts
+    val R = RevenuePresentation
+    SnapshotScaffold(state, vm::refresh) { days ->
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp)) {
+            if (days.isEmpty()) {
+                item { EmptyState(T.DAYS_EMPTY) }
+                return@LazyColumn
+            }
+            groupedSection(
+                keyPrefix = "ledger-days", header = null,
+                items = days.map { d ->
+                    GroupedItem(d.day, onClick = { onOpen(OwnerDestination.SheetDay(d.machineId, d.day)) }) {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(R.day(d.day), style = AssetaType.headline)
+                            Text(T.dayLine(R.num(d.totalEngineHours), R.num(d.allocatedHours)), style = AssetaType.subheadline, color = palette.secondaryText)
+                            if (R.nonZero(d.unexplainedHours)) Text(T.dayUnexplained(R.num(d.unexplainedHours)), style = AssetaType.caption, color = OwnerColors.Warning)
+                        }
+                    }
+                },
+            )
+        }
+    }
+}
+
+@Composable
+fun LedgerDayScreen(vm: LedgerDayViewModel) {
+    val state by vm.state.collectAsStateWithLifecycle()
+    SnapshotScaffold(state, vm::refresh) { data ->
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 16.dp, bottom = 16.dp)) {
+            item { AllocationCards(data) }
         }
     }
 }

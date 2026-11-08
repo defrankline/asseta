@@ -7,6 +7,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import java.math.BigDecimal
+import java.time.ZoneId
 
 /** The ENGINE_HOURS switches the field forms follow. Missing keys read as off; the server applies them either way. */
 data class EngineHoursPolicy(val changeoverSplitsBilling: Boolean, val dailyReportEvidenceRequired: Boolean) {
@@ -71,6 +72,13 @@ object ChangeoverRules {
         jobRequired && jobId.isNullOrBlank() -> DailyReportMessages.CHANGEOVER_JOB
         else -> null
     }
+}
+
+/** The zone that decides which day a reading belongs to: the tenant's, as the server counts days. */
+object TenantZone {
+    /** The first valid zone id of [known] (best source first), else [device]. */
+    fun resolve(known: List<String?>, device: ZoneId): ZoneId =
+        known.firstNotNullOfOrNull { id -> id?.let { runCatching { ZoneId.of(it) }.getOrNull() } } ?: device
 }
 
 /** Offline checks of the daily report form; the server re-validates everything. */

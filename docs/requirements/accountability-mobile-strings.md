@@ -1324,7 +1324,9 @@ Rules shared by both apps:
 - **Policy keys read by the form** (`ENGINE_HOURS` effective policy, saved on the phone, unknown = not required; the server decides either way): `changeover_splits_billing` on → the next job is mandatory; `daily_report_evidence_required` on → at least one photo.
 - **Unbillable reasons:** `GET /engine-hour-reasons?kind=UNBILLABLE_REASON` (active only), read on refresh and saved encrypted so the form works offline.
 - **Prefill** from this phone's readings of the machine for the local day (the opening is the day's first when it has at least two, otherwise the latest reading before the day; the closing is the day's last). Online, `/daily-reports/prefill` adds readings the phone does not have and `existing_report_ids` drives the repeat warning. Both pickers stay editable.
+- **Day boundaries of a daily report are the tenant's**, as the server counts them: the `timezone` of the saved cash reconciliation, else of the saved site check-ins, else the phone's zone (sync does not carry the tenant's zone yet). They set "today", the three day chips and which readings fall in the day.
 - **Owner is online-only for actions.** Reading screens use the snapshot cache and stale banner as today. Own records are shown with the decision disabled.
+- **Machine days without revenue checks.** With `tenant.meter.read` and `ENGINE_HOURS` on but no `tenant.revenue.read` or `REVENUE_RECONCILIATION` off, the Machine screen's sheet row still opens: the day list comes from `/work-allocations/reconciliation` (last 14 days) and the day shows only the "Hours allocated" and "Work allocations" cards, no money, readings, fuel or flags.
 - **Hours:** decimal formatter (2 dp, no trailing zeros) + ` h`. **Dates:** `26 Oct 2026`. Money: the Owner money formatter. Value at risk is always its own row, never added to expected, attributed or difference.
 - `{name}` is the `*_by_name` value, else the short id. `{kind}` is the allocation kind label below.
 
@@ -1521,6 +1523,9 @@ Screens per app:
 | owner.allocation.entryLine | {start} → {end} · {hours} h |
 | owner.allocation.lotLine | From {purchase}: {hours} h |
 | owner.allocation.proposedPill | Waiting for approval |
+| owner.allocation.daysEmpty | No engine hours in the last 14 days. |
+| owner.allocation.dayLine | {engine} h engine · {allocated} h allocated |
+| owner.allocation.dayUnexplainedLine | {hours} h unexplained |
 | owner.valueAtRisk | Value at risk |
 | owner.valueAtRiskFooter | Unexplained hours at the job's rate. Not part of expected revenue or the shortfall. |
 

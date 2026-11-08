@@ -362,6 +362,12 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
             )
         }
 
+    /** The machine's days of the ledger for [from]..[to], newest first (the day list while revenue checks are off). */
+    suspend fun allocationDays(machineId: String, from: java.time.LocalDate, to: java.time.LocalDate): Load<List<com.asseta.core.model.owner.AllocationDayDto>> =
+        repo.load(tenantId, "allocation_days:$machineId", ListSerializer(com.asseta.core.model.owner.AllocationDayDto.serializer())) {
+            workAllocationReconciliation(from.toString(), to.toString(), machineId).sortedByDescending { it.day }
+        }
+
     // --- customer hours, read-only (DEC-031 P4) --------------------------------------------------------------------
     /** Open purchases with hours left or in use by running jobs, newest first. */
     suspend fun hoursPurchases(): Load<List<com.asseta.core.model.owner.OwnerHoursPurchaseDto>> =

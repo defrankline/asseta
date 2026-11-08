@@ -116,6 +116,20 @@ class AllocationOwnerTest {
     }
 
     @Test
+    fun `machine days open with meter read when revenue checks are off`() {
+        val ledgerOnly = OwnerFeatures(setOf("tenant.meter.read"), setOf(TenantAccess.REVENUE_RECONCILIATION))
+        assertFalse(ledgerOnly.revenueRead)
+        assertTrue(ledgerOnly.machineDays)
+        val day = OwnerDestination.SheetDay("m1", "2026-10-26")
+        assertEquals(day, ledgerOnly.route(day))
+        val none = OwnerFeatures(emptySet(), setOf(TenantAccess.REVENUE_RECONCILIATION))
+        assertEquals(OwnerDestination.Machine("m1"), none.route(day))
+        val engineOff = OwnerFeatures(setOf("tenant.meter.read"), setOf(TenantAccess.REVENUE_RECONCILIATION, TenantAccess.ENGINE_HOURS))
+        assertFalse(engineOff.machineDays)
+        assertTrue(OwnerFeatures(setOf("tenant.revenue.read")).machineDays)
+    }
+
+    @Test
     fun `value at risk stays apart from expected and the difference`() {
         val m = SheetMoneyDto("TZS", "500", "0", "400", "100", valueAtRisk = "75")
         val rows = RevenuePresentation.moneyRows(m)

@@ -88,6 +88,12 @@ data class OwnerFeatures(val permissions: Set<String>, val disabled: Set<String>
     /** Decide revenue differences and non-revenue hours. */
     val revenueDecide get() = revenueRead && "tenant.revenue.decide" in permissions
 
+    /** The machine-day ledger (DEC-032): tenant.meter.read with ENGINE_HOURS on, whether or not revenue checks are on. */
+    val machineDayLedger get() = meterEvidence && engineHours
+
+    /** Machine days are open to this role: with money (revenue checks) or the allocations alone. */
+    val machineDays get() = revenueRead || machineDayLedger
+
     /** People scorecard (DEC-031 M1): SCORECARD on and the role may read it. */
     val scorecard get() = TenantAccess.SCORECARD !in disabled && "tenant.oversight.scorecard.read" in permissions
 
@@ -117,8 +123,8 @@ data class OwnerFeatures(val permissions: Set<String>, val disabled: Set<String>
     fun route(d: OwnerDestination): OwnerDestination = when (d) {
         is OwnerDestination.Decision -> if (DecisionKind.of(d.kind)?.switchedOff(this) == true) OwnerDestination.Approvals() else d
         is OwnerDestination.CashRecord, is OwnerDestination.RemittanceOverdue -> if (cashCustody) d else OwnerDestination.Cash
-        is OwnerDestination.DailySheet -> if (revenueRead) d else OwnerDestination.Machine(d.machineId)
-        is OwnerDestination.SheetDay -> if (revenueRead) d else OwnerDestination.Machine(d.machineId)
+        is OwnerDestination.DailySheet -> if (machineDays) d else OwnerDestination.Machine(d.machineId)
+        is OwnerDestination.SheetDay -> if (machineDays) d else OwnerDestination.Machine(d.machineId)
         // Customer hours (DEC-031 P4): switched off or not readable -> the dashboard, as before these screens existed.
         OwnerDestination.CustomerHours, is OwnerDestination.HoursPurchase, is OwnerDestination.HoursStatement ->
             if (customerHours) d else OwnerDestination.Accountability

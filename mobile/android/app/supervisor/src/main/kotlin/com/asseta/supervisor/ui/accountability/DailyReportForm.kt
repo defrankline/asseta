@@ -11,6 +11,7 @@ import com.asseta.core.domain.accountability.AccountabilityRules
 import com.asseta.core.domain.accountability.DailyReportDraft
 import com.asseta.core.domain.accountability.DailyReportRules
 import com.asseta.core.domain.accountability.ReportReading
+import com.asseta.core.domain.accountability.TenantZone
 import com.asseta.core.domain.accountability.UnbillableDraft
 import com.asseta.core.model.ClientOperationStatus
 import com.asseta.core.model.owner.EngineHourReasonDto
@@ -79,8 +80,10 @@ class DailyReportFormViewModel(
     private val machineId: String,
     private val supersedesKey: String?,
     private val permissions: Set<String>,
-    private val zone: ZoneId = ZoneId.systemDefault(),
+    private val device: ZoneId = ZoneId.systemDefault(),
 ) : ViewModel() {
+    /** Days are the tenant's, as the server counts them; the phone's zone only until the server has named one. */
+    private var zone: ZoneId = device
     private val clientId = UUID.randomUUID().toString()
     private val _form = MutableStateFlow(DailyReportForm())
     val form: StateFlow<DailyReportForm> = _form.asStateFlow()
@@ -99,6 +102,10 @@ class DailyReportFormViewModel(
     private suspend fun load() {
         val access = field.accountability.access(tenantId, permissions)
         if (!access.dailyReport) return _form.update { it.copy(loading = false, blocked = T.NOT_FOUND_HINT) }
+        zone = TenantZone.resolve(
+            listOf(field.online.savedCash(tenantId)?.value?.reconciliations?.firstOrNull()?.timezone, field.accountability.cache.value.siteCheckins?.timezone),
+            device,
+        )
         val snapshot = field.inbox.observe(tenantId).first()
         val machine = snapshot.machines[machineId]
         val readings = snapshot.readings.filter { snapshot.machineOf(it) == machineId && it.counts }

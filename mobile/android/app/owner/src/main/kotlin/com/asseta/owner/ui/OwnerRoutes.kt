@@ -256,13 +256,23 @@ fun OwnerRoutes(
                 RemittanceOverdueScreen(vm)
             }
         }
-        is OwnerDestination.DailySheet -> {
+        is OwnerDestination.DailySheet -> if (!features.revenueRead) {
+            val vm: com.asseta.owner.ui.accountability.LedgerDaysViewModel = viewModel(key = "ledger-days-$t-${route.machineId}") {
+                com.asseta.owner.ui.accountability.LedgerDaysViewModel(data, route.machineId, graph.refreshTriggers("work_allocation", "meter_capture"))
+            }
+            com.asseta.owner.ui.accountability.LedgerDaysScreen(vm, open)
+        } else {
             val vm: DailySheetViewModel = viewModel(key = "daily-sheet-$t-${route.machineId}") {
                 DailySheetViewModel(data, route.machineId, graph.refreshTriggers("revenue_difference", "meter_capture"))
             }
             DailySheetScreen(vm, open)
         }
-        is OwnerDestination.SheetDay -> {
+        is OwnerDestination.SheetDay -> if (!features.revenueRead) {
+            val vm: com.asseta.owner.ui.accountability.LedgerDayViewModel = viewModel(key = "ledger-day-$t-${route.machineId}-${route.day}") {
+                com.asseta.owner.ui.accountability.LedgerDayViewModel(data, route.machineId, route.day, graph.refreshTriggers("work_allocation", "meter_capture"))
+            }
+            com.asseta.owner.ui.accountability.LedgerDayScreen(vm)
+        } else {
             val vm: SheetDayViewModel = viewModel(key = "sheet-day-$t-${route.machineId}-${route.day}") {
                 SheetDayViewModel(data, route.machineId, route.day, graph.refreshTriggers("revenue_difference", "meter_capture", "work_allocation"), features.meterEvidence && features.engineHours)
             }
