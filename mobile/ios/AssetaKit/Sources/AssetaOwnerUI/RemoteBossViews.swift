@@ -49,6 +49,7 @@ struct PendingHandoverRow: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(HandoverText.title(handover, supervisor: supervisor)).font(.headline)
             Text(HandoverText.claimed(handover)).font(.subheadline).foregroundStyle(.secondary)
+            if let caption = HandoverText.rowCaption(handover) { Text(caption).font(.caption).foregroundStyle(.secondary) }
             if let note = handover.note, !note.isEmpty {
                 Text(note).font(.caption).foregroundStyle(.secondary).lineLimit(3)
             }
@@ -107,7 +108,7 @@ struct HandoverDetailView: View {
                     Text(HandoverText.title(handover, supervisor: names[handover.staffMemberID])).font(.headline)
                     Text(HandoverText.claimed(handover)).foregroundStyle(.secondary)
                     // How and where the money went (DEC-031 D2), with the deposit slip photos (online only).
-                    ForEach(HandoverText.details(handover), id: \.self) { LabeledContent($0.label, value: $0.value) }
+                    ForEach(HandoverText.evidenceRows(handover) + HandoverText.details(handover), id: \.self) { LabeledContent($0.label, value: $0.value) }
                     ForEach(Array(handover.evidence.enumerated()), id: \.offset) { index, _ in
                         PhotoButton(label: OwnerAccountabilityTexts.remitPhoto(index + 1), isOnline: model.isOnline) {
                             photo = index
@@ -136,6 +137,7 @@ struct HandoverDetailView: View {
                                        value: OwnerFormat.money(received, currency: handover.currency))
                     }
                 }
+                PartialReasonSection(model: model, handover: handover)
                 if handover.status == HandoverText.claimedStatus { decision(handover) }
                 if let message { Text(message).foregroundStyle(Brand.amber).accessibilityIdentifier("handover.message") }
             } else if let error = record.error {

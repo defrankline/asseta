@@ -45,9 +45,14 @@ extension FieldRecorder {
     @discardableResult
     public func recordCashCollection(customerID: UUID?, amountText: String, currency: String, reference: String?,
                                      note: String?, jobNumber: String? = nil, jobCustomerID: UUID? = nil,
-                                     custodianID: UUID? = nil, receivedAt: Date,
+                                     custodianID: UUID? = nil, receivedAt: Date, purchaseID: UUID? = nil,
+                                     purchaseOperationID: UUID? = nil, linkRequired: Bool = false,
                                      clientID: UUID = UUID()) throws -> ClientOperation {
         guard let customerID else { throw FieldRecorderError.invalid("Choose the customer who paid.") }
+        if linkRequired && purchaseID == nil { throw FieldRecorderError.invalid(FieldAccountabilityTexts.collectionErrLink) }
+        if purchaseID != nil && serverCapabilities()?.contains(SyncCapability.cashDetailsV2) != true {
+            throw FieldRecorderError.notAllowed(FieldAccountabilityTexts.serverTooOld)
+        }
         if let jobNumber, let jobCustomerID, jobCustomerID != customerID {
             throw FieldRecorderError.invalid("Job \(jobNumber) belongs to another customer.")
         }
@@ -57,9 +62,10 @@ extension FieldRecorder {
         let payload = CashCollectionPayload(
             clientID: clientID, customerID: customerID, amount: amount, currency: try FinanceRules.currency(currency),
             receivedAt: receivedAt, reference: FinanceRules.clean(reference, max: 120),
-            note: FinanceRules.clean(combined, max: 1000), staffMemberID: custodianID)
+            note: FinanceRules.clean(combined, max: 1000), staffMemberID: custodianID, purchaseID: purchaseID)
+        // A purchase still in the outbox: the collection waits for it, so the server can resolve its client id.
         return try enqueue(.cashCollection, entityType: "cash_collection", entityID: clientID, payload: payload,
-                           dependsOn: [], createdAt: receivedAt)
+                           dependsOn: purchaseOperationID.map { [$0] } ?? [], createdAt: receivedAt)
     }
 
     /// Cash handed to the office; CLAIMED until finance verifies it. `method` (only when the server announces
@@ -71,9 +77,14 @@ extension FieldRecorder {
                                    custodianID: UUID? = nil, handedAt: Date, method: RemittanceMethod? = nil,
                                    depositAccountID: UUID? = nil,
                                    requirements: RemittanceRequirements = RemittanceRequirements(),
-                                   evidence: [StoredEvidence] = [], clientID: UUID = UUID()) throws -> ClientOperation {
+                                   evidence: [StoredEvidence] = [], partialReason: String? = nil, partialReasonID: UUID? = nil,
+                                   clientID: UUID = UUID()) throws -> ClientOperation {
         let amount = try FinanceRules.amount(amountText)
         let code = try FinanceRules.currency(currency)
+        let partial = FinanceRules.clean(partialReason, max: 1000)
+        if (partial != nil || partialReasonID != nil) && serverCapabilities()?.contains(SyncCapability.cashDetailsV2) != true {
+            throw FieldRecorderError.notAllowed(FieldAccountabilityTexts.serverTooOld)
+        }
         if let method {
             // Details need a server that takes them (Android: SERVER_TOO_OLD).
             guard serverCapabilities()?.contains(SyncCapability.remittanceDetails) == true else {
@@ -96,7 +107,7 @@ extension FieldRecorder {
                 reference: FinanceRules.clean(reference, max: 120), note: FinanceRules.clean(note, max: 1000),
                 staffMemberID: custodianID, method: method, depositAccountID: depositAccountID,
                 // With details the key is always sent (empty, filled as each photo upload completes), as Android.
-                evidenceUploadIDs: method == nil ? nil : [])
+                evidenceUploadIDs: method == nil ? nil : [], partialReason: partial, partialReasonID: partialReasonID)
             return try enqueue(.cashHandover, entityType: "cash_handover", entityID: clientID, payload: payload,
                                dependsOn: [], attachments: locals.map { ($0, .evidenceUploads) }, createdAt: handedAt)
         }

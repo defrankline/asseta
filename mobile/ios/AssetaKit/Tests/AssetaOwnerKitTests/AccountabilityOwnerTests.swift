@@ -59,6 +59,19 @@ struct AccountabilityOwnerTests {
          "proposed_at":"2026-10-24T08:00:00Z","proposal_note":"Counting error","outcome":null,"resolved_by":null,"resolved_at":null,
          "resolution_note":null}
         """),
+        (.partialRemittance, "CashHandoverDto", """
+        {"id":"\(id(15))","client_id":null,"staff_member_id":"\(id(99))","amount":"20000","currency":"TZS","handed_at":"2026-10-24T07:00:00Z",
+         "reference":null,"note":null,"status":"CLAIMED","source":"MOBILE","recorded_by":null,"recorded_at":"2026-10-24T07:00:00Z","verified_by":null,
+         "verified_at":null,"decision_note":null,"partial_shortfall":"5000","partial_approval":{"id":"\(id(16))","status":"PENDING","reason_id":null,
+         "reason":"Kept for fuel","created_by":"\(other)","created_at":"2026-10-24T08:00:00Z","decided_by":null,"decided_at":null,"decision_note":null}}
+        """),
+        (.varianceClosure, "CashVarianceDto", """
+        {"id":"\(id(17))","source_type":"REMITTANCE","source_id":"\(id(98))","staff_member_id":null,"counterparty_staff_id":null,
+         "currency":"TZS","declared_amount":"50000","received_amount":"45000","amount":"5000","kind":"SHORTFALL","case_id":null,
+         "opened_at":"2026-10-24T07:00:00Z","opened_by":null,"status":"CLOSURE_PROPOSED","reason_id":null,"proposed_by":"\(other)",
+         "proposed_at":"2026-10-24T08:00:00Z","proposal_note":"Recovered in cash","proposed_outcome":"RECOVERED","outcome":null,"resolved_by":null,
+         "resolved_at":null,"resolution_note":null}
+        """),
         (.retention, "CashRetentionDto", """
         {"id":"\(id(9))","staff_member_id":"\(id(99))","amount":"20000","currency":"TZS","reason_id":null,"reason":"Working float",
          "valid_until":null,"status":"PENDING","created_by":"\(other)","created_at":"2026-10-24T08:00:00Z","decided_by":null,
@@ -177,7 +190,7 @@ struct AccountabilityOwnerTests {
         #expect(viewer.decisionKinds == [.discount, .credit, .hoursTransfer, .cancellation, .baseline, .classification, .correction, .allocationCorrection])
         #expect(viewer.approvalsScreen && !viewer.approvals && !viewer.canDecide(.discount) && !viewer.accountability)
         let boss = OwnerFeatures(permissions: ["tenant.finance.read", "tenant.finance.writeoff", "tenant.accountability.read"])
-        #expect(boss.decisionKinds == [.writeOff, .retention, .adjustment] && boss.canDecide(.writeOff) && !boss.canDecide(.retention))
+        #expect(boss.decisionKinds == [.writeOff, .retention, .adjustment, .partialRemittance, .varianceClosure] && boss.canDecide(.writeOff) && !boss.canDecide(.retention))
         #expect(boss.allows(.accountability) && boss.allows(.decision(.retention, UUID())) && !boss.allows(.decision(.baseline, UUID())))
         #expect(boss.moreEntries.prefix(2) == ["Approvals", "Accountability"])
         #expect(OwnerFeatures(permissions: []).decisionKinds.isEmpty && !OwnerFeatures(permissions: []).approvalsScreen)

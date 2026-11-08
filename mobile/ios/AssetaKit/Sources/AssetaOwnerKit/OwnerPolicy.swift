@@ -38,6 +38,12 @@ public struct OwnerFeatures: Equatable, Sendable {
     /// Tenant capabilities switched off by policy (`/me` `disabled_capabilities`): their entry points are hidden.
     public let disabledCapabilities: Set<String>
 
+    /// Tracker data is in use (`TRACKING` not switched off): alerts, connectivity, tracker rows.
+    public var tracking: Bool { !disabledCapabilities.contains(TenantCapability.tracking) }
+    /// The Alerts tab and alert rows.
+    public var alertsOn: Bool { fleet && tracking }
+    /// Investigation cases are in use (`INVESTIGATIONS` not switched off).
+    public var investigations: Bool { !disabledCapabilities.contains(TenantCapability.investigations) }
     /// Customer hours are in use (not switched off by the tenant's policy).
     public var customerHours: Bool { !disabledCapabilities.contains(TenantCapability.customerHours) }
     /// Prepaid-hours purchases and customer hours statements (DEC-031 Phase 4): customer hours on + `tenant.hours.read`.
@@ -85,7 +91,7 @@ public struct OwnerFeatures: Equatable, Sendable {
             $0.visible(permissions: permissions) && !($0.capability.map(disabled.contains) ?? false)
         }
         fleet = set.contains("tenant.fleet.read")
-        manageAlerts = set.contains("tenant.fleet.alert_manage")
+        manageAlerts = set.contains("tenant.fleet.alert_manage") && !disabled.contains(TenantCapability.tracking)
         jobs = set.contains("tenant.job.read")
         approveJobs = set.contains("tenant.job.approve")
         createJobs = set.contains("tenant.job.write")
@@ -96,7 +102,7 @@ public struct OwnerFeatures: Equatable, Sendable {
         overview = fleet || jobs || finance
         approvals = set.contains("tenant.approval.read")
         decideApprovals = set.contains("tenant.approval.expense")
-        cases = set.contains("tenant.case.read")
+        cases = set.contains("tenant.case.read") && !disabled.contains(TenantCapability.investigations)
         meterEvidence = set.contains("tenant.meter.read")
         meterApprove = set.contains("tenant.meter.approve")
         reviewExceptions = set.contains("tenant.meter.review")

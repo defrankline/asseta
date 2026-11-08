@@ -125,9 +125,11 @@ public struct CashCollectionPayload: Codable, Hashable, Sendable {
 
     /// The custodian who holds the cash when a recorder records for someone else (nil = the recorder).
     public let staffMemberID: UUID?
+    /// CASH_DETAILS_V2: the hours purchase this cash pays for (its id, or the client id of a sale still in the outbox).
+    public let purchaseID: UUID?
 
     public init(clientID: UUID, customerID: UUID, amount: Decimal, currency: String?, receivedAt: Date,
-                reference: String?, note: String?, staffMemberID: UUID? = nil) {
+                reference: String?, note: String?, staffMemberID: UUID? = nil, purchaseID: UUID? = nil) {
         self.clientID = clientID
         self.customerID = customerID
         self.amount = DecimalString(amount)
@@ -136,12 +138,13 @@ public struct CashCollectionPayload: Codable, Hashable, Sendable {
         self.reference = reference
         self.note = note
         self.staffMemberID = staffMemberID
+        self.purchaseID = purchaseID
     }
 
     enum CodingKeys: String, CodingKey {
         case amount, currency, reference, note
         case clientID = "client_id", customerID = "customer_id", receivedAt = "received_at"
-        case staffMemberID = "staff_member_id"
+        case staffMemberID = "staff_member_id", purchaseID = "purchase_id"
     }
 }
 
@@ -164,10 +167,13 @@ public struct CashHandoverPayload: Codable, Hashable, Sendable {
     public let depositAccountID: UUID?
     /// Nil = no evidence photos (key omitted); otherwise starts empty and fills as uploads complete.
     public let evidenceUploadIDs: [UUID]?
+    /// CASH_DETAILS_V2: why less than the expected balance is being remitted (tenant reason and/or free text).
+    public let partialReason: String?
+    public let partialReasonID: UUID?
 
     public init(clientID: UUID, amount: Decimal, currency: String?, handedAt: Date, reference: String?, note: String?,
                 staffMemberID: UUID? = nil, method: RemittanceMethod? = nil, depositAccountID: UUID? = nil,
-                evidenceUploadIDs: [UUID]? = nil) {
+                evidenceUploadIDs: [UUID]? = nil, partialReason: String? = nil, partialReasonID: UUID? = nil) {
         self.clientID = clientID
         self.amount = DecimalString(amount)
         self.currency = currency
@@ -178,12 +184,14 @@ public struct CashHandoverPayload: Codable, Hashable, Sendable {
         self.method = method
         self.depositAccountID = depositAccountID
         self.evidenceUploadIDs = evidenceUploadIDs
+        self.partialReason = partialReason
+        self.partialReasonID = partialReasonID
     }
 
     enum CodingKeys: String, CodingKey {
         case amount, currency, reference, note, method, clientID = "client_id", handedAt = "handed_at"
         case staffMemberID = "staff_member_id", depositAccountID = "deposit_account_id"
-        case evidenceUploadIDs = "evidence_upload_ids"
+        case evidenceUploadIDs = "evidence_upload_ids", partialReason = "partial_reason", partialReasonID = "partial_reason_id"
     }
 }
 

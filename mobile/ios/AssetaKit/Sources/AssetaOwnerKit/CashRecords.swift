@@ -77,7 +77,7 @@ public enum CashRecordPresentation {
     }
 
     public static func transfer(_ t: CashTransferDTO, timeZone: TimeZone = .current) -> [DecisionField] {
-        fields([(T.fieldFrom, DisplayName.or(t.fromStaffName, id: t.fromStaffID)),
+        fields([(VarianceTexts.number, t.transferNumber), (T.fieldFrom, DisplayName.or(t.fromStaffName, id: t.fromStaffID)),
                 (T.fieldTo, DisplayName.or(t.toStaffName, id: t.toStaffID)),
                 (T.fieldAmount, OwnerFormat.money(t.amountDeclared, currency: t.currency)),
                 (T.fieldReceived, t.amountReceived.map { OwnerFormat.money($0, currency: t.currency) }),

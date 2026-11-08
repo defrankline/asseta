@@ -29,6 +29,10 @@ public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
     case allocationCorrection
     /// DEC-032 Phase 2: a proposed hours correction, refund, reversal or invoice void.
     case adjustmentRequest
+    /// DEC-032 Phase 3: the reason given for a partial remittance (record = the handover).
+    case partialRemittance
+    /// DEC-032 Phase 3: a variance closure proposed by one person, decided by another.
+    case varianceClosure
 
     /// `GET` path and the status that means "waiting for a decision".
     var list: (path: String, pendingStatus: String) {
@@ -46,6 +50,9 @@ public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
         case .nonRevenue: ("non-revenue-approvals", "PROPOSED")
         case .allocationCorrection: ("work-allocations/corrections", "PROPOSED")
         case .adjustmentRequest: ("adjustment-requests", AdjustmentRequestStatuses.proposed)
+        // Handovers have no filter on the partial reason: all are listed, those with a PENDING reason are kept.
+        case .partialRemittance: ("cash/handovers", VarianceStatuses.pendingReason)
+        case .varianceClosure: ("cash/variances", VarianceStatuses.closureProposed)
         }
     }
 
@@ -55,7 +62,12 @@ public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
     /// `POST` path of the decision.
     func decisionPath(_ id: UUID) -> String {
         let record = "\(list.path)/\(id.lowercased)"
-        return self == .writeOff ? "\(record)/write-off-decision" : "\(record)/decision"
+        switch self {
+        case .writeOff: return "\(record)/write-off-decision"
+        case .varianceClosure: return "\(record)/closure-decision"
+        case .partialRemittance: return "\(record)/partial-reason-decision"
+        default: return "\(record)/decision"
+        }
     }
 
     /// Meter decisions (and `NonRevenueDecisionIn`, the same shape) take `MeterDecisionIn` (note required, 5+
@@ -67,7 +79,7 @@ public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
         switch self {
         case .discount, .credit, .hoursTransfer, .cancellation: ["tenant.hours.read"]
         case .baseline, .classification, .correction, .allocationCorrection: ["tenant.meter.read"]
-        case .writeOff, .adjustment: ["tenant.finance.read"]
+        case .writeOff, .adjustment, .partialRemittance, .varianceClosure: ["tenant.finance.read"]
         case .retention: ["tenant.collection.record", "tenant.finance.read"]
         case .nonRevenue: [RevenuePermission.read]
         case .adjustmentRequest: [AdjustmentPermission.read]
@@ -88,6 +100,8 @@ public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
         case .adjustment: "tenant.finance.adjustment_approve"
         case .nonRevenue: RevenuePermission.decide
         case .adjustmentRequest: AdjustmentPermission.decide
+        case .partialRemittance: "tenant.finance.retention_approve"
+        case .varianceClosure: "tenant.finance.variance_close"
         }
     }
 
@@ -96,10 +110,11 @@ public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
         switch self {
         case .discount, .credit, .hoursTransfer, .cancellation: TenantCapability.customerHours
         case .baseline, .correction, .classification, .allocationCorrection: TenantCapability.engineHours
-        case .writeOff, .retention, .adjustment: TenantCapability.cashCustody
+        case .writeOff, .retention, .adjustment, .partialRemittance: TenantCapability.cashCustody
         case .nonRevenue: TenantCapability.revenueReconciliation
         // Not tied to one capability: a request can touch hours, payments or invoices.
-        case .adjustmentRequest: nil
+        // A closure can be about customer hours, not only cash custody.
+        case .adjustmentRequest, .varianceClosure: nil
         }
     }
 
@@ -121,6 +136,8 @@ public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
         case .nonRevenue: RevenueTexts.sectionNonRevenue
         case .allocationCorrection: DailyReportOwnerTexts.allocationSection
         case .adjustmentRequest: AdjustmentTexts.section
+        case .partialRemittance: VarianceTexts.partialSection
+        case .varianceClosure: VarianceTexts.closureSection
         }
     }
 
@@ -139,6 +156,8 @@ public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
         case .nonRevenue: RevenueTexts.sectionNonRevenueEmpty
         case .allocationCorrection: DailyReportOwnerTexts.allocationEmpty
         case .adjustmentRequest: AdjustmentTexts.empty
+        case .partialRemittance: VarianceTexts.partialEmpty
+        case .varianceClosure: VarianceTexts.closureEmpty
         }
     }
 
@@ -157,6 +176,8 @@ public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
         case .nonRevenue: RevenueTexts.titleNonRevenue
         case .allocationCorrection: DailyReportOwnerTexts.allocationTitle
         case .adjustmentRequest: AdjustmentTexts.title
+        case .partialRemittance: VarianceTexts.partialTitle
+        case .varianceClosure: VarianceTexts.closureTitle
         }
     }
 
@@ -251,7 +272,9 @@ struct HoursTransferDTO: Codable, Sendable {
     let status: String, requestedBy: UUID?, requestedAt: Date
     let customerName: String?, purchaseNumber: String?, fromMachineName: String?, toMachineName: String?
     let requestedByName: String?, decidedByName: String?, fromMachineCode: String?, toMachineCode: String?, decidedBy: UUID?, decisionNote: String?
+    let transferNumber: String?
     enum CodingKeys: String, CodingKey {
+        case transferNumber = "transfer_number"
         case fromMachineCode = "from_machine_code", toMachineCode = "to_machine_code", decidedBy = "decided_by", decisionNote = "decision_note"
         case customerName = "customer_name", purchaseNumber = "purchase_number", fromMachineName = "from_machine_name"
         case toMachineName = "to_machine_name", requestedByName = "requested_by_name", decidedByName = "decided_by_name"
@@ -307,33 +330,14 @@ struct CorrectionDTO: Codable, Sendable {
     }
 }
 
-struct CashVarianceDTO: Codable, Sendable {
-    let id: UUID, sourceType: String, currency: String, declaredAmount: DecimalString, receivedAmount: DecimalString
-    let amount: DecimalString, status: String, proposedBy: UUID?, proposedAt: Date?, proposalNote: String?, openedAt: Date
-    let staffMemberID: UUID?, staffMemberName: String?, counterpartyStaffName: String?, proposedByName: String?
-    let counterpartyStaffID: UUID?, resolvedBy: UUID?, resolvedByName: String?, resolutionNote: String?
-    /// SHORTFALL / SURPLUS (DEC-031); nil from older servers.
-    let kind: String?
-    /// More received than declared ("Surplus to explain"); without a kind a negative amount means the same.
-    var isSurplus: Bool { kind == "SURPLUS" || (kind == nil && amount.value < 0) }
-    enum CodingKeys: String, CodingKey {
-        case kind
-        case counterpartyStaffID = "counterparty_staff_id", resolvedBy = "resolved_by", resolvedByName = "resolved_by_name"
-        case resolutionNote = "resolution_note"
-        case staffMemberID = "staff_member_id", staffMemberName = "staff_member_name"
-        case counterpartyStaffName = "counterparty_staff_name", proposedByName = "proposed_by_name"
-        case id, currency, amount, status, sourceType = "source_type", declaredAmount = "declared_amount"
-        case receivedAmount = "received_amount", proposedBy = "proposed_by", proposedAt = "proposed_at"
-        case proposalNote = "proposal_note", openedAt = "opened_at"
-    }
-}
-
 struct CustodyAdjustmentDTO: Codable, Sendable {
     let id: UUID, kind: String, amount: DecimalString, currency: String, occurredAt: Date, reason: String, status: String
     let createdBy: UUID?, createdAt: Date
     let staffMemberID: UUID?, staffMemberName: String?, createdByName: String?, decidedByName: String?, decisionNote: String?
     let decidedBy: UUID?
+    let adjustmentNumber: String?
     enum CodingKeys: String, CodingKey {
+        case adjustmentNumber = "adjustment_number"
         case decidedBy = "decided_by"
         case staffMemberID = "staff_member_id", staffMemberName = "staff_member_name", createdByName = "created_by_name"
         case decidedByName = "decided_by_name", decisionNote = "decision_note"
@@ -398,8 +402,8 @@ extension PendingDecision {
         case .hoursTransfer:
             guard let t = try? json.decode(as: HoursTransferDTO.self) else { return nil }
             return item(t.id, T.rowHoursTransfer(num(t.hours)), t.reason, t.requestedAt, t.requestedBy, t.status,
-                        fields([(T.fieldCustomer, t.customerName), (T.fieldPurchase, who(t.purchaseNumber, t.purchaseID)),
-                                (T.fieldHours, num(t.hours)),
+                        fields([(VarianceTexts.number, t.transferNumber), (T.fieldCustomer, t.customerName),
+                                (T.fieldPurchase, who(t.purchaseNumber, t.purchaseID)), (T.fieldHours, num(t.hours)),
                                 (T.fieldFromMachine, DisplayName.machine(code: t.fromMachineCode, name: t.fromMachineName, id: t.fromMachineID)),
                                 (T.fieldToMachine, DisplayName.machine(code: t.toMachineCode, name: t.toMachineName, id: t.toMachineID)),
                                 (T.fieldRequestedBy, who(t.requestedByName, t.requestedBy))]
@@ -441,32 +445,25 @@ extension PendingDecision {
                                 (T.fieldNewReading, num(c.newReading)), (T.fieldProposedBy, who(c.proposedByName, c.proposedBy))]
                                + decided(c.decidedByName, c.decidedBy, c.decisionNote)),
                         machine: c.machineID, name: c.proposedByName)
-        case .writeOff:
+        case .writeOff, .varianceClosure:
             guard let v = try? json.decode(as: CashVarianceDTO.self) else { return nil }
-            // A surplus (more received than declared) reads "Surplus to explain" with the positive amount.
-            let difference = v.isSurplus ? money(DecimalString(abs(v.amount.value)), v.currency) : money(v.amount, v.currency)
-            return item(v.id, v.isSurplus ? T.rowSurplus(difference) : T.rowWriteOff(difference), v.proposalNote,
-                        v.proposedAt ?? v.openedAt, v.proposedBy, v.status,
-                        fields([(T.fieldCustodian, who(v.staffMemberName, v.staffMemberID)),
-                                (T.fieldCounterparty, who(v.counterpartyStaffName, v.counterpartyStaffID)),
-                                (T.fieldSource, OwnerFormat.humanize(v.sourceType)), (T.fieldDeclared, money(v.declaredAmount, v.currency)),
-                                (T.fieldReceived, money(v.receivedAmount, v.currency)),
-                                (v.isSurplus ? T.varianceSurplus : T.fieldDifference, difference),
-                                (T.fieldProposedBy, who(v.proposedByName, v.proposedBy))]
-                               + decided(v.resolvedByName, v.resolvedBy, v.resolutionNote)),
-                        name: v.proposedByName)
+            return VariancePresentation.decision(v, kind: kind, timeZone: timeZone)
+        case .partialRemittance:
+            guard let h = try? json.decode(as: CashHandoverDTO.self) else { return nil }
+            return VariancePresentation.partialDecision(h)
         case .retention:
             guard let r = try? json.decode(as: CashRetentionDTO.self) else { return nil }
             return item(r.id, T.rowRetention(money(r.amount, r.currency)), r.reason, r.createdAt, r.createdBy, r.status,
-                        fields([(T.fieldCustodian, who(r.staffMemberName, r.staffMemberID)), (T.fieldAmount, money(r.amount, r.currency)),
-                                (T.fieldValidUntil, r.validUntil.map(date)), (T.fieldRequestedBy, who(r.createdByName, r.createdBy))]
+                        fields([(VarianceTexts.number, r.retentionNumber), (T.fieldCustodian, who(r.staffMemberName, r.staffMemberID)),
+                                (T.fieldAmount, money(r.amount, r.currency)), (T.fieldValidUntil, r.validUntil.map(date)), (T.fieldRequestedBy, who(r.createdByName, r.createdBy))]
                                + decided(r.decidedByName, r.decidedBy, r.decisionNote)),
                         name: r.createdByName)
         case .adjustment:
             guard let a = try? json.decode(as: CustodyAdjustmentDTO.self) else { return nil }
             return item(a.id, T.rowAdjustment(kind: OwnerFormat.humanize(a.kind), money: money(a.amount, a.currency)), a.reason,
                         a.createdAt, a.createdBy, a.status,
-                        fields([(T.fieldCustodian, who(a.staffMemberName, a.staffMemberID)), (T.fieldKind, OwnerFormat.humanize(a.kind)),
+                        fields([(VarianceTexts.number, a.adjustmentNumber), (T.fieldCustodian, who(a.staffMemberName, a.staffMemberID)),
+                                (T.fieldKind, OwnerFormat.humanize(a.kind)),
                                 (T.fieldAmount, money(a.amount, a.currency)), (T.fieldWhen, date(a.occurredAt)),
                                 (T.fieldProposedBy, who(a.createdByName, a.createdBy))]
                                + decided(a.decidedByName, a.decidedBy, a.decisionNote)),
@@ -517,7 +514,7 @@ extension OwnerAPI {
     /// The records of `kind`, newest first: waiting ones (`pendingOnly`) or the latest of any status.
     public static func decisions(_ kind: DecisionKind, pendingOnly: Bool, pageSize: Int = 100) -> APIRequest<Page<JSONValue>> {
         .get("\(tenant)/\(kind.listPath)", query: paging(1, pageSize) + compact([
-            ("status", pendingOnly ? kind.list.pendingStatus : nil),
+            ("status", pendingOnly && kind != .partialRemittance ? kind.list.pendingStatus : nil),
         ]))
     }
 
@@ -568,11 +565,17 @@ public enum DecisionRules {
         guard let code = (error as? APIError)?.code else { return false }
         return code.hasSuffix("ALREADY_DECIDED") || code == "NOT_PENDING" || code == "WRITEOFF_NOT_PROPOSED"
             || code == "VARIANCE_NOT_OPEN" || code == "STALE_VERSION" || code == "ALLOCATION_NOT_ACTIVE"
+            || code == "CLOSURE_NOT_PROPOSED" || code == "PARTIAL_APPROVAL_NOT_FOUND"
     }
 
     /// The refusal in the wording of `kind` (adjustment requests have their own, other codes as below).
     public static func message(for error: any Error, kind: DecisionKind) -> String {
-        kind == .adjustmentRequest ? AdjustmentRules.message(for: error) : message(for: error)
+        switch kind {
+        case .adjustmentRequest: AdjustmentRules.message(for: error)
+        case .varianceClosure: VarianceTexts.closureError((error as? APIError)?.code) ?? message(for: error)
+        case .partialRemittance: VarianceTexts.partialError((error as? APIError)?.code) ?? message(for: error)
+        default: message(for: error)
+        }
     }
 
     public static func message(for error: any Error) -> String {

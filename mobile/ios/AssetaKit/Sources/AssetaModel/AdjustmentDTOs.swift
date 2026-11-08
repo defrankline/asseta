@@ -10,6 +10,7 @@ public enum AdjustmentRequestTypes {
     public static let collectionReversal = "COLLECTION_REVERSAL"
     public static let purchaseReversal = "PURCHASE_REVERSAL"
     public static let invoiceVoid = "INVOICE_VOID"
+    public static let zeroAmountActivation = "ZERO_AMOUNT_ACTIVATION"
 }
 
 /// `AdjustmentRequestStatus` values.
@@ -56,6 +57,8 @@ public struct AdjustmentWithdrawIn: Encodable, Hashable, Sendable {
 public struct AdjustmentRequestDTO: Codable, Hashable, Sendable, Identifiable {
     public let id: UUID
     public let requestType: String
+    /// ARQ- number (DEC-032 Phase 3); nil from older servers.
+    public let requestNumber: String?
     public let status: String
     public let originalType: String?
     public let originalID: UUID?
@@ -90,6 +93,7 @@ public struct AdjustmentRequestDTO: Codable, Hashable, Sendable, Identifiable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(UUID.self, forKey: .id)
         requestType = try c.decode(String.self, forKey: .requestType)
+        requestNumber = try c.decodeIfPresent(String.self, forKey: .requestNumber)
         status = try c.decode(String.self, forKey: .status)
         originalType = try c.decodeIfPresent(String.self, forKey: .originalType)
         originalID = try c.decodeIfPresent(UUID.self, forKey: .originalID)
@@ -122,6 +126,7 @@ public struct AdjustmentRequestDTO: Codable, Hashable, Sendable, Identifiable {
 
     enum CodingKeys: String, CodingKey {
         case id, status, hours, amount, currency, settlement, params, reason, effects
+        case requestNumber = "request_number"
         case requestType = "request_type", originalType = "original_type", originalID = "original_id"
         case originalReference = "original_reference", customerID = "customer_id", customerName = "customer_name"
         case machineID = "machine_id", machineCode = "machine_code", machineName = "machine_name"

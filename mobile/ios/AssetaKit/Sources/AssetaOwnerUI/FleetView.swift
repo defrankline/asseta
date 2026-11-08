@@ -51,7 +51,7 @@ struct FleetView: View {
     /// Live / Recent / Stale / Offline chips and the "N of M machines" count, as in the Android Owner app.
     private var filters: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
+            if model.features.tracking { HStack(spacing: 6) {
                 ForEach(FleetPresentation.filterTones, id: \.self) { t in
                     let on = tone == t
                     Button(t.rawValue.capitalized) { tone = on ? nil : t }
@@ -60,7 +60,7 @@ struct FleetView: View {
                         .tint(on ? Brand.amber : .secondary)
                         .accessibilityAddTraits(on ? .isSelected : [])
                 }
-            }
+            } }
             if let all = loader.value {
                 Text("\(machines.count) of \(all.count) machines").font(.caption).foregroundStyle(.secondary)
             }
@@ -108,7 +108,7 @@ struct FleetView: View {
     private var list: some View {
         List(machines) { machine in
             Button { selected = machine.id } label: {
-                MachineRow(machine: machine, dataIsCached: loader.isFromCache)
+                MachineRow(machine: machine, dataIsCached: loader.isFromCache, tracking: model.features.tracking)
             }
             .foregroundStyle(.primary)
         }
@@ -148,6 +148,8 @@ struct MachineMarker: View {
 struct MachineRow: View {
     let machine: MachineMapDTO
     let dataIsCached: Bool
+    /// `TRACKING` on: connectivity pill, last-seen line and open alerts are shown.
+    var tracking = true
 
     /// Same lines as the Android fleet list: title + status pill, last seen and tracker state, reported work and
     /// operator, supervisor, open alerts.
@@ -160,14 +162,14 @@ struct MachineRow: View {
                 HStack {
                     Text(FleetPresentation.title(machine)).font(.headline)
                     Spacer()
-                    Pill(text: FleetPresentation.statusLabel(machine, dataIsCached: dataIsCached), color: style.tone.color)
+                    if tracking { Pill(text: FleetPresentation.statusLabel(machine, dataIsCached: dataIsCached), color: style.tone.color) }
                 }
-                Text(FleetPresentation.detailLine(machine, dataIsCached: dataIsCached)).font(.caption).foregroundStyle(.secondary)
+                if tracking { Text(FleetPresentation.detailLine(machine, dataIsCached: dataIsCached)).font(.caption).foregroundStyle(.secondary) }
                 Text(FleetPresentation.reportedLine(machine)).font(.caption).foregroundStyle(.secondary)
                 if let supervisor = machine.supervisor {
                     Text("Supervisor: \(supervisor)").font(.caption).foregroundStyle(.secondary)
                 }
-                if machine.openAlerts > 0 {
+                if tracking && machine.openAlerts > 0 {
                     Text(FleetPresentation.alertsLine(machine.openAlerts)).font(.caption).foregroundStyle(Palette.offline)
                 }
             }

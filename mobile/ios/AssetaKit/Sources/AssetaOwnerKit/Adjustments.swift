@@ -73,6 +73,7 @@ public enum AdjustmentTexts {
         case AdjustmentRequestTypes.collectionReversal: "Collection reversal"
         case AdjustmentRequestTypes.purchaseReversal: "Purchase reversal"
         case AdjustmentRequestTypes.invoiceVoid: "Invoice void"
+        case AdjustmentRequestTypes.zeroAmountActivation: "Purchase with nothing to pay"
         default: OwnerFormat.humanize(wire)
         }
     }
@@ -117,6 +118,9 @@ public enum AdjustmentTexts {
         case "PAYMENT_ALREADY_REVERSED": "This payment is already reversed."
         case "PAYMENT_REVERSED": "This payment has been reversed."
         case "INVOICE_NOT_ISSUED": "Only an issued invoice can be voided."
+        case "PURCHASE_NOT_ZERO_AMOUNT": "This purchase has an amount to pay."
+        case "ALREADY_ACTIVATED": "This purchase is already activated."
+        case "ZERO_AMOUNT_PENDING": "A request for this purchase already waits for a decision."
         default: nil
         }
     }
@@ -198,7 +202,7 @@ public enum AdjustmentPresentation {
         let hours: String? = r.requestType == AdjustmentRequestTypes.hoursCorrection
             ? r.hours.map(signedHours) : r.hours.map { OwnerFormat.hours($0) }
         let rows: [(String, String?)] = [
-            (T.fieldType, T.type(r.requestType)), (T.reference, r.originalReference),
+            (VarianceTexts.number, r.requestNumber), (T.fieldType, T.type(r.requestType)), (T.reference, r.originalReference),
             (T.customer, DisplayName.optional(r.customerName, id: r.customerID)), (T.machine, machine(r)),
             (T.purchase, r.purchaseNumber), (T.hours, hours),
             (T.amount, r.amount.map { money($0.value, r.currency) }), (T.settlementLabel, r.settlement.map(T.settlement)),

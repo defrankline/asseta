@@ -30,6 +30,7 @@ enum AccountabilityKey {
     static let pendingTransfers = "cash_transfers_pending_cache"
     static let pendingFloats = "cash_floats_pending_cache"
     static let purchases = "hours_purchases_cache"
+    static let partialReasons = "cash_reasons_partial_cache"
     static let retentions = "cash_retentions_cache"
     static let transfers = "cash_transfers_cache"
     static let transferReasons = "hours_transfer_reasons_cache"
@@ -91,6 +92,11 @@ public struct AccountabilityDirectory: Sendable {
 
     public var retentionReasons: [CashReasonDTO] {
         SavedOnline<[CashReasonDTO]>.read(store, tenantID, AccountabilityKey.retentionReasons)?.value?.filter(\.isActive) ?? []
+    }
+
+    /// Tenant reasons for leaving cash behind on a hand-over (DEC-032 Phase 3), saved for offline use.
+    public var partialReasons: [CashReasonDTO] {
+        SavedOnline<[CashReasonDTO]>.read(store, tenantID, AccountabilityKey.partialReasons)?.value?.filter(\.isActive) ?? []
     }
 
     /// Cash transfers I sent or received (server copies, newest first) and when they were fetched.
@@ -170,6 +176,8 @@ extension SupervisorOnline {
                        APIRequest<Page<CashTransferDTO>>.get("\(Self.tenant)/cash/transfers", query: transferQuery)) { $0.items }
             await save(AccountabilityKey.retentionReasons, APIRequest<Page<CashReasonDTO>>.get(
                 "\(Self.tenant)/cash/reasons", query: Self.page(100) + [URLQueryItem(name: "kind", value: "RETENTION")])) { $0.items }
+            await save(AccountabilityKey.partialReasons, APIRequest<Page<CashReasonDTO>>.get(
+                "\(Self.tenant)/cash/reasons", query: Self.page(100) + [URLQueryItem(name: "kind", value: "PARTIAL_REMITTANCE")])) { $0.items }
             var floatQuery = Self.page(100) + [URLQueryItem(name: "awaiting_acknowledgement", value: "true")]
             if let myStaffID { floatQuery.append(URLQueryItem(name: "staff_member_id", value: myStaffID.lowercased)) }
             await save(AccountabilityKey.pendingFloats,
@@ -184,9 +192,12 @@ extension SupervisorOnline {
             await save(AccountabilityKey.hoursPolicy,
                        APIRequest<EffectivePolicyDTO<CustomerHoursPolicyValues>>.get("\(Self.tenant)/policies/CUSTOMER_HOURS/effective")) { $0.values }
         }
-        if has.contains(FieldAccess.hoursTransfer) && has.contains(FieldAccess.hoursRead) {
+        // The hours-transfer form and the collection's "Pays for" both pick from these purchases.
+        if (has.contains(FieldAccess.hoursTransfer) || has.contains(FieldAccess.collectionRecord)) && has.contains(FieldAccess.hoursRead) {
             await save(AccountabilityKey.purchases, APIRequest<Page<HoursPurchaseDTO>>.get(
                 "\(Self.tenant)/hours-purchases", query: Self.page(100) + [URLQueryItem(name: "cancelled", value: "false")])) { $0.items }
+        }
+        if has.contains(FieldAccess.hoursTransfer) && has.contains(FieldAccess.hoursRead) {
             await save(AccountabilityKey.transferReasons, APIRequest<Page<ReasonCodeDTO>>.get(
                 "\(Self.tenant)/hours-reason-codes", query: Self.page(100) + [URLQueryItem(name: "kind", value: "TRANSFER")])) { $0.items }
         }
@@ -265,8 +276,11 @@ public struct RetentionItem: Identifiable, Sendable, Equatable {
     /// The outbox state while it is not yet acknowledged (nil = from the server).
     public let syncStatus: ClientOperationStatus?
     public let errorCode: String?
+    /// The RET- number once the server has it (DEC-032 Phase 3).
+    public let number: String?
 
     init(local op: ClientOperation, payload: CashRetentionIn, server: CashRetentionDTO?) {
+        number = server?.retentionNumber
         id = op.entityID
         serverID = server?.id
         amount = server?.amount.value ?? payload.amount.value
@@ -282,6 +296,7 @@ public struct RetentionItem: Identifiable, Sendable, Equatable {
     }
 
     init(server: CashRetentionDTO) {
+        number = server.retentionNumber
         id = server.id
         serverID = server.id
         amount = server.amount.value

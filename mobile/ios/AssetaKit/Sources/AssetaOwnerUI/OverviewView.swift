@@ -22,7 +22,7 @@ struct OverviewView: View {
                     SetupBannerView(text: banner) { open(.setupChecklist) }
                 }
                 if let overview = loader.value {
-                    let sections = OverviewPresentation.sections(overview, cached: loader.isFromCache)
+                    let sections = OverviewPresentation.sections(overview, cached: loader.isFromCache, disabled: model.features.disabledCapabilities)
                     ForEach(sections, id: \.title) { section($0) }
                     if sections.isEmpty { Text(OverviewPresentation.noSections).foregroundStyle(.secondary) }
                     Text(OverviewPresentation.asOf(overview)).font(.caption).foregroundStyle(.secondary)

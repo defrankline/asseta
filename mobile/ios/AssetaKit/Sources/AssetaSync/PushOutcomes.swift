@@ -36,6 +36,9 @@ public struct PushOutcomeApplier: Sendable {
         "REPORT_READINGS_INVALID", "REPORT_HOURS_EXCEED_TOTAL", "REPORT_ID_CONFLICT", "REPORT_NOT_SUPERSEDABLE",
         "REPORT_EVIDENCE_REQUIRED", "CHANGEOVER_NOT_ALLOWED", "CHANGEOVER_SAME_CUSTOMER",
         "CHANGEOVER_JOB_REQUIRED", "CHANGEOVER_JOB_INVALID",
+        // Independence and evidence (DEC-032 Phase 3): a requirement switched on, or the purchase changed, after queueing.
+        "COLLECTION_LINK_REQUIRED", "PARTIAL_REMITTANCE_REASON_REQUIRED", "EVIDENCE_REQUIRED", "PURCHASE_NOT_FOUND",
+        "PURCHASE_CANCELLED", "OVER_ALLOCATION", "ALLOCATION_MISMATCH",
     ]
 
     let outbox: any ClientOperationRepository

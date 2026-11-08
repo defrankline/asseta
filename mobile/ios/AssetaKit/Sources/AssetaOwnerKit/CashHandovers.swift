@@ -36,6 +36,12 @@ public struct CashHandoverDTO: Codable, Hashable, Sendable, Identifiable {
     public let depositAccountID: UUID?
     public let depositAccountName: String?
     public let evidenceAttachmentIDs: [UUID]?
+    /// DEC-032 Phase 3 (nil from older servers): RMT- number (`reference` stays the bank's), how well the remittance is
+    /// backed up (`DECLARED`, `SUPPORTED`, `CONFIRMED`), what is still not accounted for and the partial-reason approval.
+    public let remittanceNumber: String?
+    public let evidenceStatus: String?
+    public let outstandingDifference: DecimalString?
+    public let partialApproval: PartialRemittanceApprovalDTO?
 
     /// Evidence photo ids (empty when none or from an older server).
     public var evidence: [UUID] { evidenceAttachmentIDs ?? [] }
@@ -49,6 +55,29 @@ public struct CashHandoverDTO: Codable, Hashable, Sendable, Identifiable {
         case recordedBy = "recorded_by", recordedAt = "recorded_at", verifiedBy = "verified_by"
         case verifiedAt = "verified_at", decisionNote = "decision_note", amountReceived = "amount_received"
         case expectedBalance = "expected_balance", partialShortfall = "partial_shortfall"
+        case remittanceNumber = "remittance_number", evidenceStatus = "evidence_status"
+        case outstandingDifference = "outstanding_difference", partialApproval = "partial_approval"
+    }
+}
+
+/// `PartialRemittanceApprovalDto`: the reason a custodian gave for leaving cash behind, and its decision.
+public struct PartialRemittanceApprovalDTO: Codable, Hashable, Sendable, Identifiable {
+    public let id: UUID
+    public let status: String
+    public let reasonID: UUID?
+    public let reason: String
+    public let createdBy: UUID?
+    public let createdByName: String?
+    public let createdAt: Date
+    public let decidedBy: UUID?
+    public let decidedByName: String?
+    public let decidedAt: Date?
+    public let decisionNote: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, status, reason, reasonID = "reason_id", createdBy = "created_by", createdByName = "created_by_name"
+        case createdAt = "created_at", decidedBy = "decided_by", decidedByName = "decided_by_name", decidedAt = "decided_at"
+        case decisionNote = "decision_note"
     }
 }
 
@@ -220,6 +249,27 @@ public enum HandoverText {
         let account = h.depositAccountID.map { DisplayName.or(h.depositAccountName, id: $0) }
         return PendingDecision.fields([(T.remitMethod, T.remitMethodText(h.method)), (T.remitAccount, account),
                                        (T.remitReference, h.reference)])
+    }
+
+    /// DEC-032 Phase 3: number, how the money is backed up and what is still open (hidden when zero/null).
+    public static func evidenceRows(_ h: CashHandoverDTO) -> [DecisionField] {
+        let open = h.outstandingDifference.flatMap { $0.value == 0 ? nil : OwnerFormat.money($0, currency: h.currency) }
+        return PendingDecision.fields([(VarianceTexts.remitNumber, h.remittanceNumber),
+                                       (VarianceTexts.remitEvidence, h.evidenceStatus.map(VarianceTexts.remitEvidenceText)),
+                                       (VarianceTexts.remitOutstanding, open)])
+    }
+
+    /// The reason given for leaving cash behind, and its status (empty when there is none).
+    public static func partialRows(_ h: CashHandoverDTO) -> [DecisionField] {
+        guard let p = h.partialApproval else { return [] }
+        return PendingDecision.fields([(VarianceTexts.remitPartialReason, p.reason),
+                                       (VarianceTexts.remitPartialStatus, OwnerFormat.humanize(p.status))])
+    }
+
+    /// The caption of a handover row: "RMT-0007 · Declared by the field" (only the parts present).
+    public static func rowCaption(_ h: CashHandoverDTO) -> String? {
+        let parts = [h.remittanceNumber, h.evidenceStatus.map(VarianceTexts.remitEvidenceText)].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     /// "No deposit slip photo" applies: a bank / mobile-money remittance (method other than cash) without a photo.

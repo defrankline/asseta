@@ -258,7 +258,7 @@ public enum AccountabilityDashboard {
             out.append(DashboardTile(id: "discrepancies", title: T.dashDiscrepancies,
                                      rows: custody + [.init(T.dashSyncConflicts, "\(d.syncConflictsUnresolved)")], route: .approvals))
         }
-        if let i = s.investigations {
+        if let i = s.investigations, !off.contains(TenantCapability.investigations) {
             out.append(DashboardTile(id: "investigations", title: T.dashInvestigations,
                                      rows: [.init(T.dashOpen, "\(i.open)"), .init(T.dashInReview, "\(i.inReview)")],
                                      route: .investigations))

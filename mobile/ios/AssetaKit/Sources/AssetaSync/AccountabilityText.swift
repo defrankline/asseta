@@ -223,6 +223,35 @@ public enum FieldAccountabilityTexts {
     public static let remitErrAccount = "Choose the company account the money was paid into." // field.remit.errAccount
     public static let remitErrReference = "Enter the transaction reference of the bank deposit or mobile-money payment." // field.remit.errReference
     public static let remitErrEvidence = "Photograph the deposit slip or payment confirmation." // field.remit.errEvidence
+    // DEC-032 Phase 3 (strings doc): collection link, partial reason, transfer evidence, numbers.
+    public static let collectionLink = "Pays for" // field.collection.link
+    public static let collectionLinkOptional = "Pays for (optional)"
+    public static let collectionLinkNone = "Not linked"
+    public static let collectionLinkEmpty = "No open purchases for this customer on this phone."
+    public static func collectionLinkRow(number: String, hours: String) -> String { "\(number) · \(hours) h left" }
+    public static func collectionUnsynced(hours: String) -> String { "Not synced yet · \(hours) h" }
+    public static let collectionErrLink = "Your company requires every collection to name its purchase or invoice." // field.collection.linkRequired
+    public static let collectionLinkFooter = "The cash pays this purchase up to what it still owes; anything above stays as customer credit."
+    public static let handoverPartialTitle = "Part of your cash stays with you"
+    public static func handoverPartialFooter(balance: String) -> String {
+        "\(balance) is your cash. Your company requires the full balance to be remitted, so say why part of it stays with you."
+    }
+    public static let handoverPartialFooterOther = "If this is less than this person holds, your company requires the reason."
+    public static let handoverPartialReason = "Why part of the cash stays (required)"
+    public static let handoverPartialReasonOptional = "Why part of the cash stays (optional)"
+    public static let handoverPartialCategory = "Reason category (optional)"
+    public static let handoverPartialCategoryNone = "No category"
+    public static let handoverPartialError = "Enter why part of the cash stays with you (at least 3 characters)."
+    public static let transferEvidenceTitle = "Evidence photos"
+    public static let transferEvidenceTitleRequired = "Evidence photos (required)"
+    public static let transferEvidenceFooter = "Photographs are kept with the request and sent when there is a connection."
+    public static let transferErrEvidence = "Photograph the evidence for this transfer." // field.transfer.evidenceRequired
+    public static let transferPhotograph = "Photograph evidence"
+    public static let transferAddPhoto = "Add another photo"
+    public static let transferRemovePhoto = "Remove photo"
+    public static let moneyCollectionNumber = "Collection number"
+    public static let moneyRemittanceNumber = "Remittance number"
+    public static let recordNumber = "Number"
     public static let outboxWaitingPhotos = "Waiting for its photos to upload" // field.outbox.waitingPhotos
 
     /// The method's label (field.remit.method*).
@@ -260,6 +289,15 @@ public enum FieldAccountabilityTexts {
             "The account you chose does not match how the money was handed over. Record the handover again."
         case "SITE_CHECKIN_DISABLED", "CHECKIN_ID_CONFLICT", "STAFF_NOT_LINKED", "CHECKIN_IN_FUTURE", "JOB_SITE_NOT_FOUND":
             SiteCheckinTexts.conflict(code)
+        case "COLLECTION_LINK_REQUIRED":
+            "Your company requires every collection to name its purchase or invoice. Record it again and choose one."
+        case "PARTIAL_REMITTANCE_REASON_REQUIRED":
+            "Part of this cash is still with you and your company requires the reason. Record the handover again with the reason."
+        case "EVIDENCE_REQUIRED": "Your company requires evidence for this. Record it again with a photo."
+        case "PURCHASE_NOT_FOUND": "The purchase you chose is no longer on record. Record it again and choose another."
+        case "PURCHASE_CANCELLED": "The purchase you chose is cancelled. Record it again and choose another."
+        case "OVER_ALLOCATION": "This is more than the purchase still owes. Record it again with the right amount."
+        case "ALLOCATION_MISMATCH": "The purchase you chose is for another customer or currency. Record it again and choose another."
         case "DEPOSIT_ACCOUNT_CURRENCY_MISMATCH":
             "The account you chose holds a different currency. Record the handover again with another account."
         default: DailyReportTexts.conflict(code)

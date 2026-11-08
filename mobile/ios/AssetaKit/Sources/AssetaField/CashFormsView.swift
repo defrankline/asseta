@@ -19,7 +19,11 @@ struct CashCollectionFormView: View {
     @State private var note = ""
     @State private var receivedAt = Date()
     @State private var holderID: UUID?
+    @State private var linkID: UUID?
     @State private var error: String?
+
+    private var links: [CollectionLinkOption] { model.accountabilityData?.collectionLinks(customerID: customerID) ?? [] }
+    private var linkMissing: Bool { model.access.collectionLinkRequired && linkID == nil }
 
     var body: some View {
         NavigationStack {
@@ -32,7 +36,20 @@ struct CashCollectionFormView: View {
                     SearchablePickerField(label: "Customer", options: model.customerOptions, selection: $customerID,
                                           emptyMessage: "Customers of your jobs appear here after a sync.",
                                           identifier: "collection.customer")
+                        .onChange(of: customerID) { _, _ in linkID = nil }
                     holderPicker
+                }
+                if model.access.cashDetails {
+                    let required = model.access.collectionLinkRequired
+                    Section {
+                        SearchablePickerField(label: required ? FieldAccountabilityTexts.collectionLink : FieldAccountabilityTexts.collectionLinkOptional,
+                                              options: links.map { PickerOption(id: $0.id, title: $0.title, subtitle: nil) },
+                                              selection: $linkID, noneTitle: required ? nil : FieldAccountabilityTexts.collectionLinkNone,
+                                              emptyMessage: FieldAccountabilityTexts.collectionLinkEmpty, identifier: "collection.link")
+                        if linkMissing && customerID != nil {
+                            Text(FieldAccountabilityTexts.collectionErrLink).font(.footnote).foregroundStyle(Palette.warning)
+                        }
+                    } footer: { Text(FieldAccountabilityTexts.collectionLinkFooter) }
                 }
                 Section {
                     TextField("Amount", text: $amount).keyboardType(.decimalPad).font(.title3.monospacedDigit())
@@ -53,7 +70,7 @@ struct CashCollectionFormView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save", action: save).disabled(customerID == nil || amount.isEmpty)
+                    Button("Save", action: save).disabled(customerID == nil || amount.isEmpty || linkMissing)
                         .accessibilityIdentifier("collection.save")
                 }
             }
@@ -83,7 +100,10 @@ struct CashCollectionFormView: View {
                                             reference: reference, note: note,
                                             jobNumber: jobID.flatMap { model.job($0)?.job.jobNumber },
                                             jobCustomerID: jobID.flatMap { model.job($0)?.customer?.id },
-                                            custodianID: holder, receivedAt: receivedAt, clientID: clientID)
+                                            custodianID: holder, receivedAt: receivedAt,
+                                            purchaseID: model.access.cashDetails ? linkID : nil,
+                                            purchaseOperationID: links.first { $0.id == linkID }?.operationID,
+                                            linkRequired: model.access.collectionLinkRequired, clientID: clientID)
             }
             dismiss()
         } catch {
@@ -108,14 +128,23 @@ struct CashHandoverFormView: View {
     @State private var holderID: UUID?
     @State private var remittance = RemittanceDraft()
     @State private var photos: [(evidence: StoredEvidence, data: Data)] = []
+    @State private var partialReason = ""
+    @State private var partialCategoryID: UUID?
     @State private var error: String?
+
+    private var partialNeed: PartialRemittanceNeed {
+        PartialRemittance.need(access: model.access, amountText: amount, estimate: PartialRemittance.estimate(model.cashSummary(), currency: currency),
+                               otherHolder: holder != nil)
+    }
 
     var body: some View {
         let details = model.access.remittanceDetails
         let requirements = model.access.remittanceRequirements
         let accounts = model.depositAccounts
-        let issues = details ? RemittanceForm.issues(remittance, requirements: requirements, accounts: accounts, currency: currency,
-                                                     reference: reference, photoCount: photos.count) : []
+        let need = partialNeed
+        let issues = (details ? RemittanceForm.issues(remittance, requirements: requirements, accounts: accounts, currency: currency,
+                                                      reference: reference, photoCount: photos.count) : [])
+            + PartialRemittance.issues(need, reason: partialReason)
         NavigationStack {
             Form {
                 if let summary = model.cashSummary(), !summary.lines.isEmpty {
@@ -146,16 +175,19 @@ struct CashHandoverFormView: View {
                             ForEach(RemittanceMethod.allCases, id: \.self) { Text(T.remitMethodText($0)).tag($0) }
                         }
                         .pickerStyle(.segmented).accessibilityIdentifier("handover.method")
-                        SearchablePickerField(label: RemittanceForm.accountLabel(requirements),
-                                              options: model.depositAccountOptions(method: remittance.method, currency: currency),
-                                              selection: Binding(
-                                                  get: { remittance.accountID },
-                                                  set: { RemittanceForm.selectAccount(&remittance, accountID: $0, accounts: accounts) }),
-                                              noneTitle: T.remitAccountNone, emptyMessage: T.remitAccountsEmpty,
-                                              identifier: "handover.account")
+                        if model.access.depositAccountsOn {
+                            SearchablePickerField(label: RemittanceForm.accountLabel(requirements),
+                                                  options: model.depositAccountOptions(method: remittance.method, currency: currency),
+                                                  selection: Binding(
+                                                      get: { remittance.accountID },
+                                                      set: { RemittanceForm.selectAccount(&remittance, accountID: $0, accounts: accounts) }),
+                                                  noneTitle: T.remitAccountNone, emptyMessage: T.remitAccountsEmpty,
+                                                  identifier: "handover.account")
+                        }
                         TextField(RemittanceForm.referenceLabel(requirements, method: remittance.method), text: $reference)
                             .accessibilityIdentifier("handover.reference")
                     }
+                    partialSection(need)
                     EvidencePhotosSection(model: model, photos: $photos, error: $error,
                                           title: RemittanceForm.photosLabel(requirements), footer: T.remitPhotosFooter,
                                           photograph: T.remitPhotograph, addPhoto: T.remitAddPhoto, removeLabel: T.remitRemovePhoto)
@@ -165,6 +197,7 @@ struct CashHandoverFormView: View {
                         }
                     }
                 }
+                if !details { partialSection(need) }
                 if let error { Text(error).foregroundStyle(Palette.offline) }
             }
             .navigationTitle("Hand over cash")
@@ -181,6 +214,27 @@ struct CashHandoverFormView: View {
         .interactiveDismissDisabled(!photos.isEmpty)
     }
 
+    /// The reason for leaving cash behind (DEC-032 Phase 3): required below my own estimate, optional for another holder.
+    @ViewBuilder private func partialSection(_ need: PartialRemittanceNeed) -> some View {
+        if need != .hidden {
+            Section {
+                TextField(need == .optional ? T.handoverPartialReasonOptional : T.handoverPartialReason, text: $partialReason, axis: .vertical)
+                    .accessibilityIdentifier("handover.partialReason")
+                let reasons = (model.accountabilityData?.partialReasons ?? []).map { PickerOption(id: $0.id, title: $0.label, subtitle: nil) }
+                if !reasons.isEmpty {
+                    SearchablePickerField(label: T.handoverPartialCategory, options: reasons, selection: $partialCategoryID,
+                                          noneTitle: T.handoverPartialCategoryNone, identifier: "handover.partialCategory")
+                }
+            } header: { Text(T.handoverPartialTitle) } footer: {
+                if case let .required(balance) = need {
+                    Text(T.handoverPartialFooter(balance: MyCashView.money(balance, currency.trimmingCharacters(in: .whitespaces).uppercased())))
+                } else {
+                    Text(T.handoverPartialFooterOther)
+                }
+            }
+        }
+    }
+
     private func discardPhotos() {
         photos.forEach { model.discardEvidence($0.evidence) }
         photos = []
@@ -193,9 +247,11 @@ struct CashHandoverFormView: View {
                 try $0.recordCashHandover(amountText: amount, currency: currency, reference: reference, note: note,
                                           custodianID: holder, handedAt: handedAt,
                                           method: details ? remittance.method : nil,
-                                          depositAccountID: details ? remittance.accountID : nil,
+                                          depositAccountID: details && model.access.depositAccountsOn ? remittance.accountID : nil,
                                           requirements: model.access.remittanceRequirements,
-                                          evidence: details ? photos.map(\.evidence) : [], clientID: clientID)
+                                          evidence: details ? photos.map(\.evidence) : [],
+                                          partialReason: partialNeed == .hidden ? nil : partialReason,
+                                          partialReasonID: partialNeed == .hidden ? nil : partialCategoryID, clientID: clientID)
             }
             photos = [] // now owned by the queued handover
             dismiss()

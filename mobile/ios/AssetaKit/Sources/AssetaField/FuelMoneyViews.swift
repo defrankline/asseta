@@ -161,7 +161,7 @@ struct MoneyTabView: View {
             Section(group.title) {
                 ForEach(group.items) { c in
                     NavigationLink(value: FieldRoute.cash(c.id, collection: c.isCollection)) {
-                        let detail = [c.reference, c.note].compactMap { $0 }.joined(separator: " · ")
+                        let detail = [c.number, c.reference, c.note].compactMap { $0 }.joined(separator: " · ")
                         InboxRow(InboxTexts.money(c.amount, c.currency), c.status, detail.isEmpty ? nil : detail, c.at.listText,
                                  c.decisionNote.map { "Office note: \($0)" })
                     }
@@ -331,6 +331,9 @@ struct CashDetailView: View {
                     if collection {
                         LabeledContent("Customer", value: c.customerID.flatMap { cid in model.customers.first { $0.id == cid }?.name }
                                        ?? "Customer")
+                    }
+                    if let number = c.number {
+                        LabeledContent(collection ? FieldAccountabilityTexts.moneyCollectionNumber : FieldAccountabilityTexts.moneyRemittanceNumber, value: number)
                     }
                     if let reference = c.reference { LabeledContent("Reference", value: reference) }
                     LabeledContent(collection ? "Received" : "Handed over", value: c.at.listText)

@@ -62,9 +62,17 @@ public struct FieldAccess: Sendable, Equatable {
     /// or while the policy is unknown.
     public var remittanceRequirements: RemittanceRequirements {
         guard remittanceDetails, cashCustodyOn, let cash else { return RemittanceRequirements() }
-        return RemittanceRequirements(account: cash.remittanceAccountRequired, reference: cash.remittanceReferenceRequired,
+        return RemittanceRequirements(account: depositAccountsOn && cash.remittanceAccountRequired, reference: cash.remittanceReferenceRequired,
                                       evidence: cash.remittanceEvidenceRequired)
     }
+    /// DEC-032 Phase 3: collection link, partial-remittance reason and transfer evidence (server CASH_DETAILS_V2).
+    public var cashDetails: Bool { supports(SyncCapability.cashDetailsV2) }
+    /// The collection must name its purchase (CASH_DETAILS_V2 and the tenant's `collection_link_required`).
+    public var collectionLinkRequired: Bool { cashDetails && cash?.collectionLinkRequired == true }
+    /// An hours transfer needs a photo (CASH_DETAILS_V2 and the tenant's `transfer_evidence_required`).
+    public var transferEvidenceRequired: Bool { cashDetails && hours?.transferEvidenceRequired == true }
+    /// Company deposit accounts are in use (`DEPOSIT_ACCOUNTS` not switched off).
+    public var depositAccountsOn: Bool { !disabledCapabilities.contains(TenantCapability.depositAccounts) }
     public var dailyReading: Bool { supports(SyncCapability.meterDailyReading) && can(Self.meterCapture) && engineHoursOn }
     public var proposeBaseline: Bool { supports(SyncCapability.meterBaseline) && can(Self.meterCapture) && engineHoursOn }
     public var proposeCorrection: Bool { supports(SyncCapability.meterCorrection) && can(Self.meterCapture) && engineHoursOn }
@@ -336,8 +344,14 @@ extension FieldRecorder {
     @discardableResult
     public func requestHoursTransfer(purchaseID: UUID?, fromMachineID: UUID?, toMachineID: UUID?, hoursText: String,
                                      remaining: Decimal?, reason: String, reasonCodeID: UUID?, reasonCodeRequired: Bool,
+                                     evidence: [StoredEvidence] = [], evidenceRequired: Bool = false,
                                      at date: Date = Date(), clientID: UUID = UUID()) throws -> ClientOperation {
         try requireCapability(SyncCapability.hoursTransferRequest)
+        if !evidence.isEmpty { try requireCapability(SyncCapability.cashDetailsV2) }
+        if evidenceRequired && evidence.isEmpty { throw FieldRecorderError.invalid(FieldAccountabilityTexts.transferErrEvidence) }
+        guard evidence.count <= AccountabilityRules.maxEvidence else {
+            throw FieldRecorderError.invalid(FieldAccountabilityTexts.tooManyEvidence)
+        }
         let values: (hours: Decimal, reason: String)
         switch AccountabilityRules.hoursTransfer(purchaseID: purchaseID, fromMachineID: fromMachineID, toMachineID: toMachineID,
                                                  hoursText: hoursText, remaining: remaining, reason: reason,
@@ -349,11 +363,14 @@ extension FieldRecorder {
         if try alreadySaved(.hoursTransferRequest, clientID: clientID) {
             throw FieldRecorderError.notAllowed(FieldAccountabilityTexts.alreadySaved)
         }
-        let payload = HoursTransferPayload(clientID: clientID, purchaseID: purchaseID, fromMachineID: fromMachineID,
-                                           toMachineID: toMachineID, hours: values.hours, reason: values.reason,
-                                           reasonCodeID: reasonCodeID)
-        return try enqueue(.hoursTransferRequest, entityType: "hours_transfer", entityID: clientID, payload: payload,
-                           dependsOn: [], createdAt: date)
+        return try store.database.transaction {
+            let locals = try evidence.map { try addAttachment($0, purpose: .adjustmentEvidence) }
+            let payload = HoursTransferPayload(clientID: clientID, purchaseID: purchaseID, fromMachineID: fromMachineID,
+                                               toMachineID: toMachineID, hours: values.hours, reason: values.reason,
+                                               reasonCodeID: reasonCodeID, evidenceUploadIDs: evidence.isEmpty ? nil : [])
+            return try enqueue(.hoursTransferRequest, entityType: "hours_transfer", entityID: clientID, payload: payload,
+                               dependsOn: [], attachments: locals.map { ($0, .evidenceUploads) }, createdAt: date)
+        }
     }
 
     // MARK: - Cash custody

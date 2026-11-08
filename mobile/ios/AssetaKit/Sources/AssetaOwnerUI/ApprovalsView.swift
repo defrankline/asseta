@@ -27,7 +27,7 @@ struct ApprovalsView: View {
                     .listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
                 approvalRequests
             }
-            ForEach(model.features.decisionKinds.filter { ![.nonRevenue, .allocationCorrection, .adjustmentRequest].contains($0) }, id: \.self) { kind in
+            ForEach(model.features.decisionKinds.filter { ![.nonRevenue, .allocationCorrection, .adjustmentRequest, .partialRemittance, .varianceClosure].contains($0) }, id: \.self) { kind in
                 DecisionKindSection(model: model, kind: kind, onLoaded: noteWaiting)
             }
             // DEC-031: "Revenue differences" then "Non-revenue hours".
@@ -39,6 +39,10 @@ struct ApprovalsView: View {
             otherSections
             // DEC-032 Phase 2: "Adjustments", after the existing sections.
             if model.features.decisionKinds.contains(.adjustmentRequest) { DecisionKindSection(model: model, kind: .adjustmentRequest, onLoaded: noteWaiting) }
+            // DEC-032 Phase 3: "Partial remittance reasons", "Variance closures".
+            ForEach([DecisionKind.partialRemittance, .varianceClosure].filter(model.features.decisionKinds.contains), id: \.self) { kind in
+                DecisionKindSection(model: model, kind: kind, onLoaded: noteWaiting)
+            }
             if model.features.nothingWaiting(waiting: waiting) {
                 EmptyState(title: ApprovalText.emptyTitle, message: AdjustmentTexts.empty, systemImage: "checkmark.seal")
             }

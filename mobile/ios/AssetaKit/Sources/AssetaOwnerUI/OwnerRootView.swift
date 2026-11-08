@@ -35,7 +35,7 @@ public struct OwnerRootView: View {
                 stack(.jobs) { JobsView(model: model).modifier(NotificationBell(model: model) { open(.notifications) }) }
                     .tabItem { Label("Jobs", systemImage: "list.clipboard") }.tag(OwnerTab.jobs)
             }
-            if model.features.fleet {
+            if model.features.alertsOn {
                 stack(.alerts) {
                     AlertsView(model: model, machineID: nil).modifier(NotificationBell(model: model) { open(.notifications) })
                 }
@@ -103,13 +103,14 @@ public struct OwnerRootView: View {
         var path = NavigationPath()
         let target: OwnerTab
         switch route {
+        case .overview: target = model.features.overview ? .overview : .more
         case .fleet where model.features.fleet: target = .fleet
         case .jobs where model.features.jobs: target = .jobs
         case .investigations:
             target = .more; path.append(MoreItem.investigations)
         case .machine where model.features.fleet: target = .fleet; path.append(route)
-        case .alert where model.features.fleet: target = .alerts; path.append(route)
-        case .alerts where model.features.fleet: target = .alerts
+        case .alert where model.features.alertsOn: target = .alerts; path.append(route)
+        case .alerts where model.features.alertsOn: target = .alerts
         case .job where model.features.jobs: target = .jobs; path.append(route)
         case .approval:
             target = .more; path.append(MoreItem.approvals); path.append(route)
@@ -179,6 +180,7 @@ struct RouteView: View {
 
     var body: some View {
         switch route {
+        case .overview: OverviewView(model: model, open: { _ in })
         case let .machine(id): MachineDetailView(model: model, machineID: id)
         case let .alert(id): AlertDetailView(model: model, alertID: id)
         case .alerts: AlertsView(model: model, machineID: nil)

@@ -34,7 +34,7 @@ struct MachineDetailView: View {
                 ProgressView().frame(maxWidth: .infinity)
             }
             if model.features.jobs { jobSection }
-            alertSection
+            if model.features.tracking { alertSection }
             if model.features.meterEvidence { readingSection }
             if model.features.allows(.dailySheet(machineID)) {
                 Section {
@@ -52,7 +52,7 @@ struct MachineDetailView: View {
         async let a: Void = status.load(model, .machine(machineID), OwnerAPI.machine(machineID))
         async let b: Void = track.load(model, .machineTrack(machineID),
                                        OwnerAPI.history(machineID, from: now.addingTimeInterval(-86_400), to: now))
-        async let c: Void = alerts.load(model, .machineAlerts(machineID), OwnerAPI.alerts(machineID: machineID, pageSize: 5))
+        async let c: Void = loadAlerts()
         async let d: Void = info.load(model, .machineInfo(machineID), OwnerAPI.machineInfo(machineID))
         _ = await (a, b, c, d)
         if model.features.jobs {
@@ -64,14 +64,22 @@ struct MachineDetailView: View {
         }
     }
 
+    private func loadAlerts() async {
+        guard model.features.tracking else { return }
+        await alerts.load(model, .machineAlerts(machineID), OwnerAPI.alerts(machineID: machineID, pageSize: 5))
+    }
+
     @ViewBuilder private func statusSection(_ machine: MachineMapDTO) -> some View {
         let style = FleetPresentation.style(for: machine, dataIsCached: status.isFromCache)
         Section {
-            LabeledContent("Connectivity") {
-                Pill(text: FleetPresentation.statusLabel(machine, dataIsCached: status.isFromCache), color: style.tone.color)
+            if model.features.tracking {
+                LabeledContent("Connectivity") {
+                    Pill(text: FleetPresentation.statusLabel(machine, dataIsCached: status.isFromCache), color: style.tone.color)
+                }
+                .accessibilityElement(children: .combine)
             }
-            .accessibilityElement(children: .combine)
-            ForEach(Array(MachineText.statusRows(machine, info: info.value, dataIsCached: status.isFromCache).enumerated()),
+            ForEach(Array(MachineText.statusRows(machine, info: info.value, dataIsCached: status.isFromCache,
+                                                 tracking: model.features.tracking).enumerated()),
                     id: \.offset) { _, row in
                 LabeledContent(row.0, value: row.1)
             }

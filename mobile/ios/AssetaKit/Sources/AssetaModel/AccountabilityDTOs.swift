@@ -101,9 +101,13 @@ public struct HoursTransferPayload: Codable, Hashable, Sendable {
     public let hours: DecimalString
     public let reason: String
     public let reasonCodeID: UUID?
+    /// CASH_DETAILS_V2: resumable uploads (purpose ADJUSTMENT_EVIDENCE) appended as they complete. Nil = no photos (key
+    /// omitted), so a server without the capability receives today's payload.
+    public let evidenceUploadIDs: [UUID]?
 
     public init(clientID: UUID, purchaseID: UUID, fromMachineID: UUID?, toMachineID: UUID, hours: Decimal, reason: String,
-                reasonCodeID: UUID?) {
+                reasonCodeID: UUID?, evidenceUploadIDs: [UUID]? = nil) {
+        self.evidenceUploadIDs = evidenceUploadIDs
         self.clientID = clientID
         self.reasonCodeID = reasonCodeID
         self.purchaseID = purchaseID
@@ -115,7 +119,7 @@ public struct HoursTransferPayload: Codable, Hashable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case hours, reason, clientID = "client_id", purchaseID = "purchase_id", fromMachineID = "from_machine_id"
-        case toMachineID = "to_machine_id", reasonCodeID = "reason_code_id"
+        case toMachineID = "to_machine_id", reasonCodeID = "reason_code_id", evidenceUploadIDs = "evidence_upload_ids"
     }
 }
 
@@ -293,6 +297,8 @@ public struct CashTransferDTO: Codable, Hashable, Sendable, Identifiable {
     public let acknowledgedAt: Date?
     public let ackNote: String?
     public let varianceID: UUID?
+    /// CTR- number (DEC-032 Phase 3); nil from older servers.
+    public let transferNumber: String?
     // Display names beside the ids (nullable; show the short id only when missing).
     public let fromStaffName: String?
     public let toStaffName: String?
@@ -300,6 +306,7 @@ public struct CashTransferDTO: Codable, Hashable, Sendable, Identifiable {
     public let acknowledgedByName: String?
 
     enum CodingKeys: String, CodingKey {
+        case transferNumber = "transfer_number"
         case fromStaffName = "from_staff_name", toStaffName = "to_staff_name", recordedByName = "recorded_by_name"
         case acknowledgedByName = "acknowledged_by_name"
         case id, currency, note, status, source, clientID = "client_id", fromStaffID = "from_staff_id"
@@ -356,8 +363,11 @@ public struct CashRetentionDTO: Codable, Hashable, Sendable, Identifiable {
     public let staffMemberName: String?
     public let createdByName: String?
     public let decidedByName: String?
+    /// RET- number (DEC-032 Phase 3); nil from older servers.
+    public let retentionNumber: String?
 
     enum CodingKeys: String, CodingKey {
+        case retentionNumber = "retention_number"
         case clientID = "client_id", staffMemberName = "staff_member_name", createdByName = "created_by_name"
         case decidedByName = "decided_by_name"
         case id, amount, currency, reason, status, staffMemberID = "staff_member_id", reasonID = "reason_id"
@@ -513,11 +523,14 @@ public struct CashCustodyPolicyValues: Codable, Hashable, Sendable {
     public let remittanceAccountRequired: Bool
     /// Days a custodian may hold unremitted cash (nil = no limit). Informational on the phone (D3).
     public let maxHoldingDays: Int?
+    /// DEC-032 Phase 3 (off when absent): every collection names the purchase or invoice it pays for.
+    public let collectionLinkRequired: Bool
 
     public init(recordersMayRecordForOthers: Bool, transferAckRequired: Bool, recorderReceiverCountsAsAck: Bool,
                 floatAckRequired: Bool, remitFullBalance: Bool, retentionAllowed: Bool,
                 remittanceReferenceRequired: Bool = false, remittanceEvidenceRequired: Bool = false,
-                remittanceAccountRequired: Bool = false, maxHoldingDays: Int? = nil) {
+                remittanceAccountRequired: Bool = false, maxHoldingDays: Int? = nil, collectionLinkRequired: Bool = false) {
+        self.collectionLinkRequired = collectionLinkRequired
         self.recordersMayRecordForOthers = recordersMayRecordForOthers
         self.transferAckRequired = transferAckRequired
         self.recorderReceiverCountsAsAck = recorderReceiverCountsAsAck
@@ -543,6 +556,7 @@ public struct CashCustodyPolicyValues: Codable, Hashable, Sendable {
         remittanceEvidenceRequired = try c.decodeIfPresent(Bool.self, forKey: .remittanceEvidenceRequired) ?? false
         remittanceAccountRequired = try c.decodeIfPresent(Bool.self, forKey: .remittanceAccountRequired) ?? false
         maxHoldingDays = try c.decodeIfPresent(Int.self, forKey: .maxHoldingDays)
+        collectionLinkRequired = try c.decodeIfPresent(Bool.self, forKey: .collectionLinkRequired) ?? false
     }
 
     enum CodingKeys: String, CodingKey {
@@ -552,6 +566,7 @@ public struct CashCustodyPolicyValues: Codable, Hashable, Sendable {
         case remittanceReferenceRequired = "remittance_reference_required"
         case remittanceEvidenceRequired = "remittance_evidence_required"
         case remittanceAccountRequired = "remittance_account_required", maxHoldingDays = "max_holding_days"
+        case collectionLinkRequired = "collection_link_required"
     }
 }
 
@@ -562,17 +577,31 @@ public struct CustomerHoursPolicyValues: Codable, Hashable, Sendable {
     public let walkInAllowed: Bool
     public let transferRequiresApproval: Bool
     public let reasonCodeRequired: Bool
+    /// DEC-032 Phase 3 (off when absent): an hours transfer request needs at least one photo.
+    public let transferEvidenceRequired: Bool
 
-    public init(enabled: Bool, walkInAllowed: Bool, transferRequiresApproval: Bool, reasonCodeRequired: Bool = false) {
+    public init(enabled: Bool, walkInAllowed: Bool, transferRequiresApproval: Bool, reasonCodeRequired: Bool = false,
+                transferEvidenceRequired: Bool = false) {
         self.enabled = enabled
         self.walkInAllowed = walkInAllowed
         self.transferRequiresApproval = transferRequiresApproval
         self.reasonCodeRequired = reasonCodeRequired
+        self.transferEvidenceRequired = transferEvidenceRequired
+    }
+
+    /// The older switches stay strict; the DEC-032 key defaults to off.
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        enabled = try c.decode(Bool.self, forKey: .enabled)
+        walkInAllowed = try c.decode(Bool.self, forKey: .walkInAllowed)
+        transferRequiresApproval = try c.decode(Bool.self, forKey: .transferRequiresApproval)
+        reasonCodeRequired = try c.decode(Bool.self, forKey: .reasonCodeRequired)
+        transferEvidenceRequired = try c.decodeIfPresent(Bool.self, forKey: .transferEvidenceRequired) ?? false
     }
 
     enum CodingKeys: String, CodingKey {
         case enabled, walkInAllowed = "walk_in_allowed", transferRequiresApproval = "transfer_requires_approval"
-        case reasonCodeRequired = "reason_code_required"
+        case reasonCodeRequired = "reason_code_required", transferEvidenceRequired = "transfer_evidence_required"
     }
 }
 

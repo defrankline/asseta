@@ -93,6 +93,8 @@ public struct CashItem: Sendable, Identifiable, Equatable {
     public let verifiedAt: Date?
     public let allocations: Int
     public let op: ClientOperation?
+    /// The collection / remittance number once the server has it (DEC-032 Phase 3).
+    public var number: String? = nil
 }
 
 /// A work-log entry: the server's activity and/or this phone's entry (`running` until stopped).
@@ -333,7 +335,8 @@ public struct InboxDirectory: Sendable {
                 reference: s?.reference ?? text(p, "reference"), note: s?.note ?? text(p, "note"),
                 at: s?.receivedAt ?? date(p, "received_at") ?? m.local?.createdAtDevice ?? .distantPast,
                 status: InboxStatusRules.combined(local: m.local?.status, server: s.map { InboxStatusRules.settlement($0.status) }),
-                decisionNote: s?.decisionNote, verifiedAt: s?.verifiedAt, allocations: s?.allocations.count ?? 0, op: m.local)
+                decisionNote: s?.decisionNote, verifiedAt: s?.verifiedAt, allocations: s?.allocations.count ?? 0, op: m.local,
+                number: s?.collectionNumber)
         }.sorted { $0.at > $1.at }
 
         snapshot.handovers = InboxMerge.merge(
@@ -349,7 +352,7 @@ public struct InboxDirectory: Sendable {
                 reference: s?.reference ?? text(p, "reference"), note: s?.note ?? text(p, "note"),
                 at: s?.handedAt ?? date(p, "handed_at") ?? m.local?.createdAtDevice ?? .distantPast,
                 status: InboxStatusRules.combined(local: m.local?.status, server: s.map { InboxStatusRules.settlement($0.status) }),
-                decisionNote: s?.decisionNote, verifiedAt: s?.verifiedAt, allocations: 0, op: m.local)
+                decisionNote: s?.decisionNote, verifiedAt: s?.verifiedAt, allocations: 0, op: m.local, number: s?.remittanceNumber)
         }.sorted { $0.at > $1.at }
 
         // Work log: server activities, this phone's recorded activities and its running entries.

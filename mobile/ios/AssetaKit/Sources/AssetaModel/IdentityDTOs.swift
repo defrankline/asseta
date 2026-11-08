@@ -125,6 +125,12 @@ public enum TenantCapability {
     public static let engineHours = "ENGINE_HOURS"
     /// The DEC-030 cash additions (transfers, acknowledgements, variances, retentions, adjustments, cut-off).
     public static let cashCustody = "CASH_CUSTODY"
+    /// DEC-032 module switches (default on; off = their entry points are hidden and the server answers `<CODE>_DISABLED`).
+    public static let insights = "INSIGHTS"
+    public static let investigations = "INVESTIGATIONS"
+    public static let tracking = "TRACKING"
+    public static let depositAccounts = "DEPOSIT_ACCOUNTS"
+    public static let managedService = "MANAGED_SERVICE"
 }
 
 /// Server-computed access level for a tenant membership (subscription/entitlement driven).

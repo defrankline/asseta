@@ -8,6 +8,9 @@ extension SyncCapability {
     /// `CASH_HANDOVER` accepts method, deposit_account_id, evidence_attachment_ids and evidence_upload_ids (purpose
     /// REMITTANCE_EVIDENCE); `SyncData.deposit_accounts` carries the account picker.
     public static let remittanceDetails = "REMITTANCE_DETAILS_V1"
+    /// DEC-032 Phase 3: `CASH_COLLECTION` accepts `purchase_id`, `CASH_HANDOVER` accepts `partial_reason` and
+    /// `partial_reason_id`, `HOURS_TRANSFER_REQUEST` accepts `evidence_upload_ids` (purpose ADJUSTMENT_EVIDENCE).
+    public static let cashDetailsV2 = "CASH_DETAILS_V2"
 }
 
 /// How a remittance reached the company (`RemittanceMethod`). Nil on remittances recorded before DEC-031.

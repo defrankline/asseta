@@ -170,6 +170,11 @@ public enum AssetaSchema {
             name: "daily_report_evidence",
             statements: DailyReportV9.statements
         ),
+        Migration(
+            version: 10,
+            name: "adjustment_evidence",
+            statements: AdjustmentEvidenceV10.statements
+        ),
     ]
 }
 

@@ -3,6 +3,7 @@ import Foundation
 
 /// A screen of the Owner app that a notification can open.
 public enum OwnerRoute: Hashable, Sendable {
+    case overview
     case fleet
     case jobs
     case investigations
@@ -301,7 +302,7 @@ extension OwnerRoute {
         switch self {
         case .machine, .alert, .approval, .investigation, .job, .meterReset, .handover, .exception, .notification, .decision,
              .cashTransfer, .cashFloat, .overdueRemittance, .revenueDifference, .dailySheetDay, .hoursPurchase, .scorecardPerson, .dailyReport: true
-        case .fleet, .jobs, .investigations, .alerts, .approvals, .exceptions, .fieldSpend, .cash, .notifications,
+        case .overview, .fleet, .jobs, .investigations, .alerts, .approvals, .exceptions, .fieldSpend, .cash, .notifications,
              .accountability, .overdueRemittances, .dailySheet, .customerHours, .hoursStatement, .scorecard, .unbilledWork,
              .idleMachines, .setupChecklist: false
         }

@@ -50,14 +50,15 @@ public enum OverviewPresentation {
     }
 
     /// `cached`: the overview is an offline snapshot, so "live" counts describe the moment it was saved.
-    public static func sections(_ o: TenantOverviewDTO, cached: Bool, now: Date = Date(),
+    public static func sections(_ o: TenantOverviewDTO, cached: Bool, now: Date = Date(), disabled: Set<String> = [],
                                 money: (DecimalString, String) -> String = { OwnerFormat.money($0, currency: $1) })
         -> [OverviewSection] {
         var out: [OverviewSection] = []
+        let trackingOn = !disabled.contains(TenantCapability.tracking)
         if let f = o.fleet {
             let c = f.connectivity
-            var rows = [
-                OverviewRow(label: "Machines", value: "\(f.machines)"),
+            var rows = [OverviewRow(label: "Machines", value: "\(f.machines)")]
+            if trackingOn { rows += [
                 OverviewRow(label: cached ? "Live when saved" : "Live now", value: "\(c.live)", tone: cached ? .muted : .good),
                 OverviewRow(label: "Recent", value: "\(c.recent)"),
                 OverviewRow(label: "Stale", value: "\(c.stale)", tone: c.stale > 0 ? .warning : .normal),
@@ -65,12 +66,14 @@ public enum OverviewPresentation {
                 OverviewRow(label: "Never reported", value: "\(c.never)", tone: .muted),
                 OverviewRow(label: "No tracker", value: "\(c.noTracker)", tone: .muted),
                 OverviewRow(label: "Engine on (tracker verified)", value: "\(f.engineOnVerified)"),
-            ]
+            ] }
             rows += f.reportedWorkState.keys.sorted().map {
                 OverviewRow(label: "Reported \(OwnerFormat.humanize($0).lowercased())", value: "\(f.reportedWorkState[$0] ?? 0)")
             }
-            rows.append(OverviewRow(label: "Open alerts", value: "\(f.openAlerts.total)", detail: breakdown(f.openAlerts),
-                                    tone: f.openAlerts.critical > 0 ? .critical : .normal, route: .alerts))
+            if trackingOn {
+                rows.append(OverviewRow(label: "Open alerts", value: "\(f.openAlerts.total)", detail: breakdown(f.openAlerts),
+                                        tone: f.openAlerts.critical > 0 ? .critical : .normal, route: .alerts))
+            }
             out.append(OverviewSection(title: "Fleet", freshness: OwnerFormat.sourceFreshness(f.latestSourceAt, now: now),
                                        groups: [OverviewGroup(heading: nil, rows: rows)],
                                        actions: [OverviewAction(label: "Open fleet map", route: .fleet)]))
@@ -106,7 +109,7 @@ public enum OverviewPresentation {
                                        freshness: OwnerFormat.sourceFreshness(m.latestSourceAt, now: now), groups: groups,
                                        emptyText: groups.isEmpty ? "No financial activity this month." : nil))
         }
-        if let r = o.risk {
+        if let r = o.risk, !disabled.contains(TenantCapability.investigations) {
             var rows: [OverviewRow] = []
             if let c = r.openCases {
                 rows.append(OverviewRow(label: "Open investigations", value: "\(c.total)", detail: breakdown(c),
@@ -137,7 +140,8 @@ extension OwnerFeatures {
         OwnerTabKind.allCases.filter {
             switch $0 {
             case .overview: overview
-            case .fleet, .alerts: fleet
+            case .fleet: fleet
+            case .alerts: alertsOn
             case .jobs: jobs
             case .more: true
             }
@@ -168,6 +172,11 @@ extension OwnerFeatures {
             unbilledWork ? route : .accountability
         case .idleMachines:
             idleMachines ? route : .accountability
+        // TRACKING / INVESTIGATIONS off: their lists and records open home (strings doc, DEC-032 Phase 3).
+        case .alerts, .alert:
+            tracking ? route : .overview
+        case .investigations, .investigation:
+            investigations ? route : .overview
         // ENGINE_HOURS off: a daily report opens Approvals (as a hidden decision does).
         case .dailyReport:
             engineHours ? route : .approvals
@@ -178,7 +187,9 @@ extension OwnerFeatures {
     /// Whether the role can open the screen a route leads to (links to other screens are hidden otherwise).
     public func allows(_ route: OwnerRoute) -> Bool {
         switch route {
-        case .fleet, .machine, .alerts, .alert: fleet
+        case .overview: overview
+        case .fleet, .machine: fleet
+        case .alerts, .alert: alertsOn
         case .jobs, .job: jobs
         case .approvals: approvalsScreen
         case .approval: approvals
@@ -261,22 +272,23 @@ public enum MachineText {
 
     /// Status rows in display order (label, value); optional rows only when known.
     public static func statusRows(_ m: MachineMapDTO, info: OwnerMachineDTO?, dataIsCached: Bool,
-                                  now: Date = Date()) -> [(String, String)] {
+                                  now: Date = Date(), tracking: Bool = true) -> [(String, String)] {
         var rows: [(String, String)] = [("Machine", FleetPresentation.title(m))]
         let seen = FleetPresentation.lastSeenText(m, dataIsCached: dataIsCached, now: now)
-        rows.append(("Last seen", seen == "Never seen" ? "Never" : String(seen.dropFirst("Last seen ".count)).capitalizedFirstLetter))
-        rows.append(("Position time", m.positionTime.map { OwnerFormat.timestamp($0) } ?? "—"))
-        if let a = m.accuracyM { rows.append(("Accuracy", "± \(Int(a.rounded())) m")) }
+        if tracking {
+            rows.append(("Last seen", seen == "Never seen" ? "Never" : String(seen.dropFirst("Last seen ".count)).capitalizedFirstLetter))
+            rows.append(("Position time", m.positionTime.map { OwnerFormat.timestamp($0) } ?? "—"))
+            if let a = m.accuracyM { rows.append(("Accuracy", "± \(Int(a.rounded())) m")) }
+            rows += [("Engine (tracker)", m.observedEngine.humanized), ("Motion (tracker)", m.observedMotion.humanized)]
+        }
         rows += [
-            ("Engine (tracker)", m.observedEngine.humanized),
-            ("Motion (tracker)", m.observedMotion.humanized),
             ("Reported work status", OwnerFormat.humanize(m.reportedWorkStatus)),
             ("Location compliance", m.locationCompliance.humanized),
             ("Machine status", OwnerFormat.humanize(m.machineStatus)),
         ]
         if let op = m.operator { rows.append(("Operator", op)) }
         if let s = m.supervisor { rows.append(("Supervisor", s)) }
-        if let t = m.trackerState { rows.append(("Tracker", OwnerFormat.humanize(t))) }
+        if tracking, let t = m.trackerState { rows.append(("Tracker", OwnerFormat.humanize(t))) }
         if let line = info?.modelLine { rows.append(("Model", line)) }
         if let info { rows.append(("Ownership", OwnerFormat.humanize(info.ownership))) }
         return rows

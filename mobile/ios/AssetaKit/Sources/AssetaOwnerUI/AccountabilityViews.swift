@@ -71,9 +71,14 @@ struct DecisionDetailView: View {
     @State private var confirmReject = false
     @State private var showPhoto = false
 
+    /// A variance is decided by what it waits for (closure or write-off), whichever way it was opened.
+    private var varianceStatus: String? { record.value?["status"]?.stringValue }
+    private var effective: DecisionKind { kind.effective(varianceStatus: varianceStatus) }
+    private var isVariance: Bool { kind == .writeOff || kind == .varianceClosure }
     private var item: PendingDecision? {
-        decided ?? record.value.flatMap { PendingDecision.from($0, kind: kind) }
+        decided ?? record.value.flatMap { PendingDecision.from($0, kind: effective) }
     }
+    private var variance: CashVarianceDTO? { isVariance ? record.value.flatMap { try? $0.decode(as: CashVarianceDTO.self) } : nil }
     private var showingCachedData: Bool { record.isFromCache }
     /// The adjustment request behind the decision (effects, evidence, withdraw).
     private var adjustment: AdjustmentRequestDTO? { record.value.flatMap { try? $0.decode(as: AdjustmentRequestDTO.self) } }
@@ -103,7 +108,8 @@ struct DecisionDetailView: View {
                     AllocationCorrectionExtras(model: model, correction: correction)
                 }
                 if kind == .adjustmentRequest, let request = adjustment { AdjustmentRequestExtras(model: model, request: request) }
-                if item.isPending && model.features.canDecide(kind) { decision(item) }
+                if let variance { VarianceExtras(model: model, variance: variance) }
+                if item.isPending && model.features.canDecide(effective) { decision(item) }
                 if kind == .adjustmentRequest, let request = adjustment,
                    AdjustmentRules.offersWithdraw(request, userID: model.me.userID, permissions: model.features.permissions) {
                     AdjustmentWithdrawSection(model: model, requestID: request.id, showingCachedData: showingCachedData) { result in
@@ -123,7 +129,7 @@ struct DecisionDetailView: View {
             }
         }
         .staleBanner(record, model: model)
-        .navigationTitle(kind.decisionTitle)
+        .navigationTitle(isVariance ? kind.varianceTitle(status: varianceStatus) : kind.decisionTitle)
         .refreshable { await reload() }
         .task(id: model.changeTick) { await reload() }
         .confirmationDialog(T.decisionConfirmReject, isPresented: $confirmReject, titleVisibility: .visible) {
@@ -132,22 +138,22 @@ struct DecisionDetailView: View {
     }
 
     @ViewBuilder private func decision(_ item: PendingDecision) -> some View {
-        let block = model.mutationBlock(permitted: model.features.canDecide(kind), showingCachedData: showingCachedData)
+        let block = model.mutationBlock(permitted: model.features.canDecide(effective), showingCachedData: showingCachedData)
         let own = item.isOwn(userID: model.me.userID)
         Section {
             if let block {
                 BlockedNote(block: block)
             } else {
-                TextField(DecisionRules.noteLabel(kind), text: $note, axis: .vertical).lineLimit(2...5)
+                TextField(DecisionRules.noteLabel(effective), text: $note, axis: .vertical).lineLimit(2...5)
                 HStack {
                     Button(T.decisionApprove) { Task { await decide(approve: true) } }
                         .buttonStyle(.borderedProminent).tint(Palette.live)
-                        .disabled(own || !DecisionRules.canDecide(kind, approve: true, note: note))
+                        .disabled(own || !DecisionRules.canDecide(effective, approve: true, note: note))
                         .accessibilityHint(own ? T.decisionOwnRequest : "")
                     Spacer()
                     Button(T.decisionReject, role: .destructive) { confirmReject = true }
                         .buttonStyle(.bordered)
-                        .disabled(own || !DecisionRules.canDecide(kind, approve: false, note: note))
+                        .disabled(own || !DecisionRules.canDecide(effective, approve: false, note: note))
                 }
                 .disabled(working)
                 if own { Text(T.decisionOwnRequest).font(.footnote).foregroundStyle(.secondary) }
@@ -159,11 +165,11 @@ struct DecisionDetailView: View {
     }
 
     private func decide(approve: Bool) async {
-        guard let repository = model.repository, DecisionRules.canDecide(kind, approve: approve, note: note) else { return }
+        guard let repository = model.repository, DecisionRules.canDecide(effective, approve: approve, note: note) else { return }
         working = true
         defer { working = false }
         do {
-            let result = try await repository.send(OwnerAPI.decide(kind, id: recordID, approve: approve, note: note,
+            let result = try await repository.send(OwnerAPI.decide(effective, id: recordID, approve: approve, note: note,
                                                                    idempotencyKey: UUID()))
             apply(result)
             decisionError = nil
@@ -172,7 +178,7 @@ struct DecisionDetailView: View {
             UIAccessibility.post(notification: .announcement, argument: message)
             await reload()
         } catch {
-            decisionError = DecisionRules.message(for: error, kind: kind)
+            decisionError = DecisionRules.message(for: error, kind: effective)
             model.handle(error)
             if DecisionRules.needsReload(error) {
                 decided = nil
@@ -183,8 +189,8 @@ struct DecisionDetailView: View {
 
     /// Shows a decision or withdrawal result at once, also when the reload that follows fails.
     private func apply(_ result: JSONValue) {
-        decided = PendingDecision.from(result, kind: kind)
-        if kind == .adjustmentRequest { record.replace(result) }
+        decided = PendingDecision.from(result, kind: effective)
+        if kind == .adjustmentRequest || isVariance { record.replace(result) }
     }
 
     private func reload() async {

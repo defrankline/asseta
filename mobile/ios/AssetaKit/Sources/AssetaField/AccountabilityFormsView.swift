@@ -210,6 +210,7 @@ struct HoursTransferFormView: View {
     @State private var hours = ""
     @State private var reasonCodeID: UUID?
     @State private var reason = ""
+    @State private var photos: [(evidence: StoredEvidence, data: Data)] = []
     @State private var error: String?
 
     private var purchases: [HoursPurchaseDTO] {
@@ -262,6 +263,15 @@ struct HoursTransferFormView: View {
                         }
                         TextField(T.reason, text: $reason, axis: .vertical)
                     }
+                    if a.cashDetails {
+                        EvidencePhotosSection(model: model, photos: $photos, error: $error,
+                                              title: a.transferEvidenceRequired ? T.transferEvidenceTitleRequired : T.transferEvidenceTitle,
+                                              footer: T.transferEvidenceFooter, photograph: T.transferPhotograph,
+                                              addPhoto: T.transferAddPhoto, removeLabel: T.transferRemovePhoto)
+                        if a.transferEvidenceRequired && photos.isEmpty {
+                            Section { Text(T.transferErrEvidence).foregroundStyle(Palette.warning) }
+                        }
+                    }
                     if case let .failure(problems) = check {
                         let shown = problems.messages.filter { $0.hasPrefix("Only") || $0.hasPrefix("Choose a different") }
                         if !shown.isEmpty {
@@ -273,15 +283,21 @@ struct HoursTransferFormView: View {
             .navigationTitle(T.titleHoursTransfer)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { discardPhotos(); dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save", action: save).disabled(!a.requestHoursTransfer || !check.isValid)
+                    Button("Save", action: save).disabled(!a.requestHoursTransfer || !check.isValid || (a.transferEvidenceRequired && photos.isEmpty))
                 }
             }
             .alert("Not saved", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
                 Button("OK") { error = nil }
             } message: { Text(error ?? "") }
         }
+        .interactiveDismissDisabled(!photos.isEmpty)
+    }
+
+    private func discardPhotos() {
+        photos.forEach { model.discardEvidence($0.evidence) }
+        photos = []
     }
 
     /// Machines holding hours of the purchase (its own machine when none is listed).
@@ -307,8 +323,10 @@ struct HoursTransferFormView: View {
             try model.perform {
                 try $0.requestHoursTransfer(purchaseID: purchaseID, fromMachineID: fromMachineID, toMachineID: toMachineID,
                                             hoursText: hours, remaining: remaining, reason: reason, reasonCodeID: reasonCodeID,
-                                            reasonCodeRequired: required, clientID: clientID)
+                                            reasonCodeRequired: required, evidence: photos.map(\.evidence),
+                                            evidenceRequired: model.access.transferEvidenceRequired, clientID: clientID)
             }
+            photos = [] // now owned by the queued request
             dismiss()
         } catch {
             self.error = JobDetailView.describe(error)
@@ -636,6 +654,7 @@ struct RetentionStatusView: View {
                 Section {
                     LabeledContent(T.amount, value: InboxTexts.money(AccountabilityRules.plain(item.amount), item.currency ?? ""))
                     LabeledContent(T.retentionStatus) { Self.pill(item) }
+                    if let number = item.number { LabeledContent(T.recordNumber, value: number) }
                     LabeledContent(T.retentionRequested, value: item.at.listText)
                     if let until = item.validUntil { LabeledContent(T.retentionValidUntil, value: until.listText) }
                     LabeledContent(T.reason, value: item.reason)
@@ -774,7 +793,7 @@ struct TransfersSegment: View {
             case "DISPUTED": (.rejected, T.moneyStatusDisputed)
             default: (.pending, T.moneyStatusPendingAck)
             }
-            return Row(key: t.id.uuidString, title: title, amount: (t.amountReceived ?? t.amountDeclared).description, currency: t.currency,
+            return Row(key: t.id.uuidString, title: [title, t.transferNumber].compactMap { $0 }.joined(separator: " · "), amount: (t.amountReceived ?? t.amountDeclared).description, currency: t.currency,
                        status: status, statusText: text, at: t.transferredAt)
         }
         let known = Set(saved.compactMap(\.clientID))

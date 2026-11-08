@@ -32,7 +32,8 @@ struct AccountabilityGapOwnerTests {
         #expect(on.customerHours && on.decisionKinds.contains(.discount) && on.decisionKinds.contains(.cancellation))
         let off = OwnerFeatures(permissions: permissions, disabledCapabilities: [TenantCapability.customerHours])
         #expect(!off.customerHours)
-        #expect(off.decisionKinds == [.baseline, .classification, .correction, .writeOff, .retention, .adjustment, .allocationCorrection])
+        #expect(off.decisionKinds == [.baseline, .classification, .correction, .writeOff, .retention, .adjustment, .allocationCorrection,
+                                     .partialRemittance, .varianceClosure])
         #expect(!off.allows(.decision(.discount, UUID())) && off.allows(.decision(.retention, UUID())))
         let tenant = TenantMembership(tenantID: UUID(), name: "Acme", status: .active, accessState: .full, permissions: permissions,
                                       menus: [], disabledCapabilities: ["CUSTOMER_HOURS"])

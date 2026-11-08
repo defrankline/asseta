@@ -309,8 +309,11 @@ public struct SyncCashCollectionDTO: Codable, Hashable, Sendable, Identifiable {
     public let source: String
     public let allocations: [HireAllocationDTO]
     public let syncRevision: Int64
+    /// COL-/PAY- number (DEC-032 Phase 3); nil from older servers.
+    public let collectionNumber: String?
 
     enum CodingKeys: String, CodingKey {
+        case collectionNumber = "collection_number"
         case id, amount, currency, method, status, reference, note, source, allocations
         case clientID = "client_id", customerID = "customer_id", decisionNote = "decision_note", receivedAt = "received_at"
         case receivedByStaffID = "received_by_staff_id", recordedAt = "recorded_at", recordedBy = "recorded_by"
@@ -338,6 +341,7 @@ public struct SyncCashCollectionDTO: Codable, Hashable, Sendable, Identifiable {
         source = try c.decode(String.self, forKey: .source)
         allocations = try c.decodeIfPresent([HireAllocationDTO].self, forKey: .allocations) ?? []
         syncRevision = try c.decode(Int64.self, forKey: .syncRevision)
+        collectionNumber = try c.decodeIfPresent(String.self, forKey: .collectionNumber)
     }
 }
 
@@ -364,7 +368,11 @@ public struct SyncCashHandoverDTO: Codable, Hashable, Sendable, Identifiable {
     public let depositAccountName: String?
     public let evidenceAttachmentIDs: [UUID]?
 
+    /// RMT- number (DEC-032 Phase 3); nil from older servers.
+    public let remittanceNumber: String?
+
     enum CodingKeys: String, CodingKey {
+        case remittanceNumber = "remittance_number"
         case id, amount, currency, status, reference, note, source, method
         case depositAccountID = "deposit_account_id", depositAccountName = "deposit_account_name"
         case evidenceAttachmentIDs = "evidence_attachment_ids"

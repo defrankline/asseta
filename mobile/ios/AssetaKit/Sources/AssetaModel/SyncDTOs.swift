@@ -317,6 +317,8 @@ public enum BlobPurpose: String, Codable, Sendable, CaseIterable {
     case remittanceEvidence = "REMITTANCE_EVIDENCE"
     /// Photo of a daily operational report (DAILY_REPORT, DEC-032 A4).
     case dailyReportEvidence = "DAILY_REPORT_EVIDENCE"
+    /// Evidence of an adjustment raised in the field (HOURS_TRANSFER_REQUEST, CASH_DETAILS_V2).
+    case adjustmentEvidence = "ADJUSTMENT_EVIDENCE"
 }
 
 public struct BlobStartIn: Codable, Hashable, Sendable {
