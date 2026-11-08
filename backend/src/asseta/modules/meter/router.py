@@ -87,7 +87,7 @@ for menu in (
     ),
 ):
     CATALOG.register_menu(menu)
-PURPOSES = {"METER_PHOTO", "SIGNATURE", "RESET_EVIDENCE", "EXPENSE_RECEIPT"}
+PURPOSES = {"METER_PHOTO", "SIGNATURE", "RESET_EVIDENCE", "EXPENSE_RECEIPT", "DAILY_REPORT_EVIDENCE"}
 
 router = APIRouter(prefix="/api/v1/tenant", tags=["meter"], responses=ERROR_RESPONSES)
 DbSession = Annotated[Session, Depends(get_session)]

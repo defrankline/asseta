@@ -15,7 +15,7 @@ from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Index, Integer, Stri
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from asseta.core.db import Base, Timestamps, UuidPk, utcnow
+from asseta.core.db import Base, SyncRevisioned, Timestamps, UuidPk, utcnow
 from asseta.core.lifecycle import Deactivatable
 from asseta.modules.meter.models import READING
 
@@ -94,7 +94,7 @@ class MachineMeterBaseline(UuidPk, Base):
     decision_note: Mapped[str | None] = mapped_column(Text)
 
 
-class EngineHourReason(UuidPk, Deactivatable, Timestamps, Base):
+class EngineHourReason(UuidPk, SyncRevisioned, Deactivatable, Timestamps, Base):
     """Tenant-defined list entry: a non-customer activity category or an identified-variance reason. Business
     data, never an enum; deactivated entries stay on past classifications."""
 

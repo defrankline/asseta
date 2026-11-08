@@ -7985,6 +7985,12 @@ export interface components {
              * Format: date-time
              */
             server_time: string;
+            /**
+             * Tenant Timezone
+             * @description IANA zone of the tenant's day boundary (work dates)
+             * @default UTC
+             */
+            tenant_timezone: string;
         };
         /**
          * Cadence
@@ -9083,6 +9089,12 @@ export interface components {
              * Format: date-time
              */
             server_time: string;
+            /**
+             * Tenant Timezone
+             * @description IANA zone of the tenant's day boundary (work dates)
+             * @default UTC
+             */
+            tenant_timezone: string;
         };
         /**
          * Channel
@@ -18346,6 +18358,36 @@ export interface components {
             verified_by_name?: string | null;
         };
         /**
+         * SyncChangeoverJobDto
+         * @description A job a changeover can move on to (DEC-032 A3). A delta may carry a job in another status: drop it from the
+         *     picker unless it is PENDING_APPROVAL or APPROVED. Only PENDING_APPROVAL can be named while another job runs.
+         */
+        SyncChangeoverJobDto: {
+            /**
+             * Customer Id
+             * Format: uuid
+             */
+            customer_id: string;
+            /** Customer Name */
+            customer_name: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Job Number */
+            job_number: string;
+            /**
+             * Machine Id
+             * Format: uuid
+             */
+            machine_id: string;
+            /** Status */
+            status: string;
+            /** Sync Revision */
+            sync_revision: number;
+        };
+        /**
          * SyncConflictDto
          * @description A field operation the server did not apply (CONFLICT or REJECTED), with what the device sent (evidence), why
          *     it was not applied, the server state at the time and the office's outcome once resolved.
@@ -18407,6 +18449,11 @@ export interface components {
              * @default []
              */
             cash_custody: components["schemas"]["CashCustodyBalanceDto"][];
+            /**
+             * Changeover Jobs
+             * @default []
+             */
+            changeover_jobs: components["schemas"]["SyncChangeoverJobDto"][];
             /**
              * Contracts
              * @default []
@@ -18487,6 +18534,11 @@ export interface components {
              * @default []
              */
             staff: components["schemas"]["StaffDto"][];
+            /**
+             * Unbillable Reasons
+             * @default []
+             */
+            unbillable_reasons: components["schemas"]["SyncUnbillableReasonDto"][];
         };
         /** SyncDepositAccountDto */
         SyncDepositAccountDto: {
@@ -18845,6 +18897,27 @@ export interface components {
          * @enum {string}
          */
         SyncResolutionOutcome: "DISMISSED" | "RECAPTURED";
+        /**
+         * SyncUnbillableReasonDto
+         * @description One entry of the tenant's unbillable-reason list for the daily report (DEC-032 A4).
+         */
+        SyncUnbillableReasonDto: {
+            /** Code */
+            code: string;
+            /** Description */
+            description: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Name */
+            name: string;
+            /** Sync Revision */
+            sync_revision: number;
+        };
         /**
          * TelemetryAdapterKind
          * @enum {string}

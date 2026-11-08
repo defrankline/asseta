@@ -2659,6 +2659,12 @@
             "format": "date-time",
             "title": "Server Time",
             "type": "string"
+          },
+          "tenant_timezone": {
+            "default": "UTC",
+            "description": "IANA zone of the tenant's day boundary (work dates)",
+            "title": "Tenant Timezone",
+            "type": "string"
           }
         },
         "required": [
@@ -5744,6 +5750,12 @@
           "server_time": {
             "format": "date-time",
             "title": "Server Time",
+            "type": "string"
+          },
+          "tenant_timezone": {
+            "default": "UTC",
+            "description": "IANA zone of the tenant's day boundary (work dates)",
+            "title": "Tenant Timezone",
             "type": "string"
           }
         },
@@ -31025,6 +31037,53 @@
         "title": "SyncCashHandoverDto",
         "type": "object"
       },
+      "SyncChangeoverJobDto": {
+        "description": "A job a changeover can move on to (DEC-032 A3). A delta may carry a job in another status: drop it from the\npicker unless it is PENDING_APPROVAL or APPROVED. Only PENDING_APPROVAL can be named while another job runs.",
+        "properties": {
+          "customer_id": {
+            "format": "uuid",
+            "title": "Customer Id",
+            "type": "string"
+          },
+          "customer_name": {
+            "title": "Customer Name",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "job_number": {
+            "title": "Job Number",
+            "type": "string"
+          },
+          "machine_id": {
+            "format": "uuid",
+            "title": "Machine Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "sync_revision": {
+            "title": "Sync Revision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "job_number",
+          "machine_id",
+          "customer_id",
+          "customer_name",
+          "status",
+          "sync_revision"
+        ],
+        "title": "SyncChangeoverJobDto",
+        "type": "object"
+      },
       "SyncConflictDto": {
         "description": "A field operation the server did not apply (CONFLICT or REJECTED), with what the device sent (evidence), why\nit was not applied, the server state at the time and the office's outcome once resolved.",
         "properties": {
@@ -31156,6 +31215,14 @@
             "title": "Cash Custody",
             "type": "array"
           },
+          "changeover_jobs": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/SyncChangeoverJobDto"
+            },
+            "title": "Changeover Jobs",
+            "type": "array"
+          },
           "contracts": {
             "default": [],
             "items": {
@@ -31282,6 +31349,14 @@
               "$ref": "#/components/schemas/StaffDto"
             },
             "title": "Staff",
+            "type": "array"
+          },
+          "unbillable_reasons": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/SyncUnbillableReasonDto"
+            },
+            "title": "Unbillable Reasons",
             "type": "array"
           }
         },
@@ -32437,6 +32512,53 @@
         ],
         "title": "SyncResolutionOutcome",
         "type": "string"
+      },
+      "SyncUnbillableReasonDto": {
+        "description": "One entry of the tenant's unbillable-reason list for the daily report (DEC-032 A4).",
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "sync_revision": {
+            "title": "Sync Revision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "name",
+          "description",
+          "is_active",
+          "sync_revision"
+        ],
+        "title": "SyncUnbillableReasonDto",
+        "type": "object"
       },
       "TelemetryAdapterKind": {
         "enum": [

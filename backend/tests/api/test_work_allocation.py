@@ -16,7 +16,7 @@ from tests.support.api import Actor, Api
 from tests.support.finance import complete_job, issue_invoice, role, setup_finance
 from tests.support.hours import RATE, balance, hours_policy, prepaid_job, purchase, verify
 from tests.support.intelligence import sweep
-from tests.support.jobs import JobCtx, capture, engine_hours_policy, new_job, setup_job
+from tests.support.jobs import JobCtx, capture, engine_hours_policy, new_job, setup_job, unique_jpeg
 from tests.support.notify import sql
 
 T = "/api/v1/tenant"
@@ -382,6 +382,51 @@ def test_in_job_non_revenue_allocation_names_its_approval(api: Api) -> None:
     [entry] = _allocations(o, kind="AUTHORIZED_ACTIVITY")
     assert entry["activity_type"] == "MOBILIZATION" and Decimal(entry["hours"]) == 1
     assert (entry["approval_ref_type"], entry["approval_ref_ids"]) == ("non_revenue_approval", [proposed["id"]])
+
+
+def test_field_gets_changeover_jobs_reasons_time_zone_and_policy(api: Api) -> None:
+    f = setup_finance(api, "Field Lists", "FLD-1")
+    o, sup = f.owner, f.supervisor
+    second, contract = _second_customer(f.c, api)
+    office_job = _pending_job(f.c, "J-OFFICE", contract)  # created by the office, not requested by the supervisor
+    reason = _ok(o.post(f"{T}/engine-hour-reasons", {"kind": "UNBILLABLE_REASON", "code": "RAIN", "name": "Rain"}), 201)
+    _ok(o.post(f"{T}/engine-hour-reasons", {"kind": "NON_CUSTOMER_CATEGORY", "code": "YARD", "name": "Yard"}), 201)
+    device = "android-field-lists-1"
+    headers = {**sup.headers(True, None), "X-Device-Id": device}
+    _ok(
+        api.client.post(
+            "/api/v1/sync/devices",
+            headers=headers,
+            json={"device_id": device, "platform": "ANDROID", "app_version": "1"},
+        ),
+        201,
+    )
+    boot = _ok(api.client.get("/api/v1/sync/bootstrap", headers=headers))
+    assert boot["tenant_timezone"] == "Africa/Dar_es_Salaam"
+    assert {"SYNC_CHANGEOVER_JOBS", "SYNC_UNBILLABLE_REASONS"} <= set(boot["capabilities"])
+    jobs = {j["id"]: j for j in boot["data"]["changeover_jobs"]}
+    assert jobs[office_job]["status"] == "PENDING_APPROVAL" and jobs[office_job]["customer_id"] == second
+    assert jobs[office_job]["customer_name"] == "Second Customer" and jobs[office_job]["job_number"] == "J-OFFICE"
+    assert office_job not in {j["id"] for j in boot["data"]["jobs"]}  # not on the supervisor's own job list
+    assert [r["id"] for r in boot["data"]["unbillable_reasons"]] == [reason["id"]]
+
+    _ok(o.post(f"{T}/jobs/{office_job}/transitions", {"action": "CANCEL", "reason": "Customer withdrew"}))
+    body = {"reason": "No longer used", "version": reason["version"]}
+    _ok(o.post(f"{T}/engine-hour-reasons/{reason['id']}/deactivate", body))
+    changes = _ok(api.client.get("/api/v1/sync/changes", headers=headers, params={"cursor": boot["cursor"]}))
+    assert changes["tenant_timezone"] == "Africa/Dar_es_Salaam"
+    assert {j["id"]: j["status"] for j in changes["data"]["changeover_jobs"]}[office_job] == "CANCELLED"
+    assert [(r["id"], r["is_active"]) for r in changes["data"]["unbillable_reasons"]] == [(reason["id"], False)]
+
+    # The field can read the rules it must follow, and upload a daily report's evidence online.
+    assert "changeover_splits_billing" in _ok(sup.get(f"{T}/policies/ENGINE_HOURS/effective"))["values"]
+    upload = api.client.post(
+        f"{T}/attachments",
+        headers=sup.headers(True, None),
+        files={"file": ("r.jpg", unique_jpeg(), "image/jpeg")},
+        data={"purpose": "DAILY_REPORT_EVIDENCE"},
+    )
+    assert upload.status_code == 201, upload.text
 
 
 def test_in_job_uncovered_hours_are_unexplained_and_not_billed_when_policy_is_off(api: Api) -> None:

@@ -37,11 +37,12 @@ CATALOG.register_menu(
 # capture permission alone grants the effective policy of that capture type, nothing else.
 CAPTURE_POLICY_READERS = {
     PolicyType.METER_CAPTURE: "tenant.meter.capture",
+    PolicyType.ENGINE_HOURS: "tenant.meter.capture",  # changeover and daily-report rules the field must follow
     PolicyType.EXPENSE_CAPTURE: "tenant.expense.write",
     PolicyType.CASH_CUSTODY: "tenant.collection.record",
     PolicyType.CUSTOMER_HOURS: "tenant.hours.purchase",
 }
-EFFECTIVE_READ = requires_any(("tenant.policy.read", *CAPTURE_POLICY_READERS.values()), PermissionScope.TENANT)
+EFFECTIVE_READ = requires_any(("tenant.policy.read", *set(CAPTURE_POLICY_READERS.values())), PermissionScope.TENANT)
 
 router = APIRouter(prefix="/api/v1", tags=["policy"], responses=ERROR_RESPONSES)
 DbSession = Annotated[Session, Depends(get_session)]

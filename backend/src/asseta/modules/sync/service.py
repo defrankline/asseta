@@ -29,7 +29,8 @@ from asseta.modules.jobs.dto import ContractDto, CustomerDto
 from asseta.modules.jobs.lifecycle import job_dtos
 from asseta.modules.jobs.models import Customer, Job, JobStatus, RentalContract
 from asseta.modules.jobs.scope import job_filter, own_staff
-from asseta.modules.policy.capabilities import disabled_capabilities
+from asseta.modules.meter.engine_models import EngineHourReason, EngineHourReasonKind
+from asseta.modules.policy.capabilities import ENGINE_HOURS, capability_on, disabled_capabilities
 from asseta.modules.policy.schemas import PolicyType
 from asseta.modules.policy.service import PolicyService
 from asseta.modules.sync.dto import (
@@ -38,7 +39,9 @@ from asseta.modules.sync.dto import (
     DeviceRegisterIn,
     DeviceSessionDto,
     PolicySnapshotDto,
+    SyncChangeoverJobDto,
     SyncData,
+    SyncUnbillableReasonDto,
     announced_capabilities,
 )
 from asseta.modules.sync.inbox import OPEN_JOB_STATES, InboxReader
@@ -48,6 +51,7 @@ from asseta.modules.sync.models import (
     DeviceSession,
     DeviceStatus,
 )
+from asseta.modules.tenancy.models import TenantSettings
 
 LOOKBACK = 500
 PAGE = 500
@@ -215,6 +219,8 @@ class SyncService:
             categories = categories.where(ExpenseCategory.sync_revision > min_revision)
         sites_svc = SiteService(self._s, self._tid, self._ctx.audit_actor())
         inbox = InboxReader(self._s, self._ctx, self._now, staff, PAGE).read(min_revision)
+        scope_machines = {j.machine_id for j in scope_jobs} | {m for m, _ in assignments}
+        changeover_jobs, changeover_more = self._changeover_jobs(scope_machines, min_revision)
         data = SyncData(
             jobs=job_dtos(self._s, jobs),
             machines=machine_dtos(self._s, changed(Machine, machine_ids, fresh_assigned), self._now),
@@ -227,6 +233,8 @@ class SyncService:
             expense_categories=[ExpenseCategoryDto.model_validate(c) for c in self._s.execute(categories).scalars()],
             cash_custody=self._custody(staff),
             deposit_accounts=self._deposit_accounts(min_revision),
+            changeover_jobs=changeover_jobs,
+            unbillable_reasons=self._unbillable_reasons(min_revision),
             my_meter_captures=inbox.meter_captures.items,
             my_meter_resets=inbox.meter_resets.items,
             my_job_activities=inbox.job_activities.items,
@@ -241,6 +249,8 @@ class SyncService:
         truncated = [s.last_revision for s in inbox.streams() if s.has_more]
         if jobs_more:
             truncated.append(max(j.sync_revision for j in jobs))
+        if changeover_more:
+            truncated.append(changeover_jobs[-1].sync_revision)
         cursor = min(truncated) if truncated else watermark
         return data, cursor, bool(truncated)
 
@@ -260,6 +270,58 @@ class SyncService:
         else:
             stmt = stmt.where(CompanyDepositAccount.sync_revision > min_revision)
         return [SyncDepositAccountDto.model_validate(a) for a in self._s.execute(stmt).scalars()]
+
+    def _engine_hours_on(self) -> bool:
+        return capability_on(self._s, self._tid, ENGINE_HOURS, self._now)
+
+    def _changeover_jobs(
+        self, machine_ids: set[uuid.UUID], min_revision: int | None
+    ) -> tuple[list[SyncChangeoverJobDto], bool]:
+        """Jobs a changeover can name on these machines, whoever created them (the supervisor's own job list is not
+        widened: these are not their jobs to work on). Drafts stay in the office."""
+        if not machine_ids or not self._engine_hours_on():
+            return [], False
+        stmt = (
+            select(Job, Customer.id, Customer.name)
+            .join(RentalContract, RentalContract.id == Job.contract_id)
+            .join(Customer, Customer.id == RentalContract.customer_id)
+            .where(Job.machine_id.in_(machine_ids))
+        )
+        if min_revision is None:
+            stmt = stmt.where(Job.status.in_((JobStatus.PENDING_APPROVAL, JobStatus.APPROVED)))
+        else:
+            stmt = stmt.where(Job.sync_revision > min_revision, Job.status != JobStatus.DRAFT)
+        rows = self._s.execute(stmt.order_by(Job.sync_revision).limit(PAGE + 1)).all()
+        return [
+            SyncChangeoverJobDto(
+                id=j.id,
+                job_number=j.job_number,
+                machine_id=j.machine_id,
+                customer_id=cid,
+                customer_name=name,
+                status=j.status.value,
+                sync_revision=j.sync_revision,
+            )
+            for j, cid, name in rows[:PAGE]
+        ], len(rows) > PAGE
+
+    def _unbillable_reasons(self, min_revision: int | None) -> list[SyncUnbillableReasonDto]:
+        if "tenant.meter.capture" not in self._ctx.permissions or not self._engine_hours_on():
+            return []
+        stmt = (
+            select(EngineHourReason)
+            .where(EngineHourReason.kind == EngineHourReasonKind.UNBILLABLE_REASON)
+            .order_by(EngineHourReason.code, EngineHourReason.id)
+        )
+        if min_revision is None:
+            stmt = stmt.where(EngineHourReason.is_active.is_(True))
+        else:
+            stmt = stmt.where(EngineHourReason.sync_revision > min_revision)
+        return [SyncUnbillableReasonDto.model_validate(r) for r in self._s.execute(stmt).scalars()]
+
+    def _timezone(self) -> str:
+        settings = self._s.get(TenantSettings, self._tid)
+        return settings.timezone if settings else "UTC"
 
     def _watermark(self) -> int:
         """Highest revision handed out so far (read *before* querying; LOOKBACK covers late commits)."""
@@ -315,6 +377,7 @@ class SyncService:
         return BootstrapDto(
             capabilities=self.capabilities(),
             server_time=self._now,
+            tenant_timezone=self._timezone(),
             cursor=cursor,
             device_session=DeviceSessionDto.model_validate(device),
             data=data,
@@ -329,6 +392,7 @@ class SyncService:
         return ChangesDto(
             capabilities=self.capabilities(),
             server_time=self._now,
+            tenant_timezone=self._timezone(),
             cursor=max(new_cursor, cursor),
             has_more=has_more,
             data=data,

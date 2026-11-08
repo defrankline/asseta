@@ -38,6 +38,8 @@ CAPABILITIES = [
     "OP_DAILY_REPORT",
     # METER_CAPTURE kind DAILY on a running job accepts changeover_to_customer_id (and changeover_to_job_id)
     "METER_CHANGEOVER",
+    "SYNC_CHANGEOVER_JOBS",  # SyncData.changeover_jobs: pending/approved jobs on the supervisor's machines
+    "SYNC_UNBILLABLE_REASONS",  # SyncData.unbillable_reasons: tenant list for daily reports (capture permission)
 ]
 # Protocol capabilities that belong to a tenant capability (`asseta.modules.policy.capabilities`): not announced
 # while the tenant has it switched off, and their operations are then refused (CONFLICT, the capability's code).
@@ -52,6 +54,8 @@ TENANT_CAPABILITY_OF = {
     "OP_SITE_CHECKIN": "SITE_CHECKIN",
     "OP_DAILY_REPORT": "ENGINE_HOURS",
     "METER_CHANGEOVER": "ENGINE_HOURS",
+    "SYNC_CHANGEOVER_JOBS": "ENGINE_HOURS",
+    "SYNC_UNBILLABLE_REASONS": "ENGINE_HOURS",
 }
 
 
@@ -138,6 +142,32 @@ class SyncMeterResetDto(ResetDto):
     sync_revision: int
 
 
+class SyncChangeoverJobDto(BaseModel):
+    """A job a changeover can move on to (DEC-032 A3). A delta may carry a job in another status: drop it from the
+    picker unless it is PENDING_APPROVAL or APPROVED. Only PENDING_APPROVAL can be named while another job runs."""
+
+    id: uuid.UUID
+    job_number: str
+    machine_id: uuid.UUID
+    customer_id: uuid.UUID
+    customer_name: str
+    status: str
+    sync_revision: int
+
+
+class SyncUnbillableReasonDto(BaseModel):
+    """One entry of the tenant's unbillable-reason list for the daily report (DEC-032 A4)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    code: str
+    name: str
+    description: str | None
+    is_active: bool
+    sync_revision: int
+
+
 class SyncData(BaseModel):
     jobs: list[JobDto] = []
     machines: list[MachineDto] = []
@@ -150,6 +180,11 @@ class SyncData(BaseModel):
     # Company deposit accounts for the remittance picker (REMITTANCE_DETAILS_V1; cash recorders only). Bootstrap:
     # active accounts; deltas: changes since the cursor, deactivations included (is_active=false).
     deposit_accounts: list[SyncDepositAccountDto] = []
+    # SYNC_CHANGEOVER_JOBS: jobs a changeover can name on the machines the supervisor works on, office-created included.
+    # Bootstrap: PENDING_APPROVAL and APPROVED; deltas: changes since the cursor (status says whether it still applies).
+    changeover_jobs: list[SyncChangeoverJobDto] = []
+    # SYNC_UNBILLABLE_REASONS: bootstrap: active entries; deltas: changes since the cursor, deactivations included.
+    unbillable_reasons: list[SyncUnbillableReasonDto] = []
     # Supervisor inbox (SUPERVISOR_INBOX_V1): the caller's own field records, upsert by (id, sync_revision).
     # Bootstrap: last 30 days + everything still open; deltas: anything changed since the cursor.
     my_meter_captures: list[SyncMeterCaptureDto] = []
@@ -166,6 +201,7 @@ class BootstrapDto(BaseModel):
     protocol_version: int = PROTOCOL_VERSION
     capabilities: list[str] = Field(default_factory=lambda: list(CAPABILITIES))
     server_time: datetime
+    tenant_timezone: str = Field(default="UTC", description="IANA zone of the tenant's day boundary (work dates)")
     cursor: int
     device_session: DeviceSessionDto
     data: SyncData
@@ -176,6 +212,7 @@ class ChangesDto(BaseModel):
     protocol_version: int = PROTOCOL_VERSION
     capabilities: list[str] = Field(default_factory=lambda: list(CAPABILITIES))
     server_time: datetime
+    tenant_timezone: str = Field(default="UTC", description="IANA zone of the tenant's day boundary (work dates)")
     cursor: int
     has_more: bool
     data: SyncData
