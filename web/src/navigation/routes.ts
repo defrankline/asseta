@@ -1,4 +1,5 @@
 import { PERMISSIONS } from '../access/permissionCodes';
+import { ADJUSTMENT_ROUTES } from './adjustmentRoutes';
 import { HOURS_MENU_PATHS } from './hoursRoutes';
 import { OVERSIGHT_MENU_PATHS } from './oversightRoutes';
 import { RECORD_LIST_ROUTES } from './recordRoutes';
@@ -281,6 +282,8 @@ export const IMPLEMENTED_PATHS: ReadonlySet<string> = new Set([
   ROUTES.tenantApprovals,
   ROUTES.tenantFinance,
   ROUTES.tenantCashCustody,
+  ADJUSTMENT_ROUTES.ledger,
+  ADJUSTMENT_ROUTES.requests,
   ROUTES.tenantDepositAccounts,
   ROUTES.tenantAccountability,
   ROUTES.tenantSecurityEvents,

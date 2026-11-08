@@ -19,6 +19,7 @@ import { TenantsPage } from '../pages/platform/tenants/TenantsPage';
 import { SystemStatusPage } from '../pages/SystemStatusPage';
 import { engineHoursDetailRouteElements } from './engineHoursRoutes';
 import { hoursRouteElements } from './hoursRoutes';
+import { adjustmentRouteElements } from './adjustmentRoutes';
 import { cashRecordRouteElements } from './cashRoutes';
 import { oversightRouteElements } from './oversightRoutes';
 import { revenueRouteElements } from './revenueRoutes';
@@ -426,6 +427,7 @@ export function AppRoutes() {
         />
         {cashRecordRouteElements(guard, guardAny)}
         {hoursRouteElements(guard)}
+        {adjustmentRouteElements(guard)}
         {engineHoursDetailRouteElements(engineGuard)}
         {revenueRouteElements(revenueGuard)}
         {oversightRouteElements(guard)}

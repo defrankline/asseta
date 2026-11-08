@@ -54,6 +54,7 @@ function BalanceCard({ b }: { b: CustomerBalanceDto }) {
           { label: 'Invoiced', value: m(b.invoiced) },
           { label: 'Reversed (voided invoices)', value: m(b.reversed) },
           { label: 'Verified payments', value: m(b.verified_payments) },
+          { label: 'Reversals and refunds', value: m(b.payment_reversals_and_refunds) },
           { label: 'Balance due', value: m(b.balance, true) },
           { label: 'Unallocated credit (deposits / advances)', value: m(b.unallocated_credit) },
           { label: 'Open invoices', value: String(b.open_invoices) },

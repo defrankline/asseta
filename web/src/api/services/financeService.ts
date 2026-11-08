@@ -92,6 +92,10 @@ export const customerPaymentService = {
       signal,
     );
   },
+  /** GET /tenant/customer-payments/{id}. */
+  get(paymentId: string, signal?: AbortSignal): Promise<CustomerPaymentDto> {
+    return tenantGet(pay(paymentId), customerPaymentSchema, 'customer payment', signal);
+  },
   /** POST /tenant/customer-payments (recordCustomerPayment). */
   record(body: CustomerPaymentIn, idempotencyKey: string): Promise<CustomerPaymentDto> {
     return tenantSend(

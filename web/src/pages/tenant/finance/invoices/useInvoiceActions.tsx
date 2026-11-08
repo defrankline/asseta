@@ -10,6 +10,7 @@ import type { RowAction } from '../../../../components/lifecycle/rowActions';
 import { hireInvoiceDetailPath, hireInvoicePrintPath } from '../../../../navigation/routes';
 import { useNotify } from '../../../../notifications/useNotify';
 import { FINANCE_ERROR_HINTS } from '../../shared/financeDisplay';
+import { VoidIssuedInvoiceDialog } from '../adjustments/RecordReversalDialogs';
 import { VoidExplanation } from './InvoiceViews';
 import { invoiceTitle } from './invoiceData';
 import { IssueInvoiceDialog } from './IssueInvoiceDialog';
@@ -61,7 +62,7 @@ export function useInvoiceActions({ onChanged, onDetails = false }: Options) {
       key: 'void',
       label: i.status === 'DRAFT' ? 'Discard draft (void)' : 'Void (reverse)',
       destructive: true,
-      hidden: !canWrite || i.status === 'VOIDED',
+      hidden: !canWrite || i.status === 'VOIDED' || i.pending_void_request_id != null,
       onClick: () => {
         setOpen({ kind: 'void', invoice: i });
       },
@@ -82,27 +83,41 @@ export function useInvoiceActions({ onChanged, onDetails = false }: Options) {
     );
   } else if (open?.kind === 'void') {
     const inv = open.invoice;
-    dialogs = (
-      <LifecycleActionDialog<HireInvoiceDto>
-        title={`Void ${invoiceTitle(inv)}`}
-        description={
-          <Box className="flex flex-col gap-2">
-            <VoidExplanation invoice={inv} />
-            <Alert severity="warning">This cannot be undone.</Alert>
-          </Box>
-        }
-        confirmLabel="Void invoice"
-        destructive
-        reasonHelp="3–1000 characters; shown on the invoice and the statement reversal."
-        errorHints={FINANCE_ERROR_HINTS}
-        onConfirm={(reason, key) => hireInvoiceService.void(inv.id, { reason }, key)}
-        onDone={(result) => {
-          notify.success(`Invoice ${invoiceTitle(result)} voided.`);
-          onChanged(result);
-        }}
-        onClose={close}
-      />
-    );
+    dialogs =
+      inv.status === 'ISSUED' ? (
+        <VoidIssuedInvoiceDialog
+          invoice={inv}
+          onClose={close}
+          onDone={(result) => {
+            notify.success(
+              result.pending_void_request_id != null
+                ? `Void of ${invoiceTitle(result)} proposed; someone else decides it.`
+                : `Invoice ${invoiceTitle(result)} voided.`,
+            );
+            onChanged(result);
+          }}
+        />
+      ) : (
+        <LifecycleActionDialog<HireInvoiceDto>
+          title={`Void ${invoiceTitle(inv)}`}
+          description={
+            <Box className="flex flex-col gap-2">
+              <VoidExplanation invoice={inv} />
+              <Alert severity="warning">This cannot be undone.</Alert>
+            </Box>
+          }
+          confirmLabel="Void invoice"
+          destructive
+          reasonHelp="3–1000 characters; shown on the invoice and the statement reversal."
+          errorHints={FINANCE_ERROR_HINTS}
+          onConfirm={(reason, key) => hireInvoiceService.void(inv.id, { reason }, key)}
+          onDone={(result) => {
+            notify.success(`Invoice ${invoiceTitle(result)} voided.`);
+            onChanged(result);
+          }}
+          onClose={close}
+        />
+      );
   }
   return { actionsFor, dialogs };
 }

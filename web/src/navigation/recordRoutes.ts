@@ -26,6 +26,8 @@ export const RECORD_LIST_ROUTES = {
   DAILY_REPORT: '/tenant/daily-reports',
   REVENUE_DIFFERENCE: '/tenant/revenue-differences',
   NON_REVENUE_APPROVAL: '/tenant/non-revenue-approvals',
+  ADJUSTMENT_ENTRY: '/tenant/finance/adjustments',
+  ADJUSTMENT_REQUEST: '/tenant/finance/adjustments/requests',
 } as const;
 
 export type RecordKind = keyof typeof RECORD_LIST_ROUTES;
@@ -63,6 +65,8 @@ export const RECORD_KIND_BY_ENTITY: Readonly<Record<string, RecordKind>> = {
   daily_report: 'DAILY_REPORT',
   revenue_difference: 'REVENUE_DIFFERENCE',
   non_revenue_approval: 'NON_REVENUE_APPROVAL',
+  adjustment_ledger_entry: 'ADJUSTMENT_ENTRY',
+  adjustment_request: 'ADJUSTMENT_REQUEST',
 };
 
 /** Hours records belong to the customer hours capability. */

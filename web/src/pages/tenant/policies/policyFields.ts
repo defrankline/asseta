@@ -148,6 +148,11 @@ export const METER_CAPTURE_FIELDS: readonly PolicyFieldDef[] = [
 
 export const HIRE_BILLING_FIELDS: readonly PolicyFieldDef[] = [
   {
+    key: 'invoice_void_requires_approval',
+    label: 'Voiding an issued invoice needs a second person',
+    kind: 'bool',
+  },
+  {
     key: 'billable_hours_increment',
     label: 'Billable hours increment',
     kind: 'decimal',

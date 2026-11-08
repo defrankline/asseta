@@ -1,6 +1,16 @@
 import Add from '@mui/icons-material/Add';
-import { Alert, Box, Button, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
-import { useCallback, useState } from 'react';
+import {
+  Alert,
+  Box,
+  Button,
+  Chip,
+  Link,
+  ToggleButton,
+  ToggleButtonGroup,
+  Typography,
+} from '@mui/material';
+import { useCallback, useEffect, useState } from 'react';
+import { Link as RouterLink, useSearchParams } from 'react-router';
 import { PERMISSIONS } from '../../../../access/permissionCodes';
 import { CanMutate } from '../../../../access/CanMutate';
 import { customerPaymentService } from '../../../../api/services/financeService';
@@ -20,6 +30,7 @@ import { StatusChip } from '../../../../components/display/StatusChip';
 import { ActionButtons } from '../../../../components/lifecycle/ActionButtons';
 import { DetailsDrawer } from '../../../../components/lifecycle/DetailsDrawer';
 import { RowActionsMenu } from '../../../../components/lifecycle/RowActionsMenu';
+import { adjustmentRequestPath } from '../../../../navigation/adjustmentRoutes';
 import { useNotify } from '../../../../notifications/useNotify';
 import { formatInstantIn } from '../../../../utils/time';
 import {
@@ -49,6 +60,13 @@ const VIEW_HELP: Readonly<Record<View, string>> = {
   ALL: 'All payments. Check each status: only VERIFIED money settles balances.',
 };
 
+/** A reversed payment keeps its VERIFIED status; this says the money was taken back. */
+function ReversedChip({ payment: p }: { payment: CustomerPaymentDto }) {
+  return p.reversed_at == null ? null : (
+    <Chip size="small" color="warning" variant="outlined" label="Reversed" />
+  );
+}
+
 function PaymentDrawer({
   payment: p,
   timeZone,
@@ -68,11 +86,14 @@ function PaymentDrawer({
     <DetailsDrawer
       title={`Payment ${p.reference ?? shortId(p.id)}`}
       status={
-        <StatusChip
-          status={p.status}
-          tones={SETTLEMENT_TONES}
-          label={SETTLEMENT_LABELS[p.status]}
-        />
+        <Box component="span" className="inline-flex flex-wrap gap-1">
+          <StatusChip
+            status={p.status}
+            tones={SETTLEMENT_TONES}
+            label={SETTLEMENT_LABELS[p.status]}
+          />
+          <ReversedChip payment={p} />
+        </Box>
       }
       actions={
         <ActionButtons actions={actions(p).filter((a) => a.key !== 'view')} primaryKey="decide" />
@@ -80,6 +101,17 @@ function PaymentDrawer({
       onClose={onClose}
     >
       {mine && p.status === 'CLAIMED' && <Alert severity="info">{SOD_RECORDER_NOTE}</Alert>}
+      {p.reversed_at != null && (
+        <Alert severity="warning">
+          Reversed {formatInstantIn(p.reversed_at, timeZone)}. This money no longer counts for the
+          customer.{' '}
+          {p.reversal_id != null && (
+            <Link component={RouterLink} to={adjustmentRequestPath(p.reversal_id)}>
+              Open the reversal
+            </Link>
+          )}
+        </Alert>
+      )}
       <KeyValueGrid
         columns={2}
         items={[
@@ -143,12 +175,29 @@ function PaymentDrawer({
 export function PaymentsTab({ timeZone }: { timeZone: string }) {
   const notify = useNotify();
   const customerLabel = useCustomerLabels();
-  const [view, setView] = useState<View>('CLAIMED');
+  const [params] = useSearchParams();
+  const linkedPaymentId = params.get('payment_id');
+  const [view, setView] = useState<View>(linkedPaymentId === null ? 'CLAIMED' : 'ALL');
   const [customer, setCustomer] = useState<CustomerDto | null>(null);
   const [staff, setStaff] = useState<StaffDto | null>(null);
   const [recording, setRecording] = useState(false);
   const [viewing, setViewing] = useState<CustomerPaymentDto | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  useEffect(() => {
+    if (linkedPaymentId === null) return undefined;
+    const controller = new AbortController();
+    customerPaymentService
+      .get(linkedPaymentId, controller.signal)
+      .then(setViewing)
+      .catch((err: unknown) => {
+        if (!controller.signal.aborted) notify.error(err, 'Could not open that payment.');
+      });
+    return () => {
+      controller.abort();
+    };
+    // `notify` is only used for the failure message; the link alone decides what to open.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linkedPaymentId]);
   const liveReload = useCallback(() => {
     setReloadKey((k) => k + 1);
   }, []);
@@ -178,11 +227,14 @@ export function PaymentsTab({ timeZone }: { timeZone: string }) {
       id: 'status',
       header: 'Status',
       render: (p) => (
-        <StatusChip
-          status={p.status}
-          tones={SETTLEMENT_TONES}
-          label={SETTLEMENT_LABELS[p.status]}
-        />
+        <Box component="span" className="inline-flex flex-wrap gap-1">
+          <StatusChip
+            status={p.status}
+            tones={SETTLEMENT_TONES}
+            label={SETTLEMENT_LABELS[p.status]}
+          />
+          <ReversedChip payment={p} />
+        </Box>
       ),
     },
     {
@@ -243,7 +295,7 @@ export function PaymentsTab({ timeZone }: { timeZone: string }) {
           staff_member_id: staff?.id,
         }}
         emptyTitle="No payments"
-        isRowMuted={(p) => p.status === 'REJECTED'}
+        isRowMuted={(p) => p.status === 'REJECTED' || p.reversed_at != null}
         onRowClick={setViewing}
         toolbar={
           <Box className="flex flex-wrap gap-3">

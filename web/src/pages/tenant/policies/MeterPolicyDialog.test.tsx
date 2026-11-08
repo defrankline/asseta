@@ -141,7 +141,7 @@ describe('PolicyOverrideDialog · METER_CAPTURE / HIRE_BILLING', () => {
     ).toEqual(['Tenant default (all fields)']);
     await user.keyboard('{Escape}');
     await toValues(user);
-    expect(screen.getAllByRole('switch')).toHaveLength(2);
+    expect(screen.getAllByRole('switch')).toHaveLength(3);
     await user.click(screen.getByLabelText('Override Rounding'));
     await choose(user, 'Rounding', 'Up');
     await user.click(screen.getByRole('button', { name: 'Next' }));

@@ -90,6 +90,8 @@ function Totals({ s }: { s: HoursStatementDto }) {
     ['Transferred out', t.transferred_out],
     ['Expired', t.expired],
     ['Cancelled', t.cancelled],
+    ['Refunded', t.refunded],
+    ['Corrected', t.corrected],
     ['Closing balance', t.closing_balance, true],
   ];
   return (

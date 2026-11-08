@@ -19,6 +19,7 @@ import {
 import { useAsyncResource } from '../../../../hooks/useAsyncResource';
 import { useDisplayTimeZone } from '../../../../hooks/useDisplayTimeZone';
 import { customerDetailPath, financeTabPath } from '../../../../navigation/routes';
+import { adjustmentRequestPath } from '../../../../navigation/adjustmentRoutes';
 import { useNotify } from '../../../../notifications/useNotify';
 import { formatDate } from '../../../../utils/dates';
 import { formatInstantIn } from '../../../../utils/time';
@@ -213,6 +214,14 @@ export function HireInvoiceDetailPage() {
             : null
         }
       >
+        {inv?.pending_void_request_id != null && (
+          <Alert severity="info">
+            A void of this invoice awaits a decision; the invoice stays issued until then.{' '}
+            <RouterLink to={adjustmentRequestPath(inv.pending_void_request_id)}>
+              Open the request
+            </RouterLink>
+          </Alert>
+        )}
         {inv !== null && inv.status === 'VOIDED' && (
           <Alert severity="warning">
             {inv.issued_at === null ? (

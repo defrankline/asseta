@@ -182,6 +182,10 @@ export const PERMISSIONS = {
   tenantHoursCreditActivate: 'tenant.hours.credit_activate',
   tenantHoursTransfer: 'tenant.hours.transfer',
   tenantHoursTransferApprove: 'tenant.hours.transfer_approve',
+  /** Adjustments ledger (DEC-032 Phase 2): corrections, refunds, reversals, invoice voids. */
+  tenantAdjustmentRead: 'tenant.adjustment.read',
+  tenantAdjustmentPropose: 'tenant.adjustment.propose',
+  tenantAdjustmentDecide: 'tenant.adjustment.decide',
   tenantHoursCancel: 'tenant.hours.cancel',
   tenantHoursCancelApprove: 'tenant.hours.cancel_approve',
   /** The tenant's discount / credit / transfer / cancellation reason lists. */

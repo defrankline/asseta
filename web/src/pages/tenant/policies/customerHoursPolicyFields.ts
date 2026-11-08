@@ -85,6 +85,21 @@ export const CUSTOMER_HOURS_FIELDS: readonly PolicyFieldDef[] = [
   { key: 'max_discount_percent', label: 'Highest discount', kind: 'decimal', unit: '%' },
   { key: 'credit_allowed', label: 'Credit arrangements allowed', kind: 'bool' },
   { key: 'reason_code_required', label: 'A reason from the tenant list is required', kind: 'bool' },
+  { key: 'refund_allowed', label: 'Allow refunds of unused hours', kind: 'bool' },
+  {
+    key: 'reversal_used_hours_treatment',
+    label: 'When a reversal takes back hours already used',
+    kind: 'enum',
+    options: [
+      { value: 'RECEIVABLE', label: 'Bill the customer' },
+      { value: 'CASE', label: 'Open an investigation case' },
+    ],
+  },
+  {
+    key: 'adjustment_evidence_required',
+    label: 'Corrections, refunds and reversals need evidence',
+    kind: 'bool',
+  },
   {
     key: 'drawdown',
     label: 'Take prepaid hours from the balance',

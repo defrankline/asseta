@@ -33,6 +33,8 @@ import {
   PURCHASE_STATUS_LABELS,
   PURCHASE_STATUS_TONES,
 } from './hoursDisplay';
+import { requestsOfRecordPath } from '../finance/adjustments/adjustmentDisplay';
+import { usePurchaseAdjustments } from '../finance/adjustments/usePurchaseAdjustments';
 import { PaymentEvidenceDialog } from './PaymentEvidenceDialog';
 import {
   ActivateOnCreditDialog,
@@ -144,6 +146,10 @@ export function HoursPurchaseDetailPage() {
   const creditOn =
     hours.policy === null ||
     (hours.policy.creditAllowed && hours.policy.activationBasis.includes('CREDIT'));
+  const adjustments = usePurchaseAdjustments(p, {
+    live,
+    refundAllowed: hours.policy?.refundAllowed === true,
+  });
   const actions: RowAction[] =
     p === null
       ? []
@@ -181,6 +187,7 @@ export function HoursPurchaseDetailPage() {
               setOpen('cancel');
             },
           },
+          ...adjustments.actions,
         ];
   const updated = (message: string) => {
     notify.success(message);
@@ -273,6 +280,8 @@ export function HoursPurchaseDetailPage() {
                   { label: 'Transferred', value: hoursText(d.totals.transferred) },
                   { label: 'Expired', value: hoursText(d.totals.expired) },
                   { label: 'Reversed', value: hoursText(d.totals.reversed) },
+                  { label: 'Refunded', value: hoursText(d.totals.refunded) },
+                  { label: 'Corrected', value: hoursText(d.totals.corrected) },
                   { label: 'Remaining', value: <strong>{hoursText(d.totals.remaining)}</strong> },
                 ]}
               />
@@ -338,6 +347,9 @@ export function HoursPurchaseDetailPage() {
                   variant="outlined"
                 >
                   Low-balance warnings
+                </Button>
+                <Button component={RouterLink} to={requestsOfRecordPath(d.id)} variant="outlined">
+                  Adjustment requests
                 </Button>
                 <Button component={RouterLink} to={customerDetailPath(d.customer_id)}>
                   Customer hours statement
@@ -457,6 +469,7 @@ export function HoursPurchaseDetailPage() {
           onClose={close}
         />
       )}
+      {adjustments.dialogs}
       {evidenceFor !== null && (
         <PaymentEvidenceDialog
           paymentId={evidenceFor}

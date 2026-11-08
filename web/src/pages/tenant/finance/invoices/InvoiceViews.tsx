@@ -1,4 +1,4 @@
-import { Box, Table, TableBody, TableCell, TableRow, Typography } from '@mui/material';
+import { Box, Chip, Table, TableBody, TableCell, TableRow, Typography } from '@mui/material';
 import type { HireInvoiceDto, HireInvoiceLineDto } from '../../../../api/types';
 import type { DataColumn } from '../../../../components/data/ServerDataTable';
 import { StaticTable } from '../../../../components/data/StaticTable';
@@ -15,6 +15,9 @@ export function InvoiceStatusChips({ invoice: i }: { invoice: HireInvoiceDto }) 
       <StatusChip status={i.status} tones={INVOICE_STATUS_TONES} />
       {i.payment_state !== null && (
         <StatusChip status={i.payment_state} tones={PAYMENT_STATE_TONES} />
+      )}
+      {i.pending_void_request_id != null && (
+        <Chip size="small" color="warning" variant="outlined" label="Void awaiting decision" />
       )}
     </Box>
   );

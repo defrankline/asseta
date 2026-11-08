@@ -44,6 +44,8 @@ interface DecideDialogProps<T> {
   onDecide: (body: { approve: boolean; note: string | null }, key: string) => Promise<T>;
   onDone: (result: T) => void;
   onClose: () => void;
+  /** Refusal texts by error code (default: the customer hours list). */
+  errorHints?: Readonly<Record<string, string>>;
 }
 
 /** Approve / reject a proposal or request (the server refuses your own: SEGREGATION_OF_DUTIES). */
@@ -54,6 +56,7 @@ export function DecideDialog<T>({
   onDecide,
   onDone,
   onClose,
+  errorHints = HOURS_ERROR_HINTS,
 }: DecideDialogProps<T>) {
   const keyFor = useIdempotencyKey();
   return (
@@ -72,7 +75,7 @@ export function DecideDialog<T>({
         try {
           onDone(await onDecide(body, keyFor(body)));
         } catch (err) {
-          throw withErrorCode(err, HOURS_ERROR_HINTS);
+          throw withErrorCode(err, errorHints);
         }
       }}
     >
@@ -105,6 +108,8 @@ interface ReasonDialogProps<T> {
   onSubmit: (body: { reason: string; reason_code_id: string | null }, key: string) => Promise<T>;
   onDone: (result: T) => void;
   onClose: () => void;
+  /** Refusal texts by error code (default: the customer hours list). */
+  errorHints?: Readonly<Record<string, string>>;
 }
 
 /** A free-text reason (3–1000 characters), optionally with a reason from the tenant list. */
@@ -117,6 +122,7 @@ export function ReasonDialog<T>({
   onSubmit,
   onDone,
   onClose,
+  errorHints = HOURS_ERROR_HINTS,
 }: ReasonDialogProps<T>) {
   const keyFor = useIdempotencyKey();
   const schema: ObjectSchema<ReasonValues> = object({
@@ -149,7 +155,7 @@ export function ReasonDialog<T>({
         try {
           onDone(await onSubmit(body, keyFor(body)));
         } catch (err) {
-          throw withErrorCode(err, HOURS_ERROR_HINTS);
+          throw withErrorCode(err, errorHints);
         }
       }}
     >

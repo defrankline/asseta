@@ -89,6 +89,7 @@ export const hireInvoiceSchema: Schema<HireInvoiceDto> = object({
   issued_at: nullableText(),
   voided_at: nullableText(),
   void_reason: nullableText(),
+  pending_void_request_id: string().nullable().default(null),
   job_ids: idList(),
   lines: array(
     object({
@@ -131,6 +132,8 @@ export const customerPaymentSchema: Schema<CustomerPaymentDto> = object({
   verified_by: nullableId(),
   verified_at: nullableText(),
   decision_note: nullableText(),
+  reversed_at: string().nullable().default(null),
+  reversal_id: string().nullable().default(null),
   allocations: array(allocationSchema).default([]),
 });
 

@@ -192,10 +192,21 @@ describe('HireInvoiceDetailPage', () => {
     await waitFor(() => {
       expect(mocks.void).toHaveBeenCalledWith(
         'ffffffff-0000-4000-8000-000000000001',
-        { reason: 'Wrong rate' },
+        { reason: 'Wrong rate', reason_code_id: null, evidence_attachment_ids: [] },
         expect.any(String),
       );
     });
+  });
+
+  it('shows a pending void with a link to its request and no second void', async () => {
+    mocks.get.mockResolvedValue(makeInvoice({ pending_void_request_id: 'r1' }));
+    renderDetail(WRITE);
+    expect(await screen.findByText('Void awaiting decision')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open the request' })).toHaveAttribute(
+      'href',
+      '/tenant/finance/adjustments/requests/r1',
+    );
+    expect(screen.queryByRole('button', { name: 'Void (reverse)' })).not.toBeInTheDocument();
   });
 
   it('keeps DRAFT_STALE from issuing in the dialog with its hint', async () => {
