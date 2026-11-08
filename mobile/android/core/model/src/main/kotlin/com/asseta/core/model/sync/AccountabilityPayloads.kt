@@ -265,6 +265,7 @@ data class FieldHoursPurchaseDto(
     val status: String,
     val totals: PurchaseTotalsDto,
     val machines: List<MachineHoursDto> = emptyList(),
+    @SerialName("client_id") val clientId: String? = null,
 )
 
 /** `ReasonCodeDto` (listHoursReasonCodes): a tenant reason (kind DISCOUNT, CREDIT, TRANSFER, CANCELLATION). */

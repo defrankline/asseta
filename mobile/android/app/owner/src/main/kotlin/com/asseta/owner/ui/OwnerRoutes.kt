@@ -96,6 +96,7 @@ fun OwnerRoutes(
     online: Boolean,
     unread: Int?,
     open: (OwnerDestination) -> Unit,
+    setTitle: (OwnerDestination, String) -> Unit = { _, _ -> },
 ) {
     val t = session.tenantId
     val features = session.features
@@ -234,7 +235,7 @@ fun OwnerRoutes(
                 val vm: DecisionViewModel = viewModel(key = "decision-$t-${route.kind}-${route.id}") {
                     DecisionViewModel(data, kind, route.id, graph.refreshTriggers(*ACCOUNTABILITY_ENTITIES))
                 }
-                DecisionScreen(vm, session, online)
+                DecisionScreen(vm, session, online) { setTitle(route, it) }
             }
         }
         is OwnerDestination.CashRecord -> {

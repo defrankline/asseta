@@ -97,13 +97,13 @@ class FinanceRepository(
         }
 
     /**
-     * Hours purchases recorded on this phone and not refused (`HOURS_PURCHASE` operations of known customers): a
+     * Hours purchases recorded on this phone and not acknowledged yet (`HOURS_PURCHASE` operations of known customers): a
      * collection can name one by its client id before it syncs (the walk-in customers' purchases are left out, their
      * customer is not in the picker).
      */
     fun observeUnsyncedPurchases(tenantId: String): Flow<List<UnsyncedPurchase>> =
         db().clientOperationDao().observeByOpTypes(tenantId, field.ownerSubject(), listOf(AccountabilityOps.HOURS_PURCHASE)).map { ops ->
-            ops.filterNot { it.status == ClientOperationStatus.FAILED || it.status == ClientOperationStatus.CONFLICT }.mapNotNull { op ->
+            ops.filter { it.status in FinanceRecord.PENDING_STATES }.mapNotNull { op ->
                 val p = payload(op) ?: return@mapNotNull null
                 val clientId = p.text("client_id") ?: return@mapNotNull null
                 UnsyncedPurchase(clientId, p.text("customer_id"), p.text("hours") ?: "0", op.id)

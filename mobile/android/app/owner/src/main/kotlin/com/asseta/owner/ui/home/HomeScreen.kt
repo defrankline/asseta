@@ -91,7 +91,7 @@ private fun allowed(target: OwnerDestination, f: OwnerFeatures): Boolean = when 
     OwnerDestination.Fleet -> f.fleet
     is OwnerDestination.Alerts -> f.alerts
     OwnerDestination.Jobs -> f.jobs
-    is OwnerDestination.Approvals -> f.approvals
+    is OwnerDestination.Approvals -> f.approvalsScreen
     OwnerDestination.Cases -> f.cases
     is OwnerDestination.Exceptions -> f.meterEvidence
     else -> true

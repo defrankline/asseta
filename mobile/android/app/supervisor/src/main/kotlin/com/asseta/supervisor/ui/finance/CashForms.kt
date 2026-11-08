@@ -201,7 +201,7 @@ class CashFormViewModel(
     val purchaseLinks: StateFlow<List<CollectionLinkOption>> = combine(
         field.accountability.cache, repo.observeUnsyncedPurchases(tenantId), form.map { it.customerId }.distinctUntilChanged(),
     ) { cache, unsynced, customer ->
-        CollectionLinks.options(customer, cache.purchases.map { LinkablePurchase(it.id, it.purchaseNumber, it.customerId, it.status, it.totals.remaining) }, unsynced)
+        CollectionLinks.options(customer, cache.purchases.map { LinkablePurchase(it.id, it.purchaseNumber, it.customerId, it.status, it.totals.remaining, it.clientId) }, unsynced)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** The tenant's reasons for leaving part of the balance (cached on the phone). */

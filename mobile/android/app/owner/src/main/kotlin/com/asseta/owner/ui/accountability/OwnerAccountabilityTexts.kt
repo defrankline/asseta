@@ -222,7 +222,7 @@ object OwnerAccountabilityTexts {
     const val VARIANCE_EVIDENCE = "Evidence"
     const val VARIANCE_HISTORY = "History"
     const val VARIANCE_CHECK = "What was found"
-    fun varianceHistoryRow(time: String, action: String, who: String) = "$time · $action · $who"
+    fun varianceHistoryRow(time: String, action: String, who: String?) = listOfNotNull(time, action, who).joinToString(" · ")
     const val REMIT_NUMBER = "Remittance number"
     const val REMIT_EVIDENCE = "Evidence"
     const val REMIT_OUTSTANDING = "Difference still open"

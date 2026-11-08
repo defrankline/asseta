@@ -95,6 +95,8 @@ fun OwnerHome(graph: OwnerGraph, session: OwnerSession, modifier: Modifier = Mod
         open(resolved ?: link.destination)
     }
 
+    // Titles only a loaded record can give (a variance by its status).
+    var titles by remember(tenantId) { mutableStateOf(emptyMap<OwnerDestination, String>()) }
     val route = stack.last()
     val tab = OwnerNavigation.currentTab(stack)
     val badge = NavigationChrome.badge(unread?.takeIf { features.notifications })
@@ -106,10 +108,10 @@ fun OwnerHome(graph: OwnerGraph, session: OwnerSession, modifier: Modifier = Mod
         topBar = {
             val previous = stack.getOrNull(stack.size - 2)
             AssetaTopBar(
-                title = OwnerNavigation.title(route, session.tenantName),
+                title = titles[route] ?: OwnerNavigation.title(route, session.tenantName),
                 large = OwnerNavigation.largeTitle(stack),
                 onBack = if (stack.size > 1) ({ stack = OwnerNavigation.back(stack) }) else null,
-                backLabel = NavigationChrome.backLabel(previous?.let { OwnerNavigation.title(it, session.tenantName) }),
+                backLabel = NavigationChrome.backLabel(previous?.let { titles[it] ?: OwnerNavigation.title(it, session.tenantName) }),
                 actions = {
                     if (features.notifications && stack.size == 1) {
                         BarIconButton(
@@ -145,7 +147,7 @@ fun OwnerHome(graph: OwnerGraph, session: OwnerSession, modifier: Modifier = Mod
         },
     ) { inner ->
         Column(Modifier.padding(inner).fillMaxSize()) {
-            CompositionLocalProvider(LocalOnline provides online) { OwnerRoutes(graph, data, session, route, online, unread, open) }
+            CompositionLocalProvider(LocalOnline provides online) { OwnerRoutes(graph, data, session, route, online, unread, open) { d, title -> titles = titles + (d to title) } }
         }
     }
     if (accessLost) {

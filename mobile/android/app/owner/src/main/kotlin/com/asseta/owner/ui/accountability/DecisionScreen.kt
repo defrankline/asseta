@@ -136,7 +136,7 @@ class DecisionViewModel(val data: OwnerData, val kind: DecisionKind, val id: Str
 }
 
 @Composable
-fun DecisionScreen(vm: DecisionViewModel, session: OwnerSession, online: Boolean) {
+fun DecisionScreen(vm: DecisionViewModel, session: OwnerSession, online: Boolean, onTitle: (String) -> Unit = {}) {
     val state by vm.state.collectAsStateWithLifecycle()
     val error by vm.error.collectAsStateWithLifecycle()
     val message by vm.message.collectAsStateWithLifecycle()
@@ -144,6 +144,10 @@ fun DecisionScreen(vm: DecisionViewModel, session: OwnerSession, online: Boolean
     val withdrawError by vm.withdrawError.collectAsStateWithLifecycle()
     var note by rememberSaveable { mutableStateOf("") }
     var confirmReject by rememberSaveable { mutableStateOf(false) }
+    val status = state.data?.let(vm::item)?.status
+    if (status != null && (vm.kind == DecisionKind.WRITE_OFF || vm.kind == DecisionKind.VARIANCE_CLOSURE)) {
+        LaunchedEffect(status) { onTitle(DecisionMapper.varianceTitle(status)) }
+    }
     SnapshotScaffold(state, vm::refresh) { list ->
         val item = vm.item(list)
         val zone = ZoneId.systemDefault()

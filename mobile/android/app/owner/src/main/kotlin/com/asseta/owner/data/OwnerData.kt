@@ -262,7 +262,7 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
                     DecisionKind.CLASSIFICATION -> DecisionMapper.classification(engineHourClassification(id), zone)
                     DecisionKind.CORRECTION -> DecisionMapper.correction(meterCorrection(id))
                     DecisionKind.WRITE_OFF, DecisionKind.VARIANCE_CLOSURE -> DecisionMapper.variance(
-                        cashVariance(id), runCatching { cashVarianceHistory(id) }.getOrDefault(emptyList()), zone,
+                        cashVariance(id), runCatching { cashVarianceHistory(id) }.getOrDefault(emptyList()), zone, asClosure = kind == DecisionKind.VARIANCE_CLOSURE,
                     )
                     DecisionKind.PARTIAL_REMITTANCE -> DecisionMapper.partialRemittance(cashHandover(id))
                     DecisionKind.RETENTION -> DecisionMapper.retention(cashRetention(id), zone)

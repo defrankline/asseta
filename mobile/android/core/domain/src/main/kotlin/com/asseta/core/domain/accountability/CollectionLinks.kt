@@ -12,22 +12,23 @@ data class CollectionLinkOption(
     val operationId: String? = null,
 )
 
-/** A purchase recorded on this phone (HOURS_PURCHASE outbox operation, not refused). */
+/** A purchase recorded on this phone and not acknowledged yet (HOURS_PURCHASE outbox operation pending, sent or held). */
 data class UnsyncedPurchase(val clientId: String, val customerId: String?, val hours: String, val operationId: String)
 
 /** A synced open purchase as the picker needs it. */
-data class LinkablePurchase(val id: String, val number: String, val customerId: String, val status: String, val remaining: String)
+data class LinkablePurchase(val id: String, val number: String, val customerId: String, val status: String, val remaining: String, val clientId: String? = null)
 
 object CollectionLinks {
     const val CANCELLED = "CANCELLED"
 
-    /** Newest synced first as delivered, then this phone's unsynced ones; the customer's only; cancelled ones excluded. */
+    /** Newest synced first as delivered, then this phone's unsynced ones (one row per client id, none once it is synced); the customer's only; cancelled ones excluded. */
     fun options(customerId: String?, purchases: List<LinkablePurchase>, unsynced: List<UnsyncedPurchase>): List<CollectionLinkOption> {
         if (customerId.isNullOrBlank()) return emptyList()
         val synced = purchases.filter { it.customerId == customerId && it.status != CANCELLED }.map {
             CollectionLinkOption(it.id, it.number, "${AccountabilityRules.plain(it.remaining.toBigDecimalOrNull() ?: BigDecimal.ZERO)} h left")
         }
-        val local = unsynced.filter { it.customerId == customerId }.map {
+        val known = purchases.flatMap { listOfNotNull(it.id, it.clientId) }.toSet()
+        val local = unsynced.filter { it.customerId == customerId && it.clientId !in known }.distinctBy { it.clientId }.map {
             CollectionLinkOption(it.clientId, unsyncedTitle(it.hours), null, it.operationId)
         }
         return synced + local

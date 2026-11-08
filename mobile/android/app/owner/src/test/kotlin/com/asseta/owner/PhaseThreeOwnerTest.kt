@@ -70,6 +70,13 @@ class PhaseThreeOwnerTest {
     }
 
     @Test
+    fun `Approvals opens for any role with a decision to see`() {
+        assertTrue(OwnerFeatures(setOf("tenant.finance.read", "tenant.finance.writeoff")).approvalsScreen)
+        assertTrue(OwnerFeatures(setOf("tenant.revenue.read"), emptySet()).approvalsScreen)
+        assertFalse(OwnerFeatures(setOf("tenant.expense.read")).approvalsScreen)
+    }
+
+    @Test
     fun `switched-off investigations hide cases`() {
         val off = OwnerFeatures(all, setOf(TenantAccess.INVESTIGATIONS))
         assertTrue(moreEntries(on).any { it.second == OwnerDestination.Cases })
@@ -116,6 +123,17 @@ class PhaseThreeOwnerTest {
         assertTrue(item.history[0].label.endsWith("· Assigned · Mgr"))
         assertEquals("Corrected the entry", item.history[1].value)
         assertTrue(item.isOwn("u9"))
+        assertEquals("Variance closure", DecisionMapper.varianceTitle("CLOSURE_PROPOSED"))
+        assertEquals("Cash write-off", DecisionMapper.varianceTitle("WRITE_OFF_PROPOSED"))
+        assertEquals("Variance", DecisionMapper.varianceTitle("RESOLVED"))
+        assertEquals("Variance", com.asseta.owner.ui.OwnerNavigation.title(OwnerDestination.Decision(DecisionKinds.WRITE_OFF, "v1")))
+        // Opened from "Variance closures": still a closure once decided.
+        assertEquals("Close 2 h (Explained)", DecisionMapper.variance(variance("RESOLVED", "HOURS", "EXPLAINED"), emptyList(), ZoneOffset.UTC, asClosure = true).headline)
+        // An hours write-off reads in hours throughout.
+        val hoursOff = DecisionMapper.variance(variance("WRITE_OFF_PROPOSED", "HOURS"), emptyList(), ZoneOffset.UTC)
+        assertEquals("Write off 2 h", hoursOff.headline)
+        assertEquals("2 h", hoursOff.fields.associate { it.label to it.value }["Difference"])
+        assertTrue(DecisionMapper.variance(variance("WRITE_OFF_PROPOSED", "HOURS").copy(amount = "-2", kind = "SURPLUS"), emptyList(), ZoneOffset.UTC).headline.endsWith(": 2 h"))
         // A write-off stays decided as a write-off.
         val w = DecisionMapper.variance(variance("WRITE_OFF_PROPOSED"), emptyList(), ZoneOffset.UTC)
         assertNull(w.decideAs)

@@ -166,7 +166,9 @@ class AdjustmentOwnerTest {
     fun `an adjustment holder without expense approvals still gets Approvals`() {
         val holder = OwnerFeatures(setOf("tenant.finance.read", "tenant.adjustment.read", "tenant.adjustment.decide"))
         assertTrue(moreEntries(holder).any { it.second == OwnerDestination.Approvals() })
-        assertFalse(moreEntries(OwnerFeatures(setOf("tenant.finance.read"))).any { it.second == OwnerDestination.Approvals() })
+        // A role with a decision to see gets Approvals (finance.read sees write-offs); one with nothing does not.
+        assertTrue(moreEntries(OwnerFeatures(setOf("tenant.finance.read", "tenant.finance.writeoff"))).any { it.second == OwnerDestination.Approvals() })
+        assertFalse(moreEntries(OwnerFeatures(setOf("tenant.expense.read"))).any { it.second == OwnerDestination.Approvals() })
         h.route("/adjustment-requests" to Samples.page(body()))
         val vm = ApprovalsViewModel(h.data, emptyFlow(), decisions = DecisionKind.visible(OwnerFeatures(setOf("tenant.adjustment.read"))), expenseRequests = holder.approvals)
         assertEquals(0, vm.state.settled().data!!.items.size)

@@ -96,6 +96,21 @@ class CashDetailsSyncTest : SyncTestBase() {
     }
 
     @Test
+    fun anAcceptedSaleIsNoLongerListedAsUnsynced() = runBlocking {
+        synced()
+        val sale = HoursSaleRequest(
+            tenant, UUID.randomUUID().toString(),
+            HoursSaleDraft(false, fake.customerId, "", "", fake.machineId, "12.50", false, PaymentMethod.CASH, "", "", ""),
+            walkInAllowed = false, cashHolderId = null, receivedAtMs = clock.now, evidenceJpegs = emptyList(),
+        )
+        val saleOp = saved(accountability.hoursSale(sale)).operationId
+        assertEquals(1, financeRepository.observeUnsyncedPurchases(tenant).first().size)
+        synced()
+        assertEquals(ACKED, status(saleOp))
+        assertTrue(financeRepository.observeUnsyncedPurchases(tenant).first().isEmpty())
+    }
+
+    @Test
     fun withoutTheCapabilityALinkOrReasonIsNotSent() = runBlocking {
         fake.capabilities = listOf(SyncCapabilities.SUPERVISOR_INBOX_V1)
         synced()

@@ -119,7 +119,7 @@ data class OwnerFeatures(val permissions: Set<String>, val disabled: Set<String>
     val adjustmentPropose get() = "tenant.adjustment.propose" in permissions
 
     /** Approvals opens for expense approvers and for adjustment holders, who may hold no tenant.approval.* at all. */
-    val approvalsScreen get() = approvals || adjustmentRead
+    val approvalsScreen get() = approvals || DecisionKind.visible(this).isNotEmpty() || revenueRead
 
     /** One customer payment can be read (to mark a reversed one). */
     val paymentDetails get() = finance || adjustmentRead

@@ -1,5 +1,6 @@
 package com.asseta.owner.ui
 
+import com.asseta.core.domain.owner.DecisionKinds
 import com.asseta.core.domain.owner.OwnerDestination
 import com.asseta.core.domain.owner.RecordKinds
 import com.asseta.owner.ui.accountability.DecisionKind
@@ -75,7 +76,8 @@ object OwnerNavigation {
         is OwnerDestination.Notifications -> if (d.notificationId == null) "Notifications" else "Notification"
         OwnerDestination.Settings -> "Settings"
         OwnerDestination.More -> "More"
-        is OwnerDestination.Decision -> DecisionKind.of(d.kind)?.title ?: "Approval"
+        // A variance is titled by its status once loaded (DecisionMapper.varianceTitle).
+        is OwnerDestination.Decision -> if (d.kind == DecisionKinds.WRITE_OFF) OwnerAccountabilityTexts.VARIANCE_TITLE else DecisionKind.of(d.kind)?.title ?: "Approval"
         OwnerDestination.Accountability -> OwnerAccountabilityTexts.DASH_TITLE
         is OwnerDestination.CashRecord ->
             if (d.kind == RecordKinds.CASH_FLOAT) OwnerAccountabilityTexts.RECORD_FLOAT_TITLE else OwnerAccountabilityTexts.RECORD_TRANSFER_TITLE

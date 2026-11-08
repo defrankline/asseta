@@ -94,6 +94,11 @@ class Dec32PhaseThreeDomainTest {
         assertEquals("Not synced yet · 2.5 h", options[1].title)
         assertEquals("op-1", options[1].operationId)
         assertTrue(CollectionLinks.options(null, purchases, unsynced).isEmpty())
+        // One row per client id, and none once the purchase has synced.
+        val twice = unsynced + UnsyncedPurchase("client-1", "c1", "2.5", "op-3")
+        assertEquals(listOf("p1", "client-1"), CollectionLinks.options("c1", purchases, twice).map { it.id })
+        val accepted = purchases + LinkablePurchase("p4", "HP-4", "c1", "ACTIVE", "2.5", clientId = "client-1")
+        assertEquals(listOf("p1", "p4"), CollectionLinks.options("c1", accepted, twice).map { it.id })
     }
 
     @Test

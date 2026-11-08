@@ -273,13 +273,23 @@ object DecisionMapper {
         return varianceItem(v, T.rowClosure(difference, outcome), (if (isSurplus(v)) T.VARIANCE_SURPLUS else T.F_DIFFERENCE) to difference)
     }
 
-    /** The variance screen: everything a variance carries, with its [history] (best effort; empty on failure). */
-    fun variance(v: CashVarianceDto, history: List<com.asseta.core.model.owner.VarianceEventDto>, zone: ZoneId): DecisionItem =
-        (if (v.status == "CLOSURE_PROPOSED") varianceClosure(v) else writeOff(v)).copy(
+    /**
+     * The variance screen: everything a variance carries, with its [history] (best effort; empty on failure).
+     * [asClosure]: opened from "Variance closures", so it keeps its "Close ..." headline after the decision too.
+     */
+    fun variance(v: CashVarianceDto, history: List<com.asseta.core.model.owner.VarianceEventDto>, zone: ZoneId, asClosure: Boolean = false): DecisionItem =
+        (if (asClosure || v.status == "CLOSURE_PROPOSED") varianceClosure(v) else writeOff(v)).copy(
             history = history.map { e ->
-                DecisionField(T.varianceHistoryRow(date(e.occurredAt, zone), T.varianceAction(e.action), name(e.actorUserName, e.actorUserId).orEmpty()), e.note.orEmpty())
+                DecisionField(T.varianceHistoryRow(date(e.occurredAt, zone), T.varianceAction(e.action), name(e.actorUserName, e.actorUserId)), e.note.orEmpty())
             },
         )
+
+    /** The screen title of a variance: the decision it waits for, else plain "Variance". */
+    fun varianceTitle(status: String?): String = when (status) {
+        "CLOSURE_PROPOSED" -> T.CLOSURE_TITLE
+        "WRITE_OFF_PROPOSED" -> T.TITLE_WRITE_OFF
+        else -> T.VARIANCE_TITLE
+    }
 
     /** The remittance's reason for leaving part of the balance; pending while its approval waits (id = remittance id). */
     fun partialRemittance(h: CashHandoverDto): DecisionItem {
@@ -302,7 +312,8 @@ object DecisionMapper {
 
     fun writeOff(v: CashVarianceDto): DecisionItem {
         val surplus = isSurplus(v)
-        val difference = if (surplus) money(v.amount.removePrefix("-"), v.currency) else money(v.amount, v.currency)
+        // An hours variance reads in hours throughout; a difference has no sign once its label says which way it went.
+        val difference = varianceFigure(if (surplus || v.unit == "HOURS") v.amount.removePrefix("-") else v.amount, v)
         return writeOffItem(v, if (surplus) T.rowSurplus(difference) else T.rowWriteOff(difference),
             (if (surplus) T.VARIANCE_SURPLUS else T.F_DIFFERENCE) to difference)
     }
