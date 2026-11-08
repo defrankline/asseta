@@ -1653,3 +1653,139 @@ Request card rows, in order (each only when present): Type, Reference (`original
 | owner.stmt.lineRow | {day} · {kind} |
 
 Effect rows by key, in order: `lot_hours_before`, `lot_hours_after`, `purchase_remaining`, `hours_refunded`, `value`, `settlement`, `payment_amount`, `unused_hours_removed`, `used_hours`, `used_hours_kept`, `money_owed`, `treatment`, `recovery_invoice_number`, `hire_allocations_released`, `money_released_to_credit`, `customer_balance`, `custody_balance_after`, then one row per `purchases[]` (label = `purchase_number`, value = `owner.adjust.effect.purchaseLine`). `treatment` is shown only when `used_hours` or `money_owed` is not zero. Refusal codes not listed use the server's message; a `refused` code not listed uses "the record has changed. Reload to see it."
+
+## DEC-032 Phase 3 — independence and evidence
+
+Rules shared by both apps:
+- **Switched-off modules (`/me` `disabled_capabilities`):** both apps hide the entry points; deep links to a hidden record open the list or home instead (Investigations/Alerts lists → Overview; decisions → Approvals). `INSIGHTS`, `MANAGED_SERVICE` have no mobile screens, nothing to hide. `DEPOSIT_ACCOUNTS` off: the handover form offers the method only (no account picker, no `deposit_account_id`, and `remittance_account_required` is not enforced on the phone). `TRACKING` off: no Alerts tab or alert rows, no tracker or connectivity figures. `INVESTIGATIONS` off: no Investigations entry, no case links, overview risk section hidden.
+- **Supervisor, offline first (capability `CASH_DETAILS_V2`; without it none of these appear and nothing new is sent):**
+  - **Collection link:** `CASH_COLLECTION.purchase_id` from "Pays for": the customer's open purchases cached by the accountability refresh, plus this phone's unsynced `HOURS_PURCHASE` ops of that customer (the op's `client_id`, shown with `field.collection.unsynced`; the collection waits for that op). Excludes CANCELLED. `CASH_CUSTODY.collection_link_required` on: "Pays for" is required (`field.collection.linkRequired`); off: optional. Invoices are not selectable on the phone (no invoice list reaches the field app; the office links invoices, and a company that requires a link for invoices sees `CONFLICT.COLLECTION_LINK_REQUIRED` in plain words).
+  - **Hand-over partial reason:** `CASH_CUSTODY.remit_full_balance` on and the amount below "Your cash" for the currency (the phone's estimate; recording for another holder: the estimate is unknown, so the reason is optional there) → the reason is required, at least 3 characters (`CASH_HANDOVER.partial_reason`), and `partial_reason_id` from the cached `PARTIAL_REMITTANCE` reasons is offered when the tenant has any. Equal or above the estimate: the section is hidden.
+  - **Hours transfer evidence:** photos as on remittances (blob `ADJUSTMENT_EVIDENCE`, `HOURS_TRANSFER_REQUEST.evidence_upload_ids`, the op waits for every upload, at most 10). `CUSTOMER_HOURS.transfer_evidence_required`: at least one photo before saving.
+  - New **CONFLICT** codes show `field.conflict.*`; unknown codes keep the server's message.
+  - **Human numbers:** Money detail and rows show `collection_number` / `remittance_number` once synced (`field.money.collectionNumber`, `field.money.remittanceNumber`), hidden while unsynced. Retention status shows `retention_number`, cash transfers `transfer_number` when present.
+- **Owner, online for actions (same rules as other decisions: own request disabled, note optional to approve, required to reject):**
+  - Approvals gains **Partial remittance reasons** (`GET /cash/handovers?page_size=100`, rows where `partial_approval.status` = PENDING; visible with `tenant.finance.read`, CASH_CUSTODY on; decide `tenant.finance.retention_approve`; own = `partial_approval.created_by`) via `POST /cash/handovers/{id}/partial-reason-decision {approve, note?}`, and **Variance closures** (`GET /cash/variances?status=CLOSURE_PROPOSED&page_size=100`; visible with `tenant.finance.read`; decide `tenant.finance.variance_close`, own = `proposed_by`; `POST /cash/variances/{id}/closure-decision {approve, note?}`). Zero-amount purchases arrive as Adjustments rows of type `ZERO_AMOUNT_ACTIVATION` (no new section).
+  - **Remittance card** (Handover screen + rows): `remittance_number`, `evidence_status`, `outstanding_difference` (hidden when 0/null), and the partial reason with its status; while PENDING and the user has the decide permission, a "Review the reason" row opens the Partial remittance decision.
+  - **Variance screen** (Decision screen of a variance, by id, same `CashVarianceDto`): assignee, explanation, explained by, evidence photos, investigation history (`GET /cash/variances/{id}/history`, best effort, hidden on failure), customer/machine/purchase/job when present; `unit` HOURS shows figures in hours. Opening a CLOSURE_PROPOSED variance decides the closure; WRITE_OFF_PROPOSED decides the write-off.
+  - **Deep links:** `CASH_VARIANCE` + record id (CASH_VARIANCE_OPENED, CUSTOMER_HOUR_VARIANCE_OPENED, VARIANCE_ASSIGNED, VARIANCE_CLOSURE_DECIDED, CASH_APPROVAL_REQUESTED/VARIANCE_CLOSURE) → Variance screen; `CASH_REMITTANCE` + record id (PARTIAL_REMITTANCE_DECIDED, CASH_APPROVAL_REQUESTED/PARTIAL_REMITTANCE) → Remittance card. `/tenant/finance/cash/variances/{id}` and `/remittances/{id}` likewise.
+  - **Numbers:** retention `retention_number`, custody adjustment `adjustment_number`, cash transfer `transfer_number`, hours transfer `transfer_number`, adjustment request `request_number` show as a "Number" row on their decision screens when present.
+
+Screens per app:
+| App | Screen | Change |
+|---|---|---|
+| Supervisor | Record cash collection | New "Pays for" picker (customer's purchases), required per policy |
+| Supervisor | Hand over cash | Partial reason section (required per rule above); deposit account picker hidden when DEPOSIT_ACCOUNTS is off |
+| Supervisor | Move hours (request) | New evidence photos card, required per policy |
+| Supervisor | Money rows and detail | Collection / remittance number once synced |
+| Owner | Overview | Tracker and connectivity rows and "Open alerts" hidden when TRACKING off; Risk section hidden when INVESTIGATIONS off |
+| Owner | Tabs / More | Alerts tab and Investigations entry hidden per switch |
+| Owner | Machine | Tracker rows, connectivity pill and recent alerts hidden when TRACKING off |
+| Owner | Fleet | Connectivity filter and pills hidden when TRACKING off |
+| Owner | Approvals | Sections "Partial remittance reasons", "Variance closures" after the existing ones, shown only when something waits |
+| Owner | Partial remittance decision (Decision screen) | Rows: Custodian, Remitted, Not remitted, Reason, Proposed by |
+| Owner | Variance (Decision screen) | Assignee, Explanation, Evidence, History cards; closures decided here |
+| Owner | Remittance (Handover) | Number, Evidence, Difference still open, Partial reason card with review link |
+| Owner | Adjustment request | `ZERO_AMOUNT_ACTIVATION` row label, `request_number` row |
+| Owner | Deep links | As above |
+
+Row format in Approvals: Partial reason `{amount} not remitted · {custodian}` then the reason (2 lines); Variance closure `Close {difference} ({outcome})` (hours: `{hours} h`) then the proposal note (2 lines).
+
+### Supervisor
+| Key | English |
+|---|---|
+| field.collection.link | Pays for |
+| field.collection.linkOptional | Pays for (optional) |
+| field.collection.linkNone | Not linked |
+| field.collection.linkEmpty | No open purchases for this customer on this phone. |
+| field.collection.linkRow | {number} · {hours} h left |
+| field.collection.unsynced | Not synced yet · {hours} h |
+| field.collection.linkRequired | Your company requires every collection to name its purchase or invoice. |
+| field.collection.linkFooter | The cash pays this purchase up to what it still owes; anything above stays as customer credit. |
+| field.handover.partialTitle | Part of your cash stays with you |
+| field.handover.partialFooter | {balance} is your cash. Your company requires the full balance to be remitted, so say why part of it stays with you. |
+| field.handover.partialFooterOther | If this is less than this person holds, your company requires the reason. |
+| field.handover.partialReason | Why part of the cash stays (required) |
+| field.handover.partialReasonOptional | Why part of the cash stays (optional) |
+| field.handover.partialCategory | Reason category (optional) |
+| field.handover.partialCategoryNone | No category |
+| field.handover.partialError | Enter why part of the cash stays with you (at least 3 characters). |
+| field.transfer.evidenceTitle | Evidence photos |
+| field.transfer.evidenceTitleRequired | Evidence photos (required) |
+| field.transfer.evidenceFooter | Photographs are kept with the request and sent when there is a connection. |
+| field.transfer.evidenceRequired | Photograph the evidence for this transfer. |
+| field.transfer.photograph | Photograph evidence |
+| field.transfer.addPhoto | Add another photo |
+| field.transfer.removePhoto | Remove photo |
+| field.money.collectionNumber | Collection number |
+| field.money.remittanceNumber | Remittance number |
+| field.conflict.COLLECTION_LINK_REQUIRED | Your company requires every collection to name its purchase or invoice. Record it again and choose one. |
+| field.conflict.PARTIAL_REMITTANCE_REASON_REQUIRED | Part of this cash is still with you and your company requires the reason. Record the handover again with the reason. |
+| field.conflict.EVIDENCE_REQUIRED | Your company requires evidence for this. Record it again with a photo. |
+| field.conflict.PURCHASE_NOT_FOUND | The purchase you chose is no longer on record. Record it again and choose another. |
+| field.conflict.PURCHASE_CANCELLED | The purchase you chose is cancelled. Record it again and choose another. |
+| field.conflict.OVER_ALLOCATION | This is more than the purchase still owes. Record it again with the right amount. |
+| field.conflict.ALLOCATION_MISMATCH | The purchase you chose is for another customer or currency. Record it again and choose another. |
+
+### Owner
+| Key | English |
+|---|---|
+| owner.partial.section | Partial remittance reasons |
+| owner.partial.empty | No partial remittance reasons waiting. |
+| owner.partial.title | Partial remittance reason |
+| owner.partial.row | {amount} not remitted · {custodian} |
+| owner.partial.remitted | Remitted |
+| owner.partial.notRemitted | Not remitted |
+| owner.closure.section | Variance closures |
+| owner.closure.empty | No variance closures waiting. |
+| owner.closure.title | Variance closure |
+| owner.closure.row | Close {difference} ({outcome}) |
+| owner.closure.outcome | Proposed outcome |
+| owner.closure.outcome.RECOVERED | Recovered |
+| owner.closure.outcome.CORRECTED_ERROR | Corrected error |
+| owner.closure.outcome.EXPLAINED | Explained |
+| owner.closure.outcome.WRITTEN_OFF | Written off |
+| owner.variance.title | Variance |
+| owner.variance.unit.HOURS | Hours |
+| owner.variance.assignee | Assigned to |
+| owner.variance.assignedBy | Assigned by |
+| owner.variance.explanation | Explanation |
+| owner.variance.explainedBy | Explained by |
+| owner.variance.evidence | Evidence |
+| owner.variance.history | History |
+| owner.variance.historyRow | {when} · {action} · {who} |
+| owner.variance.history.OPENED | Opened |
+| owner.variance.history.ASSIGNED | Assigned |
+| owner.variance.history.EXPLAINED | Explained |
+| owner.variance.history.CLOSURE_PROPOSED | Closure proposed |
+| owner.variance.history.CLOSURE_APPROVED | Closure approved |
+| owner.variance.history.CLOSURE_REJECTED | Closure rejected |
+| owner.variance.history.WRITE_OFF_PROPOSED | Write-off proposed |
+| owner.variance.history.WRITE_OFF_APPROVED | Write-off approved |
+| owner.variance.history.WRITE_OFF_REJECTED | Write-off rejected |
+| owner.variance.history.RESOLVED | Resolved |
+| owner.variance.check.PURCHASE_OVER_ACTIVATED | Purchase over-activated |
+| owner.variance.check.NEGATIVE_REMAINING | Negative hours remaining |
+| owner.variance.check.CONSUMPTION_MISMATCH | Usage does not match records |
+| owner.variance.check.ALLOCATION_MISMATCH | Allocation does not match records |
+| owner.variance.check | What was found |
+| owner.remit.number | Remittance number |
+| owner.remit.evidence | Evidence |
+| owner.remit.evidence.DECLARED | Declared by the field |
+| owner.remit.evidence.SUPPORTED | Supported by evidence |
+| owner.remit.evidence.CONFIRMED | Confirmed by the company |
+| owner.remit.outstanding | Difference still open |
+| owner.remit.partialReason | Why part stayed with the custodian |
+| owner.remit.partialStatus | Reason status |
+| owner.remit.partialReview | Review the reason |
+| owner.number | Number |
+| owner.adjust.type.ZERO_AMOUNT_ACTIVATION | Purchase with nothing to pay |
+| owner.adjust.error.PURCHASE_NOT_ZERO_AMOUNT | This purchase has an amount to pay. |
+| owner.adjust.error.ALREADY_ACTIVATED | This purchase is already activated. |
+| owner.adjust.error.ZERO_AMOUNT_PENDING | A request for this purchase already waits for a decision. |
+| owner.closure.error.SEGREGATION_OF_DUTIES | You proposed this closure, so someone else must decide it. |
+| owner.closure.error.CLOSURE_NOT_PROPOSED | This closure was already decided. Reload to see it. |
+| owner.closure.error.WRITEOFF_APPROVAL_REQUIRED | A write-off needs its own approval. |
+| owner.closure.error.VARIANCE_OUTCOME_NOT_ALLOWED | This outcome is not allowed for this variance. |
+| owner.partial.error.SEGREGATION_OF_DUTIES | You recorded this remittance, so someone else must decide its reason. |
+| owner.partial.error.PARTIAL_APPROVAL_NOT_FOUND | This reason was already decided. Reload to see it. |
