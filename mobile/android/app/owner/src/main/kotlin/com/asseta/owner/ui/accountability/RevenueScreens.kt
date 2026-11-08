@@ -147,6 +147,7 @@ object RevenuePresentation {
         add(T.REV_ATTRIBUTED to money(d.attributedAmount, c))
         add(T.REV_DIFFERENCE to money(d.difference, c))
         d.adjustedDifference?.let { add(T.REV_ADJUSTED_DIFFERENCE to money(it, c)) }
+        if (nonZero(d.valueAtRiskAmount)) add(AllocationTexts.VALUE_AT_RISK to money(d.valueAtRiskAmount, c))
         add(T.REV_CUSTOMER_WORK to hours(d.customerWorkHours))
         add(T.REV_NON_REVENUE_HOURS to hours(d.nonRevenueHours))
         if (nonZero(d.unexplainedHours)) add(T.REV_UNEXPLAINED_HOURS to hours(d.unexplainedHours))
@@ -198,6 +199,7 @@ object RevenuePresentation {
             add(T.DASH_REV_TO_EXPLAIN to (t.text("open") ?: "0"))
             add(T.DASH_REV_AWAITING to (t.text("awaiting_decision") ?: "0"))
             add(T.DASH_REV_AMOUNTS to (amounts.joinToString(", ").ifEmpty { T.DASH_NONE }))
+            addAll(AllocationPresentation.valueAtRiskRows(t))
             t.text("oldest_open_days")?.toIntOrNull()?.let { add(T.DASH_REV_OLDEST to T.days(it)) }
             add(T.DASH_REV_EXPLAINED to (t.text("explained_in_window") ?: "0"))
             add(T.DASH_REV_CONFIRMED to (t.text("confirmed_in_window") ?: "0"))
@@ -244,6 +246,7 @@ object RevenuePresentation {
         add(T.REV_ATTRIBUTED to money(m.attributed, m.currency))
         add(T.REV_DIFFERENCE to money(m.difference, m.currency))
         if (nonZero(m.unexplainedExpected)) add(T.REV_UNEXPLAINED_EXPECTED to money(m.unexplainedExpected, m.currency))
+        if (nonZero(m.valueAtRisk)) add(AllocationTexts.VALUE_AT_RISK to money(m.valueAtRisk, m.currency))
     }
 
     fun readingRows(d: DailyMachineSheetDetailDto, zone: ZoneId): List<Pair<String, String>> = buildList {
@@ -470,8 +473,21 @@ class DailySheetViewModel(data: OwnerData, val machineId: String, refreshOn: Flo
         data.dailySheet(machineId, from, to)
     }, refreshOn)
 
-class SheetDayViewModel(data: OwnerData, machineId: String, day: String, refreshOn: Flow<Unit>) :
-    SnapshotViewModel<DailyMachineSheetDetailDto>({ data.sheetDay(machineId, day) }, refreshOn)
+class SheetDayViewModel(data: OwnerData, machineId: String, day: String, refreshOn: Flow<Unit>, ledger: Boolean = false) :
+    SnapshotViewModel<DailyMachineSheetDetailDto>({ data.sheetDay(machineId, day) }, refreshOn) {
+    /** The work allocation ledger of the day, loaded on its own (null without tenant.meter.read or with ENGINE_HOURS off). */
+    val allocations: Section<com.asseta.owner.data.MachineDayAllocations>? =
+        if (ledger) Section(viewModelScope) { data.machineDayAllocations(machineId, day) } else null
+
+    init {
+        allocations?.refresh()
+    }
+
+    fun refreshAll() {
+        refresh()
+        allocations?.refresh()
+    }
+}
 
 @Composable
 fun DailySheetScreen(vm: DailySheetViewModel, onOpen: (OwnerDestination) -> Unit) {
@@ -501,7 +517,8 @@ fun DailySheetScreen(vm: DailySheetViewModel, onOpen: (OwnerDestination) -> Unit
 @Composable
 fun SheetDayScreen(vm: SheetDayViewModel, features: OwnerFeatures, onOpen: (OwnerDestination) -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
-    SnapshotScaffold(state, vm::refresh) { d ->
+    val ledger = vm.allocations?.state?.collectAsStateWithLifecycle()?.value
+    SnapshotScaffold(state, vm::refreshAll) { d ->
         val zone = ZoneId.systemDefault()
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 16.dp, bottom = 16.dp)) {
             item {
@@ -510,10 +527,11 @@ fun SheetDayScreen(vm: SheetDayViewModel, features: OwnerFeatures, onOpen: (Owne
                     RevenuePresentation.hoursRows(d).forEach { (l, v) -> KeyValue(l, v) }
                 }
             }
+            ledger?.let { l -> item(key = "ledger") { AllocationCards(l) } }
             item { SectionCard(T.SHEET_READINGS) { RevenuePresentation.readingRows(d, zone).forEach { (l, v) -> KeyValue(l, v) } } }
             if (d.jobs.isNotEmpty()) item { SectionCard(T.REV_JOBS) { RevenuePresentation.jobRows(d).forEach { (l, v) -> KeyValue(l, v) } } }
             d.money.forEach { m ->
-                item(key = "money-${m.currency}") { SectionCard(T.sheetMoney(m.currency)) { RevenuePresentation.moneyRows(m).forEach { (l, v) -> KeyValue(l, v) } } }
+                item(key = "money-${m.currency}") { SectionCard(T.sheetMoney(m.currency), footer = AllocationTexts.VALUE_AT_RISK_FOOTER.takeIf { RevenuePresentation.nonZero(m.valueAtRisk) }) { RevenuePresentation.moneyRows(m).forEach { (l, v) -> KeyValue(l, v) } } }
             }
             item { SectionCard(T.SHEET_FUEL) { RevenuePresentation.fuelRows(d).forEach { (l, v) -> KeyValue(l, v) } } }
             item {

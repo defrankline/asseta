@@ -1319,7 +1319,7 @@ Customer hours, Cash with supervisors).
 
 Rules shared by both apps:
 - **Supervisor is offline-first.** `DAILY_REPORT` is an outbox operation whose **operation id is the report id** (payload `DailyReportIn` without `id`, plus `evidence_upload_ids`). Photos use blob purpose `DAILY_REPORT_EVIDENCE` and the operation waits until every upload completes. It also depends on the outbox operations of any chosen reading the server does not have yet. `client_created_at` is the phone's time at save. One operation per form visit (entity type `daily_report`, entity id = the form's client id).
-- **Changeover** is a `METER_CAPTURE` of kind `DAILY` on the running job (`job_id` set, `machine_id` null) with `changeover_to_customer_id` and, when chosen, `changeover_to_job_id`; same photo, OCR and GPS rules as any reading. It waits for the job's own START operation when that is still on the phone. The current customer of the job is not offered as the next customer.
+- **Changeover** is a `METER_CAPTURE` of kind `DAILY` on the running job (`job_id` set, `machine_id` null) with `changeover_to_customer_id` and, when chosen, `changeover_to_job_id`; same photo, OCR and GPS rules as any reading. It waits for the job's own START operation when that is still on the phone. The current customer of the job is not offered as the next customer. Next jobs offered: same machine, chosen customer, status `PENDING_APPROVAL`; when the next job is optional, `APPROVED` too (a job the hours are billed to must still be waiting for approval, or the server answers `CHANGEOVER_JOB_INVALID`).
 - **Gates.** Daily report entries: server announces `OP_DAILY_REPORT`, `tenant.meter.capture`, `ENGINE_HOURS` on. Changeover: `METER_CHANGEOVER`, `tenant.meter.capture`, `ENGINE_HOURS` on, local job status `IN_PROGRESS`. Report list and detail need `tenant.meter.read`.
 - **Policy keys read by the form** (`ENGINE_HOURS` effective policy, saved on the phone, unknown = not required; the server decides either way): `changeover_splits_billing` on → the next job is mandatory; `daily_report_evidence_required` on → at least one photo.
 - **Unbillable reasons:** `GET /engine-hour-reasons?kind=UNBILLABLE_REASON` (active only), read on refresh and saved encrypted so the form works offline.
@@ -1447,6 +1447,8 @@ Screens per app:
 | field.conflict.REASON_NOT_ALLOWED | One of the reasons is no longer in use. Send the report again with another reason. |
 | field.conflict.CHANGEOVER_NOT_ALLOWED | This job was no longer running, so the changeover was not accepted. |
 | field.conflict.CHANGEOVER_SAME_CUSTOMER | The machine is already working for this customer, so the changeover was not accepted. |
+| field.conflict.CHANGEOVER_JOB_REQUIRED | Your company bills the hours after a changeover to the next job. Record the changeover again and choose the job. |
+| field.conflict.CHANGEOVER_JOB_INVALID | That job can no longer follow this one. It must still be waiting for approval, on this machine, for that customer. |
 | field.allocation.kind.CUSTOMER_WORK | Customer work |
 | field.allocation.kind.AUTHORIZED_ACTIVITY | Authorized activity |
 | field.allocation.kind.UNEXPLAINED | Unexplained |

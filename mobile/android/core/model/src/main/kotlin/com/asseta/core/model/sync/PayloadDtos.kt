@@ -37,6 +37,10 @@ data class MeterCaptureIn(
     @SerialName("policy_version_ids") val policyVersionIds: List<String> = emptyList(),
     /** The machine read: set for a DAILY reading outside a job (must match the job's machine when both are sent). */
     @SerialName("machine_id") val machineId: String? = null,
+    /** DEC-032 A3: a DAILY reading on the running job that moves the machine to this customer (METER_CHANGEOVER). */
+    @SerialName("changeover_to_customer_id") val changeoverToCustomerId: String? = null,
+    /** The next job of that customer; mandatory when the tenant bills changeover hours to it. */
+    @SerialName("changeover_to_job_id") val changeoverToJobId: String? = null,
 )
 
 @Serializable

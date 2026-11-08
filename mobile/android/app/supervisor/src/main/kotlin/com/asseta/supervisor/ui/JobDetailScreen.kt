@@ -110,6 +110,9 @@ fun JobDetailScreen(
             }
             if (actions.canOpening) ActionRow("Capture opening reading", R.drawable.ic_gauge, enabled = blocked == null) { onCapture(ReadingKind.OPENING) }
             if (actions.canStart) ActionRow("Start job", R.drawable.ic_play) { confirm = START }
+            if (access?.changeover == true && ui.state?.effectiveStatus == JobStatus.IN_PROGRESS) {
+                ActionRow(com.asseta.supervisor.ui.accountability.DailyReportTexts.CHANGEOVER_ACTION, R.drawable.ic_gauge, enabled = blocked == null) { onRoute(Route.Changeover(job.id)) }
+            }
             if (actions.canClosing) ActionRow("Capture closing reading", R.drawable.ic_gauge, enabled = blocked == null) { onCapture(ReadingKind.CLOSING) }
             if (actions.canAcknowledge) ActionRow("Customer acknowledgement", R.drawable.ic_signature, onClick = onAcknowledge)
             if (actions.canComplete) ActionRow("Complete job", R.drawable.ic_check_seal) { confirm = COMPLETE }
@@ -217,7 +220,7 @@ private fun OperationRow(op: ClientOperationEntity) {
         Text(LocalTime.formatSeconds(op.createdAtDevice), style = AssetaType.caption, color = palette.secondaryText)
         val code = op.errorCode
         if (code != null && op.status != ClientOperationStatus.PENDING) {
-            Text("$code: ${op.lastError.orEmpty()}", style = AssetaType.caption, color = palette.offline)
+            Text(com.asseta.supervisor.ui.accountability.FieldAccountabilityTexts.conflict(code) ?: "$code: ${op.lastError.orEmpty()}", style = AssetaType.caption, color = palette.offline)
         }
     }
 }

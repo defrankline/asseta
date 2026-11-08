@@ -663,4 +663,67 @@ interface TenantApi {
     /** confirmSetupControls (tenant.setup.manage): the default controls are fine. */
     @POST("api/v1/tenant/setup-checklist/confirm-controls")
     suspend fun confirmSetupControls(@Body body: com.asseta.core.model.owner.SetupConfirmControlsIn): com.asseta.core.model.owner.SetupChecklistDto
+
+    // --- DEC-032 Phase 1: work allocation ledger and daily reports ---------------------------------------------------
+
+    @GET("api/v1/tenant/engine-hour-reasons")
+    suspend fun engineHourReasons(
+        @Query("kind") kind: String? = null,
+        @Query("page_size") pageSize: Int = 100,
+    ): PageDto<com.asseta.core.model.owner.EngineHourReasonDto>
+
+    @GET("api/v1/tenant/daily-reports")
+    suspend fun dailyReports(
+        @Query("status") status: String? = null,
+        @Query("machine_id") machineId: String? = null,
+        @Query("from") from: String? = null,
+        @Query("to") to: String? = null,
+        @Query("page_size") pageSize: Int = 100,
+    ): PageDto<com.asseta.core.model.owner.DailyReportDto>
+
+    @GET("api/v1/tenant/daily-reports/{id}")
+    suspend fun dailyReport(@Path("id") id: String): com.asseta.core.model.owner.DailyReportDto
+
+    @GET("api/v1/tenant/daily-reports/prefill")
+    suspend fun dailyReportPrefill(
+        @Query("machine_id") machineId: String,
+        @Query("report_date") reportDate: String,
+    ): com.asseta.core.model.owner.DailyReportPrefillDto
+
+    /** reviewDailyReport (tenant.meter.review; never the submitter): REVIEWED or RETURNED with a note. */
+    @POST("api/v1/tenant/daily-reports/{id}/review")
+    suspend fun reviewDailyReport(
+        @Path("id") id: String,
+        @Body body: com.asseta.core.model.owner.DailyReportReviewIn,
+    ): com.asseta.core.model.owner.DailyReportDto
+
+    @GET("api/v1/tenant/work-allocations")
+    suspend fun workAllocations(
+        @Query("machine_id") machineId: String? = null,
+        @Query("from") from: String? = null,
+        @Query("to") to: String? = null,
+        @Query("status") status: String? = null,
+        @Query("page_size") pageSize: Int = 100,
+    ): PageDto<com.asseta.core.model.owner.WorkAllocationDto>
+
+    @GET("api/v1/tenant/work-allocations/{id}")
+    suspend fun workAllocation(@Path("id") id: String): com.asseta.core.model.owner.WorkAllocationDto
+
+    /** listWorkAllocationReconciliation: one row per machine-day (at most 93 days). */
+    @GET("api/v1/tenant/work-allocations/reconciliation")
+    suspend fun workAllocationReconciliation(
+        @Query("from") from: String,
+        @Query("to") to: String,
+        @Query("machine_id") machineId: String,
+    ): List<com.asseta.core.model.owner.AllocationDayDto>
+
+    @GET("api/v1/tenant/work-allocations/corrections/{id}")
+    suspend fun workAllocationCorrection(@Path("id") groupId: String): com.asseta.core.model.owner.AllocationCorrectionDto
+
+    /** decideWorkAllocationCorrection (tenant.meter.approve; never the proposer). */
+    @POST("api/v1/tenant/work-allocations/corrections/{id}/decision")
+    suspend fun decideWorkAllocationCorrection(
+        @Path("id") groupId: String,
+        @Body body: MeterDecisionIn,
+    ): com.asseta.core.model.owner.AllocationCorrectionDto
 }

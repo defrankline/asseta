@@ -30,6 +30,8 @@ enum class OwnerAction(val permission: String) {
     DECIDE_BASELINE("tenant.meter.approve"),
     DECIDE_CLASSIFICATION("tenant.meter.classify"),
     DECIDE_CORRECTION("tenant.meter.approve"),
+    DECIDE_ALLOCATION_CORRECTION("tenant.meter.approve"),
+    REVIEW_DAILY_REPORT("tenant.meter.review"),
     DECIDE_WRITE_OFF("tenant.finance.writeoff"),
     DECIDE_RETENTION("tenant.finance.retention_approve"),
     DECIDE_ADJUSTMENT("tenant.finance.adjustment_approve"),

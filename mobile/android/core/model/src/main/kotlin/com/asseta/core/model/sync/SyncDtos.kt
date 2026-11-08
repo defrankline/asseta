@@ -179,6 +179,9 @@ object BlobPurpose {
 
     /** Deposit slip / payment confirmation of a remittance (CASH_HANDOVER `evidence_upload_ids`). */
     const val REMITTANCE_EVIDENCE = "REMITTANCE_EVIDENCE"
+
+    /** Photos of a daily operational report (`DAILY_REPORT` `evidence_upload_ids`). */
+    const val DAILY_REPORT_EVIDENCE = "DAILY_REPORT_EVIDENCE"
 }
 
 object SyncErrorCodes {

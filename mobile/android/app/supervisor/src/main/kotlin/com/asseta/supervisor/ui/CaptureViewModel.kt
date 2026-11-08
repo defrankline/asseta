@@ -15,6 +15,9 @@ import com.asseta.core.domain.policy.MeterCapturePolicy
 import com.asseta.core.domain.policy.ReadingKind
 import com.asseta.core.domain.accountability.AccountabilityMessages
 import com.asseta.core.domain.accountability.AccountabilityRules
+import com.asseta.core.domain.accountability.ChangeoverRules
+import com.asseta.supervisor.ui.finance.PickerOption
+import kotlinx.coroutines.flow.first
 import com.asseta.core.sync.usecase.CaptureMeterReading
 import com.asseta.core.sync.usecase.CaptureRequest
 import com.asseta.core.sync.usecase.CaptureTarget
@@ -62,6 +65,12 @@ data class CaptureUi(
     val extraText: String = "",
     /** The reading being corrected (correction only). */
     val correctionOf: String? = null,
+    /** Changeover: customers offered as the next one (never the job's current customer). */
+    val changeoverCustomers: List<PickerOption> = emptyList(),
+    /** Changeover: open jobs on this phone with their customer. */
+    val changeoverJobs: List<ChangeoverJob> = emptyList(),
+    val changeoverCustomerId: String? = null,
+    val changeoverJobId: String? = null,
 ) {
     /** The reading field is shown for MANUAL, after a confident OCR read (correction) or after recaptures ran out. */
     val readingEditable: Boolean
@@ -85,6 +94,9 @@ data class CaptureUi(
         get() = CaptureIssues.of(this)
 }
 
+/** A job that can follow a changeover. */
+data class ChangeoverJob(val id: String, val label: String, val customerId: String?)
+
 object CaptureIssues {
     fun of(ui: CaptureUi): List<String> = buildList {
         when (val r = ReadingValidator.validate(ui.readingText, ui.decimals)) {
@@ -101,6 +113,9 @@ object CaptureIssues {
         if (ui.gps == null) add("A location attempt is required for every reading.")
         if (ui.target is CaptureTarget.Correction && !AccountabilityRules.correctionReasonValid(ui.extraText)) {
             add(AccountabilityMessages.CORRECTION_REASON)
+        }
+        (ui.target as? CaptureTarget.Changeover)?.let { t ->
+            ChangeoverRules.problem(ui.changeoverCustomerId, ui.changeoverJobId, t.jobRequired)?.let(::add)
         }
     }
 
@@ -146,6 +161,7 @@ class CaptureViewModel(
         }
         val machine = subject.machine
         val correctionOf = (target as? CaptureTarget.Correction)?.let { t -> field.inbox.readingValue(tenantId, t.readingId) }
+        if (target is CaptureTarget.Changeover) loadChangeoverChoices(jobId!!)
         when (val decision = field.repository.capturePolicy(tenantId, machine.id)) {
             is CapturePolicyDecision.Blocked -> _ui.update { it.copy(loading = false, blocked = decision.message) }
             is CapturePolicyDecision.Allowed -> _ui.update {
@@ -162,6 +178,22 @@ class CaptureViewModel(
             }
         }
     }
+
+    private suspend fun loadChangeoverChoices(jobId: String) {
+        val finance = field.financeRepository
+        val running = field.repository.job(jobId)
+        val current = running?.let { finance.customerOfContract(it.contractId) }
+        val required = (target as? CaptureTarget.Changeover)?.jobRequired == true
+        val customers = finance.observeCustomers(tenantId).first().filter { it.id != current }.map { PickerOption(it.id, it.name, it.code) }
+        val jobs = finance.observeJobs(tenantId).first()
+            .filter { it.job.id != jobId && it.job.machineId == running?.machineId && ChangeoverRules.jobOffered(it.job.status, required) }
+            .map { ChangeoverJob(it.job.id, listOfNotNull(it.job.jobNumber, it.siteName).joinToString(" · "), finance.customerOfContract(it.job.contractId)) }
+        _ui.update { it.copy(changeoverCustomers = customers, changeoverJobs = jobs) }
+    }
+
+    fun onChangeoverCustomer(id: String?) = _ui.update { it.copy(changeoverCustomerId = id, changeoverJobId = null) }
+
+    fun onChangeoverJob(id: String?) = _ui.update { it.copy(changeoverJobId = id) }
 
     fun onExtraText(text: String) = _ui.update { it.copy(extraText = text.take(2000)) }
 
@@ -228,6 +260,7 @@ class CaptureViewModel(
                     target = when (val t = target) {
                         is CaptureTarget.Baseline -> t.copy(note = latest.extraText)
                         is CaptureTarget.Correction -> t.copy(reason = latest.extraText)
+                        is CaptureTarget.Changeover -> t.copy(toCustomerId = latest.changeoverCustomerId, toJobId = latest.changeoverJobId)
                         else -> t
                     },
                 ),

@@ -123,7 +123,7 @@ class GapPassOwnerTest {
     fun `customer hours switched off hides its sections and tiles`() {
         val perms = setOf("tenant.hours.read", "tenant.meter.read")
         val off = OwnerSession(TENANT, "Acme", perms, readOnly = false, disabledCapabilities = setOf(TenantAccess.CUSTOMER_HOURS)).features
-        assertEquals(listOf(DecisionKind.BASELINE, DecisionKind.CLASSIFICATION, DecisionKind.CORRECTION), DecisionKind.visible(off))
+        assertEquals(listOf(DecisionKind.BASELINE, DecisionKind.CLASSIFICATION, DecisionKind.CORRECTION, DecisionKind.DAILY_REPORT, DecisionKind.ALLOCATION_CORRECTION), DecisionKind.visible(off))
         val keys = DashboardPresentation.tiles(summary("""{"custodians":[]}"""), off).map { it.key }
         assertFalse("customer_hours" in keys)
         assertFalse("hours_awaiting_activation" in keys)

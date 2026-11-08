@@ -245,7 +245,7 @@ object FieldAccountabilityTexts {
         "DEPOSIT_ACCOUNT_INACTIVE" -> "The account you chose is no longer in use. Record the handover again with another account."
         "REMITTANCE_ACCOUNT_MISMATCH" -> "The account you chose does not match how the money was handed over. Record the handover again."
         "DEPOSIT_ACCOUNT_CURRENCY_MISMATCH" -> "The account you chose holds a different currency. Record the handover again with another account."
-        else -> SiteCheckinTexts.conflict(code)
+        else -> DailyReportTexts.conflict(code) ?: SiteCheckinTexts.conflict(code)
     }
 
     /** A colleague's name from the server, else from the saved cash holders, else the short id (DEC-030 G2). */

@@ -12,7 +12,9 @@ import com.asseta.core.model.owner.ClassificationDto
 import com.asseta.core.model.owner.CorrectionDto
 import com.asseta.core.model.owner.CreditArrangementDto
 import com.asseta.core.model.owner.CustodyAdjustmentDto
+import com.asseta.core.model.owner.DailyReportDto
 import com.asseta.core.model.owner.DiscountDto
+import com.asseta.core.model.owner.WorkAllocationDto
 import com.asseta.core.model.owner.HoursCancellationDto
 import com.asseta.core.model.owner.HoursTransferDto
 import com.asseta.core.model.owner.NonRevenueApprovalDto
@@ -61,6 +63,18 @@ enum class DecisionKind(
     NON_REVENUE(
         DecisionKinds.NON_REVENUE, T.REV_SECTION_NON_REVENUE, T.REV_NON_REVENUE_EMPTY, T.REV_TITLE_NON_REVENUE, OwnerAction.DECIDE_NON_REVENUE, true,
         "PROPOSED", { it.revenueRead }, TenantAccess.REVENUE_RECONCILIATION,
+    ),
+
+    /** DEC-032 A4: reports waiting for review; its own screen (mark as reviewed / send back). */
+    DAILY_REPORT(
+        DecisionKinds.DAILY_REPORT, AllocationTexts.REPORT_SECTION, AllocationTexts.REPORT_EMPTY, AllocationTexts.REPORT_TITLE, OwnerAction.REVIEW_DAILY_REPORT, true,
+        "SUBMITTED", { it.meterEvidence }, TenantAccess.ENGINE_HOURS,
+    ),
+
+    /** DEC-032 A2: one row per correction group (the id is the group id), decided by a second person. */
+    ALLOCATION_CORRECTION(
+        DecisionKinds.ALLOCATION_CORRECTION, AllocationTexts.SECTION, AllocationTexts.EMPTY, AllocationTexts.TITLE, OwnerAction.DECIDE_ALLOCATION_CORRECTION, true,
+        "PROPOSED", { it.meterEvidence }, TenantAccess.ENGINE_HOURS,
     );
 
     /** The tenant switched off the capability this kind belongs to (its section and screen are hidden). */
@@ -110,13 +124,45 @@ object DecisionMapper {
 
     private fun date(raw: String?, zone: ZoneId) = OwnerFormat.dateTime(raw, zone)
 
-    private fun fields(vararg pairs: Pair<String, String?>): List<DecisionField> =
-        pairs.mapNotNull { (l, v) -> v?.takeIf { it.isNotBlank() }?.let { DecisionField(l, it) } }
+    private fun fields(vararg pairs: Pair<String, String?>?): List<DecisionField> =
+        pairs.filterNotNull().mapNotNull { (l, v) -> v?.takeIf { it.isNotBlank() }?.let { DecisionField(l, it) } }
 
     private fun name(name: String?, id: String?) = DisplayNames.of(name, id)
 
     private fun decided(name: String?, id: String?, note: String?) =
         arrayOf(T.F_DECIDED_BY to name(name, id), T.F_DECISION_NOTE to note)
+
+    fun dailyReport(r: DailyReportDto): DecisionItem {
+        val machine = r.machineCode ?: r.machineName ?: DisplayNames.shortId(r.machineId).orEmpty()
+        return DecisionItem(
+            DecisionKinds.DAILY_REPORT, r.id, AllocationTexts.reportRow(machine, RevenuePresentation.day(r.reportDate)),
+            AllocationTexts.reportLine(RevenuePresentation.num(r.totalHours), RevenuePresentation.num(r.billableHours), RevenuePresentation.num(r.unbillableHours)),
+            r.submittedAt, r.submittedBy, r.status, r.status == DailyReportDto.SUBMITTED, emptyList(),
+            proposedByName = name(r.submittedByName, r.submittedBy),
+        )
+    }
+
+    /** The PROPOSED entries of the ledger as one row per correction group. */
+    fun allocationCorrections(entries: List<WorkAllocationDto>): List<DecisionItem> =
+        entries.filter { it.correctionGroupId != null }.groupBy { it.correctionGroupId!! }.map { (group, parts) -> allocationCorrection(group, parts.first().status, parts, null) }
+
+    /** One correction: [original] is the entry it would replace (when it could be read). */
+    fun allocationCorrection(groupId: String, status: String, parts: List<WorkAllocationDto>, original: WorkAllocationDto?): DecisionItem {
+        val first = parts.first()
+        val A = AllocationTexts
+        val machine = first.machineCode ?: first.machineName ?: DisplayNames.shortId(first.machineId).orEmpty()
+        val total = parts.mapNotNull { it.hours.toBigDecimalOrNull() }.fold(java.math.BigDecimal.ZERO, java.math.BigDecimal::add)
+        val originalRow = original?.let { A.ORIGINAL to listOfNotNull(A.kind(it.kind), A.partValue(RevenuePresentation.hours(it.hours), AllocationPresentation.who(it))).joinToString(" · ") }
+        val rows = parts.map { A.part(it.kind) to A.partValue(RevenuePresentation.hours(it.hours), AllocationPresentation.who(it)) }
+        return DecisionItem(
+            DecisionKinds.ALLOCATION_CORRECTION, groupId, A.correctionRow(machine, RevenuePresentation.day(first.workDate), RevenuePresentation.num(total.toPlainString())),
+            first.correctionReason, first.createdAt, first.recordedBy, status, status == WorkAllocationDto.PROPOSED,
+            fields(T.F_MACHINE to DisplayNames.machine(first.machineCode, first.machineName, first.machineId), originalRow, *rows.toTypedArray(),
+                *decided(first.decidedByName, first.decidedBy, first.decisionNote)),
+            photoAttachmentId = parts.firstNotNullOfOrNull { it.evidenceAttachmentIds.firstOrNull() },
+            proposedByName = name(first.recordedByName, first.recordedBy),
+        )
+    }
 
     fun discount(d: DiscountDto, zone: ZoneId) = DecisionItem(
         DecisionKinds.DISCOUNT, d.id, T.rowDiscount(num(d.percent)), d.reason, d.proposedAt, d.proposedBy, d.status, d.status == "PROPOSED",

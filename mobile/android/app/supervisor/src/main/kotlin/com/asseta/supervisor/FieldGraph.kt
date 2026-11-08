@@ -17,6 +17,8 @@ import com.asseta.core.sync.engine.DeviceWipe
 import com.asseta.core.sync.engine.SyncEngine
 import com.asseta.core.sync.evidence.EncryptedEvidenceStore
 import com.asseta.core.sync.usecase.AccountabilityCapture
+import com.asseta.core.sync.usecase.DailyReportCapture
+import com.asseta.core.sync.data.DailyReportData
 import com.asseta.core.sync.usecase.CaptureMeterReading
 import com.asseta.core.sync.usecase.FinanceCapture
 import com.asseta.core.sync.usecase.JobRequests
@@ -117,6 +119,10 @@ class FieldGraph(context: Context, val container: AssetaAppContainer) {
 
     /** Tenant policies, cash holders, transfers/floats waiting for me and open purchases (online, saved encrypted). */
     val accountability = FieldAccountabilityData({ tenantApi }, db, json, account)
+
+    /** Daily operational reports (DEC-032 A4): queued offline, read online and saved encrypted. */
+    val dailyReportCapture = DailyReportCapture(db, repository, outbox, evidence, json) { scheduler.syncNow() }
+    val dailyReports = DailyReportData({ tenantApi }, db, json, account)
 
     val ocr by lazy { MeterOcr(appContext) }
     val gps by lazy { GpsLocator(appContext) }

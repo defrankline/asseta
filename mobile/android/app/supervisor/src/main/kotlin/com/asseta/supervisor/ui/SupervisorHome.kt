@@ -82,6 +82,11 @@ import com.asseta.supervisor.ui.accountability.CashAckScreen
 import com.asseta.supervisor.ui.accountability.CashAckViewModel
 import com.asseta.supervisor.ui.accountability.CashTransferScreen
 import com.asseta.supervisor.ui.accountability.CashTransferViewModel
+import com.asseta.supervisor.ui.accountability.DailyReportDetailScreen
+import com.asseta.supervisor.ui.accountability.DailyReportFormScreen
+import com.asseta.supervisor.ui.accountability.DailyReportFormViewModel
+import com.asseta.supervisor.ui.accountability.DailyReportTexts
+import com.asseta.supervisor.ui.accountability.DailyReportsScreen
 import com.asseta.supervisor.ui.accountability.FieldAccountabilityTexts
 import com.asseta.supervisor.ui.accountability.HoursSaleScreen
 import com.asseta.supervisor.ui.accountability.HoursSaleViewModel
@@ -146,6 +151,13 @@ sealed interface Route {
     data class ExplainNonRevenue(val activity: com.asseta.core.model.owner.NonRevenueActivityDto) : Route
     /** Today's site check-ins and my check-ins (DEC-031 M3). */
     data object SiteCheckins : Route
+    /** My daily reports (DEC-032 A4). */
+    data object DailyReports : Route
+    /** Write a daily report; [supersedesKey] is the sent-back report it replaces. */
+    data class DailyReportForm(val machineId: String, val supersedesKey: String? = null) : Route
+    data class DailyReportDetail(val key: String) : Route
+    /** A changeover reading on a running job (DEC-032 A3). */
+    data class Changeover(val jobId: String) : Route
 }
 
 val SupervisorTab.root: Route
@@ -196,6 +208,10 @@ fun Route.title(companyName: String): String = when (this) {
     is Route.Correction -> FieldAccountabilityTexts.TITLE_CORRECTION
     is Route.ExplainNonRevenue -> com.asseta.supervisor.ui.accountability.NonRevenueText.TITLE
     Route.SiteCheckins -> com.asseta.supervisor.ui.accountability.SiteCheckinTexts.TITLE
+    Route.DailyReports -> DailyReportTexts.LIST_TITLE
+    is Route.DailyReportForm -> if (supersedesKey == null) DailyReportTexts.FORM_TITLE else DailyReportTexts.RESUBMIT_TITLE
+    is Route.DailyReportDetail -> DailyReportTexts.FORM_TITLE
+    is Route.Changeover -> DailyReportTexts.CHANGEOVER_TITLE
 }
 
 /** Routes the iOS app presents as sheets (Cancel / Save in the navigation bar, no tab bar). */
@@ -203,7 +219,8 @@ val Route.isForm: Boolean
     get() = this is Route.Capture || this is Route.Acknowledge || this is Route.WorkLogEntry || this == Route.RecordExpense ||
         this is Route.CashForm || this is Route.ResetRequest || this == Route.RequestJob || this == Route.HoursSale ||
         this == Route.HoursTransfer || this == Route.CashTransfer || this is Route.CashAck || this == Route.Retention ||
-        this is Route.DailyReading || this is Route.Baseline || this is Route.Correction || this is Route.ExplainNonRevenue
+        this is Route.DailyReading || this is Route.Baseline || this is Route.Correction || this is Route.ExplainNonRevenue ||
+        this is Route.DailyReportForm || this is Route.Changeover
 
 /** Back stacks of the five tabs; selecting the current tab again returns to its first screen (as on iOS). */
 data class TabStacks(val tab: SupervisorTab = SupervisorTab.JOBS, val stacks: Map<SupervisorTab, List<Route>> = SupervisorTab.entries.associateWith { listOf(it.root) }) {
@@ -278,6 +295,8 @@ fun SupervisorHome(
     companyCount: Int,
     onSwitchTenant: () -> Unit,
     modifier: Modifier = Modifier,
+    /** The signed-in user (`/me`): "my" daily reports. */
+    userId: String? = null,
 ) {
     val tenantId = tenant.tenantId.toString()
     // View models outlive a sign-out (activity scope): key them by user too, so the next user never sees these flows.
@@ -364,6 +383,7 @@ fun SupervisorHome(
             } else {
                 coroutines.launch { if (field.accountability.remittanceOverdue(link.id) != null) push(Route.RemittanceOverdue(link.id)) else money() }
             }
+            is InboxLink.DailyReport -> push(Route.DailyReportDetail(link.id))
             InboxLink.None -> fallback()
         }
     }
@@ -453,7 +473,7 @@ fun SupervisorHome(
         }
         Box(Modifier.weight(1f).fillMaxWidth()) {
             CompositionLocalProvider(LocalFormBar provides formBar) {
-                RouteContent(field, tenantId, scope, route, snapshot, syncing, ::refresh, ::push, ::pop, inbox, permissions, access,
+                RouteContent(field, tenantId, userId, scope, route, snapshot, syncing, ::refresh, ::push, ::pop, inbox, permissions, access,
                     onRecordExpense = ::recordExpense, onNotification = ::openNotification, onAttention = ::openAttention)
             }
         }
@@ -493,6 +513,7 @@ fun SupervisorHome(
 private fun RouteContent(
     field: FieldGraph,
     tenantId: String,
+    userId: String?,
     scope: String,
     route: Route,
     snapshot: InboxSnapshot,
@@ -518,7 +539,26 @@ private fun RouteContent(
             viewModel(key = "site-checkins-$scope") { com.asseta.supervisor.ui.accountability.SiteCheckinViewModel(field, tenantId, permissions) },
             field, snapshot, online = rememberOnline(),
         )
-        Route.Readings -> ReadingsScreen(snapshot, syncing, onRefresh, push)
+        Route.Readings -> {
+            val showReports = access?.readDailyReports == true
+            val reports by produceState(emptyList<com.asseta.core.sync.data.DailyReportRow>(), tenantId, userId, showReports) {
+                if (showReports) field.dailyReports.observe(tenantId, userId).collect { value = it }
+            }
+            LaunchedEffect(tenantId, syncing, showReports) { if (showReports && !syncing) field.dailyReports.refresh(tenantId) }
+            ReadingsScreen(snapshot, syncing, onRefresh, push, showReports, reports.count { it.returned })
+        }
+        Route.DailyReports -> DailyReportsScreen(field, tenantId, userId, snapshot, push)
+        is Route.DailyReportDetail -> DailyReportDetailScreen(field, tenantId, route.key, snapshot, access, push)
+        is Route.DailyReportForm -> {
+            val visit = remember(route) { System.nanoTime() }
+            DailyReportFormScreen(viewModel(key = "daily-report-$visit") { DailyReportFormViewModel(field, tenantId, route.machineId, route.supersedesKey, permissions) }, onDone = pop)
+        }
+        is Route.Changeover -> {
+            val visit = remember(route) { System.nanoTime() }
+            val target = CaptureTarget.Changeover(null, null, access?.changeoverJobRequired == true)
+            val vm: CaptureViewModel = viewModel(key = "capture-$visit") { CaptureViewModel(field, tenantId, route.jobId, ReadingKind.DAILY, target) }
+            CaptureScreen(vm, onDone = pop)
+        }
         Route.Fuel -> FuelScreen(snapshot, syncing, onRefresh, push)
         Route.Money -> MoneyScreen(field, tenantId, snapshot, syncing, onRefresh, push, permissions, access)
         Route.Inbox -> {

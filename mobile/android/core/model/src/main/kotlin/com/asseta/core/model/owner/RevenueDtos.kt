@@ -45,6 +45,8 @@ data class RevenueDifferenceDto(
     @SerialName("non_revenue_hours") val nonRevenueHours: String,
     @SerialName("unexplained_hours") val unexplainedHours: String,
     @SerialName("unexplained_expected_amount") val unexplainedExpectedAmount: String,
+    /** DEC-032 A5: unexplained hours x rate, kept out of expected and the difference (0 unless the tenant uses VALUE_AT_RISK). */
+    @SerialName("value_at_risk_amount") val valueAtRiskAmount: String = "0",
     /** `{"jobs":[{job_id, job_number, currency, expected, in_progress, attributed, completed}], "money_sources":[...], "unexplained":{...}}`. */
     val detail: JsonObject = JsonObject(emptyMap()),
     val status: String,
@@ -181,6 +183,8 @@ data class SheetMoneyDto(
     val difference: String,
     @SerialName("unexplained_hours") val unexplainedHours: String = "0",
     @SerialName("unexplained_expected") val unexplainedExpected: String = "0",
+    /** DEC-032 A5: unexplained hours x rate, outside expected and the difference. */
+    @SerialName("value_at_risk") val valueAtRisk: String = "0",
 )
 
 /** `SheetReadingDto`. */

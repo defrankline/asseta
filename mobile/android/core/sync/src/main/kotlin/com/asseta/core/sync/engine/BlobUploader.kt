@@ -190,6 +190,8 @@ class BlobUploader(
                     AccountabilityOps.HOURS_PURCHASE -> "evidence_upload_ids" to appendUploadId(op.payloadJson, dto.id, "evidence_upload_ids")
                     // A remittance names its deposit slip photos by upload ids too (REMITTANCE_DETAILS_V1).
                     OpTypes.CASH_HANDOVER -> "evidence_upload_ids" to appendUploadId(op.payloadJson, dto.id, "evidence_upload_ids")
+                    // A daily report names its photos by upload ids too (DEC-032 A4).
+                    AccountabilityOps.DAILY_REPORT -> "evidence_upload_ids" to appendUploadId(op.payloadJson, dto.id, "evidence_upload_ids")
                     AccountabilityOps.METER_BASELINE -> "photo_attachment_id" to JsonPrimitive(serverId)
                     // A correction's photo belongs to its replacement reading.
                     AccountabilityOps.METER_CORRECTION -> "replacement" to replacementWithPhoto(op.payloadJson, serverId)
@@ -223,7 +225,7 @@ class BlobUploader(
         const val LOCAL_EVIDENCE_UNAVAILABLE = "LOCAL_EVIDENCE_UNAVAILABLE"
         val KNOWN_PURPOSES = setOf(
             BlobPurpose.METER_PHOTO, BlobPurpose.SIGNATURE, BlobPurpose.EXPENSE_RECEIPT, BlobPurpose.RESET_EVIDENCE,
-            AccountabilityOps.PAYMENT_EVIDENCE, BlobPurpose.REMITTANCE_EVIDENCE,
+            AccountabilityOps.PAYMENT_EVIDENCE, BlobPurpose.REMITTANCE_EVIDENCE, BlobPurpose.DAILY_REPORT_EVIDENCE,
         )
         val OCTET_STREAM = "application/octet-stream".toMediaType()
     }

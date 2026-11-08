@@ -55,9 +55,15 @@ data class FieldAccountabilityCache(
     @SerialName("site_checkins") val siteCheckins: com.asseta.core.model.owner.MySiteCheckinsDto? = null,
     /** When [siteCheckins] was read (0 = never). */
     @SerialName("site_checkins_at_ms") val siteCheckinsAtMs: Long = 0,
+    /** ENGINE_HOURS effective policy; stays null while the server does not let this role read it. */
+    @SerialName("engine_hours_policy") val engineHoursPolicy: EffectivePolicyDto? = null,
+    /** Active unbillable reasons (daily report form), by name. */
+    @SerialName("unbillable_reasons") val unbillableReasons: List<com.asseta.core.model.owner.EngineHourReasonDto> = emptyList(),
 ) {
     val cash: CashCustodyPolicy? get() = cashPolicy?.values?.let(CashCustodyPolicy::fromValues)
     val hours: CustomerHoursPolicy? get() = hoursPolicy?.values?.let(CustomerHoursPolicy::fromValues)
+    val engine: com.asseta.core.domain.accountability.EngineHoursPolicy?
+        get() = engineHoursPolicy?.values?.let(com.asseta.core.domain.accountability.EngineHoursPolicy::fromValues)
 
     fun custodianName(staffId: String?): String? = custodians.firstOrNull { it.staffMemberId == staffId }?.fullName
 
@@ -140,7 +146,7 @@ class FieldAccountabilityData(
         load(tenantId)
         val capabilities = db().syncStateDao().get(tenantId)?.capabilities?.split(',')?.filter { it.isNotBlank() }?.toSet()
         val c = _cache.value
-        return FieldAccess(capabilities, permissions, c.cash, c.hours, disabledFor(tenantId))
+        return FieldAccess(capabilities, permissions, c.cash, c.hours, disabledFor(tenantId), c.engine)
     }
 
     /**
@@ -167,6 +173,7 @@ class FieldAccountabilityData(
         // A capability the tenant switched off is not read at all (its entry points are hidden).
         val hoursOn = TenantAccess.CUSTOMER_HOURS !in disabledFor(tenantId)
         val hoursRead = hoursOn && FieldAccess.HOURS_READ in permissions
+        val engineOn = TenantAccess.ENGINE_HOURS !in disabledFor(tenantId)
         val next = FieldAccountabilityCache(
             fetchedAtMs = old.fetchedAtMs,
             cashPolicy = part(record, old.cashPolicy, null) { effectivePolicy(CashCustodyPolicy.TYPE) },
@@ -179,6 +186,13 @@ class FieldAccountabilityData(
             purchases = part(hoursRead && FieldAccess.HOURS_TRANSFER in permissions, old.purchases, emptyList()) { hoursPurchases(pageSize = PAGE).items },
             transferReasons = part(hoursRead, old.transferReasons, emptyList()) { hoursReasonCodes(kind = "TRANSFER").items.filter { it.isActive } },
             retentionReasons = part(record, old.retentionReasons, emptyList()) { cashReasons(kind = "RETENTION").items.filter { it.isActive } },
+            engineHoursPolicy = part(engineOn && FieldAccess.METER_CAPTURE in permissions, old.engineHoursPolicy, null) {
+                effectivePolicy(com.asseta.core.domain.accountability.EngineHoursPolicy.TYPE)
+            },
+            unbillableReasons = part(engineOn && FieldAccess.METER_READ in permissions, old.unbillableReasons, emptyList()) {
+                engineHourReasons(kind = com.asseta.core.model.owner.EngineHourReasonDto.UNBILLABLE_REASON).items
+                    .filter { it.isActive }.sortedBy { it.name.lowercase() }
+            },
         ).let { if (fresh) it.copy(fetchedAtMs = nowMs()) else it }.let { c ->
             when (val r = readSiteCheckins(tenantId, permissions)) {
                 null -> c.copy(siteCheckins = null, siteCheckinsAtMs = 0)

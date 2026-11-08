@@ -150,10 +150,12 @@ object DashboardPresentation {
             add(DashboardTile("engine_hours", T.DASH_ENGINE_HOURS, listOf(T.DASH_MACHINES to "${e.int("machines") ?: 0}") + byStatus))
         }
         s.unexplainedHours?.takeIf { engineOn }?.let { u ->
-            val rows = listOf(T.F_HOURS to num(u.text("hours"))) + u.items().map {
+            val atRisk = AllocationPresentation.valueAtRiskRows(u)
+            val rows = listOf(T.F_HOURS to num(u.text("hours"))) + atRisk + u.items().map {
                 (it.text("machine_code") ?: "") to T.unexplainedLine(num(it.text("unexplained_hours")), it.int("oldest_open_item_days"))
             }
-            add(DashboardTile("unexplained_hours", T.DASH_UNEXPLAINED, rows, OwnerDestination.Exceptions().takeIf { features.meterEvidence }))
+            add(DashboardTile("unexplained_hours", T.DASH_UNEXPLAINED, rows, OwnerDestination.Exceptions().takeIf { features.meterEvidence },
+                footer = AllocationTexts.VALUE_AT_RISK_FOOTER.takeIf { atRisk.isNotEmpty() }))
         }
         s.missingDailyReports?.takeIf { engineOn }?.let { m ->
             val items = m.items()

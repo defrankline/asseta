@@ -72,6 +72,13 @@ data class HandoverList(val items: List<CashHandoverDto>, val names: Map<String,
     fun name(h: CashHandoverDto): String? = h.staffMemberName ?: names[h.staffMemberId.toString()]
 }
 
+/** The ledger of one machine-day ([day] null: the server has no row for it). */
+@Serializable
+data class MachineDayAllocations(
+    val day: com.asseta.core.model.owner.AllocationDayDto? = null,
+    val entries: List<com.asseta.core.model.owner.WorkAllocationDto> = emptyList(),
+)
+
 /** Open meter exceptions with their jobs' numbers ([jobNumbers] job id -> number, when the role may read jobs). */
 @Serializable
 data class ExceptionList(val items: List<ExceptionDto>, val jobNumbers: Map<String, String> = emptyMap()) {
@@ -221,6 +228,8 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
                 DecisionKind.REVENUE_DIFFERENCE -> (revenueDifferences("OPEN").items + revenueDifferences(status).items)
                     .map { DecisionMapper.revenueDifference(it, zone) }
                 DecisionKind.NON_REVENUE -> nonRevenueApprovals(status).items.map { DecisionMapper.nonRevenue(it, zone) }
+                DecisionKind.DAILY_REPORT -> dailyReports(status = status, pageSize = LIST_PAGE).items.map(DecisionMapper::dailyReport)
+                DecisionKind.ALLOCATION_CORRECTION -> DecisionMapper.allocationCorrections(workAllocations(status = status, pageSize = LIST_PAGE).items)
             }
         }
     }
@@ -246,6 +255,12 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
                     DecisionKind.ADJUSTMENT -> DecisionMapper.adjustment(custodyAdjustment(id), zone)
                     DecisionKind.REVENUE_DIFFERENCE -> DecisionMapper.revenueDifference(revenueDifference(id), zone)
                     DecisionKind.NON_REVENUE -> DecisionMapper.nonRevenue(nonRevenueApproval(id), zone)
+                    DecisionKind.DAILY_REPORT -> DecisionMapper.dailyReport(dailyReport(id))
+                    DecisionKind.ALLOCATION_CORRECTION -> {
+                        val c = workAllocationCorrection(id)
+                        val original = c.supersedesId?.let { old -> runCatching { workAllocation(old) }.getOrNull() }
+                        DecisionMapper.allocationCorrection(c.groupId, c.status, c.entries, original)
+                    }
                 },
             )
         }
@@ -291,6 +306,10 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
                 DecisionKind.ADJUSTMENT -> decideCustodyAdjustment(id, decision)
                 DecisionKind.REVENUE_DIFFERENCE -> decideRevenueDifference(id, RevenueDecisionIn(meter.decision, meter.note))
                 DecisionKind.NON_REVENUE -> decideNonRevenue(id, NonRevenueDecisionIn(meter.decision, meter.note))
+                DecisionKind.DAILY_REPORT -> reviewDailyReport(
+                    id, com.asseta.core.model.owner.DailyReportReviewIn(if (approve) com.asseta.core.model.owner.DailyReportReviewIn.REVIEWED else com.asseta.core.model.owner.DailyReportReviewIn.RETURNED, note.trim()),
+                )
+                DecisionKind.ALLOCATION_CORRECTION -> decideWorkAllocationCorrection(id, meter)
             }
             Unit
         }
@@ -325,6 +344,23 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
     /** One machine on one local day, with its readings, jobs, money and flags. */
     suspend fun sheetDay(machineId: String, day: String): Load<DailyMachineSheetDetailDto> =
         repo.load(tenantId, "sheet_day:$machineId:$day", DailyMachineSheetDetailDto.serializer()) { dailyMachineSheetDay(machineId, day) }
+
+    // --- work allocation ledger and daily reports (DEC-032 Phase 1) ---------------------------------------------------
+    suspend fun dailyReport(id: String): Load<com.asseta.core.model.owner.DailyReportDto> =
+        repo.load(tenantId, "daily_report:$id", com.asseta.core.model.owner.DailyReportDto.serializer()) { dailyReport(id) }
+
+    /** REVIEWED or RETURNED with a note (tenant.meter.review; never the submitter). */
+    suspend fun reviewDailyReport(id: String, decision: String, note: String) =
+        repo.act { reviewDailyReport(id, com.asseta.core.model.owner.DailyReportReviewIn(decision, note.trim())) }
+
+    /** One machine on one local day of the ledger: the reconciliation row and its active allocations. */
+    suspend fun machineDayAllocations(machineId: String, day: String): Load<MachineDayAllocations> =
+        repo.load(tenantId, "allocations:$machineId:$day", MachineDayAllocations.serializer()) {
+            MachineDayAllocations(
+                workAllocationReconciliation(day, day, machineId).firstOrNull(),
+                workAllocations(machineId = machineId, from = day, to = day, pageSize = LIST_PAGE).items.sortedBy { it.startAt },
+            )
+        }
 
     // --- customer hours, read-only (DEC-031 P4) --------------------------------------------------------------------
     /** Open purchases with hours left or in use by running jobs, newest first. */

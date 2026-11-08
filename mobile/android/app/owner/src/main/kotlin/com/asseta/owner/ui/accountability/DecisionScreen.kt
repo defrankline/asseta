@@ -89,7 +89,8 @@ class DecisionViewModel(val data: OwnerData, val kind: DecisionKind, val id: Str
                     _message.value = if (approve) T.APPROVED else T.REJECTED
                 }
                 is ActionResult.Refused -> {
-                    _error.value = DecisionError(id, r.error, r.code)
+                    val error = if (kind == DecisionKind.ALLOCATION_CORRECTION) r.error.copy(message = AllocationTexts.error(r.code, r.error.message)) else r.error
+                    _error.value = DecisionError(id, error, r.code)
                     if (r.reload) refresh()
                 }
             }

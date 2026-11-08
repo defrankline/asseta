@@ -11,6 +11,9 @@ import com.asseta.core.domain.capture.CaptureValidator
 import com.asseta.core.domain.capture.CaptureViolation
 import com.asseta.core.domain.accountability.AccountabilityMessages
 import com.asseta.core.domain.accountability.AccountabilityRules
+import com.asseta.core.domain.accountability.ChangeoverRules
+import com.asseta.core.domain.capture.JobStatus
+import com.asseta.core.model.ClientOperationStatus
 import com.asseta.core.domain.capture.GpsOutcome
 import com.asseta.core.domain.capture.JobStateRules
 import com.asseta.core.domain.capture.ReadingInput
@@ -52,6 +55,9 @@ sealed interface CaptureTarget {
     data class Daily(val machineId: String) : CaptureTarget
     data class Baseline(val machineId: String, val note: String) : CaptureTarget
     data class Correction(val readingId: String, val reason: String) : CaptureTarget
+
+    /** A DAILY reading on the running job ([CaptureRequest.jobId]) that moves the machine to the next customer (DEC-032 A3). */
+    data class Changeover(val toCustomerId: String?, val toJobId: String?, val jobRequired: Boolean) : CaptureTarget
 }
 
 /** One capture as produced by the capture screen. [captureId] is generated once per capture (idempotency key). */
@@ -105,6 +111,7 @@ class CaptureMeterReading(
             is CaptureTarget.Daily -> SyncCapabilities.METER_DAILY_READING
             is CaptureTarget.Baseline -> SyncCapabilities.OP_METER_BASELINE
             is CaptureTarget.Correction -> SyncCapabilities.OP_METER_CORRECTION
+            is CaptureTarget.Changeover -> SyncCapabilities.METER_CHANGEOVER
         }
         if (capability != null) {
             val state = db().syncStateDao().get(tenantId)
@@ -125,6 +132,12 @@ class CaptureMeterReading(
                 ?: (null to MACHINE_MISSING)
             is CaptureTarget.Baseline -> machineOnly(target.machineId)?.let { CaptureSubject(it, ReadingKind.DAILY, null) to null }
                 ?: (null to MACHINE_MISSING)
+            is CaptureTarget.Changeover -> {
+                val job = request.jobId?.let { repository.job(it) } ?: return null to JOB_GONE
+                val machine = repository.machine(job.machineId) ?: return null to MACHINE_DETAILS_MISSING
+                if (repository.fieldState(tenantId, job).effectiveStatus != JobStatus.IN_PROGRESS) return null to CHANGEOVER_NOT_RUNNING
+                CaptureSubject(machine, ReadingKind.DAILY, job.id) to null
+            }
             is CaptureTarget.Correction -> {
                 val old = serverReading(tenantId, target.readingId) ?: return null to CORRECTION_NOT_SYNCED
                 if (old.state !in LIVE_STATES) return null to CORRECTION_NOT_LIVE
@@ -142,6 +155,9 @@ class CaptureMeterReading(
         val target = request.target
         if (target is CaptureTarget.Correction && !AccountabilityRules.correctionReasonValid(target.reason)) {
             return CaptureResult.Blocked(AccountabilityMessages.CORRECTION_REASON)
+        }
+        if (target is CaptureTarget.Changeover) {
+            ChangeoverRules.problem(target.toCustomerId, target.toJobId, target.jobRequired)?.let { return CaptureResult.Blocked(it) }
         }
         val decision = repository.capturePolicy(request.tenantId, machine.id)
         if (decision is CapturePolicyDecision.Blocked) return CaptureResult.Blocked(decision.message)
@@ -176,6 +192,8 @@ class CaptureMeterReading(
             capturedAt = IsoTime.format(request.capturedAtMs),
             policyVersionIds = decision.snapshot.versionIds,
             machineId = if (subject.jobId == null) machine.id else null,
+            changeoverToCustomerId = (target as? CaptureTarget.Changeover)?.toCustomerId,
+            changeoverToJobId = (target as? CaptureTarget.Changeover)?.toJobId,
         )
         return database.inTransaction {
             if (photoFile != null && attachmentId != null) {
@@ -213,6 +231,17 @@ class CaptureMeterReading(
                     request.tenantId, OpTypes.METER_CAPTURE, FieldOps.captureEntityType(ReadingKind.DAILY), request.captureId,
                     json.encodeToJsonElement(MeterCaptureIn.serializer(), payload).jsonObject, attachments,
                 )
+                is CaptureTarget.Changeover -> {
+                    val jobId = subject.jobId!!
+                    // The server refuses a changeover on a job it does not yet know as running: wait for this phone's START.
+                    val start = outbox.localJobOps(request.tenantId, jobId).filter {
+                        it.kind == JobOpKind.START && it.status in WAITING_STATES
+                    }.map { it.id }
+                    outbox.enqueueOperation(
+                        request.tenantId, OpTypes.METER_CAPTURE, FieldOps.captureEntityType(ReadingKind.DAILY), request.captureId,
+                        json.encodeToJsonElement(MeterCaptureIn.serializer(), payload).jsonObject, attachments, start, jobId,
+                    )
+                }
                 is CaptureTarget.Baseline -> outbox.enqueueOperation(
                     request.tenantId, AccountabilityOps.METER_BASELINE, FieldOps.BASELINE, request.captureId,
                     json.encodeToJsonElement(
@@ -241,7 +270,7 @@ class CaptureMeterReading(
         val dao = db().clientOperationDao()
         return when (target) {
             CaptureTarget.Job -> dao.forJob(request.tenantId, repository.ownerSubject(), request.jobId!!).any { it.entityId == request.captureId }
-            is CaptureTarget.Daily -> dao.findByEntity(request.tenantId, FieldOps.captureEntityType(ReadingKind.DAILY), request.captureId) != null
+            is CaptureTarget.Daily, is CaptureTarget.Changeover -> dao.findByEntity(request.tenantId, FieldOps.captureEntityType(ReadingKind.DAILY), request.captureId) != null
             is CaptureTarget.Baseline -> dao.findByEntity(request.tenantId, FieldOps.BASELINE, request.captureId) != null
             is CaptureTarget.Correction -> dao.findByEntity(request.tenantId, FieldOps.CORRECTION, request.captureId) != null
         }
@@ -263,11 +292,15 @@ class CaptureMeterReading(
         const val MACHINE_MISSING = "This machine is not on this device."
         const val CORRECTION_NOT_SYNCED = "A reading can be corrected once the server has it."
         const val CORRECTION_NOT_LIVE = "Only a reading the server still counts can be corrected."
+        const val CHANGEOVER_NOT_RUNNING = "A changeover can be recorded only while this job is running."
         private const val NOTE_MAX = 2000
         private const val REASON_MAX = 2000
 
         /** Server capture states a correction may replace (`LIVE`). */
         val LIVE_STATES = setOf("PROVISIONAL", "ACCEPTED")
+
+        /** Operations a later one must still wait for (neither acknowledged nor refused). */
+        private val WAITING_STATES = setOf(ClientOperationStatus.PENDING, ClientOperationStatus.SENT, ClientOperationStatus.QUARANTINED)
     }
 }
 

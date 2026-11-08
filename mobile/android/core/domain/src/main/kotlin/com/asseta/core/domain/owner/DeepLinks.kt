@@ -94,6 +94,8 @@ object RecordKinds {
     const val REVENUE_DIFFERENCE = "REVENUE_DIFFERENCE"
     const val NON_REVENUE_APPROVAL = "NON_REVENUE_APPROVAL"
     const val HOURS_PURCHASE = "HOURS_PURCHASE"
+    const val DAILY_REPORT = "DAILY_REPORT"
+    const val WORK_ALLOCATION_CORRECTION = "WORK_ALLOCATION_CORRECTION"
 
     /** A job (UNBILLED_WORK: completed and not invoiced yet). */
     const val JOB = "JOB"
@@ -112,6 +114,8 @@ object RecordKinds {
         ENGINE_HOURS_CLASSIFICATION to DecisionKinds.CLASSIFICATION,
         REVENUE_DIFFERENCE to DecisionKinds.REVENUE_DIFFERENCE,
         NON_REVENUE_APPROVAL to DecisionKinds.NON_REVENUE,
+        DAILY_REPORT to DecisionKinds.DAILY_REPORT,
+        WORK_ALLOCATION_CORRECTION to DecisionKinds.ALLOCATION_CORRECTION,
     )
 
     /** Web detail route segment(s) -> record kind (`/tenant/finance/cash/<segment>/<id>`, `/tenant/hours/<segment>/<id>`). */
@@ -152,6 +156,8 @@ object DecisionKinds {
     const val ADJUSTMENT = "ADJUSTMENT"
     const val REVENUE_DIFFERENCE = "REVENUE_DIFFERENCE"
     const val NON_REVENUE = "NON_REVENUE"
+    const val DAILY_REPORT = "DAILY_REPORT"
+    const val ALLOCATION_CORRECTION = "ALLOCATION_CORRECTION"
 
     /** Notification target entity -> decision kind (backend notification rules). */
     val BY_ENTITY = mapOf(
@@ -169,6 +175,8 @@ object DecisionKinds {
         "custody_adjustment" to ADJUSTMENT,
         "revenue_difference" to REVENUE_DIFFERENCE,
         "non_revenue_approval" to NON_REVENUE,
+        "daily_report" to DAILY_REPORT,
+        "work_allocation_correction" to ALLOCATION_CORRECTION,
     )
 }
 
@@ -263,6 +271,14 @@ object DeepLinkRouter {
             // Revenue reconciliation (DEC-031): the record, or Approvals where they are listed.
             "revenue-differences" -> RecordKinds.destination(RecordKinds.REVENUE_DIFFERENCE, second) ?: OwnerDestination.Approvals()
             "non-revenue-approvals" -> RecordKinds.destination(RecordKinds.NON_REVENUE_APPROVAL, second) ?: OwnerDestination.Approvals()
+            // Work allocation ledger (DEC-032): the exact record, or Approvals where they are waiting.
+            "daily-reports" -> RecordKinds.destination(RecordKinds.DAILY_REPORT, second) ?: OwnerDestination.Approvals()
+            "work-allocations" ->
+                if (rest.getOrNull(1) == "corrections") {
+                    RecordKinds.destination(RecordKinds.WORK_ALLOCATION_CORRECTION, id(rest.getOrNull(2))) ?: OwnerDestination.Approvals()
+                } else {
+                    OwnerDestination.Approvals()
+                }
             // Oversight (DEC-031 Phase 5).
             "scorecard" -> second?.let { OwnerDestination.ScorecardPerson(it) } ?: OwnerDestination.Scorecard
             "unbilled-work" -> OwnerDestination.UnbilledWork

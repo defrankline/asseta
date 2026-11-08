@@ -27,6 +27,9 @@ object AccountabilityOps {
     /** DEC-031 M3: a GPS check-in at the site (`SiteCheckinIn`), when the server announces OP_SITE_CHECKIN. */
     const val SITE_CHECKIN = "SITE_CHECKIN"
 
+    /** DEC-032 A4: a daily operational report ([DailyReportPayload]), when the server announces OP_DAILY_REPORT. */
+    const val DAILY_REPORT = "DAILY_REPORT"
+
     /** Blob purpose of hours-sale payment evidence (receipt, mobile-money screenshot). */
     const val PAYMENT_EVIDENCE = "PAYMENT_EVIDENCE"
 

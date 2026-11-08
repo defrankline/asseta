@@ -19,7 +19,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             AssetaTheme {
                 AssetaSessionApp(app.container) { ready, onSwitchTenant, modifier ->
-                    SupervisorHome(app.field, ready.selectedTenant!!, ready.me.tenants.size, onSwitchTenant, modifier)
+                    SupervisorHome(app.field, ready.selectedTenant!!, ready.me.tenants.size, onSwitchTenant, modifier, ready.me.userId.toString())
                 }
             }
         }

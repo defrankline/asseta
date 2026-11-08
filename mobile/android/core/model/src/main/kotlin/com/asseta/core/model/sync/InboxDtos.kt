@@ -37,6 +37,12 @@ object SyncCapabilities {
 
     /** DEC-031 M3: SITE_CHECKIN; announced only while the tenant requires site check-ins. */
     const val OP_SITE_CHECKIN = "OP_SITE_CHECKIN"
+
+    /** DEC-032 A4: DAILY_REPORT (op id = report id; photos by `evidence_upload_ids`). */
+    const val OP_DAILY_REPORT = "OP_DAILY_REPORT"
+
+    /** DEC-032 A3: METER_CAPTURE kind DAILY on the running job accepts `changeover_to_customer_id` / `changeover_to_job_id`. */
+    const val METER_CHANGEOVER = "METER_CHANGEOVER"
 }
 
 /** `ExceptionDto`: a server finding on a reading (type, severity, blocking) and its review. */

@@ -296,7 +296,7 @@ class InboxRepository(
         } + dailyOps.values.filter { it.entityId !in readingIds }.mapNotNull { op ->
             val p = payload(op, MeterCaptureIn.serializer()) ?: return@mapNotNull null
             ReadingItem(
-                id = op.entityId, jobId = null, machineId = p.machineId, kind = p.kind, reading = p.reading, captureMode = p.captureMode,
+                id = op.entityId, jobId = p.jobId, machineId = p.machineId, kind = p.kind, reading = p.reading, captureMode = p.captureMode,
                 atMs = ms(p.capturedAt), status = InboxStatusRules.combined(op.status, null), server = null, local = null, op = op,
             )
         }

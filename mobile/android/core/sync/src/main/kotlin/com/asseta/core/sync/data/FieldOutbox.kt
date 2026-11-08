@@ -33,6 +33,7 @@ object FieldOps {
     const val CASH_FLOAT_ACK = "cash_float_ack"
     const val CASH_RETENTION = "cash_retention"
     const val SITE_CHECKIN = "site_checkin"
+    const val DAILY_REPORT = "daily_report"
 
     /** Field-finance op types (not part of a job workflow chain). */
     val FINANCE_OP_TYPES = listOf(OpTypes.EXPENSE, OpTypes.CASH_COLLECTION, OpTypes.CASH_HANDOVER, OpTypes.FUEL_EVENT)

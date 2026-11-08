@@ -147,6 +147,8 @@ sealed interface InboxLink {
     data class RemittanceOverdue(val id: String) : InboxLink
     /** A machine of mine (missing daily report, unexplained engine hours). */
     data class Machine(val machineId: String) : InboxLink
+    /** A daily report of mine (DAILY_REPORT_RETURNED): its detail, read online when not on the phone. */
+    data class DailyReport(val id: String) : InboxLink
     data object None : InboxLink
 }
 
@@ -160,6 +162,7 @@ object InboxLinks {
                 "CASH_RETENTION" -> return InboxLink.Retention(recordId)
                 "REMITTANCE_OVERDUE" -> return InboxLink.RemittanceOverdue(recordId)
                 "JOB" -> return InboxLink.Job(recordId)
+                "DAILY_REPORT" -> return InboxLink.DailyReport(recordId)
             }
         }
         return fromTarget(entity, id)
@@ -176,6 +179,7 @@ object InboxLinks {
         entity == "cash_transfer" || entity == "supervisor_cash_custody" || entity == "cash_remittance_overdue" -> InboxLink.Money
         entity == "cash_retention" && id != null -> InboxLink.Retention(id)
         entity == "machine" && id != null -> InboxLink.Machine(id)
+        entity == "daily_report" && id != null -> InboxLink.DailyReport(id)
         else -> InboxLink.None
     }
 }

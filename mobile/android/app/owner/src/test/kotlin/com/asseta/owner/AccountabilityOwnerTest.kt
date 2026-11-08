@@ -94,7 +94,7 @@ class AccountabilityOwnerTest {
         val hours = OwnerFeatures(setOf("tenant.hours.read", "tenant.meter.read"))
         assertEquals(
             listOf(DecisionKind.DISCOUNT, DecisionKind.CREDIT, DecisionKind.HOURS_TRANSFER, DecisionKind.CANCELLATION, DecisionKind.BASELINE,
-                DecisionKind.CLASSIFICATION, DecisionKind.CORRECTION),
+                DecisionKind.CLASSIFICATION, DecisionKind.CORRECTION, DecisionKind.DAILY_REPORT, DecisionKind.ALLOCATION_CORRECTION),
             DecisionKind.visible(hours),
         )
         val session = OwnerSession(TENANT, "Acme", setOf("tenant.hours.read"), readOnly = false, userId = "u-1")

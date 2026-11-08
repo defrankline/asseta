@@ -36,6 +36,7 @@ import androidx.lifecycle.viewModelScope
 import com.asseta.core.domain.accountability.FieldAccess
 import com.asseta.core.domain.inbox.FindingTexts
 import com.asseta.core.sync.usecase.CaptureMeterReading
+import com.asseta.supervisor.ui.accountability.DailyReportTexts
 import com.asseta.supervisor.ui.accountability.FieldAccountabilityTexts
 import com.asseta.core.sync.data.InboxSnapshot
 import com.asseta.core.sync.data.ReadingItem
@@ -69,7 +70,14 @@ import java.util.UUID
 /** Readings tab: every reading of mine (newest first) with one combined status, and my meter reset requests. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ReadingsScreen(snapshot: InboxSnapshot, syncing: Boolean, onRefresh: () -> Unit, onRoute: (Route) -> Unit) {
+fun ReadingsScreen(
+    snapshot: InboxSnapshot,
+    syncing: Boolean,
+    onRefresh: () -> Unit,
+    onRoute: (Route) -> Unit,
+    showDailyReports: Boolean = false,
+    reportsSentBack: Int = 0,
+) {
     var attentionOnly by rememberSaveable { mutableStateOf(false) }
     val readings = snapshot.readings.filter { !attentionOnly || it.status.needsAttention }
     val resets = snapshot.resets.filter { !attentionOnly || it.status.needsAttention }
@@ -77,6 +85,13 @@ fun ReadingsScreen(snapshot: InboxSnapshot, syncing: Boolean, onRefresh: () -> U
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp)) {
             item(key = "filter") {
                 FilterChipRow(listOf(false to "All", true to "Needs attention"), attentionOnly, { attentionOnly = it }, Modifier.padding(bottom = 8.dp))
+            }
+            if (showDailyReports) {
+                item(key = "daily-reports") {
+                    com.asseta.core.ui.components.NavigationRow(
+                        DailyReportTexts.MENU, badge = reportsSentBack.takeIf { it > 0 }?.toString(), onClick = { onRoute(Route.DailyReports) },
+                    )
+                }
             }
             if (snapshot.loaded && readings.isEmpty() && resets.isEmpty()) {
                 item(key = "empty") {
@@ -192,7 +207,7 @@ fun ReadingDetailScreen(field: FieldGraph, snapshot: InboxSnapshot, id: String, 
         r.op?.let { op ->
             Section("Sync") {
                 LabeledRow("On this phone", "") { SyncStateLabel(op.status) }
-                op.errorCode?.let { Text("$it: ${op.lastError.orEmpty()}", style = AssetaType.caption, color = palette.offline) }
+                op.errorCode?.let { Text(FieldAccountabilityTexts.conflict(it) ?: "$it: ${op.lastError.orEmpty()}", style = AssetaType.caption, color = palette.offline) }
             }
         }
         // A live reading the server has can be corrected (a second person approves the replacement).
@@ -237,6 +252,9 @@ fun MachineDetailScreen(snapshot: InboxSnapshot, machineId: String, onRoute: (Ro
         Section(null) {
             if (access?.dailyReading == true) {
                 ActionRow(FieldAccountabilityTexts.RECORD_DAILY, R.drawable.ic_gauge) { onRoute(Route.DailyReading(machineId)) }
+            }
+            if (access?.dailyReport == true) {
+                ActionRow(DailyReportTexts.ACTION, R.drawable.ic_clipboard) { onRoute(Route.DailyReportForm(machineId)) }
             }
             if (access?.proposeBaseline == true) {
                 ActionRow(FieldAccountabilityTexts.PROPOSE_BASELINE, R.drawable.ic_check_seal) { onRoute(Route.Baseline(machineId)) }
@@ -292,7 +310,7 @@ fun ResetDetailScreen(field: FieldGraph, snapshot: InboxSnapshot, key: String, o
         r.op?.let { op ->
             Section("Sync") {
                 LabeledRow("On this phone", "") { SyncStateLabel(op.status) }
-                op.errorCode?.let { Text("$it: ${op.lastError.orEmpty()}", style = AssetaType.caption, color = palette.offline) }
+                op.errorCode?.let { Text(FieldAccountabilityTexts.conflict(it) ?: "$it: ${op.lastError.orEmpty()}", style = AssetaType.caption, color = palette.offline) }
             }
         }
         if (machine != null) {

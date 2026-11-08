@@ -36,7 +36,10 @@ import com.asseta.core.domain.capture.GpsOutcome
 import com.asseta.core.domain.capture.OcrStep
 import com.asseta.core.domain.policy.CaptureMode
 import com.asseta.core.sync.usecase.CaptureTarget
+import com.asseta.supervisor.ui.accountability.DailyReportTexts
 import com.asseta.supervisor.ui.accountability.FieldAccountabilityTexts
+import com.asseta.supervisor.ui.finance.PickerOption
+import com.asseta.supervisor.ui.finance.SearchablePickerField
 import com.asseta.supervisor.capture.CameraCapture
 import com.asseta.supervisor.capture.GpsLocator
 import com.asseta.supervisor.capture.MeterOcr
@@ -72,6 +75,7 @@ fun CaptureScreen(vm: CaptureViewModel, onDone: () -> Unit, modifier: Modifier =
                     LabeledRow("Method", if (ui.mode == CaptureMode.AUTOMATIC) "Camera + automatic reading" else "Manual entry")
                 }
                 TargetSection(ui, vm::onExtraText)
+                if (ui.target is CaptureTarget.Changeover) ChangeoverSection(ui, vm)
                 val openCamera = { cameraOpen = true }
                 if (ui.photoRequired || ui.mode == CaptureMode.MANUAL) {
                     Section(if (ui.photoRequired) "Meter photo (required)" else "Meter photo (optional)") {
@@ -203,6 +207,7 @@ private fun TargetSection(ui: CaptureUi, onText: (String) -> Unit) {
         is CaptureTarget.Baseline -> Section(null, footer = t.BASELINE_FOOTER) {
             OutlinedTextField(ui.extraText, onText, label = { Text(t.BASELINE_NOTE) }, enabled = !ui.saving, modifier = Modifier.fillMaxWidth())
         }
+        is CaptureTarget.Changeover -> Unit
         is CaptureTarget.Correction -> Section(null, footer = t.CORRECTION_FOOTER) {
             ui.correctionOf?.let { LabeledRow(t.CORRECTION_OF, it) }
             OutlinedTextField(
@@ -210,5 +215,21 @@ private fun TargetSection(ui: CaptureUi, onText: (String) -> Unit) {
                 modifier = Modifier.fillMaxWidth(),
             )
         }
+    }
+}
+
+/** The next customer (and job) of a changeover reading. */
+@Composable
+private fun ChangeoverSection(ui: CaptureUi, vm: CaptureViewModel) {
+    val t = DailyReportTexts
+    val required = (ui.target as? CaptureTarget.Changeover)?.jobRequired == true
+    Section(t.NEXT_CUSTOMER, footer = t.CHANGEOVER_FOOTER) {
+        SearchablePickerField(t.CHOOSE_CUSTOMER, ui.changeoverCustomers, ui.changeoverCustomerId, vm::onChangeoverCustomer, enabled = !ui.saving)
+    }
+    val customer = ui.changeoverCustomerId ?: return
+    val jobs = ui.changeoverJobs.filter { it.customerId == customer }.map { PickerOption(it.id, it.label) }
+    Section(if (required) t.NEXT_JOB_REQUIRED else t.NEXT_JOB) {
+        if (jobs.isEmpty()) Text(t.NO_JOBS, style = MaterialTheme.typography.bodySmall)
+        SearchablePickerField(t.CHOOSE_JOB, jobs, ui.changeoverJobId, vm::onChangeoverJob, emptyText = t.NO_JOBS, enabled = !ui.saving)
     }
 }

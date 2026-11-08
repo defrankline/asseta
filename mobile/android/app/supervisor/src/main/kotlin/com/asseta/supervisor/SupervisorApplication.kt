@@ -29,6 +29,7 @@ class SupervisorApplication : Application(), AssetaContainerOwner, SyncHost {
                 withContext(Dispatchers.IO) { field.accounts.claimAll(account) }
                 field.online.reset() // the in-memory notification list belongs to whoever was signed in before
                 field.accountability.reset()
+                field.dailyReports.reset()
             }
 
             // Push: this phone stops receiving the user's notifications (best effort, bounded by the sign-out timeout).

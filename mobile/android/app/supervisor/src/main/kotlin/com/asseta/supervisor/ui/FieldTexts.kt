@@ -73,8 +73,12 @@ object FieldTexts {
 
     /** Title of an item on the sync status screen. */
     fun outboxTitle(opType: String, payload: JsonObject?): String = when (opType) {
-        OpTypes.METER_CAPTURE ->
-            if ((payload?.get("kind") as? JsonPrimitive)?.contentOrNull == "DAILY") FieldAccountabilityTexts.OUTBOX_DAILY else "Meter reading"
+        OpTypes.METER_CAPTURE -> when {
+            (payload?.get("changeover_to_customer_id") as? JsonPrimitive)?.contentOrNull != null -> com.asseta.supervisor.ui.accountability.DailyReportTexts.CHANGEOVER_OUTBOX
+            (payload?.get("kind") as? JsonPrimitive)?.contentOrNull == "DAILY" -> FieldAccountabilityTexts.OUTBOX_DAILY
+            else -> "Meter reading"
+        }
+        AccountabilityOps.DAILY_REPORT -> com.asseta.supervisor.ui.accountability.DailyReportTexts.OUTBOX
         AccountabilityOps.HOURS_PURCHASE -> FieldAccountabilityTexts.OUTBOX_HOURS_SALE
         AccountabilityOps.HOURS_TRANSFER_REQUEST -> FieldAccountabilityTexts.OUTBOX_HOURS_TRANSFER
         AccountabilityOps.CASH_TRANSFER -> FieldAccountabilityTexts.OUTBOX_CASH_TRANSFER
@@ -103,7 +107,7 @@ object FieldTexts {
     fun waiting(reason: WaitingReason, opType: String? = null): String = when (reason) {
         WaitingReason.EARLIER_ITEM -> "Waiting for an earlier item"
         WaitingReason.BLOCKED_BY_EARLIER -> "Blocked by an earlier item that needs attention"
-        WaitingReason.UPLOAD -> if (opType == OpTypes.CASH_HANDOVER) FieldAccountabilityTexts.OUTBOX_WAITING_PHOTOS else "Waiting for its photo/receipt/signature upload"
+        WaitingReason.UPLOAD -> if (opType == OpTypes.CASH_HANDOVER || opType == AccountabilityOps.DAILY_REPORT) FieldAccountabilityTexts.OUTBOX_WAITING_PHOTOS else "Waiting for its photo/receipt/signature upload"
     }
 
     fun signOutMessage(unsynced: Int): String =
