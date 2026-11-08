@@ -6,6 +6,7 @@ import com.asseta.core.domain.owner.OwnerAction
 import com.asseta.core.domain.owner.OwnerFormat
 import com.asseta.core.model.TenantAccess
 import com.asseta.core.model.owner.BaselineDto
+import com.asseta.core.model.owner.CashHandoverDto
 import com.asseta.core.model.owner.CashRetentionDto
 import com.asseta.core.model.owner.CashVarianceDto
 import com.asseta.core.model.owner.ClassificationDto
@@ -81,6 +82,18 @@ enum class DecisionKind(
     ADJUSTMENT_REQUEST(
         DecisionKinds.ADJUSTMENT_REQUEST, AdjustmentTexts.SECTION, AdjustmentTexts.EMPTY, AdjustmentTexts.TITLE, OwnerAction.DECIDE_ADJUSTMENT_REQUEST, false,
         "PROPOSED", { it.adjustmentRead }, null,
+    ),
+
+    /** DEC-032 Phase 3: the reason a remittance left part of the balance; the id is the remittance (handover) id. */
+    PARTIAL_REMITTANCE(
+        DecisionKinds.PARTIAL_REMITTANCE, T.PARTIAL_SECTION, T.PARTIAL_EMPTY, T.PARTIAL_TITLE, OwnerAction.DECIDE_PARTIAL_REMITTANCE, false,
+        "PENDING", { it.finance }, TenantAccess.CASH_CUSTODY,
+    ),
+
+    /** DEC-032 Phase 3: a proposed closure of a variance, decided by a second person. */
+    VARIANCE_CLOSURE(
+        DecisionKinds.VARIANCE_CLOSURE, T.CLOSURE_SECTION, T.CLOSURE_EMPTY, T.CLOSURE_TITLE, OwnerAction.DECIDE_VARIANCE_CLOSURE, false,
+        "CLOSURE_PROPOSED", { it.finance }, TenantAccess.CASH_CUSTODY,
     );
 
     /** The tenant switched off the capability this kind belongs to (its section and screen are hidden). */
@@ -127,6 +140,10 @@ data class DecisionItem(
     val effects: List<DecisionField> = emptyList(),
     /** The server's forecast says approving would be refused. */
     val effectsWarning: String? = null,
+    /** A variance: its history, oldest first (title `{when} · {action} · {who}`, value = the note). */
+    val history: List<DecisionField> = emptyList(),
+    /** A [DecisionKinds] code when this record is decided as another kind than it was opened with (a variance's closure). */
+    val decideAs: String? = null,
 ) {
     /** The signed-in user proposed this request, so someone else must decide it. */
     fun isOwn(userId: String?): Boolean = userId != null && proposedBy == userId
@@ -200,7 +217,7 @@ object DecisionMapper {
 
     fun hoursTransfer(t: HoursTransferDto) = DecisionItem(
         DecisionKinds.HOURS_TRANSFER, t.id, T.rowHoursTransfer(num(t.hours)), t.reason, t.requestedAt, t.requestedBy, t.status, t.status == "PENDING",
-        fields(T.F_CUSTOMER to t.customerName, T.F_PURCHASE to name(t.purchaseNumber, t.purchaseId), T.F_HOURS to num(t.hours),
+        fields(T.NUMBER to t.transferNumber, T.F_CUSTOMER to t.customerName, T.F_PURCHASE to name(t.purchaseNumber, t.purchaseId), T.F_HOURS to num(t.hours),
             T.F_FROM_MACHINE to DisplayNames.machine(t.fromMachineCode, t.fromMachineName, t.fromMachineId),
             T.F_TO_MACHINE to DisplayNames.machine(t.toMachineCode, t.toMachineName, t.toMachineId),
             T.F_REQUESTED_BY to name(t.requestedByName, t.requestedBy), *decided(t.decidedByName, t.decidedBy, t.decisionNote)),
@@ -245,6 +262,40 @@ object DecisionMapper {
         proposedByName = name(c.proposedByName, c.proposedBy),
     )
 
+    /** A variance's figures in its unit: hours ("3.5 h") or money. */
+    private fun varianceFigure(amount: String, v: CashVarianceDto): String =
+        if (v.unit == "HOURS") "${num(amount)} h" else money(amount, v.currency)
+
+    /** Proposed closure of a variance (Approvals row and detail). */
+    fun varianceClosure(v: CashVarianceDto): DecisionItem {
+        val difference = varianceFigure(v.amount.removePrefix("-"), v)
+        val outcome = T.varianceOutcome(v.proposedOutcome) ?: T.CLOSURE_TITLE
+        return varianceItem(v, T.rowClosure(difference, outcome), (if (isSurplus(v)) T.VARIANCE_SURPLUS else T.F_DIFFERENCE) to difference)
+    }
+
+    /** The variance screen: everything a variance carries, with its [history] (best effort; empty on failure). */
+    fun variance(v: CashVarianceDto, history: List<com.asseta.core.model.owner.VarianceEventDto>, zone: ZoneId): DecisionItem =
+        (if (v.status == "CLOSURE_PROPOSED") varianceClosure(v) else writeOff(v)).copy(
+            history = history.map { e ->
+                DecisionField(T.varianceHistoryRow(date(e.occurredAt, zone), T.varianceAction(e.action), name(e.actorUserName, e.actorUserId).orEmpty()), e.note.orEmpty())
+            },
+        )
+
+    /** The remittance's reason for leaving part of the balance; pending while its approval waits (id = remittance id). */
+    fun partialRemittance(h: CashHandoverDto): DecisionItem {
+        val a = h.partialApproval
+        val custodian = name(h.staffMemberName, h.staffMemberId.toString()).orEmpty()
+        val shortfall = h.partialShortfall?.let { OwnerFormat.money(it.value, h.currency) }
+        return DecisionItem(
+            DecisionKinds.PARTIAL_REMITTANCE, h.id.toString(), T.rowPartial(shortfall ?: OwnerFormat.money(h.amount.value, h.currency), custodian),
+            a?.reason, a?.createdAt, a?.createdBy, a?.status ?: "NONE", a?.status == "PENDING",
+            fields(T.NUMBER to h.remittanceNumber, T.F_CUSTODIAN to custodian, T.PARTIAL_REMITTED to OwnerFormat.money(h.amount.value, h.currency),
+                T.PARTIAL_NOT_REMITTED to shortfall, T.F_PROPOSED_BY to name(a?.createdByName, a?.createdBy),
+                *decided(a?.decidedByName, a?.decidedBy, a?.decisionNote)),
+            proposedByName = name(a?.createdByName, a?.createdBy),
+        )
+    }
+
     /** More received than declared ("Surplus to explain"); older servers send no kind, a negative amount means the same. */
     fun isSurplus(v: CashVarianceDto): Boolean =
         v.kind == "SURPLUS" || (v.kind == null && (v.amount.toBigDecimalOrNull()?.signum() ?: 0) < 0)
@@ -256,20 +307,30 @@ object DecisionMapper {
             (if (surplus) T.VARIANCE_SURPLUS else T.F_DIFFERENCE) to difference)
     }
 
-    private fun writeOffItem(v: CashVarianceDto, headline: String, difference: Pair<String, String>) = DecisionItem(
+    private fun writeOffItem(v: CashVarianceDto, headline: String, difference: Pair<String, String>) = varianceItem(v, headline, difference)
+
+    private fun varianceItem(v: CashVarianceDto, headline: String, difference: Pair<String, String>) = DecisionItem(
         DecisionKinds.WRITE_OFF, v.id, headline, v.proposalNote, v.proposedAt ?: v.openedAt, v.proposedBy, v.status,
-        v.status == "WRITE_OFF_PROPOSED",
-        fields(T.F_CUSTODIAN to name(v.staffMemberName, v.staffMemberId), T.F_COUNTERPARTY to name(v.counterpartyStaffName, v.counterpartyStaffId),
-            T.F_SOURCE to OwnerFormat.humanize(v.sourceType), T.F_DECLARED to money(v.declaredAmount, v.currency),
-            T.F_RECEIVED to money(v.receivedAmount, v.currency), difference,
+        v.status == "WRITE_OFF_PROPOSED" || v.status == "CLOSURE_PROPOSED",
+        fields(T.VARIANCE_CHECK to T.varianceCheck(v.checkCode), T.F_CUSTODIAN to name(v.staffMemberName, v.staffMemberId),
+            T.F_COUNTERPARTY to name(v.counterpartyStaffName, v.counterpartyStaffId),
+            T.F_CUSTOMER to name(v.customerName, v.customerId), T.F_MACHINE to DisplayNames.machine(v.machineCode, v.machineName, v.machineId),
+            T.F_PURCHASE to name(v.purchaseNumber, v.purchaseId), T.F_JOB to name(v.jobNumber, v.jobId),
+            T.F_SOURCE to OwnerFormat.humanize(v.sourceType), T.F_DECLARED to varianceFigure(v.declaredAmount, v),
+            T.F_RECEIVED to varianceFigure(v.receivedAmount, v), difference,
+            T.VARIANCE_ASSIGNEE to name(v.assigneeUserName, v.assigneeUserId), T.VARIANCE_ASSIGNED_BY to name(v.assignedByName, v.assignedBy),
+            T.VARIANCE_EXPLANATION to v.explanation, T.VARIANCE_EXPLAINED_BY to name(v.explainedByName, v.explainedBy),
+            T.CLOSURE_OUTCOME to T.varianceOutcome(v.proposedOutcome),
             T.F_PROPOSED_BY to name(v.proposedByName, v.proposedBy), T.F_DECIDED_BY to name(v.resolvedByName, v.resolvedBy),
             T.F_DECISION_NOTE to v.resolutionNote),
         proposedByName = name(v.proposedByName, v.proposedBy),
+        photoAttachmentIds = v.evidenceAttachmentIds.orEmpty(),
+        decideAs = DecisionKinds.VARIANCE_CLOSURE.takeIf { v.status == "CLOSURE_PROPOSED" },
     )
 
     fun retention(r: CashRetentionDto, zone: ZoneId) = DecisionItem(
         DecisionKinds.RETENTION, r.id, T.rowRetention(money(r.amount, r.currency)), r.reason, r.createdAt, r.createdBy, r.status, r.status == "PENDING",
-        fields(T.F_CUSTODIAN to name(r.staffMemberName, r.staffMemberId), T.F_AMOUNT to money(r.amount, r.currency),
+        fields(T.NUMBER to r.retentionNumber, T.F_CUSTODIAN to name(r.staffMemberName, r.staffMemberId), T.F_AMOUNT to money(r.amount, r.currency),
             T.F_VALID_UNTIL to r.validUntil?.let { date(it, zone) }, T.F_REQUESTED_BY to name(r.createdByName, r.createdBy),
             *decided(r.decidedByName, r.decidedBy, r.decisionNote)),
         proposedByName = name(r.createdByName, r.createdBy),
@@ -278,7 +339,7 @@ object DecisionMapper {
     fun adjustment(a: CustodyAdjustmentDto, zone: ZoneId) = DecisionItem(
         DecisionKinds.ADJUSTMENT, a.id, T.rowAdjustment(OwnerFormat.humanize(a.kind), money(a.amount, a.currency)), a.reason, a.createdAt, a.createdBy,
         a.status, a.status == "PENDING",
-        fields(T.F_CUSTODIAN to name(a.staffMemberName, a.staffMemberId), T.F_KIND to OwnerFormat.humanize(a.kind),
+        fields(T.NUMBER to a.adjustmentNumber, T.F_CUSTODIAN to name(a.staffMemberName, a.staffMemberId), T.F_KIND to OwnerFormat.humanize(a.kind),
             T.F_AMOUNT to money(a.amount, a.currency), T.F_WHEN to date(a.occurredAt, zone),
             T.F_PROPOSED_BY to name(a.createdByName, a.createdBy), *decided(a.decidedByName, a.decidedBy, a.decisionNote)),
         proposedByName = name(a.createdByName, a.createdBy),

@@ -190,6 +190,9 @@ object BlobPurpose {
 
     /** Photos of a daily operational report (`DAILY_REPORT` `evidence_upload_ids`). */
     const val DAILY_REPORT_EVIDENCE = "DAILY_REPORT_EVIDENCE"
+
+    /** Evidence of an hours transfer request (`HOURS_TRANSFER_REQUEST` `evidence_upload_ids`, CASH_DETAILS_V2). */
+    const val ADJUSTMENT_EVIDENCE = "ADJUSTMENT_EVIDENCE"
 }
 
 object SyncErrorCodes {

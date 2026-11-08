@@ -80,6 +80,7 @@ data class CreditArrangementDto(
 @Serializable
 data class HoursTransferDto(
     val id: String,
+    @SerialName("transfer_number") val transferNumber: String? = null,
     @SerialName("client_id") val clientId: String? = null,
     @SerialName("purchase_id") val purchaseId: String,
     @SerialName("purchase_number") val purchaseNumber: String? = null,
@@ -231,12 +232,47 @@ data class CashVarianceDto(
     @SerialName("resolution_note") val resolutionNote: String? = null,
     /** SHORTFALL (less received than declared) or SURPLUS (more: "Surplus to explain"); null from older servers. */
     val kind: String? = null,
+    /** MONEY or HOURS: what the figures measure; null from older servers (money). */
+    val unit: String? = null,
+    @SerialName("proposed_outcome") val proposedOutcome: String? = null,
+    @SerialName("assignee_user_id") val assigneeUserId: String? = null,
+    @SerialName("assignee_user_name") val assigneeUserName: String? = null,
+    @SerialName("assigned_by") val assignedBy: String? = null,
+    @SerialName("assigned_by_name") val assignedByName: String? = null,
+    @SerialName("assigned_at") val assignedAt: String? = null,
+    val explanation: String? = null,
+    @SerialName("explained_by") val explainedBy: String? = null,
+    @SerialName("explained_by_name") val explainedByName: String? = null,
+    @SerialName("explained_at") val explainedAt: String? = null,
+    @SerialName("evidence_attachment_ids") val evidenceAttachmentIds: List<String>? = null,
+    @SerialName("check_code") val checkCode: String? = null,
+    @SerialName("customer_id") val customerId: String? = null,
+    @SerialName("customer_name") val customerName: String? = null,
+    @SerialName("machine_id") val machineId: String? = null,
+    @SerialName("machine_code") val machineCode: String? = null,
+    @SerialName("machine_name") val machineName: String? = null,
+    @SerialName("purchase_id") val purchaseId: String? = null,
+    @SerialName("purchase_number") val purchaseNumber: String? = null,
+    @SerialName("job_id") val jobId: String? = null,
+    @SerialName("job_number") val jobNumber: String? = null,
+)
+
+/** `VarianceEventDto` (`GET /cash/variances/{id}/history`): one step of a variance's investigation, oldest first. */
+@Serializable
+data class VarianceEventDto(
+    val id: String,
+    val action: String,
+    @SerialName("actor_user_id") val actorUserId: String? = null,
+    @SerialName("actor_user_name") val actorUserName: String? = null,
+    val note: String? = null,
+    @SerialName("occurred_at") val occurredAt: String,
 )
 
 /** `CashRetentionDto` (a custodian may keep some cash instead of remitting it, once approved). */
 @Serializable
 data class CashRetentionDto(
     val id: String,
+    @SerialName("retention_number") val retentionNumber: String? = null,
     @SerialName("staff_member_id") val staffMemberId: String,
     @SerialName("staff_member_name") val staffMemberName: String? = null,
     val amount: String,
@@ -260,6 +296,7 @@ data class CashRetentionDto(
 @Serializable
 data class CustodyAdjustmentDto(
     val id: String,
+    @SerialName("adjustment_number") val adjustmentNumber: String? = null,
     @SerialName("staff_member_id") val staffMemberId: String,
     @SerialName("staff_member_name") val staffMemberName: String? = null,
     val kind: String,

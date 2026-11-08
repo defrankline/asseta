@@ -209,7 +209,7 @@ private fun ExpenseRow(e: ExpenseItem) {
 private fun CashRow(c: CashItem) {
     InboxRow(
         InboxTexts.money(c.amount, c.currency), c.status,
-        listOfNotNull(c.reference, c.note).joinToString(" · ").ifEmpty { null },
+        listOfNotNull(c.number, c.reference, c.note).joinToString(" · ").ifEmpty { null },
         LocalTime.format(c.atMs),
         c.decisionNote?.let { "Office note: $it" },
     )
@@ -307,6 +307,7 @@ fun CashDetailScreen(
         Section(null) {
             LabeledRow("Status", "") { StatusPill(c.status) }
             LabeledRow("Amount", InboxTexts.money(c.amount, c.currency))
+            c.number?.let { LabeledRow(if (collection) com.asseta.supervisor.ui.accountability.FieldAccountabilityTexts.MONEY_COLLECTION_NUMBER else com.asseta.supervisor.ui.accountability.FieldAccountabilityTexts.MONEY_REMITTANCE_NUMBER, it) }
             if (collection) LabeledRow("Customer", customers.firstOrNull { it.id == c.customerId }?.name ?: "Customer")
             c.reference?.let { LabeledRow("Reference", it) }
             LabeledRow(if (collection) "Received" else "Handed over", LocalTime.format(c.atMs))

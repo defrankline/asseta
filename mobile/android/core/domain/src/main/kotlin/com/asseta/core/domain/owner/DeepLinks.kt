@@ -162,6 +162,12 @@ object DecisionKinds {
     const val ALLOCATION_CORRECTION = "ALLOCATION_CORRECTION"
     const val ADJUSTMENT_REQUEST = "ADJUSTMENT_REQUEST"
 
+    /** DEC-032: a remittance's reason for leaving part of the balance; the id is the remittance (handover) id. */
+    const val PARTIAL_REMITTANCE = "PARTIAL_REMITTANCE"
+
+    /** DEC-032: a proposed closure of a variance; opened from the variance screen (the id is the variance id). */
+    const val VARIANCE_CLOSURE = "VARIANCE_CLOSURE"
+
     /** Notification target entity -> decision kind (backend notification rules). */
     val BY_ENTITY = mapOf(
         "customer_discount" to DISCOUNT,

@@ -111,6 +111,9 @@ object HandoverText {
      * Older remittances (no method) show only their reference.
      */
     fun details(h: CashHandoverDto): List<Pair<String, String>> = listOfNotNull(
+        h.remittanceNumber?.takeIf { it.isNotBlank() }?.let { OwnerAccountabilityTexts.REMIT_NUMBER to it },
+        OwnerAccountabilityTexts.remitEvidence(h.evidenceStatus)?.let { OwnerAccountabilityTexts.REMIT_EVIDENCE to it },
+        h.outstandingDifference?.takeIf { it.value.signum() != 0 }?.let { OwnerAccountabilityTexts.REMIT_OUTSTANDING to OwnerFormat.money(it.value, h.currency) },
         OwnerAccountabilityTexts.remitMethod(h.method)?.let { OwnerAccountabilityTexts.REMIT_METHOD to it },
         (h.depositAccountName?.takeIf { it.isNotBlank() } ?: com.asseta.core.domain.accountability.DisplayNames.shortId(h.depositAccountId))
             ?.let { OwnerAccountabilityTexts.REMIT_ACCOUNT to it },
@@ -134,6 +137,7 @@ fun HandoverRow(h: CashHandoverDto, name: String?, zone: ZoneId) {
     Column(Modifier.semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(HandoverText.headline(h, name), style = AssetaType.headline)
         Text(HandoverText.claimed(h, zone), style = AssetaType.subheadline, color = palette.secondaryText)
+        h.remittanceNumber?.takeIf { it.isNotBlank() }?.let { Text(it, style = AssetaType.caption, color = palette.secondaryText) }
         h.note?.takeIf { it.isNotBlank() }?.let { Text(it, style = AssetaType.caption, color = palette.secondaryText) }
     }
 }
@@ -184,7 +188,7 @@ class HandoverViewModel(val data: OwnerData, val handoverId: String, refreshOn: 
 }
 
 @Composable
-fun HandoverScreen(vm: HandoverViewModel, session: OwnerSession, online: Boolean) {
+fun HandoverScreen(vm: HandoverViewModel, session: OwnerSession, online: Boolean, onOpen: (com.asseta.core.domain.owner.OwnerDestination) -> Unit = {}) {
     val state by vm.state.collectAsStateWithLifecycle()
     val error by vm.error.collectAsStateWithLifecycle()
     val message by vm.message.collectAsStateWithLifecycle()
@@ -216,6 +220,20 @@ fun HandoverScreen(vm: HandoverViewModel, session: OwnerSession, online: Boolean
                     h.partialShortfall?.let { KeyValue(OwnerAccountabilityTexts.REMIT_SHORTFALL, OwnerFormat.money(it.value, h.currency)) }
                     h.amountReceived?.let { KeyValue(OwnerAccountabilityTexts.REMIT_RECEIVED, OwnerFormat.money(it.value, h.currency)) }
                     h.decisionNote?.let { KeyValue("Decision note", it) }
+                }
+            }
+            h.partialApproval?.let { p ->
+                item {
+                    SectionCard(OwnerAccountabilityTexts.PARTIAL_TITLE) {
+                        KeyValue(OwnerAccountabilityTexts.REMIT_PARTIAL_REASON, p.reason)
+                        LabeledValue(OwnerAccountabilityTexts.REMIT_PARTIAL_STATUS) { StatusPill(OwnerFormat.humanize(p.status), com.asseta.owner.ui.approvals.ApprovalText.statusColor(p.status)) }
+                        p.decisionNote?.takeIf { it.isNotBlank() }?.let { KeyValue("Decision note", it) }
+                        if (p.status == "PENDING" && OwnerAction.DECIDE_PARTIAL_REMITTANCE.permission in session.permissions && com.asseta.owner.ui.accountability.DecisionKind.PARTIAL_REMITTANCE.visibleTo(session.features)) {
+                            com.asseta.core.ui.components.NavigationRow(OwnerAccountabilityTexts.REMIT_PARTIAL_REVIEW) {
+                                onOpen(com.asseta.core.domain.owner.OwnerDestination.Decision(com.asseta.core.domain.owner.DecisionKinds.PARTIAL_REMITTANCE, h.id.toString()))
+                            }
+                        }
+                    }
                 }
             }
             if (h.status == HandoverText.CLAIMED) item {

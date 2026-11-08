@@ -284,6 +284,7 @@ data class HoursTransferForm(
     val hours: String = "",
     val reasonCodeId: String? = null,
     val reason: String = "",
+    val photos: List<CapturedPhoto> = emptyList(),
 )
 
 class HoursTransferViewModel(field: FieldGraph, tenantId: String, permissions: Set<String>) : AccountabilityFormViewModel(field, tenantId, permissions) {
@@ -305,15 +306,18 @@ class HoursTransferViewModel(field: FieldGraph, tenantId: String, permissions: S
 
     fun purchase(): FieldHoursPurchaseDto? = cache.value.purchases.firstOrNull { it.id == form.value.purchaseId }
 
+    fun onPhotoError(message: String) = _save.update { it.copy(messages = listOf("The photo could not be saved: $message")) }
+
     fun remaining() = purchase()?.let { p -> AccountabilityRules.remainingOn(form.value.fromMachineId, p.machines.associate { it.machineId to it.remaining }, p.totals.remaining) }
 
     fun save() {
         if (saving()) return
         val f = form.value
         viewModelScope.launch {
+            val a = access.value
             val result = field.accountabilityCapture.hoursTransfer(
                 HoursTransferRequest(tenantId, clientId, f.purchaseId, f.fromMachineId, f.toMachineId, f.hours, remaining(), f.reason,
-                    f.reasonCodeId, access.value?.hours?.reasonCodeRequired == true),
+                    f.reasonCodeId, a?.hours?.reasonCodeRequired == true, f.photos.map { it.jpeg }, a?.transferEvidenceRequired == true, field.clock.nowMs()),
             )
             _save.update { it.after(result) }
         }
@@ -366,11 +370,19 @@ fun HoursTransferScreen(vm: HoursTransferViewModel, onDone: () -> Unit) {
             }
             TextInput(T.REASON, form.reason, { v -> vm.edit { it.copy(reason = v) } }, editable, singleLine = false)
         }
+        if (a.transferEvidence) {
+            EvidencePhotos(form.photos, { p -> vm.edit { it.copy(photos = it.photos + p) } },
+                { i -> vm.edit { it.copy(photos = it.photos.filterIndexed { j, _ -> j != i }) } }, vm::onPhotoError, editable,
+                title = if (a.transferEvidenceRequired) T.TRANSFER_EVIDENCE_TITLE_REQUIRED else T.TRANSFER_EVIDENCE_TITLE,
+                footer = T.TRANSFER_EVIDENCE_FOOTER, photograph = T.TRANSFER_PHOTOGRAPH, addPhoto = T.TRANSFER_ADD_PHOTO, remove = T.TRANSFER_REMOVE_PHOTO)
+        }
+        val evidenceOk = !a.transferEvidenceRequired || form.photos.isNotEmpty()
+        if (!evidenceOk && save.messages.isEmpty()) Section(null) { Text(T.TRANSFER_EVIDENCE_REQUIRED, color = WarningColor) }
         val check = AccountabilityRules.hoursTransfer(form.purchaseId, form.fromMachineId, form.toMachineId, form.hours, vm.remaining(), form.reason,
             form.reasonCodeId, a.hours?.reasonCodeRequired == true)
         (check as? FormCheck.Invalid)?.messages?.filter { it.startsWith("Only") || it.startsWith("Choose a different") }?.takeIf { it.isNotEmpty() && save.messages.isEmpty() }
             ?.let { msgs -> Section(null) { msgs.forEach { Text(it, color = WarningColor) } } }
-        SaveSection(save, vm::save, onDone, enabled = check is FormCheck.Valid)
+        SaveSection(save, vm::save, onDone, enabled = check is FormCheck.Valid && evidenceOk)
     }
 }
 
@@ -672,6 +684,7 @@ fun RetentionStatusScreen(vm: RetentionStatusViewModel) {
             val amount = server?.amount ?: text("amount")
             val currency = server?.currency ?: text("currency")
             if (amount != null) LabeledRow(T.AMOUNT, "$amount ${currency.orEmpty()}".trim())
+            server?.retentionNumber?.let { LabeledRow(T.RETENTION_NUMBER, it) }
             (server?.reason ?: text("reason"))?.let { LabeledRow(T.REASON, it) }
             server?.createdAt?.let { LabeledRow(T.RETENTION_REQUESTED, LocalTime.formatIso(it)) }
                 ?: s.operation?.let { LabeledRow(T.RETENTION_REQUESTED, LocalTime.format(it.createdAtDevice)) }

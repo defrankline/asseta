@@ -229,6 +229,9 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
                 DecisionKind.CLASSIFICATION -> engineHourClassifications(status).items.map { DecisionMapper.classification(it, zone) }
                 DecisionKind.CORRECTION -> meterCorrections(status).items.map(DecisionMapper::correction)
                 DecisionKind.WRITE_OFF -> cashVariances(status).items.map(DecisionMapper::writeOff)
+                DecisionKind.VARIANCE_CLOSURE -> cashVariances(status).items.map(DecisionMapper::varianceClosure)
+                // No server filter on the partial approval: the newest remittances, those whose reason waits.
+                DecisionKind.PARTIAL_REMITTANCE -> cashHandovers(pageSize = LIST_PAGE).items.filter { it.partialApproval?.status == "PENDING" }.map(DecisionMapper::partialRemittance)
                 DecisionKind.RETENTION -> cashRetentions(status).items.map { DecisionMapper.retention(it, zone) }
                 DecisionKind.ADJUSTMENT -> custodyAdjustments(status).items.map { DecisionMapper.adjustment(it, zone) }
                 // Waiting for someone: to explain (OPEN) and explanations waiting for a decision.
@@ -258,7 +261,10 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
                     DecisionKind.BASELINE -> DecisionMapper.baseline(meterBaseline(id), zone)
                     DecisionKind.CLASSIFICATION -> DecisionMapper.classification(engineHourClassification(id), zone)
                     DecisionKind.CORRECTION -> DecisionMapper.correction(meterCorrection(id))
-                    DecisionKind.WRITE_OFF -> DecisionMapper.writeOff(cashVariance(id))
+                    DecisionKind.WRITE_OFF, DecisionKind.VARIANCE_CLOSURE -> DecisionMapper.variance(
+                        cashVariance(id), runCatching { cashVarianceHistory(id) }.getOrDefault(emptyList()), zone,
+                    )
+                    DecisionKind.PARTIAL_REMITTANCE -> DecisionMapper.partialRemittance(cashHandover(id))
                     DecisionKind.RETENTION -> DecisionMapper.retention(cashRetention(id), zone)
                     DecisionKind.ADJUSTMENT -> DecisionMapper.adjustment(custodyAdjustment(id), zone)
                     DecisionKind.REVENUE_DIFFERENCE -> DecisionMapper.revenueDifference(revenueDifference(id), zone)
@@ -311,6 +317,8 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
                 DecisionKind.CLASSIFICATION -> decideEngineHourClassification(id, meter)
                 DecisionKind.CORRECTION -> decideMeterCorrection(id, meter)
                 DecisionKind.WRITE_OFF -> decideCashWriteOff(id, decision)
+                DecisionKind.VARIANCE_CLOSURE -> decideCashVarianceClosure(id, decision)
+                DecisionKind.PARTIAL_REMITTANCE -> decidePartialRemittanceReason(id, decision)
                 DecisionKind.RETENTION -> decideCashRetention(id, decision)
                 DecisionKind.ADJUSTMENT -> decideCustodyAdjustment(id, decision)
                 DecisionKind.REVENUE_DIFFERENCE -> decideRevenueDifference(id, RevenueDecisionIn(meter.decision, meter.note))

@@ -53,18 +53,19 @@ import java.time.ZoneId
 import java.util.Locale
 
 /** Machine drilldown: each part loads (and caches) independently, so one refusal never hides the rest. */
-class MachineViewModel(val data: OwnerData, val machineId: String, refreshOn: Flow<Unit>) : ViewModel() {
+class MachineViewModel(val data: OwnerData, val machineId: String, refreshOn: Flow<Unit>, tracking: Boolean = true) : ViewModel() {
     val status = Section(viewModelScope) { data.machineStatus(machineId) }
     val info = Section(viewModelScope) { data.machineInfo(machineId) }
     val alerts = Section(viewModelScope) { data.machineAlerts(machineId) }
     val readings = Section(viewModelScope) { data.machineReadings(machineId) }
     val jobs = Section(viewModelScope) { data.machineJobs(machineId) }
     val track = Section(viewModelScope) { data.machineTrack(machineId) }
-    private val all = listOf(status, info, alerts, readings, jobs, track)
+    // TRACKING off: alerts and track positions are not read (their cards are hidden).
+    private val all = listOfNotNull(status, info, alerts.takeIf { tracking }, readings, jobs, track.takeIf { tracking })
 
     init {
         refresh()
-        viewModelScope.launch { refreshOn.collect { status.refresh(); alerts.refresh() } }
+        viewModelScope.launch { refreshOn.collect { status.refresh(); if (tracking) alerts.refresh() } }
     }
 
     fun refresh() = all.forEach { it.refresh() }
@@ -77,21 +78,21 @@ object MachineText {
     const val TRUNCATED = "Track shortened by the server; some points are not shown."
 
     /** Status rows in display order (label to value); optional rows only when known. */
-    fun statusRows(row: FleetRow, info: MachineDto?, zone: ZoneId): List<Pair<String, String>> {
+    fun statusRows(row: FleetRow, info: MachineDto?, zone: ZoneId, tracking: Boolean = true): List<Pair<String, String>> {
         val m = row.machine
         return listOfNotNull(
             "Machine" to FleetRows.title(m),
-            "Last seen" to if (m.lastSeenAgeSeconds == null && m.lastMessageAt == null) "Never" else row.lastSeen.replaceFirstChar { it.uppercase() },
-            "Position time" to OwnerFormat.dateTime(m.positionTime, zone),
-            m.accuracyM?.let { "Accuracy" to "± ${Math.round(it)} m" },
-            "Engine (tracker)" to OwnerFormat.humanize(m.observedEngine),
-            "Motion (tracker)" to OwnerFormat.humanize(m.observedMotion),
+            ("Last seen" to if (m.lastSeenAgeSeconds == null && m.lastMessageAt == null) "Never" else row.lastSeen.replaceFirstChar { it.uppercase() }).takeIf { tracking },
+            ("Position time" to OwnerFormat.dateTime(m.positionTime, zone)).takeIf { tracking },
+            m.accuracyM?.takeIf { tracking }?.let { "Accuracy" to "± ${Math.round(it)} m" },
+            ("Engine (tracker)" to OwnerFormat.humanize(m.observedEngine)).takeIf { tracking },
+            ("Motion (tracker)" to OwnerFormat.humanize(m.observedMotion)).takeIf { tracking },
             "Reported work status" to OwnerFormat.humanize(m.reportedWorkStatus),
             "Location compliance" to OwnerFormat.humanize(m.locationCompliance),
             "Machine status" to OwnerFormat.humanize(m.machineStatus),
             m.operator?.let { "Operator" to it },
             m.supervisor?.let { "Supervisor" to it },
-            m.trackerState?.let { "Tracker" to OwnerFormat.humanize(it) },
+            m.trackerState?.takeIf { tracking }?.let { "Tracker" to OwnerFormat.humanize(it) },
             info?.let { i -> listOfNotNull(i.manufacturer, i.model, i.yearOfManufacture?.toString()).takeIf { it.isNotEmpty() }?.let { "Model" to it.joinToString(" ") } },
             info?.let { "Ownership" to OwnerFormat.humanize(it.ownership) },
         )
@@ -117,10 +118,10 @@ fun MachineScreen(vm: MachineViewModel, features: OwnerFeatures, online: Boolean
         val snap = status.snapshot!!
         val row = FleetRows.build(listOf(m), snap.source, snap.fetchedAtMs, now()).first()
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 16.dp, bottom = 16.dp)) {
-            item { StatusCard(row, info.data, zone) }
-            item { Track(row, track, zone) }
+            item { StatusCard(row, info.data, zone, features.tracking) }
+            if (features.tracking) item { Track(row, track, zone) }
             if (features.jobs) item { CurrentJob(jobs, zone, onOpen) }
-            item { RecentAlerts(alerts, zone, onOpen) }
+            if (features.alerts) item { RecentAlerts(alerts, zone, onOpen) }
             if (features.meterEvidence) item { Readings(vm.data, readings, online, zone) }
             // The machine's days: the daily sheet with money (DEC-031 R2) or, with revenue checks off, the allocations (DEC-032).
             if (features.machineDays) item {
@@ -135,10 +136,10 @@ fun MachineScreen(vm: MachineViewModel, features: OwnerFeatures, online: Boolean
 }
 
 @Composable
-private fun StatusCard(row: FleetRow, info: MachineDto?, zone: ZoneId) {
-    SectionCard("Status", footer = MachineText.STATUS_FOOTER) {
-        LabeledValue("Connectivity") { StatusPill(row.connectivity.label, OwnerColors.connectivity(row.connectivity)) }
-        MachineText.statusRows(row, info, zone).forEach { (k, v) -> KeyValue(k, v) }
+private fun StatusCard(row: FleetRow, info: MachineDto?, zone: ZoneId, tracking: Boolean) {
+    SectionCard("Status", footer = MachineText.STATUS_FOOTER.takeIf { tracking }) {
+        if (tracking) LabeledValue("Connectivity") { StatusPill(row.connectivity.label, OwnerColors.connectivity(row.connectivity)) }
+        MachineText.statusRows(row, info, zone, tracking).forEach { (k, v) -> KeyValue(k, v) }
     }
 }
 

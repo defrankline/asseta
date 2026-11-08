@@ -59,6 +59,8 @@ data class FieldAccountabilityCache(
     @SerialName("engine_hours_policy") val engineHoursPolicy: EffectivePolicyDto? = null,
     /** Active unbillable reasons (daily report form), by name. */
     @SerialName("unbillable_reasons") val unbillableReasons: List<com.asseta.core.model.owner.EngineHourReasonDto> = emptyList(),
+    /** The tenant's PARTIAL_REMITTANCE reasons (handover form, DEC-032). */
+    @SerialName("partial_reasons") val partialReasons: List<CashReasonDto> = emptyList(),
 ) {
     val cash: CashCustodyPolicy? get() = cashPolicy?.values?.let(CashCustodyPolicy::fromValues)
     val hours: CustomerHoursPolicy? get() = hoursPolicy?.values?.let(CustomerHoursPolicy::fromValues)
@@ -183,9 +185,13 @@ class FieldAccountabilityData(
             floats = part(record && me != null, old.floats, emptyList()) {
                 cashFloats(staffMemberId = me, awaitingAcknowledgement = true, pageSize = PAGE).items
             },
-            purchases = part(hoursRead && FieldAccess.HOURS_TRANSFER in permissions, old.purchases, emptyList()) { hoursPurchases(pageSize = PAGE).items },
+            // The "Pays for" picker on a collection needs them too (DEC-032).
+            purchases = part(hoursRead && (FieldAccess.HOURS_TRANSFER in permissions || FieldAccess.COLLECTION_RECORD in permissions), old.purchases, emptyList()) {
+                hoursPurchases(pageSize = PAGE).items
+            },
             transferReasons = part(hoursRead, old.transferReasons, emptyList()) { hoursReasonCodes(kind = "TRANSFER").items.filter { it.isActive } },
             retentionReasons = part(record, old.retentionReasons, emptyList()) { cashReasons(kind = "RETENTION").items.filter { it.isActive } },
+            partialReasons = part(record, old.partialReasons, emptyList()) { cashReasons(kind = PARTIAL_REMITTANCE).items.filter { it.isActive } },
             engineHoursPolicy = part(engineOn && FieldAccess.METER_CAPTURE in permissions, old.engineHoursPolicy, null) {
                 effectivePolicy(com.asseta.core.domain.accountability.EngineHoursPolicy.TYPE)
             },
@@ -359,6 +365,7 @@ class FieldAccountabilityData(
 
     companion object {
         const val KEY = "supervisor.accountability"
+        private const val PARTIAL_REMITTANCE = "PARTIAL_REMITTANCE"
         private const val PAGE = 100
     }
 }

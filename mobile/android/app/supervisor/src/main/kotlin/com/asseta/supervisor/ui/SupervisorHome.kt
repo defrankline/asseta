@@ -384,6 +384,8 @@ fun SupervisorHome(
                 coroutines.launch { if (field.accountability.remittanceOverdue(link.id) != null) push(Route.RemittanceOverdue(link.id)) else money() }
             }
             is InboxLink.DailyReport -> push(Route.DailyReportDetail(link.id))
+            // One of my remittances: its detail once it is on the phone, else the Money tab.
+            is InboxLink.Handover -> snapshot.handovers.firstOrNull { it.key == link.id }?.let { push(Route.CashDetail(it.key, collection = false)) } ?: money()
             InboxLink.None -> fallback()
         }
     }

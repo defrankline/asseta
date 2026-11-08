@@ -214,7 +214,7 @@ object OversightPresentation {
         val id = r.recordId
         return when (r.recordType) {
             "job_exception" -> id?.takeIf { f.meterEvidence }?.let { OwnerDestination.MeterException(it) }
-            "tracking_alert" -> id?.takeIf { f.fleet }?.let { OwnerDestination.Alerts(it) }
+            "tracking_alert" -> id?.takeIf { f.alerts }?.let { OwnerDestination.Alerts(it) }
             "cash_remittance_overdue" -> id?.takeIf { f.finance && f.cashCustody }?.let { OwnerDestination.RemittanceOverdue(it) }
             "cash_variance" -> id?.takeIf { DecisionKind.WRITE_OFF.visibleTo(f) }?.let { OwnerDestination.Decision(DecisionKinds.WRITE_OFF, it) }
             "revenue_difference" -> id?.takeIf { f.revenueRead }?.let { OwnerDestination.Decision(DecisionKinds.REVENUE_DIFFERENCE, it) }

@@ -230,8 +230,43 @@ object FieldAccountabilityTexts {
 
     fun overdueHeldLine(date: String, days: Int): String = "Held since $date, longer than the allowed ${days(days)}."
 
+    // DEC-032 Phase 3 (docs/requirements/accountability-mobile-strings.md).
+    const val COLLECTION_LINK = "Pays for"
+    const val COLLECTION_LINK_OPTIONAL = "Pays for (optional)"
+    const val COLLECTION_LINK_NONE = "Not linked"
+    const val COLLECTION_LINK_EMPTY = "No open purchases for this customer on this phone."
+    const val COLLECTION_LINK_REQUIRED = "Your company requires every collection to name its purchase or invoice."
+    const val COLLECTION_LINK_FOOTER = "The cash pays this purchase up to what it still owes; anything above stays as customer credit."
+    const val HANDOVER_PARTIAL_TITLE = "Part of your cash stays with you"
+    const val HANDOVER_PARTIAL_FOOTER_OTHER = "If this is less than this person holds, your company requires the reason."
+    const val HANDOVER_PARTIAL_REASON = "Why part of the cash stays (required)"
+    const val HANDOVER_PARTIAL_REASON_OPTIONAL = "Why part of the cash stays (optional)"
+    const val HANDOVER_PARTIAL_CATEGORY = "Reason category (optional)"
+    const val HANDOVER_PARTIAL_CATEGORY_NONE = "No category"
+    const val HANDOVER_PARTIAL_ERROR = "Enter why part of the cash stays with you (at least 3 characters)."
+    const val TRANSFER_EVIDENCE_TITLE = "Evidence photos"
+    const val TRANSFER_EVIDENCE_TITLE_REQUIRED = "Evidence photos (required)"
+    const val TRANSFER_EVIDENCE_FOOTER = "Photographs are kept with the request and sent when there is a connection."
+    const val TRANSFER_EVIDENCE_REQUIRED = "Photograph the evidence for this transfer."
+    const val TRANSFER_PHOTOGRAPH = "Photograph evidence"
+    const val TRANSFER_ADD_PHOTO = "Add another photo"
+    const val TRANSFER_REMOVE_PHOTO = "Remove photo"
+    const val MONEY_COLLECTION_NUMBER = "Collection number"
+    const val MONEY_REMITTANCE_NUMBER = "Remittance number"
+    const val RETENTION_NUMBER = "Number"
+
+    fun handoverPartialFooter(balance: String, currency: String): String =
+        "$balance $currency is your cash. Your company requires the full balance to be remitted, so say why part of it stays with you."
+
     /** Plain words for the server's conflict codes on accountability operations (null: show the server's message). */
     fun conflict(code: String?): String? = when (code) {
+        "COLLECTION_LINK_REQUIRED" -> "Your company requires every collection to name its purchase or invoice. Record it again and choose one."
+        "PARTIAL_REMITTANCE_REASON_REQUIRED" -> "Part of this cash is still with you and your company requires the reason. Record the handover again with the reason."
+        "EVIDENCE_REQUIRED" -> "Your company requires evidence for this. Record it again with a photo."
+        "PURCHASE_NOT_FOUND" -> "The purchase you chose is no longer on record. Record it again and choose another."
+        "PURCHASE_CANCELLED" -> "The purchase you chose is cancelled. Record it again and choose another."
+        "OVER_ALLOCATION" -> "This is more than the purchase still owes. Record it again with the right amount."
+        "ALLOCATION_MISMATCH" -> "The purchase you chose is for another customer or currency. Record it again and choose another."
         "RETENTION_NOT_ALLOWED" -> "Your company does not allow keeping cash, so this request was not accepted."
         "DUPLICATE_RETENTION" -> "This request to keep cash was already sent."
         "ENGINE_HOURS_DISABLED" -> "Your company has switched off engine-hour controls, so this was not accepted."

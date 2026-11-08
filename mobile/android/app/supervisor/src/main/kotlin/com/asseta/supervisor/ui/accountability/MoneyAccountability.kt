@@ -19,7 +19,7 @@ import com.asseta.supervisor.ui.Route
 data class AckRow(val id: String, val isFloat: Boolean, val title: String, val amount: String, val currency: String, val atIso: String)
 
 /** A row of the Transfers segment: the server's transfer, or this phone's transfer not yet synced. */
-data class TransferRow(val key: String, val title: String, val amount: String, val currency: String, val status: InboxStatus, val statusText: String?, val atMs: Long)
+data class TransferRow(val key: String, val title: String, val amount: String, val currency: String, val status: InboxStatus, val statusText: String?, val atMs: Long, val number: String? = null)
 
 /** A row of "Requests to keep cash": [key] is the form's client id (the outbox entity id). */
 data class RetentionRow(val key: String, val amount: String, val currency: String, val reason: String, val status: InboxStatus, val atMs: Long)
@@ -59,7 +59,7 @@ object MoneyAccountability {
                 CashTransferDto.DISPUTED -> InboxStatus.REJECTED
                 else -> InboxStatus.PENDING
             }
-            TransferRow(t.id, title, t.amountReceived ?: t.amountDeclared, t.currency, status, FieldAccountabilityTexts.transferStatus(t.status), ms(t.transferredAt))
+            TransferRow(t.id, title, t.amountReceived ?: t.amountDeclared, t.currency, status, FieldAccountabilityTexts.transferStatus(t.status), ms(t.transferredAt), t.transferNumber)
         }
         val known = cache.transfers.mapNotNull { it.clientId }.toSet()
         val local = ops.filter { it.opType == AccountabilityOps.CASH_TRANSFER && it.entityId !in known }.map { op ->
@@ -101,7 +101,7 @@ fun LazyListScope.transfersSection(rows: List<TransferRow>, loaded: Boolean) {
         keyPrefix = "transfers", header = null,
         items = rows.map { r ->
             GroupedItem("t-${r.key}") {
-                InboxRow(r.title, r.status, InboxTexts.money(r.amount, r.currency), listOfNotNull(r.statusText, LocalTime.format(r.atMs)).joinToString(" · "))
+                InboxRow(r.title, r.status, InboxTexts.money(r.amount, r.currency), listOfNotNull(r.number, r.statusText, LocalTime.format(r.atMs)).joinToString(" · "))
             }
         },
     )

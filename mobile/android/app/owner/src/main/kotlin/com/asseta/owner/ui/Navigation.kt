@@ -19,7 +19,8 @@ object OwnerNavigation {
     fun tabs(features: OwnerFeatures): List<OwnerTab> = OwnerTab.entries.filter {
         when (it) {
             OwnerTab.HOME -> features.overview
-            OwnerTab.FLEET, OwnerTab.ALERTS -> features.fleet
+            OwnerTab.FLEET -> features.fleet
+            OwnerTab.ALERTS -> features.alerts
             OwnerTab.JOBS -> features.jobs
             OwnerTab.MORE -> true
         }

@@ -80,23 +80,29 @@ class DecisionViewModel(val data: OwnerData, val kind: DecisionKind, val id: Str
 
     fun item(list: List<DecisionItem>): DecisionItem? = list.firstOrNull { it.id == id }
 
+    /** The kind that decides [item]: a variance opened from a notification may be a proposed closure. */
+    fun decidingKind(item: DecisionItem?): DecisionKind = item?.decideAs?.let(DecisionKind::of) ?: kind
+
     fun decide(approve: Boolean, note: String) {
-        if (_busy.value || !DecisionMapper.canDecide(kind, approve, note)) return
+        val deciding = decidingKind(state.value.data?.let(::item))
+        if (_busy.value || !DecisionMapper.canDecide(deciding, approve, note)) return
         _busy.value = true
         _error.value = null
         viewModelScope.launch {
-            when (val r = data.decide(kind, id, approve, note)) {
+            when (val r = data.decide(deciding, id, approve, note)) {
                 is ActionResult.Done -> {
                     val status = if (approve) "APPROVED" else "REJECTED"
                     replaceData { list -> list.map { if (it.id == id) it.copy(status = status, pending = false) else it } }
                     _message.value = if (approve) T.APPROVED else T.REJECTED
-                    // The forecast becomes what actually happened.
-                    if (kind == DecisionKind.ADJUSTMENT_REQUEST) refresh()
+                    // The forecast becomes what actually happened; a variance's status and history move on.
+                    if (kind == DecisionKind.ADJUSTMENT_REQUEST || deciding == DecisionKind.VARIANCE_CLOSURE || deciding == DecisionKind.WRITE_OFF || deciding == DecisionKind.PARTIAL_REMITTANCE) refresh()
                 }
                 is ActionResult.Refused -> {
-                    val error = when (kind) {
+                    val error = when (deciding) {
                         DecisionKind.ALLOCATION_CORRECTION -> r.error.copy(message = AllocationTexts.error(r.code, r.error.message))
                         DecisionKind.ADJUSTMENT_REQUEST -> r.error.copy(message = AdjustmentTexts.error(r.code, r.error.message))
+                        DecisionKind.VARIANCE_CLOSURE -> r.error.copy(message = T.closureError(r.code, r.error.message))
+                        DecisionKind.PARTIAL_REMITTANCE -> r.error.copy(message = T.partialError(r.code, r.error.message))
                         else -> r.error
                     }
                     _error.value = DecisionError(id, error, r.code)
@@ -169,9 +175,18 @@ fun DecisionScreen(vm: DecisionViewModel, session: OwnerSession, online: Boolean
                     item.photoAttachmentIds.forEachIndexed { i, pid -> EvidencePhoto("evidence ${i + 1}", online && !state.stale) { vm.data.attachmentUrl(pid) } }
                 }
             }
+            if (item.history.isNotEmpty()) item {
+                SectionCard(T.VARIANCE_HISTORY) {
+                    item.history.forEach { e ->
+                        Text(e.label, style = AssetaType.subheadline)
+                        if (e.value.isNotBlank()) FootNote(e.value)
+                    }
+                }
+            }
+            val deciding = vm.decidingKind(item)
             if (item.pending) item {
-                SectionCard(T.DECISION, footer = if (vm.kind == DecisionKind.NON_REVENUE) T.NONREV_FOOTER else T.FOOTER) {
-                    val gate = session.can(vm.kind.action, online, state.snapshot?.source)
+                SectionCard(T.DECISION, footer = if (deciding == DecisionKind.NON_REVENUE) T.NONREV_FOOTER else T.FOOTER) {
+                    val gate = session.can(deciding.action, online, state.snapshot?.source)
                     val own = item.isOwn(session.userId)
                     when {
                         gate is MutationCheck.Blocked -> BlockedNote(gate.reason)
@@ -180,20 +195,20 @@ fun DecisionScreen(vm: DecisionViewModel, session: OwnerSession, online: Boolean
                     if (gate !is MutationCheck.Blocked) {
                         OutlinedTextField(
                             note, { note = it.take(1000) }, Modifier.fillMaxWidth().testTag("decision-note"),
-                            label = { Text(if (vm.kind.meter) T.NOTE_REQUIRED else T.NOTE_OPTIONAL) }, minLines = 2, enabled = !own,
+                            label = { Text(if (deciding.meter) T.NOTE_REQUIRED else T.NOTE_OPTIONAL) }, minLines = 2, enabled = !own,
                         )
                         // Same as the expense approvals: a green "Approve" and a bordered red "Reject" on one row; both
                         // disabled on the user's own request (segregation of duties).
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Button(
-                                { vm.decide(true, note) }, enabled = !busy && !own && DecisionMapper.canDecide(vm.kind, true, note),
+                                { vm.decide(true, note) }, enabled = !busy && !own && DecisionMapper.canDecide(deciding, true, note),
                                 modifier = Modifier.testTag("approve-${item.id}"),
                                 colors = ButtonDefaults.buttonColors(containerColor = OwnerColors.Live, contentColor = Color.White),
                                 shape = RoundedCornerShape(8.dp),
                             ) { Text(T.APPROVE) }
                             Spacer(Modifier.weight(1f))
                             Button(
-                                { confirmReject = true }, enabled = !busy && !own && DecisionMapper.canDecide(vm.kind, false, note),
+                                { confirmReject = true }, enabled = !busy && !own && DecisionMapper.canDecide(deciding, false, note),
                                 modifier = Modifier.testTag("reject-${item.id}"),
                                 colors = ButtonDefaults.buttonColors(containerColor = OwnerColors.Critical.copy(alpha = 0.15f), contentColor = OwnerColors.Critical),
                                 shape = RoundedCornerShape(8.dp),

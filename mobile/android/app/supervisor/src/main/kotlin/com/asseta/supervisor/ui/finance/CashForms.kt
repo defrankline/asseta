@@ -15,7 +15,11 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
+import com.asseta.core.domain.accountability.CollectionLinkOption
+import com.asseta.core.domain.accountability.CollectionLinks
 import com.asseta.core.domain.accountability.DepositAccountOption
+import com.asseta.core.domain.accountability.LinkablePurchase
+import com.asseta.core.domain.accountability.PartialReasonMode
 import com.asseta.core.domain.accountability.RemittanceMethod
 import com.asseta.core.domain.accountability.RemittanceRequirements
 import com.asseta.core.domain.accountability.RemittanceRules
@@ -43,6 +47,8 @@ import com.asseta.supervisor.ui.accountability.FieldAccountabilityTexts
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -74,6 +80,11 @@ data class CashForm(
     val method: RemittanceMethod = RemittanceMethod.CASH_TO_OFFICE,
     val depositAccountId: String? = null,
     val photos: List<CapturedPhoto> = emptyList(),
+    /** The purchase this collection pays for (id, or an unsynced purchase's client id). */
+    val purchaseId: String? = null,
+    /** Why part of the balance stays with the holder (DEC-032, full-remittance policy). */
+    val partialReason: String = "",
+    val partialReasonId: String? = null,
 )
 
 /** What the handover form shows for the remittance details (pure, unit-tested; same rules on iOS). */
@@ -104,6 +115,17 @@ object RemittanceForm {
         if (RemittanceRules.referenceRequired(req, method)) T.REMIT_REFERENCE else T.REMIT_REFERENCE_OPTIONAL
 
     fun photosLabel(req: RemittanceRequirements): String = if (req.evidenceRequired) T.REMIT_PHOTOS else T.REMIT_PHOTOS_OPTIONAL
+
+    /** "Pays for" rows of the customer chosen on the collection form. */
+    fun linkOptions(links: List<CollectionLinkOption>): List<PickerOption> = links.map { PickerOption(it.id, it.title, it.subtitle) }
+
+    /** What the collection form may not save yet about its link (empty = fine). */
+    fun linkIssue(access: RemittanceAccess, form: CashForm): String? =
+        T.COLLECTION_LINK_REQUIRED.takeIf { access.linkRequired && form.purchaseId == null }
+
+    /** Valid when the reason is optional and left empty, or at least 3 characters. */
+    fun partialReasonOk(mode: PartialReasonMode, reason: String): Boolean =
+        if (mode == PartialReasonMode.NONE || (mode == PartialReasonMode.OPTIONAL && reason.isBlank())) true else RemittanceRules.partialReasonValid(reason)
 }
 
 /** Wording of the cash and fuel forms shared with iOS. */
@@ -129,8 +151,19 @@ object CashTexts {
     }
 }
 
-/** [enabled]: the server announced REMITTANCE_DETAILS_V1; [requirements]: the tenant's CASH_CUSTODY requirements. */
-data class RemittanceAccess(val enabled: Boolean, val requirements: RemittanceRequirements)
+/**
+ * [enabled]: the server announced REMITTANCE_DETAILS_V1; [requirements]: the tenant's CASH_CUSTODY requirements;
+ * [depositAccounts]: the account picker is on; [linkOffered] / [linkRequired]: "Pays for" on a collection (CASH_DETAILS_V2);
+ * [partial]: the full-remittance policy applies, so the handover asks why part of the balance stays.
+ */
+data class RemittanceAccess(
+    val enabled: Boolean,
+    val requirements: RemittanceRequirements,
+    val depositAccounts: Boolean = true,
+    val linkOffered: Boolean = false,
+    val linkRequired: Boolean = false,
+    val partial: Boolean = false,
+)
 
 /** Collection, handover and fuel forms share one view model; the client id is generated once per visit. */
 class CashFormViewModel(
@@ -164,6 +197,17 @@ class CashFormViewModel(
     /** Whether the server takes remittance details, and the tenant's requirements on them. */
     val remittance = MutableStateFlow(RemittanceAccess(false, RemittanceRequirements()))
 
+    /** "Pays for" options of the chosen customer: cached open purchases and this phone's unsynced ones. */
+    val purchaseLinks: StateFlow<List<CollectionLinkOption>> = combine(
+        field.accountability.cache, repo.observeUnsyncedPurchases(tenantId), form.map { it.customerId }.distinctUntilChanged(),
+    ) { cache, unsynced, customer ->
+        CollectionLinks.options(customer, cache.purchases.map { LinkablePurchase(it.id, it.purchaseNumber, it.customerId, it.status, it.totals.remaining) }, unsynced)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** The tenant's reasons for leaving part of the balance (cached on the phone). */
+    val partialReasons: StateFlow<List<PickerOption>> = field.accountability.cache.map { c -> c.partialReasons.map { PickerOption(it.id, it.label, it.description) } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     /** The cash holders a recorder may record for (empty unless the tenant policy allows it). */
     val holders = MutableStateFlow<List<PickerOption>>(emptyList())
     val me = MutableStateFlow<String?>(null)
@@ -173,7 +217,8 @@ class CashFormViewModel(
         viewModelScope.launch {
             me.value = field.accountability.myStaffId(tenantId)
             val access = field.accountability.access(tenantId, permissions)
-            remittance.value = RemittanceAccess(access.remittanceDetails, access.remittanceRequirements)
+            remittance.value = RemittanceAccess(access.remittanceDetails, access.remittanceRequirements, access.depositAccounts,
+                access.collectionLink, access.collectionLinkRequired, access.partialReason)
             if (access.recordForOthers) {
                 holders.value = com.asseta.supervisor.ui.accountability.custodianOptions(field.accountability.cache.value.custodians, me.value)
             }
@@ -181,6 +226,16 @@ class CashFormViewModel(
     }
 
     private fun holder(): String? = form.value.holderId?.takeIf { holders.value.isNotEmpty() && it != me.value }
+
+    /** Whether the handover asks why part of the cash stays: the phone's estimate against the amount handed over. */
+    fun partialMode(): PartialReasonMode {
+        val f = form.value
+        val balance = custody.value.firstOrNull { it.currency.equals(f.currency, ignoreCase = true) }?.estimatedInHand
+        return RemittanceRules.partialReasonMode(remittance.value.partial, holder() != null, balance, AmountParser.valueOrNull(f.amount, DecimalLimit.MONEY))
+    }
+
+    /** Choosing another customer drops a purchase of the previous one. */
+    fun selectCustomer(id: String?) = edit { it.copy(customerId = id, purchaseId = null) }
 
     fun edit(change: (CashForm) -> CashForm) {
         form.update(change)
@@ -191,7 +246,8 @@ class CashFormViewModel(
     fun selectJob(jobId: String?) = viewModelScope.launch {
         val job = jobs.value.firstOrNull { it.job.id == jobId }?.job
         val customer = job?.let { repo.customerOfContract(it.contractId) }
-        edit { it.copy(jobId = jobId, customerId = customer ?: it.customerId, machineId = job?.machineId ?: it.machineId) }
+        edit { it.copy(jobId = jobId, customerId = customer ?: it.customerId, machineId = job?.machineId ?: it.machineId,
+            purchaseId = it.purchaseId.takeIf { _ -> customer == null || customer == it.customerId }) }
     }
 
     fun save() {
@@ -202,12 +258,20 @@ class CashFormViewModel(
             val at = f.atMs.coerceAtMost(field.clock.nowMs())
             val result: FinanceResult = when (f.kind) {
                 COLLECTION -> field.finance.cashCollection(
-                    CashCollectionRequest(tenantId, clientId, f.customerId, f.jobId, f.amount, f.currency, f.reference, f.note, at, holder()),
+                    CashCollectionRequest(tenantId, clientId, f.customerId, f.jobId, f.amount, f.currency, f.reference, f.note, at, holder(),
+                        purchaseId = f.purchaseId, purchaseOperationId = purchaseLinks.value.firstOrNull { it.id == f.purchaseId }?.operationId,
+                        linkRequired = remittance.value.linkRequired),
                 )
                 HANDOVER -> {
                     val r = remittance.value
                     val details = if (r.enabled) RemittanceDetails(f.method, f.depositAccountId, f.photos.map { it.jpeg }, r.requirements) else null
-                    field.finance.cashHandover(CashHandoverRequest(tenantId, clientId, f.amount, f.currency, f.reference, f.note, at, holder(), details))
+                    val mode = partialMode()
+                    field.finance.cashHandover(
+                        CashHandoverRequest(tenantId, clientId, f.amount, f.currency, f.reference, f.note, at, holder(), details,
+                            partialReason = f.partialReason.takeIf { mode != PartialReasonMode.NONE }.orEmpty(),
+                            partialReasonId = f.partialReasonId.takeIf { mode != PartialReasonMode.NONE },
+                            partialReasonRequired = mode == PartialReasonMode.REQUIRED),
+                    )
                 }
                 else -> field.finance.fuelEvent(
                     FuelEventRequest(tenantId, clientId, f.fuelType, f.amount, f.unitPrice, f.currency, f.machineId, f.jobId,
@@ -239,6 +303,8 @@ fun CashFormScreen(vm: CashFormViewModel, onDone: () -> Unit) {
     val me by vm.me.collectAsStateWithLifecycle()
     val accounts by vm.depositAccounts.collectAsStateWithLifecycle()
     val remittance by vm.remittance.collectAsStateWithLifecycle()
+    val links by vm.purchaseLinks.collectAsStateWithLifecycle()
+    val partialReasons by vm.partialReasons.collectAsStateWithLifecycle()
     val editable = !save.saved && !save.saving
     // Recorders may record for another cash holder when the company allows it (operators hold cash without a login).
     val holderPicker: @Composable () -> Unit = {
@@ -253,9 +319,15 @@ fun CashFormScreen(vm: CashFormViewModel, onDone: () -> Unit) {
             CashFormViewModel.COLLECTION -> {
                 Section(null) {
                     SearchablePickerField("Job (optional)", jobOptions(jobs), form.jobId, { vm.selectJob(it) }, noneLabel = "No job", enabled = editable)
-                    SearchablePickerField("Customer", customers, form.customerId, { id -> vm.edit { it.copy(customerId = id) } },
+                    SearchablePickerField("Customer", customers, form.customerId, { id -> vm.selectCustomer(id) },
                         emptyText = "Customers of your jobs appear here after a sync.", enabled = editable)
                     holderPicker()
+                    if (remittance.linkOffered) {
+                        SearchablePickerField(if (remittance.linkRequired) T.COLLECTION_LINK else T.COLLECTION_LINK_OPTIONAL, RemittanceForm.linkOptions(links), form.purchaseId,
+                            { id -> vm.edit { it.copy(purchaseId = id) } }, noneLabel = T.COLLECTION_LINK_NONE.takeIf { !remittance.linkRequired },
+                            emptyText = T.COLLECTION_LINK_EMPTY, enabled = editable)
+                        Text(T.COLLECTION_LINK_FOOTER, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
                 Section(null, footer = "The cash is added to your custody once the server accepts it. The office verifies it later.") {
                     DecimalField("Amount", form.amount, { v -> vm.edit { it.copy(amount = v) } }, editable)
@@ -264,7 +336,9 @@ fun CashFormScreen(vm: CashFormViewModel, onDone: () -> Unit) {
                     DateTimeField("Received", form.atMs, { v -> vm.edit { it.copy(atMs = v) } }, editable, notAfter = now)
                     TextInput("Note (optional)", form.note, { v -> vm.edit { it.copy(note = v) } }, editable, singleLine = false)
                 }
-                SaveSection(save, vm::save, onDone, enabled = form.customerId != null && form.amount.isNotEmpty())
+                val linkIssue = RemittanceForm.linkIssue(remittance, form)
+                linkIssue?.takeIf { form.customerId != null && form.amount.isNotEmpty() && save.messages.isEmpty() }?.let { Section(null) { Text(it, color = WarningColor) } }
+                SaveSection(save, vm::save, onDone, enabled = form.customerId != null && form.amount.isNotEmpty() && linkIssue == null)
             }
             CashFormViewModel.HANDOVER -> {
                 if (custody.isNotEmpty()) {
@@ -287,9 +361,11 @@ fun CashFormScreen(vm: CashFormViewModel, onDone: () -> Unit) {
                     Section(T.REMIT_METHOD) {
                         SegmentedChoice(RemittanceMethod.entries, form.method, T::remitMethod,
                             { m -> vm.edit { RemittanceForm.selectMethod(it, m, accounts) } }, editable)
-                        SearchablePickerField(RemittanceForm.accountLabel(req), RemittanceForm.accountOptions(accounts, form.method, form.currency),
-                            form.depositAccountId, { id -> vm.edit { RemittanceForm.selectAccount(it, id, accounts) } },
-                            noneLabel = T.REMIT_ACCOUNT_NONE, emptyText = T.REMIT_ACCOUNTS_EMPTY, enabled = editable)
+                        if (remittance.depositAccounts) {
+                            SearchablePickerField(RemittanceForm.accountLabel(req), RemittanceForm.accountOptions(accounts, form.method, form.currency),
+                                form.depositAccountId, { id -> vm.edit { RemittanceForm.selectAccount(it, id, accounts) } },
+                                noneLabel = T.REMIT_ACCOUNT_NONE, emptyText = T.REMIT_ACCOUNTS_EMPTY, enabled = editable)
+                        }
                         TextInput(RemittanceForm.referenceLabel(req, form.method), form.reference, { v -> vm.edit { it.copy(reference = v) } }, editable)
                     }
                     EvidencePhotos(form.photos, { p -> vm.edit { it.copy(photos = it.photos + p) } },
@@ -299,7 +375,21 @@ fun CashFormScreen(vm: CashFormViewModel, onDone: () -> Unit) {
                     issues = RemittanceForm.issues(form, req, accounts)
                     if (issues.isNotEmpty() && save.messages.isEmpty() && form.amount.isNotEmpty()) Section(null) { issues.forEach { Text(it, color = WarningColor) } }
                 }
-                SaveSection(save, vm::save, onDone, enabled = form.amount.isNotEmpty() && issues.isEmpty())
+                val partialMode = vm.partialMode()
+                if (partialMode != PartialReasonMode.NONE) {
+                    val balance = custody.firstOrNull { it.currency.equals(form.currency, ignoreCase = true) }?.estimatedInHand?.plainText().orEmpty()
+                    Section(T.HANDOVER_PARTIAL_TITLE, footer = if (partialMode == PartialReasonMode.REQUIRED) T.handoverPartialFooter(balance, form.currency) else T.HANDOVER_PARTIAL_FOOTER_OTHER) {
+                        if (partialReasons.isNotEmpty()) {
+                            SearchablePickerField(T.HANDOVER_PARTIAL_CATEGORY, partialReasons, form.partialReasonId, { id -> vm.edit { it.copy(partialReasonId = id) } },
+                                noneLabel = T.HANDOVER_PARTIAL_CATEGORY_NONE, enabled = editable)
+                        }
+                        TextInput(if (partialMode == PartialReasonMode.REQUIRED) T.HANDOVER_PARTIAL_REASON else T.HANDOVER_PARTIAL_REASON_OPTIONAL, form.partialReason,
+                            { v -> vm.edit { it.copy(partialReason = v.take(1000)) } }, editable, singleLine = false)
+                    }
+                }
+                val partialOk = RemittanceForm.partialReasonOk(partialMode, form.partialReason)
+                if (!partialOk && save.messages.isEmpty() && form.amount.isNotEmpty()) Section(null) { Text(T.HANDOVER_PARTIAL_ERROR, color = WarningColor) }
+                SaveSection(save, vm::save, onDone, enabled = form.amount.isNotEmpty() && issues.isEmpty() && partialOk)
             }
             else -> FuelFields(vm, form, save, jobOptions(jobs), machines, editable, now, onDone)
         }

@@ -55,6 +55,7 @@ object CashRecords {
     fun transfer(t: CashTransferDto, zone: ZoneId) = CashRecord(
         money(t.amountDeclared, t.currency), t.status,
         fields(
+            T.NUMBER to t.transferNumber,
             T.F_FROM to DisplayNames.of(t.fromStaffName, t.fromStaffId), T.F_TO to DisplayNames.of(t.toStaffName, t.toStaffId),
             T.F_DECLARED to money(t.amountDeclared, t.currency), T.F_RECEIVED to t.amountReceived?.let { money(it, t.currency) },
             T.F_TRANSFERRED to OwnerFormat.dateTime(t.transferredAt, zone), T.F_RECORDED_BY to DisplayNames.of(t.recordedByName, t.recordedBy),

@@ -49,11 +49,12 @@ object OverviewPresentation {
         cached: Boolean,
         nowMs: Long,
         money: (BigDecimal, String) -> String = { v, c -> OwnerFormat.money(v, c) },
+        /** False when TRACKING is switched off: no connectivity, tracker or alert figures (the server sends zeros). */
+        tracking: Boolean = true,
     ): List<OverviewSection> = listOfNotNull(
         o.fleet?.let { f ->
             val c = f.connectivity
-            val rows = listOf(
-                OverviewRow("Machines", "${f.machines}"),
+            val connectivityRows = if (!tracking) emptyList() else listOf(
                 OverviewRow(if (cached) "Live when saved" else "Live now", "${c.live}", tone = if (cached) KpiTone.MUTED else KpiTone.GOOD),
                 OverviewRow("Recent", "${c.recent}"),
                 OverviewRow("Stale", "${c.stale}", tone = if (c.stale > 0) KpiTone.WARNING else KpiTone.NORMAL),
@@ -61,11 +62,15 @@ object OverviewPresentation {
                 OverviewRow("Never reported", "${c.never}", tone = KpiTone.MUTED),
                 OverviewRow("No tracker", "${c.noTracker}", tone = KpiTone.MUTED),
                 OverviewRow("Engine on (tracker verified)", "${f.engineOnVerified}"),
-            ) + f.reportedWorkState.toSortedMap().map { (k, v) -> OverviewRow("Reported ${OwnerFormat.humanize(k).lowercase()}", "$v") } +
+            )
+            val alertRows = if (!tracking) emptyList() else listOf(
                 OverviewRow(
                     "Open alerts", "${f.openAlerts.total}", breakdown(f.openAlerts),
                     if (f.openAlerts.critical > 0) KpiTone.CRITICAL else KpiTone.NORMAL, OwnerDestination.Alerts(),
-                )
+                ),
+            )
+            val rows = listOf(OverviewRow("Machines", "${f.machines}")) + connectivityRows +
+                f.reportedWorkState.toSortedMap().map { (k, v) -> OverviewRow("Reported ${OwnerFormat.humanize(k).lowercase()}", "$v") } + alertRows
             OverviewSection("Fleet", freshnessLine(f.latestSourceAt, nowMs), listOf(OverviewGroup(null, rows)), listOf(OverviewAction("Open fleet map", OwnerDestination.Fleet)))
         },
         o.work?.let { w ->

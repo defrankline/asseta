@@ -109,11 +109,11 @@ fun OwnerRoutes(
         }
         OwnerDestination.Fleet -> {
             val vm: FleetViewModel = viewModel(key = "fleet-$t") { FleetViewModel(data, graph.refreshTriggers("fleet.position", "alert", debounceMs = 10_000)) }
-            FleetScreen(vm, now) { open(OwnerDestination.Machine(it)) }
+            FleetScreen(vm, now, features.tracking) { open(OwnerDestination.Machine(it)) }
         }
         is OwnerDestination.Machine -> {
             val vm: MachineViewModel = viewModel(key = "machine-$t-${route.machineId}") {
-                MachineViewModel(data, route.machineId, graph.refreshTriggers("fleet.position", "alert", debounceMs = 10_000))
+                MachineViewModel(data, route.machineId, graph.refreshTriggers("fleet.position", "alert", debounceMs = 10_000), tracking = features.tracking)
             }
             MachineScreen(vm, features, online, now, open)
         }
@@ -174,7 +174,7 @@ fun OwnerRoutes(
         }
         is OwnerDestination.Handover -> {
             val vm: HandoverViewModel = viewModel(key = "handover-$t-${route.handoverId}") { HandoverViewModel(data, route.handoverId, graph.refreshTriggers("cash_handover")) }
-            HandoverScreen(vm, session, online)
+            HandoverScreen(vm, session, online, open)
         }
         OwnerDestination.FieldSpend -> {
             val vm: FieldSpendViewModel = viewModel(key = "spend-$t") { FieldSpendViewModel(data, graph.refreshTriggers("expense", "fuel_event")) }

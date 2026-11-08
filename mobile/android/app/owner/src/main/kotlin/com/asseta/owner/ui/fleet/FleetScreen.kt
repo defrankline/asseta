@@ -104,7 +104,7 @@ object FleetRows {
 }
 
 @Composable
-fun FleetScreen(vm: FleetViewModel, now: () -> Long, onMachine: (String) -> Unit) {
+fun FleetScreen(vm: FleetViewModel, now: () -> Long, tracking: Boolean = true, onMachine: (String) -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
     var showMap by rememberSaveable { mutableStateOf(true) }
     var query by rememberSaveable { mutableStateOf("") }
@@ -112,7 +112,7 @@ fun FleetScreen(vm: FleetViewModel, now: () -> Long, onMachine: (String) -> Unit
     val machines = state.data
     val snap = state.snapshot
     val rows = if (machines != null && snap != null) {
-        FleetRows.sorted(FleetRows.filter(FleetRows.build(machines, snap.source, snap.fetchedAtMs, now()), query, filter?.let { Connectivity.from(it) }))
+        FleetRows.sorted(FleetRows.filter(FleetRows.build(machines, snap.source, snap.fetchedAtMs, now()), query, filter?.takeIf { tracking }?.let { Connectivity.from(it) }))
     } else {
         emptyList()
     }
@@ -124,9 +124,11 @@ fun FleetScreen(vm: FleetViewModel, now: () -> Long, onMachine: (String) -> Unit
             SegmentedButton(!showMap, { showMap = false }, SegmentedButtonDefaults.itemShape(1, 2)) { Text("List") }
         }
         Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf(Connectivity.LIVE, Connectivity.RECENT, Connectivity.STALE, Connectivity.OFFLINE).forEach { c ->
-                    FilterChipButton(c.label, filter == c.wire) { filter = if (filter == c.wire) null else c.wire }
+            if (tracking) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf(Connectivity.LIVE, Connectivity.RECENT, Connectivity.STALE, Connectivity.OFFLINE).forEach { c ->
+                        FilterChipButton(c.label, filter == c.wire) { filter = if (filter == c.wire) null else c.wire }
+                    }
                 }
             }
             machines?.let { Text("${rows.size} of ${it.size} machines", style = AssetaType.caption, color = palette.secondaryText) }
@@ -160,7 +162,7 @@ fun FleetScreen(vm: FleetViewModel, now: () -> Long, onMachine: (String) -> Unit
                 LazyColumn(Modifier.fillMaxSize().background(palette.cell)) {
                     itemsIndexed(rows, key = { _, r -> r.machine.machineId.toString() }) { i, row ->
                         if (i > 0) HorizontalDivider(Modifier.padding(start = 56.dp), thickness = 0.5.dp, color = palette.separator)
-                        MachineRow(row) { onMachine(row.machine.machineId.toString()) }
+                        MachineRow(row, tracking) { onMachine(row.machine.machineId.toString()) }
                     }
                 }
             }
@@ -169,25 +171,27 @@ fun FleetScreen(vm: FleetViewModel, now: () -> Long, onMachine: (String) -> Unit
 }
 
 @Composable
-private fun MachineRow(row: FleetRow, onClick: () -> Unit) {
+private fun MachineRow(row: FleetRow, tracking: Boolean, onClick: () -> Unit) {
     val m = row.machine
     val secondary = palette.secondaryText
     val tone = OwnerColors.connectivity(row.connectivity)
     // Same layout as the iOS `MachineRow`: a connectivity symbol on the left, then the lines.
     Row(
         Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onClick).padding(horizontal = 16.dp, vertical = 10.dp)
-            .semantics(mergeDescendants = true) { stateDescription = "${row.connectivity.label}, ${FleetRows.detailLine(row)}" },
+            .semantics(mergeDescendants = true) { if (tracking) stateDescription = "${row.connectivity.label}, ${FleetRows.detailLine(row)}" },
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Box(Modifier.width(28.dp).padding(top = 1.dp), contentAlignment = Alignment.TopCenter) {
-            Icon(painterResource(connectivityIcon(row.connectivity)), contentDescription = null, tint = tone, modifier = Modifier.size(22.dp))
+        if (tracking) {
+            Box(Modifier.width(28.dp).padding(top = 1.dp), contentAlignment = Alignment.TopCenter) {
+                Icon(painterResource(connectivityIcon(row.connectivity)), contentDescription = null, tint = tone, modifier = Modifier.size(22.dp))
+            }
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(FleetRows.title(m), style = AssetaType.headline, modifier = Modifier.weight(1f))
-                StatusPill(row.connectivity.label, tone)
+                if (tracking) StatusPill(row.connectivity.label, tone)
             }
-            Text(FleetRows.detailLine(row), style = AssetaType.caption, color = secondary)
+            if (tracking) Text(FleetRows.detailLine(row), style = AssetaType.caption, color = secondary)
             Text(FleetRows.reportedLine(m), style = AssetaType.caption, color = secondary)
             m.supervisor?.let { Text("Supervisor: $it", style = AssetaType.caption, color = secondary) }
             if (m.openAlerts > 0) Text(FleetRows.alertsLine(m.openAlerts), color = OwnerColors.Critical, style = AssetaType.caption)

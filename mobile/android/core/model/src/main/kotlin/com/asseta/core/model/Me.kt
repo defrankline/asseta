@@ -57,6 +57,13 @@ data class TenantAccess(
         const val UNBILLED_WORK = "UNBILLED_WORK"
         const val IDLE_MACHINES = "IDLE_MACHINES"
         const val SITE_CHECKIN = "SITE_CHECKIN"
+
+        /** DEC-032 optional-module switches (off = 422 `<CODE>_DISABLED`); listed in `/me` while off. */
+        const val INSIGHTS = "INSIGHTS"
+        const val INVESTIGATIONS = "INVESTIGATIONS"
+        const val TRACKING = "TRACKING"
+        const val DEPOSIT_ACCOUNTS = "DEPOSIT_ACCOUNTS"
+        const val MANAGED_SERVICE = "MANAGED_SERVICE"
     }
 }
 

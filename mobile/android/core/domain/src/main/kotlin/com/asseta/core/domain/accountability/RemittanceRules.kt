@@ -1,5 +1,7 @@
 package com.asseta.core.domain.accountability
 
+import java.math.BigDecimal
+
 /**
  * DEC-031 D2: how a remittance reached the company and the tenant's requirements on it (CASH_CUSTODY policy keys
  * `remittance_account_required`, `remittance_reference_required`, `remittance_evidence_required`; all off by default).
@@ -40,6 +42,9 @@ data class DepositAccountOption(
     val subtitle: String get() = listOfNotNull(institution?.takeIf { it.isNotBlank() }, accountNumberMasked?.takeIf { it.isNotBlank() }).joinToString(" · ")
 }
 
+/** Whether the handover form asks why part of the balance stays with the custodian (DEC-032). */
+enum class PartialReasonMode { NONE, OPTIONAL, REQUIRED }
+
 object RemittanceRules {
     const val ERR_ACCOUNT = "Choose the company account the money was paid into."
     const val ERR_REFERENCE = "Enter the transaction reference of the bank deposit or mobile-money payment."
@@ -48,11 +53,27 @@ object RemittanceRules {
     const val ERR_ACCOUNT_CURRENCY = "The account you chose holds a different currency."
     const val ERR_ACCOUNT_GONE = "The account you chose is no longer in use. Choose another one."
     const val MAX_EVIDENCE = 10
+    const val MIN_PARTIAL_REASON = 3
 
     /** Active accounts in [currency] (case-insensitive) that match [method], by name. */
     fun accountsFor(accounts: List<DepositAccountOption>, method: RemittanceMethod, currency: String): List<DepositAccountOption> =
         accounts.filter { it.isActive && it.accountType == method.accountType && it.currency.equals(currency.trim(), ignoreCase = true) }
             .sortedBy { it.name.lowercase() }
+
+    /**
+     * [policyOn]: the full-remittance policy applies; [forOther]: recording for another holder (their balance is
+     * unknown here); [balance]: this phone's estimate of the holder's cash in the handover's currency (null = unknown);
+     * [amount]: the parsed amount (null while empty or invalid).
+     */
+    fun partialReasonMode(policyOn: Boolean, forOther: Boolean, balance: BigDecimal?, amount: BigDecimal?): PartialReasonMode = when {
+        !policyOn -> PartialReasonMode.NONE
+        forOther -> PartialReasonMode.OPTIONAL
+        amount != null && balance != null && amount < balance -> PartialReasonMode.REQUIRED
+        else -> PartialReasonMode.NONE
+    }
+
+    /** At least 3 characters, as the server requires. */
+    fun partialReasonValid(reason: String): Boolean = reason.trim().length >= MIN_PARTIAL_REASON
 
     fun referenceRequired(req: RemittanceRequirements, method: RemittanceMethod): Boolean = req.referenceRequired && method.nonCash
 

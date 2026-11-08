@@ -133,6 +133,8 @@ data class CashItem(
     val verifiedAtMs: Long?,
     val allocations: Int,
     val op: ClientOperationEntity?,
+    /** The human number the server gave it (collection or remittance number); null until synced. */
+    val number: String? = null,
 )
 
 /** A work-log entry: the server's activity and/or this phone's entry ([running] until stopped). */
@@ -349,6 +351,7 @@ class InboxRepository(
                 atMs = (s?.receivedAt ?: p?.receivedAt)?.let(::ms) ?: op?.createdAtDevice ?: 0,
                 status = InboxStatusRules.combined(op?.status, s?.let { InboxStatusRules.settlement(it.status) }),
                 decisionNote = s?.decisionNote, verifiedAtMs = s?.verifiedAt?.let(::ms), allocations = s?.allocations?.size ?: 0, op = op,
+                number = s?.collectionNumber,
             )
         }
 
@@ -361,6 +364,7 @@ class InboxRepository(
                 atMs = (s?.handedAt ?: p?.handedAt)?.let(::ms) ?: op?.createdAtDevice ?: 0,
                 status = InboxStatusRules.combined(op?.status, s?.let { InboxStatusRules.settlement(it.status) }),
                 decisionNote = s?.decisionNote, verifiedAtMs = s?.verifiedAt?.let(::ms), allocations = 0, op = op,
+                number = s?.remittanceNumber,
             )
         }
 

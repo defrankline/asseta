@@ -39,6 +39,8 @@ data class CashCollectionPayload(
     val note: String? = null,
     /** The cash holder when a recorder records for another custodian (tenant policy); null = the recorder. */
     @SerialName("staff_member_id") val staffMemberId: String? = null,
+    /** CASH_DETAILS_V2 only: the hours purchase this cash pays for (server id or an offline client id). */
+    @SerialName("purchase_id") val purchaseId: String? = null,
 )
 
 @Serializable
@@ -56,6 +58,9 @@ data class CashHandoverPayload(
     @SerialName("deposit_account_id") val depositAccountId: String? = null,
     /** REMITTANCE_DETAILS_V1 only: completed blob upload ids (purpose REMITTANCE_EVIDENCE), appended per photo. */
     @SerialName("evidence_upload_ids") val evidenceUploadIds: List<String>? = null,
+    /** CASH_DETAILS_V2 only (null = not sent): why part of the balance is not remitted. */
+    @SerialName("partial_reason") val partialReason: String? = null,
+    @SerialName("partial_reason_id") val partialReasonId: String? = null,
 )
 
 @Serializable

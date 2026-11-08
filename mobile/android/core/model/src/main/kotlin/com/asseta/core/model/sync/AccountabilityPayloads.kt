@@ -87,6 +87,8 @@ data class HoursTransferPayload(
     val hours: String,
     val reason: String,
     @SerialName("reason_code_id") val reasonCodeId: String? = null,
+    /** CASH_DETAILS_V2 only (null = not sent): blob upload ids of the evidence photos (ADJUSTMENT_EVIDENCE), appended per photo. */
+    @SerialName("evidence_upload_ids") val evidenceUploadIds: List<String>? = null,
 )
 
 /** `CASH_TRANSFER` (`CashTransferIn`): field-to-field cash, pending the receiver's acknowledgement per policy. */
@@ -190,6 +192,7 @@ data class CashTransferDto(
     @SerialName("to_staff_name") val toStaffName: String? = null,
     @SerialName("recorded_by_name") val recordedByName: String? = null,
     @SerialName("acknowledged_by_name") val acknowledgedByName: String? = null,
+    @SerialName("transfer_number") val transferNumber: String? = null,
 ) {
     companion object {
         const val PENDING = "PENDING_ACKNOWLEDGEMENT"

@@ -43,6 +43,12 @@ enum class OwnerAction(val permission: String) {
 
     // Adjustments (DEC-032): a second person decides; only the proposer withdraws.
     DECIDE_ADJUSTMENT_REQUEST("tenant.adjustment.decide"),
+
+    /** A partial remittance reason (DEC-032): a second person approves or rejects it. */
+    DECIDE_PARTIAL_REMITTANCE("tenant.finance.retention_approve"),
+
+    /** A proposed variance closure (DEC-032): a second person approves or rejects it. */
+    DECIDE_VARIANCE_CLOSURE("tenant.finance.variance_close"),
     WITHDRAW_ADJUSTMENT_REQUEST("tenant.adjustment.propose"),
 }
 

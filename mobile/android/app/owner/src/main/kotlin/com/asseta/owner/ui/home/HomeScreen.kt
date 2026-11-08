@@ -54,7 +54,7 @@ fun HomeScreen(
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     SnapshotScaffold(state, vm::refresh) { o ->
-        val sections = OverviewPresentation.sections(o, state.stale, now())
+        val sections = OverviewPresentation.sections(o, state.stale, now(), tracking = features.tracking)
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
             header?.let { h -> item(key = "header") { h() } }
             sections.forEach { section ->
@@ -88,7 +88,8 @@ fun HomeScreen(
 
 /** A link is offered only when the role can open its screen. */
 private fun allowed(target: OwnerDestination, f: OwnerFeatures): Boolean = when (target) {
-    OwnerDestination.Fleet, is OwnerDestination.Alerts -> f.fleet
+    OwnerDestination.Fleet -> f.fleet
+    is OwnerDestination.Alerts -> f.alerts
     OwnerDestination.Jobs -> f.jobs
     is OwnerDestination.Approvals -> f.approvals
     OwnerDestination.Cases -> f.cases

@@ -202,6 +202,88 @@ object OwnerAccountabilityTexts {
     const val OVERDUE_EMPTY = "No overdue remittances today."
     fun overdueLine(h: Int, day: String) = "Still held after the ${hour(h)} cut-off on $day."
 
+    // --- DEC-032 Phase 3: independence and evidence (docs/requirements/accountability-mobile-strings.md) ------------
+    const val PARTIAL_SECTION = "Partial remittance reasons"
+    const val PARTIAL_EMPTY = "No partial remittance reasons waiting."
+    const val PARTIAL_TITLE = "Partial remittance reason"
+    fun rowPartial(amount: String, custodian: String) = "$amount not remitted · $custodian"
+    const val PARTIAL_REMITTED = "Remitted"
+    const val PARTIAL_NOT_REMITTED = "Not remitted"
+    const val CLOSURE_SECTION = "Variance closures"
+    const val CLOSURE_EMPTY = "No variance closures waiting."
+    const val CLOSURE_TITLE = "Variance closure"
+    fun rowClosure(difference: String, outcome: String) = "Close $difference ($outcome)"
+    const val CLOSURE_OUTCOME = "Proposed outcome"
+    const val VARIANCE_TITLE = "Variance"
+    const val VARIANCE_ASSIGNEE = "Assigned to"
+    const val VARIANCE_ASSIGNED_BY = "Assigned by"
+    const val VARIANCE_EXPLANATION = "Explanation"
+    const val VARIANCE_EXPLAINED_BY = "Explained by"
+    const val VARIANCE_EVIDENCE = "Evidence"
+    const val VARIANCE_HISTORY = "History"
+    const val VARIANCE_CHECK = "What was found"
+    fun varianceHistoryRow(time: String, action: String, who: String) = "$time · $action · $who"
+    const val REMIT_NUMBER = "Remittance number"
+    const val REMIT_EVIDENCE = "Evidence"
+    const val REMIT_OUTSTANDING = "Difference still open"
+    const val REMIT_PARTIAL_REASON = "Why part stayed with the custodian"
+    const val REMIT_PARTIAL_STATUS = "Reason status"
+    const val REMIT_PARTIAL_REVIEW = "Review the reason"
+    const val NUMBER = "Number"
+
+    fun remitEvidence(code: String?): String? = when (code) {
+        "DECLARED" -> "Declared by the field"
+        "SUPPORTED" -> "Supported by evidence"
+        "CONFIRMED" -> "Confirmed by the company"
+        null -> null
+        else -> OwnerFormat.humanize(code)
+    }
+
+    fun varianceOutcome(code: String?): String? = when (code) {
+        "RECOVERED" -> "Recovered"
+        "CORRECTED_ERROR" -> "Corrected error"
+        "EXPLAINED" -> "Explained"
+        "WRITTEN_OFF" -> "Written off"
+        null -> null
+        else -> OwnerFormat.humanize(code)
+    }
+
+    fun varianceCheck(code: String?): String? = when (code) {
+        "PURCHASE_OVER_ACTIVATED" -> "Purchase over-activated"
+        "NEGATIVE_REMAINING" -> "Negative hours remaining"
+        "CONSUMPTION_MISMATCH" -> "Usage does not match records"
+        "ALLOCATION_MISMATCH" -> "Allocation does not match records"
+        null -> null
+        else -> OwnerFormat.humanize(code)
+    }
+
+    fun varianceAction(code: String): String = when (code) {
+        "OPENED" -> "Opened"
+        "ASSIGNED" -> "Assigned"
+        "EXPLAINED" -> "Explained"
+        "CLOSURE_PROPOSED" -> "Closure proposed"
+        "CLOSURE_APPROVED" -> "Closure approved"
+        "CLOSURE_REJECTED" -> "Closure rejected"
+        "WRITE_OFF_PROPOSED" -> "Write-off proposed"
+        "WRITE_OFF_APPROVED" -> "Write-off approved"
+        "WRITE_OFF_REJECTED" -> "Write-off rejected"
+        "RESOLVED" -> "Resolved"
+        else -> OwnerFormat.humanize(code)
+    }
+
+    private val CLOSURE_ERRORS = mapOf(
+        "SEGREGATION_OF_DUTIES" to "You proposed this closure, so someone else must decide it.",
+        "CLOSURE_NOT_PROPOSED" to "This closure was already decided. Reload to see it.",
+        "WRITEOFF_APPROVAL_REQUIRED" to "A write-off needs its own approval.",
+        "VARIANCE_OUTCOME_NOT_ALLOWED" to "This outcome is not allowed for this variance.",
+    )
+    private val PARTIAL_ERRORS = mapOf(
+        "SEGREGATION_OF_DUTIES" to "You recorded this remittance, so someone else must decide its reason.",
+        "PARTIAL_APPROVAL_NOT_FOUND" to "This reason was already decided. Reload to see it.",
+    )
+    fun closureError(code: String?, fallback: String): String = CLOSURE_ERRORS[code] ?: fallback
+    fun partialError(code: String?, fallback: String): String = PARTIAL_ERRORS[code] ?: fallback
+
     // --- DEC-031 Phase 3: remittance details, surplus, holding allowance ------------------------------------------
     const val REMIT_METHOD = "Method"
     const val REMIT_ACCOUNT = "Paid into"

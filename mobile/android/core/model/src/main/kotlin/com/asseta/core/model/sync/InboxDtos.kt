@@ -49,6 +49,12 @@ object SyncCapabilities {
 
     /** SyncData.unbillable_reasons: the tenant's list for daily reports. */
     const val SYNC_UNBILLABLE_REASONS = "SYNC_UNBILLABLE_REASONS"
+
+    /**
+     * DEC-032 Phase 3: CASH_COLLECTION accepts `purchase_id`, CASH_HANDOVER `partial_reason` and `partial_reason_id`,
+     * HOURS_TRANSFER_REQUEST `evidence_upload_ids` (blob ADJUSTMENT_EVIDENCE).
+     */
+    const val CASH_DETAILS_V2 = "CASH_DETAILS_V2"
 }
 
 /** `ExceptionDto`: a server finding on a reading (type, severity, blocking) and its review. */
@@ -233,6 +239,7 @@ data class SyncCashCollectionDto(
     @SerialName("verified_by") val verifiedBy: String? = null,
     val source: String,
     val allocations: List<HireAllocationDto> = emptyList(),
+    @SerialName("collection_number") val collectionNumber: String? = null,
     @SerialName("sync_revision") val syncRevision: Long,
 )
 
@@ -253,6 +260,7 @@ data class SyncCashHandoverDto(
     @SerialName("verified_at") val verifiedAt: String? = null,
     @SerialName("verified_by") val verifiedBy: String? = null,
     val source: String,
+    @SerialName("remittance_number") val remittanceNumber: String? = null,
     @SerialName("sync_revision") val syncRevision: Long,
 )
 

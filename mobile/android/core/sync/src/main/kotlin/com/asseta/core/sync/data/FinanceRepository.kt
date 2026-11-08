@@ -10,6 +10,7 @@ import com.asseta.core.database.ClientOperationEntity
 import com.asseta.core.database.ExpenseCategoryEntity
 import com.asseta.core.database.MachineEntity
 import com.asseta.core.domain.accountability.DepositAccountOption
+import com.asseta.core.domain.accountability.UnsyncedPurchase
 import com.asseta.core.domain.finance.CustodyBalance
 import com.asseta.core.domain.finance.CustodyLine
 import com.asseta.core.domain.finance.CustodySummary
@@ -19,6 +20,7 @@ import com.asseta.core.domain.finance.PaidFrom
 import com.asseta.core.domain.finance.PendingCashItem
 import com.asseta.core.domain.finance.PendingCashKind
 import com.asseta.core.model.ClientOperationStatus
+import com.asseta.core.model.sync.AccountabilityOps
 import com.asseta.core.model.sync.ContractDto
 import com.asseta.core.model.sync.CustomerDto
 import com.asseta.core.model.sync.OpTypes
@@ -92,6 +94,20 @@ class FinanceRepository(
         db().fieldDataDao().observeReferences(tenantId, ServerDataWriter.KIND_DEPOSIT_ACCOUNT).map { rows ->
             rows.mapNotNull { runCatching { json.decodeFromString(SyncDepositAccountDto.serializer(), it.json) }.getOrNull() }
                 .map { DepositAccountOption(it.id, it.name, it.accountType, it.institution, it.accountNumberMasked, it.currency, it.isActive) }
+        }
+
+    /**
+     * Hours purchases recorded on this phone and not refused (`HOURS_PURCHASE` operations of known customers): a
+     * collection can name one by its client id before it syncs (the walk-in customers' purchases are left out, their
+     * customer is not in the picker).
+     */
+    fun observeUnsyncedPurchases(tenantId: String): Flow<List<UnsyncedPurchase>> =
+        db().clientOperationDao().observeByOpTypes(tenantId, field.ownerSubject(), listOf(AccountabilityOps.HOURS_PURCHASE)).map { ops ->
+            ops.filterNot { it.status == ClientOperationStatus.FAILED || it.status == ClientOperationStatus.CONFLICT }.mapNotNull { op ->
+                val p = payload(op) ?: return@mapNotNull null
+                val clientId = p.text("client_id") ?: return@mapNotNull null
+                UnsyncedPurchase(clientId, p.text("customer_id"), p.text("hours") ?: "0", op.id)
+            }
         }
 
     suspend fun depositAccount(id: String): DepositAccountOption? =

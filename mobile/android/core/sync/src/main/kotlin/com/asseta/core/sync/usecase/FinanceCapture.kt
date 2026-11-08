@@ -3,6 +3,7 @@ package com.asseta.core.sync.usecase
 import com.asseta.core.database.AssetaDatabase
 import com.asseta.core.database.AttachmentEntity
 import com.asseta.core.database.inTransaction
+import com.asseta.core.domain.accountability.AccountabilityMessages
 import com.asseta.core.domain.accountability.RemittanceMethod
 import com.asseta.core.domain.accountability.RemittanceRequirements
 import com.asseta.core.domain.accountability.RemittanceRules
@@ -14,6 +15,7 @@ import com.asseta.core.domain.finance.ExpenseRules
 import com.asseta.core.domain.finance.FormCheck
 import com.asseta.core.domain.finance.FuelEventType
 import com.asseta.core.domain.finance.PaidFrom
+import com.asseta.core.model.ClientOperationStatus
 import com.asseta.core.model.DecimalAmount
 import com.asseta.core.model.sync.BlobPurpose
 import com.asseta.core.model.sync.CashCollectionPayload
@@ -71,6 +73,12 @@ data class CashCollectionRequest(
     val receivedAtMs: Long,
     /** Another custodian holding the cash (recorders may record for others per tenant policy); null = me. */
     val cashHolderId: String? = null,
+    /** The purchase this cash pays for, or an unsynced purchase's client id (needs CASH_DETAILS_V2). */
+    val purchaseId: String? = null,
+    /** The unsynced purchase's outbox operation (the collection waits for it). */
+    val purchaseOperationId: String? = null,
+    /** The tenant requires a purchase or invoice on every collection. */
+    val linkRequired: Boolean = false,
 )
 
 data class CashHandoverRequest(
@@ -85,6 +93,10 @@ data class CashHandoverRequest(
     val cashHolderId: String? = null,
     /** DEC-031 D2 details, sent only when the server announces REMITTANCE_DETAILS_V1 (null = form without them). */
     val details: RemittanceDetails? = null,
+    /** Why part of the balance stays with the custodian (needs CASH_DETAILS_V2). */
+    val partialReason: String = "",
+    val partialReasonId: String? = null,
+    val partialReasonRequired: Boolean = false,
 )
 
 /** How and where the money went, with the deposit slip photos (original JPEGs, stored encrypted on save). */
@@ -195,13 +207,20 @@ class FinanceCapture(
             val jobCustomer = finance.customerOfContract(job.contractId)
             if (jobCustomer != null && jobCustomer != r.customerId) return FinanceResult.Invalid(listOf("Job ${job.jobNumber} belongs to another customer."))
         }
+        if (r.linkRequired && r.purchaseId == null) return FinanceResult.Invalid(listOf(AccountabilityMessages.COLLECTION_LINK_REQUIRED))
+        if (r.purchaseId != null && !supports(r.tenantId, SyncCapabilities.CASH_DETAILS_V2)) return FinanceResult.Blocked(CaptureMeterReading.SERVER_TOO_OLD)
+        val purchaseOp = r.purchaseOperationId?.let { db().clientOperationDao().findById(it) }
+        if (purchaseOp != null && (purchaseOp.status == ClientOperationStatus.FAILED || purchaseOp.status == ClientOperationStatus.CONFLICT)) {
+            return FinanceResult.Blocked(AccountabilityMessages.PURCHASE_GONE)
+        }
         // The collection contract has no job field: the job is recorded in the note so the office can see it.
         val note = listOfNotNull(job?.let { "Job ${it.jobNumber}" }, values.note).joinToString(" · ").takeIf { it.isNotEmpty() }?.take(CashRules.MAX_NOTE)
         val payload = CashCollectionPayload(
             r.clientId, r.customerId, DecimalAmount.of(values.amount), values.currency, IsoTime.format(r.receivedAtMs), values.reference, note,
-            r.cashHolderId,
+            r.cashHolderId, r.purchaseId,
         )
-        return queue(r.tenantId, OpTypes.CASH_COLLECTION, FieldOps.CASH_COLLECTION, r.clientId, CashCollectionPayload.serializer(), payload)
+        val dependsOn = purchaseOp?.takeIf { it.status != ClientOperationStatus.ACKED }?.let { listOf(it.id) } ?: emptyList()
+        return queue(r.tenantId, OpTypes.CASH_COLLECTION, FieldOps.CASH_COLLECTION, r.clientId, CashCollectionPayload.serializer(), payload, dependsOn)
     }
 
     suspend fun cashHandover(r: CashHandoverRequest): FinanceResult {
@@ -219,12 +238,18 @@ class FinanceCapture(
             val issues = RemittanceRules.check(d.requirements, d.method, d.depositAccountId, account, values.currency, values.reference.orEmpty(), evidence.size)
             if (issues.isNotEmpty()) return FinanceResult.Invalid(issues)
         }
+        val partial = r.partialReason.trim().takeIf { it.isNotEmpty() }?.take(CashRules.MAX_NOTE)
+        if (r.partialReasonRequired && partial == null) return FinanceResult.Invalid(listOf(AccountabilityMessages.PARTIAL_REASON))
+        if (partial != null && !RemittanceRules.partialReasonValid(partial)) return FinanceResult.Invalid(listOf(AccountabilityMessages.PARTIAL_REASON))
+        if (partial != null && !supports(r.tenantId, SyncCapabilities.CASH_DETAILS_V2)) return FinanceResult.Blocked(CaptureMeterReading.SERVER_TOO_OLD)
         val payload = CashHandoverPayload(
             r.clientId, DecimalAmount.of(values.amount), values.currency, IsoTime.format(r.handedAtMs), values.reference, values.note,
             r.cashHolderId,
             method = d?.method?.wire,
             depositAccountId = d?.depositAccountId,
             evidenceUploadIds = d?.let { emptyList() }, // filled in as each photo upload completes, before the op is sent
+            partialReason = partial,
+            partialReasonId = r.partialReasonId?.takeIf { partial != null },
         )
         if (evidence.isEmpty()) {
             return queue(r.tenantId, OpTypes.CASH_HANDOVER, FieldOps.CASH_HANDOVER, r.clientId, CashHandoverPayload.serializer(), payload)
@@ -290,11 +315,12 @@ class FinanceCapture(
         clientId: String,
         serializer: KSerializer<T>,
         payload: T,
+        dependsOn: List<String> = emptyList(),
     ): FinanceResult {
         val database = db()
         return database.inTransaction {
             if (alreadySaved(tenantId, entityType, clientId)) return@inTransaction FinanceResult.AlreadySaved
-            FinanceResult.Saved(clientId, enqueue(tenantId, opType, entityType, clientId, serializer, payload, emptyList()))
+            FinanceResult.Saved(clientId, enqueue(tenantId, opType, entityType, clientId, serializer, payload, emptyList(), dependsOn))
         }.also { if (it is FinanceResult.Saved) onQueued() }
     }
 
@@ -306,8 +332,9 @@ class FinanceCapture(
         serializer: KSerializer<T>,
         payload: T,
         attachmentIds: List<String>,
+        dependsOn: List<String> = emptyList(),
     ): String = outbox.enqueueOperation(
-        tenantId, opType, entityType, clientId, json.encodeToJsonElement(serializer, payload).jsonObject, attachmentIds,
+        tenantId, opType, entityType, clientId, json.encodeToJsonElement(serializer, payload).jsonObject, attachmentIds, dependsOn,
     )
 
     private class StoredReceipt(val id: String, val fileName: String, val bytes: ByteArray)

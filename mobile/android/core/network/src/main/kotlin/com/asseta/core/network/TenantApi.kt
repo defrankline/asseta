@@ -431,6 +431,18 @@ interface TenantApi {
     @GET("api/v1/tenant/cash/variances")
     suspend fun cashVariances(@Query("status") status: String? = null, @Query("page_size") pageSize: Int = 100): PageDto<CashVarianceDto>
 
+    /** listCashVarianceHistory (oldest first): opened, assigned, explained, closure proposed and decided, resolved. */
+    @GET("api/v1/tenant/cash/variances/{id}/history")
+    suspend fun cashVarianceHistory(@Path("id") id: String): List<com.asseta.core.model.owner.VarianceEventDto>
+
+    /** decideCashVarianceClosure (tenant.finance.variance_close; never the proposer). */
+    @POST("api/v1/tenant/cash/variances/{id}/closure-decision")
+    suspend fun decideCashVarianceClosure(@Path("id") id: String, @Body body: DecisionIn): CashVarianceDto
+
+    /** decidePartialRemittanceReason (tenant.finance.retention_approve; never the recorder). */
+    @POST("api/v1/tenant/cash/handovers/{id}/partial-reason-decision")
+    suspend fun decidePartialRemittanceReason(@Path("id") id: String, @Body body: DecisionIn): CashHandoverDto
+
     /** decideCashVarianceWriteOff (tenant.finance.writeoff; not the proposer). */
     @POST("api/v1/tenant/cash/variances/{id}/write-off-decision")
     suspend fun decideCashWriteOff(@Path("id") id: String, @Body body: DecisionIn): CashVarianceDto

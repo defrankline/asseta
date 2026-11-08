@@ -56,7 +56,13 @@ data class OwnerFeatures(val permissions: Set<String>, val disabled: Set<String>
     val approveJobs get() = "tenant.job.approve" in permissions
     val createJobs get() = "tenant.job.write" in permissions
     val jobSites get() = "tenant.geofence.read" in permissions
-    val cases get() = "tenant.case.read" in permissions
+    val cases get() = "tenant.case.read" in permissions && TenantAccess.INVESTIGATIONS !in disabled
+
+    /** Live tracking is in use (TRACKING not switched off): trackers, alerts, geofences and connectivity figures. */
+    val tracking get() = TenantAccess.TRACKING !in disabled
+
+    /** Alerts tab and lists (tenant.fleet.read with TRACKING on). */
+    val alerts get() = fleet && tracking
     val meterEvidence get() = "tenant.meter.read" in permissions
     val meterApprove get() = "tenant.meter.approve" in permissions
     val verifyHandovers get() = "tenant.finance.verify" in permissions
@@ -145,6 +151,9 @@ data class OwnerFeatures(val permissions: Set<String>, val disabled: Set<String>
         OwnerDestination.UnbilledWork -> if (unbilledWork) d else OwnerDestination.Accountability
         OwnerDestination.IdleMachines -> if (idleMachines) d else OwnerDestination.Accountability
         OwnerDestination.SetupChecklist -> if (setupRead) d else OwnerDestination.More
+        // DEC-032 switches: a link to a hidden module opens the overview instead.
+        OwnerDestination.Cases, is OwnerDestination.Case -> if (cases) d else OwnerDestination.Home
+        is OwnerDestination.Alerts -> if (alerts) d else OwnerDestination.Home
         else -> d
     }
     val custodyRead get() = finance || "tenant.collection.record" in permissions

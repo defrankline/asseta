@@ -149,6 +149,8 @@ sealed interface InboxLink {
     data class Machine(val machineId: String) : InboxLink
     /** A daily report of mine (DAILY_REPORT_RETURNED): its detail, read online when not on the phone. */
     data class DailyReport(val id: String) : InboxLink
+    /** A remittance of mine (DEC-032: the partial reason was decided): its detail once on the phone, else Money. */
+    data class Handover(val id: String) : InboxLink
     data object None : InboxLink
 }
 
@@ -163,6 +165,8 @@ object InboxLinks {
                 "REMITTANCE_OVERDUE" -> return InboxLink.RemittanceOverdue(recordId)
                 "JOB" -> return InboxLink.Job(recordId)
                 "DAILY_REPORT" -> return InboxLink.DailyReport(recordId)
+                // DEC-032: my partial remittance reason was decided.
+                "CASH_REMITTANCE" -> return InboxLink.Handover(recordId)
             }
         }
         return fromTarget(entity, id)
@@ -180,6 +184,7 @@ object InboxLinks {
         entity == "cash_retention" && id != null -> InboxLink.Retention(id)
         entity == "machine" && id != null -> InboxLink.Machine(id)
         entity == "daily_report" && id != null -> InboxLink.DailyReport(id)
+        entity == "cash_handover" && id != null -> InboxLink.Handover(id)
         else -> InboxLink.None
     }
 }

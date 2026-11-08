@@ -3,12 +3,14 @@ package com.asseta.core.sync.usecase
 import com.asseta.core.database.AssetaDatabase
 import com.asseta.core.database.AttachmentEntity
 import com.asseta.core.database.inTransaction
+import com.asseta.core.domain.accountability.AccountabilityMessages
 import com.asseta.core.domain.accountability.AccountabilityRules
 import com.asseta.core.domain.accountability.HoursSaleDraft
 import com.asseta.core.domain.accountability.PaymentMethod
 import com.asseta.core.domain.finance.FormCheck
 import com.asseta.core.model.DecimalAmount
 import com.asseta.core.model.sync.AccountabilityOps
+import com.asseta.core.model.sync.BlobPurpose
 import com.asseta.core.model.sync.CashFloatAckPayload
 import com.asseta.core.model.sync.CashRetentionIn
 import com.asseta.core.model.sync.CashTransferAckPayload
@@ -55,6 +57,10 @@ data class HoursTransferRequest(
     val reason: String,
     val reasonCodeId: String?,
     val reasonCodeRequired: Boolean,
+    /** Original evidence JPEGs (needs CASH_DETAILS_V2); at most ten. */
+    val evidenceJpegs: List<ByteArray> = emptyList(),
+    val evidenceRequired: Boolean = false,
+    val createdAtMs: Long = 0,
 )
 
 data class CashTransferRequest(
@@ -183,11 +189,35 @@ class AccountabilityCapture(
             is FormCheck.Invalid -> return FinanceResult.Invalid(check.messages)
             is FormCheck.Valid -> check.value
         }
+        val evidence = r.evidenceJpegs.filter { it.isNotEmpty() }.take(MAX_EVIDENCE)
+        if (r.evidenceRequired && evidence.isEmpty()) return FinanceResult.Invalid(listOf(AccountabilityMessages.TRANSFER_EVIDENCE_REQUIRED))
+        if (evidence.isNotEmpty()) unavailable(r.tenantId, SyncCapabilities.CASH_DETAILS_V2)?.let { return FinanceResult.Blocked(it) }
         val payload = HoursTransferPayload(
             clientId = r.clientId, purchaseId = r.purchaseId!!, fromMachineId = r.fromMachineId, toMachineId = r.toMachineId!!,
             hours = AccountabilityRules.plain(values.hours), reason = values.reason, reasonCodeId = r.reasonCodeId,
+            evidenceUploadIds = if (evidence.isEmpty()) null else emptyList(), // filled in as each photo upload completes
         )
-        return queue(r.tenantId, AccountabilityOps.HOURS_TRANSFER_REQUEST, FieldOps.HOURS_TRANSFER, r.clientId, HoursTransferPayload.serializer(), payload)
+        if (evidence.isEmpty()) {
+            return queue(r.tenantId, AccountabilityOps.HOURS_TRANSFER_REQUEST, FieldOps.HOURS_TRANSFER, r.clientId, HoursTransferPayload.serializer(), payload)
+        }
+        if (alreadySaved(r.tenantId, FieldOps.HOURS_TRANSFER, r.clientId)) return FinanceResult.AlreadySaved
+        val stored = evidence.map { bytes -> Triple(UUID.randomUUID().toString(), files.write(bytes), bytes) }
+        val database = db()
+        return database.inTransaction {
+            if (alreadySaved(r.tenantId, FieldOps.HOURS_TRANSFER, r.clientId)) {
+                stored.forEach { files.delete(it.second) }
+                return@inTransaction FinanceResult.AlreadySaved
+            }
+            stored.forEach { (id, file, bytes) ->
+                database.evidenceDao().insertAttachment(
+                    AttachmentEntity(id, r.tenantId, BlobPurpose.ADJUSTMENT_EVIDENCE, file, Sha256.hex(bytes), bytes.size.toLong(),
+                        "image/jpeg", AttachmentEntity.PENDING, createdAt = r.createdAtMs),
+                )
+            }
+            val opId = enqueue(r.tenantId, AccountabilityOps.HOURS_TRANSFER_REQUEST, FieldOps.HOURS_TRANSFER, r.clientId,
+                HoursTransferPayload.serializer(), payload, stored.map { it.first })
+            FinanceResult.Saved(r.clientId, opId)
+        }.also { if (it is FinanceResult.Saved) onQueued() }
     }
 
     suspend fun cashTransfer(r: CashTransferRequest): FinanceResult {

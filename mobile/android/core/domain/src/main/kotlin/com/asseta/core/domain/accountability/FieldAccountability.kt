@@ -27,6 +27,8 @@ data class CashCustodyPolicy(
     val remittanceReferenceRequired: Boolean = false,
     val remittanceEvidenceRequired: Boolean = false,
     val remittanceAccountRequired: Boolean = false,
+    /** DEC-032: every collection names its purchase or invoice (missing from older servers = not required). */
+    val collectionLinkRequired: Boolean = false,
 ) {
     /** The remittance requirements the form enforces (the server applies them as well). */
     val remittanceRequirements: RemittanceRequirements
@@ -46,6 +48,7 @@ data class CashCustodyPolicy(
                 remittanceReferenceRequired = values.optionalFlag("remittance_reference_required"),
                 remittanceEvidenceRequired = values.optionalFlag("remittance_evidence_required"),
                 remittanceAccountRequired = values.optionalFlag("remittance_account_required"),
+                collectionLinkRequired = values.optionalFlag("collection_link_required"),
             )
         }.getOrNull()
     }
@@ -57,6 +60,8 @@ data class CustomerHoursPolicy(
     val walkInAllowed: Boolean,
     val transferRequiresApproval: Boolean,
     val reasonCodeRequired: Boolean,
+    /** DEC-032: hours transfers need evidence (missing from older servers = not required). */
+    val transferEvidenceRequired: Boolean = false,
 ) {
     companion object {
         const val TYPE = "CUSTOMER_HOURS"
@@ -67,6 +72,7 @@ data class CustomerHoursPolicy(
                 walkInAllowed = values.flag("walk_in_allowed"),
                 transferRequiresApproval = values.flag("transfer_requires_approval"),
                 reasonCodeRequired = values.flag("reason_code_required"),
+                transferEvidenceRequired = values.optionalFlag("transfer_evidence_required"),
             )
         }.getOrNull()
     }
@@ -154,9 +160,27 @@ data class FieldAccess(
     /** The handover form offers method, deposit account and deposit slip photos (DEC-031 D2). */
     val remittanceDetails: Boolean get() = supports(SyncCapabilities.REMITTANCE_DETAILS_V1)
 
+    /** The tenant keeps company deposit accounts (not switched off): the handover form offers the account picker. */
+    val depositAccounts: Boolean get() = TenantAccess.DEPOSIT_ACCOUNTS !in disabled
+
     /** What the tenant requires on a remittance; nothing while CASH_CUSTODY is off or the policy is unknown. */
     val remittanceRequirements: RemittanceRequirements
-        get() = cash?.takeIf { cashCustody && remittanceDetails }?.remittanceRequirements ?: RemittanceRequirements()
+        get() = cash?.takeIf { cashCustody && remittanceDetails }?.remittanceRequirements
+            ?.let { if (depositAccounts) it else it.copy(accountRequired = false) } ?: RemittanceRequirements()
+
+    /** DEC-032 Phase 3: the server takes the collection link, partial reason and transfer evidence. */
+    val cashDetailsV2: Boolean get() = supports(SyncCapabilities.CASH_DETAILS_V2)
+
+    /** Collections offer "Pays for" (a purchase, or an offline purchase's client id); required per policy. */
+    val collectionLink: Boolean get() = cashDetailsV2 && can(COLLECTION_RECORD)
+    val collectionLinkRequired: Boolean get() = collectionLink && cash?.collectionLinkRequired == true
+
+    /** Under the full-remittance policy the handover asks why part of the balance stays with the custodian. */
+    val partialReason: Boolean get() = cashDetailsV2 && cashCustody && cash?.remitFullBalance == true
+
+    /** The hours transfer form offers evidence photos; at least one is required per policy. */
+    val transferEvidence: Boolean get() = cashDetailsV2 && customerHours
+    val transferEvidenceRequired: Boolean get() = transferEvidence && hours?.transferEvidenceRequired == true
 
     companion object {
         const val HOURS_PURCHASE = "tenant.hours.purchase"
@@ -353,6 +377,10 @@ object AccountabilityMessages {
     const val RETENTION_AMOUNT = "Enter the amount to keep (more than 0)."
     const val RETENTION_REASON = "Enter a reason (at least 3 characters)."
     const val CORRECTION_REASON = "Enter a reason of at least 10 characters."
+    const val COLLECTION_LINK_REQUIRED = "Your company requires every collection to name its purchase or invoice."
+    const val PARTIAL_REASON = "Enter why part of the cash stays with you (at least 3 characters)."
+    const val TRANSFER_EVIDENCE_REQUIRED = "Photograph the evidence for this transfer."
+    const val PURCHASE_GONE = "The purchase you chose was not accepted by the server. Choose another one."
 
     fun tooMany(remaining: BigDecimal): String = "Only ${AccountabilityRules.plain(remaining)} h are left on this purchase."
 }

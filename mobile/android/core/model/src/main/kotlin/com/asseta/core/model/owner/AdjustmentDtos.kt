@@ -13,6 +13,7 @@ data class AdjustmentRequestDto(
     val id: String,
     @SerialName("request_type") val requestType: String,
     val status: String,
+    @SerialName("request_number") val requestNumber: String? = null,
     @SerialName("original_type") val originalType: String? = null,
     @SerialName("original_id") val originalId: String? = null,
     @SerialName("original_reference") val originalReference: String? = null,
@@ -42,6 +43,7 @@ data class AdjustmentRequestDto(
     companion object {
         const val PROPOSED = "PROPOSED"
         const val WITHDRAWN = "WITHDRAWN"
+        const val ZERO_AMOUNT_ACTIVATION = "ZERO_AMOUNT_ACTIVATION"
         const val HOURS_CORRECTION = "HOURS_CORRECTION"
         const val HOURS_REFUND = "HOURS_REFUND"
         const val INVOICE_VOID = "INVOICE_VOID"

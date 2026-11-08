@@ -81,6 +81,7 @@ object AdjustmentTexts {
         "COLLECTION_REVERSAL" -> "Collection reversal"
         "PURCHASE_REVERSAL" -> "Purchase reversal"
         "INVOICE_VOID" -> "Invoice void"
+        "ZERO_AMOUNT_ACTIVATION" -> "Purchase with nothing to pay"
         else -> OwnerFormat.humanize(wire)
     }
 
@@ -122,6 +123,9 @@ object AdjustmentTexts {
         "PAYMENT_ALREADY_REVERSED" to "This payment is already reversed.",
         "PAYMENT_REVERSED" to "This payment has been reversed.",
         "INVOICE_NOT_ISSUED" to "Only an issued invoice can be voided.",
+        "PURCHASE_NOT_ZERO_AMOUNT" to "This purchase has an amount to pay.",
+        "ALREADY_ACTIVATED" to "This purchase is already activated.",
+        "ZERO_AMOUNT_PENDING" to "A request for this purchase already waits for a decision.",
     )
 
     /** Plain words for a refusal [code]; [fallback] (the server's message) for any other code. */
@@ -152,6 +156,7 @@ object AdjustmentPresentation {
         AdjustmentRequestDto.HOURS_CORRECTION -> r.hours?.let(::signedHours)
         AdjustmentRequestDto.HOURS_REFUND -> r.hours?.let(::hours)
         AdjustmentRequestDto.INVOICE_VOID -> null
+        AdjustmentRequestDto.ZERO_AMOUNT_ACTIVATION -> r.hours?.let(::hours)
         else -> money(r.amount, r.currency)
     }
 
@@ -166,6 +171,7 @@ object AdjustmentPresentation {
     private fun requestFields(r: AdjustmentRequestDto): List<DecisionField> {
         val withdrawn = r.status == AdjustmentRequestDto.WITHDRAWN
         val rows = listOf(
+            OwnerAccountabilityTexts.NUMBER to r.requestNumber,
             T.TYPE to T.type(r.requestType),
             T.REFERENCE to r.originalReference,
             T.CUSTOMER to DisplayNames.of(r.customerName, r.customerId),

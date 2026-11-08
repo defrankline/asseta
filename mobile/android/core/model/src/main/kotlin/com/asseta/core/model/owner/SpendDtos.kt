@@ -83,6 +83,28 @@ data class CashHandoverDto(
     @SerialName("deposit_account_id") val depositAccountId: String? = null,
     @SerialName("deposit_account_name") val depositAccountName: String? = null,
     @SerialName("evidence_attachment_ids") val evidenceAttachmentIds: List<String> = emptyList(),
+    @SerialName("remittance_number") val remittanceNumber: String? = null,
+    /** DECLARED, SUPPORTED or CONFIRMED (guideline 4.5); null from older servers. */
+    @SerialName("evidence_status") val evidenceStatus: String? = null,
+    /** What the office counted differs from the claim by this much, still open; null or 0 = nothing open. */
+    @SerialName("outstanding_difference") val outstandingDifference: DecimalAmount? = null,
+    @SerialName("partial_approval") val partialApproval: PartialRemittanceApprovalDto? = null,
+)
+
+/** `PartialRemittanceApprovalDto`: why a remittance left part of the balance with the custodian, decided by a second person. */
+@Serializable
+data class PartialRemittanceApprovalDto(
+    val id: String,
+    val status: String,
+    @SerialName("reason_id") val reasonId: String? = null,
+    val reason: String = "",
+    @SerialName("created_by") val createdBy: String? = null,
+    @SerialName("created_by_name") val createdByName: String? = null,
+    @SerialName("created_at") val createdAt: String? = null,
+    @SerialName("decided_by") val decidedBy: String? = null,
+    @SerialName("decided_by_name") val decidedByName: String? = null,
+    @SerialName("decided_at") val decidedAt: String? = null,
+    @SerialName("decision_note") val decisionNote: String? = null,
 )
 
 /**
