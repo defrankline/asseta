@@ -1,9 +1,11 @@
 import { Alert } from '@mui/material';
 import { useFormikContext } from 'formik';
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { mixed, object, string, type ObjectSchema } from 'yup';
+import { PERMISSIONS } from '../../../access/permissionCodes';
 import { engineHoursService } from '../../../api/services/engineHoursService';
 import type {
+  AttachmentDto,
   ClassificationDto,
   ClassificationIn,
   ClassificationOutcome,
@@ -18,7 +20,10 @@ import { FormikTextField } from '../../../components/forms/FormikTextField';
 import { useDisplayTimeZone } from '../../../hooks/useDisplayTimeZone';
 import { useIdempotencyKey } from '../../../hooks/useIdempotencyKey';
 import { formatInstantIn } from '../../../utils/time';
+import { FormikEvidenceField } from '../shared/EvidenceField';
+import { evidenceIds, evidenceRule } from '../shared/evidenceRules';
 import { withErrorCode } from '../shared/errorHints';
+import { usePolicyFlag } from '../shared/usePolicyFlag';
 import { optionId } from '../shared/lookups';
 import {
   ENGINE_HOURS_ERROR_HINTS,
@@ -43,19 +48,22 @@ interface ClassifyValues {
   outcome: ClassificationOutcome | '';
   reason_id: string;
   note: string;
+  evidence: AttachmentDto[];
 }
 
-const schema: ObjectSchema<ClassifyValues> = object({
-  outcome: mixed<ClassificationOutcome | ''>()
-    .oneOf(['APPROVED_NON_CUSTOMER', 'IDENTIFIED_VARIANCE'], 'Choose what the hours were')
-    .required('Choose what the hours were'),
-  reason_id: string().required('Choose the category or reason'),
-  note: string()
-    .trim()
-    .required('Explain what happened')
-    .min(DECISION_NOTE_MIN, `At least ${String(DECISION_NOTE_MIN)} characters`)
-    .max(2000, 'At most 2000 characters'),
-});
+const schemaFor = (evidenceRequired: boolean): ObjectSchema<ClassifyValues> =>
+  object({
+    outcome: mixed<ClassificationOutcome | ''>()
+      .oneOf(['APPROVED_NON_CUSTOMER', 'IDENTIFIED_VARIANCE'], 'Choose what the hours were')
+      .required('Choose what the hours were'),
+    reason_id: string().required('Choose the category or reason'),
+    note: string()
+      .trim()
+      .required('Explain what happened')
+      .min(DECISION_NOTE_MIN, `At least ${String(DECISION_NOTE_MIN)} characters`)
+      .max(2000, 'At most 2000 characters'),
+    evidence: evidenceRule(evidenceRequired),
+  });
 
 /** A reason belongs to one list: changing the outcome clears the chosen entry. */
 function ClearReasonOnOutcomeChange({ outcome }: { outcome: string }) {
@@ -86,12 +94,16 @@ interface ClassifyHoursDialogProps {
  */
 export function ClassifyHoursDialog({ segment, onClose, onProposed }: ClassifyHoursDialogProps) {
   const keyFor = useIdempotencyKey();
+  const evidenceRequired = usePolicyFlag('ENGINE_HOURS', 'classification_evidence_required', [
+    PERMISSIONS.tenantMeterCapture,
+  ]);
+  const schema = useMemo(() => schemaFor(evidenceRequired), [evidenceRequired]);
   const timeZone = useDisplayTimeZone();
   return (
     <FormDialog<ClassifyValues>
       open
       title={`Explain ${hoursText(segment.hours)} · ${segment.machineLabel}`}
-      initialValues={{ outcome: '', reason_id: '', note: '' }}
+      initialValues={{ outcome: '', reason_id: '', note: '', evidence: [] }}
       validationSchema={schema}
       submitLabel="Propose explanation"
       onClose={onClose}
@@ -104,6 +116,7 @@ export function ClassifyHoursDialog({ segment, onClose, onProposed }: ClassifyHo
             v.outcome === 'IDENTIFIED_VARIANCE' ? 'IDENTIFIED_VARIANCE' : 'APPROVED_NON_CUSTOMER',
           reason_id: v.reason_id,
           note: v.note.trim(),
+          evidence_attachment_ids: evidenceIds(v.evidence),
         };
         try {
           onProposed(await engineHoursService.proposeClassification(body, keyFor(body)));
@@ -163,6 +176,7 @@ export function ClassifyHoursDialog({ segment, onClose, onProposed }: ClassifyHo
               minRows={2}
               helperText="Kept on the record for audit (at least 5 characters)."
             />
+            <FormikEvidenceField required={evidenceRequired} />
           </>
         );
       }}

@@ -1,5 +1,5 @@
 /** Runtime (Yup) response schemas for engine hours: baselines, the machine ledger, classifications, corrections. */
-import { array, object, type Schema } from 'yup';
+import { array, object, string, type Schema } from 'yup';
 import type {
   BaselineDto,
   BaselineSource,
@@ -239,6 +239,7 @@ export const classificationSchema: Schema<ClassificationDto> = object({
   decided_by_name: optionalText(),
   decided_at: nullableText(),
   decision_note: nullableText(),
+  evidence_attachment_ids: array(string().required()).default([]),
   policy_version: text(),
 });
 

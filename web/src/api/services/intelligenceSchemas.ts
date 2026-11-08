@@ -103,6 +103,11 @@ const caseFields = {
   latest_outcome: nullableOneOf(CASE_OUTCOMES).default(null),
   policy_version: text(),
   version: int(),
+  closure_outcome: nullableOneOf(CASE_OUTCOMES).default(null),
+  closure_explanation: nullableText().default(null),
+  closure_proposed_by: nullableId().default(null),
+  closure_proposed_by_name: nullableText().default(null),
+  closure_proposed_at: nullableText().default(null),
 };
 
 export const anomalyCaseSchema: Schema<AnomalyCaseDto> = object(caseFields);

@@ -66,6 +66,7 @@ export function useTransferActions(onChanged: (t: CashTransferDto) => void) {
           <KeyValueGrid
             columns={2}
             items={[
+              { label: 'Number', value: t.transfer_number ?? '—' },
               { label: 'From', value: transferFrom(t) },
               { label: 'To', value: transferTo(t) },
               {
@@ -104,6 +105,7 @@ export function transferItems(
 ): KeyValueItem[] {
   const varianceId = t.variance_id ?? null;
   return [
+    { label: 'Number', value: t.transfer_number ?? '—' },
     { label: 'From (sender)', value: transferFrom(t) },
     { label: 'To (receiver)', value: transferTo(t) },
     { label: 'Declared', value: <MoneyText amount={t.amount_declared} currency={t.currency} /> },

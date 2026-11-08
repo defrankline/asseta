@@ -1,5 +1,8 @@
 import { object, string, type ObjectSchema } from 'yup';
 import type { CreditArrangementDto, DiscountDto } from '../../../api/hoursTypes';
+import type { AttachmentDto } from '../../../api/types';
+import { FormikEvidenceField } from '../shared/EvidenceField';
+import { evidenceIds, evidenceRule } from '../shared/evidenceRules';
 import { creditArrangementService, discountService } from '../../../api/services/hoursService';
 import { FormDialog } from '../../../components/forms/FormDialog';
 import { FormikDateField } from '../../../components/forms/FormikDateField';
@@ -135,6 +138,7 @@ export function DiscountFormDialog({
 }
 
 interface CreditValues {
+  evidence: AttachmentDto[];
   customer_id: string;
   limit_amount: string;
   currency: string;
@@ -149,9 +153,10 @@ interface CreditValues {
 export function CreditFormDialog({
   record,
   reasonCodeRequired,
+  evidenceRequired,
   onClose,
   onSaved,
-}: FormProps<CreditArrangementDto>) {
+}: FormProps<CreditArrangementDto> & { evidenceRequired: boolean }) {
   const keyFor = useIdempotencyKey();
   const { stale, guard } = useStaleVersion();
   const schema: ObjectSchema<CreditValues> = object({
@@ -159,6 +164,8 @@ export function CreditFormDialog({
     limit_amount: positiveDecimalField('Credit limit'),
     currency: string().ensure(),
     terms: optionalText('Terms', 1000),
+    // Evidence is added when proposing; a later edit keeps what was attached.
+    evidence: evidenceRule(record === null && evidenceRequired),
   });
   return (
     <FormDialog<CreditValues>
@@ -173,6 +180,7 @@ export function CreditFormDialog({
         effective_to: record?.effective_to ?? '',
         reason: record?.reason ?? '',
         reason_code_id: record?.reason_code_id ?? '',
+        evidence: [],
       }}
       validationSchema={schema}
       submitLabel={record === null ? 'Propose credit' : 'Save changes'}
@@ -188,7 +196,12 @@ export function CreditFormDialog({
         };
         try {
           if (record === null) {
-            const body = { ...fields, customer_id: v.customer_id, currency: orNull(v.currency) };
+            const body = {
+              ...fields,
+              customer_id: v.customer_id,
+              currency: orNull(v.currency),
+              evidence_attachment_ids: evidenceIds(v.evidence),
+            };
             onSaved(await creditArrangementService.propose(body, keyFor(body)));
           } else {
             const body = { ...fields, version: record.version };
@@ -225,6 +238,7 @@ export function CreditFormDialog({
         required={reasonCodeRequired}
       />
       <FormikTextField name="reason" label="Reason" required multiline minRows={2} />
+      {record === null && <FormikEvidenceField required={evidenceRequired} />}
     </FormDialog>
   );
 }

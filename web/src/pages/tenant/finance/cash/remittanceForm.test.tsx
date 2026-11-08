@@ -22,6 +22,7 @@ import {
 const m = vi.hoisted(() => ({
   recordHandover: vi.fn<typeof cashService.recordHandover>(),
   uploadRemittanceEvidence: vi.fn<typeof cashService.uploadRemittanceEvidence>(),
+  myCustody: vi.fn<typeof cashService.myCustody>(),
   remittanceEvidenceUrl: vi.fn<typeof cashService.remittanceEvidenceUrl>(),
   effective: vi.fn<typeof policyService.effective>(),
   list: vi.fn<typeof depositAccountService.list>(),
@@ -30,6 +31,7 @@ const m = vi.hoisted(() => ({
 vi.mock('../../../../api/services/cashService', () => ({
   cashService: {
     recordHandover: m.recordHandover,
+    myCustody: m.myCustody,
     uploadRemittanceEvidence: m.uploadRemittanceEvidence,
     remittanceEvidenceUrl: m.remittanceEvidenceUrl,
   },
@@ -109,6 +111,7 @@ beforeEach(() => {
     uploaded_at: '2026-10-21T15:00:00Z',
   });
   m.recordHandover.mockResolvedValue(makeHandover());
+  m.myCustody.mockResolvedValue([]);
 });
 
 describe('remittance requirements', () => {
@@ -136,6 +139,9 @@ describe('remittance requirements', () => {
       evidence: [],
       handed_at: '2026-10-21T15:00:00Z',
       note: '',
+      partial_required: false,
+      partial_reason_id: '',
+      partial_reason: '',
     };
     expect(schema.isValidSync(base)).toBe(true);
     expect(schema.isValidSync({ ...base, method: 'MOBILE_MONEY' })).toBe(false);
@@ -154,6 +160,9 @@ describe('remittance requirements', () => {
         evidence: [{ id: 'a1' } as never, { id: 'a2' } as never],
         handed_at: '2026-10-21T15:00:00Z',
         note: '',
+        partial_required: false,
+        partial_reason_id: '',
+        partial_reason: '',
       },
       'client-1',
     );

@@ -20,6 +20,9 @@ export interface HoursPolicy {
   cancellationRequiresApproval: boolean;
   reasonCodeRequired: boolean;
   refundAllowed: boolean;
+  transferEvidenceRequired: boolean;
+  creditEvidenceRequired: boolean;
+  zeroAmountRequiresApproval: boolean;
   maxDiscountPercent: string;
 }
 
@@ -46,6 +49,9 @@ export function parseHoursPolicy(values: Record<string, unknown>): HoursPolicy {
     cancellationRequiresApproval: flag(values.cancellation_requires_approval, true),
     reasonCodeRequired: flag(values.reason_code_required, false),
     refundAllowed: flag(values.refund_allowed, false),
+    transferEvidenceRequired: flag(values.transfer_evidence_required, false),
+    creditEvidenceRequired: flag(values.credit_evidence_required, false),
+    zeroAmountRequiresApproval: flag(values.zero_amount_requires_approval, true),
     maxDiscountPercent:
       typeof values.max_discount_percent === 'string' ? values.max_discount_percent : '100',
   };

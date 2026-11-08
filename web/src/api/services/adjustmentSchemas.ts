@@ -2,6 +2,7 @@ import { object, string, type Schema } from 'yup';
 import type {
   AdjustmentEntryDto,
   AdjustmentEntryStatus,
+  AdjustmentPreviewDto,
   AdjustmentRequestDto,
   AdjustmentRequestStatus,
   AdjustmentRequestType,
@@ -96,6 +97,7 @@ export const adjustmentEntrySchema: Schema<AdjustmentEntryDto> = object({
   decision_note: nullableText(),
   details: record(),
   posted_at: text(),
+  entry_number: optionalText(),
 });
 
 export const adjustmentRequestSchema: Schema<AdjustmentRequestDto> = object({
@@ -130,4 +132,24 @@ export const adjustmentRequestSchema: Schema<AdjustmentRequestDto> = object({
   decided_by_name: optionalText(),
   decided_at: nullableText(),
   decision_note: nullableText(),
+  request_number: optionalText(),
+  client_created_at: optionalText(),
+});
+
+/** What a request would do, before it is proposed (POST /adjustment-requests/preview). */
+export const adjustmentPreviewSchema: Schema<AdjustmentPreviewDto> = object({
+  request_type: oneOf(REQUEST_TYPES),
+  original_type: text(),
+  original_id: id(),
+  original_reference: nullableText(),
+  customer_id: nullableId(),
+  customer_name: optionalText(),
+  machine_id: nullableId(),
+  machine_code: optionalText(),
+  machine_name: optionalText(),
+  purchase_id: nullableId(),
+  hours: nullableText(),
+  amount: nullableText(),
+  currency: nullableText(),
+  effects: record(),
 });

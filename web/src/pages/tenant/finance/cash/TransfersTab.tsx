@@ -52,6 +52,7 @@ export function TransfersTab({ timeZone, field = false, initialStatus }: Transfe
     [],
   );
   const columns: DataColumn<CashTransferDto>[] = [
+    { id: 'number', header: 'Number', render: (t) => <strong>{t.transfer_number ?? '—'}</strong> },
     { id: 'at', header: 'Handed over', render: (t) => formatInstantIn(t.transferred_at, timeZone) },
     { id: 'from', header: 'From', render: transferFrom },
     { id: 'to', header: 'To', render: transferTo },

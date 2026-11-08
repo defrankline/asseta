@@ -27,6 +27,7 @@ import {
 } from './cashForms';
 import { FormikCustodianIdPicker } from './custodyPickers';
 import { RemittanceDepositFields } from './remittanceDeposit';
+import { PartialRemittanceFields } from './remittancePartial';
 import { useRemittanceRequirements } from './remittanceDetails';
 import { depositAccountLabel } from '../depositAccounts/depositAccountForm';
 
@@ -168,6 +169,9 @@ export function HandoverDialog({
     evidence: [],
     handed_at: new Date().toISOString(),
     note: '',
+    partial_required: false,
+    partial_reason_id: '',
+    partial_reason: '',
   }));
   return (
     <StepperFormDialog<HandoverValues>
@@ -209,7 +213,7 @@ export function HandoverDialog({
         },
         {
           label: 'Details',
-          fields: ['handed_at', 'note'],
+          fields: ['handed_at', 'note', 'partial_reason_id', 'partial_reason'],
           render: () => (
             <>
               <FormikDateTimeField
@@ -219,6 +223,7 @@ export function HandoverDialog({
                 required
               />
               <FormikTextField name="note" label="Note (optional)" multiline minRows={2} />
+              <PartialRemittanceFields ownCustody={ownCustody} staffId={staffMemberId} />
             </>
           ),
         },
@@ -244,6 +249,9 @@ export function HandoverDialog({
                 value: v.evidence.length === 0 ? 'None' : String(v.evidence.length),
               },
               { label: 'Handed over at', value: formatInstantIn(v.handed_at, timeZone) },
+              ...(v.partial_reason.trim() === ''
+                ? []
+                : [{ label: 'Why part stays', value: v.partial_reason.trim() }]),
             ]}
           />
           <Alert severity="info">

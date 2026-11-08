@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PERMISSIONS as P } from '../../../../access/permissionCodes';
-import type { AdjustmentRequestDto } from '../../../../api/adjustmentTypes';
+import type { AdjustmentPreviewDto, AdjustmentRequestDto } from '../../../../api/adjustmentTypes';
 import type { HoursPurchaseDto } from '../../../../api/hoursTypes';
 import type { adjustmentService } from '../../../../api/services/adjustmentService';
 import type { customerPaymentService } from '../../../../api/services/financeService';
@@ -11,17 +11,18 @@ import type { policyService } from '../../../../api/services/policyService';
 import { makePayment, page } from '../../../../test/financeFixtures';
 import { renderWithProviders } from '../../../../test/renderWithProviders';
 import { PaymentsTab } from '../payments/PaymentsTab';
-import { usePurchaseAdjustments } from './usePurchaseAdjustments';
+import { needsZeroAmountRequest, usePurchaseAdjustments } from './usePurchaseAdjustments';
 import { ActionButtons } from '../../../../components/lifecycle/ActionButtons';
 
 const mocks = vi.hoisted(() => ({
   propose: vi.fn<typeof adjustmentService.propose>(),
+  preview: vi.fn<typeof adjustmentService.preview>(),
   effective: vi.fn<typeof policyService.effective>(),
   listPayments: vi.fn<typeof customerPaymentService.list>(),
   getPayment: vi.fn<typeof customerPaymentService.get>(),
 }));
 vi.mock('../../../../api/services/adjustmentService', () => ({
-  adjustmentService: { propose: mocks.propose },
+  adjustmentService: { propose: mocks.propose, preview: mocks.preview },
 }));
 vi.mock('../../../../api/services/policyService', () => ({
   policyService: { effective: mocks.effective },
@@ -45,7 +46,8 @@ const PURCHASE = {
   id: 'p1',
   purchase_number: 'HP-2026-00007',
   machine_id: 'm1',
-  totals: { remaining: '10' },
+  amount: '100000.0000',
+  totals: { remaining: '10', activated: '10' },
 } as HoursPurchaseDto;
 
 const proposed = { id: 'r1' } as AdjustmentRequestDto;
@@ -78,6 +80,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.effective.mockResolvedValue(policy({ adjustment_evidence_required: false }));
   mocks.propose.mockResolvedValue(proposed);
+  mocks.preview.mockResolvedValue({ effects: {}, currency: 'TZS' } as AdjustmentPreviewDto);
   mocks.listPayments.mockResolvedValue(page([makePayment({ status: 'VERIFIED' })]));
 });
 
@@ -205,5 +208,57 @@ describe('payment reversal', () => {
     expect(await screen.findByText('Payment TRX-LINK')).toBeInTheDocument();
     expect(mocks.getPayment).toHaveBeenCalledWith('pay1', expect.any(AbortSignal));
     expect(mocks.listPayments.mock.lastCall?.[0].filters?.status).toBeUndefined();
+  });
+});
+
+describe('forecast before proposing', () => {
+  it('shows what approving would do and warns when the server would refuse it', async () => {
+    const user = userEvent.setup();
+    mocks.preview.mockResolvedValue({
+      effects: { hours_refunded: '2.0000' },
+      currency: 'TZS',
+    } as unknown as AdjustmentPreviewDto);
+    renderPurchase({ refundAllowed: true });
+    await user.click(screen.getByRole('button', { name: 'Reverse purchase' }));
+    const dialog = await screen.findByRole('dialog');
+    await waitFor(() => {
+      expect(mocks.preview).toHaveBeenCalledWith(
+        { request_type: 'PURCHASE_REVERSAL', purchase_id: 'p1' },
+        expect.any(AbortSignal),
+      );
+    });
+    expect(await within(dialog).findByText('Hours refunded')).toBeInTheDocument();
+  });
+
+  it('says so when the forecast cannot be approved as it stands', async () => {
+    const user = userEvent.setup();
+    mocks.preview.mockResolvedValue({
+      effects: { refused: 'NOTHING_TO_REVERSE' },
+      currency: 'TZS',
+    } as unknown as AdjustmentPreviewDto);
+    renderPurchase({});
+    await user.click(screen.getByRole('button', { name: 'Reverse purchase' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(await within(dialog).findByText(/There is nothing left to reverse/)).toBeInTheDocument();
+  });
+
+  it('asks for approval on a zero-amount purchase with no request waiting', () => {
+    expect(
+      needsZeroAmountRequest({
+        ...PURCHASE,
+        amount: '0.0000',
+        totals: { ...PURCHASE.totals, activated: '0.0000' },
+        pending_zero_amount_request_id: null,
+      }),
+    ).toBe(true);
+    expect(
+      needsZeroAmountRequest({
+        ...PURCHASE,
+        amount: '0.0000',
+        totals: { ...PURCHASE.totals, activated: '0.0000' },
+        pending_zero_amount_request_id: 'r1',
+      }),
+    ).toBe(false);
+    expect(needsZeroAmountRequest(PURCHASE)).toBe(false);
   });
 });

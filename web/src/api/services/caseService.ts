@@ -2,6 +2,7 @@ import type {
   AnomalyCaseDetailDto,
   AnomalyCaseDto,
   CaseAssignIn,
+  CaseClosureDecisionIn,
   CaseNoteDto,
   CaseNoteIn,
   CaseReopenIn,
@@ -70,6 +71,17 @@ export const caseService = {
     return tenantSend(
       'post',
       `/tenant/cases/${seg(caseId)}/resolve`,
+      body,
+      anomalyCaseDetailSchema,
+      'case',
+      idempotencyKey,
+    );
+  },
+  /** POST /tenant/cases/{id}/resolution-decision (decideAnomalyCaseResolution): never the proposer. */
+  decideResolution(caseId: string, body: CaseClosureDecisionIn, idempotencyKey: string) {
+    return tenantSend(
+      'post',
+      `/tenant/cases/${seg(caseId)}/resolution-decision`,
       body,
       anomalyCaseDetailSchema,
       'case',

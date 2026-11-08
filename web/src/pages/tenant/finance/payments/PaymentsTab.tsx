@@ -31,6 +31,7 @@ import { ActionButtons } from '../../../../components/lifecycle/ActionButtons';
 import { DetailsDrawer } from '../../../../components/lifecycle/DetailsDrawer';
 import { RowActionsMenu } from '../../../../components/lifecycle/RowActionsMenu';
 import { adjustmentRequestPath } from '../../../../navigation/adjustmentRoutes';
+import { hoursPurchasePath } from '../../../../navigation/hoursRoutes';
 import { useNotify } from '../../../../notifications/useNotify';
 import { formatInstantIn } from '../../../../utils/time';
 import {
@@ -67,6 +68,26 @@ function ReversedChip({ payment: p }: { payment: CustomerPaymentDto }) {
   );
 }
 
+/** The hours purchases a collection pays for (linked up to their open amounts). */
+function purchaseLinkItems(p: CustomerPaymentDto) {
+  const links = p.purchase_links ?? [];
+  if (links.length === 0) return [];
+  return [
+    {
+      label: 'Pays for',
+      value: (
+        <Box component="span" className="inline-flex flex-wrap gap-2">
+          {links.map((l) => (
+            <Link key={l.purchase_id} component={RouterLink} to={hoursPurchasePath(l.purchase_id)}>
+              {l.purchase_number}
+            </Link>
+          ))}
+        </Box>
+      ),
+    },
+  ];
+}
+
 function PaymentDrawer({
   payment: p,
   timeZone,
@@ -84,7 +105,7 @@ function PaymentDrawer({
   const staffLabel = useStaffLabels();
   return (
     <DetailsDrawer
-      title={`Payment ${p.reference ?? shortId(p.id)}`}
+      title={`Payment ${p.collection_number ?? p.reference ?? shortId(p.id)}`}
       status={
         <Box component="span" className="inline-flex flex-wrap gap-1">
           <StatusChip
@@ -122,7 +143,9 @@ function PaymentDrawer({
             value: <MoneyText amount={unallocatedOf(p)} currency={p.currency} />,
           },
           { label: 'Method', value: PAYMENT_METHOD_LABELS[p.method] },
+          { label: 'Number', value: p.collection_number ?? '—' },
           { label: 'Reference', value: p.reference ?? '—' },
+          ...purchaseLinkItems(p),
           { label: 'Received at', value: formatInstantIn(p.received_at, timeZone) },
           {
             label: 'Received by',
@@ -215,6 +238,11 @@ export function PaymentsTab({ timeZone }: { timeZone: string }) {
     [],
   );
   const columns: DataColumn<CustomerPaymentDto>[] = [
+    {
+      id: 'number',
+      header: 'Number',
+      render: (p) => <strong>{p.collection_number ?? '—'}</strong>,
+    },
     { id: 'received', header: 'Received', render: (p) => formatInstantIn(p.received_at, timeZone) },
     {
       id: 'customer',
@@ -248,7 +276,10 @@ export function PaymentsTab({ timeZone }: { timeZone: string }) {
       header: '',
       align: 'right',
       render: (p) => (
-        <RowActionsMenu label={`payment ${p.reference ?? shortId(p.id)}`} actions={actionsFor(p)} />
+        <RowActionsMenu
+          label={`payment ${p.collection_number ?? p.reference ?? shortId(p.id)}`}
+          actions={actionsFor(p)}
+        />
       ),
     },
   ];

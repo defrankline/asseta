@@ -11,6 +11,7 @@ import { FormikAsyncIdAutocomplete } from '../../../../components/forms/FormikAs
 import { FormikSelectField } from '../../../../components/forms/FormikSelectField';
 import { FormikTextField } from '../../../../components/forms/FormikTextField';
 import { formatDate } from '../../../../utils/dates';
+import { isDecimalString } from '../../../../utils/money';
 import { positiveDecimalField } from '../../../platform/shared/validators';
 import { hoursText } from '../../hours/hoursDisplay';
 import { FormikMachineIdPicker, FormikStaffIdPicker } from '../../shared/financePickers';
@@ -62,6 +63,17 @@ type RefundValues = {
 /** Propose adding hours to, or taking them off, one machine's lot of this purchase. */
 export function CorrectHoursDialog({ purchase, onClose, onDone }: DialogProps) {
   const [consumedJob, setConsumedJob] = useState<string | null>(null);
+  const correction = (v: CorrectionValues) => {
+    const giveBack = v.direction === 'ADD' ? orNull(v.consumed_entry_id) : null;
+    return {
+      request_type: 'HOURS_CORRECTION' as const,
+      purchase_id: purchase.id,
+      machine_id: v.machine_id,
+      hours: v.direction === 'ADD' ? v.hours.trim() : `-${v.hours.trim()}`,
+      consumed_entry_id: giveBack,
+      job_id: giveBack === null ? null : consumedJob,
+    };
+  };
   return (
     <AdjustmentProposalDialog<CorrectionValues, AdjustmentRequestDto>
       title={`Correct hours on ${purchase.purchase_number}`}
@@ -117,21 +129,8 @@ export function CorrectHoursDialog({ purchase, onClose, onDone }: DialogProps) {
           )}
         </>
       )}
-      submit={(common, v, key) => {
-        const giveBack = v.direction === 'ADD' ? orNull(v.consumed_entry_id) : null;
-        return adjustmentService.propose(
-          {
-            ...common,
-            request_type: 'HOURS_CORRECTION',
-            purchase_id: purchase.id,
-            machine_id: v.machine_id,
-            hours: v.direction === 'ADD' ? v.hours.trim() : `-${v.hours.trim()}`,
-            consumed_entry_id: giveBack,
-            job_id: giveBack === null ? null : consumedJob,
-          },
-          key,
-        );
-      }}
+      forecast={(v) => (isDecimalString(v.hours.trim()) ? correction(v) : null)}
+      submit={(common, v, key) => adjustmentService.propose({ ...common, ...correction(v) }, key)}
       onDone={onDone}
       onClose={onClose}
     />
@@ -140,6 +139,25 @@ export function CorrectHoursDialog({ purchase, onClose, onDone }: DialogProps) {
 
 /** Propose refunding unused activated hours, as credit or as money paid out. */
 export function RefundHoursDialog({ purchase, onClose, onDone }: DialogProps) {
+  const refundReady = (v: RefundValues) =>
+    isDecimalString(v.hours.trim()) &&
+    v.settlement !== '' &&
+    (v.settlement !== 'PAY_OUT' || v.method !== '');
+  const refund = (v: RefundValues) => ({
+    request_type: 'HOURS_REFUND' as const,
+    purchase_id: purchase.id,
+    machine_id: v.machine_id,
+    hours: v.hours.trim(),
+    settlement: v.settlement === '' ? null : v.settlement,
+    payout:
+      v.settlement === 'PAY_OUT' && v.method !== ''
+        ? {
+            method: v.method,
+            reference: orNull(v.reference.trim()),
+            staff_member_id: v.method === 'CASH' ? orNull(v.staff_member_id) : null,
+          }
+        : null,
+  });
   return (
     <AdjustmentProposalDialog<RefundValues, AdjustmentRequestDto>
       title={`Refund unused hours of ${purchase.purchase_number}`}
@@ -208,27 +226,8 @@ export function RefundHoursDialog({ purchase, onClose, onDone }: DialogProps) {
           )}
         </>
       )}
-      submit={(common, v, key) =>
-        adjustmentService.propose(
-          {
-            ...common,
-            request_type: 'HOURS_REFUND',
-            purchase_id: purchase.id,
-            machine_id: v.machine_id,
-            hours: v.hours.trim(),
-            settlement: v.settlement === '' ? null : v.settlement,
-            payout:
-              v.settlement === 'PAY_OUT' && v.method !== ''
-                ? {
-                    method: v.method,
-                    reference: orNull(v.reference.trim()),
-                    staff_member_id: v.method === 'CASH' ? orNull(v.staff_member_id) : null,
-                  }
-                : null,
-          },
-          key,
-        )
-      }
+      forecast={(v) => (refundReady(v) ? refund(v) : null)}
+      submit={(common, v, key) => adjustmentService.propose({ ...common, ...refund(v) }, key)}
       onDone={onDone}
       onClose={onClose}
     />
@@ -246,12 +245,39 @@ export function ReversePurchaseDialog({ purchase, onClose, onDone }: DialogProps
       summary={
         <Alert severity="warning">
           Unused hours come off and the money stays with the used hours it paid for; the rest
-          returns to credit. The next page shows the forecast. Someone else decides.
+          returns to credit. Someone else decides.
+        </Alert>
+      }
+      forecast={() => ({ request_type: 'PURCHASE_REVERSAL', purchase_id: purchase.id })}
+      submit={(common, _v, key) =>
+        adjustmentService.propose(
+          { ...common, request_type: 'PURCHASE_REVERSAL', purchase_id: purchase.id },
+          key,
+        )
+      }
+      onDone={onDone}
+      onClose={onClose}
+    />
+  );
+}
+
+/** A purchase with nothing to pay activates only once a second person approves it. */
+export function ZeroAmountRequestDialog({ purchase, onClose, onDone }: DialogProps) {
+  return (
+    <AdjustmentProposalDialog
+      title={`Ask to activate ${purchase.purchase_number}`}
+      submitLabel="Send request"
+      reasonKind="REVERSAL"
+      initial={{}}
+      summary={
+        <Alert severity="info">
+          This purchase has nothing to pay, so its hours stay inactive until someone else approves
+          them.
         </Alert>
       }
       submit={(common, _v, key) =>
         adjustmentService.propose(
-          { ...common, request_type: 'PURCHASE_REVERSAL', purchase_id: purchase.id },
+          { ...common, request_type: 'ZERO_AMOUNT_ACTIVATION', purchase_id: purchase.id },
           key,
         )
       }

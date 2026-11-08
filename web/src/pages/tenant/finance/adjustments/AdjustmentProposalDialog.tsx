@@ -2,6 +2,7 @@ import { Alert } from '@mui/material';
 import type { FormikProps, FormikValues } from 'formik';
 import type { ReactNode } from 'react';
 import { array, mixed, object, string, type ObjectSchema } from 'yup';
+import type { AdjustmentPreviewIn } from '../../../../api/adjustmentTypes';
 import type { ReasonKind } from '../../../../api/hoursTypes';
 import type { AttachmentDto } from '../../../../api/types';
 import { FormDialog } from '../../../../components/forms/FormDialog';
@@ -11,6 +12,7 @@ import { EvidenceUpload } from '../../engineHours/allocations/EvidenceUpload';
 import { FormikReasonCodePicker } from '../../hours/hoursPickers';
 import { withErrorCode } from '../../shared/errorHints';
 import { ADJUSTMENT_ERROR_HINTS } from './adjustmentDisplay';
+import { AdjustmentForecast } from './AdjustmentForecast';
 import { useAdjustmentPolicy } from './useAdjustmentPolicy';
 
 interface CommonValues {
@@ -35,8 +37,8 @@ interface Props<E extends FormikValues, T> {
   initial: E;
   shape?: Parameters<typeof object>[0];
   fields?: (formik: FormikProps<E & CommonValues>) => ReactNode;
-  /** The void endpoint takes evidence but the policy's rule does not apply to it. */
-  evidenceOptional?: boolean;
+  /** Forecast shown before proposing: the request as it stands, or null while it is incomplete. */
+  forecast?: (values: E) => AdjustmentPreviewIn | null;
   submit: (common: ProposalCommon, values: E, key: string) => Promise<T>;
   onDone: (result: T) => void;
   onClose: () => void;
@@ -51,14 +53,14 @@ export function AdjustmentProposalDialog<E extends FormikValues, T>({
   initial,
   shape = {},
   fields,
-  evidenceOptional = false,
+  forecast,
   submit,
   onDone,
   onClose,
 }: Props<E, T>) {
   const keyFor = useIdempotencyKey();
   const policy = useAdjustmentPolicy();
-  const evidenceRequired = !evidenceOptional && policy.evidenceRequired;
+  const evidenceRequired = policy.evidenceRequired;
   const schema = object({
     ...shape,
     reason: string()
@@ -104,6 +106,7 @@ export function AdjustmentProposalDialog<E extends FormikValues, T>({
         <>
           {summary}
           {fields?.(f)}
+          {forecast !== undefined && <AdjustmentForecast body={forecast(f.values)} />}
           <FormikReasonCodePicker
             name="reason_code_id"
             kind={reasonKind}

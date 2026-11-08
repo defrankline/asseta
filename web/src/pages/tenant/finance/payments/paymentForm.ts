@@ -31,11 +31,13 @@ export interface PaymentFormValues {
   received_by_staff_id: string;
   note: string;
   allocations: AllocationRow[];
+  /** Collections only: the hours purchase this cash pays for ('' = none). */
+  purchase_id: string;
 }
 
 export const PAYMENT_FIELDS = ['customer_id', 'method', 'amount', 'currency', 'reference'] as const;
 export const RECEIPT_FIELDS = ['received_at', 'received_by_staff_id', 'note'] as const;
-export const ALLOCATION_FIELDS = ['allocations'] as const;
+export const ALLOCATION_FIELDS = ['allocations', 'purchase_id'] as const;
 
 /** Methods whose reference (bank / mobile money transaction id) is mandatory. */
 export const REFERENCE_REQUIRED: ReadonlySet<HirePaymentMethod> = new Set(['BANK', 'MOBILE_MONEY']);
@@ -54,6 +56,7 @@ export function emptyPaymentValues(
     received_by_staff_id: '',
     note: '',
     allocations: init.invoice === undefined ? [] : [{ invoice: init.invoice, amount: '' }],
+    purchase_id: '',
   };
 }
 
@@ -71,6 +74,21 @@ export const allocationRow: ObjectSchema<AllocationRow> = object({
     },
   ),
 });
+
+/** `linkRequired`: a cash collection must name its purchase or invoice (CASH_CUSTODY policy). */
+export const paymentFormSchemaFor = (linkRequired: boolean): ObjectSchema<PaymentFormValues> =>
+  paymentFormSchema.shape({
+    purchase_id: string()
+      .ensure()
+      .test(
+        'link',
+        'Your company policy needs the purchase or invoice this pays for',
+        function linked(v) {
+          const rows = (this.parent as { allocations: AllocationRow[] }).allocations;
+          return !linkRequired || v !== '' || rows.length > 0;
+        },
+      ),
+  });
 
 export const paymentFormSchema: ObjectSchema<PaymentFormValues> = object({
   customer_id: string().required('Choose the customer'),
@@ -101,6 +119,7 @@ export const paymentFormSchema: ObjectSchema<PaymentFormValues> = object({
       const ids = rows.flatMap((r) => (r.invoice === null ? [] : [r.invoice.id]));
       return new Set(ids).size === ids.length;
     }),
+  purchase_id: string().ensure(),
 });
 
 export function toAllocations(rows: readonly AllocationRow[]): HireAllocationIn[] {
@@ -135,6 +154,7 @@ export function toCollectionPayload(v: PaymentFormValues, clientId: string): Cas
     staff_member_id: orNull(v.received_by_staff_id),
     note: orNull(v.note),
     client_id: clientId,
+    purchase_id: orNull(v.purchase_id),
     allocations: toAllocations(v.allocations),
   };
 }

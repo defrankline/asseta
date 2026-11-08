@@ -77,6 +77,11 @@ export const REVENUE_RECONCILIATION_FIELDS: readonly PolicyFieldDef[] = [
     help: 'Hours are matched with money once the period has closed (tenant time zone).',
   },
   {
+    key: 'non_revenue_evidence_required',
+    label: 'Non-revenue approvals need evidence',
+    kind: 'bool',
+  },
+  {
     key: 'tolerance_percent',
     label: 'Tolerance',
     kind: 'decimal',

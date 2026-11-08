@@ -100,6 +100,24 @@ export const CUSTOMER_HOURS_FIELDS: readonly PolicyFieldDef[] = [
     label: 'Corrections, refunds and reversals need evidence',
     kind: 'bool',
   },
+  { key: 'transfer_evidence_required', label: 'Hours transfers need evidence', kind: 'bool' },
+  { key: 'credit_evidence_required', label: 'Credit arrangements need evidence', kind: 'bool' },
+  {
+    key: 'zero_amount_requires_approval',
+    label: 'Purchases with nothing to pay need a second person',
+    kind: 'bool',
+  },
+  {
+    key: 'variance_sweep_enabled',
+    label: 'Check customer-hour records for mismatches',
+    kind: 'bool',
+  },
+  {
+    key: 'variance_tolerance_hours',
+    label: 'Ignore hour differences up to',
+    kind: 'decimal',
+    unit: 'h',
+  },
   {
     key: 'drawdown',
     label: 'Take prepaid hours from the balance',

@@ -53,6 +53,7 @@ export function RetentionsTab({
     void navigate(recordPath('CASH_RETENTION', r.id));
   };
   const columns: DataColumn<CashRetentionDto>[] = [
+    { id: 'number', header: 'Number', render: (r) => <strong>{r.retention_number ?? '—'}</strong> },
     { id: 'at', header: 'Requested', render: (r) => formatInstantIn(r.created_at, timeZone) },
     { id: 'who', header: 'Custodian', render: retentionCustodian },
     { id: 'reason', header: 'Reason', render: (r) => r.reason },

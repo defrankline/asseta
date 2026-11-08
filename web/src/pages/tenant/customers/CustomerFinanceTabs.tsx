@@ -122,6 +122,7 @@ function StatementView({
   const claimColumns: DataColumn<CustomerPaymentDto>[] = [
     { id: 'at', header: 'Received', render: (p) => formatInstantIn(p.received_at, timeZone) },
     { id: 'method', header: 'Method', render: (p) => PAYMENT_METHOD_LABELS[p.method] },
+    { id: 'number', header: 'Number', render: (p) => p.collection_number ?? '—' },
     { id: 'ref', header: 'Reference', render: (p) => p.reference ?? '—' },
     { id: 'amt', header: 'Amount', align: 'right', render: (p) => m(p.amount) },
   ];

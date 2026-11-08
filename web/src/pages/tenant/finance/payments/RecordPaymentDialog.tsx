@@ -1,5 +1,6 @@
 import { Alert, Box, Typography } from '@mui/material';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { CAPABILITY, useCapabilityEnabled } from '../../../../access/capabilities';
 import { cashService } from '../../../../api/services/cashService';
 import { customerPaymentService } from '../../../../api/services/financeService';
 import { newUuid } from '../../../../api/ids';
@@ -27,12 +28,14 @@ import {
 } from '../../shared/financeDisplay';
 import { customerOptionLabel, invoiceOptionLabel } from '../../shared/financeLookups';
 import { FormikCustomerIdPicker, FormikStaffIdPicker } from '../../shared/financePickers';
+import { useCashPolicy } from '../cash/custodyHooks';
+import { FormikPurchaseIdPicker } from '../../hours/hoursPickers';
 import { AllocationFields } from './AllocationFields';
 import {
   ALLOCATION_FIELDS,
   emptyPaymentValues,
   PAYMENT_FIELDS,
-  paymentFormSchema,
+  paymentFormSchemaFor,
   RECEIPT_FIELDS,
   REFERENCE_REQUIRED,
   toCollectionPayload,
@@ -74,6 +77,10 @@ export function RecordPaymentDialog({
   const [customer, setCustomer] = useState<CustomerDto | null>(null);
   const [staff, setStaff] = useState<StaffDto | null>(null);
   const isCollection = mode === 'collection';
+  const controlsOn = useCapabilityEnabled(CAPABILITY.cashCustody);
+  const policy = useCashPolicy();
+  const linkRequired = isCollection && controlsOn && (policy?.collectionLinkRequired ?? false);
+  const schema = useMemo(() => paymentFormSchemaFor(linkRequired), [linkRequired]);
   const [initialValues] = useState(() => ({
     ...emptyPaymentValues(new Date().toISOString(), {
       ...(customerId !== undefined ? { customerId } : {}),
@@ -156,7 +163,24 @@ export function RecordPaymentDialog({
     {
       label: 'Allocation',
       fields: ALLOCATION_FIELDS,
-      render: () => <AllocationFields />,
+      render: (formik) => (
+        <>
+          <AllocationFields />
+          {isCollection && (
+            <FormikPurchaseIdPicker
+              key={formik.values.customer_id}
+              name="purchase_id"
+              label={linkRequired ? 'Hours purchase it pays for' : 'Hours purchase (optional)'}
+              customerId={formik.values.customer_id}
+              disabled={formik.values.customer_id === ''}
+              helperText="Linked up to its open amount; the rest stays as customer credit."
+            />
+          )}
+          {linkRequired && formik.submitCount > 0 && formik.errors.purchase_id !== undefined && (
+            <Alert severity="error">{formik.errors.purchase_id}</Alert>
+          )}
+        </>
+      ),
     },
   ];
   return (
@@ -165,7 +189,7 @@ export function RecordPaymentDialog({
       title={isCollection ? 'Record cash collection' : 'Record customer payment'}
       steps={steps}
       initialValues={initialValues}
-      validationSchema={paymentFormSchema}
+      validationSchema={schema}
       submitLabel={isCollection ? 'Record collection' : 'Record payment'}
       onClose={onClose}
       renderReview={(v) => (

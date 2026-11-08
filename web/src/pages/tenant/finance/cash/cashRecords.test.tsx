@@ -36,6 +36,7 @@ const m = vi.hoisted(() => ({
   retention: vi.fn<typeof custodyService.retention>(),
   handover: vi.fn<typeof custodyService.handover>(),
   variance: vi.fn<typeof custodyService.variance>(),
+  varianceHistory: vi.fn<typeof custodyService.varianceHistory>(),
   remittanceOverdue: vi.fn<typeof custodyService.remittanceOverdue>(),
   remittanceOverdueFlag: vi.fn<typeof custodyService.remittanceOverdueFlag>(),
   effective: vi.fn<typeof policyService.effective>(),
@@ -122,6 +123,7 @@ function openRecord(kind: RecordKind, id: string, page: ReactNode, permissions: 
 
 beforeEach(() => {
   m.custodians.mockResolvedValue(page([]));
+  m.varianceHistory.mockResolvedValue([]);
   m.effective.mockResolvedValue({
     policy_type: 'CASH_CUSTODY',
     version_stamp: 'v1',

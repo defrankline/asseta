@@ -5,7 +5,7 @@ import { PERMISSIONS } from '../../../access/permissionCodes';
 import { useMutationGuard } from '../../../access/useCanMutate';
 import { caseService } from '../../../api/services/caseService';
 import { expenseService } from '../../../api/services/expenseService';
-import type { AnomalyCaseDto } from '../../../api/types';
+import type { AnomalyCaseDetailDto, AnomalyCaseDto } from '../../../api/types';
 import { KeyValueGrid } from '../../../components/display/KeyValueGrid';
 import { StatusChip } from '../../../components/display/StatusChip';
 import { AsyncContent } from '../../../components/feedback/AsyncContent';
@@ -24,11 +24,14 @@ import { ENTITY, entityKey } from '../../../realtime/entities';
 import { useLiveRefresh } from '../../../realtime/hooks';
 import { formatInstantIn } from '../../../utils/time';
 import { ExpenseDetailsDrawer } from '../expenses/ExpenseDetailsDrawer';
+import { DecisionDialog } from '../shared/DecisionDialog';
 import { PersonName } from '../shared/PersonName';
+import { useMyUserId } from '../shared/useFinanceLabels';
 import { useStaffLabels } from '../shared/useFinanceLabels';
 import { useMachineLabels } from '../shared/useMachineLabels';
 import { AssignCaseDialog, ReopenCaseDialog, ResolveCaseDialog } from './CaseDialogs';
 import {
+  CASE_OWN_CLOSURE_TEXT,
   CASE_STATUS_LABELS,
   CASE_STATUS_TONES,
   OUTCOME_LABELS,
@@ -42,7 +45,7 @@ import {
 import { EvidenceSection, NotesSection, OutcomesSection } from './CaseSections';
 import { JobNumber, SubjectLabel } from './SubjectLabel';
 
-type Dialog = 'assign' | 'resolve' | 'reopen' | null;
+type Dialog = 'assign' | 'resolve' | 'reopen' | 'closure' | null;
 
 /** Loads one expense and shows its evidence drawer (receipts, GPS, approval). */
 function ExpenseDrawer({
@@ -192,6 +195,7 @@ export function CaseDetailPage() {
   const can = useMutationGuard();
   const canManage = can(PERMISSIONS.tenantCaseManage);
   const canResolve = can(PERMISSIONS.tenantCaseResolve);
+  const me = useMyUserId();
   const [dialog, setDialog] = useState<Dialog>(null);
   const [expenseId, setExpenseId] = useState<string | null>(null);
   const load = useCallback((signal: AbortSignal) => caseService.get(caseId, signal), [caseId]);
@@ -200,6 +204,8 @@ export function CaseDetailPage() {
   useLiveRefresh([entityKey(ENTITY.anomalyCase, caseId)], reload);
   const c = res.data?.case ?? null;
   const resolved = c?.status === 'RESOLVED';
+  const closurePending = c !== null && !resolved && c.closure_proposed_at != null;
+  const closureMine = closurePending && me !== null && c.closure_proposed_by === me;
   const actions: RowAction[] = [
     {
       key: 'assign',
@@ -212,9 +218,19 @@ export function CaseDetailPage() {
     {
       key: 'resolve',
       label: 'Resolve',
-      hidden: !canResolve || resolved,
+      hidden: !canResolve || resolved || closurePending,
       onClick: () => {
         setDialog('resolve');
+      },
+    },
+    {
+      key: 'closure',
+      label: closureMine ? `Decide closure (${CASE_OWN_CLOSURE_TEXT})` : 'Decide closure',
+      hidden: !canResolve || !closurePending,
+      disabled: closureMine,
+      disabledReason: CASE_OWN_CLOSURE_TEXT,
+      onClick: () => {
+        setDialog('closure');
       },
     },
     {
@@ -247,6 +263,12 @@ export function CaseDetailPage() {
           : {})}
       >
         <Alert severity="info">{NEUTRAL_SIGNAL_NOTICE}</Alert>
+        {closurePending && c.closure_outcome != null && (
+          <Alert severity="warning">
+            Closure proposed as {OUTCOME_LABELS[c.closure_outcome]}: {c.closure_explanation ?? '—'}.
+            Someone else decides it.
+          </Alert>
+        )}
         <AsyncContent
           resource={res}
           errorTitle="Could not load the case"
@@ -283,8 +305,49 @@ export function CaseDetailPage() {
         <ResolveCaseDialog
           case={c}
           onClose={close}
-          onDone={done('Outcome recorded.')}
+          onDone={(d) => {
+            done(
+              d.case.status === 'RESOLVED'
+                ? 'Outcome recorded.'
+                : 'Closure proposed; someone else decides it.',
+            )();
+          }}
           onReload={reload}
+        />
+      )}
+      {c !== null && dialog === 'closure' && (
+        <DecisionDialog<AnomalyCaseDetailDto>
+          title={`Decide closure of ${c.case_number}`}
+          kind="approve"
+          summary={
+            <KeyValueGrid
+              columns={1}
+              items={[
+                {
+                  label: 'Proposed outcome',
+                  value: c.closure_outcome == null ? '—' : OUTCOME_LABELS[c.closure_outcome],
+                },
+                { label: 'Explanation', value: c.closure_explanation ?? '—' },
+                {
+                  label: 'Proposed by',
+                  value: (
+                    <PersonName
+                      userId={c.closure_proposed_by ?? null}
+                      name={c.closure_proposed_by_name}
+                    />
+                  ),
+                },
+              ]}
+            />
+          }
+          explanation="Approving records this outcome and resolves the case. Rejecting returns it to review."
+          onDecide={(approve, note, key) =>
+            caseService.decideResolution(c.id, { approve, note, version: c.version }, key)
+          }
+          onDone={(d) => {
+            done(d.case.status === 'RESOLVED' ? 'Closure approved.' : 'Closure rejected.')();
+          }}
+          onClose={close}
         />
       )}
       {c !== null && dialog === 'reopen' && (

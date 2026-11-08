@@ -11,6 +11,7 @@ import { useNotify } from '../../../../notifications/useNotify';
 import { formatInstantIn } from '../../../../utils/time';
 import { DecisionDialog } from '../../shared/DecisionDialog';
 import { nameOr } from '../../shared/names';
+import { recordedOnPhone } from '../../shared/recordedOnPhone';
 import { PersonName } from '../../shared/PersonName';
 import type { HistoryEvent } from '../../shared/RecordDetail';
 import { useMyUserId } from '../../shared/useFinanceLabels';
@@ -96,6 +97,7 @@ export function useRetentionActions(onChanged: (r: CashRetentionDto) => void) {
 
 export function retentionItems(r: CashRetentionDto, timeZone: string): KeyValueItem[] {
   return [
+    { label: 'Number', value: r.retention_number ?? '—' },
     { label: 'Custodian', value: retentionCustodian(r) },
     { label: 'Amount to keep', value: <MoneyText amount={r.amount} currency={r.currency} /> },
     { label: 'Reason', value: r.reason },
@@ -108,6 +110,7 @@ export function retentionItems(r: CashRetentionDto, timeZone: string): KeyValueI
       value: <PersonName userId={r.created_by} name={r.created_by_name} />,
     },
     { label: 'Requested', value: formatInstantIn(r.created_at, timeZone) },
+    ...recordedOnPhone(r.client_created_at, timeZone),
     {
       label: 'Decided by',
       value: <PersonName userId={r.decided_by} name={r.decided_by_name} />,

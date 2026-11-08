@@ -241,7 +241,12 @@ describe('Non-revenue hours', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Propose explanation' }));
     await waitFor(() => {
       expect(mocks.proposeApproval).toHaveBeenCalledWith(
-        { activity_id: ACTIVITY_ID, reason_id: REVENUE_REASON.id, note: 'Drove to site B' },
+        {
+          activity_id: ACTIVITY_ID,
+          reason_id: REVENUE_REASON.id,
+          note: 'Drove to site B',
+          evidence_attachment_ids: [],
+        },
         expect.any(String),
       );
     });

@@ -105,6 +105,12 @@ export const CURRENCY_FILTER_OPTIONS: readonly Option[] = SUPPORTED_CURRENCIES.m
 export const FINANCE_ERROR_HINTS: Readonly<Record<string, string>> = {
   SEGREGATION_OF_DUTIES:
     'The person who recorded or requested this cannot decide it. Ask another authorised colleague.',
+  EVIDENCE_REQUIRED: 'Your company policy needs supporting evidence: attach it first.',
+  COLLECTION_LINK_REQUIRED:
+    'Your company policy needs each collection to name its purchase or invoice.',
+  PARTIAL_REMITTANCE_REASON_REQUIRED:
+    'This remittance leaves part of the balance with the custodian; give the reason.',
+  PURCHASE_NOT_FOUND: 'That hours purchase was not found.',
   JOB_NOT_BILLABLE:
     'Only COMPLETED, billing-ready jobs can be invoiced. Resolve blocking exceptions or missing readings first.',
   JOB_ALREADY_INVOICED: 'The job is already on another non-voided invoice.',

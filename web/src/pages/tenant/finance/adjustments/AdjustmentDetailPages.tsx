@@ -1,3 +1,4 @@
+import { recordedOnPhone } from '../../shared/recordedOnPhone';
 import { Typography } from '@mui/material';
 import { useParams } from 'react-router';
 import type { AdjustmentEntryDto, AdjustmentRequestDto } from '../../../../api/adjustmentTypes';
@@ -69,7 +70,11 @@ export function AdjustmentEntryDetailPage() {
       what="adjustment"
       back={{ label: 'Adjustments ledger', to: ADJUSTMENT_ROUTES.ledger }}
       timeZone={timeZone}
-      title={(e) => ADJUSTMENT_TYPE_LABELS[e.adjustment_type]}
+      title={(e) =>
+        e.entry_number == null
+          ? ADJUSTMENT_TYPE_LABELS[e.adjustment_type]
+          : `${e.entry_number} · ${ADJUSTMENT_TYPE_LABELS[e.adjustment_type]}`
+      }
       subtitle={(e) => e.original_reference ?? 'Adjustments ledger entry'}
       status={(e) => (
         <StatusChip
@@ -106,7 +111,7 @@ export function AdjustmentEntryDetailPage() {
   );
 }
 
-function requestItems(r: AdjustmentRequestDto): KeyValueItem[] {
+function requestItems(r: AdjustmentRequestDto, timeZone: string): KeyValueItem[] {
   return [
     { label: 'Type', value: REQUEST_TYPE_LABELS[r.request_type] },
     {
@@ -132,6 +137,7 @@ function requestItems(r: AdjustmentRequestDto): KeyValueItem[] {
     { label: 'Settlement', value: r.settlement === null ? '—' : SETTLEMENT_LABELS[r.settlement] },
     { label: 'Reason from the list', value: r.reason_label ?? '—' },
     { label: 'Reason', value: r.reason },
+    ...recordedOnPhone(r.client_created_at, timeZone),
   ];
 }
 
@@ -148,7 +154,11 @@ export function AdjustmentRequestDetailPage() {
         what="adjustment request"
         back={{ label: 'Adjustment requests', to: ADJUSTMENT_ROUTES.requests }}
         timeZone={timeZone}
-        title={(r) => REQUEST_TYPE_LABELS[r.request_type]}
+        title={(r) =>
+          r.request_number == null
+            ? REQUEST_TYPE_LABELS[r.request_type]
+            : `${r.request_number} · ${REQUEST_TYPE_LABELS[r.request_type]}`
+        }
         subtitle={(r) => r.original_reference ?? 'Adjustment request'}
         status={(r) => (
           <StatusChip
@@ -159,7 +169,7 @@ export function AdjustmentRequestDetailPage() {
         )}
         actions={actionsFor}
         primaryKey="decide"
-        items={requestItems}
+        items={(r) => requestItems(r, timeZone)}
         history={(r) => [
           {
             key: 'prop',

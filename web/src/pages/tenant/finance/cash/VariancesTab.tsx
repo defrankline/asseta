@@ -1,14 +1,20 @@
 import { Box } from '@mui/material';
 import { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router';
+import { PERMISSIONS } from '../../../../access/permissionCodes';
 import { custodyService } from '../../../../api/services/custodyService';
-import type { CashVarianceDto, CustodianDto } from '../../../../api/custodyTypes';
+import type {
+  CashVarianceDto,
+  CustodianDto,
+  VarianceAssigneeDto,
+} from '../../../../api/custodyTypes';
+import { AsyncAutocomplete } from '../../../../components/data/AsyncAutocomplete';
 import { ServerDataTable, type DataColumn } from '../../../../components/data/ServerDataTable';
 import type { FetchPage } from '../../../../components/data/useServerPage';
-import { MoneyText } from '../../../../components/display/MoneyText';
 import { StaticSelectFilter } from '../../../../components/forms/StaticSelectFilter';
 import { RowActionsMenu } from '../../../../components/lifecycle/RowActionsMenu';
 import { recordPath } from '../../../../navigation/recordRoutes';
+import { useSession } from '../../../../session/useSession';
 import { formatInstantIn } from '../../../../utils/time';
 import {
   VARIANCE_OUTCOME_LABELS,
@@ -17,8 +23,15 @@ import {
   VARIANCE_SOURCE_OPTIONS,
   VARIANCE_STATUS_OPTIONS,
 } from './custodyDisplay';
+import { searchVarianceAssignees } from './custodyHooks';
 import { CustodianFilter } from './custodyPickers';
-import { useVarianceActions, varianceChip, varianceCustodian } from './varianceRecord';
+import { varianceFigure } from './varianceFigures';
+import {
+  useVarianceActions,
+  varianceAssignee,
+  varianceChip,
+  varianceCustodian,
+} from './varianceRecord';
 
 /** Declared ≠ received differences: resolve, or propose / decide a write-off (never your own). */
 export function VariancesTab({
@@ -32,6 +45,8 @@ export function VariancesTab({
   const [status, setStatus] = useState(initialStatus ?? 'OPEN');
   const [source, setSource] = useState('');
   const [who, setWho] = useState<CustodianDto | null>(null);
+  const [assignee, setAssignee] = useState<VarianceAssigneeDto | null>(null);
+  const canPickAssignee = useSession().hasPermission(PERMISSIONS.tenantFinanceVariance);
   const [reloadKey, setReloadKey] = useState(0);
   const fetchPage = useCallback<FetchPage<CashVarianceDto>>(
     (query, signal) => custodyService.variances(query, signal),
@@ -47,7 +62,8 @@ export function VariancesTab({
     { id: 'at', header: 'Opened', render: (v) => formatInstantIn(v.opened_at, timeZone) },
     { id: 'source', header: 'From', render: (v) => VARIANCE_SOURCE_LABELS[v.source_type] },
     { id: 'kind', header: 'Kind', render: (v) => VARIANCE_KIND_LABELS[v.kind] },
-    { id: 'who', header: 'Accountable custodian', render: varianceCustodian },
+    { id: 'who', header: 'Accountable', render: varianceCustodian },
+    { id: 'assignee', header: 'Assigned to', render: varianceAssignee },
     { id: 'status', header: 'Status', render: varianceChip },
     {
       id: 'outcome',
@@ -58,19 +74,19 @@ export function VariancesTab({
       id: 'declared',
       header: 'Declared',
       align: 'right',
-      render: (v) => <MoneyText amount={v.declared_amount} currency={v.currency} />,
+      render: (v) => varianceFigure(v, 'declared_amount'),
     },
     {
       id: 'received',
       header: 'Received',
       align: 'right',
-      render: (v) => <MoneyText amount={v.received_amount} currency={v.currency} />,
+      render: (v) => varianceFigure(v, 'received_amount'),
     },
     {
       id: 'difference',
       header: 'Difference',
       align: 'right',
-      render: (v) => <MoneyText amount={v.amount} currency={v.currency} strong />,
+      render: (v) => varianceFigure(v, 'amount', true),
     },
     {
       id: 'actions',
@@ -105,6 +121,7 @@ export function VariancesTab({
           status: status || undefined,
           source_type: source || undefined,
           staff_member_id: who?.staff_member_id,
+          assignee_user_id: assignee?.user_id,
         }}
         emptyTitle="No variances"
         isRowMuted={(v) => v.status === 'RESOLVED'}
@@ -126,6 +143,20 @@ export function VariancesTab({
             <Box sx={{ minWidth: 240 }}>
               <CustodianFilter value={who} onChange={setWho} />
             </Box>
+            {canPickAssignee && (
+              <Box sx={{ minWidth: 240 }}>
+                <AsyncAutocomplete<VarianceAssigneeDto>
+                  label="Assigned to"
+                  size="small"
+                  placeholder="Anyone"
+                  value={assignee}
+                  onChange={setAssignee}
+                  fetchOptions={searchVarianceAssignees}
+                  getOptionLabel={(a) => a.display_name}
+                  isOptionEqualToValue={(a, b) => a.user_id === b.user_id}
+                />
+              </Box>
+            )}
           </Box>
         }
       />

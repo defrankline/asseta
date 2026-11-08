@@ -1,32 +1,57 @@
 import { Alert } from '@mui/material';
 import { useFormikContext } from 'formik';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { CAPABILITY, useCapabilityEnabled } from '../../../access/capabilities';
+import { PERMISSIONS } from '../../../access/permissionCodes';
 import { newUuid } from '../../../api/ids';
 import { cashService } from '../../../api/services/cashService';
 import { customerService } from '../../../api/services/customerService';
 import { jobService } from '../../../api/services/jobService';
-import type { CustomerDto, CustomerPaymentDto } from '../../../api/types';
+import type { CustomerDto, CustomerPaymentDto, HireInvoiceDto } from '../../../api/types';
 import type { CustodianDto } from '../../../api/custodyTypes';
 import { KeyValueGrid } from '../../../components/display/KeyValueGrid';
+import { FormikAsyncIdAutocomplete } from '../../../components/forms/FormikAsyncIdAutocomplete';
 import { FormikDateTimeField } from '../../../components/forms/FormikDateTimeField';
 import { FormikSelectField } from '../../../components/forms/FormikSelectField';
 import { FormikTextField } from '../../../components/forms/FormikTextField';
 import { StepperFormDialog } from '../../../components/forms/StepperFormDialog';
 import { useIdempotencyKey } from '../../../hooks/useIdempotencyKey';
+import { useSession } from '../../../session/useSession';
 import { formatEnteredMoney } from '../../../utils/money';
 import { formatInstantIn } from '../../../utils/time';
 import { withErrorCode } from '../shared/errorHints';
 import { CURRENCY_OPTIONS, FINANCE_ERROR_HINTS } from '../shared/financeDisplay';
 import { FormikCustodianIdPicker } from '../finance/cash/custodyPickers';
-import { customerOptionLabel } from '../shared/financeLookups';
+import {
+  customerOptionLabel,
+  invoiceOptionLabel,
+  searchIssuedInvoices,
+} from '../shared/financeLookups';
 import { FormikCustomerIdPicker } from '../shared/financePickers';
+import { optionId } from '../shared/lookups';
+import { useCashPolicy } from '../finance/cash/custodyHooks';
+import { FormikPurchaseIdPicker } from '../hours/hoursPickers';
 import {
   emptyCollectionValues,
-  fieldCollectionSchema,
+  fieldCollectionSchemaFor,
   toFieldCollectionPayload,
   type FieldCollectionValues,
 } from './fieldCash';
 import { FormikFieldJobIdPicker } from './fieldPickers';
+
+/** A purchase or invoice belongs to one customer: changing the customer clears the choice. */
+function ClearLinksOnCustomerChange({ customerId }: { customerId: string }) {
+  const { setFieldValue } = useFormikContext<FieldCollectionValues>();
+  const previous = useRef(customerId);
+  useEffect(() => {
+    if (previous.current !== customerId) {
+      previous.current = customerId;
+      void setFieldValue('purchase_id', '');
+      void setFieldValue('invoice_id', '');
+    }
+  }, [customerId, setFieldValue]);
+  return null;
+}
 
 /** Picking a job fills the customer of its contract (the customer stays editable). */
 function JobCustomerSync() {
@@ -71,19 +96,38 @@ export function FieldCollectionDialog({
   const [customer, setCustomer] = useState<CustomerDto | null>(null);
   const [custodian, setCustodian] = useState<CustodianDto | null>(null);
   const [initial] = useState(() => emptyCollectionValues(new Date().toISOString()));
+  const [invoice, setInvoice] = useState<HireInvoiceDto | null>(null);
+  const { hasPermission } = useSession();
+  const canSearchInvoices = hasPermission(PERMISSIONS.tenantFinanceRead);
+  const canSearchPurchases = hasPermission(
+    [PERMISSIONS.tenantHoursPurchase, PERMISSIONS.tenantHoursRead],
+    'any',
+  );
+  const controlsOn = useCapabilityEnabled(CAPABILITY.cashCustody);
+  const policy = useCashPolicy();
+  const linkRequired = controlsOn && (policy?.collectionLinkRequired ?? false);
+  const schema = useMemo(() => fieldCollectionSchemaFor(linkRequired), [linkRequired]);
   return (
     <StepperFormDialog<FieldCollectionValues>
       open
       title="Record cash collection"
       initialValues={initial}
-      validationSchema={fieldCollectionSchema}
+      validationSchema={schema}
       submitLabel="Record collection"
       onClose={onClose}
       steps={[
         {
           label: 'Collection',
-          fields: ['job_id', 'customer_id', 'staff_member_id', 'amount', 'currency'],
-          render: () => (
+          fields: [
+            'job_id',
+            'customer_id',
+            'staff_member_id',
+            'amount',
+            'currency',
+            'purchase_id',
+            'invoice_id',
+          ],
+          render: (f) => (
             <>
               <JobCustomerSync />
               {forOthers && (
@@ -112,6 +156,33 @@ export function FieldCollectionDialog({
                 slotProps={{ htmlInput: { inputMode: 'decimal' } }}
               />
               <FormikSelectField name="currency" label="Currency" options={CURRENCY_OPTIONS} />
+              <ClearLinksOnCustomerChange customerId={f.values.customer_id} />
+              {canSearchPurchases && (
+                <FormikPurchaseIdPicker
+                  key={`purchase-${f.values.customer_id}`}
+                  name="purchase_id"
+                  label={linkRequired ? 'Hours purchase it pays for' : 'Hours purchase (optional)'}
+                  customerId={f.values.customer_id}
+                  disabled={f.values.customer_id === ''}
+                  helperText="Linked up to its open amount; the rest stays as customer credit."
+                />
+              )}
+              {canSearchInvoices && (
+                <FormikAsyncIdAutocomplete<HireInvoiceDto>
+                  key={`invoice-${f.values.customer_id}`}
+                  name="invoice_id"
+                  label={linkRequired ? 'Or the invoice it pays' : 'Invoice (optional)'}
+                  disabled={f.values.customer_id === ''}
+                  fetchOptions={searchIssuedInvoices(f.values.customer_id)}
+                  getOptionId={optionId}
+                  getOptionLabel={invoiceOptionLabel}
+                  onOptionChange={setInvoice}
+                  noOptionsText="No issued invoice of this customer matches"
+                />
+              )}
+              {linkRequired && f.submitCount > 0 && f.errors.purchase_id !== undefined && (
+                <Alert severity="error">{f.errors.purchase_id}</Alert>
+              )}
             </>
           ),
         },
@@ -155,7 +226,7 @@ export function FieldCollectionDialog({
         </>
       )}
       onSubmit={async (v) => {
-        const body = toFieldCollectionPayload(v, clientId);
+        const body = toFieldCollectionPayload(v, clientId, v.invoice_id === '' ? null : invoice);
         try {
           onRecorded(await cashService.recordCollection(body, keyFor(body)));
         } catch (err) {

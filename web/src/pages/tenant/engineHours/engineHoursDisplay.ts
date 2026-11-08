@@ -125,6 +125,7 @@ export const isPositive = (hours: string): boolean => Number(hours) > 0;
 
 /** Stable engine-hour error codes with what the user can do about them. */
 export const ENGINE_HOURS_ERROR_HINTS: Readonly<Record<string, string>> = {
+  EVIDENCE_REQUIRED: 'Your company policy needs supporting evidence: attach it first.',
   SEGREGATION_OF_DUTIES: 'You proposed this, so someone else must decide it.',
   BASELINE_REQUIRED: 'Approve a meter baseline for this machine first.',
   BASELINE_PENDING: 'A baseline proposal for this machine already awaits a decision.',

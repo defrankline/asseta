@@ -10,6 +10,8 @@ import type {
   CashVarianceDto,
   CustodyAdjustmentKind,
   ReconciliationFigure,
+  RemittanceEvidenceStatus,
+  VarianceEventAction,
   VarianceOutcome,
   VarianceSource,
   VarianceStatus,
@@ -38,6 +40,17 @@ export const ACK_METHOD_LABELS: Readonly<Record<CashAckMethod, string>> = {
   ON_BEHALF: 'On the receiver’s behalf',
   RECORDER_IS_RECEIVER: 'Recorded by the receiver',
   NOT_REQUIRED: 'Not required (policy)',
+};
+
+export const EVIDENCE_STATUS_LABELS: Readonly<Record<RemittanceEvidenceStatus, string>> = {
+  DECLARED: 'Declared',
+  SUPPORTED: 'Supported',
+  CONFIRMED: 'Confirmed',
+};
+export const EVIDENCE_STATUS_TONES: Readonly<Record<RemittanceEvidenceStatus, StatusTone>> = {
+  DECLARED: 'default',
+  SUPPORTED: 'info',
+  CONFIRMED: 'success',
 };
 
 export type FloatAckStatus = CashCustodyEntryDto['ack_status'];
@@ -74,6 +87,28 @@ export const VARIANCE_OUTCOME_LABELS: Readonly<Record<VarianceOutcome, string>> 
   EXPLAINED: 'Explained',
 };
 export const VARIANCE_OUTCOME_OPTIONS = options(VARIANCE_OUTCOME_LABELS);
+
+/** What each step of a variance's investigation is called on its history timeline. */
+export const VARIANCE_EVENT_LABELS: Readonly<Record<VarianceEventAction, string>> = {
+  OPENED: 'Opened',
+  ASSIGNED: 'Assigned',
+  EXPLAINED: 'Explanation recorded',
+  CLOSURE_PROPOSED: 'Closure proposed',
+  CLOSURE_APPROVED: 'Closure approved',
+  CLOSURE_REJECTED: 'Closure rejected',
+  WRITE_OFF_PROPOSED: 'Write-off proposed',
+  WRITE_OFF_APPROVED: 'Write-off approved',
+  WRITE_OFF_REJECTED: 'Write-off rejected',
+  RESOLVED: 'Resolved',
+};
+
+/** What a customer-hour check found (neutral wording, never blame). */
+export const VARIANCE_CHECK_LABELS: Readonly<Record<string, string>> = {
+  PURCHASE_OVER_ACTIVATED: 'More hours activated than the purchase holds',
+  NEGATIVE_REMAINING: 'Remaining hours below zero on a machine',
+  CONSUMPTION_MISMATCH: 'Hours used differ from the job’s record',
+  ALLOCATION_MISMATCH: 'Hours allocated differ from the job’s record',
+};
 
 /** SURPLUS: more was received than declared (a negative difference) — neutral wording, never blame. */
 export const VARIANCE_KIND_LABELS: Readonly<Record<CashVarianceDto['kind'], string>> = {
@@ -178,6 +213,10 @@ export const CUSTODY_ERROR_HINTS: Readonly<Record<string, string>> = {
   REASON_INVALID: 'Choose an active reason of the right kind.',
   REASON_NOT_FOUND: 'The reason is no longer available. Choose another.',
   SYNC_CONFLICT_ALREADY_RESOLVED: 'Someone already recorded an outcome. Reload to see it.',
+  ASSIGNEE_NOT_ELIGIBLE: 'Choose someone who holds the variance permission.',
+  CLOSURE_NOT_PROPOSED: 'No closure is proposed on this variance. Reload to see it.',
+  VARIANCE_OUTCOME_NOT_ALLOWED: 'That outcome does not apply to this kind of variance.',
+  PARTIAL_APPROVAL_NOT_FOUND: 'This remittance has no partial reason to decide. Reload to see it.',
 };
 
 /** Tooltip on a disabled decision of your own request (segregation of duties). */

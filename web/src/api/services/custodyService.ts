@@ -18,6 +18,10 @@ import type {
   ReconciliationFigure,
   RemittanceDecisionIn,
   RemittanceOverdueDto,
+  VarianceAssigneeDto,
+  VarianceAssignIn,
+  VarianceEventDto,
+  VarianceExplanationIn,
   VarianceResolutionIn,
   WriteOffProposalIn,
 } from '../custodyTypes';
@@ -30,6 +34,8 @@ import {
   remittanceOverdueSchema,
   retentionSchema,
   transferSchema,
+  varianceAssigneeSchema,
+  varianceEventSchema,
   varianceSchema,
 } from './custodySchemas';
 import { custodyEntrySchema, handoverSchema } from './financeSchemas';
@@ -37,6 +43,7 @@ import {
   seg,
   tenantGet,
   tenantLifecycle,
+  tenantList,
   tenantPage,
   tenantPageSchema,
   tenantSend,
@@ -178,7 +185,23 @@ export const custodyService = {
     );
   },
 
-  /** GET /tenant/cash/variances (listCashVariances). Filters: `status`, `staff_member_id`, `source_type`. */
+  /** POST /tenant/cash/handovers/{id}/partial-reason-decision (decidePartialRemittanceReason). */
+  decidePartialReason(
+    handoverId: string,
+    body: CashDecisionIn,
+    idempotencyKey: string,
+  ): Promise<CashHandoverDto> {
+    return tenantSend(
+      'post',
+      `${base}/handovers/${seg(handoverId)}/partial-reason-decision`,
+      body,
+      handoverSchema,
+      'remittance',
+      idempotencyKey,
+    );
+  },
+
+  /** GET /tenant/cash/variances (listCashVariances). Filters: `status`, `staff_member_id`, `source_type`, `assignee_user_id`. */
   variances(query: TenantListQuery, signal?: AbortSignal): Promise<Page<CashVarianceDto>> {
     return tenantPage(`${base}/variances`, variancePage, query, 'cash variances', signal);
   },
@@ -186,7 +209,67 @@ export const custodyService = {
   variance(varianceId: string, signal?: AbortSignal): Promise<CashVarianceDto> {
     return tenantGet(`${base}/variances/${seg(varianceId)}`, varianceSchema, 'variance', signal);
   },
-  /** POST /tenant/cash/variances/{id}/resolution (resolveCashVariance). */
+  /** GET /tenant/cash/variances/assignees (listVarianceAssignees): holders of the variance permission. */
+  varianceAssignees(q: string, signal?: AbortSignal): Promise<VarianceAssigneeDto[]> {
+    return tenantList(`${base}/variances/assignees`, varianceAssigneeSchema, 'assignees', signal, {
+      q,
+    });
+  },
+  /** GET /tenant/cash/variances/{id}/history (listCashVarianceHistory), oldest first. */
+  varianceHistory(varianceId: string, signal?: AbortSignal): Promise<VarianceEventDto[]> {
+    return tenantList(
+      `${base}/variances/${seg(varianceId)}/history`,
+      varianceEventSchema,
+      'variance history',
+      signal,
+    );
+  },
+  /** POST /tenant/cash/variances/{id}/assignment (assignCashVariance): never a party to it. */
+  assignVariance(
+    varianceId: string,
+    body: VarianceAssignIn,
+    idempotencyKey: string,
+  ): Promise<CashVarianceDto> {
+    return tenantSend(
+      'post',
+      `${base}/variances/${seg(varianceId)}/assignment`,
+      body,
+      varianceSchema,
+      'variance',
+      idempotencyKey,
+    );
+  },
+  /** POST /tenant/cash/variances/{id}/explanation (explainCashVariance). */
+  explainVariance(
+    varianceId: string,
+    body: VarianceExplanationIn,
+    idempotencyKey: string,
+  ): Promise<CashVarianceDto> {
+    return tenantSend(
+      'post',
+      `${base}/variances/${seg(varianceId)}/explanation`,
+      body,
+      varianceSchema,
+      'variance',
+      idempotencyKey,
+    );
+  },
+  /** POST /tenant/cash/variances/{id}/closure-decision (decideCashVarianceClosure): never the proposer. */
+  decideClosure(
+    varianceId: string,
+    body: CashDecisionIn,
+    idempotencyKey: string,
+  ): Promise<CashVarianceDto> {
+    return tenantSend(
+      'post',
+      `${base}/variances/${seg(varianceId)}/closure-decision`,
+      body,
+      varianceSchema,
+      'variance',
+      idempotencyKey,
+    );
+  },
+  /** POST /tenant/cash/variances/{id}/resolution (resolveCashVariance); proposes when a second person closes. */
   resolveVariance(
     varianceId: string,
     body: VarianceResolutionIn,

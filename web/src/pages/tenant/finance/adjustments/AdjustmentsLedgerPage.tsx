@@ -85,6 +85,7 @@ export function AdjustmentsLedgerPage() {
     <span className="font-mono">{unitValue(v, e.unit, e.currency)}</span>
   );
   const columns: DataColumn<AdjustmentEntryDto>[] = [
+    { id: 'number', header: 'Number', render: (e) => <strong>{e.entry_number ?? '—'}</strong> },
     { id: 'at', header: 'Posted', render: (e) => formatInstantIn(e.posted_at, timeZone) },
     {
       id: 'type',

@@ -1,3 +1,6 @@
+import type { AttachmentDto } from '../../../api/types';
+import { FormikEvidenceField } from '../shared/EvidenceField';
+import { evidenceIds, evidenceRule } from '../shared/evidenceRules';
 import { Alert, Typography } from '@mui/material';
 import { useState } from 'react';
 import { object, string, type ObjectSchema } from 'yup';
@@ -138,18 +141,21 @@ interface TransferValues {
   hours: string;
   reason: string;
   reason_code_id: string;
+  evidence: AttachmentDto[];
 }
 
 /** Request moving remaining hours of a purchase to another machine (decided by someone else). */
 export function RequestTransferDialog({
   purchase,
   reasonCodeRequired = false,
+  evidenceRequired = false,
   onClose,
   onDone,
 }: {
   /** Fixed purchase (purchase page); omit to pick one (field work). */
   purchase?: HoursPurchaseDto;
   reasonCodeRequired?: boolean;
+  evidenceRequired?: boolean;
   onClose: () => void;
   onDone: (t: TransferDto) => void;
 }) {
@@ -164,6 +170,7 @@ export function RequestTransferDialog({
     reason_code_id: string()
       .ensure()
       .test('required', 'Choose a reason from the list', (v) => !reasonCodeRequired || v !== ''),
+    evidence: evidenceRule(evidenceRequired),
   });
   return (
     <FormDialog<TransferValues>
@@ -180,6 +187,7 @@ export function RequestTransferDialog({
         hours: '',
         reason: '',
         reason_code_id: '',
+        evidence: [],
       }}
       validationSchema={schema}
       submitLabel="Request transfer"
@@ -193,6 +201,7 @@ export function RequestTransferDialog({
           reason: v.reason.trim(),
           reason_code_id: orNull(v.reason_code_id),
           client_id: clientId,
+          evidence_attachment_ids: evidenceIds(v.evidence),
         };
         try {
           onDone(await hoursRequestService.requestTransfer(body, keyFor(body)));
@@ -218,6 +227,7 @@ export function RequestTransferDialog({
         required={reasonCodeRequired}
       />
       <FormikTextField name="reason" label="Reason" required multiline minRows={2} />
+      <FormikEvidenceField required={evidenceRequired} />
     </FormDialog>
   );
 }

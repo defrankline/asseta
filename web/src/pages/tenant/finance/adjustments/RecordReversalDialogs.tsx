@@ -42,11 +42,11 @@ export function ReversePaymentDialog({
           />
           <Alert severity="warning">
             Hours this money paid for come off (unused first); hours already used become money owed
-            as your company policy says. The next page shows the forecast of hours deactivated and
-            money owed. Someone else decides.
+            as your company policy says. Someone else decides.
           </Alert>
         </Box>
       }
+      forecast={() => ({ request_type: reversalTypeOf(p.method), payment_id: p.id })}
       submit={(common, _v, key) =>
         adjustmentService.propose(
           { ...common, request_type: reversalTypeOf(p.method), payment_id: p.id },
@@ -74,7 +74,6 @@ export function VoidIssuedInvoiceDialog({
       title={`Void ${invoiceTitle(invoice)}`}
       submitLabel="Void invoice"
       reasonKind="REVERSAL"
-      evidenceOptional
       initial={{}}
       summary={
         <Box className="flex flex-col gap-2">

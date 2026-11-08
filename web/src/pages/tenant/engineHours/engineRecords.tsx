@@ -14,6 +14,7 @@ import { engineHoursMachinePath, jobDetailPath } from '../../../navigation/route
 import { useNotify } from '../../../notifications/useNotify';
 import { useSession } from '../../../session/useSession';
 import { formatInstantIn } from '../../../utils/time';
+import { EvidenceList } from './allocations/EvidenceUpload';
 import { machineText } from '../shared/names';
 import { PersonName } from '../shared/PersonName';
 import type { HistoryEvent } from '../shared/RecordDetail';
@@ -241,6 +242,7 @@ export function useClassificationKit(
       { label: 'Explained as', value: OUTCOME_LABELS[c.outcome] },
       { label: 'Category / reason', value: c.reason_name ?? '—' },
       { label: 'What happened', value: c.note },
+      { label: 'Evidence', value: <EvidenceList ids={c.evidence_attachment_ids ?? []} /> },
       { label: 'Policy', value: c.policy_version },
     ],
     onChanged,

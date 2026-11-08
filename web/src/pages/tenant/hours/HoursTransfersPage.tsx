@@ -85,6 +85,7 @@ export function HoursTransfersPage() {
       {requesting && (
         <RequestTransferDialog
           reasonCodeRequired={hours.policy?.reasonCodeRequired ?? false}
+          evidenceRequired={hours.policy?.transferEvidenceRequired ?? false}
           onClose={() => {
             setRequesting(false);
           }}

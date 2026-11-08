@@ -50,3 +50,11 @@ export type DepositAccountType = Schemas['DepositAccountType'];
 export type RemittanceMethod = Schemas['RemittanceMethod'];
 export type RemittanceEvidenceDto = Schemas['RemittanceEvidenceDto'];
 export type OverdueReason = Schemas['OverdueReason'];
+// DEC-032 Phase 3: remittance evidence and variance investigation.
+export type RemittanceEvidenceStatus = Schemas['RemittanceEvidenceStatus'];
+export type VarianceUnit = Schemas['VarianceUnit'];
+export type VarianceEventDto = Schemas['VarianceEventDto'];
+export type VarianceEventAction = Schemas['VarianceEventAction'];
+export type VarianceAssigneeDto = Schemas['VarianceAssigneeDto'];
+export type VarianceAssignIn = Schemas['VarianceAssignIn'];
+export type VarianceExplanationIn = Schemas['VarianceExplanationIn'];

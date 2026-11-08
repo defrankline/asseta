@@ -1,3 +1,8 @@
+import { useMemo } from 'react';
+import type { AttachmentDto } from '../../../api/types';
+import { FormikEvidenceField } from '../shared/EvidenceField';
+import { evidenceIds, evidenceRule } from '../shared/evidenceRules';
+import { usePolicyFlag } from '../shared/usePolicyFlag';
 import { Alert } from '@mui/material';
 import { mixed, object, string, type ObjectSchema } from 'yup';
 import { withErrorCode } from '../../../api/lifecycle';
@@ -244,16 +249,26 @@ export function ExplainNonRevenueDialog({
   onDone,
 }: DialogProps<NonRevenueApprovalDto> & { activity: NonRevenueActivityDto; timeZone: string }) {
   const keyFor = useIdempotencyKey();
+  const evidenceRequired = usePolicyFlag('REVENUE_RECONCILIATION', 'non_revenue_evidence_required');
+  const schema = useMemo(
+    () => reasonNoteSchema.shape({ evidence: evidenceRule(evidenceRequired) }),
+    [evidenceRequired],
+  );
   return (
-    <FormDialog<ReasonNoteValues>
+    <FormDialog<ReasonNoteValues & { evidence: AttachmentDto[] }>
       open
       title={`Explain ${activityTypeLabel(a.activity_type).toLowerCase()} · ${a.hours} h`}
-      initialValues={{ reason_id: '', note: a.note ?? '' }}
-      validationSchema={reasonNoteSchema}
+      initialValues={{ reason_id: '', note: a.note ?? '', evidence: [] }}
+      validationSchema={schema}
       submitLabel="Propose explanation"
       onClose={onClose}
       onSubmit={async (v) => {
-        const body = { activity_id: a.activity_id, reason_id: v.reason_id, note: v.note.trim() };
+        const body = {
+          activity_id: a.activity_id,
+          reason_id: v.reason_id,
+          note: v.note.trim(),
+          evidence_attachment_ids: evidenceIds(v.evidence),
+        };
         try {
           onDone(await revenueService.proposeApproval(body, keyFor(body)));
         } catch (err) {
@@ -283,6 +298,7 @@ export function ExplainNonRevenueDialog({
         minRows={2}
         helperText={NOTE_HELP}
       />
+      <FormikEvidenceField required={evidenceRequired} />
     </FormDialog>
   );
 }

@@ -15,6 +15,7 @@ import type {
   VarianceResolutionIn,
   WriteOffProposalIn,
 } from '../../../../api/custodyTypes';
+import type { AttachmentDto } from '../../../../api/types';
 import { isZeroDecimal } from '../../../../utils/money';
 import {
   positiveDecimalField,
@@ -28,6 +29,7 @@ import {
   orNull,
   requiredInstant,
 } from '../../shared/formRules';
+import { evidenceIds, evidenceRule } from '../../shared/evidenceRules';
 import type { ReversibleEntity } from './custodyDisplay';
 
 // --- transfer -------------------------------------------------------------------------------------------
@@ -161,14 +163,29 @@ export interface ResolveVarianceValues {
   outcome: VarianceOutcome | '';
   reason_id: string;
   note: string;
+  evidence: AttachmentDto[];
 }
 
-export const resolveVarianceSchema: ObjectSchema<ResolveVarianceValues> = object({
-  outcome: mixed<VarianceOutcome | ''>()
-    .oneOf(['RECOVERED', 'CORRECTED_ERROR', 'WRITTEN_OFF'], 'Choose an outcome')
-    .required('Choose an outcome'),
-  reason_id: string().ensure(),
-  note: reasonField('Explanation'),
+export const resolveVarianceSchemaFor = (
+  evidenceRequired: boolean,
+): ObjectSchema<ResolveVarianceValues> =>
+  object({
+    outcome: mixed<VarianceOutcome | ''>()
+      .oneOf(['RECOVERED', 'CORRECTED_ERROR', 'WRITTEN_OFF', 'EXPLAINED'], 'Choose an outcome')
+      .required('Choose an outcome'),
+    reason_id: string().ensure(),
+    note: reasonField('Explanation'),
+    evidence: evidenceRule(evidenceRequired),
+  });
+
+export interface ExplainVarianceValues {
+  explanation: string;
+  evidence: AttachmentDto[];
+}
+
+export const explainVarianceSchema: ObjectSchema<ExplainVarianceValues> = object({
+  explanation: reasonField('Explanation'),
+  evidence: evidenceRule(false),
 });
 
 export function toResolveVariancePayload(v: ResolveVarianceValues): VarianceResolutionIn {
@@ -176,6 +193,7 @@ export function toResolveVariancePayload(v: ResolveVarianceValues): VarianceReso
     outcome: v.outcome as VarianceOutcome,
     note: v.note.trim(),
     reason_id: orNull(v.reason_id),
+    evidence_attachment_ids: evidenceIds(v.evidence),
   };
 }
 
@@ -234,37 +252,40 @@ export interface AdjustmentValues {
   reverses_entity_type: ReversibleEntity | '';
   reverses_entity_id: string;
   occurred_at: string;
+  evidence: AttachmentDto[];
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export const adjustmentSchema: ObjectSchema<AdjustmentValues> = object({
-  staff_member_id: string().required('Choose the custodian'),
-  kind: mixed<CustodyAdjustmentKind>().oneOf(['ADJUSTMENT', 'REVERSAL']).required(),
-  amount: signedDecimalField('Amount').test(
-    'non-zero',
-    'Amount must not be zero',
-    (v) => !/^-?\d+(\.\d{1,4})?$/.test(v) || !isZeroDecimal(v.replace(/^-/, '')),
-  ),
-  currency: string().ensure(),
-  reason_id: string().ensure(),
-  reason: reasonField('Reason'),
-  reverses_entity_type: mixed<ReversibleEntity | ''>()
-    .defined()
-    .when('kind', {
-      is: 'REVERSAL',
-      then: (s) => s.test('required', 'Choose the kind of record reversed', (v) => v !== ''),
-    }),
-  reverses_entity_id: string()
-    .trim()
-    .ensure()
-    .test('uuid', 'Paste the record id (a UUID)', (v) => v === '' || UUID.test(v))
-    .when('kind', {
-      is: 'REVERSAL',
-      then: (s) => s.required('Paste the id of the record reversed'),
-    }),
-  occurred_at: optionalInstant(),
-});
+export const adjustmentSchemaFor = (evidenceRequired: boolean): ObjectSchema<AdjustmentValues> =>
+  object({
+    staff_member_id: string().required('Choose the custodian'),
+    kind: mixed<CustodyAdjustmentKind>().oneOf(['ADJUSTMENT', 'REVERSAL']).required(),
+    amount: signedDecimalField('Amount').test(
+      'non-zero',
+      'Amount must not be zero',
+      (v) => !/^-?\d+(\.\d{1,4})?$/.test(v) || !isZeroDecimal(v.replace(/^-/, '')),
+    ),
+    currency: string().ensure(),
+    reason_id: string().ensure(),
+    reason: reasonField('Reason'),
+    reverses_entity_type: mixed<ReversibleEntity | ''>()
+      .defined()
+      .when('kind', {
+        is: 'REVERSAL',
+        then: (s) => s.test('required', 'Choose the kind of record reversed', (v) => v !== ''),
+      }),
+    reverses_entity_id: string()
+      .trim()
+      .ensure()
+      .test('uuid', 'Paste the record id (a UUID)', (v) => v === '' || UUID.test(v))
+      .when('kind', {
+        is: 'REVERSAL',
+        then: (s) => s.required('Paste the id of the record reversed'),
+      }),
+    occurred_at: optionalInstant(),
+    evidence: evidenceRule(evidenceRequired),
+  });
 
 export function toAdjustmentPayload(v: AdjustmentValues): CustodyAdjustmentIn {
   const reverses = v.reverses_entity_type !== '' && v.reverses_entity_id.trim() !== '';
@@ -278,6 +299,7 @@ export function toAdjustmentPayload(v: AdjustmentValues): CustodyAdjustmentIn {
     reverses_entity_type: reverses ? (v.reverses_entity_type as ReversibleEntity) : null,
     reverses_entity_id: reverses ? v.reverses_entity_id.trim() : null,
     occurred_at: orNull(v.occurred_at),
+    evidence_attachment_ids: evidenceIds(v.evidence),
   };
 }
 
@@ -290,7 +312,7 @@ export interface ReasonValues {
 
 export const reasonSchema: ObjectSchema<ReasonValues> = object({
   kind: mixed<CashReasonKind>()
-    .oneOf(['VARIANCE', 'WRITE_OFF', 'RETENTION', 'ADJUSTMENT'])
+    .oneOf(['VARIANCE', 'WRITE_OFF', 'RETENTION', 'ADJUSTMENT', 'PARTIAL_REMITTANCE'])
     .required(),
   label: string()
     .trim()

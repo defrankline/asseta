@@ -1,5 +1,5 @@
 import { Alert } from '@mui/material';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { custodyService } from '../../../../api/services/custodyService';
 import type {
   CashReasonDto,
@@ -16,6 +16,7 @@ import { StepperFormDialog } from '../../../../components/forms/StepperFormDialo
 import { useIdempotencyKey } from '../../../../hooks/useIdempotencyKey';
 import { formatEnteredMoney } from '../../../../utils/money';
 import { formatInstantIn } from '../../../../utils/time';
+import { FormikEvidenceField } from '../../shared/EvidenceField';
 import { withErrorCode } from '../../shared/errorHints';
 import { CURRENCY_OPTIONS } from '../../shared/financeDisplay';
 import {
@@ -27,7 +28,7 @@ import {
   REVERSIBLE_ENTITY_OPTIONS,
 } from './custodyDisplay';
 import {
-  adjustmentSchema,
+  adjustmentSchemaFor,
   reasonSchema,
   retentionSchema,
   toAdjustmentPayload,
@@ -37,6 +38,7 @@ import {
   type ReasonValues,
   type RetentionValues,
 } from './custodyForms';
+import { useCashPolicy } from './custodyHooks';
 import { FormikCashReasonIdPicker, FormikCustodianIdPicker } from './custodyPickers';
 
 const REVERSIBLE_ENTITY_CHOICES = [{ value: '', label: 'None' }, ...REVERSIBLE_ENTITY_OPTIONS];
@@ -188,13 +190,16 @@ export function AdjustmentDialog({
     reverses_entity_type: '',
     reverses_entity_id: '',
     occurred_at: '',
+    evidence: [],
   });
+  const evidenceRequired = useCashPolicy()?.custodyAdjustmentEvidenceRequired ?? false;
+  const schema = useMemo(() => adjustmentSchemaFor(evidenceRequired), [evidenceRequired]);
   return (
     <StepperFormDialog<AdjustmentValues>
       open
       title="Propose custody adjustment"
       initialValues={initial}
-      validationSchema={adjustmentSchema}
+      validationSchema={schema}
       submitLabel="Propose adjustment"
       onClose={onClose}
       steps={[
@@ -228,6 +233,7 @@ export function AdjustmentDialog({
             'reverses_entity_type',
             'reverses_entity_id',
             'occurred_at',
+            'evidence',
           ],
           render: (f) => (
             <>
@@ -255,6 +261,7 @@ export function AdjustmentDialog({
                 label="Effective at (optional, default now)"
                 timeZone={timeZone}
               />
+              <FormikEvidenceField required={evidenceRequired} />
             </>
           ),
         },

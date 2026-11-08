@@ -14,6 +14,7 @@ import { hoursPurchasePath } from '../../../navigation/hoursRoutes';
 import { recordPath, type RecordKind } from '../../../navigation/recordRoutes';
 import { useNotify } from '../../../notifications/useNotify';
 import { formatInstantIn } from '../../../utils/time';
+import { EvidenceList } from '../engineHours/allocations/EvidenceUpload';
 import { machineText, nameOr } from '../shared/names';
 import { PersonName } from '../shared/PersonName';
 import type { HistoryEvent } from '../shared/RecordDetail';
@@ -46,6 +47,8 @@ interface KitConfig<T extends RequestRow> {
   kind: RecordKind;
   decidePermission: string;
   requestPermission: string;
+  /** The request's own number, shown first. */
+  numberOf?: (row: T) => string | null | undefined;
   /** Row-specific columns between "Purchase" and "Reason". */
   middleColumns: DataColumn<T>[];
   /** Row-specific details (decide summary and detail page). */
@@ -100,7 +103,13 @@ function useRequestKit<T extends RequestRow>(
       {r.purchase_number ?? 'Open purchase'}
     </Button>
   );
+  const { numberOf } = config;
+  const numberColumn: DataColumn<T>[] =
+    numberOf === undefined
+      ? []
+      : [{ id: 'number', header: 'Number', render: (r) => <strong>{numberOf(r) ?? '—'}</strong> }];
   const columns: DataColumn<T>[] = [
+    ...numberColumn,
     {
       id: 'requested',
       header: 'Requested',
@@ -161,6 +170,7 @@ function useRequestKit<T extends RequestRow>(
     },
   ];
   const items = (r: T): KeyValueItem[] => [
+    ...(numberOf === undefined ? [] : [{ label: 'Number', value: numberOf(r) ?? '—' }]),
     { label: 'Purchase', value: purchaseLink(r) },
     { label: 'Customer', value: nameOr(r.customer_name, null) },
     ...config.detailItems(r),
@@ -253,7 +263,7 @@ const transferMachines = (t: TransferDto) =>
 
 /** Title of a transfer (detail page, labels). */
 export const transferTitle = (t: TransferDto) =>
-  `Hours transfer · ${hoursText(t.hours)} · ${transferMachines(t)}`;
+  `${t.transfer_number ?? 'Hours transfer'} · ${hoursText(t.hours)} · ${transferMachines(t)}`;
 
 /**
  * Columns, commands and decide / withdraw dialogs for hours transfers. Deciding needs the approve
@@ -266,6 +276,7 @@ export function useTransferRequests(
   return useRequestKit<TransferDto>(
     {
       kind: 'HOURS_TRANSFER',
+      numberOf: (t) => t.transfer_number,
       decidePermission: PERMISSIONS.tenantHoursTransferApprove,
       requestPermission: PERMISSIONS.tenantHoursTransfer,
       middleColumns: [
@@ -279,6 +290,7 @@ export function useTransferRequests(
         },
         { label: 'To', value: machineText(t.to_machine_code, t.to_machine_name, t.to_machine_id) },
         { label: 'Hours', value: hoursText(t.hours) },
+        { label: 'Evidence', value: <EvidenceList ids={t.evidence_attachment_ids ?? []} /> },
       ],
       decideTitle: 'Decide hours transfer',
       withdrawTitle: 'Withdraw transfer request',

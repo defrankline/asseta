@@ -16,6 +16,8 @@ import { RECORD_LIST_ROUTES, type RecordKind } from '../../../../navigation/reco
 import { cashTabPath, ROUTES } from '../../../../navigation/routes';
 import { useSession } from '../../../../session/useSession';
 import { formatDate } from '../../../../utils/dates';
+import { DetailSection } from '../../../../components/lifecycle/EntityDetailsLayout';
+import { EvidenceList } from '../../engineHours/allocations/EvidenceUpload';
 import { RecordDetail } from '../../shared/RecordDetail';
 import { useRecordById } from '../../shared/useRecordById';
 import {
@@ -59,10 +61,11 @@ import {
 } from './transferRecord';
 import {
   useVarianceActions,
+  useVarianceTimeline,
   varianceChip,
   varianceCustodian,
-  varianceHistory,
   varianceItems,
+  varianceTimeline,
 } from './varianceRecord';
 
 /** Stable loaders (bound to the service) for `useRecordById`. */
@@ -109,7 +112,9 @@ export function CashTransferDetailPage() {
         what="cash transfer"
         back={useBack('CASH_TRANSFER')}
         timeZone={timeZone}
-        title={(t) => `Cash transfer · ${transferFrom(t)} → ${transferTo(t)}`}
+        title={(t) =>
+          `${t.transfer_number ?? 'Cash transfer'} · ${transferFrom(t)} → ${transferTo(t)}`
+        }
         status={transferChip}
         actions={actionsFor}
         primaryKey="answer"
@@ -161,7 +166,7 @@ export function CashRemittanceDetailPage() {
         what="remittance"
         back={useBack('CASH_REMITTANCE')}
         timeZone={timeZone}
-        title={(h) => `Remittance · ${remittanceCustodian(h)}`}
+        title={(h) => `${h.remittance_number ?? 'Remittance'} · ${remittanceCustodian(h)}`}
         status={remittanceChip}
         actions={actionsFor}
         primaryKey="decide"
@@ -179,7 +184,11 @@ export function CashVarianceDetailPage() {
   const timeZone = useDisplayTimeZone();
   const { hasPermission } = useSession();
   const res = useRecordById(load.variance, id);
-  const { actionsFor, dialog } = useVarianceActions(res.reload);
+  const timeline = useVarianceTimeline(id);
+  const { actionsFor, dialog } = useVarianceActions(() => {
+    res.reload();
+    timeline.reload();
+  });
   return (
     <>
       <RecordDetail<CashVarianceDto>
@@ -187,14 +196,22 @@ export function CashVarianceDetailPage() {
         what="cash variance"
         back={useBack('CASH_VARIANCE')}
         timeZone={timeZone}
-        title={(v) => `Cash variance · ${varianceCustodian(v)}`}
+        title={(v) =>
+          `${v.source_type === 'CUSTOMER_HOUR' ? 'Customer hours variance' : 'Cash variance'} · ${varianceCustodian(v)}`
+        }
         subtitle={(v) => VARIANCE_KIND_LABELS[v.kind]}
         status={varianceChip}
         actions={actionsFor}
         primaryKey="resolve"
         items={(v) => varianceItems(v, timeZone, hasPermission(PERMISSIONS.tenantCaseRead))}
-        history={varianceHistory}
-      />
+        history={() => varianceTimeline(timeline.data ?? [])}
+      >
+        {(v) => (
+          <DetailSection title="Evidence">
+            <EvidenceList ids={v.evidence_attachment_ids ?? []} />
+          </DetailSection>
+        )}
+      </RecordDetail>
       {dialog}
     </>
   );
@@ -213,7 +230,7 @@ export function CashRetentionDetailPage() {
         what="cash retention"
         back={useBack('CASH_RETENTION')}
         timeZone={timeZone}
-        title={(r) => `Request to keep cash · ${retentionCustodian(r)}`}
+        title={(r) => `${r.retention_number ?? 'Request to keep cash'} · ${retentionCustodian(r)}`}
         status={retentionChip}
         actions={actionsFor}
         primaryKey="decide"
@@ -238,13 +255,21 @@ export function CustodyAdjustmentDetailPage() {
         what="custody adjustment"
         back={useBack('CUSTODY_ADJUSTMENT')}
         timeZone={timeZone}
-        title={(a) => `${ADJUSTMENT_KIND_LABELS[a.kind]} · ${adjustmentCustodian(a)}`}
+        title={(a) =>
+          `${a.adjustment_number ?? ADJUSTMENT_KIND_LABELS[a.kind]} · ${adjustmentCustodian(a)}`
+        }
         status={adjustmentChip}
         actions={actionsFor}
         primaryKey="decide"
         items={(a) => adjustmentItems(a, timeZone)}
         history={adjustmentHistory}
-      />
+      >
+        {(a) => (
+          <DetailSection title="Evidence">
+            <EvidenceList ids={a.evidence_attachment_ids ?? []} />
+          </DetailSection>
+        )}
+      </RecordDetail>
       {dialog}
     </>
   );

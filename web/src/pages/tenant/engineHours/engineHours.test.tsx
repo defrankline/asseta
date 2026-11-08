@@ -323,6 +323,7 @@ describe('MachineEngineHoursPanel', () => {
           outcome: 'APPROVED_NON_CUSTOMER',
           reason_id: REASON.id,
           note: 'Moved to site B',
+          evidence_attachment_ids: [],
         },
         expect.any(String),
       );

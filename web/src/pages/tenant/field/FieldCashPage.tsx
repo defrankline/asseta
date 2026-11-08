@@ -141,6 +141,11 @@ export function FieldCashPage() {
     [],
   );
   const collectionColumns: DataColumn<CustomerPaymentDto>[] = [
+    {
+      id: 'number',
+      header: 'Number',
+      render: (p) => <strong>{p.collection_number ?? '—'}</strong>,
+    },
     { id: 'at', header: 'Received', render: (p) => formatInstantIn(p.received_at, timeZone) },
     {
       id: 'customer',
@@ -158,6 +163,11 @@ export function FieldCashPage() {
     },
   ];
   const handoverColumns: DataColumn<CashHandoverDto>[] = [
+    {
+      id: 'number',
+      header: 'Number',
+      render: (h) => <strong>{h.remittance_number ?? '—'}</strong>,
+    },
     { id: 'at', header: 'Handed over', render: (h) => formatInstantIn(h.handed_at, timeZone) },
     { id: 'method', header: 'Paid by', render: remittanceMethodText },
     { id: 'account', header: 'Company account', render: remittanceAccountText },

@@ -57,6 +57,7 @@ export function AdjustmentRequestsPage() {
   const columns: DataColumn<AdjustmentRequestDto>[] = [
     { id: 'at', header: 'Proposed', render: (r) => formatInstantIn(r.proposed_at, timeZone) },
     { id: 'type', header: 'Type', render: (r) => REQUEST_TYPE_LABELS[r.request_type] },
+    { id: 'number', header: 'Number', render: (r) => <strong>{r.request_number ?? '—'}</strong> },
     { id: 'ref', header: 'Original record', render: (r) => r.original_reference ?? '—' },
     { id: 'cust', header: 'Customer', render: (r) => r.customer_name ?? '—' },
     {

@@ -124,6 +124,7 @@ export const NOTE_MIN = 5;
 
 /** Stable revenue error codes with what the user can do about them. */
 export const REVENUE_ERROR_HINTS: Readonly<Record<string, string>> = {
+  EVIDENCE_REQUIRED: 'Your company policy needs supporting evidence: attach it first.',
   REVENUE_RECONCILIATION_DISABLED:
     'Revenue checks are switched off for your company (Policies → Revenue checks).',
   SEGREGATION_OF_DUTIES: 'You explained this, so someone else must decide it.',

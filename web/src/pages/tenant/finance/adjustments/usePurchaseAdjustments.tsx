@@ -12,9 +12,16 @@ import {
   CorrectHoursDialog,
   RefundHoursDialog,
   ReversePurchaseDialog,
+  ZeroAmountRequestDialog,
 } from './PurchaseAdjustmentDialogs';
 
-type Open = 'correct' | 'refund' | 'reverse' | null;
+type Open = 'correct' | 'refund' | 'reverse' | 'zero' | null;
+
+/** Nothing to pay, nothing active and no request waiting: the first request was rejected or withdrawn. */
+export const needsZeroAmountRequest = (p: HoursPurchaseDto): boolean =>
+  isZeroDecimal(p.amount) &&
+  p.pending_zero_amount_request_id == null &&
+  isZeroDecimal(p.totals.activated);
 
 /** "Correct hours", "Refund unused hours" and "Reverse purchase" on an hours purchase. */
 export function usePurchaseAdjustments(
@@ -52,6 +59,14 @@ export function usePurchaseAdjustments(
       },
     },
     {
+      key: 'zero-amount',
+      label: 'Ask for approval to activate',
+      hidden: !show || !needsZeroAmountRequest(purchase),
+      onClick: () => {
+        setOpen('zero');
+      },
+    },
+    {
       key: 'reverse-purchase',
       label: 'Reverse purchase',
       destructive: true,
@@ -67,6 +82,7 @@ export function usePurchaseAdjustments(
       {open === 'correct' && <CorrectHoursDialog {...props} />}
       {open === 'refund' && <RefundHoursDialog {...props} />}
       {open === 'reverse' && <ReversePurchaseDialog {...props} />}
+      {open === 'zero' && <ZeroAmountRequestDialog {...props} />}
     </>
   );
   return { actions, dialogs };

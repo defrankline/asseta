@@ -1,14 +1,22 @@
 import type {
   AdjustmentDecisionIn,
   AdjustmentEntryDto,
+  AdjustmentPreviewDto,
+  AdjustmentPreviewIn,
   AdjustmentRequestDto,
   AdjustmentRequestIn,
   AdjustmentWithdrawIn,
 } from '../adjustmentTypes';
-import { http, type QueryParams } from '../client';
+import { apiClient, http, type QueryParams } from '../client';
+import { newUuid } from '../ids';
 import { requestContext } from '../requestContext';
 import type { Page } from '../types';
-import { adjustmentEntrySchema, adjustmentRequestSchema } from './adjustmentSchemas';
+import { parseResponse } from '../validation';
+import {
+  adjustmentEntrySchema,
+  adjustmentPreviewSchema,
+  adjustmentRequestSchema,
+} from './adjustmentSchemas';
 import { exportError, filenameFromDisposition } from './reportService';
 import {
   seg,
@@ -79,6 +87,15 @@ export const adjustmentService = {
       'adjustment request',
       idempotencyKey,
     );
+  },
+  /** POST /tenant/adjustment-requests/preview: the forecast a decider will see; changes nothing. */
+  async preview(body: AdjustmentPreviewIn, signal?: AbortSignal): Promise<AdjustmentPreviewDto> {
+    const data = await apiClient.post<unknown>(`${REQUESTS}/preview`, body, {
+      tenantScoped: true,
+      idempotencyKey: newUuid(),
+      ...(signal === undefined ? {} : { signal }),
+    });
+    return parseResponse(adjustmentPreviewSchema, data, 'adjustment preview');
   },
   /** POST /tenant/adjustment-requests/{id}/decision: never by the proposer. */
   decide(

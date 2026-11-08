@@ -16,7 +16,12 @@ import { ENTITY } from '../../../../realtime/entities';
 import { useLiveRefresh } from '../../../../realtime/hooks';
 import { CustodianFilter } from './custodyPickers';
 import { remittanceAccountText, remittanceMethodText } from './remittanceDetails';
-import { remittanceChip, remittanceCustodian, useRemittanceActions } from './remittanceRecord';
+import {
+  remittanceChip,
+  remittanceCustodian,
+  remittanceEvidenceChip,
+  useRemittanceActions,
+} from './remittanceRecord';
 
 type View = SettlementStatus | 'ALL';
 
@@ -24,6 +29,12 @@ type View = SettlementStatus | 'ALL';
  * Remittances (cash handed to the company): claimed vs confirmed; the office confirms with the amount
  * actually received (a difference opens a variance) or rejects. Never your own.
  */
+const evidenceColumn: DataColumn<CashHandoverDto> = {
+  id: 'evidence',
+  header: 'Evidence',
+  render: remittanceEvidenceChip,
+};
+
 const shortfallColumn: DataColumn<CashHandoverDto> = {
   id: 'shortfall',
   header: 'Short of full balance',
@@ -55,12 +66,18 @@ export function HandoversTab({ timeZone }: { timeZone: string }) {
     void navigate(recordPath('CASH_REMITTANCE', h.id));
   };
   const columns: DataColumn<CashHandoverDto>[] = [
+    {
+      id: 'number',
+      header: 'Number',
+      render: (h) => <strong>{h.remittance_number ?? '—'}</strong>,
+    },
     { id: 'at', header: 'Handed over', render: (h) => formatInstantIn(h.handed_at, timeZone) },
     { id: 'staff', header: 'Custodian', render: remittanceCustodian },
     { id: 'method', header: 'Paid by', render: remittanceMethodText },
     { id: 'account', header: 'Company account', render: remittanceAccountText },
-    { id: 'ref', header: 'Reference', render: (h) => h.reference ?? '—' },
+    { id: 'ref', header: 'Bank / mobile reference', render: (h) => h.reference ?? '—' },
     { id: 'status', header: 'Status', render: remittanceChip },
+    ...(controlsOn ? [evidenceColumn] : []),
     {
       id: 'by',
       header: 'Recorded by',
@@ -92,7 +109,7 @@ export function HandoversTab({ timeZone }: { timeZone: string }) {
       align: 'right',
       render: (h) => (
         <RowActionsMenu
-          label={`remittance ${h.reference ?? remittanceCustodian(h)}`}
+          label={`remittance ${h.remittance_number ?? h.reference ?? remittanceCustodian(h)}`}
           actions={[
             {
               key: 'view',

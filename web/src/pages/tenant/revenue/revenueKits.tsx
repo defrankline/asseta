@@ -1,3 +1,4 @@
+import { EvidenceList } from '../engineHours/allocations/EvidenceUpload';
 import { Button, Link } from '@mui/material';
 import { useState, type ReactNode } from 'react';
 import { Link as RouterLink } from 'react-router';
@@ -293,6 +294,7 @@ export function useApprovalKit(onChanged: (a: NonRevenueApprovalDto) => void): A
     { label: 'To', value: formatInstantIn(a.ended_at, timeZone) },
     { label: 'Reason', value: a.reason_name ?? '—' },
     { label: 'What happened', value: a.note },
+    { label: 'Evidence', value: <EvidenceList ids={a.evidence_attachment_ids ?? []} /> },
     {
       label: 'Explained by',
       value: <PersonName userId={a.proposed_by} name={a.proposed_by_name} />,

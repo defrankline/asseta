@@ -76,6 +76,11 @@ export const ENGINE_HOURS_FIELDS: readonly PolicyFieldDef[] = [
     help: "On: the changeover must name the next customer's job; the hours after it leave this job's billing.",
   },
   {
+    key: 'classification_evidence_required',
+    label: 'Classifications need evidence',
+    kind: 'bool',
+  },
+  {
     key: 'daily_report_evidence_required',
     label: 'Daily reports need a photo',
     kind: 'bool',

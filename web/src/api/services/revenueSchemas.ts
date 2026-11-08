@@ -278,5 +278,6 @@ export const nonRevenueApprovalSchema: Schema<NonRevenueApprovalDto> = object({
   decided_by_name: optionalText(),
   decided_at: nullableText(),
   decision_note: nullableText(),
+  evidence_attachment_ids: array(string().required()).default([]),
   policy_version: text(),
 });

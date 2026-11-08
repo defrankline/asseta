@@ -1,3 +1,4 @@
+import { Chip } from '@mui/material';
 import Add from '@mui/icons-material/Add';
 import { Box, Button, Stack } from '@mui/material';
 import { useCallback, useState } from 'react';
@@ -75,11 +76,16 @@ export function HoursPurchasesPage() {
       id: 'status',
       header: 'Status',
       render: (p) => (
-        <StatusChip
-          status={p.status}
-          tones={PURCHASE_STATUS_TONES}
-          label={PURCHASE_STATUS_LABELS[p.status]}
-        />
+        <>
+          <StatusChip
+            status={p.status}
+            tones={PURCHASE_STATUS_TONES}
+            label={PURCHASE_STATUS_LABELS[p.status]}
+          />
+          {p.pending_zero_amount_request_id != null && (
+            <Chip size="small" color="warning" variant="outlined" label="Approval pending" />
+          )}
+        </>
       ),
     },
     {

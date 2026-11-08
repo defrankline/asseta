@@ -1,12 +1,14 @@
-import { array, mixed, object, string, type ObjectSchema } from 'yup';
+import { array, boolean, mixed, object, string, type ObjectSchema } from 'yup';
 import type { DepositAccountType, RemittanceMethod } from '../../../../api/custodyTypes';
 import type {
   AttachmentDto,
+  CashCustodyBalanceDto,
   CashFloatIn,
   CashHandoverIn,
   CustodyEntryType,
 } from '../../../../api/types';
 import { CUSTODY_ENTRY_TYPES, REMITTANCE_METHODS } from '../../../../api/services/financeSchemas';
+import { compareDecimal, isDecimalString, sumDecimals } from '../../../../utils/money';
 import { positiveDecimalField } from '../../../platform/shared/validators';
 import { optionalText, orNull, requiredInstant } from '../../shared/formRules';
 
@@ -113,6 +115,10 @@ export interface HandoverValues {
   evidence: AttachmentDto[];
   handed_at: string;
   note: string;
+  /** Set from the custodian's balance when this remittance leaves cash behind under the full-balance policy. */
+  partial_required: boolean;
+  partial_reason_id: string;
+  partial_reason: string;
 }
 
 /** The tenant's remittance requirements are checked here too, so the form explains them before submit. */
@@ -147,6 +153,15 @@ export function handoverSchemaFor(req: RemittanceRequirements): ObjectSchema<Han
       .required(),
     handed_at: requiredInstant('Handed over at'),
     note: optionalText('Note', 1000),
+    partial_required: boolean().required(),
+    partial_reason_id: string().ensure(),
+    partial_reason: optionalText('Reason', 1000).when('partial_required', {
+      is: true,
+      then: (s) =>
+        s
+          .required('Say why part of the balance stays with the custodian')
+          .min(3, 'At least 3 characters'),
+    }),
   });
 }
 
@@ -161,6 +176,20 @@ export function toHandoverPayload(v: HandoverValues, clientId: string): CashHand
     reference: orNull(v.reference),
     evidence_attachment_ids: v.evidence.map((a) => a.id),
     note: orNull(v.note),
+    partial_reason: orNull(v.partial_reason),
+    partial_reason_id: orNull(v.partial_reason_id),
     client_id: clientId,
   };
+}
+
+/** Same sum as the server: what is held, less what is already on its way or allowed to be kept. */
+export function isPartialRemittance(balance: CashCustodyBalanceDto, amount: string): boolean {
+  if (!isDecimalString(amount)) return false;
+  const accounted = sumDecimals([
+    balance.claimed_unverified_handovers,
+    balance.in_transit_out,
+    balance.approved_retention,
+    amount,
+  ]);
+  return compareDecimal(balance.outstanding, accounted) > 0;
 }

@@ -2,7 +2,7 @@
  * Runtime (Yup) response schemas for the cash custody chain controls (accountability design C) and the
  * oversight endpoints (design D). Money values are decimal strings and stay strings.
  */
-import { array, object, type Schema } from 'yup';
+import { array, object, string, type Schema } from 'yup';
 import type {
   AccountabilitySummaryDto,
   CashAckMethod,
@@ -25,9 +25,13 @@ import type {
   SecurityEventKind,
   SyncConflictDto,
   SyncResolutionOutcome,
+  VarianceAssigneeDto,
+  VarianceEventAction,
+  VarianceEventDto,
   VarianceOutcome,
   VarianceSource,
   VarianceStatus,
+  VarianceUnit,
 } from '../custodyTypes';
 import {
   bool,
@@ -75,6 +79,19 @@ export const VARIANCE_OUTCOMES: readonly VarianceOutcome[] = [
   'CORRECTED_ERROR',
   'WRITTEN_OFF',
   'EXPLAINED',
+];
+export const VARIANCE_UNITS: readonly VarianceUnit[] = ['MONEY', 'HOURS'];
+export const VARIANCE_EVENT_ACTIONS: readonly VarianceEventAction[] = [
+  'OPENED',
+  'ASSIGNED',
+  'EXPLAINED',
+  'CLOSURE_PROPOSED',
+  'CLOSURE_APPROVED',
+  'CLOSURE_REJECTED',
+  'WRITE_OFF_PROPOSED',
+  'WRITE_OFF_APPROVED',
+  'WRITE_OFF_REJECTED',
+  'RESOLVED',
 ];
 export const DECISION_STATUSES: readonly CashDecisionStatus[] = ['PENDING', 'APPROVED', 'REJECTED'];
 export const ADJUSTMENT_KINDS: readonly CustodyAdjustmentKind[] = ['REVERSAL', 'ADJUSTMENT'];
@@ -136,6 +153,7 @@ export const transferSchema: Schema<CashTransferDto> = object({
   acknowledged_at: nullableText(),
   ack_note: nullableText(),
   variance_id: nullableId().default(null),
+  transfer_number: nullableText().default(null),
 });
 
 export const varianceSchema: Schema<CashVarianceDto> = object({
@@ -161,6 +179,44 @@ export const varianceSchema: Schema<CashVarianceDto> = object({
   resolved_by: nullableId(),
   resolved_at: nullableText(),
   resolution_note: nullableText(),
+  unit: nullableOneOf(VARIANCE_UNITS).default(null),
+  proposed_outcome: nullableOneOf(VARIANCE_OUTCOMES).default(null),
+  assignee_user_id: nullableId().default(null),
+  assignee_user_name: nullableText().default(null),
+  assigned_by: nullableId().default(null),
+  assigned_by_name: nullableText().default(null),
+  assigned_at: nullableText().default(null),
+  explanation: nullableText().default(null),
+  explained_by: nullableId().default(null),
+  explained_by_name: nullableText().default(null),
+  explained_at: nullableText().default(null),
+  evidence_attachment_ids: array(string().required()).nullable().default(null),
+  check_code: nullableText().default(null),
+  customer_id: nullableId().default(null),
+  customer_name: nullableText().default(null),
+  machine_id: nullableId().default(null),
+  machine_code: nullableText().default(null),
+  machine_name: nullableText().default(null),
+  purchase_id: nullableId().default(null),
+  purchase_number: nullableText().default(null),
+  job_id: nullableId().default(null),
+  job_number: nullableText().default(null),
+});
+
+export const varianceEventSchema: Schema<VarianceEventDto> = object({
+  id: id(),
+  action: oneOf(VARIANCE_EVENT_ACTIONS),
+  actor_user_id: nullableId(),
+  actor_user_name: nullableText().default(null),
+  note: nullableText(),
+  data: record(),
+  occurred_at: text(),
+});
+
+export const varianceAssigneeSchema: Schema<VarianceAssigneeDto> = object({
+  user_id: id(),
+  display_name: text(),
+  email: nullableText(),
 });
 
 export const retentionSchema: Schema<CashRetentionDto> = object({
@@ -177,6 +233,8 @@ export const retentionSchema: Schema<CashRetentionDto> = object({
   decided_by: nullableId(),
   decided_at: nullableText(),
   decision_note: nullableText(),
+  retention_number: nullableText().default(null),
+  client_created_at: nullableText().default(null),
 });
 
 export const adjustmentSchema: Schema<CustodyAdjustmentDto> = object({
@@ -196,6 +254,9 @@ export const adjustmentSchema: Schema<CustodyAdjustmentDto> = object({
   decided_by: nullableId(),
   decided_at: nullableText(),
   decision_note: nullableText(),
+  adjustment_number: nullableText().default(null),
+  evidence_attachment_ids: array(string().required()).nullable().default(null),
+  client_created_at: nullableText().default(null),
 });
 
 export const reasonSchema: Schema<CashReasonDto> = object({

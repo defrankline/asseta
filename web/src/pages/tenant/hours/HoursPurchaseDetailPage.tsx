@@ -26,6 +26,7 @@ import { formatInstantIn } from '../../../utils/time';
 import { shortId } from '../shared/financeDisplay';
 import { PersonName } from '../shared/PersonName';
 import { machineText, nameOr } from '../shared/names';
+import { recordedOnPhone } from '../shared/recordedOnPhone';
 import { HoursOffNotice, ReasonDialog } from './HoursDialogs';
 import {
   hoursText,
@@ -36,6 +37,7 @@ import {
 import { requestsOfRecordPath } from '../finance/adjustments/adjustmentDisplay';
 import { usePurchaseAdjustments } from '../finance/adjustments/usePurchaseAdjustments';
 import { PaymentEvidenceDialog } from './PaymentEvidenceDialog';
+import { PendingZeroAmountNotice } from './PendingZeroAmountNotice';
 import {
   ActivateOnCreditDialog,
   AllocatePaymentDialog,
@@ -223,6 +225,7 @@ export function HoursPurchaseDetailPage() {
       <AsyncContent resource={res} errorTitle="Could not load the hours purchase">
         {(d) => (
           <Stack spacing={3}>
+            <PendingZeroAmountNotice requestId={d.pending_zero_amount_request_id} />
             <Section title="Purchase">
               <KeyValueGrid
                 columns={3}
@@ -257,6 +260,7 @@ export function HoursPurchaseDetailPage() {
                     value: <PersonName userId={d.created_by} name={d.created_by_name} />,
                   },
                   { label: 'Recorded at', value: formatInstantIn(d.created_at, timeZone) },
+                  ...recordedOnPhone(d.client_created_at, timeZone),
                   { label: 'Source', value: d.source },
                   { label: 'Policy version', value: d.policy_version },
                   { label: 'Note', value: d.note ?? '—' },
@@ -443,6 +447,7 @@ export function HoursPurchaseDetailPage() {
         <RequestTransferDialog
           purchase={p}
           reasonCodeRequired={hours.policy?.reasonCodeRequired ?? false}
+          evidenceRequired={hours.policy?.transferEvidenceRequired ?? false}
           onClose={close}
           onDone={() => {
             notify.success('Transfer requested; someone else decides it.');

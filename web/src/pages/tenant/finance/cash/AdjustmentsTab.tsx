@@ -47,6 +47,11 @@ export function AdjustmentsTab({
     void navigate(recordPath('CUSTODY_ADJUSTMENT', a.id));
   };
   const columns: DataColumn<CustodyAdjustmentDto>[] = [
+    {
+      id: 'number',
+      header: 'Number',
+      render: (a) => <strong>{a.adjustment_number ?? '—'}</strong>,
+    },
     { id: 'at', header: 'Effective', render: (a) => formatInstantIn(a.occurred_at, timeZone) },
     { id: 'who', header: 'Custodian', render: adjustmentCustodian },
     { id: 'kind', header: 'Kind', render: (a) => ADJUSTMENT_KIND_LABELS[a.kind] },

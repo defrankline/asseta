@@ -14,6 +14,7 @@ import { useNotify } from '../../../../notifications/useNotify';
 import { formatInstantIn } from '../../../../utils/time';
 import { DecisionDialog } from '../../shared/DecisionDialog';
 import { nameOr } from '../../shared/names';
+import { recordedOnPhone } from '../../shared/recordedOnPhone';
 import { PersonName } from '../../shared/PersonName';
 import type { HistoryEvent } from '../../shared/RecordDetail';
 import { useMyUserId } from '../../shared/useFinanceLabels';
@@ -122,10 +123,12 @@ export function useAdjustmentActions(onChanged: (a: CustodyAdjustmentDto) => voi
 
 export function adjustmentItems(a: CustodyAdjustmentDto, timeZone: string): KeyValueItem[] {
   return [
+    { label: 'Number', value: a.adjustment_number ?? '—' },
     { label: 'Custodian', value: adjustmentCustodian(a) },
     { label: 'Kind', value: ADJUSTMENT_KIND_LABELS[a.kind] },
     { label: 'Amount', value: <MoneyText amount={a.amount} currency={a.currency} /> },
     { label: 'Effective', value: formatInstantIn(a.occurred_at, timeZone) },
+    ...recordedOnPhone(a.client_created_at, timeZone),
     { label: 'Reason', value: a.reason },
     { label: 'Record reversed', value: reversed(a) },
     {

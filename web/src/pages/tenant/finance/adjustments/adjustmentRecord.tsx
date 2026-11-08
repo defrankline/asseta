@@ -71,7 +71,11 @@ const purchasesOf = (effects: Record<string, unknown>): PurchaseEffect[] =>
   Array.isArray(effects.purchases) ? (effects.purchases as PurchaseEffect[]) : [];
 
 /** What approving will do (forecast while proposed) or what approval did. */
-export function RequestEffects({ request: r }: { request: AdjustmentRequestDto }) {
+export function RequestEffects({
+  request: r,
+}: {
+  request: Pick<AdjustmentRequestDto, 'effects' | 'currency'>;
+}) {
   const e = r.effects;
   const refused = str(e.refused);
   if (refused !== null) {

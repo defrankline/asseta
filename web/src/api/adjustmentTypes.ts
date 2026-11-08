@@ -15,3 +15,5 @@ export type AdjustmentDecisionIn = Schemas['AdjustmentDecisionIn'];
 export type AdjustmentWithdrawIn = Schemas['AdjustmentWithdrawIn'];
 export type RefundSettlement = Schemas['RefundSettlement'];
 export type PayoutIn = Schemas['PayoutIn'];
+export type AdjustmentPreviewIn = Schemas['AdjustmentPreviewIn'];
+export type AdjustmentPreviewDto = Schemas['AdjustmentPreviewDto'];

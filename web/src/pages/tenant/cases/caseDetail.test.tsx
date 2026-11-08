@@ -16,6 +16,7 @@ import {
   PERSON,
   RULE_EVIDENCE,
 } from '../../../test/caseFixtures';
+import { ME, OTHER_USER } from '../../../test/financeFixtures';
 import { renderWithProviders } from '../../../test/renderWithProviders';
 import { resetPersonDirectory } from '../shared/personDirectory';
 import { CaseDetailPage } from './CaseDetailPage';
@@ -26,6 +27,7 @@ const mocks = vi.hoisted(() => ({
   addNote: vi.fn<typeof caseService.addNote>(),
   resolve: vi.fn<typeof caseService.resolve>(),
   reopen: vi.fn<typeof caseService.reopen>(),
+  decideResolution: vi.fn<typeof caseService.decideResolution>(),
   people: vi.fn<typeof peopleService.list>(),
   search: vi.fn<typeof peopleService.search>(),
   emptyPage: { items: [], total: 0, page: 1, page_size: 200 },
@@ -37,6 +39,7 @@ vi.mock('../../../api/services/caseService', () => ({
     addNote: mocks.addNote,
     resolve: mocks.resolve,
     reopen: mocks.reopen,
+    decideResolution: mocks.decideResolution,
   },
 }));
 vi.mock('../../../api/services/peopleService', () => ({
@@ -382,6 +385,50 @@ describe('CaseDetailPage', () => {
     renderDetail([...READ, P.tenantCaseManage]);
     await loaded();
     expect(screen.getByRole('button', { name: 'Assign' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Resolve' })).not.toBeInTheDocument();
+  });
+});
+
+describe('second-person case closure', () => {
+  const pending = (proposedBy: string) =>
+    makeDetail({
+      case: makeCase({
+        status: 'IN_REVIEW',
+        closure_outcome: 'UNCONFIRMED',
+        closure_explanation: 'Reviewed the evidence',
+        closure_proposed_by: proposedBy,
+        closure_proposed_at: '2026-10-22T09:00:00Z',
+      }),
+    });
+
+  it('lets someone else decide a proposed closure', async () => {
+    const user = userEvent.setup();
+    mocks.get.mockResolvedValue(pending(OTHER_USER));
+    mocks.decideResolution.mockResolvedValue(makeDetail());
+    renderDetail(ALL);
+    await loaded();
+    expect(screen.getByText(/Closure proposed as/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Decide closure' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('combobox', { name: /Decision/ }));
+    await user.click(await screen.findByRole('option', { name: 'Approve' }));
+    await user.click(within(dialog).getByRole('button', { name: /Record decision|Approve/ }));
+    await waitFor(() => {
+      expect(mocks.decideResolution).toHaveBeenCalledWith(
+        CASE_ID,
+        expect.objectContaining({ approve: true }),
+        expect.any(String),
+      );
+    });
+  });
+
+  it('disables deciding a closure you proposed and hides Resolve meanwhile', async () => {
+    mocks.get.mockResolvedValue(pending(ME));
+    renderDetail(ALL);
+    await loaded();
+    expect(
+      screen.getByRole('button', { name: /Someone else must decide your own request/ }),
+    ).toBeDisabled();
     expect(screen.queryByRole('button', { name: 'Resolve' })).not.toBeInTheDocument();
   });
 });

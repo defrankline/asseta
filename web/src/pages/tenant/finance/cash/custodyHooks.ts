@@ -17,6 +17,10 @@ export interface CashPolicy {
   remitFullBalance: boolean;
   writeoffRequiresApproval: boolean;
   retentionAllowed: boolean;
+  varianceEvidenceRequired: boolean;
+  custodyAdjustmentEvidenceRequired: boolean;
+  collectionLinkRequired: boolean;
+  varianceClosureRequiresSecondPerson: boolean;
   /** What a remittance must carry (DEC-031 D2); all off while the cash custody controls are off. */
   remittance: RemittanceRequirements;
 }
@@ -33,6 +37,10 @@ export function parseCashPolicy(values: Record<string, unknown>): CashPolicy {
     remitFullBalance: flag(values.remit_full_balance, true),
     writeoffRequiresApproval: flag(values.writeoff_requires_approval, true),
     retentionAllowed: flag(values.retention_allowed, false),
+    varianceEvidenceRequired: flag(values.variance_evidence_required, false),
+    custodyAdjustmentEvidenceRequired: flag(values.custody_adjustment_evidence_required, false),
+    collectionLinkRequired: flag(values.collection_link_required, false),
+    varianceClosureRequiresSecondPerson: flag(values.variance_closure_requires_second_person, true),
     remittance: remittanceRequirements(values),
   };
 }
@@ -74,6 +82,9 @@ export const resolveCustodian = async (id: string, signal: AbortSignal) =>
       signal,
     )
   ).items.find((c) => c.staff_member_id === id) ?? null;
+
+export const searchVarianceAssignees = (q: string, signal: AbortSignal) =>
+  custodyService.varianceAssignees(q, signal);
 
 /** Staff id → custodian name for list displays (first 200, inactive included). */
 export function useCustodianLabels(): (id: string | null) => string {

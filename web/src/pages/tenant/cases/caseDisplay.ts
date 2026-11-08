@@ -110,7 +110,11 @@ export const CASE_ERROR_HINTS: Readonly<Record<string, string>> = {
   ASSIGNEE_NOT_MEMBER: 'Choose a current member of this company.',
   CASE_RESOLVED: 'The case is resolved; reopen it first.',
   CASE_NOT_RESOLVED: 'Only a resolved case can be reopened; reload the case.',
+  CASE_CLOSURE_PENDING: 'A closure of this case already awaits a decision.',
+  CASE_CLOSURE_NOT_PROPOSED: 'No closure is proposed on this case; reload the case.',
 };
+
+export const CASE_OWN_CLOSURE_TEXT = 'Someone else must decide your own request';
 
 /** Explanation / reason lengths accepted by the case commands. */
 export const EXPLANATION_MIN = 10;

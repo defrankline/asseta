@@ -1,3 +1,4 @@
+import { EvidenceList } from './allocations/EvidenceUpload';
 import { engineHoursService } from '../../../api/services/engineHoursService';
 import type { BaselineDto, ClassificationDto, CorrectionDto } from '../../../api/types';
 import { KeyValueGrid } from '../../../components/display/KeyValueGrid';
@@ -86,6 +87,7 @@ export function DecideClassificationDialog({
             { label: 'Explained as', value: OUTCOME_LABELS[c.outcome] },
             { label: 'Category / reason', value: c.reason_name ?? '—' },
             { label: 'What happened', value: c.note },
+            { label: 'Evidence', value: <EvidenceList ids={c.evidence_attachment_ids ?? []} /> },
             {
               label: 'Proposed by',
               value: <PersonName userId={c.proposed_by} name={c.proposed_by_name} />,

@@ -105,6 +105,7 @@ describe('toFieldCollectionPayload', () => {
       staff_member_id: null,
       note: null,
       client_id: 'client-1',
+      purchase_id: null,
       allocations: [],
     });
   });

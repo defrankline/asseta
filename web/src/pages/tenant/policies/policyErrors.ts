@@ -8,6 +8,10 @@ const HINTS: Readonly<Record<string, string>> = {
   POLICY_INVALID: 'The resulting policy is invalid (check ranges and ordering rules).',
   POLICY_SCOPE: 'The scope or its target is not valid for a tenant policy.',
   POLICY_NOT_CONFIGURED: 'No base policy is configured yet; ask the platform operator.',
+  MANAGED_SERVICE_MANDATE_ACTIVE:
+    'The managed service page cannot be switched off while a managed-service mandate is open. End the mandate first.',
+  MANAGED_SERVICE_SWITCH_LOCKED:
+    'People working under a managed-service mandate cannot change this switch. Someone from your own company must change it.',
 };
 
 /** Re-throw an API failure with its stable error code (and a hint) visible to the user. */

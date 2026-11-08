@@ -147,6 +147,8 @@ export const hoursPurchaseSchema: Schema<HoursPurchaseDto> = object({
   client_id: nullableId(),
   created_at: text(),
   created_by: nullableId(),
+  client_created_at: nullableText().default(null),
+  pending_zero_amount_request_id: nullableId().default(null),
   cancellation_id: nullableId(),
   cancelled_at: nullableText(),
   totals: purchaseTotalsSchema,
@@ -231,6 +233,8 @@ const decisionFields = () => ({
 
 export const transferSchema: Schema<TransferDto> = object({
   id: id(),
+  transfer_number: nullableText().default(null),
+  evidence_attachment_ids: array(string().required()).default([]),
   purchase_id: id(),
   from_machine_id: id(),
   to_machine_id: id(),
@@ -282,6 +286,7 @@ export const creditArrangementSchema: Schema<CreditArrangementDto> = object({
   limit_amount: text(),
   currency: text(),
   terms: nullableText(),
+  evidence_attachment_ids: array(string().required()).default([]),
   ...proposalFields(),
 });
 

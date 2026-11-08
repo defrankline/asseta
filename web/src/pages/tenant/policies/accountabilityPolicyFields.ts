@@ -42,6 +42,22 @@ export const CASH_CUSTODY_FIELDS: readonly PolicyFieldDef[] = [
   },
   { key: 'writeoff_requires_approval', label: 'Write-offs need a second approver', kind: 'bool' },
   { key: 'retention_allowed', label: 'Approved retentions allowed', kind: 'bool' },
+  { key: 'variance_evidence_required', label: 'Closing a variance needs evidence', kind: 'bool' },
+  {
+    key: 'custody_adjustment_evidence_required',
+    label: 'Custody adjustments need evidence',
+    kind: 'bool',
+  },
+  {
+    key: 'collection_link_required',
+    label: 'Every collection names its purchase or invoice',
+    kind: 'bool',
+  },
+  {
+    key: 'variance_closure_requires_second_person',
+    label: 'Variance closure needs a second person',
+    kind: 'bool',
+  },
   {
     key: 'remittance_reference_required',
     label: 'Require a transaction reference for bank / mobile-money remittances',
@@ -185,6 +201,11 @@ export const OVERSIGHT_FIELDS: readonly PolicyFieldDef[] = [
     label: 'Investigations',
     kind: 'bool',
     help: 'Off: Investigations are hidden and no new cases are opened; cash differences and revenue differences are still recorded.',
+  },
+  {
+    key: 'case_closure_requires_second_person',
+    label: 'Case resolution needs a second person',
+    kind: 'bool',
   },
   {
     key: 'managed_service_enabled',

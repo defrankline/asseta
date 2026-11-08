@@ -411,6 +411,7 @@ export type CaseOutcomeDto = Schemas['CaseOutcomeDto'];
 export type CaseAssignIn = Schemas['CaseAssignIn'];
 export type CaseNoteIn = Schemas['CaseNoteIn'];
 export type CaseResolveIn = Schemas['CaseResolveIn'];
+export type CaseClosureDecisionIn = Schemas['CaseClosureDecisionIn'];
 export type CaseReopenIn = Schemas['CaseReopenIn'];
 
 // ---- Governed ML and baseline insights (ADR-007, Gate 6D) ----

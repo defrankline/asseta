@@ -24,6 +24,7 @@ import type {
   SettlementStatus,
   StatementLineKind,
 } from '../types';
+import type { RemittanceEvidenceStatus } from '../custodyTypes';
 import type { RemittanceMethod } from '../custodyTypes';
 import {
   bool,
@@ -135,6 +136,10 @@ export const customerPaymentSchema: Schema<CustomerPaymentDto> = object({
   reversed_at: string().nullable().default(null),
   reversal_id: string().nullable().default(null),
   allocations: array(allocationSchema).default([]),
+  collection_number: nullableText().default(null),
+  purchase_links: array(
+    object({ purchase_id: id(), purchase_number: text(), amount: text() }),
+  ).default([]),
 });
 
 export const customerBalanceSchema: Schema<CustomerBalanceDto> = object({
@@ -204,6 +209,26 @@ export const custodyBalanceSchema: Schema<CashCustodyBalanceDto> = object({
   as_of: text(),
 });
 
+export const EVIDENCE_STATUSES: readonly RemittanceEvidenceStatus[] = [
+  'DECLARED',
+  'SUPPORTED',
+  'CONFIRMED',
+];
+
+const partialApprovalSchema = object({
+  id: id(),
+  status: oneOf(['PENDING', 'APPROVED', 'REJECTED'] as const),
+  reason_id: nullableId(),
+  reason: text(),
+  created_by: nullableId(),
+  created_by_name: nullableText().default(null),
+  created_at: text(),
+  decided_by: nullableId(),
+  decided_by_name: nullableText().default(null),
+  decided_at: nullableText(),
+  decision_note: nullableText(),
+});
+
 export const handoverSchema: Schema<CashHandoverDto> = object({
   id: id(),
   client_id: nullableId(),
@@ -227,6 +252,10 @@ export const handoverSchema: Schema<CashHandoverDto> = object({
   deposit_account_id: nullableId().optional(),
   deposit_account_name: nullableText().optional(),
   evidence_attachment_ids: array(string().required()).default([]),
+  remittance_number: nullableText().default(null),
+  evidence_status: nullableOneOf(EVIDENCE_STATUSES).default(null),
+  outstanding_difference: nullableText().default(null),
+  partial_approval: partialApprovalSchema.nullable().default(null),
 });
 
 export const reconciliationSchema: Schema<CashReconciliationDto> = object({

@@ -136,6 +136,8 @@ export const PERMISSIONS = {
   // ---- Cash custody chain + oversight (accountability design C/D); never on your own record ----
   /** Resolve cash variances and propose write-offs. */
   tenantFinanceVariance: 'tenant.finance.variance',
+  /** Approve or reject proposed variance closures (never your own). */
+  tenantFinanceVarianceClose: 'tenant.finance.variance_close',
   /** Approve or reject proposed write-offs. */
   tenantFinanceWriteoff: 'tenant.finance.writeoff',
   /** Approve or reject requests to retain field cash. */
