@@ -16,6 +16,7 @@ import pytest
 from fastapi import FastAPI
 
 from asseta.core.db import get_sessionmaker
+from asseta.modules.dataprotection.export_worker_core import run_pending
 from asseta.modules.finance.remittance_cutoff import run_remittance_cutoff
 from asseta.modules.revenue.reconciliation import run_revenue_reconciliation
 from tests.support.api import Actor, Api
@@ -114,6 +115,7 @@ def _populate_b(api: Api) -> tuple[FinCtx, dict[tuple[str, str], str]]:
     ids.update(_cash_chain_b(api, f))
     ids.update(_revenue_b(api, f))
     ids.update(_oversight_b(api, f))
+    ids.update(_data_protection_b(api, f, ids[("/attachments/", "attachment_id")]))
     optional = {
         ("/notifications/", "notification_id"): f"{T}/notifications",
         ("/assignments/", "assignment_id"): f"{T}/machines/{f.c.t.machine_id}/assignments",
@@ -244,7 +246,13 @@ def _cash_chain_b(api: Api, f: FinCtx) -> dict[tuple[str, str], str]:
     account = f.accountant.post(f"{T}/deposit-accounts", {"name": "B bank", "account_type": "BANK"}).json()["id"]
     h = f.supervisor.post(
         f"{c}/handovers",
-        {"amount": "10", "handed_at": now, "deposit_account_id": account, "evidence_attachment_ids": [slip]},
+        {
+            "amount": "10",
+            "handed_at": now,
+            "deposit_account_id": account,
+            "evidence_attachment_ids": [slip],
+            "partial_reason": "B banks part of it",
+        },
     ).json()
     f.accountant.post(f"{c}/handovers/{h['id']}/decision", {"verified": True, "amount_received": "9"})
     variance = f.accountant.get(f"{c}/variances").json()["items"][0]["id"]
@@ -463,6 +471,21 @@ def _fill(path: str, ids: dict[tuple[str, str], str]) -> dict[str, str] | None:
             return None
         out[name] = max(best, key=lambda pv: len(pv[0]))[1]
     return out
+
+
+def _data_protection_b(api: Api, f: FinCtx, attachment: str) -> dict[tuple[str, str], str]:
+    """B's finished data export, a balance verification run and an evidence file reachable through the export."""
+    r = f.owner.post(f"{T}/data-exports", {})
+    assert r.status_code == 201, r.text
+    assert run_pending(get_sessionmaker(), api.client.app.state.object_store, api.clock.now) == 1  # type: ignore[attr-defined]
+    run = f.owner.post(f"{T}/balance-verification/runs")
+    assert run.status_code == 201, run.text
+    return {
+        ("/data-exports/", "export_id"): r.json()["id"],
+        ("/balance-verification/runs/", "run_id"): run.json()["id"],
+        ("/data-exports/evidence/", "source"): "capture_attachment",
+        ("{source}/", "row_id"): attachment,
+    }
 
 
 @pytest.fixture

@@ -19,6 +19,7 @@ from asseta.core.storage import ObjectStore, S3ObjectStore
 from asseta.modules.accountability import router as accountability_router
 from asseta.modules.adjustments import router as adjustments_router
 from asseta.modules.audit_log import router as audit_log_router
+from asseta.modules.dataprotection import router as dataprotection_router
 from asseta.modules.expenses import router as expenses_router
 from asseta.modules.finance import cash_router as finance_cash_router
 from asseta.modules.finance import custody_router as finance_custody_router
@@ -161,6 +162,8 @@ def create_app(
         finance_cash_router.router,
         finance_custody_router.router,
         adjustments_router.router,
+        dataprotection_router.router,
+        dataprotection_router.platform_router,
         finance_deposit_accounts.router,
         accountability_router.router,
         hours_router.router,

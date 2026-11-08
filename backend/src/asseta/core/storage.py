@@ -6,6 +6,7 @@ credentials or permanent URLs — only short-lived presigned GET URLs issued aft
 
 import hashlib
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Protocol
 
 from asseta.core.errors import BusinessRuleViolation, DependencyUnavailable
@@ -106,6 +107,29 @@ class S3ObjectStore:
             raise DependencyUnavailable("Object storage write failed") from exc
         except BotoCoreError as exc:
             raise DependencyUnavailable("Object storage unavailable") from exc
+
+    def put_file(self, key: str, path: Path, content_type: str, sha256: str) -> None:
+        """Store a large local file (multipart). Used for data exports, whose keys are unique per export."""
+        from boto3.exceptions import S3UploadFailedError
+        from botocore.exceptions import BotoCoreError, ClientError
+
+        try:
+            self._client.upload_file(
+                str(path),
+                self._bucket,
+                key,
+                ExtraArgs={"ContentType": content_type, "Metadata": {"sha256": sha256}},
+            )
+        except (BotoCoreError, ClientError, S3UploadFailedError) as exc:
+            raise DependencyUnavailable("Object storage write failed") from exc
+
+    def delete(self, key: str) -> None:
+        from botocore.exceptions import BotoCoreError, ClientError
+
+        try:
+            self._client.delete_object(Bucket=self._bucket, Key=key)
+        except (BotoCoreError, ClientError) as exc:
+            raise DependencyUnavailable("Object storage delete failed") from exc
 
     def get_bytes(self, key: str) -> bytes:
         from botocore.exceptions import BotoCoreError, ClientError

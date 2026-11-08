@@ -2,9 +2,11 @@
 # Production backup (docs/operating-runbook.md §6.1; the same commands the backup/restore drill verified):
 #   pg_dump -Fc of asseta, keycloak, mlflow  ->  Keycloak realm config record  ->  MinIO mirror (AFTER the dumps:
 #   evidence is content-addressed and write-once, so every key the dumps reference is in the mirror).
-# Writes BACKUP_ROOT/<UTC timestamp>/ (default /home/asseta/backups), keeps BACKUP_RETENTION_DAYS (7) days, and
-# copies the new backup to BACKUP_REMOTE with rsync when set. Secrets stay inside the containers; nothing secret
-# is printed. .env.production is NOT part of the backup: keep an encrypted copy of it elsewhere.
+# Writes BACKUP_ROOT/<UTC timestamp>/ (default /home/asseta/backups), keeps BACKUP_RETENTION_DAYS (30) days, and
+# copies the new backup to BACKUP_REMOTE with rsync, then verifies the copy byte for byte (rsync --checksum in dry-run
+# mode: any difference fails the run). An unset BACKUP_REMOTE means the only copy is on this server: the run warns
+# loudly. Secrets stay inside the containers; nothing secret is printed. .env.production is NOT part of the backup:
+# keep an encrypted copy of it elsewhere.
 #
 #   scripts/backup-live.sh
 #   cron: 15 2 * * * cd /home/asseta && scripts/backup-live.sh >> /home/asseta/backups/backup.log 2>&1
@@ -24,9 +26,18 @@ require_compose_v2
 require_env_file
 
 BACKUP_ROOT="$(cfg BACKUP_ROOT /home/asseta/backups)"
-BACKUP_RETENTION_DAYS="$(cfg BACKUP_RETENTION_DAYS 7)"
+BACKUP_RETENTION_DAYS="$(cfg BACKUP_RETENTION_DAYS 30)"
 BACKUP_REMOTE="$(cfg BACKUP_REMOTE "")"
 [[ "$BACKUP_RETENTION_DAYS" =~ ^[0-9]+$ && "$BACKUP_RETENTION_DAYS" -ge 1 ]] || fail "BACKUP_RETENTION_DAYS must be >= 1"
+
+warn_no_off_host_copy() {
+  warn "============================================================================="
+  warn "NO OFF-HOST BACKUP COPY: BACKUP_REMOTE is not set in the environment file."
+  warn "This backup exists ONLY on this server. If the server or its disk is lost,"
+  warn "every company's data and evidence is lost with it. Set BACKUP_REMOTE."
+  warn "============================================================================="
+}
+[[ -n "$BACKUP_REMOTE" ]] || warn_no_off_host_copy
 
 umask 077
 mkdir -p "$BACKUP_ROOT"
@@ -114,4 +125,15 @@ if [[ -n "$BACKUP_REMOTE" ]]; then
   require_cmd rsync
   log "Copying to $BACKUP_REMOTE"
   rsync -a --partial "$DIR" "$BACKUP_REMOTE/" || fail "rsync to $BACKUP_REMOTE failed (local backup is complete)"
+  # Verify the off-host copy: a checksum dry run must find nothing to transfer. rsync failing here is also a failure.
+  log "Verifying the off-host copy (checksums)"
+  differences="$(rsync -a --checksum --dry-run --itemize-changes "$DIR/" "$BACKUP_REMOTE/$TS/")" \
+    || fail "could not verify the copy at $BACKUP_REMOTE/$TS (local backup is complete)"
+  if [[ -n "$differences" ]]; then
+    printf '%s\n' "$differences" | head -20 >&2
+    fail "the copy at $BACKUP_REMOTE/$TS differs from the local backup (local backup is complete)"
+  fi
+  log "Off-host copy verified: $BACKUP_REMOTE/$TS"
+else
+  warn_no_off_host_copy
 fi

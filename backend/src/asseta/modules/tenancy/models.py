@@ -53,6 +53,10 @@ class Tenant(UuidPk, Timestamps, Base):
     access_state_reason: Mapped[str | None] = mapped_column(String(200))
     access_state_changed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     keycloak_group_id: Mapped[str | None] = mapped_column(String(64))
+    # Go-live marker (DEC-032 Phase 5): set once by the Platform Owner; the data reset tool then refuses this tenant.
+    live_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    live_marked_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    live_note: Mapped[str | None] = mapped_column(Text)
     # Bumped only by company-detail edits (access-state changes by the entitlement service do not race them).
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
 

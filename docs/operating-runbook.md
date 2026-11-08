@@ -155,6 +155,28 @@ re-delivery after a restart is harmless.
 Inference audit, drift and readiness on the platform Models page / `GET /api/v1/platform/ml/*`; response procedure in
 [model-governance.md §6](model-governance.md#6-monitoring-and-drift-response).
 
+### 5.7 Verify balances against their records
+
+Every balance on screen is derived from its records; `scripts/verify-balances.sh` proves it on the live server
+(read-only, one READ ONLY transaction per tenant, under the application's own database role):
+
+```bash
+scripts/verify-balances.sh --all                                # every tenant; exit 1 if any mismatch
+scripts/verify-balances.sh --registration-number 2026/10/0001   # one tenant (or --tenant-id <uuid>, add --json)
+```
+
+It recomputes customer hours per lot, engine hours per machine, cash per custodian and customer receivables from the
+underlying records and reports every stored figure that disagrees (adjustment-ledger resulting balances, low-balance
+alerts, work allocations, daily report totals, invoice totals). **The ledger prevails**: nothing is corrected, a
+finding is a question for a person. Owners can also run it in the web app (Administration -> Balance verification);
+a scheduled sweep is switched on per tenant (`DATA_PROTECTION` policy, default off). The platform sees per-tenant
+counts only (Platform -> Balance verification).
+
+Tenant data export (Administration -> Data export, permission `tenant.data.export`): a background job
+(`data-export-worker`) writes one ZIP of every ledger and business record plus `evidence/manifest.csv`; the link is
+short-lived and every request is audited; the file is deleted after `DATA_PROTECTION.data_export_retention_days`
+(default 7). Credentials are never exported.
+
 ## 6. Backup and restore (production procedure)
 
 What must be backed up together (one consistent point in time per component):
@@ -197,7 +219,10 @@ docker compose exec -T minio sh -c 'mc alias set src http://127.0.0.1:9000 "$MIN
 docker compose cp minio:/tmp/bk backups/$TS/objects && docker compose exec -T minio rm -rf /tmp/bk
 (cd backups/$TS && find . -type f -exec shasum -a 256 {} + > SHA256SUMS)
 ```
-Encrypt and copy the backup off-host. Schedule: databases at least daily (RPO ≤ 24 h by default; tighten with WAL
+Production: `BACKUP_RETENTION_DAYS` defaults to 30 days. `BACKUP_REMOTE` is the required off-host copy: after every
+run `backup-live.sh` rsyncs the backup there and verifies the copy with a checksum dry run, failing if anything
+differs; when it is unset the script warns loudly that the only copy is on this server. Encrypt and copy the backup
+off-host. Schedule: databases at least daily (RPO ≤ 24 h by default; tighten with WAL
 archiving / PITR if the business needs a smaller RPO — not configured in R1), MinIO mirror at least daily.
 
 ### 6.2 Restore (order matters)
@@ -365,6 +390,10 @@ What users see:
   and starts from a fresh bootstrap (an empty fleet until real data exists). A phone that registers but still holds
   the old data is told to wipe on its first delta pull or upload, so demo data never comes back. Unsynced work on a
   phone at the time of the reset is discarded with the rest (it belonged to the erased records).
+
+**Live tenants are locked.** Once the Platform Owner has marked a tenant live (Platform -> Tenants -> the tenant ->
+Mark as live; audited as `platform.tenant.go_live`), the reset refuses it. Only an explicit `--override-live` plus a
+typed confirmation (`ERASE LIVE <tenant name>`) lets the reset proceed, and the audit event then carries `live_override`.
 
 Afterwards `scripts/seed-demo-tenant.sh seed` refuses this tenant (it carries the reset event): demo data goes only
 into a separate demo tenant. The demo accounts and demo staff that `seed` created remain (accounts are never touched);

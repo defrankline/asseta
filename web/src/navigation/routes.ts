@@ -23,6 +23,7 @@ export const ROUTES = {
   platformTelemetry: '/platform/telemetry',
   /** Matches the backend `platform.models` menu path (governed ML, ADR-007). */
   platformModels: '/platform/models',
+  platformBalanceVerification: '/platform/balance-verification',
   platformModelDetail: '/platform/models/:modelId',
   /** Matches the backend `platform.system` menu path. */
   systemStatus: '/platform/system',
@@ -51,6 +52,8 @@ export const ROUTES = {
   tenantPolicies: '/tenant/policies',
   /** Matches the backend `tenant.setup` menu path (Overview group): the go-live checklist. */
   tenantSetup: '/tenant/setup',
+  tenantDataExport: '/tenant/data-export',
+  tenantBalanceVerification: '/tenant/balance-verification',
   tenantSubscription: '/tenant/subscription',
   tenantCustomers: '/tenant/customers',
   tenantCustomerDetail: '/tenant/customers/:customerId',
@@ -263,6 +266,7 @@ export const IMPLEMENTED_PATHS: ReadonlySet<string> = new Set([
   ROUTES.platformManagedService,
   ROUTES.platformTelemetry,
   ROUTES.platformModels,
+  ROUTES.platformBalanceVerification,
   ROUTES.systemStatus,
   ROUTES.platformAudit,
   ROUTES.tenantDashboard,
@@ -275,6 +279,8 @@ export const IMPLEMENTED_PATHS: ReadonlySet<string> = new Set([
   ROUTES.tenantAlerts,
   ROUTES.tenantPolicies,
   ROUTES.tenantSetup,
+  ROUTES.tenantDataExport,
+  ROUTES.tenantBalanceVerification,
   ROUTES.tenantSubscription,
   ROUTES.tenantCustomers,
   ROUTES.tenantExpenses,

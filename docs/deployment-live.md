@@ -133,8 +133,10 @@ It contains `pg_dump -Fc` of `asseta`, `keycloak` and `mlflow`, the alembic vers
 record, and a MinIO mirror of `asseta-evidence` and `asseta-mlflow` taken after the dumps. A `MANIFEST` and
 `SHA256SUMS` are included. These are the same commands the backup/restore drill verified
 ([runbook §6](operating-runbook.md#6-backup-and-restore-production-procedure)). Backups older than
-`BACKUP_RETENTION_DAYS` (7) are deleted. Set `BACKUP_REMOTE=user@host:/path` to rsync each backup off the
-server, and make the target encrypted storage.
+`BACKUP_RETENTION_DAYS` (default **30**; it was 7) are deleted. Set `BACKUP_REMOTE=user@host:/path`: each backup is
+copied off the server with rsync and the copy is then verified by checksum (any difference fails the run), and make
+the target encrypted storage. If `BACKUP_REMOTE` is unset the script prints a loud warning on every run: the only
+copy is on this server.
 
 Daily at 02:15 (`crontab -e` as the deploying user):
 ```cron

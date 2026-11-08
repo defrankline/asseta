@@ -7,7 +7,8 @@
 #
 # Options: --yes (really reset), --backup-confirmed (skip the recent-backup check), --operator WHO (recorded in the
 # audit event; default <your user>@<host>), --remove-traccar-devices (also delete the trackers' Traccar devices; needs
-# TRACCAR_ADMIN_EMAIL, the password is asked for), --no-objects (leave the object store alone).
+# TRACCAR_ADMIN_EMAIL, the password is asked for), --no-objects (leave the object store alone), --override-live (a
+# tenant marked live is otherwise refused; asks you to type a confirmation phrase and is recorded in the audit event).
 #
 # Keeps the tenant, its Asseta subscription and platform billing, Keycloak accounts and their groups, memberships,
 # staff and the platform audit; deletes every other business record of the tenant and its object-store files, and

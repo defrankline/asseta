@@ -23,7 +23,7 @@ cp .env.example .env            # replace every CHANGE_ME (e.g. openssl rand -ba
 docker compose --profile telemetry up -d --build
 # postgres+postgis, keycloak, kafka, redis, minio, mlflow, mailpit, traccar (telemetry profile),
 # one-shot migrate + mlflow-db-init, api, web and the workers: outbox-relay, timeline-, connectivity-,
-# intelligence-, notification-worker, notification-scheduler, billing-scheduler
+# intelligence-, notification-worker, notification-scheduler, billing-scheduler, data-export-worker
 docker compose ps                                # migrate/mlflow-db-init Exited (0); the rest Up / healthy
 curl -s localhost:8000/api/v1/health/ready      # every dependency "ok"
 cd backend && uv run python scripts/compose_smoke.py ../.env   # end-to-end smoke (login → onboard → Traccar → Kafka → mandate)

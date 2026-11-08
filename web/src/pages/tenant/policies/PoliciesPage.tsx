@@ -45,6 +45,7 @@ const POLICY_TYPES: readonly PolicyType[] = [
   'ENGINE_HOURS',
   'CUSTOMER_HOURS',
   'REVENUE_RECONCILIATION',
+  'DATA_PROTECTION',
 ];
 const SUBTITLES: Readonly<Record<PolicyType, string>> = {
   TRACKING: 'Tracking: tenant defaults with machine / site overrides',
@@ -65,6 +66,8 @@ const SUBTITLES: Readonly<Record<PolicyType, string>> = {
     'Customer hours: prepaid hours, activation, expiry, approvals and walk-ins (tenant-wide only)',
   REVENUE_RECONCILIATION:
     'Revenue checks: movement hours, daily machine sheet and matching engine hours with money (tenant-wide only)',
+  DATA_PROTECTION:
+    'Data protection: scheduled balance verification and how long exports stay available (tenant-wide only)',
 };
 
 /** Effective policy per type (tenant / machine / site) and its version history. */

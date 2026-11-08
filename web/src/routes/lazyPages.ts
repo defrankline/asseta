@@ -304,3 +304,18 @@ export const DepositAccountDetailPage = lazy(() =>
     default: m.DepositAccountDetailPage,
   })),
 );
+export const DataExportPage = lazy(() =>
+  import('../pages/tenant/dataProtection/DataExportPage').then((m) => ({
+    default: m.DataExportPage,
+  })),
+);
+export const BalanceVerificationPage = lazy(() =>
+  import('../pages/tenant/dataProtection/BalanceVerificationPage').then((m) => ({
+    default: m.BalanceVerificationPage,
+  })),
+);
+export const PlatformBalanceVerificationPage = lazy(() =>
+  import('../pages/platform/balanceVerification/PlatformBalanceVerificationPage').then((m) => ({
+    default: m.PlatformBalanceVerificationPage,
+  })),
+);

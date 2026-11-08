@@ -8,6 +8,7 @@ import { StatusChip } from '../../../components/display/StatusChip';
 import { useNotify } from '../../../notifications/useNotify';
 import { formatInstant } from '../../../utils/dates';
 import { ACCESS_TONES, TENANT_STATUS_TONES, VERIFICATION_TONES } from '../shared/billingDisplay';
+import { GoLiveDialog } from './GoLiveDialog';
 import { VerifyTenantDialog } from './VerifyTenantDialog';
 
 interface CompanyPanelProps {
@@ -18,22 +19,37 @@ interface CompanyPanelProps {
 export function CompanyPanel({ tenant: t, onChanged }: CompanyPanelProps) {
   const notify = useNotify();
   const [verifying, setVerifying] = useState(false);
+  const [goingLive, setGoingLive] = useState(false);
   return (
     <Paper variant="outlined" className="p-4">
       <Stack direction="row" className="mb-3 flex-wrap items-center justify-between gap-2">
         <Typography variant="h6" component="h2">
           Company
         </Typography>
-        <Can permission={PERMISSIONS.platformTenantVerify}>
-          <Button
-            variant="outlined"
-            onClick={() => {
-              setVerifying(true);
-            }}
-          >
-            {t.verification_status === 'VERIFIED' ? 'Change verification' : 'Verify company'}
-          </Button>
-        </Can>
+        <Stack direction="row" className="gap-2">
+          {!t.live_at && (
+            <Can permission={PERMISSIONS.platformTenantGoLive}>
+              <Button
+                variant="outlined"
+                onClick={() => {
+                  setGoingLive(true);
+                }}
+              >
+                Mark as live
+              </Button>
+            </Can>
+          )}
+          <Can permission={PERMISSIONS.platformTenantVerify}>
+            <Button
+              variant="outlined"
+              onClick={() => {
+                setVerifying(true);
+              }}
+            >
+              {t.verification_status === 'VERIFIED' ? 'Change verification' : 'Verify company'}
+            </Button>
+          </Can>
+        </Stack>
       </Stack>
       <KeyValueGrid
         items={[
@@ -60,9 +76,28 @@ export function CompanyPanel({ tenant: t, onChanged }: CompanyPanelProps) {
               </span>
             ),
           },
+          {
+            label: 'Live since',
+            value: t.live_at
+              ? `${formatInstant(t.live_at)}${t.live_note ? ` (${t.live_note})` : ''}`
+              : 'Not live',
+          },
           { label: 'Created', value: formatInstant(t.created_at) },
         ]}
       />
+      {goingLive && (
+        <GoLiveDialog
+          tenant={t}
+          onClose={() => {
+            setGoingLive(false);
+          }}
+          onMarked={() => {
+            setGoingLive(false);
+            notify.success('Tenant marked as live. The data reset tool now refuses it.');
+            onChanged();
+          }}
+        />
+      )}
       {verifying && (
         <VerifyTenantDialog
           tenant={t}

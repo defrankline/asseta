@@ -11,6 +11,7 @@ from asseta.core.clock import system_clock
 from asseta.core.config import get_settings
 from asseta.core.db import get_sessionmaker
 from asseta.core.logging import configure_logging
+from asseta.modules.dataprotection.verification import run_balance_verification_sweep
 from asseta.modules.finance.remittance_cutoff import run_remittance_cutoff
 from asseta.modules.hours.drawdown import run_hours_drawdown
 from asseta.modules.hours.expiry import run_hours_expiry
@@ -76,6 +77,10 @@ def run() -> None:
             run_revenue_reconciliation(get_sessionmaker(), system_clock())
         except Exception:
             log.exception("revenue_reconciliation_cycle_failed")
+        try:  # balance verification (tenant policy DATA_PROTECTION; default off; reports only)
+            run_balance_verification_sweep(get_sessionmaker(), system_clock())
+        except Exception:
+            log.exception("balance_verification_cycle_failed")
         try:
             run_reminders(get_sessionmaker(), system_clock(), publisher, cfg)
         except Exception:

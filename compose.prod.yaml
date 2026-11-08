@@ -319,6 +319,17 @@ services:
     restart: unless-stopped
     logging: *logging
 
+  data-export-worker:
+    image: ${DOCKER_IMAGE_PREFIX:-asseta}/api:${DEPLOY_IMAGE_TAG:-current}
+    command: ["asseta-data-export-worker"]
+    environment: {<<: *api-env, ASSETA_DB_STATEMENT_TIMEOUT_MS: *worker-statement-timeout}
+    healthcheck: {disable: true}
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    mem_limit: 512m
+    restart: unless-stopped
+    logging: *logging
+
   traccar:  # device protocol gateway -> POST /api/v1/telemetry/traccar on the internal network
     image: traccar/traccar:6.10.0@sha256:bff38968f98f4c1739fa2da7b586f9eb03de7968cb8e86c55f31b69d5fbc9a0c
     environment:

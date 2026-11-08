@@ -244,6 +244,15 @@ services:
       redis: {condition: service_started}
       keycloak: {condition: service_healthy}
 
+  data-export-worker:  # DEC-032: builds requested tenant data exports (ZIP in the object store)
+    image: asseta/api:dev
+    command: ["asseta-data-export-worker"]
+    environment: {<<: *api-env, ASSETA_DB_STATEMENT_TIMEOUT_MS: *worker-statement-timeout}
+    healthcheck: {disable: true}
+    restart: unless-stopped
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+
   web:
     build:
       context: ./web

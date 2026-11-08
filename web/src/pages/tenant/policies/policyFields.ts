@@ -6,6 +6,7 @@ import type { PolicyType } from '../../../api/types';
 import { CASH_CUSTODY_FIELDS, OVERSIGHT_FIELDS } from './accountabilityPolicyFields';
 import { CUSTOMER_HOURS_FIELDS } from './customerHoursPolicyFields';
 import { ENGINE_HOURS_FIELDS } from './engineHoursPolicyFields';
+import { DATA_PROTECTION_FIELDS } from './dataProtectionPolicyFields';
 import { REVENUE_RECONCILIATION_FIELDS } from './revenuePolicyFields';
 import { FRAUD_CONTROLS_FIELDS } from './riskPolicyFields';
 
@@ -225,6 +226,7 @@ export const POLICY_FIELDS: Readonly<Record<PolicyType, readonly PolicyFieldDef[
   CUSTOMER_HOURS: CUSTOMER_HOURS_FIELDS,
   ENGINE_HOURS: ENGINE_HOURS_FIELDS,
   REVENUE_RECONCILIATION: REVENUE_RECONCILIATION_FIELDS,
+  DATA_PROTECTION: DATA_PROTECTION_FIELDS,
 };
 
 export const POLICY_TYPE_LABELS: Readonly<Record<PolicyType, string>> = {
@@ -239,6 +241,7 @@ export const POLICY_TYPE_LABELS: Readonly<Record<PolicyType, string>> = {
   CUSTOMER_HOURS: 'Customer hours',
   ENGINE_HOURS: 'Engine hours',
   REVENUE_RECONCILIATION: 'Revenue checks',
+  DATA_PROTECTION: 'Data protection',
 };
 
 export type OverrideScope = 'TENANT' | 'MACHINE_CATEGORY' | 'MACHINE' | 'SITE' | 'STAFF';
@@ -296,6 +299,7 @@ const SCOPE_FIELDS: Readonly<Record<PolicyType, LowerScopeFields | null>> = {
   OVERSIGHT: null,
   CUSTOMER_HOURS: null,
   REVENUE_RECONCILIATION: null,
+  DATA_PROTECTION: null,
   FRAUD_CONTROLS: {
     MACHINE: new Set([
       'engine_activity_min_minutes',

@@ -5,6 +5,9 @@ compose network (database and object-store settings come from that container's e
   reset_tenant_data.py (--registration-number N | --tenant-id UUID)               dry run: prints what would happen
   reset_tenant_data.py (--registration-number N | --tenant-id UUID) --yes --backup-confirmed --operator WHO
 
+A tenant marked live (Platform -> tenant -> Mark live, `tenant.live_at`) is refused: its records are real. A deliberate
+`--override-live` plus a typed confirmation lets the reset run and is recorded in the audit event (`live_override`).
+
 KEPT: the tenant row and its settings, the Asseta subscription and platform-billing records (agreements, rate versions,
 subscriptions, status/entitlement events, platform invoices, payments, credits, SMS wallet), the role mirror and
 tenant memberships (Keycloak accounts and their groups are never touched), staff records with their login links,
@@ -129,6 +132,8 @@ DELETE: frozenset[str] = frozenset(
         "revenue_difference", "revenue_difference_adjustment", "revenue_reason",
         # adjustments ledger (Ledger 6) and its propose/decide flow
         "adjustment_ledger_entry", "adjustment_request",
+        # data protection: export jobs and balance verification runs of the erased records
+        "tenant_data_export", "balance_verification_run",
         # intelligence: cases, signals, insights, ML trained on the tenant's data
         "anomaly_case", "anomaly_case_counter", "case_note", "case_outcome", "case_signal", "risk_signal",
         "feature_snapshot", "prediction", "inference_audit", "model_version", "model_approval", "model_evaluation",
@@ -193,6 +198,7 @@ class Tenant:
     display_name: str
     legal_name: str
     registration_number: str | None
+    live_at: datetime | None = None
 
 
 @dataclass
@@ -283,11 +289,11 @@ def find_tenant(conn: psycopg.Connection[Any], registration_number: str | None, 
         if tid == NIL_TENANT:
             raise Refuse("refusing the platform scope (nil tenant id): platform data is never reset")
         rows = conn.execute(
-            "SELECT id, display_name, legal_name, registration_number FROM tenant WHERE id = %s", (tid,)
+            "SELECT id, display_name, legal_name, registration_number, live_at FROM tenant WHERE id = %s", (tid,)
         ).fetchall()
     else:
         rows = conn.execute(
-            "SELECT id, display_name, legal_name, registration_number FROM tenant "
+            "SELECT id, display_name, legal_name, registration_number, live_at FROM tenant "
             "WHERE lower(trim(registration_number)) = lower(trim(%s))",
             (registration_number,),
         ).fetchall()
@@ -299,10 +305,10 @@ def find_tenant(conn: psycopg.Connection[Any], registration_number: str | None, 
         )
     if len(rows) > 1:
         raise Refuse("more than one tenant matches; use --tenant-id")
-    tid, display, legal, reg = rows[0]
+    tid, display, legal, reg, live_at = rows[0]
     if tid == NIL_TENANT:
         raise Refuse("refusing the platform scope (nil tenant id): platform data is never reset")
-    return Tenant(tid, display, legal, reg)
+    return Tenant(tid, display, legal, reg, live_at)
 
 
 # --- counting (dry run and the report) --------------------------------------------------------------------------------
@@ -367,6 +373,8 @@ def print_report(r: Report, out: Any = sys.stdout) -> None:
 
     p(f"Tenant: {t.display_name} (legal name {t.legal_name}; registration {t.registration_number or '-'})")
     p(f"Tenant id: {t.id}")
+    if t.live_at is not None:
+        p(f"LIVE TENANT: marked live on {t.live_at.isoformat()}. A reset is refused without --override-live.")
     p("")
     p("WOULD DELETE (rows of this tenant):")
     for table in sorted(r.delete_counts):
@@ -458,6 +466,7 @@ def reset(
     backup_ref: str,
     objects: int | None,
     now: datetime | None = None,
+    live_override: dict[str, Any] | None = None,
 ) -> Report:
     """The whole database part in ONE transaction (the caller's connection must not be inside one)."""
     now = now or datetime.now(UTC)
@@ -529,6 +538,8 @@ def reset(
             "objects_to_delete": objects,
             "trackers": [{"adapter": a, "external_id": e, "label": lb} for a, e, lb in before.trackers],
         }
+        if live_override is not None:  # the tenant was live: the deliberate override is part of the permanent record
+            details["live_override"] = live_override
         conn.execute(
             "INSERT INTO audit_event (id, occurred_at, tenant_id, actor_user_id, actor_roles, device_id, source,"
             " action, entity_type, entity_id, before, after, reason, correlation_id)"
@@ -541,7 +552,11 @@ def reset(
                 AUDIT_ACTION,
                 str(tid),
                 json.dumps(details),
-                f"Tenant data reset before go-live by {operator} (scripts/reset-tenant-data.sh)",
+                (
+                    f"LIVE tenant data reset, deliberate override by {operator} (scripts/reset-tenant-data.sh)"
+                    if live_override is not None
+                    else f"Tenant data reset before go-live by {operator} (scripts/reset-tenant-data.sh)"
+                ),
                 str(uuid.uuid4()),
             ),
         )
@@ -643,6 +658,30 @@ def confirm_name(tenant: Tenant) -> None:
         raise Refuse("the name typed does not match; nothing was changed")
 
 
+def require_live_override(tenant: Tenant, override: bool, typed: str | None = None) -> dict[str, Any] | None:
+    """A live tenant is refused unless the operator asked for the override and typed the exact phrase. `typed` skips
+    the prompt (tests); returns what the audit event records, or None for a tenant that is not live."""
+    if tenant.live_at is None:
+        return None
+    if not override:
+        raise Refuse(
+            f"{tenant.display_name} is marked LIVE since {tenant.live_at.isoformat()}: its data is real. "
+            "Nothing was changed. Only with an explicit decision to erase a live company, add --override-live."
+        )
+    phrase = f"ERASE LIVE {tenant.display_name}"
+    if typed is None:
+        if not sys.stdin.isatty():
+            raise Refuse("overriding the live lock needs an interactive terminal; nothing was changed")
+        print(f"\nWARNING: {tenant.display_name} is a LIVE company. This erases its real records.")
+        try:
+            typed = input(f"Type exactly ({phrase}) to continue: ")
+        except EOFError:
+            typed = ""
+    if typed != phrase:
+        raise Refuse("the live-override confirmation does not match; nothing was changed")
+    return {"live_at": tenant.live_at.isoformat(), "confirmation": phrase}
+
+
 def main(argv: list[str]) -> int:
     p = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     who = p.add_mutually_exclusive_group(required=True)
@@ -655,6 +694,9 @@ def main(argv: list[str]) -> int:
     p.add_argument("--state-dir", default="/out", help="demo seeder state files (moved aside after the reset)")
     p.add_argument("--no-objects", action="store_true", help="do not count/delete object-store objects")
     p.add_argument("--remove-traccar-devices", action="store_true", help="also delete the trackers' Traccar devices")
+    p.add_argument(
+        "--override-live", action="store_true", help="deliberately reset a tenant marked live (typed phrase; audited)"
+    )
     a = p.parse_args(argv)
 
     store: ObjectStore | None = None if a.no_objects else S3Store()
@@ -672,9 +714,18 @@ def main(argv: list[str]) -> int:
             raise Refuse("no recent backup confirmed: run scripts/backup-live.sh first (or pass --backup-confirmed)")
         if not a.operator.strip():
             raise Refuse("--operator is required for a real reset (recorded in the audit event)")
+        live_override = require_live_override(tenant, a.override_live)
         print("")
         confirm_name(tenant)
-        result = reset(conn, tenant, plan, a.operator.strip(), backup_ref=a.backup_ref, objects=report.objects)
+        result = reset(
+            conn,
+            tenant,
+            plan,
+            a.operator.strip(),
+            backup_ref=a.backup_ref,
+            objects=report.objects,
+            live_override=live_override,
+        )
     print(f"\nDATABASE RESET OK: {result.total_deleted} rows deleted, {result.devices} device session(s) revoked.")
     if store is not None:
         try:

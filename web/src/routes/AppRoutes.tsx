@@ -73,6 +73,9 @@ import {
   TrackersPage,
   DashboardPage,
   SetupChecklistPage,
+  DataExportPage,
+  BalanceVerificationPage,
+  PlatformBalanceVerificationPage,
   AccountabilityPage,
   SecurityEventsPage,
   SyncConflictsPage,
@@ -235,6 +238,18 @@ export function AppRoutes() {
         <Route
           path={ROUTES.tenantDashboard}
           element={guard(PERMISSIONS.tenantFleetRead, <DashboardPage />)}
+        />
+        <Route
+          path={ROUTES.tenantDataExport}
+          element={guard(PERMISSIONS.tenantDataExport, <DataExportPage />)}
+        />
+        <Route
+          path={ROUTES.tenantBalanceVerification}
+          element={guard(PERMISSIONS.tenantBalanceRead, <BalanceVerificationPage />)}
+        />
+        <Route
+          path={ROUTES.platformBalanceVerification}
+          element={guard(PERMISSIONS.platformBalanceRead, <PlatformBalanceVerificationPage />)}
         />
         <Route
           path={ROUTES.tenantSetup}

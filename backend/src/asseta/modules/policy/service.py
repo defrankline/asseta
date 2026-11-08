@@ -20,6 +20,7 @@ from asseta.core.audit import AuditActor, AuditService
 from asseta.core.db import utcnow
 from asseta.core.errors import BusinessRuleViolation, ErrorDetail
 from asseta.modules.fleet.models import Machine
+from asseta.modules.policy.data_protection import DataProtectionPolicy
 from asseta.modules.policy.engine_hours import EngineHoursPolicy
 from asseta.modules.policy.models import PolicyVersion
 from asseta.modules.policy.revenue import RevenueReconciliationPolicy
@@ -232,6 +233,11 @@ class PolicyService:
             EffectivePolicy[RevenueReconciliationPolicy],
             self.resolve(PolicyType.REVENUE_RECONCILIATION, tenant_id, at=at),
         )
+
+    def data_protection(
+        self, tenant_id: uuid.UUID, at: datetime | None = None
+    ) -> EffectivePolicy[DataProtectionPolicy]:
+        return cast(EffectivePolicy[DataProtectionPolicy], self.resolve(PolicyType.DATA_PROTECTION, tenant_id, at=at))
 
     def engine_hours(
         self, tenant_id: uuid.UUID, machine_id: uuid.UUID | None = None, at: datetime | None = None

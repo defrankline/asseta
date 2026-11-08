@@ -4,6 +4,7 @@ exercised against a live Keycloak in tests/integration."""
 
 import secrets
 import uuid
+from pathlib import Path
 
 from asseta.modules.identity.idp import CreatedUser, GroupMember, RoleGroup
 
@@ -73,6 +74,12 @@ class InMemoryObjectStore:
 
     def put_immutable(self, key: str, data: bytes, content_type: str, sha256: str) -> None:
         self.objects.setdefault(key, (data, content_type, sha256))
+
+    def put_file(self, key: str, path: Path, content_type: str, sha256: str) -> None:
+        self.objects[key] = (path.read_bytes(), content_type, sha256)
+
+    def delete(self, key: str) -> None:
+        self.objects.pop(key, None)
 
     def get_bytes(self, key: str) -> bytes:
         if key not in self.objects:

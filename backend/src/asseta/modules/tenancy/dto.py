@@ -61,6 +61,8 @@ class TenantDto(BaseModel):
     access_state: TenantAccessState
     access_state_reason: str | None
     created_at: datetime
+    live_at: datetime | None = None
+    live_note: str | None = None
     version: int = 1
 
 

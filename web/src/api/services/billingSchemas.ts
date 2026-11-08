@@ -108,6 +108,8 @@ export const tenantSchema: Schema<TenantDto> = object({
   access_state_reason: nullableText(),
   verification_status: oneOf(VERIFICATION_STATUSES),
   created_at: string().required(),
+  live_at: string().nullable(),
+  live_note: string().nullable(),
   version: int(),
 });
 

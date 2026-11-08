@@ -22,7 +22,7 @@ export COMPOSE_PROJECT_NAME DOCKER_IMAGE_PREFIX BUILDX_NO_DEFAULT_ATTESTATIONS
 # shellcheck disable=SC2034 # APP_SERVICES / WRITER_SERVICES are used by the scripts that source this file
 # The services that run the app image; recreated on every deploy. Infra services are only ever `up -d`'d.
 APP_SERVICES=(api outbox-relay billing-scheduler timeline-worker connectivity-worker intelligence-worker
-  notification-worker notification-scheduler)
+  notification-worker notification-scheduler data-export-worker)
 # shellcheck disable=SC2034
 WRITER_SERVICES=("${APP_SERVICES[@]}" traccar)
 
