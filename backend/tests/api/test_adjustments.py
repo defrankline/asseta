@@ -204,6 +204,19 @@ def test_refund_policy_credit_and_payout_with_balances(api: Api) -> None:
     # Pay-out: the money leaves; the balance goes back up and free credit stays honest.
     missing = _propose(f.accountant, request_type="HOURS_REFUND", purchase_id=p["id"], hours="1", settlement="PAY_OUT")
     _err(missing, 422, "REFUND_PAYOUT_REQUIRED")
+    stranger = {"method": "CASH", "staff_member_id": str(uuid.uuid4())}
+    _err(
+        _propose(
+            f.accountant,
+            request_type="HOURS_REFUND",
+            purchase_id=p["id"],
+            hours="1",
+            settlement="PAY_OUT",
+            payout=stranger,
+        ),
+        404,
+        "STAFF_NOT_FOUND",
+    )
     r2 = _ok(
         _propose(
             f.manager,

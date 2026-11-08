@@ -33,6 +33,7 @@ from asseta.modules.adjustments.reversals import ReversalEngine, used_hours_of
 from asseta.modules.finance.dto import HireInvoiceVoidIn
 from asseta.modules.finance.invoice_service import HireInvoiceService
 from asseta.modules.finance.models import CustomerPayment, HireInvoiceStatus, HirePaymentMethod, TenantHireInvoice
+from asseta.modules.fleet.models import StaffMember
 from asseta.modules.hours.engine import TOPIC as HOURS_TOPIC
 from asseta.modules.hours.engine import HoursEngine
 from asseta.modules.hours.ledger import purchase_totals
@@ -267,6 +268,9 @@ class AdjustmentRequests:
             if body.settlement is RefundSettlement.PAY_OUT and body.payout is None:
                 raise BusinessRuleViolation("Record how the refund is paid out", code="REFUND_PAYOUT_REQUIRED")
             fields["settlement"] = body.settlement
+            if body.payout is not None and body.payout.staff_member_id is not None:
+                if self._s.get(StaffMember, body.payout.staff_member_id) is None:
+                    raise NotFound("Staff member not found", code="STAFF_NOT_FOUND")
             if body.payout is not None:
                 fields["params"]["payout"] = body.payout.model_dump(mode="json", exclude_none=True)
             fields["amount"] = self.hours.check_refund(purchase, machine_id, body.hours, totals)
