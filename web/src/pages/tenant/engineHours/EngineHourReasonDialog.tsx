@@ -19,7 +19,7 @@ interface ReasonValues {
 
 const schema: ObjectSchema<ReasonValues> = object({
   kind: mixed<EngineHourReasonKind | ''>()
-    .oneOf(['NON_CUSTOMER_CATEGORY', 'VARIANCE_REASON'], 'Choose the list')
+    .oneOf(['NON_CUSTOMER_CATEGORY', 'VARIANCE_REASON', 'UNBILLABLE_REASON'], 'Choose the list')
     .required('Choose the list'),
   code: string().trim().required('Code is required').max(32, 'At most 32 characters'),
   name: string().trim().required('Name is required').max(120, 'At most 120 characters'),
@@ -69,7 +69,7 @@ export function EngineHourReasonDialog({
           if (reason === undefined) {
             const body = {
               ...fields,
-              kind: v.kind === 'VARIANCE_REASON' ? 'VARIANCE_REASON' : 'NON_CUSTOMER_CATEGORY',
+              kind: v.kind === '' ? 'NON_CUSTOMER_CATEGORY' : v.kind,
             } as const;
             onSaved(await engineHoursService.createReason(body, keyFor(body)));
           } else {

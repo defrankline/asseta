@@ -119,6 +119,13 @@ export function MoneyLines({ money }: { money: readonly SheetMoneyDto[] }) {
               · <MoneyText amount={m.difference} currency={m.currency} strong /> difference
             </>
           )}
+          {!isZeroDecimal(m.value_at_risk) && (
+            <>
+              {' '}
+              · <MoneyText amount={m.value_at_risk} currency={m.currency} /> value at risk (
+              {m.unexplained_hours} h, not in expected)
+            </>
+          )}
         </Typography>
       ))}
     </Box>

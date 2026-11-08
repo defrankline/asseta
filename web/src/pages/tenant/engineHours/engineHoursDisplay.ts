@@ -91,11 +91,13 @@ export const OUTCOME_REASON_KIND: Readonly<Record<ClassificationOutcome, EngineH
 export const REASON_KIND_LABELS: Readonly<Record<EngineHourReasonKind, string>> = {
   NON_CUSTOMER_CATEGORY: 'Non-customer activity category',
   VARIANCE_REASON: 'Variance reason',
+  UNBILLABLE_REASON: 'Unbillable reason',
 };
 
 export const REASON_KIND_OPTIONS: readonly Option<EngineHourReasonKind>[] = [
   { value: 'NON_CUSTOMER_CATEGORY', label: 'Non-customer activity category' },
   { value: 'VARIANCE_REASON', label: 'Variance reason' },
+  { value: 'UNBILLABLE_REASON', label: 'Unbillable reason (daily reports)' },
 ];
 
 export const REVIEW_LABELS: Readonly<Record<ReadingReview, string>> = {
@@ -146,6 +148,25 @@ export const ENGINE_HOURS_ERROR_HINTS: Readonly<Record<string, string>> = {
   CAPTURE_ID_CONFLICT:
     'This reading was already recorded with different values; close the dialog and start again.',
   STALE_VERSION: 'Someone else changed this record; reload and try again.',
+  // DEC-032 Phase 1: work allocation corrections, daily reports, changeovers.
+  ALLOCATION_PARTS_MISMATCH: "The parts must add up to the entry's hours.",
+  ALLOCATION_CORRECTION_PENDING: 'A correction of this entry already awaits a decision.',
+  ALLOCATION_NOT_ACTIVE: 'Only an active entry can be corrected; reload to see the current one.',
+  ALLOCATION_CUSTOMER_REQUIRED: 'Customer work names its customer; other kinds name none.',
+  REPORT_READINGS_INVALID:
+    "The report's readings are no longer valid for that day; reload and try again.",
+  REPORT_HOURS_EXCEED_TOTAL:
+    'Billable and unbillable hours are more than the hours between the readings.',
+  REPORT_ID_CONFLICT:
+    'This report was already submitted with different values; close and start again.',
+  REPORT_NOT_SUPERSEDABLE:
+    'Only a submitted or returned report for the same machine and day can be replaced.',
+  REPORT_EVIDENCE_REQUIRED: 'Your company requires a photo with daily reports; attach one.',
+  REPORT_ALREADY_REVIEWED: 'This report has already been reviewed; reload to see the outcome.',
+  CHANGEOVER_NOT_ALLOWED: 'A changeover is recorded on the job currently running.',
+  CHANGEOVER_SAME_CUSTOMER: 'The machine is already working for this customer.',
+  CHANGEOVER_JOB_REQUIRED: 'Your company bills changeovers: name the job the machine moves on to.',
+  CHANGEOVER_JOB_INVALID: 'Choose a job of the next customer on the same machine.',
 };
 
 /** An unallocated segment that can be explained now (verified, unexplained, nothing proposed). */

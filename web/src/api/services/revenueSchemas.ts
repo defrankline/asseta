@@ -70,6 +70,7 @@ const moneySchema: Schema<SheetMoneyDto> = object({
   difference: text(),
   unexplained_hours: optionalDecimal(),
   unexplained_expected: optionalDecimal(),
+  value_at_risk: optionalDecimal(),
 });
 
 const jobSchema: Schema<SheetJobDto> = object({
@@ -216,6 +217,7 @@ export const revenueDifferenceSchema: Schema<RevenueDifferenceDto> = object({
   non_revenue_hours: text(),
   unexplained_hours: text(),
   unexplained_expected_amount: text(),
+  value_at_risk_amount: optionalDecimal(),
   detail: record(),
   status: oneOf(DIFFERENCE_STATUSES),
   case_id: nullableId(),

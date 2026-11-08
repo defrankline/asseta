@@ -21,6 +21,9 @@ export const RECORD_LIST_ROUTES = {
   METER_BASELINE: '/tenant/meter-baselines',
   METER_CORRECTION: '/tenant/meter-corrections',
   ENGINE_HOURS_CLASSIFICATION: '/tenant/engine-hours/classifications',
+  WORK_ALLOCATION: '/tenant/work-allocations',
+  WORK_ALLOCATION_CORRECTION: '/tenant/work-allocations/corrections',
+  DAILY_REPORT: '/tenant/daily-reports',
   REVENUE_DIFFERENCE: '/tenant/revenue-differences',
   NON_REVENUE_APPROVAL: '/tenant/non-revenue-approvals',
 } as const;
@@ -56,6 +59,8 @@ export const RECORD_KIND_BY_ENTITY: Readonly<Record<string, RecordKind>> = {
   baseline: 'METER_BASELINE',
   correction: 'METER_CORRECTION',
   classification: 'ENGINE_HOURS_CLASSIFICATION',
+  correction_group: 'WORK_ALLOCATION_CORRECTION',
+  daily_report: 'DAILY_REPORT',
   revenue_difference: 'REVENUE_DIFFERENCE',
   non_revenue_approval: 'NON_REVENUE_APPROVAL',
 };

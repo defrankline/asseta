@@ -46,6 +46,7 @@ export const BASELINE_SOURCES: readonly BaselineSource[] = ['CAPTURE', 'READING'
 export const REASON_KINDS: readonly EngineHourReasonKind[] = [
   'NON_CUSTOMER_CATEGORY',
   'VARIANCE_REASON',
+  'UNBILLABLE_REASON',
 ];
 export const RECONCILIATION_STATUSES: readonly ReconciliationStatus[] = [
   'NO_BASELINE',
@@ -146,6 +147,7 @@ const intervalSchema: Schema<IntervalDto> = object({
   hours: text(),
   raw_hours: text(),
   reset_applied: bool(),
+  possible_meter_reset: bool(),
   inconsistent: bool(),
   review: oneOf(READING_REVIEWS),
   opened_at: text(),

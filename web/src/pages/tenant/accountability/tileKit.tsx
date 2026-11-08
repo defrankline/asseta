@@ -42,6 +42,23 @@ export function perCurrency(key: string, rows: readonly CountAmountDto[], to?: s
   }));
 }
 
+/** DEC-032 A5: unexplained hours x rate per currency, always apart from expected and shortfall. */
+export function valueAtRiskRows(raw: unknown, to?: string): KpiRow[] {
+  return asList(raw)
+    .filter((r) => asText(r.amount) !== '0' && Number(asText(r.amount)) !== 0)
+    .map((r) => {
+      const currency = asText(r.currency, '');
+      const amount = asText(r.amount);
+      return {
+        key: `value-at-risk-${currency}`,
+        label: `Value at risk (${currency}, not in expected)`,
+        value: <MoneyText amount={amount} currency={currency} />,
+        valueText: formatMoney(amount, currency),
+        to,
+      };
+    });
+}
+
 export const totalCount = (rows: readonly CountAmountDto[]) =>
   rows.reduce((n, r) => n + r.count, 0);
 

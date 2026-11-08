@@ -89,6 +89,7 @@ function makeInterval(overrides: Partial<IntervalDto> = {}): IntervalDto {
     hours: '12.5',
     raw_hours: '12.5',
     reset_applied: false,
+    possible_meter_reset: false,
     inconsistent: false,
     review: 'VERIFIED',
     opened_at: '2026-10-21T18:00:00Z',

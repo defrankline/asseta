@@ -115,14 +115,22 @@ function LedgerView({ data, timeZone, onChanged }: LedgerViewProps) {
       id: 'hours',
       header: 'Hours',
       align: 'right',
-      render: (i) =>
-        i.reset_applied ? (
-          <Tooltip title={`Meter reset applied; raw difference ${i.raw_hours} h`}>
-            <span className="font-mono">{i.hours}*</span>
-          </Tooltip>
-        ) : (
-          <span className="font-mono">{i.hours}</span>
-        ),
+      render: (i) => (
+        <>
+          {i.reset_applied ? (
+            <Tooltip title={`Meter reset applied; raw difference ${i.raw_hours} h`}>
+              <span className="font-mono">{i.hours}*</span>
+            </Tooltip>
+          ) : (
+            <span className="font-mono">{i.hours}</span>
+          )}
+          {i.possible_meter_reset && (
+            <Tooltip title="The meter went down with no approved reset. Record a meter reset, or correct the reading.">
+              <Chip size="small" color="warning" label="Possible meter reset" sx={{ ml: 1 }} />
+            </Tooltip>
+          )}
+        </>
+      ),
     },
     {
       id: 'breakdown',

@@ -14,6 +14,7 @@ import {
 } from '@mui/material';
 import { useCallback, useState } from 'react';
 import { Link as RouterLink, useParams } from 'react-router';
+import { CAPABILITY, useCapabilityEnabled } from '../../../access/capabilities';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import { useMutationGuard } from '../../../access/useCanMutate';
 import { jobService } from '../../../api/services/jobService';
@@ -50,6 +51,7 @@ import { labelOf } from '../shared/display';
 import { ACTIVITY_TYPE_OPTIONS, JOB_STATUS_OPTIONS, JOB_TRANSITIONS } from '../shared/jobDisplay';
 import { useJobSites } from '../shared/useJobSites';
 import { CaptureResultPanel } from './CaptureResultPanel';
+import { ChangeoverReadingDialog } from './ChangeoverReadingDialog';
 import { useFieldMachineLabels } from './fieldLookups';
 import { JobCostsTab } from './JobCostsTab';
 import {
@@ -63,6 +65,7 @@ import {
 type TabKey = 'readings' | 'worklog' | 'ack' | 'costs' | 'resets';
 type Dialog =
   | { kind: 'reading'; reading: ReadingKind }
+  | { kind: 'changeover' }
   | { kind: 'transition'; def: TransitionDef }
   | { kind: 'ack' }
   | { kind: 'activity' }
@@ -145,6 +148,7 @@ export function FieldJobPage() {
   };
   const job = resource.data?.summary.job ?? null;
   const canCapture = canMutate(PERMISSIONS.tenantMeterCapture);
+  const engineHoursOn = useCapabilityEnabled(CAPABILITY.engineHours);
   const canLog = canMutate(PERMISSIONS.tenantJobLog);
   const canSpend = canMutate(PERMISSIONS.tenantExpenseWrite);
   const working = job !== null && (job.status === 'APPROVED' || job.status === 'IN_PROGRESS');
@@ -227,6 +231,16 @@ export function FieldJobPage() {
                   <Typography variant="body1">{STEP_TEXT[step]}</Typography>
                   <Box className="flex flex-wrap items-center gap-2">
                     {stepAction(step)}
+                    {canCapture && engineHoursOn && j.status === 'IN_PROGRESS' && (
+                      <Button
+                        variant="outlined"
+                        onClick={() => {
+                          setDialog({ kind: 'changeover' });
+                        }}
+                      >
+                        Record changeover
+                      </Button>
+                    )}
                     {working && canLog && (
                       <Button
                         variant="outlined"
@@ -330,6 +344,17 @@ export function FieldJobPage() {
           job={job}
           kind={dialog.reading}
           variant="field"
+          onClose={close}
+          onRecorded={(r) => {
+            setLastResult(r);
+            setTab('readings');
+            changed();
+          }}
+        />
+      )}
+      {job !== null && dialog?.kind === 'changeover' && (
+        <ChangeoverReadingDialog
+          job={job}
           onClose={close}
           onRecorded={(r) => {
             setLastResult(r);

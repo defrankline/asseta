@@ -182,6 +182,15 @@ function Sections({ d, timeZone }: { d: DailyMachineSheetDetailDto; timeZone: st
                     ),
                   },
                   {
+                    label: 'Value at risk (apart from expected)',
+                    value: (
+                      <>
+                        <MoneyText amount={m.value_at_risk} currency={m.currency} /> (
+                        {m.unexplained_hours} h unexplained)
+                      </>
+                    ),
+                  },
+                  {
                     label: 'Work in progress',
                     value: <MoneyText amount={m.in_progress} currency={m.currency} />,
                   },

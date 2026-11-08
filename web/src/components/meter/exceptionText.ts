@@ -16,7 +16,7 @@ export const EXCEPTION_TYPE_LABELS: Readonly<Record<ExceptionType, string>> = {
   PHOTO_MISSING: 'Meter photo missing',
   LOW_OCR_CONFIDENCE: 'Low OCR confidence',
   MANUAL_CORRECTION: 'Reading differs from OCR',
-  METER_DECREASE: 'Meter reading decreased',
+  METER_DECREASE: 'Possible meter reset (reading decreased)',
   IMPOSSIBLE_INCREMENT: 'Increment exceeds elapsed time',
   CONTINUITY_GAP: 'Gap since previous job',
   DUPLICATE_IMAGE: 'Photo reused',
@@ -25,6 +25,7 @@ export const EXCEPTION_TYPE_LABELS: Readonly<Record<ExceptionType, string>> = {
   POLICY_SNAPSHOT_UNVERIFIED: 'Offline policy not confirmed',
   HOURS_OVERRUN: 'Hours beyond what the customer has active',
   MISSING_DAILY_REPORT: 'Daily report missing',
+  DUPLICATE_DAILY_REPORT: 'Repeat daily report',
   UNEXPLAINED_HOURS: 'Engine hours not yet explained',
   OVERLAPPING_ALLOCATION: 'Job intervals overlap',
 };
@@ -100,7 +101,7 @@ const EXPLAIN: Readonly<Record<ExceptionType, Explainer>> = {
     `On-device OCR confidence was ${g('ocr_confidence')}; the policy minimum is ${g('minimum')}.`,
   MANUAL_CORRECTION: (g) => `OCR read ${g('ocr_value')} but ${g('entered_value')} was entered.`,
   METER_DECREASE: (g) =>
-    `Reading ${g('reading')} is lower than the machine's previous valid reading ${g('previous_reading')} ` +
+    `Possible meter reset. Reading ${g('reading')} is lower than the machine's previous valid reading ${g('previous_reading')} ` +
     `(${g('previous_at')}). An approved meter reset would explain a legitimate decrease.`,
   IMPOSSIBLE_INCREMENT: (g) =>
     `The meter advanced ${g('delta_hours')} h in ${g('elapsed_hours')} h of elapsed time, ` +
@@ -127,6 +128,8 @@ const EXPLAIN: Readonly<Record<ExceptionType, Explainer>> = {
         `(drawn day by day). New activated hours cover them, or the final allocation at completion replaces this.`
       : `${g('excess_hours')} of ${g('billable_hours')} billable hours were not covered by the customer's activated ` +
         `hours on this machine; new activated hours cover them, or a reviewer records the outcome.`,
+  DUPLICATE_DAILY_REPORT: (g) =>
+    `A daily report for ${g('day')} already exists for this machine. This one is kept and flagged, not overwritten.`,
   MISSING_DAILY_REPORT: (g) =>
     `The machine worked on ${g('day')} but no meter reading was recorded before ${g('cutoff_hour')}:00 ` +
     `(basis: ${g('basis')}).`,

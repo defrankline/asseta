@@ -19,6 +19,7 @@ import {
   count,
   linkIf,
   perCurrency,
+  valueAtRiskRows,
   totalCount,
   type Can,
   type Tile,
@@ -172,15 +173,18 @@ export function buildTiles(
       valueText: `${asText(u.hours)} hours`,
       to: engineList(ENGINE_UNALLOCATED),
       description: `${String(asNumber(u.machines))} machines with hours not yet explained`,
-      rows: asList(u.items)
-        .slice(0, 5)
-        .map((i) => ({
-          key: asText(i.machine_id, ''),
-          label: `${asText(i.machine_code, '')} (oldest ${String(asNumber(i.oldest_open_item_days))} d)`,
-          value: asText(i.unexplained_hours),
-          valueText: `${asText(i.unexplained_hours)} hours`,
-          to: engineOne(asText(i.machine_id, '')),
-        })),
+      rows: [
+        ...valueAtRiskRows(u.value_at_risk, engineList(ENGINE_UNALLOCATED)),
+        ...asList(u.items)
+          .slice(0, 5)
+          .map((i) => ({
+            key: asText(i.machine_id, ''),
+            label: `${asText(i.machine_code, '')} (oldest ${String(asNumber(i.oldest_open_item_days))} d)`,
+            value: asText(i.unexplained_hours),
+            valueText: `${asText(i.unexplained_hours)} hours`,
+            to: engineOne(asText(i.machine_id, '')),
+          })),
+      ],
     });
   }
   if (engineHours && s.missing_daily_reports) {

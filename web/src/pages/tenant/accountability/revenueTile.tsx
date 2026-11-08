@@ -13,6 +13,7 @@ import {
   count,
   linkIf,
   perCurrency,
+  valueAtRiskRows,
   type Can,
   type Tile,
 } from './tileKit';
@@ -50,6 +51,7 @@ export function revenueDifferencesTile(s: AccountabilitySummaryDto, can: Can): T
       count('open', 'To explain', open, list('OPEN')),
       count('awaiting', 'Explanations awaiting decision', awaiting, list('EXPLANATION_PROPOSED')),
       ...perCurrency('amounts', amounts, list('')),
+      ...valueAtRiskRows(r.value_at_risk),
       count(
         'explained',
         `Explained (last ${String(asNumber(r.window_days))} days)`,

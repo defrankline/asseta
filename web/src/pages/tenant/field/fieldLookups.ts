@@ -31,6 +31,22 @@ export const searchMyJobs = async (q: string, signal: AbortSignal): Promise<JobD
 export const searchAllJobs = async (q: string, signal: AbortSignal): Promise<JobDto[]> =>
   (await jobService.list({ page: 1, page_size: LOOKUP_PAGE_SIZE, q }, signal)).items;
 
+/** Jobs running now that the caller may record on (every running job for job managers). */
+export const searchRunningJobs =
+  (all: boolean) =>
+  async (q: string, signal: AbortSignal): Promise<JobDto[]> =>
+    (
+      await jobService.list(
+        {
+          page: 1,
+          page_size: LOOKUP_PAGE_SIZE,
+          q,
+          filters: { status: 'IN_PROGRESS', mine: all ? undefined : 'true' },
+        },
+        signal,
+      )
+    ).items;
+
 export const searchFieldMachines = (q: string, signal: AbortSignal): Promise<MachineDto[]> =>
   jobService.fieldMachines(q.trim() === '' ? undefined : q, signal);
 

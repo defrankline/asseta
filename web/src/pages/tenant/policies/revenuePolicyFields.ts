@@ -45,8 +45,9 @@ export const REVENUE_RECONCILIATION_FIELDS: readonly PolicyFieldDef[] = [
     options: [
       { value: 'EXPECT_REVENUE', label: 'Expected as revenue until approved' },
       { value: 'EXCLUDE', label: 'Shown only' },
+      { value: 'VALUE_AT_RISK', label: 'Show as value at risk (never in expected revenue)' },
     ],
-    help: 'Engine hours outside jobs count as expected revenue until approved as non-customer activity.',
+    help: 'Value at risk: hours × rate are shown apart from expected revenue and differences. Expected as revenue: they count until approved as non-customer activity.',
   },
   {
     key: 'unexplained_hours_rate_source',

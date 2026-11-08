@@ -41,6 +41,8 @@ export function makeJob(overrides: Partial<JobDto> = {}): JobDto {
   };
 }
 
+const CHANGEOVER_FIELDS = { changeover_carried_hours: '0.00' };
+
 export function makeSummary(overrides: Partial<JobSummaryDto> = {}): JobSummaryDto {
   return {
     job: makeJob({ status: 'COMPLETED' }),
@@ -50,6 +52,7 @@ export function makeSummary(overrides: Partial<JobSummaryDto> = {}): JobSummaryD
     nonbillable_hours: '1.50',
     billable_hours: '8.0',
     standby_hours: '0.00',
+    ...CHANGEOVER_FIELDS,
     open_exceptions: 1,
     blocking_exceptions: 1,
     billing_ready: false,

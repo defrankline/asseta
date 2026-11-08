@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import type { FieldContractDto, JobDto, MachineDto } from '../../../api/types';
 import { FormikAsyncIdAutocomplete } from '../../../components/forms/FormikAsyncIdAutocomplete';
@@ -12,6 +13,7 @@ import {
   searchAllMachines,
   searchFieldMachines,
   searchMyJobs,
+  searchRunningJobs,
   useSeesAllJobs,
 } from './fieldLookups';
 import { fieldContractLabel } from './requestJob';
@@ -36,6 +38,22 @@ export function FormikFieldJobIdPicker(props: IdPickerProps<JobDto>) {
       getOptionId={optionId}
       getOptionLabel={jobOptionLabel}
       noOptionsText={all ? 'No matching jobs' : 'No matching jobs assigned to you'}
+    />
+  );
+}
+
+/** Running job picker: the caller's own, or every running job for job managers. */
+export function FormikRunningJobIdPicker(props: IdPickerProps<JobDto>) {
+  const all = useSeesAllJobs();
+  const search = useMemo(() => searchRunningJobs(all), [all]);
+  return (
+    <FormikAsyncIdAutocomplete<JobDto>
+      {...props}
+      fetchOptions={search}
+      resolveOption={resolveJob}
+      getOptionId={optionId}
+      getOptionLabel={jobOptionLabel}
+      noOptionsText="No running jobs"
     />
   );
 }

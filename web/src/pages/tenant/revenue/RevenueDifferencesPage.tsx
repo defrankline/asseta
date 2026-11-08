@@ -63,6 +63,12 @@ export function RevenueDifferencesPage() {
         <MoneyText amount={d.adjusted_difference ?? d.difference} currency={d.currency} strong />
       ),
     },
+    {
+      id: 'value_at_risk',
+      header: 'Value at risk',
+      align: 'right',
+      render: (d) => <MoneyText amount={d.value_at_risk_amount} currency={d.currency} />,
+    },
     { id: 'reason', header: 'Reason', render: (d) => d.reason_name ?? '—' },
     { id: 'status', header: 'Status', render: differenceChip },
     { id: 'decide', header: '', align: 'right', render: kit.decideCell },

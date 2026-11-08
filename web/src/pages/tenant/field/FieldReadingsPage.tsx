@@ -22,10 +22,12 @@ import { PERMISSIONS } from '../../../access/permissionCodes';
 import { useCanMutate } from '../../../access/useCanMutate';
 import { useNotify } from '../../../notifications/useNotify';
 import { ProposeBaselineDialog } from '../engineHours/BaselineDialogs';
+import { SubmitDailyReportDialog } from '../engineHours/allocations/SubmitDailyReportDialog';
 import { ProposeCorrectionDialog } from '../engineHours/ProposeCorrectionDialog';
 import { CaptureCard } from '../jobDetail/CaptureCard';
 import { resultMessage } from '../jobDetail/capturePolicy';
 import { ConsoleCaptureDialog } from '../jobDetail/ConsoleCaptureDialog';
+import { ChangeoverReadingDialog } from './ChangeoverReadingDialog';
 import { useFieldJobLabels, useFieldMachineLabels } from './fieldLookups';
 
 /** Server `state` filter; PROVISIONAL and REJECTED are the readings that need attention. */
@@ -113,7 +115,9 @@ export function FieldReadingsPage() {
   const [kind, setKind] = useState('');
   const [viewing, setViewing] = useState<MeterCaptureDto | null>(null);
   const [correcting, setCorrecting] = useState<MeterCaptureDto | null>(null);
-  const [recording, setRecording] = useState<'daily' | 'baseline' | null>(null);
+  const [recording, setRecording] = useState<'daily' | 'baseline' | 'changeover' | 'report' | null>(
+    null,
+  );
   const notify = useNotify();
   const canCapture = useCanMutate(PERMISSIONS.tenantMeterCapture);
   /** Off: no daily readings, baselines or corrections; job readings work as before. */
@@ -166,6 +170,22 @@ export function FieldReadingsPage() {
                 }}
               >
                 Record daily reading
+              </Button>
+              <Button
+                variant="outlined"
+                onClick={() => {
+                  setRecording('report');
+                }}
+              >
+                Submit daily report
+              </Button>
+              <Button
+                variant="outlined"
+                onClick={() => {
+                  setRecording('changeover');
+                }}
+              >
+                Record changeover
               </Button>
               <Button
                 variant="outlined"
@@ -247,6 +267,27 @@ export function FieldReadingsPage() {
         <ConsoleCaptureDialog
           kind="DAILY"
           variant="field"
+          onClose={() => {
+            setRecording(null);
+          }}
+          onRecorded={(r) => {
+            notify.success(resultMessage(r));
+            liveReload();
+          }}
+        />
+      )}
+      {recording === 'report' && (
+        <SubmitDailyReportDialog
+          onClose={() => {
+            setRecording(null);
+          }}
+          onSubmitted={() => {
+            notify.success('Daily report submitted.');
+          }}
+        />
+      )}
+      {recording === 'changeover' && (
+        <ChangeoverReadingDialog
           onClose={() => {
             setRecording(null);
           }}

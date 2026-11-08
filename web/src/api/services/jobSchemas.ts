@@ -154,6 +154,7 @@ export const jobSummarySchema: Schema<JobSummaryDto> = object({
   nonbillable_hours: text(),
   billable_hours: nullableText(),
   standby_hours: text(),
+  changeover_carried_hours: text().default('0'),
   charges: chargesSchema,
   open_exceptions: int(),
   blocking_exceptions: int(),

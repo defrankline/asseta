@@ -56,6 +56,7 @@ export function makeDifference(over: Partial<RevenueDifferenceDto> = {}): Revenu
     non_revenue_hours: '0.00',
     unexplained_hours: '1.00',
     unexplained_expected_amount: '50000.0000',
+    value_at_risk_amount: '0.0000',
     detail: {
       jobs: [
         {
@@ -192,6 +193,7 @@ export function makeSheetRow(over: Partial<DailyMachineSheetRowDto> = {}): Daily
         difference: '200000.0000',
         unexplained_hours: '1.00',
         unexplained_expected: '50000.0000',
+        value_at_risk: '0.0000',
       },
       {
         currency: 'USD',
@@ -201,6 +203,7 @@ export function makeSheetRow(over: Partial<DailyMachineSheetRowDto> = {}): Daily
         difference: '0.0000',
         unexplained_hours: '0.00',
         unexplained_expected: '0.0000',
+        value_at_risk: '0.0000',
       },
     ],
     flags: ['REVENUE_DIFFERENCE', 'UNEXPLAINED_HOURS'],

@@ -139,6 +139,10 @@ export function useDifferenceKit(onChanged: (d: RevenueDifferenceDto) => void): 
       ),
     },
     {
+      label: 'Value at risk (apart from expected and the difference)',
+      value: <MoneyText amount={d.value_at_risk_amount} currency={d.currency} />,
+    },
+    {
       label: 'Work still in progress',
       value: <MoneyText amount={d.in_progress_amount} currency={d.currency} />,
     },

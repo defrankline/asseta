@@ -90,6 +90,10 @@ export const ROUTES = {
   tenantMeterBaselines: '/tenant/meter-baselines',
   tenantMeterCorrections: '/tenant/meter-corrections',
   tenantEngineHourReasons: '/tenant/engine-hour-reasons',
+  // DEC-032 Phase 1 (backend `tenant.work_allocations` / `tenant.daily_reports`).
+  tenantWorkAllocations: '/tenant/work-allocations',
+  tenantWorkAllocationCorrections: '/tenant/work-allocations/corrections',
+  tenantDailyReports: '/tenant/daily-reports',
   // Revenue checks (DEC-031; backend menus tenant.engine_hours.daily_sheet / .non_revenue, tenant.revenue_*).
   tenantDailySheet: '/tenant/engine-hours/daily-sheet',
   tenantDailySheetDay: '/tenant/engine-hours/daily-sheet/:machineId/:day',
@@ -290,6 +294,9 @@ export const IMPLEMENTED_PATHS: ReadonlySet<string> = new Set([
   ROUTES.tenantMeterBaselines,
   ROUTES.tenantMeterCorrections,
   ROUTES.tenantEngineHourReasons,
+  ROUTES.tenantWorkAllocations,
+  ROUTES.tenantWorkAllocationCorrections,
+  ROUTES.tenantDailyReports,
   ROUTES.tenantDailySheet,
   ROUTES.tenantRevenueReasons,
   ROUTES.tenantCases,
