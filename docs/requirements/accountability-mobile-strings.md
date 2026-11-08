@@ -1535,3 +1535,120 @@ Screens per app:
 | owner.valueAtRiskFooter | Unexplained hours at the job's rate. Not part of expected revenue or the shortfall. |
 
 Allocation row subject `{who}`: customer name, then ` · {job number}`; authorized activity: the reason name, else the activity type humanized; unexplained: empty. Rows use `owner.allocation.kind.*` as the title. Value-at-risk rows read `{amount}` per currency.
+
+## DEC-032 Phase 2 — adjustments
+
+Rules shared by both apps:
+- **Owner is online-only for actions**; reading screens use the snapshot cache and stale banner as today. No sync changes. Supervisor app: no new screens, new fields decoded tolerantly.
+- **Permissions:** section and detail `tenant.adjustment.read`; Approve/Reject `tenant.adjustment.decide`, never the proposer (`proposed_by` = signed-in user: both buttons disabled + `owner.decision.ownRequest`-style note, as the other decision kinds); Withdraw only for the proposer, with `tenant.adjustment.propose`, only while PROPOSED.
+- **List:** `GET /adjustment-requests?status=PROPOSED&page_size=100`, section hidden when nothing waits (same as the other accountability sections). **Detail:** `GET /adjustment-requests/{id}` (any status). **Decide:** `POST .../{id}/decision {decision: APPROVE|REJECT, note?}`; note optional to approve, required to reject (same as the other non-meter kinds), at most 1000 characters. **Withdraw:** `POST .../{id}/withdraw {reason}` (3..1000 characters). After a decision or withdrawal the screen reloads so `effects` shows what actually happened.
+- **`effects`** is an open object: forecast while PROPOSED ("If approved"), the actual result once decided ("What it did"); `{refused: code}` while PROPOSED shows `owner.adjust.refused` instead of rows, and Approve stays available (the server decides at the moment of approving). Rows only for the keys below, in this order, money with the request's `currency`, hours with the decimal formatter + ` h`; unknown keys are ignored; zero rows are hidden except the two lot rows. Empty effects hide the card.
+- **Evidence:** every `evidence_attachment_ids` as a photo (`GET /attachments/{id}/url`, on demand), same as work allocation corrections.
+- **Reversed payments** on the Hours purchase screen: `allocations[]` of `GET /hours-purchases/{id}` (`payment_id`, `amount`, `payment_status`, `released_at`). For released allocations the app reads `GET /customer-payments/{payment_id}` (best effort, at most 25, only with `tenant.finance.read` or `tenant.adjustment.read`); `reversed_at` set → `owner.hours.payment.reversed`. Released but not reversed (or not readable) → `owner.hours.payment.released`. Never parse `release_reason`. Otherwise the status is `payment_status` humanized.
+
+Row formats: headline `{type}`, then ` · {amount}` with `amount` = signed hours for HOURS_CORRECTION (`+2 h`, `-2 h`), hours for HOURS_REFUND, money for the reversals, nothing for INVOICE_VOID. Subtitle `{customer} · {machine}` (each only when present; machine = code, else name). Then the reason (2 lines), then the usual "Proposed {time} by {name}".
+
+Screens per app:
+| App | Screen | Change |
+|---|---|---|
+| Owner | Approvals | New section "Adjustments" (`owner.adjust.section`) after the existing ones, PROPOSED requests, shown only when something waits |
+| Owner | Adjustment request (existing decision screen) | Request card (rows below), "If approved" / "What it did" card, Evidence card, Decision card (Approve / Reject), Withdraw card for the proposer |
+| Owner | Hours purchase | Hours card gains Refunded, Corrected (signed), Reversed (each only when not zero); new Payments card, only when the purchase has allocations |
+| Owner | Hours statement | Totals gain Refunded, Corrected (signed, only when not zero); new card "Corrections, refunds and reversals" from `lines[]` with `entry_type` CORRECTION_ADD, CORRECTION_DEDUCT, REFUNDED, REVERSAL, newest first (card hidden when none): title `{day} · {kind}`, value signed hours, caption `{purchase number} · {reason}` |
+| Owner | Deep links | Kind `ADJUSTMENT_REQUEST` + `record_id`, entity `adjustment_request`, path `/tenant/finance/adjustments/requests/{id}` → Adjustment request; `/tenant/finance/adjustments` and `/tenant/finance/adjustments/{id}` → Approvals |
+| Supervisor | none | Additive fields only |
+
+Request card rows, in order (each only when present): Type, Reference (`original_reference`), Customer, Machine, Purchase (`purchase_number`), Hours, Amount, Settlement, Reason category (`reason_label`), Proposed by, then the usual Reason, Proposed, Status, then Decided by, Decision note (a WITHDRAWN request shows its `decision_note` as `owner.adjust.withdrawnReason` instead).
+
+### Owner
+| Key | English |
+|---|---|
+| owner.adjust.section | Adjustments |
+| owner.adjust.empty | No adjustments waiting. |
+| owner.adjust.title | Adjustment request |
+| owner.adjust.type.HOURS_CORRECTION | Hours correction |
+| owner.adjust.type.HOURS_REFUND | Hours refund |
+| owner.adjust.type.PAYMENT_REVERSAL | Payment reversal |
+| owner.adjust.type.COLLECTION_REVERSAL | Collection reversal |
+| owner.adjust.type.PURCHASE_REVERSAL | Purchase reversal |
+| owner.adjust.type.INVOICE_VOID | Invoice void |
+| owner.adjust.type | Type |
+| owner.adjust.reference | Reference |
+| owner.adjust.customer | Customer |
+| owner.adjust.machine | Machine |
+| owner.adjust.purchase | Purchase |
+| owner.adjust.hours | Hours |
+| owner.adjust.amount | Amount |
+| owner.adjust.settlement | Settlement |
+| owner.adjust.settlement.CREDIT | Credit to the customer |
+| owner.adjust.settlement.PAY_OUT | Paid out |
+| owner.adjust.reasonCategory | Reason category |
+| owner.adjust.withdrawnReason | Why it was withdrawn |
+| owner.adjust.evidence | Evidence |
+| owner.adjust.effects.forecast | If approved |
+| owner.adjust.effects.actual | What it did |
+| owner.adjust.refused | This request can't be approved as it stands: {reason} |
+| owner.adjust.effect.lotBefore.forecast | Hours on the lot now |
+| owner.adjust.effect.lotBefore.actual | Hours on the lot before |
+| owner.adjust.effect.lotAfter | Hours on the lot after |
+| owner.adjust.effect.purchaseRemaining | Left on the purchase |
+| owner.adjust.effect.hoursRefunded | Hours refunded |
+| owner.adjust.effect.value | Value of the hours |
+| owner.adjust.effect.settlement | Settlement |
+| owner.adjust.effect.paymentAmount | Payment amount |
+| owner.adjust.effect.unusedRemoved | Unused hours removed |
+| owner.adjust.effect.usedHours | Hours already used |
+| owner.adjust.effect.usedKept | Used hours kept |
+| owner.adjust.effect.moneyOwed | Money owed for hours already used |
+| owner.adjust.effect.treatment | Hours already used |
+| owner.adjust.effect.treatment.RECEIVABLE | Bill the customer |
+| owner.adjust.effect.treatment.CASE | Open an investigation case |
+| owner.adjust.effect.recoveryInvoice | Recovery invoice |
+| owner.adjust.effect.released | Released from invoices |
+| owner.adjust.effect.moneyReleased | Released to credit |
+| owner.adjust.effect.customerBalance | Customer balance |
+| owner.adjust.effect.custodyAfter | Custodian's cash after |
+| owner.adjust.effect.purchaseLine | {unused} h removed · {used} h used · {owed} owed |
+| owner.adjust.withdraw | Withdraw |
+| owner.adjust.withdrawTitle | Withdraw this request |
+| owner.adjust.withdrawFooter | Only the person who proposed a request can withdraw it. |
+| owner.adjust.withdrawLabel | Why are you withdrawing it? (at least 3 characters) |
+| owner.adjust.withdrawConfirm | Withdraw this request? |
+| owner.adjust.withdrawn | Withdrawn. |
+| owner.adjust.error.SEGREGATION_OF_DUTIES | You proposed this request, so someone else must decide it. |
+| owner.adjust.error.ALREADY_DECIDED | This request was already decided or withdrawn. Reload to see it. |
+| owner.adjust.error.NOT_PROPOSER | Only the person who proposed this request can withdraw it. |
+| owner.adjust.error.REVERSAL_EXISTS | A reversal of this record is already waiting or done. |
+| owner.adjust.error.REVERSAL_TYPE_MISMATCH | This record can't be reversed this way. |
+| owner.adjust.error.NOTHING_TO_REVERSE | There is nothing left to reverse on this record. |
+| owner.adjust.error.PURCHASE_CANCELLED | This purchase is cancelled. |
+| owner.adjust.error.HOURS_CORRECTION_INVALID | The hours of this correction are not valid. |
+| owner.adjust.error.HOURS_CORRECTION_NEGATIVE | This correction would take the hours below zero. |
+| owner.adjust.error.HOURS_CORRECTION_EXCEEDS_LOT | This correction would lift the purchase above its activated hours. |
+| owner.adjust.error.HOURS_CORRECTION_EXCEEDS_ENTRY | This correction is more than the entry it corrects. |
+| owner.adjust.error.CONSUMED_ENTRY_NOT_FOUND | The usage entry this correction names is no longer on the purchase. |
+| owner.adjust.error.REFUND_NOT_ALLOWED | Your company has switched refunds off. |
+| owner.adjust.error.HOURS_REFUND_INVALID | The hours of this refund are not valid. |
+| owner.adjust.error.EXCEEDS_REMAINING_HOURS | This refund is more than the unused hours left on the machine. |
+| owner.adjust.error.REFUND_EXCEEDS_PAID | This refund is more than the verified money on the purchase. |
+| owner.adjust.error.STAFF_NOT_FOUND | The person named to pay out this refund is no longer on record. |
+| owner.adjust.error.PAYMENT_NOT_VERIFIED | Only a verified payment can be reversed. |
+| owner.adjust.error.PAYMENT_ALREADY_REVERSED | This payment is already reversed. |
+| owner.adjust.error.PAYMENT_REVERSED | This payment has been reversed. |
+| owner.adjust.error.INVOICE_NOT_ISSUED | Only an issued invoice can be voided. |
+| owner.hours.refunded | Refunded |
+| owner.hours.corrected | Corrected |
+| owner.hours.reversed | Reversed |
+| owner.hours.payments | Payments |
+| owner.hours.payment.reversed | Reversed {date} |
+| owner.hours.payment.released | No longer counted |
+| owner.stmt.refunded | Refunded |
+| owner.stmt.corrected | Corrected |
+| owner.stmt.adjustments | Corrections, refunds and reversals |
+| owner.stmt.line.CORRECTION_ADD | Hours added by correction |
+| owner.stmt.line.CORRECTION_DEDUCT | Hours removed by correction |
+| owner.stmt.line.REFUNDED | Hours refunded |
+| owner.stmt.line.REVERSAL | Hours reversed |
+| owner.stmt.lineRow | {day} · {kind} |
+
+Effect rows by key, in order: `lot_hours_before`, `lot_hours_after`, `purchase_remaining`, `hours_refunded`, `value`, `settlement`, `payment_amount`, `unused_hours_removed`, `used_hours`, `used_hours_kept`, `money_owed`, `treatment`, `recovery_invoice_number`, `hire_allocations_released`, `money_released_to_credit`, `customer_balance`, `custody_balance_after`, then one row per `purchases[]` (label = `purchase_number`, value = `owner.adjust.effect.purchaseLine`). Refusal codes not listed use the server's message; a `refused` code not listed uses "the record has changed. Reload to see it."
