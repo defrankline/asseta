@@ -91,6 +91,8 @@ CONFLICT_CODES = {
     "REPORT_EVIDENCE_REQUIRED",
     "CHANGEOVER_NOT_ALLOWED",
     "CHANGEOVER_SAME_CUSTOMER",
+    "CHANGEOVER_JOB_REQUIRED",  # billing split switched on after the device queued the changeover
+    "CHANGEOVER_JOB_INVALID",  # the follow-on job was approved, cancelled or changed since
 }
 # Operations that belong to a tenant capability (sync capabilities: dto.TENANT_CAPABILITY_OF). A DAILY meter capture
 # is refused by the meter service itself (same code). Customer-hours operations keep their service refusal.

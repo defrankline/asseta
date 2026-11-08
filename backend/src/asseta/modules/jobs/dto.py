@@ -303,3 +303,4 @@ class JobSummaryDto(BaseModel):
     policy_version: str
     standby_hours: Decimal = Decimal(0)  # billed at standby_rate only under STANDBY_RATE terms
     charges: JobChargesDto | None = None  # None until billable hours are known
+    changeover_carried_hours: Decimal = Decimal(0)  # DEC-032 A3: billable hours moved here from the job before it

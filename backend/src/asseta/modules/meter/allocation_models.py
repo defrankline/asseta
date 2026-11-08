@@ -79,6 +79,10 @@ class WorkAllocation(UuidPk, Base):
     classification_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("engine_hour_classification.id"))
     changeover_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("machine_changeover.id"))
     reading_review: Mapped[str] = mapped_column(String(16), nullable=False)  # VERIFIED | PENDING_REVIEW
+    # The approval behind this entry, where one is required: engine_hour_classification, non_revenue_approval or
+    # work_allocation_correction (several work-log entries can share one interval, hence a list).
+    approval_ref_type: Mapped[str | None] = mapped_column(String(32))
+    approval_ref_ids: Mapped[list[uuid.UUID]] = mapped_column(ARRAY(UUID(as_uuid=True)), nullable=False, default=list)
     lots: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False, default=list)  # {purchase_id, hours}
     evidence_attachment_ids: Mapped[list[uuid.UUID]] = mapped_column(
         ARRAY(UUID(as_uuid=True)), nullable=False, default=list

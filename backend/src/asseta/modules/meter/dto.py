@@ -61,7 +61,9 @@ class MeterCaptureIn(BaseModel):
         description="DEC-032 A3: a DAILY reading on the running job at which the machine moved to this customer",
     )
     changeover_to_job_id: uuid.UUID | None = Field(
-        default=None, description="Optional: the job the machine moves on to (kept for the record)"
+        default=None,
+        description="The job the machine moves on to, awaiting approval on this machine for that customer. Required "
+        "while the tenant splits billing at changeovers (the hours after it bill to this job)",
     )
 
     @model_validator(mode="after")

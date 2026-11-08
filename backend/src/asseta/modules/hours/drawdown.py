@@ -91,6 +91,7 @@ def daily_targets(s: Session, tenant_id: uuid.UUID, job: Job, now: datetime, tz:
         for i in ledger.intervals
         if i.job_id == job.id and i.kind is SegmentKind.CUSTOMER_WORK and i.hours > i.billing_cut
     ]
+    pieces += [(i.start.at, i.end.at, i.changeover_cut) for i in ledger.intervals if i.billed_to_job_id == job.id]
     deductions = [
         (a.started_at, a.ended_at)
         for a in s.execute(
@@ -105,6 +106,7 @@ def daily_targets(s: Session, tenant_id: uuid.UUID, job: Job, now: datetime, tz:
     ]
     billing = PolicyService(s).hire_billing(tenant_id, at=job.started_at).policy
     first, last = job.started_at.astimezone(tz).date(), now.astimezone(tz).date()
+    first = min([first, *(a.astimezone(tz).date() for a, _, _ in pieces)])  # carried hours predate this job's start
     targets: dict[date, Decimal] = {}
     meter = nonbillable = held = ZERO
     day = first

@@ -15878,6 +15878,11 @@
             "title": "Blocking Exceptions",
             "type": "integer"
           },
+          "changeover_carried_hours": {
+            "default": "0",
+            "title": "Changeover Carried Hours",
+            "type": "string"
+          },
           "charges": {
             "anyOf": [
               {
@@ -18847,7 +18852,7 @@
                 "type": "null"
               }
             ],
-            "description": "Optional: the job the machine moves on to (kept for the record)",
+            "description": "The job the machine moves on to, awaiting approval on this machine for that customer. Required while the tenant splits billing at changeovers (the hours after it bill to this job)",
             "title": "Changeover To Job Id"
           },
           "device_id": {
@@ -34830,6 +34835,26 @@
               }
             ],
             "title": "Activity Type"
+          },
+          "approval_ref_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Approval Ref Ids",
+            "type": "array"
+          },
+          "approval_ref_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "engine_hour_classification, non_revenue_approval or work_allocation_correction",
+            "title": "Approval Ref Type"
           },
           "changeover_id": {
             "anyOf": [

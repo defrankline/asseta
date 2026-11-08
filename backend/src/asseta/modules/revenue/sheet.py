@@ -209,6 +209,9 @@ def load_machine_model(s: Session, tenant_id: uuid.UUID, machine: Machine, now: 
         cut = min(i.hours, cut + i.billing_cut)  # DEC-032 A2/A3 when the tenant switches them on
         deductions[i.key] = cut
         pieces.append(WorkPiece(i.job_id, i.start.at, i.end.at, max(i.hours - cut, ZERO)))
+        if i.billed_to_job_id in jobs and i.changeover_cut > ZERO:  # DEC-032 A3: earns on the job that bills it
+            assert i.billed_to_job_id is not None
+            pieces.append(WorkPiece(i.billed_to_job_id, i.start.at, i.end.at, i.changeover_cut))
     standby = [
         TimeSpan(a.job_id, a.started_at, a.ended_at)
         for a in activities
@@ -436,13 +439,17 @@ class DailySheet:
             acc.engine += i.hours * f
             if i.kind is SegmentKind.CUSTOMER_WORK:
                 acc.customer += i.customer_work_hours * f
-                acc.revenue += model.revenue_hours(i) * f
+                acc.revenue += (model.revenue_hours(i) + i.changeover_cut) * f
                 for t, v in i.non_revenue.items():
                     acc.non_revenue[t] += v * f
                 if i.job_id is not None:
                     pair = acc.jobs.setdefault(i.job_id, [ZERO, ZERO])
-                    pair[0] += i.customer_work_hours * f
+                    pair[0] += ZERO if i.billed_to_job_id else i.customer_work_hours * f
                     pair[1] += model.revenue_hours(i) * f
+                if i.billed_to_job_id is not None:
+                    pair = acc.jobs.setdefault(i.billed_to_job_id, [ZERO, ZERO])
+                    pair[0] += i.customer_work_hours * f
+                    pair[1] += i.changeover_cut * f
                 if i.in_job_unexplained <= 0:
                     continue
             hours = i.explainable_hours * f

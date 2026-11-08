@@ -152,6 +152,7 @@ def load_machine_ledger(s: Session, tenant_id: uuid.UUID, machine: Machine, now:
         activities,
         _cover_entries(s, [sp.job_id for sp in spans if sp.requires_cover], now),
         job_changeovers(s, machine.id),
+        _billing_spans(s, tenant_id, [sp.job_id for sp in spans if sp.splits_billing]),
     )
     return MachineLedger(machine, baseline, proposal, ledger, eff)
 
@@ -182,6 +183,22 @@ def _cover_entries(s: Session, job_ids: list[uuid.UUID], now: datetime) -> list[
     return [ActivitySpan(a.job_id, a.activity_type.value, a.started_at, a.ended_at or now) for a in rows]
 
 
+def _billing_spans(s: Session, tenant_id: uuid.UUID, job_ids: list[uuid.UUID]) -> list[ActivitySpan]:
+    """[DEC-032 A3] Non-billable time the job's own billing deducts, so a changeover moves only billable hours."""
+    out: list[ActivitySpan] = []
+    for job in s.execute(select(Job).where(Job.id.in_(job_ids))).scalars() if job_ids else ():
+        rows = s.execute(
+            select(JobActivity).where(
+                JobActivity.job_id == job.id,
+                JobActivity.billable.is_(False),
+                JobActivity.ended_at.is_not(None),
+                billing_deduction_filter(s, tenant_id, job),
+            )
+        ).scalars()
+        out += [ActivitySpan(a.job_id, a.activity_type.value, a.started_at, a.ended_at) for a in rows if a.ended_at]
+    return out
+
+
 def job_changeovers(s: Session, machine_id: uuid.UUID) -> list[ChangeoverPoint]:
     """[DEC-032 A3] Changeovers whose reading is still live (a superseded reading's changeover no longer counts)."""
     rows = s.execute(
@@ -189,7 +206,42 @@ def job_changeovers(s: Session, machine_id: uuid.UUID) -> list[ChangeoverPoint]:
         .join(MeterCapture, MeterCapture.id == MachineChangeover.capture_id)
         .where(MachineChangeover.machine_id == machine_id, MeterCapture.state.in_(LIVE))
     ).all()
-    return [ChangeoverPoint(c.id, at, c.job_id, c.to_customer_id) for c, at in rows]
+    return [ChangeoverPoint(c.id, at, c.job_id, c.to_customer_id, c.to_job_id) for c, at in rows]
+
+
+def job_carried_hours(s: Session, tenant_id: uuid.UUID, job: Job) -> Decimal:
+    """[DEC-032 A3] Billable hours moved to this job by mid-job changeovers on the running job before it. Exactly what
+    `job_billing_cut` took from that job. 0, with no ledger read, for a job no changeover names."""
+    named = s.execute(
+        select(MachineChangeover.id)
+        .join(MeterCapture, MeterCapture.id == MachineChangeover.capture_id)
+        .where(MachineChangeover.to_job_id == job.id, MeterCapture.state.in_(LIVE))
+        .limit(1)
+    ).first()
+    machine = s.get(Machine, job.machine_id) if named is not None else None
+    if machine is None:
+        return Decimal(0)
+    intervals = load_machine_ledger(s, tenant_id, machine, utcnow()).ledger.intervals
+    return sum((i.changeover_cut for i in intervals if i.billed_to_job_id == job.id), Decimal(0))
+
+
+def ensure_not_changeover_target(s: Session, tenant_id: uuid.UUID, job: Job) -> None:
+    """[DEC-032 A3] A job that post-changeover hours bill to cannot be cancelled or moved to another machine: those
+    hours would bill nobody. Correct the changeover reading to name another job first."""
+    rows = s.execute(
+        select(MachineChangeover, Job)
+        .join(MeterCapture, MeterCapture.id == MachineChangeover.capture_id)
+        .join(Job, Job.id == MachineChangeover.job_id)
+        .where(MachineChangeover.to_job_id == job.id, MeterCapture.state.in_(LIVE))
+    ).all()
+    svc = PolicyService(s)
+    for _, source in rows:
+        policy = svc.engine_hours(tenant_id, source.machine_id, at=source.started_at or utcnow()).policy.in_force()
+        if policy.changeover_splits_billing and source.status in (JobStatus.IN_PROGRESS, JobStatus.COMPLETED):
+            raise BusinessRuleViolation(
+                f"Hours from job {source.job_number} are billed to this job; correct that changeover first",
+                code="JOB_HAS_CHANGEOVER_HOURS",
+            )
 
 
 def job_billing_cut(s: Session, tenant_id: uuid.UUID, job: Job) -> Decimal:
@@ -241,17 +293,33 @@ def non_revenue_activities(
     policy = PolicyService(s).revenue_reconciliation(tenant_id, at=now).policy.in_force()
     if not policy.deduct_non_revenue_from_working_hours or not policy.non_revenue_activity_types or not job_ids:
         return []
-    stmt = select(JobActivity).where(
-        JobActivity.job_id.in_(job_ids),
-        JobActivity.activity_type.in_(policy.non_revenue_activity_types),
-        JobActivity.billable.is_(False),
-        JobActivity.ended_at.is_not(None),
+    from asseta.modules.revenue.models import (  # lazy: revenue builds on meter
+        NonRevenueApproval,
+        NonRevenueApprovalStatus,
+    )
+
+    stmt = (
+        select(JobActivity, NonRevenueApproval.id)
+        .outerjoin(
+            NonRevenueApproval,
+            and_(
+                NonRevenueApproval.activity_id == JobActivity.id,
+                NonRevenueApproval.status == NonRevenueApprovalStatus.APPROVED,
+            ),
+        )
+        .where(
+            JobActivity.job_id.in_(job_ids),
+            JobActivity.activity_type.in_(policy.non_revenue_activity_types),
+            JobActivity.billable.is_(False),
+            JobActivity.ended_at.is_not(None),
+        )
     )
     if policy.non_revenue_requires_approval:  # owner rule: non-revenue only once explained and approved
-        stmt = stmt.where(JobActivity.id.in_(approved_non_revenue_ids()))
-    rows = s.execute(stmt).scalars()
+        stmt = stmt.where(NonRevenueApproval.id.is_not(None))
     return [
-        ActivitySpan(a.job_id, a.activity_type.value, a.started_at, a.ended_at) for a in rows if a.ended_at is not None
+        ActivitySpan(a.job_id, a.activity_type.value, a.started_at, a.ended_at, approval)
+        for a, approval in s.execute(stmt).all()
+        if a.ended_at is not None
     ]
 
 

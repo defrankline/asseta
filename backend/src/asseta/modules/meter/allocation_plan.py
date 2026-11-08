@@ -40,6 +40,8 @@ class PlannedEntry:
     classification_id: uuid.UUID | None
     changeover_id: uuid.UUID | None
     reading_review: str
+    approval_ref_type: str | None = None
+    approval_ref_ids: list[uuid.UUID] = field(default_factory=list)
     lots: list[dict[str, str]] = field(default_factory=list)
 
 
@@ -81,6 +83,8 @@ class _Bucket:
     reason_id: uuid.UUID | None = None
     classification_id: uuid.UUID | None = None
     changeover_id: uuid.UUID | None = None
+    approval_ref_type: str | None = None
+    approval_ref_ids: tuple[uuid.UUID, ...] = ()
 
 
 def _epoch(resets: Sequence[ResetPoint], at: datetime) -> int:
@@ -137,6 +141,8 @@ def _explained(i: LedgerInterval, size: Decimal) -> _Bucket:
             job_id=i.job_id,
             reason_id=i.approved.reason_id,
             classification_id=i.approved.id,
+            approval_ref_type="engine_hour_classification",
+            approval_ref_ids=(i.approved.id,),
         )
     return _Bucket(size, AllocationKind.UNEXPLAINED, job_id=i.job_id)
 
@@ -149,12 +155,22 @@ def _buckets(i: LedgerInterval) -> list[_Bucket]:
             i.customer_work_hours,
             AllocationKind.CUSTOMER_WORK,
             customer_id=i.changeover_customer_id or i.job_customer_id,
-            job_id=i.job_id,
+            job_id=i.billed_to_job_id or i.job_id,  # the job that bills these hours
             changeover_id=i.changeover_id,
         )
     ]
     for activity, hours in sorted(i.non_revenue.items()):
-        out.append(_Bucket(hours, AllocationKind.AUTHORIZED_ACTIVITY, job_id=i.job_id, activity_type=activity))
+        approvals = tuple(i.non_revenue_approvals.get(activity, ()))
+        out.append(
+            _Bucket(
+                hours,
+                AllocationKind.AUTHORIZED_ACTIVITY,
+                job_id=i.job_id,
+                activity_type=activity,
+                approval_ref_type="non_revenue_approval" if approvals else None,
+                approval_ref_ids=approvals,
+            )
+        )
     if i.in_job_unexplained > ZERO:
         out.append(_explained(i, i.in_job_unexplained))
     return [b for b in out if b.size > ZERO]
@@ -182,6 +198,8 @@ def _entry(i: LedgerInterval, b: _Bucket, n: int, p: _Piece, m: int, lo: Decimal
         classification_id=b.classification_id,
         changeover_id=b.changeover_id,
         reading_review=i.review.value,
+        approval_ref_type=b.approval_ref_type,
+        approval_ref_ids=list(b.approval_ref_ids),
     )
 
 

@@ -81,6 +81,7 @@ class ChangeoverPoint:
     at: datetime
     job_id: uuid.UUID
     to_customer_id: uuid.UUID
+    to_job_id: uuid.UUID | None = None
 
 
 @dataclass(frozen=True)
@@ -91,6 +92,7 @@ class ActivitySpan:
     activity_type: str
     start: datetime
     end: datetime
+    approval_id: uuid.UUID | None = None  # the second person's approval, when the tenant requires one
 
 
 @dataclass(frozen=True)
@@ -125,7 +127,11 @@ class LedgerInterval:
     in_job_unexplained: Decimal = ZERO  # A2: hours of a job window no work-log entry covers
     changeover_id: uuid.UUID | None = None  # A3: the changeover that moved this interval to another customer
     changeover_customer_id: uuid.UUID | None = None
-    changeover_cut: Decimal = ZERO  # A3: customer-work hours leaving the job's billing (policy on, other customer)
+    # A3, policy on and another customer: the billable hours that move from this job to the named job (never fewer
+    # for one than the other gains), and that job. Time the job's billing already deducts stays deducted, not moved.
+    changeover_cut: Decimal = ZERO
+    billed_to_job_id: uuid.UUID | None = None
+    non_revenue_approvals: dict[str, list[uuid.UUID]] = field(default_factory=dict)  # activity type -> approvals
 
     @property
     def non_revenue_hours(self) -> Decimal:
@@ -301,8 +307,14 @@ def uncovered_hours(
     return max(hours - (hours * share).quantize(HOUR_STEP, rounding=ROUND_DOWN), ZERO)
 
 
-def _apply_changeover(interval: LedgerInterval, job: JobSpan, changeovers: Sequence[ChangeoverPoint]) -> None:
-    """DEC-032 A3: the latest changeover of the job at or before this interval decides which customer it served."""
+def _apply_changeover(
+    interval: LedgerInterval,
+    job: JobSpan,
+    changeovers: Sequence[ChangeoverPoint],
+    billing_spans: Sequence[ActivitySpan],
+) -> None:
+    """DEC-032 A3: the latest changeover of the job at or before this interval decides which customer it served. With
+    the tenant's switch on, the interval's billable hours move to the named job: what this job loses that job gains."""
     latest = max(
         (c for c in changeovers if c.job_id == job.job_id and c.at <= interval.start.at),
         key=lambda c: (c.at, str(c.id)),
@@ -311,8 +323,24 @@ def _apply_changeover(interval: LedgerInterval, job: JobSpan, changeovers: Seque
     if latest is None:
         return
     interval.changeover_id, interval.changeover_customer_id = latest.id, latest.to_customer_id
-    if job.splits_billing and latest.to_customer_id != job.customer_id:
-        interval.changeover_cut = interval.customer_work_hours
+    if not job.splits_billing or latest.to_customer_id == job.customer_id or latest.to_job_id is None:
+        return
+    deducted = sum(
+        non_revenue_split(interval.hours, interval.start.at, interval.end.at, job.job_id, billing_spans).values(), ZERO
+    )
+    interval.billed_to_job_id = latest.to_job_id
+    interval.changeover_cut = max(interval.hours - interval.in_job_unexplained - deducted, ZERO)
+
+
+def _approvals(
+    a: datetime, b: datetime, job_id: uuid.UUID, spans: Sequence[ActivitySpan]
+) -> dict[str, list[uuid.UUID]]:
+    """The approvals behind an interval's non-revenue time, per work-log type (DEC-032 A1 approval reference)."""
+    out: dict[str, set[uuid.UUID]] = {}
+    for s in spans:
+        if s.job_id == job_id and s.approval_id is not None and s.end > a and s.start < b:
+            out.setdefault(s.activity_type, set()).add(s.approval_id)
+    return {t: sorted(ids, key=str) for t, ids in out.items()}
 
 
 def build_ledger(
@@ -323,6 +351,7 @@ def build_ledger(
     non_revenue: Sequence[ActivitySpan] = (),
     cover: Sequence[ActivitySpan] = (),
     changeovers: Sequence[ChangeoverPoint] = (),
+    billing_spans: Sequence[ActivitySpan] = (),
 ) -> Ledger:
     ordered = sorted(points, key=lambda p: (p.at, p.reading, 0 if p.source == "BASELINE" else 1, str(p.ref)))
     by_key: dict[tuple[uuid.UUID, uuid.UUID], list[ClassificationFact]] = {}
@@ -352,10 +381,11 @@ def build_ledger(
             interval.job_customer_id = first.customer_id
             if non_revenue:
                 interval.non_revenue = non_revenue_split(hours, a.at, b.at, first.job_id, non_revenue)
+                interval.non_revenue_approvals = _approvals(a.at, b.at, first.job_id, non_revenue)
             if first.requires_cover:
                 uncovered = uncovered_hours(hours, a.at, b.at, first.job_id, cover)
                 interval.in_job_unexplained = min(uncovered, hours - interval.non_revenue_hours)
-            _apply_changeover(interval, first, changeovers)
+            _apply_changeover(interval, first, changeovers, billing_spans)
         if interval.explainable_hours > ZERO:
             interval.classification = SegmentClassification.UNEXPLAINED
             for c in by_key.get(interval.key, []):

@@ -54,6 +54,10 @@ class WorkAllocationDto(Dto):
     classification_id: uuid.UUID | None
     changeover_id: uuid.UUID | None
     reading_review: str
+    approval_ref_type: str | None = Field(
+        default=None, description="engine_hour_classification, non_revenue_approval or work_allocation_correction"
+    )
+    approval_ref_ids: list[uuid.UUID] = Field(default_factory=list)
     lots: list[AllocationLotDto]
     evidence_attachment_ids: list[uuid.UUID]
     source: AllocationSource

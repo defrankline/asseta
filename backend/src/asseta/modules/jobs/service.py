@@ -57,7 +57,9 @@ from asseta.modules.meter.engine_hours import (
     ensure_job_can_complete,
     ensure_job_can_start,
     ensure_no_activity_overlap,
+    ensure_not_changeover_target,
     job_billing_cut,
+    job_carried_hours,
 )
 from asseta.modules.meter.models import CaptureState, ExceptionStatus, JobException, MeterCapture, ReadingKind
 from asseta.modules.meter.rules import billable_hours
@@ -385,6 +387,7 @@ class JobService:
         elif action == "CANCEL":
             if not reason:
                 raise BusinessRuleViolation("Cancellation reason required", code="REASON_REQUIRED")
+            ensure_not_changeover_target(self._s, self._tid, job)
             job.cancellation_reason = reason
         before = job.status.value
         job.status = target
@@ -490,7 +493,9 @@ class JobService:
         nonbillable += job_billing_cut(self._s, self._tid, job)  # DEC-032 A2/A3 when the tenant switches them on
         eff = PolicyService(self._s).hire_billing(self._tid, at=job.started_at or utcnow())
         meter = (closing.reading - opening.reading) if opening and closing else None
-        billable = billable_hours(meter, nonbillable, job.minimum_hours, eff.policy) if meter is not None else None
+        carried = job_carried_hours(self._s, self._tid, job)  # DEC-032 A3: exactly what the job before it gave up
+        worked = meter + carried if meter is not None else None
+        billable = billable_hours(worked, nonbillable, job.minimum_hours, eff.policy) if worked is not None else None
         standby = Decimal(0)
         if job.standby_treatment is StandbyTreatment.STANDBY_RATE:
             raw = self._s.execute(
@@ -528,6 +533,7 @@ class JobService:
             open_exceptions=blocking + int(counts.get(False, 0)),
             blocking_exceptions=blocking,
             billing_ready=job.status is JobStatus.COMPLETED and billable is not None and blocking == 0,
+            changeover_carried_hours=carried,
             policy_version=eff.version_stamp,
             standby_hours=standby,
             charges=charges,

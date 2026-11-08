@@ -9,6 +9,7 @@ from asseta.modules.meter.allocation_models import AllocationKind
 from asseta.modules.meter.allocation_plan import Plan, plan_allocations
 from asseta.modules.meter.ledger import (
     ActivitySpan,
+    ChangeoverPoint,
     JobSpan,
     Ledger,
     LedgerPoint,
@@ -75,3 +76,15 @@ def test_a_job_interval_with_uncovered_time_splits_into_customer_and_unexplained
     assert plan.entries[1].job_id == job and plan.entries[1].customer_id is None
     t = ledger.totals()
     assert (t.customer_work_hours, t.unexplained_hours, t.unallocated_hours) == (D("2.00"), D("1.00"), D("1.00"))
+
+
+def test_changeover_moves_only_billable_hours_to_the_named_job() -> None:
+    job, next_job, other = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    a, b, c = _p("100", 0, "OPENING"), _p("106", 6), _p("110", 10, "CLOSING")
+    span = JobSpan(job, "J", a.at, c.at, a.reading, c.reading, uuid.uuid4(), splits_billing=True)
+    change = ChangeoverPoint(uuid.uuid4(), b.at, job, other, next_job)
+    downtime = ActivitySpan(job, "DOWNTIME", b.at + timedelta(hours=1), b.at + timedelta(hours=2))
+    ledger = build_ledger([a, b, c], [], [span], [], (), (), [change], [downtime])
+    moved = ledger.intervals[1]
+    assert (moved.billed_to_job_id, moved.changeover_cut, moved.billing_cut) == (next_job, D("3.00"), D("3.00"))
+    assert ledger.intervals[0].billing_cut == 0  # hours before the changeover stay on the job

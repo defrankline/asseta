@@ -35,6 +35,7 @@ from asseta.modules.jobs.models import (
     RentalContract,
     RentalRatePolicy,
 )
+from asseta.modules.meter.engine_hours import ensure_not_changeover_target
 
 TOPIC = "asseta.jobs"
 OPEN_JOB_STATES = (JobStatus.DRAFT, JobStatus.PENDING_APPROVAL, JobStatus.APPROVED, JobStatus.IN_PROGRESS)
@@ -242,6 +243,8 @@ class RecordLifecycleService:
         if job.status not in EDITABLE_JOB_STATES:
             raise BusinessRuleViolation(f"A job in {job.status.value} can no longer be edited", code="JOB_LOCKED")
         machine = check_job_refs(self._s, body, job)
+        if body.machine_id != job.machine_id:
+            ensure_not_changeover_target(self._s, self._tid, job)
         contract = self._s.get(RentalContract, job.contract_id)
         assert contract is not None
         if body.hourly_rate is not None:

@@ -71,6 +71,8 @@ def _row_signature(r: WorkAllocation) -> tuple[Any, ...]:
         r.classification_id,
         r.changeover_id,
         r.reading_review,
+        r.approval_ref_type,
+        tuple(sorted(r.approval_ref_ids, key=str)),
         tuple(lots),
     )
 
@@ -93,6 +95,8 @@ def _plan_signature(e: PlannedEntry) -> tuple[Any, ...]:
         e.classification_id,
         e.changeover_id,
         e.reading_review,
+        e.approval_ref_type,
+        tuple(sorted(e.approval_ref_ids, key=str)),
         tuple(lots),
     )
 
@@ -158,6 +162,11 @@ class AllocationWriter:
         resets = approved_resets(self._s, ml.machine.id)
         plan = plan_allocations(ml.ledger.intervals, resets, self._tz)
         customers = {i.job_id: i.job_customer_id for i in ml.ledger.intervals if i.job_id and i.job_customer_id}
+        customers |= {
+            i.billed_to_job_id: i.changeover_customer_id
+            for i in ml.ledger.intervals
+            if i.billed_to_job_id and i.changeover_customer_id
+        }
         assign_lots(self._s, plan.entries, customers)
         return plan
 
@@ -241,6 +250,8 @@ class AllocationWriter:
             classification_id=e.classification_id,
             changeover_id=e.changeover_id,
             reading_review=e.reading_review,
+            approval_ref_type=e.approval_ref_type,
+            approval_ref_ids=e.approval_ref_ids,
             lots=e.lots,
             evidence_attachment_ids=sorted({*by_start[1], *by_end[1]}),
             source=self._source,

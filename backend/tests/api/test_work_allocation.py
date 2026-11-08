@@ -13,8 +13,8 @@ from sqlalchemy.exc import IntegrityError, InternalError, ProgrammingError
 from asseta.core.db import get_sessionmaker
 from asseta.modules.meter.allocation_writer import run_work_allocations
 from tests.support.api import Actor, Api
-from tests.support.finance import complete_job, role, setup_finance
-from tests.support.hours import RATE, hours_policy, prepaid_job, purchase, verify
+from tests.support.finance import complete_job, issue_invoice, role, setup_finance
+from tests.support.hours import RATE, balance, hours_policy, prepaid_job, purchase, verify
 from tests.support.intelligence import sweep
 from tests.support.jobs import JobCtx, capture, engine_hours_policy, new_job, setup_job
 from tests.support.notify import sql
@@ -192,17 +192,196 @@ def test_mid_job_changeover_splits_allocation_and_billing_only_when_switched_on(
     assert sum(Decimal(r["hours"]) for r in b) == 3 and b[0]["changeover_id"] is not None and b[0]["job_id"] == job
     assert Decimal(_ok(o.get(f"{T}/jobs/{job}"))["billable_hours"]) == 9  # billing unchanged by default
 
-    # Switched on (for jobs started from now on): the hours after the changeover leave the job's billing.
+
+def _pending_job(c: JobCtx, number: str, contract: str, rate: str = "1000", mode: str | None = None) -> str:
+    body: dict[str, Any] = {
+        "contract_id": contract,
+        "job_number": number,
+        "machine_id": c.t.machine_id,
+        "planned_start": c.owner.api.clock.now.isoformat(),
+        "hourly_rate": rate,
+    }
+    if mode is not None:
+        body["billing_mode"] = mode
+    job = str(_ok(c.owner.post(f"{T}/jobs", body), 201)["id"])
+    _ok(c.owner.post(f"{T}/jobs/{job}/transitions", {"action": "SUBMIT"}))
+    return job
+
+
+def _hire(summary: dict[str, Any]) -> Decimal:
+    return sum((Decimal(x["quantity"]) for x in summary["charges"]["lines"] if x["kind"] == "HIRE"), Decimal(0))
+
+
+def test_changeover_without_a_job_is_a_sync_conflict_when_billing_is_split(api: Api) -> None:
+    c, _, _ = _ctx(api, "Split Sync")
+    o, t0 = c.owner, api.clock.now
+    second, _ = _second_customer(c, api)
     engine_hours_policy(o, changeover_splits_billing=True)
-    later = t0 + timedelta(hours=10)
-    job2 = _job(api, c, "J-TWO")
-    _start(c, job2, "1009", later)
-    change2 = _reading(
-        job2, c.t.machine_id, "DAILY", "1015", later + timedelta(hours=6), changeover_to_customer_id=second
+    _start(c, c.job_id, "1000", t0)
+    headers = {**o.headers(True, None), "X-Device-Id": DEVICE}
+    _ok(
+        api.client.post(
+            "/api/v1/sync/devices",
+            headers=headers,
+            json={"device_id": DEVICE, "platform": "ANDROID", "app_version": "1"},
+        ),
+        201,
     )
-    _ok(_cap(o, change2), 201)
-    _close(c, job2, "1018", later + timedelta(hours=9))
-    assert Decimal(_ok(o.get(f"{T}/jobs/{job2}"))["billable_hours"]) == 6
+    at = t0 + timedelta(hours=6)
+    api.clock.set_at(at)
+    payload = _reading(c.job_id, c.t.machine_id, "DAILY", "1006", at, changeover_to_customer_id=second)
+    op = {
+        "id": str(uuid.uuid4()),
+        "op_type": "METER_CAPTURE",
+        "payload": payload,
+        "created_at_device": at.isoformat(),
+        "depends_on": [],
+    }
+    r = _ok(
+        api.client.post("/api/v1/sync/push", headers=headers, json={"device_now": at.isoformat(), "operations": [op]})
+    )
+    assert (r["results"][0]["status"], r["results"][0]["error"]["code"]) == ("CONFLICT", "CHANGEOVER_JOB_REQUIRED")
+
+
+def _changed_over(api: Api, c: JobCtx, b_contract: str, second: str, mode: str | None = None) -> tuple[str, datetime]:
+    """Job A runs 1000-1009 with a changeover at 1006 naming pending job B; B is then approved and runs 1009-1010."""
+    o, t0 = c.owner, api.clock.now
+    engine_hours_policy(o, changeover_splits_billing=True)
+    a = c.job_id
+    job_b = _pending_job(c, "J-NEXT", b_contract, mode=mode)
+    _start(c, a, "1000", t0)
+    moved = _reading(a, c.t.machine_id, "DAILY", "1006", t0 + timedelta(hours=6), changeover_to_customer_id=second)
+    assert _code(_cap(o, moved)) == "CHANGEOVER_JOB_REQUIRED"
+    assert _code(_cap(o, {**moved, "id": str(uuid.uuid4()), "changeover_to_job_id": a})) == "CHANGEOVER_JOB_INVALID"
+    _ok(_cap(o, {**moved, "id": str(uuid.uuid4()), "changeover_to_job_id": job_b}), 201)
+    _close(c, a, "1009", t0 + timedelta(hours=9))
+    refused = o.post(f"{T}/jobs/{job_b}/transitions", {"action": "CANCEL", "reason": "Not needed after all"})
+    assert _code(refused) == "JOB_HAS_CHANGEOVER_HOURS"  # those hours must keep a job to bill
+    _ok(o.post(f"{T}/jobs/{job_b}/transitions", {"action": "APPROVE"}))
+    _start(c, job_b, "1009", t0 + timedelta(hours=9, minutes=1))
+    _close(c, job_b, "1010", t0 + timedelta(hours=10))
+    return job_b, t0
+
+
+def test_changeover_with_billing_split_bills_the_named_job_invoice(api: Api) -> None:
+    f = setup_finance(api, "Split Invoice", "SPLIT-1")
+    c, o = f.c, f.owner
+    second, contract = _second_customer(c, api)
+    job_b, t0 = _changed_over(api, c, contract, second)
+
+    a_summary, b_summary = _ok(o.get(f"{T}/jobs/{c.job_id}")), _ok(o.get(f"{T}/jobs/{job_b}"))
+    assert (Decimal(a_summary["billable_hours"]), Decimal(b_summary["billable_hours"])) == (Decimal(6), Decimal(4))
+    assert Decimal(b_summary["changeover_carried_hours"]) == 3  # A loses exactly what B gains
+    assert _hire(a_summary) + _hire(b_summary) == 10  # every engine hour is billed exactly once
+
+    # The allocation ledger agrees: A's job holds 6 h for A's customer, B's job 3 + 1 h for B's.
+    assert sum(Decimal(r["hours"]) for r in _allocations(o, job_id=c.job_id)) == 6
+    b_rows = _allocations(o, job_id=job_b)
+    assert sum(Decimal(r["hours"]) for r in b_rows) == 4 and {r["customer_id"] for r in b_rows} == {second}
+    day = _day(c, t0.date())
+    assert (Decimal(day["total_engine_hours"]), Decimal(day["customer_hours"])) == (Decimal(10), Decimal(10))
+    assert Decimal(day["difference_hours"]) == 0
+
+    invoice_a = issue_invoice(f, [c.job_id])
+    draft = _ok(f.accountant.post(f"{T}/hire-invoices", {"customer_id": second, "job_ids": [job_b]}), 201)
+    invoice_b = _ok(f.accountant.post(f"{T}/hire-invoices/{draft['id']}/issue", {}))
+    quantity = [
+        sum(Decimal(x["quantity"]) for x in inv["lines"] if x["kind"] == "HIRE") for inv in (invoice_a, invoice_b)
+    ]
+    assert quantity == [Decimal(6), Decimal(4)]
+
+
+def test_changeover_with_billing_split_draws_the_named_jobs_prepaid_hours(api: Api) -> None:
+    f = setup_finance(api, "Split Prepaid", "SPLIT-2")
+    c, o = f.c, f.owner
+    second, contract = _second_customer(c, api)
+    lot = purchase(api, f.accountant, f, "10", customer_id=second, pay=str(10 * RATE))
+    verify(f.accountant2, lot["payment"]["id"])
+    job_b, _ = _changed_over(api, c, contract, second, mode="PREPAID_HOURS")
+
+    assert Decimal(_ok(o.get(f"{T}/jobs/{c.job_id}"))["billable_hours"]) == 6
+    wea = _ok(o.get(f"{T}/work-execution-allocations", job_id=job_b))["items"][0]
+    assert (Decimal(wea["billable_hours"]), Decimal(wea["consumed_hours"])) == (Decimal(4), Decimal(4))
+    bal = balance(o, second, c.t.machine_id)
+    assert bal is not None and Decimal(bal["remaining"]) == 6
+    rows = _allocations(o, job_id=job_b)
+    assert sum(Decimal(x["hours"]) for r in rows for x in r["lots"]) == 4  # the lots agree with the allocation
+    assert {x["purchase_id"] for r in rows for x in r["lots"]} == {lot["id"]}
+
+
+def test_time_already_deducted_is_not_moved_to_the_next_job(api: Api) -> None:
+    """One hour of downtime after the changeover stays deducted: A and B plus that hour still equal the engine hours."""
+    f = setup_finance(api, "Split Downtime", "SPLIT-3")
+    c, o = f.c, f.owner
+    second, contract = _second_customer(c, api)
+    engine_hours_policy(o, changeover_splits_billing=True)
+    t0 = api.clock.now
+    job_b = _pending_job(c, "J-NEXT", contract)
+    _start(c, c.job_id, "1000", t0)
+    moved = _reading(
+        c.job_id,
+        c.t.machine_id,
+        "DAILY",
+        "1006",
+        t0 + timedelta(hours=6),
+        changeover_to_customer_id=second,
+        changeover_to_job_id=job_b,
+    )
+    _ok(_cap(o, moved), 201)
+    down = {
+        "client_id": str(uuid.uuid4()),
+        "activity_type": "DOWNTIME",
+        "started_at": (t0 + timedelta(hours=7)).isoformat(),
+        "ended_at": (t0 + timedelta(hours=8)).isoformat(),
+        "billable": False,
+    }
+    _ok(o.post(f"{T}/jobs/{c.job_id}/activities", down), 201)
+    _close(c, c.job_id, "1009", t0 + timedelta(hours=9))
+    _ok(o.post(f"{T}/jobs/{job_b}/transitions", {"action": "APPROVE"}))
+    _start(c, job_b, "1009", t0 + timedelta(hours=9, minutes=1))
+    _close(c, job_b, "1011", t0 + timedelta(hours=11))
+    a, b = _ok(o.get(f"{T}/jobs/{c.job_id}")), _ok(o.get(f"{T}/jobs/{job_b}"))
+    assert (Decimal(a["billable_hours"]), Decimal(b["changeover_carried_hours"])) == (Decimal(6), Decimal(2))
+    assert Decimal(b["billable_hours"]) == 4  # 2 carried + 2 own; with the hour of downtime A + B + 1 = 11
+
+
+def test_in_job_non_revenue_allocation_names_its_approval(api: Api) -> None:
+    f = setup_finance(api, "Approval Ref", "REF-1")
+    c, o = f.c, f.owner
+    _ok(
+        o.post(
+            f"{T}/policies/REVENUE_RECONCILIATION/versions",
+            {
+                "scope": "TENANT",
+                "values": {"enabled": True, "deduct_non_revenue_from_working_hours": True},
+                "reason": "Switched on",
+            },
+        ),
+        201,
+    )
+    t0 = api.clock.now
+    _start(c, c.job_id, "1000", t0)
+    move = {
+        "client_id": str(uuid.uuid4()),
+        "activity_type": "MOBILIZATION",
+        "started_at": t0.isoformat(),
+        "ended_at": (t0 + timedelta(hours=1)).isoformat(),
+        "billable": False,
+    }
+    activity = _ok(o.post(f"{T}/jobs/{c.job_id}/activities", move), 201)
+    _close(c, c.job_id, "1008", t0 + timedelta(hours=8))
+    reason = _ok(o.post(f"{T}/revenue-reasons", {"code": "MOVE", "name": "Site move"}), 201)["id"]
+    body = {"activity_id": activity["id"], "reason_id": reason, "note": "Moved to the site"}
+    proposed = _ok(f.accountant.post(f"{T}/non-revenue-approvals", body), 201)
+    _ok(
+        f.manager.post(
+            f"{T}/non-revenue-approvals/{proposed['id']}/decision", {"decision": "APPROVE", "note": "Checked"}
+        )
+    )
+    run_work_allocations(get_sessionmaker(), api.clock.now)
+    [entry] = _allocations(o, kind="AUTHORIZED_ACTIVITY")
+    assert entry["activity_type"] == "MOBILIZATION" and Decimal(entry["hours"]) == 1
+    assert (entry["approval_ref_type"], entry["approval_ref_ids"]) == ("non_revenue_approval", [proposed["id"]])
 
 
 def test_in_job_uncovered_hours_are_unexplained_and_not_billed_when_policy_is_off(api: Api) -> None:
@@ -312,6 +491,8 @@ def test_corrections_supersede_never_edit_and_need_a_second_person(api: Api) -> 
 
     original = _ok(o.get(f"{T}/work-allocations/{entry['id']}"))
     assert original["status"] == "SUPERSEDED" and len(original["superseded_by_ids"]) == 2
+    assert done["entries"][0]["approval_ref_type"] == "work_allocation_correction"
+    assert done["entries"][0]["approval_ref_ids"] == [group]
     assert _by_kind(_allocations(o, machine_id=c.t.machine_id)) == {
         "AUTHORIZED_ACTIVITY": Decimal(3),
         "UNEXPLAINED": Decimal(1),

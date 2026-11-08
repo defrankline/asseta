@@ -210,7 +210,7 @@ class MeterService:
         job, machine_id, site_id = self._target(body, correction_of is not None)
         now = self._now  # injected clock: server receive time and skew checks are deterministic
         if body.changeover_to_customer_id is not None:
-            self._check_changeover_customer(body, job)
+            self._check_changeover(body, job, correction_of is not None)
         policy, stamp = self._policy(body, machine_id, site_id)
         photo = self._s.get(CaptureAttachment, body.photo_attachment_id) if body.photo_attachment_id else None
         if body.photo_attachment_id and photo is None:
@@ -373,9 +373,7 @@ class MeterService:
             return
         if self._s.get(Customer, to_customer) is None:
             raise NotFound("Customer not found", code="CUSTOMER_NOT_FOUND")
-        from_customer = self._s.execute(
-            select(RentalContract.customer_id).where(RentalContract.id == job.contract_id)
-        ).scalar_one()
+        from_customer = self._job_customer(job)
         if to_job is not None and self._s.get(Job, to_job) is None:
             raise NotFound("Job not found")
         self._s.add(
@@ -404,28 +402,61 @@ class MeterService:
             ],
         )
 
-    def _check_changeover_customer(self, body: MeterCaptureIn, job: Job | None) -> None:
-        """Refused before anything is stored: the machine must really be moving to a different customer."""
-        if body.kind is not ReadingKind.DAILY or job is None or job.status is not JobStatus.IN_PROGRESS:
+    def _check_changeover(self, body: MeterCaptureIn, job: Job | None, correction: bool) -> None:
+        """Refused before anything is stored. A new changeover needs the running job and a real change of customer. A
+        correction replaces one already recorded, so those two no longer apply (the job may have finished since)."""
+        if (
+            body.kind is not ReadingKind.DAILY
+            or job is None
+            or (not correction and job.status is not JobStatus.IN_PROGRESS)
+        ):
             raise BusinessRuleViolation(
                 "A changeover is a DAILY reading on the job currently running", code="CHANGEOVER_NOT_ALLOWED"
             )
         require_capability(self._s, self._tid, ENGINE_HOURS, self._now)
-        latest = self._s.execute(
-            select(MachineChangeover.to_customer_id)
-            .where(MachineChangeover.job_id == job.id)
-            .order_by(MachineChangeover.created_at.desc())
-            .limit(1)
-        ).scalar_one_or_none()
-        current = (
-            latest
-            or self._s.execute(
-                select(RentalContract.customer_id).where(RentalContract.id == job.contract_id)
-            ).scalar_one()
-        )
-        if body.changeover_to_customer_id == current:
+        if not correction:
+            latest = self._s.execute(
+                select(MachineChangeover.to_customer_id)
+                .where(MachineChangeover.job_id == job.id)
+                .order_by(MachineChangeover.created_at.desc())
+                .limit(1)
+            ).scalar_one_or_none()
+            current = latest or self._job_customer(job)
+            if body.changeover_to_customer_id == current:
+                raise BusinessRuleViolation(
+                    "The machine is already working for this customer", code="CHANGEOVER_SAME_CUSTOMER"
+                )
+        policy = PolicyService(self._s).engine_hours(self._tid, job.machine_id, at=job.started_at or self._now).policy
+        if policy.in_force().changeover_splits_billing:
+            self._check_billed_job(body, job, correction)
+
+    def _job_customer(self, job: Job) -> uuid.UUID:
+        return self._s.execute(
+            select(RentalContract.customer_id).where(RentalContract.id == job.contract_id)
+        ).scalar_one()
+
+    def _check_billed_job(self, body: MeterCaptureIn, job: Job, correction: bool) -> None:
+        """With billing split on, the hours after the changeover must bill somebody: the follow-on job is required.
+        It waits in the approval queue (the one-active-job rule keeps it from being approved while this job runs)."""
+        if body.changeover_to_job_id is None:
             raise BusinessRuleViolation(
-                "The machine is already working for this customer", code="CHANGEOVER_SAME_CUSTOMER"
+                "Name the job the machine moves on to, so these hours are billed", code="CHANGEOVER_JOB_REQUIRED"
+            )
+        target = self._s.get(Job, body.changeover_to_job_id)
+        waiting = target is not None and (
+            target.status is JobStatus.PENDING_APPROVAL
+            or (correction and target.status in (JobStatus.APPROVED, JobStatus.IN_PROGRESS, JobStatus.COMPLETED))
+        )
+        if (
+            target is None
+            or not waiting
+            or target.id == job.id
+            or target.machine_id != job.machine_id
+            or self._job_customer(target) != body.changeover_to_customer_id
+        ):
+            raise BusinessRuleViolation(
+                "The job named must be awaiting approval, on this machine, for that customer",
+                code="CHANGEOVER_JOB_INVALID",
             )
 
     def request_reset(self, body: ResetIn) -> ResetDto:

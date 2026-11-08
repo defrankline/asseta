@@ -25,6 +25,7 @@ from asseta.modules.fleet.models import Machine
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.intelligence.models import AnomalyCase
 from asseta.modules.jobs.models import Job, JobActivity
+from asseta.modules.meter.allocation_writer import sync_allocations
 from asseta.modules.policy.service import PolicyService
 from asseta.modules.revenue.dto import (
     DailyMachineSheetDetailDto,
@@ -589,6 +590,7 @@ class RevenueService:
             body.note,
         )
         if approve:
+            sync_allocations(self._s, self._tid, row.machine_id, self._now)  # DEC-032 A1: the ledger names the approval
             recompute_after_change(
                 self._s,
                 self._tid,

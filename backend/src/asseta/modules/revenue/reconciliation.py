@@ -116,7 +116,10 @@ def _job_periods(model: MachineModel, tz: ZoneInfo, since: datetime) -> list[Per
 def _hours(model: MachineModel, p: Period) -> tuple[Decimal, Decimal]:
     customer = non_revenue = ZERO
     for i in model.ledger.ledger.intervals:
-        if i.kind is not SegmentKind.CUSTOMER_WORK or (p.job_id is not None and i.job_id != p.job_id):
+        billing_job = (
+            i.billed_to_job_id or i.job_id
+        )  # DEC-032 A3: hours after a changeover count on the job billing them
+        if i.kind is not SegmentKind.CUSTOMER_WORK or (p.job_id is not None and billing_job != p.job_id):
             continue
         f = Decimal(1) if p.job_id is not None else overlap_fraction(i.start.at, i.end.at, p.start, p.end)
         customer += i.customer_work_hours * f

@@ -269,6 +269,8 @@ class WorkAllocationService:
                 classification_id=None,
                 changeover_id=entry.changeover_id if part.kind is AllocationKind.CUSTOMER_WORK else None,
                 reading_review=entry.reading_review,
+                approval_ref_type="work_allocation_correction",
+                approval_ref_ids=[group],
                 lots=self._carry_lots(lots, part.hours) if carries else [],
                 evidence_attachment_ids=list({*entry.evidence_attachment_ids, *body.evidence_attachment_ids}),
                 source=AllocationSource.CORRECTION,

@@ -12607,6 +12607,11 @@ export interface components {
             billing_ready: boolean;
             /** Blocking Exceptions */
             blocking_exceptions: number;
+            /**
+             * Changeover Carried Hours
+             * @default 0
+             */
+            changeover_carried_hours: string;
             charges?: components["schemas"]["JobChargesDto"] | null;
             /** Closing Reading */
             closing_reading: string | null;
@@ -13634,7 +13639,7 @@ export interface components {
             changeover_to_customer_id?: string | null;
             /**
              * Changeover To Job Id
-             * @description Optional: the job the machine moves on to (kept for the record)
+             * @description The job the machine moves on to, awaiting approval on this machine for that customer. Required while the tenant splits billing at changeovers (the hours after it bill to this job)
              */
             changeover_to_job_id?: string | null;
             /** Device Id */
@@ -19717,6 +19722,13 @@ export interface components {
         WorkAllocationDto: {
             /** Activity Type */
             activity_type: string | null;
+            /** Approval Ref Ids */
+            approval_ref_ids?: string[];
+            /**
+             * Approval Ref Type
+             * @description engine_hour_classification, non_revenue_approval or work_allocation_correction
+             */
+            approval_ref_type?: string | null;
             /** Changeover Id */
             changeover_id: string | null;
             /** Classification Id */

@@ -111,13 +111,16 @@ UNEXPLAINED, listed and classified like any other unexplained segment, and are n
    `changeover_to_customer_id` (`METER_CHANGEOVER` capability; same `METER_CAPTURE` op). This writes an append-only
    `machine_changeover`, never touches the job's status, and the one-active-job-per-machine rule stands: A remains the only
    running job. From that reading on, the allocation ledger shows the hours as customer B's work (job A's id kept as the
-   executing job; the changeover's id on the entry).
+   executing job unless billing is split, below; the changeover's id on the entry).
 
 Billing: **unchanged by default** (`ENGINE_HOURS.changeover_splits_billing` false): job A still bills its whole opening-to-closing window,
-so a tenant that leaves it off gets the ledger's truth without any change to invoices. Switched on, the hours after the changeover
-to a different customer leave job A's billable hours, prepaid drawdown and expected revenue. Those hours then sit in the ledger
-as customer B's work, **not yet billed to B**: invoicing them to B (the job, rate and lot rules) is deferred; the job-to-job path is the
-way to bill both customers today.
+so a tenant that leaves it off gets the ledger's truth without any change to invoices. Switched on, a changeover must name the job
+that bills the hours after it (`changeover_to_job_id`, else `CHANGEOVER_JOB_REQUIRED`; it must be awaiting approval, on this machine, for
+that customer, else `CHANGEOVER_JOB_INVALID`; both are sync CONFLICTs). That job stays in the approval queue while A runs, so the
+one-active-job rule stands; it is approved after A completes and runs its normal opening and closing readings. Its billable hours are its own
+meter hours plus the hours A gave up. A loses exactly what B gains: only billable hours move (time A's billing already deducts stays deducted),
+A's invoice and drawdown and B's agree with the ledger, where those entries carry job B, and prepaid hours come from B's customer. B cannot be cancelled or moved
+while it is owed those hours (`JOB_HAS_CHANGEOVER_HOURS`); correct the changeover reading first.
 
 **A4.** Hours total comes only from the two named readings (reset-aware). Billable defaults to total minus unbillable; a declared billable
 that leaves a gap is stored as `difference_hours`; billable plus unbillable above the total is refused. A second report for the same
@@ -132,8 +135,8 @@ behave as they did.
 multiple of the amount. A METER_DECREASE finding is labelled `POSSIBLE_METER_RESET`. A repeat DAILY *reading* is not flagged
 (morning and evening readings are normal); the flag is on repeat daily *reports*.
 
-Deferred from Phase 1: billing post-changeover hours to the next customer (see A3); approval refs on in-job non-revenue activity entries
-(the approval is per work-log entry, the ledger aggregates by type).
+A1 approval reference: `approval_ref_type` + `approval_ref_ids` on an entry (`engine_hour_classification`, `non_revenue_approval` or
+`work_allocation_correction`; a list because several approved work-log entries can fall inside one interval).
 
 ## Phase 2 — Corrections (T7, 4.6)
 
