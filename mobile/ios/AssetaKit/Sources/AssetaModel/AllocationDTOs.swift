@@ -8,6 +8,10 @@ extension SyncCapability {
     public static let dailyReport = "OP_DAILY_REPORT"
     /// `METER_CAPTURE` kind DAILY on the running job accepts `changeover_to_customer_id` (and `changeover_to_job_id`).
     public static let meterChangeover = "METER_CHANGEOVER"
+    /// `SyncData.changeover_jobs`: jobs a changeover can name on my machines, office-created ones included.
+    public static let changeoverJobs = "SYNC_CHANGEOVER_JOBS"
+    /// `SyncData.unbillable_reasons`: the tenant's reasons for the daily report form.
+    public static let unbillableReasons = "SYNC_UNBILLABLE_REASONS"
 }
 
 /// `AllocationKind` wire values (kept as strings so a newer server never breaks the app).
@@ -428,7 +432,45 @@ public struct EngineHourReasonDTO: Codable, Hashable, Sendable, Identifiable {
     public let description: String?
     public let isActive: Bool
 
+    public init(id: UUID, kind: String, code: String, name: String, description: String?, isActive: Bool) {
+        self.id = id
+        self.kind = kind
+        self.code = code
+        self.name = name
+        self.description = description
+        self.isActive = isActive
+    }
+
     enum CodingKeys: String, CodingKey { case id, kind, code, name, description, isActive = "is_active" }
+}
+
+/// `SyncUnbillableReasonDto`: one entry of the tenant's unbillable reasons.
+public struct SyncUnbillableReasonDTO: Codable, Hashable, Sendable, Identifiable {
+    public let id: UUID
+    public let code: String
+    public let name: String
+    public let description: String?
+    public let isActive: Bool
+
+    enum CodingKeys: String, CodingKey { case id, code, name, description, isActive = "is_active" }
+}
+
+/// `SyncChangeoverJobDto`: a job a changeover can name, whoever created it.
+public struct ChangeoverJobDTO: Codable, Hashable, Sendable, Identifiable {
+    public let id: UUID
+    public let jobNumber: String
+    public let machineID: UUID
+    public let customerID: UUID
+    public let customerName: String
+    public let status: JobStatus
+
+    /// Whether the job is still waiting to run: every other status (a delta) drops it from the phone's choices.
+    public var stillApplies: Bool { status == .pendingApproval || status == .approved }
+
+    enum CodingKeys: String, CodingKey {
+        case id, status
+        case jobNumber = "job_number", machineID = "machine_id", customerID = "customer_id", customerName = "customer_name"
+    }
 }
 
 /// The ENGINE_HOURS policy keys the phones read (`GET /policies/ENGINE_HOURS/effective`).

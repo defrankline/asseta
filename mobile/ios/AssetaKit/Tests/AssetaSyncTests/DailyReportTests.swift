@@ -95,9 +95,64 @@ struct DailyReportTests {
     }
 
     @Test func nextJobsOffered() {
-        #expect(ChangeoverRules.jobOffered(.pendingApproval, jobRequired: true) && ChangeoverRules.jobOffered(.pendingApproval, jobRequired: false))
-        #expect(!ChangeoverRules.jobOffered(.approved, jobRequired: true) && ChangeoverRules.jobOffered(.approved, jobRequired: false))
-        #expect(!ChangeoverRules.jobOffered(.inProgress, jobRequired: false) && !ChangeoverRules.jobOffered(.completed, jobRequired: false))
+        #expect(ChangeoverRules.jobOffered(.pendingApproval))
+        #expect(!ChangeoverRules.jobOffered(.approved) && !ChangeoverRules.jobOffered(.inProgress) && !ChangeoverRules.jobOffered(.completed))
+    }
+
+    static func changeoverJob(_ id: UUID, number: String, customer: UUID = reason, name: String = "Acme", status: String = "PENDING_APPROVAL",
+                              machine: UUID = SyncFixtures.machineID, revision: Int = 5) -> [String: Any] {
+        ["id": id.lowercased, "job_number": number, "machine_id": machine.lowercased, "customer_id": customer.lowercased,
+         "customer_name": name, "status": status, "sync_revision": revision]
+    }
+
+    static func syncedReason(_ id: UUID, _ name: String, active: Bool = true, revision: Int = 5) -> [String: Any] {
+        ["id": id.lowercased, "code": name.uppercased(), "name": name, "description": NSNull(), "is_active": active, "sync_revision": revision]
+    }
+
+    @Test func changeoverJobsSyncAndLeaveOnceTheyNoLongerApply() async throws {
+        let h = try SyncHarness()
+        let waiting = UUID(), approved = UUID(), elsewhere = UUID(), other = Self.other
+        h.server.mutate {
+            $0.capabilities = Self.all + [SyncCapability.changeoverJobs]
+            $0.changeoverJobs = [Self.changeoverJob(waiting, number: "J-2"), Self.changeoverJob(approved, number: "J-1", status: "APPROVED"),
+                                 Self.changeoverJob(elsewhere, number: "J-3", machine: UUID()),
+                                 Self.changeoverJob(other, number: "J-4", customer: Self.opening, name: "Beta")]
+        }
+        let directory = AccountabilityDirectory(store: h.store, tenantID: SyncFixtures.tenant, owner: nil)
+        let engine = h.engine()
+        _ = try await engine.sync()
+        #expect(directory.changeoverJobs.count == 4)
+        let machine = SyncFixtures.machineID, running = SyncFixtures.jobID
+        #expect(ChangeoverRules.nextJobs(directory.changeoverJobs, machineID: machine, customerID: Self.reason, excluding: running).map(\.id) == [waiting])
+        let customers = ChangeoverRules.nextCustomers(directory.changeoverJobs, machineID: machine, excluding: running)
+        #expect(Set(customers.map(\.name)) == ["Acme", "Beta"])
+        // A delta with another status drops the job from the choices.
+        h.server.mutate { $0.changeoverJobs = [Self.changeoverJob(waiting, number: "J-2", status: "CANCELLED", revision: 9)] }
+        _ = try await engine.sync(force: true)
+        #expect(ChangeoverRules.nextJobs(directory.changeoverJobs, machineID: machine, customerID: Self.reason, excluding: running).isEmpty)
+        #expect(!directory.changeoverJobs.contains { $0.id == waiting })
+    }
+
+    @Test func unbillableReasonsSyncAndDeactivationsLeaveTheForm() async throws {
+        let h = try SyncHarness()
+        h.server.mutate {
+            $0.capabilities = Self.all + [SyncCapability.unbillableReasons]
+            $0.unbillableReasons = [Self.syncedReason(Self.reason, "Rain"), Self.syncedReason(Self.other, "Breakdown")]
+        }
+        let directory = AccountabilityDirectory(store: h.store, tenantID: SyncFixtures.tenant, owner: nil)
+        let engine = h.engine()
+        _ = try await engine.sync()
+        #expect(directory.unbillableReasons.map(\.name) == ["Breakdown", "Rain"])
+        h.server.mutate { $0.unbillableReasons = [Self.syncedReason(Self.other, "Breakdown", active: false, revision: 9)] }
+        _ = try await engine.sync(force: true)
+        #expect(directory.unbillableReasons.map(\.name) == ["Rain"])
+    }
+
+    @Test func aMissingListKeepsTheLastOnlineReasons() throws {
+        let h = try SyncHarness()
+        let saved = [EngineHourReasonDTO(id: Self.reason, kind: EngineHourReasonKinds.unbillable, code: "RAIN", name: "Rain", description: nil, isActive: true)]
+        try SavedOnline.write(SavedOnline(value: saved, forbidden: false, fetchedAt: Date()), h.store, SyncFixtures.tenant, AccountabilityKey.unbillableReasons)
+        #expect(AccountabilityDirectory(store: h.store, tenantID: SyncFixtures.tenant, owner: nil).unbillableReasons.map(\.name) == ["Rain"])
     }
 
     @Test func reportDaysAreCutInTheTenantsZone() throws {

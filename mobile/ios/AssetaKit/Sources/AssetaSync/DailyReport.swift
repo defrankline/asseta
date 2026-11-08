@@ -149,10 +149,21 @@ public enum TenantZone {
 
 /// Why a changeover cannot be saved (as Android `ChangeoverRules`).
 public enum ChangeoverRules {
-    /// Which jobs can follow: one the hours are billed to must still be waiting for approval (else the server answers
-    /// `CHANGEOVER_JOB_INVALID`); an optional one, kept for the record, may also be approved.
-    public static func jobOffered(_ status: JobStatus, jobRequired: Bool) -> Bool {
-        status == .pendingApproval || (!jobRequired && status == .approved)
+    /// Which jobs can follow: only one still waiting for approval can be named while another job runs (else the server
+    /// answers `CHANGEOVER_JOB_INVALID`).
+    public static func jobOffered(_ status: JobStatus) -> Bool { status == .pendingApproval }
+
+    /// The next jobs of `customerID` on `machineID`, by number.
+    public static func nextJobs(_ jobs: [ChangeoverJobDTO], machineID: UUID, customerID: UUID, excluding running: UUID) -> [ChangeoverJobDTO] {
+        jobs.filter { $0.id != running && $0.machineID == machineID && $0.customerID == customerID && $0.stillApplies && jobOffered($0.status) }
+            .sorted { $0.jobNumber < $1.jobNumber }
+    }
+
+    /// Customers a job can follow for on `machineID` that the supervisor's own list may not hold, by id and name.
+    public static func nextCustomers(_ jobs: [ChangeoverJobDTO], machineID: UUID, excluding running: UUID) -> [(id: UUID, name: String)] {
+        var seen = Set<UUID>()
+        return jobs.filter { $0.id != running && $0.machineID == machineID && $0.stillApplies && jobOffered($0.status) }
+            .filter { seen.insert($0.customerID).inserted }.map { ($0.customerID, $0.customerName) }
     }
 
     public static func problem(customerID: UUID?, jobID: UUID?, jobRequired: Bool) -> String? {
@@ -361,9 +372,25 @@ extension SupervisorOnline {
 }
 
 extension AccountabilityDirectory {
-    /// The unbillable reasons saved on this phone (for the offline form).
+    /// The unbillable reasons for the offline form: from sync (deactivations included), else the last online read (an
+    /// older server, or a phone that has not received the list yet).
     public var unbillableReasons: [EngineHourReasonDTO] {
-        DailyReportRules.pickable(SavedOnline<[EngineHourReasonDTO]>.read(store, tenantID, AccountabilityKey.unbillableReasons)?.value ?? [])
+        let synced = ((try? store.syncState.entities(type: "unbillable_reason", tenantID: tenantID)) ?? [])
+            .compactMap { try? AssetaJSON.decoder().decode(SyncUnbillableReasonDTO.self, from: Data($0.json.utf8)) }
+        if !synced.isEmpty {
+            return DailyReportRules.pickable(synced.map {
+                EngineHourReasonDTO(id: $0.id, kind: EngineHourReasonKinds.unbillable, code: $0.code, name: $0.name,
+                                    description: $0.description, isActive: $0.isActive)
+            })
+        }
+        return DailyReportRules.pickable(SavedOnline<[EngineHourReasonDTO]>.read(store, tenantID, AccountabilityKey.unbillableReasons)?.value ?? [])
+    }
+
+    /// Jobs a changeover can name, as synced and still waiting to run.
+    public var changeoverJobs: [ChangeoverJobDTO] {
+        ((try? store.syncState.entities(type: "changeover_job", tenantID: tenantID)) ?? [])
+            .compactMap { try? AssetaJSON.decoder().decode(ChangeoverJobDTO.self, from: Data($0.json.utf8)) }
+            .filter(\.stillApplies)
     }
 
     /// My daily reports: the server's copies (last online read, the ones I sent) merged with this phone's unsent ones.

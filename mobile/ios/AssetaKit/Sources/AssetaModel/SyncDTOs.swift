@@ -82,13 +82,20 @@ public struct SyncData: Codable, Hashable, Sendable {
     /// Company deposit accounts for the remittance picker (REMITTANCE_DETAILS_V1; bootstrap: active ones; deltas:
     /// every change, deactivations included). Stored as entities of type `deposit_account`.
     public var depositAccounts: [JSONValue]
+    /// Jobs a changeover can name on my machines (SYNC_CHANGEOVER_JOBS; bootstrap: waiting ones; deltas: every change, the
+    /// status says whether it still applies). Stored as entities of type `changeover_job`.
+    public var changeoverJobs: [JSONValue]
+    /// The tenant's unbillable reasons (SYNC_UNBILLABLE_REASONS; deltas include deactivations, `is_active` false).
+    /// Stored as entities of type `unbillable_reason`.
+    public var unbillableReasons: [JSONValue]
     /// Supervisor inbox lists (SUPERVISOR_INBOX_V1), raw as sent; `nil` when the server did not send
     /// the field (an older server): the stored inbox is then left untouched.
     public var inbox: [InboxList: [JSONValue]] = [:]
 
     public init(jobs: [JSONValue] = [], machines: [JSONValue] = [], sites: [JSONValue] = [],
                 customers: [JSONValue] = [], contracts: [JSONValue] = [], staff: [JSONValue] = [],
-                expenseCategories: [JSONValue] = [], cashCustody: [JSONValue] = [], depositAccounts: [JSONValue] = []) {
+                expenseCategories: [JSONValue] = [], cashCustody: [JSONValue] = [], depositAccounts: [JSONValue] = [],
+                changeoverJobs: [JSONValue] = [], unbillableReasons: [JSONValue] = []) {
         self.jobs = jobs
         self.machines = machines
         self.sites = sites
@@ -98,12 +105,14 @@ public struct SyncData: Codable, Hashable, Sendable {
         self.expenseCategories = expenseCategories
         self.cashCustody = cashCustody
         self.depositAccounts = depositAccounts
+        self.changeoverJobs = changeoverJobs
+        self.unbillableReasons = unbillableReasons
     }
 
     enum CodingKeys: String, CodingKey {
         case jobs, machines, sites, customers, contracts, staff
         case expenseCategories = "expense_categories", cashCustody = "cash_custody"
-        case depositAccounts = "deposit_accounts"
+        case depositAccounts = "deposit_accounts", changeoverJobs = "changeover_jobs", unbillableReasons = "unbillable_reasons"
     }
 
     /// The `my_*` inbox lists of `SyncData`.
@@ -125,6 +134,8 @@ public struct SyncData: Codable, Hashable, Sendable {
         try c.encode(expenseCategories, forKey: .expenseCategories)
         try c.encode(cashCustody, forKey: .cashCustody)
         try c.encode(depositAccounts, forKey: .depositAccounts)
+        try c.encode(changeoverJobs, forKey: .changeoverJobs)
+        try c.encode(unbillableReasons, forKey: .unbillableReasons)
         var lists = encoder.container(keyedBy: InboxList.self)
         for (key, rows) in inbox { try lists.encode(rows, forKey: key) }
     }
@@ -143,6 +154,8 @@ public struct SyncData: Codable, Hashable, Sendable {
         expenseCategories = try c.decodeIfPresent([JSONValue].self, forKey: .expenseCategories) ?? []
         cashCustody = try c.decodeIfPresent([JSONValue].self, forKey: .cashCustody) ?? []
         depositAccounts = try c.decodeIfPresent([JSONValue].self, forKey: .depositAccounts) ?? []
+        changeoverJobs = try c.decodeIfPresent([JSONValue].self, forKey: .changeoverJobs) ?? []
+        unbillableReasons = try c.decodeIfPresent([JSONValue].self, forKey: .unbillableReasons) ?? []
         let lists = try decoder.container(keyedBy: InboxList.self)
         for key in InboxList.allCases {
             if let rows = try lists.decodeIfPresent([JSONValue].self, forKey: key) { inbox[key] = rows }
@@ -153,7 +166,7 @@ public struct SyncData: Codable, Hashable, Sendable {
     public var byType: [(String, [JSONValue])] {
         [("job", jobs), ("machine", machines), ("site", sites), ("customer", customers),
          ("contract", contracts), ("staff", staff), ("expense_category", expenseCategories),
-         ("deposit_account", depositAccounts)]
+         ("deposit_account", depositAccounts), ("changeover_job", changeoverJobs), ("unbillable_reason", unbillableReasons)]
     }
 }
 

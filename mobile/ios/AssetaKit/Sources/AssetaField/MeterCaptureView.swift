@@ -102,7 +102,7 @@ struct MeterCaptureView: View {
     private func changeoverSection(_ job: FieldJob) -> some View {
         typealias T = DailyReportTexts
         let required = model.engineHoursPolicy?.changeoverSplitsBilling == true
-        let jobs = model.changeoverJobs(job, customerID: capture.nextCustomerID, jobRequired: required)
+        let jobs = model.changeoverJobs(job, customerID: capture.nextCustomerID)
         return Section {
             SearchablePickerField(label: T.changeoverNextCustomer, options: model.changeoverCustomers(job),
                                   selection: Binding(get: { capture.nextCustomerID }, set: {

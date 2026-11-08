@@ -50,16 +50,28 @@ extension FieldModel {
 
     var engineHoursPolicy: EngineHoursPolicyValues? { accountabilityData?.engineHoursPolicy }
 
-    /// Customers the machine can move on to: every synced one except the job's current customer.
+    private var syncsChangeoverJobs: Bool { access.capabilities?.contains(SyncCapability.changeoverJobs) == true }
+
+    /// Customers the machine can move on to: every synced one and those of the jobs that can follow it (office-created
+    /// jobs may be for customers outside my own list), never the job's current customer.
     func changeoverCustomers(_ job: FieldJob) -> [PickerOption] {
-        customerOptions.filter { $0.id != job.customer?.id }
+        let known = customerOptions
+        let extra = syncsChangeoverJobs ? ChangeoverRules.nextCustomers(accountabilityData?.changeoverJobs ?? [], machineID: job.job.machineID, excluding: job.id)
+            .filter { option in !known.contains { $0.id == option.id } }
+            .map { PickerOption(id: $0.id, title: $0.name, subtitle: nil) } : []
+        return (known + extra).filter { $0.id != job.customer?.id }
     }
 
-    /// Jobs that can follow on this machine for `customerID` (``ChangeoverRules/jobOffered(_:jobRequired:)``).
-    func changeoverJobs(_ job: FieldJob, customerID: UUID?, jobRequired: Bool) -> [PickerOption] {
+    /// Jobs that can follow on this machine for `customerID`: the synced list, or my own jobs from an older server.
+    func changeoverJobs(_ job: FieldJob, customerID: UUID?) -> [PickerOption] {
         guard let customerID else { return [] }
+        if syncsChangeoverJobs {
+            return ChangeoverRules.nextJobs(accountabilityData?.changeoverJobs ?? [], machineID: job.job.machineID,
+                                            customerID: customerID, excluding: job.id)
+                .map { PickerOption(id: $0.id, title: $0.jobNumber, subtitle: nil) }
+        }
         return jobs.filter { $0.id != job.id && $0.job.machineID == job.job.machineID && $0.contract?.customerID == customerID
-            && ChangeoverRules.jobOffered($0.job.status, jobRequired: jobRequired) }
+            && ChangeoverRules.jobOffered($0.job.status) }
             .map { PickerOption(id: $0.id, title: $0.job.jobNumber, subtitle: $0.site?.name) }
     }
 }

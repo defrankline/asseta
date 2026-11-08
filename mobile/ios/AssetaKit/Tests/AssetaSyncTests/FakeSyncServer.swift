@@ -35,6 +35,8 @@ final class FakeSyncServer: @unchecked Sendable {
     var expenseCategories: [[String: Any]] = []
     var cashCustody: [[String: Any]] = []
     var depositAccounts: [[String: Any]] = []
+    var changeoverJobs: [[String: Any]] = []
+    var unbillableReasons: [[String: Any]] = []
     /// Advertised protocol capabilities (nil: an older server that sends none).
     var capabilities: [String]? = ["SUPERVISOR_INBOX_V1", "OP_METER_RESET_REQUEST", "OP_JOB_REQUEST"]
     /// The tenant's time zone in bootstrap and changes; nil: not sent (an older server).
@@ -322,7 +324,8 @@ final class FakeSyncServer: @unchecked Sendable {
     private func data() -> [String: Any] {
         var data: [String: Any] = ["jobs": jobs, "machines": machines, "sites": [], "customers": customers, "contracts": [],
                                    "staff": [], "expense_categories": expenseCategories, "cash_custody": cashCustody,
-                                   "deposit_accounts": depositAccounts]
+                                   "deposit_accounts": depositAccounts, "changeover_jobs": changeoverJobs,
+                                   "unbillable_reasons": unbillableReasons]
         for (key, rows) in inbox { data[key] = rows }
         return data
     }
