@@ -247,29 +247,12 @@ public enum HandoverText {
     public static func details(_ h: CashHandoverDTO) -> [DecisionField] {
         typealias T = OwnerAccountabilityTexts
         let account = h.depositAccountID.map { DisplayName.or(h.depositAccountName, id: $0) }
-        return PendingDecision.fields([(T.remitMethod, T.remitMethodText(h.method)), (T.remitAccount, account),
-                                       (T.remitReference, h.reference)])
-    }
-
-    /// DEC-032 Phase 3: number, how the money is backed up and what is still open (hidden when zero/null).
-    public static func evidenceRows(_ h: CashHandoverDTO) -> [DecisionField] {
         let open = h.outstandingDifference.flatMap { $0.value == 0 ? nil : OwnerFormat.money($0, currency: h.currency) }
         return PendingDecision.fields([(VarianceTexts.remitNumber, h.remittanceNumber),
                                        (VarianceTexts.remitEvidence, h.evidenceStatus.map(VarianceTexts.remitEvidenceText)),
-                                       (VarianceTexts.remitOutstanding, open)])
-    }
-
-    /// The reason given for leaving cash behind, and its status (empty when there is none).
-    public static func partialRows(_ h: CashHandoverDTO) -> [DecisionField] {
-        guard let p = h.partialApproval else { return [] }
-        return PendingDecision.fields([(VarianceTexts.remitPartialReason, p.reason),
-                                       (VarianceTexts.remitPartialStatus, OwnerFormat.humanize(p.status))])
-    }
-
-    /// The caption of a handover row: "RMT-0007 · Declared by the field" (only the parts present).
-    public static func rowCaption(_ h: CashHandoverDTO) -> String? {
-        let parts = [h.remittanceNumber, h.evidenceStatus.map(VarianceTexts.remitEvidenceText)].compactMap { $0 }
-        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+                                       (VarianceTexts.remitOutstanding, open),
+                                       (T.remitMethod, T.remitMethodText(h.method)), (T.remitAccount, account),
+                                       (T.remitReference, h.reference)])
     }
 
     /// "No deposit slip photo" applies: a bank / mobile-money remittance (method other than cash) without a photo.

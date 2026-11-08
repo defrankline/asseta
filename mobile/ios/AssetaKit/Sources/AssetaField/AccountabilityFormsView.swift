@@ -263,7 +263,7 @@ struct HoursTransferFormView: View {
                         }
                         TextField(T.reason, text: $reason, axis: .vertical)
                     }
-                    if a.cashDetails {
+                    if a.transferEvidence {
                         EvidencePhotosSection(model: model, photos: $photos, error: $error,
                                               title: a.transferEvidenceRequired ? T.transferEvidenceTitleRequired : T.transferEvidenceTitle,
                                               footer: T.transferEvidenceFooter, photograph: T.transferPhotograph,
@@ -653,8 +653,8 @@ struct RetentionStatusView: View {
             if let item {
                 Section {
                     LabeledContent(T.amount, value: InboxTexts.money(AccountabilityRules.plain(item.amount), item.currency ?? ""))
-                    LabeledContent(T.retentionStatus) { Self.pill(item) }
                     if let number = item.number { LabeledContent(T.recordNumber, value: number) }
+                    LabeledContent(T.retentionStatus) { Self.pill(item) }
                     LabeledContent(T.retentionRequested, value: item.at.listText)
                     if let until = item.validUntil { LabeledContent(T.retentionValidUntil, value: until.listText) }
                     LabeledContent(T.reason, value: item.reason)
@@ -773,13 +773,13 @@ struct TransfersSegment: View {
             Section {
                 ForEach(rows, id: \.key) { r in
                     InboxRow(r.title, r.status, InboxTexts.money(r.amount, r.currency),
-                             [r.statusText, r.at.listText].compactMap { $0 }.joined(separator: " · "))
+                             [r.number, r.statusText, r.at.listText].compactMap { $0 }.joined(separator: " · "))
                 }
             }
         }
     }
 
-    struct Row { let key: String, title: String, amount: String, currency: String, status: InboxStatus, statusText: String?, at: Date }
+    struct Row { let key: String, title: String, amount: String, currency: String, status: InboxStatus, statusText: String?, at: Date; var number: String? = nil }
 
     static func rows(_ model: FieldModel) -> [Row] {
         let me = model.myStaffID
@@ -793,8 +793,8 @@ struct TransfersSegment: View {
             case "DISPUTED": (.rejected, T.moneyStatusDisputed)
             default: (.pending, T.moneyStatusPendingAck)
             }
-            return Row(key: t.id.uuidString, title: [title, t.transferNumber].compactMap { $0 }.joined(separator: " · "), amount: (t.amountReceived ?? t.amountDeclared).description, currency: t.currency,
-                       status: status, statusText: text, at: t.transferredAt)
+            return Row(key: t.id.uuidString, title: title, amount: (t.amountReceived ?? t.amountDeclared).description, currency: t.currency,
+                       status: status, statusText: text, at: t.transferredAt, number: t.transferNumber)
         }
         let known = Set(saved.compactMap(\.clientID))
         let local = (model.overview?.items.map(\.operation) ?? [])

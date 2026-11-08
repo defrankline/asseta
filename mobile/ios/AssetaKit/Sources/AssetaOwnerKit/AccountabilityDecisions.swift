@@ -110,11 +110,10 @@ public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
         switch self {
         case .discount, .credit, .hoursTransfer, .cancellation: TenantCapability.customerHours
         case .baseline, .correction, .classification, .allocationCorrection: TenantCapability.engineHours
-        case .writeOff, .retention, .adjustment, .partialRemittance: TenantCapability.cashCustody
+        case .writeOff, .retention, .adjustment, .partialRemittance, .varianceClosure: TenantCapability.cashCustody
         case .nonRevenue: TenantCapability.revenueReconciliation
         // Not tied to one capability: a request can touch hours, payments or invoices.
-        // A closure can be about customer hours, not only cash custody.
-        case .adjustmentRequest, .varianceClosure: nil
+        case .adjustmentRequest: nil
         }
     }
 

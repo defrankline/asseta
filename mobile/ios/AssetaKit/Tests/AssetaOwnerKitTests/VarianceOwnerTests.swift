@@ -76,8 +76,8 @@ struct VarianceOwnerTests {
     @Test func partialReasonRowAndDecisionFields() throws {
         let item = try #require(PendingDecision.from(try Self.value(Self.handover(partial: Self.partial())), kind: .partialRemittance))
         #expect(item.headline.hasSuffix("not remitted · Juma") && item.isPending && item.reason == "Kept for fuel")
-        #expect(item.fields.map(\.label) == ["Cash held by", "Remitted", "Not remitted", "Reason", "Proposed by"])
-        #expect(item.reasonLine == nil && item.isOwn(userID: Self.user))
+        #expect(item.fields.map(\.label) == ["Cash held by", "Remitted", "Not remitted", "Proposed by"])
+        #expect(item.reasonLine == "Kept for fuel" && item.isOwn(userID: Self.user))
         // A handover without a reason is not a decision; a decided reason no longer waits.
         #expect(PendingDecision.from(try Self.value(Self.handover()), kind: .partialRemittance) == nil)
         #expect(PendingDecision.from(try Self.value(Self.handover(partial: Self.partial(status: "APPROVED"))), kind: .partialRemittance)?.isPending == false)
@@ -117,9 +117,12 @@ struct VarianceOwnerTests {
         #expect(OwnerAPI.decisions(.varianceClosure, pendingOnly: true).queryItems.contains(URLQueryItem(name: "status", value: "CLOSURE_PROPOSED")))
         let decide = try OwnerAPI.decide(.varianceClosure, id: Self.id, approve: true, note: "", idempotencyKey: UUID())
         #expect(decide.path.hasSuffix("/closure-decision"))
-        #expect(DecisionKind.varianceClosure.decidePermission == "tenant.finance.variance_close" && DecisionKind.varianceClosure.capability == nil)
-        let reader = OwnerFeatures(permissions: ["tenant.finance.read"], disabledCapabilities: [TenantCapability.cashCustody])
-        #expect(reader.decisionKinds.contains(.varianceClosure) && !reader.decisionKinds.contains(.partialRemittance) && !reader.canDecide(.varianceClosure))
+        #expect(DecisionKind.varianceClosure.decidePermission == "tenant.finance.variance_close")
+        #expect(DecisionKind.varianceClosure.capability == TenantCapability.cashCustody)
+        let reader = OwnerFeatures(permissions: ["tenant.finance.read"])
+        #expect(reader.decisionKinds.contains(.varianceClosure) && !reader.canDecide(.varianceClosure))
+        let off = OwnerFeatures(permissions: ["tenant.finance.read"], disabledCapabilities: [TenantCapability.cashCustody])
+        #expect(!off.decisionKinds.contains(.varianceClosure) && !off.decisionKinds.contains(.partialRemittance))
     }
 
     @Test func refusalsInTheirOwnWords() {
@@ -135,8 +138,10 @@ struct VarianceOwnerTests {
     @Test func investigationRowsCheckAndHistory() throws {
         let json = Self.variance(status: "OPEN", extra: #","assignee_user_id":"\#(Self.user.uuidString.lowercased())","assignee_user_name":"Neema","explanation":"Till error","check_code":"NEGATIVE_REMAINING","purchase_number":"P-9","purchase_id":"\#(UUID().uuidString.lowercased())""#)
         let v = try AssetaJSON.decoder().decode(CashVarianceDTO.self, from: Data(json.utf8))
-        #expect(VariancePresentation.investigation(v).map(\.label) == ["Assigned to", "Explanation"])
+        #expect(v.isHours == false)
         let item = try #require(PendingDecision.from(try Self.value(json), kind: .writeOff, timeZone: Self.utc))
+        #expect(item.fields.map(\.label) == ["What was found", "Purchase", "Source", "Declared", "Received", "Difference", "Assigned to", "Explanation",
+                                             "Proposed outcome", "Proposed by"])
         #expect(item.fields.contains { $0.label == "What was found" && $0.value == "Negative hours remaining" })
         #expect(item.fields.contains { $0.label == "Purchase" && $0.value == "P-9" } && !item.isPending)
         let event = try AssetaJSON.decoder().decode(VarianceEventDTO.self, from: Data(#"{"id":"\#(UUID().uuidString.lowercased())","action":"CLOSURE_PROPOSED","actor_user_id":null,"actor_user_name":"Asha","note":null,"data":{},"occurred_at":"2026-11-01T08:00:00Z"}"#.utf8))
@@ -148,11 +153,9 @@ struct VarianceOwnerTests {
     @Test func remittanceEvidenceRowsHideAZeroDifference() throws {
         let extra = #","remittance_number":"RMT-7","evidence_status":"SUPPORTED","outstanding_difference":"0","evidence_attachment_ids":[]"#
         let h = try AssetaJSON.decoder().decode(CashHandoverDTO.self, from: Data(Self.handover(partial: Self.partial(), extra: extra).utf8))
-        #expect(HandoverText.evidenceRows(h).map(\.value) == ["RMT-7", "Supported by evidence"])
-        #expect(HandoverText.rowCaption(h) == "RMT-7 · Supported by evidence")
-        #expect(HandoverText.partialRows(h).map(\.label) == ["Why part stayed with the custodian", "Reason status"])
+        #expect(HandoverText.details(h).prefix(2).map(\.value) == ["RMT-7", "Supported by evidence"])
         let open = try AssetaJSON.decoder().decode(CashHandoverDTO.self, from: Data(Self.handover(extra: #","outstanding_difference":"12""#).utf8))
-        #expect(HandoverText.evidenceRows(open).map(\.label) == ["Difference still open"] && HandoverText.partialRows(open).isEmpty)
+        #expect(HandoverText.details(open).first?.label == "Difference still open")
     }
 
     @Test func deepLinksReachTheVarianceAndRemittance() {

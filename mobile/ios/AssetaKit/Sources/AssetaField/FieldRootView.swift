@@ -288,6 +288,9 @@ public struct FieldRootView: View {
         // CASH_CUSTODY switched off: its records are hidden, so their taps open the Money tab (follow-up F1).
         case let .retention(id):
             if model.access.cashCustodyOn { openOnMoney(.retention(id)) } else { tab = .money }
+        case let .handover(id):
+            // On the phone: its detail; not yet synced here: the Money tab.
+            if model.inbox.handovers.contains(where: { $0.id == id }) { openOnMoney(.cash(id, collection: false)) } else { tab = .money }
         case let .remittanceOverdue(id):
             // Read online first: a flag the server does not show me (404), offline or switched off opens the Money tab.
             guard model.access.cashCustodyOn else { tab = .money; return }

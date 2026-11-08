@@ -276,26 +276,29 @@ public enum VariancePresentation {
     static func decision(_ v: CashVarianceDTO, kind: DecisionKind, timeZone: TimeZone) -> PendingDecision {
         let positive = DecimalString(abs(v.amount.value))
         let difference = v.isSurplus ? figure(v, positive) : figure(v, v.isHours ? positive : v.amount)
-        let outcome = (v.proposedOutcome ?? v.outcome).map(T.outcome)
+        let outcome = v.proposedOutcome.map(T.outcome)
         let headline: String
         if kind == .varianceClosure {
-            headline = T.closureRow(difference: difference, outcome: outcome ?? "")
+            headline = T.closureRow(difference: difference, outcome: outcome ?? T.closureTitle)
         } else {
             headline = v.isSurplus ? O.rowSurplus(difference) : O.rowWriteOff(difference)
         }
+        // Same order as Android `DecisionMapper.varianceItem`.
         let rows: [(String, String?)] = [
+            (T.check, v.checkCode.map(T.checkText)),
             (O.fieldCustodian, who(v.staffMemberName, v.staffMemberID)),
             (O.fieldCounterparty, who(v.counterpartyStaffName, v.counterpartyStaffID)),
-            (O.fieldSource, OwnerFormat.humanize(v.sourceType)),
-            (T.check, v.checkCode.map(T.checkText)),
             (T.customer, who(v.customerName, v.customerID)),
             (T.machine, v.machineID.map { DisplayName.machine(code: v.machineCode, name: v.machineName, id: $0) }),
             (T.purchase, who(v.purchaseNumber, v.purchaseID)),
             (T.job, who(v.jobNumber, v.jobID)),
+            (O.fieldSource, OwnerFormat.humanize(v.sourceType)),
             (O.fieldDeclared, figure(v, v.declaredAmount)),
             (O.fieldReceived, figure(v, v.receivedAmount)),
             (v.isSurplus ? O.varianceSurplus : O.fieldDifference, difference),
-            (T.closureOutcome, kind == .varianceClosure ? outcome : nil),
+            (T.assignee, who(v.assigneeUserName, v.assigneeUserID)), (T.assignedBy, who(v.assignedByName, v.assignedBy)),
+            (T.explanation, v.explanation), (T.explainedBy, who(v.explainedByName, v.explainedBy)),
+            (T.closureOutcome, outcome),
             (O.fieldProposedBy, who(v.proposedByName, v.proposedBy)),
             (O.fieldDecidedBy, who(v.resolvedByName, v.resolvedBy)),
             (O.fieldDecisionNote, v.resolutionNote),
@@ -312,23 +315,16 @@ public enum VariancePresentation {
         let custodian = DisplayName.or(h.staffMemberName, id: h.staffMemberID)
         let shortfall = h.partialShortfall.map { OwnerFormat.money($0, currency: h.currency) }
         let rows: [(String, String?)] = [
-            (O.fieldCustodian, custodian), (T.partialRemitted, OwnerFormat.money(h.amount, currency: h.currency)),
-            (T.partialNotRemitted, shortfall), (O.fieldReason, p.reason),
+            (T.number, h.remittanceNumber), (O.fieldCustodian, custodian),
+            (T.partialRemitted, OwnerFormat.money(h.amount, currency: h.currency)), (T.partialNotRemitted, shortfall),
             (O.fieldProposedBy, who(p.createdByName, p.createdBy)),
             (O.fieldDecidedBy, who(p.decidedByName, p.decidedBy)), (O.fieldDecisionNote, p.decisionNote),
         ]
         return PendingDecision(kind: .partialRemittance, recordID: h.id,
-                               headline: T.partialRow(amount: shortfall ?? "—", custodian: custodian), status: p.status,
-                               proposedBy: p.createdBy, proposedByName: who(p.createdByName, p.createdBy), proposedAt: p.createdAt,
-                               reason: p.reason, fields: PendingDecision.fields(rows), machineID: nil, photoAttachmentID: nil)
-    }
-
-    /// Who is on it and what they found (the "Investigation" rows of the Variance screen).
-    public static func investigation(_ v: CashVarianceDTO) -> [DecisionField] {
-        PendingDecision.fields([
-            (T.assignee, who(v.assigneeUserName, v.assigneeUserID)), (T.assignedBy, who(v.assignedByName, v.assignedBy)),
-            (T.explanation, v.explanation), (T.explainedBy, who(v.explainedByName, v.explainedBy)),
-        ])
+                               headline: T.partialRow(amount: shortfall ?? OwnerFormat.money(h.amount, currency: h.currency), custodian: custodian),
+                               status: p.status, proposedBy: p.createdBy, proposedByName: who(p.createdByName, p.createdBy),
+                               proposedAt: p.createdAt, reason: p.reason, fields: PendingDecision.fields(rows), machineID: nil,
+                               photoAttachmentID: nil)
     }
 
     /// "{when} · {action} · {who}" (the person left out when unknown).

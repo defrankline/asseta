@@ -12,7 +12,7 @@ private typealias T = VarianceTexts
 /// One evidence photo opened in a sheet.
 private struct VarianceEvidenceRef: Identifiable { let id: UUID }
 
-/// Assignee, explanation, evidence and history of one variance.
+/// Evidence and history of one variance (who is on it and what they found are rows of the request card).
 struct VarianceExtras: View {
     let model: OwnerModel
     let variance: CashVarianceDTO
@@ -20,15 +20,7 @@ struct VarianceExtras: View {
     @State private var history = Loader<[VarianceEventDTO]>()
 
     var body: some View {
-        let rows = VariancePresentation.investigation(variance)
         Group {
-            if !rows.isEmpty {
-                Section(T.explanation) {
-                    ForEach(rows, id: \.self) { row in
-                        LabeledContent(row.label) { Text(row.value).multilineTextAlignment(.trailing) }
-                    }
-                }
-            }
             if !variance.evidence.isEmpty {
                 Section(T.evidence) {
                     ForEach(Array(variance.evidence.enumerated()), id: \.offset) { index, id in
@@ -56,13 +48,14 @@ struct PartialReasonSection: View {
     let handover: CashHandoverDTO
 
     var body: some View {
-        let rows = HandoverText.partialRows(handover)
-        if !rows.isEmpty {
-            Section(T.remitPartialReason) {
-                ForEach(rows, id: \.self) { row in
-                    LabeledContent(row.label) { Text(row.value).multilineTextAlignment(.trailing) }
+        if let partial = handover.partialApproval {
+            Section(T.partialTitle) {
+                LabeledContent(T.remitPartialReason) { Text(partial.reason).multilineTextAlignment(.trailing) }
+                LabeledContent(T.remitPartialStatus) { Text(OwnerFormat.humanize(partial.status)) }
+                if let note = partial.decisionNote, !note.isEmpty {
+                    LabeledContent(OwnerAccountabilityTexts.fieldDecisionNote) { Text(note).multilineTextAlignment(.trailing) }
                 }
-                if handover.partialApproval?.status == VarianceStatuses.pendingReason, model.features.canDecide(.partialRemittance),
+                if partial.status == VarianceStatuses.pendingReason, model.features.canDecide(.partialRemittance),
                    model.features.allows(.decision(.partialRemittance, handover.id)) {
                     NavigationLink(value: OwnerRoute.decision(.partialRemittance, handover.id)) {
                         Text(T.remitPartialReview).foregroundStyle(Color.accentColor)

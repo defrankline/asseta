@@ -176,6 +176,7 @@ public enum AdjustmentPresentation {
         case AdjustmentRequestTypes.hoursCorrection: r.hours.map(signedHours)
         case AdjustmentRequestTypes.hoursRefund: r.hours.map { OwnerFormat.hours($0) }
         case AdjustmentRequestTypes.invoiceVoid: nil
+        case AdjustmentRequestTypes.zeroAmountActivation: r.hours.map { OwnerFormat.hours($0) }
         default: r.amount.map { money($0.value, r.currency) }
         }
     }

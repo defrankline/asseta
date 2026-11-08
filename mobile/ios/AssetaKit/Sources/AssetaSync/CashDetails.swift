@@ -10,6 +10,7 @@ public struct CollectionLinkOption: Sendable, Equatable, Identifiable {
     /// The purchase id, or the offline sale's client id (the server accepts either).
     public let id: UUID
     public let title: String
+    public let subtitle: String?
     /// The outbox operation the collection must wait for (nil = the server already has the purchase).
     public let operationID: UUID?
 }
@@ -26,10 +27,10 @@ public enum CollectionLinks {
             guard op.opType == OperationType.hoursPurchase.rawValue, !known.contains(op.entityID),
                   let p = try? JSONValue.parse(op.payloadJSON).decode(as: HoursPurchasePayload.self), p.customerID == customerID
             else { return nil }
-            return CollectionLinkOption(id: p.clientID, title: T.collectionUnsynced(hours: DecimalInput.format(p.hours.value)), operationID: op.id)
+            return CollectionLinkOption(id: p.clientID, title: T.collectionUnsynced(hours: DecimalInput.format(p.hours.value)), subtitle: nil, operationID: op.id)
         }
         return synced.map {
-            CollectionLinkOption(id: $0.id, title: T.collectionLinkRow(number: $0.purchaseNumber, hours: DecimalInput.format($0.totals.remaining.value)),
+            CollectionLinkOption(id: $0.id, title: $0.purchaseNumber, subtitle: T.collectionLinkLeft(hours: DecimalInput.format($0.totals.remaining.value)),
                                  operationID: nil)
         } + local
     }
@@ -57,24 +58,23 @@ public enum PartialRemittance {
     public static let minReason = 3
 
     public static func need(access: FieldAccess, amountText: String, estimate: Decimal?, otherHolder: Bool) -> PartialRemittanceNeed {
-        guard access.cashDetails, access.cash?.remitFullBalance == true else { return .hidden }
+        guard access.partialReason else { return .hidden }
         if otherHolder { return .optional }
         guard let estimate, let amount = AccountabilityRules.value(amountText, decimals: AccountabilityRules.moneyDecimals),
               amount < estimate else { return .hidden }
         return .required(balance: estimate)
     }
 
-    /// The phone's estimate of the custodian's cash in `currency` (the unlabelled line is the company currency).
+    /// The phone's estimate of the custodian's cash in `currency`.
     public static func estimate(_ summary: CashSummary?, currency: String) -> Decimal? {
-        let code = currency.trimmingCharacters(in: .whitespaces).uppercased()
-        return summary?.lines.first {
-            $0.currency.uppercased() == code || ($0.currency.isEmpty && code == (summary?.baseCurrency ?? "").uppercased())
-        }?.estimatedInHand
+        let code = currency.trimmingCharacters(in: .whitespaces)
+        return summary?.lines.first { $0.currency.caseInsensitiveCompare(code) == .orderedSame }?.estimatedInHand
     }
 
-    /// Why the form cannot be saved yet because of the reason (empty = fine).
+    /// Valid when the reason is optional and left empty, or at least 3 characters (same as Android `partialReasonOk`).
     public static func issues(_ need: PartialRemittanceNeed, reason: String) -> [String] {
-        guard case .required = need, reason.trimmingCharacters(in: .whitespacesAndNewlines).count < minReason else { return [] }
+        let text = reason.trimmingCharacters(in: .whitespacesAndNewlines)
+        if need == .hidden || (need == .optional && text.isEmpty) || text.count >= minReason { return [] }
         return [FieldAccountabilityTexts.handoverPartialError]
     }
 }

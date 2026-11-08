@@ -193,6 +193,8 @@ public enum InboxLink: Sendable, Equatable {
     case remittanceOverdue(UUID)
     /// A daily report of mine (DEC-032: sent back to me).
     case dailyReport(UUID)
+    /// One of my remittances (DEC-032 Phase 3: its partial reason was decided): its detail once on the phone, else Money.
+    case handover(UUID)
 
     /// The exact record when the notification names one (`data.kind` + `record_id`), else its target.
     public static func from(_ notification: NotificationDTO) -> InboxLink {
@@ -210,6 +212,7 @@ public enum InboxLink: Sendable, Equatable {
         // DEC-031 Phase 5: UNBILLED_WORK names the job.
         case .job: .job(record.id)
         case .dailyReport: .dailyReport(record.id)
+        case .cashRemittance: .handover(record.id)
         default: nil
         }
     }

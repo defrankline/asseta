@@ -82,7 +82,8 @@ struct CashDetailsTests {
                          try Self.purchase("P-4", customer: Self.customer, clientID: known)]
         let ops = try h.store.outbox.operations(tenantID: SyncFixtures.tenant, statuses: [.pending])
         let rows = CollectionLinks.options(purchases: purchases, unsynced: ops, customerID: Self.customer)
-        #expect(rows.map(\.title) == ["P-1 · 8 h left", "P-4 · 8 h left", "Not synced yet · 5 h"])
+        #expect(rows.map(\.title) == ["P-1", "P-4", "Not synced yet · 5 h"])
+        #expect(rows.map(\.subtitle) == ["8 h left", "8 h left", nil])
         #expect(rows.last?.operationID == sale.id && rows.first?.operationID == nil && rows.last?.id == sale.entityID)
         #expect(CollectionLinks.options(purchases: purchases, unsynced: ops, customerID: nil).isEmpty)
     }
@@ -98,6 +99,23 @@ struct CashDetailsTests {
         let plain = try h.recorder.recordCashCollection(customerID: Self.customer, amountText: "1", currency: "TZS", reference: nil, note: nil,
                                                         receivedAt: h.clock.wallNow)
         #expect(try JSONValue.parse(plain.payloadJSON)["purchase_id"] == nil && plain.dependencies.isEmpty)
+    }
+
+    @Test func aRefusedSaleCannotBeLinkedAndAnAcceptedOneNeedsNoWait() throws {
+        let h = try SyncHarness()
+        try AccountabilityTests.supported(h.store, Self.all)
+        let refused = try Self.saleOp(customer: Self.customer, h: h)
+        try h.store.outbox.markSent(id: refused.id)
+        try h.store.outbox.markConflict(id: refused.id, code: "X", message: "x", resultJSON: "{}")
+        #expect(throws: FieldRecorderError.notAllowed(T.collectionPurchaseGone)) {
+            try h.recorder.recordCashCollection(customerID: Self.customer, amountText: "1", currency: "TZS", reference: nil, note: nil,
+                                                receivedAt: h.clock.wallNow, purchaseID: refused.entityID, purchaseOperationID: refused.id)
+        }
+    }
+
+    @Test func aRemittanceDecisionOpensTheHandover() {
+        let id = UUID()
+        #expect(InboxLink.from(record: RecordRef(kind: .cashRemittance, id: id)) == .handover(id))
     }
 
     @Test func aRequiredLinkIsEnforcedAndAnOldServerGetsNoLink() throws {
@@ -130,14 +148,16 @@ struct CashDetailsTests {
         #expect(PartialRemittance.issues(.required(balance: 1), reason: " ab ") == [T.handoverPartialError])
         #expect(PartialRemittance.issues(.required(balance: 1), reason: "abc").isEmpty)
         #expect(PartialRemittance.issues(.optional, reason: "").isEmpty && PartialRemittance.issues(.hidden, reason: "").isEmpty)
+        #expect(PartialRemittance.issues(.optional, reason: "ab") == [T.handoverPartialError])
+        let custodyOff = Self.access(disabled: [TenantCapability.cashCustody])
+        #expect(!custodyOff.partialReason
+            && PartialRemittance.need(access: custodyOff, amountText: "100", estimate: 150, otherHolder: false) == .hidden)
     }
 
-    @Test func theEstimateMatchesTheCurrencyOrTheCompanyLine() {
-        let summary = CashSummary(lines: [CashLine(currency: "TZS", synced: nil, pendingCollections: 40),
-                                          CashLine(currency: "", synced: nil, pendingCollections: 7)],
+    @Test func theEstimateMatchesTheCurrency() {
+        let summary = CashSummary(lines: [CashLine(currency: "TZS", synced: nil, pendingCollections: 40)],
                                   pending: [], needsAttention: [], baseCurrency: "USD")
         #expect(PartialRemittance.estimate(summary, currency: " tzs") == 40)
-        #expect(PartialRemittance.estimate(summary, currency: "usd") == 7)
         #expect(PartialRemittance.estimate(summary, currency: "EUR") == nil && PartialRemittance.estimate(nil, currency: "TZS") == nil)
     }
 
@@ -152,6 +172,13 @@ struct CashDetailsTests {
         let plain = try JSONValue.parse(try h.recorder.recordCashHandover(amountText: "5", currency: "TZS", reference: nil, note: nil,
                                                                           handedAt: h.clock.wallNow).payloadJSON)
         #expect(plain["partial_reason"] == nil && plain["partial_reason_id"] == nil)
+        #expect(throws: FieldRecorderError.invalid(T.handoverPartialError)) {
+            try h.recorder.recordCashHandover(amountText: "5", currency: "TZS", reference: nil, note: nil, handedAt: h.clock.wallNow,
+                                              partialReasonRequired: true)
+        }
+        #expect(throws: FieldRecorderError.invalid(T.handoverPartialError)) {
+            try h.recorder.recordCashHandover(amountText: "5", currency: "TZS", reference: nil, note: nil, handedAt: h.clock.wallNow, partialReason: "ab")
+        }
         let old = try SyncHarness()
         try AccountabilityTests.supported(old.store, RemittanceTests.all)
         #expect(throws: FieldRecorderError.notAllowed(T.serverTooOld)) {

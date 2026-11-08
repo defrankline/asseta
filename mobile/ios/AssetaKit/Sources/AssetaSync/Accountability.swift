@@ -67,10 +67,16 @@ public struct FieldAccess: Sendable, Equatable {
     }
     /// DEC-032 Phase 3: collection link, partial-remittance reason and transfer evidence (server CASH_DETAILS_V2).
     public var cashDetails: Bool { supports(SyncCapability.cashDetailsV2) }
-    /// The collection must name its purchase (CASH_DETAILS_V2 and the tenant's `collection_link_required`).
-    public var collectionLinkRequired: Bool { cashDetails && cash?.collectionLinkRequired == true }
-    /// An hours transfer needs a photo (CASH_DETAILS_V2 and the tenant's `transfer_evidence_required`).
-    public var transferEvidenceRequired: Bool { cashDetails && hours?.transferEvidenceRequired == true }
+    /// Collections offer "Pays for" (a purchase, or an offline purchase's client id).
+    public var collectionLink: Bool { cashDetails && can(Self.collectionRecord) }
+    /// The collection must name its purchase (the tenant's `collection_link_required`).
+    public var collectionLinkRequired: Bool { collectionLink && cash?.collectionLinkRequired == true }
+    /// Under the full-remittance policy the hand-over asks why part of the balance stays with the custodian.
+    public var partialReason: Bool { cashDetails && cashCustodyOn && cash?.remitFullBalance == true }
+    /// The hours transfer form offers evidence photos.
+    public var transferEvidence: Bool { cashDetails && customerHoursOn }
+    /// At least one photo is required (the tenant's `transfer_evidence_required`).
+    public var transferEvidenceRequired: Bool { transferEvidence && hours?.transferEvidenceRequired == true }
     /// Company deposit accounts are in use (`DEPOSIT_ACCOUNTS` not switched off).
     public var depositAccountsOn: Bool { !disabledCapabilities.contains(TenantCapability.depositAccounts) }
     public var dailyReading: Bool { supports(SyncCapability.meterDailyReading) && can(Self.meterCapture) && engineHoursOn }

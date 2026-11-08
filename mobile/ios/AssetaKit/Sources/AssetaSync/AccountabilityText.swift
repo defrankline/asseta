@@ -228,7 +228,8 @@ public enum FieldAccountabilityTexts {
     public static let collectionLinkOptional = "Pays for (optional)"
     public static let collectionLinkNone = "Not linked"
     public static let collectionLinkEmpty = "No open purchases for this customer on this phone."
-    public static func collectionLinkRow(number: String, hours: String) -> String { "\(number) · \(hours) h left" }
+    public static func collectionLinkLeft(hours: String) -> String { "\(hours) h left" }
+    public static let collectionPurchaseGone = "The purchase you chose was not accepted by the server. Choose another one."
     public static func collectionUnsynced(hours: String) -> String { "Not synced yet · \(hours) h" }
     public static let collectionErrLink = "Your company requires every collection to name its purchase or invoice." // field.collection.linkRequired
     public static let collectionLinkFooter = "The cash pays this purchase up to what it still owes; anything above stays as customer credit."

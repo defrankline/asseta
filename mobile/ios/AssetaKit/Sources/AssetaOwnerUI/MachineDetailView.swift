@@ -27,7 +27,7 @@ struct MachineDetailView: View {
             }
             if let machine = status.value {
                 statusSection(machine)
-                trackSection(machine)
+                if model.features.tracking { trackSection(machine) }
             } else if let error = status.error {
                 LoadFailure(message: error) { await reload() }
             } else {
@@ -48,10 +48,8 @@ struct MachineDetailView: View {
     }
 
     private func reload() async {
-        let now = Date()
         async let a: Void = status.load(model, .machine(machineID), OwnerAPI.machine(machineID))
-        async let b: Void = track.load(model, .machineTrack(machineID),
-                                       OwnerAPI.history(machineID, from: now.addingTimeInterval(-86_400), to: now))
+        async let b: Void = loadTrack()
         async let c: Void = loadAlerts()
         async let d: Void = info.load(model, .machineInfo(machineID), OwnerAPI.machineInfo(machineID))
         _ = await (a, b, c, d)
@@ -62,6 +60,12 @@ struct MachineDetailView: View {
         if model.features.meterEvidence {
             await readings.load(model, .machineReadings(machineID), OwnerAPI.meterCaptures(machineID: machineID, pageSize: 5))
         }
+    }
+
+    private func loadTrack() async {
+        guard model.features.tracking else { return }
+        let now = Date()
+        await track.load(model, .machineTrack(machineID), OwnerAPI.history(machineID, from: now.addingTimeInterval(-86_400), to: now))
     }
 
     private func loadAlerts() async {
@@ -86,7 +90,7 @@ struct MachineDetailView: View {
         } header: {
             Text("Status")
         } footer: {
-            Text(MachineText.statusFooter)
+            if model.features.tracking { Text(MachineText.statusFooter) }
         }
     }
 

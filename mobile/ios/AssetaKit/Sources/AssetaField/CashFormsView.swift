@@ -24,6 +24,8 @@ struct CashCollectionFormView: View {
 
     private var links: [CollectionLinkOption] { model.accountabilityData?.collectionLinks(customerID: customerID) ?? [] }
     private var linkMissing: Bool { model.access.collectionLinkRequired && linkID == nil }
+    /// Why the required link stops saving (once the rest of the form is filled in, as Android).
+    private var showLinkMissing: Bool { linkMissing && customerID != nil && !amount.isEmpty }
 
     var body: some View {
         NavigationStack {
@@ -39,14 +41,14 @@ struct CashCollectionFormView: View {
                         .onChange(of: customerID) { _, _ in linkID = nil }
                     holderPicker
                 }
-                if model.access.cashDetails {
+                if model.access.collectionLink {
                     let required = model.access.collectionLinkRequired
                     Section {
                         SearchablePickerField(label: required ? FieldAccountabilityTexts.collectionLink : FieldAccountabilityTexts.collectionLinkOptional,
-                                              options: links.map { PickerOption(id: $0.id, title: $0.title, subtitle: nil) },
+                                              options: links.map { PickerOption(id: $0.id, title: $0.title, subtitle: $0.subtitle) },
                                               selection: $linkID, noneTitle: required ? nil : FieldAccountabilityTexts.collectionLinkNone,
                                               emptyMessage: FieldAccountabilityTexts.collectionLinkEmpty, identifier: "collection.link")
-                        if linkMissing && customerID != nil {
+                        if showLinkMissing {
                             Text(FieldAccountabilityTexts.collectionErrLink).font(.footnote).foregroundStyle(Palette.warning)
                         }
                     } footer: { Text(FieldAccountabilityTexts.collectionLinkFooter) }
@@ -101,7 +103,7 @@ struct CashCollectionFormView: View {
                                             jobNumber: jobID.flatMap { model.job($0)?.job.jobNumber },
                                             jobCustomerID: jobID.flatMap { model.job($0)?.customer?.id },
                                             custodianID: holder, receivedAt: receivedAt,
-                                            purchaseID: model.access.cashDetails ? linkID : nil,
+                                            purchaseID: model.access.collectionLink ? linkID : nil,
                                             purchaseOperationID: links.first { $0.id == linkID }?.operationID,
                                             linkRequired: model.access.collectionLinkRequired, clientID: clientID)
             }
@@ -142,9 +144,9 @@ struct CashHandoverFormView: View {
         let requirements = model.access.remittanceRequirements
         let accounts = model.depositAccounts
         let need = partialNeed
-        let issues = (details ? RemittanceForm.issues(remittance, requirements: requirements, accounts: accounts, currency: currency,
-                                                      reference: reference, photoCount: photos.count) : [])
-            + PartialRemittance.issues(need, reason: partialReason)
+        let issues = details ? RemittanceForm.issues(remittance, requirements: requirements, accounts: accounts, currency: currency,
+                                                     reference: reference, photoCount: photos.count) : []
+        let partialIssues = PartialRemittance.issues(need, reason: partialReason)
         NavigationStack {
             Form {
                 if let summary = model.cashSummary(), !summary.lines.isEmpty {
@@ -187,7 +189,6 @@ struct CashHandoverFormView: View {
                         TextField(RemittanceForm.referenceLabel(requirements, method: remittance.method), text: $reference)
                             .accessibilityIdentifier("handover.reference")
                     }
-                    partialSection(need)
                     EvidencePhotosSection(model: model, photos: $photos, error: $error,
                                           title: RemittanceForm.photosLabel(requirements), footer: T.remitPhotosFooter,
                                           photograph: T.remitPhotograph, addPhoto: T.remitAddPhoto, removeLabel: T.remitRemovePhoto)
@@ -197,7 +198,10 @@ struct CashHandoverFormView: View {
                         }
                     }
                 }
-                if !details { partialSection(need) }
+                partialSection(need)
+                if !partialIssues.isEmpty && error == nil && !amount.isEmpty {
+                    Section { ForEach(partialIssues, id: \.self) { Text($0).foregroundStyle(Palette.warning) } }
+                }
                 if let error { Text(error).foregroundStyle(Palette.offline) }
             }
             .navigationTitle("Hand over cash")
@@ -206,7 +210,7 @@ struct CashHandoverFormView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { discardPhotos(); dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save", action: save).disabled(amount.isEmpty || !issues.isEmpty)
+                    Button("Save", action: save).disabled(amount.isEmpty || !issues.isEmpty || !partialIssues.isEmpty)
                         .accessibilityIdentifier("handover.save")
                 }
             }
@@ -218,13 +222,14 @@ struct CashHandoverFormView: View {
     @ViewBuilder private func partialSection(_ need: PartialRemittanceNeed) -> some View {
         if need != .hidden {
             Section {
-                TextField(need == .optional ? T.handoverPartialReasonOptional : T.handoverPartialReason, text: $partialReason, axis: .vertical)
-                    .accessibilityIdentifier("handover.partialReason")
-                let reasons = (model.accountabilityData?.partialReasons ?? []).map { PickerOption(id: $0.id, title: $0.label, subtitle: nil) }
+                let reasons = (model.accountabilityData?.partialReasons ?? []).map { PickerOption(id: $0.id, title: $0.label, subtitle: $0.description) }
                 if !reasons.isEmpty {
                     SearchablePickerField(label: T.handoverPartialCategory, options: reasons, selection: $partialCategoryID,
                                           noneTitle: T.handoverPartialCategoryNone, identifier: "handover.partialCategory")
                 }
+                TextField(need == .optional ? T.handoverPartialReasonOptional : T.handoverPartialReason,
+                          text: Binding(get: { partialReason }, set: { partialReason = String($0.prefix(1000)) }), axis: .vertical)
+                    .accessibilityIdentifier("handover.partialReason")
             } header: { Text(T.handoverPartialTitle) } footer: {
                 if case let .required(balance) = need {
                     Text(T.handoverPartialFooter(balance: MyCashView.money(balance, currency.trimmingCharacters(in: .whitespaces).uppercased())))
@@ -251,7 +256,8 @@ struct CashHandoverFormView: View {
                                           requirements: model.access.remittanceRequirements,
                                           evidence: details ? photos.map(\.evidence) : [],
                                           partialReason: partialNeed == .hidden ? nil : partialReason,
-                                          partialReasonID: partialNeed == .hidden ? nil : partialCategoryID, clientID: clientID)
+                                          partialReasonID: partialNeed == .hidden ? nil : partialCategoryID,
+                                          partialReasonRequired: { if case .required = partialNeed { true } else { false } }(), clientID: clientID)
             }
             photos = [] // now owned by the queued handover
             dismiss()

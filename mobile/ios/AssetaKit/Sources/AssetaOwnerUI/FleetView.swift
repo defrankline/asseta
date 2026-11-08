@@ -44,7 +44,7 @@ struct FleetView: View {
     private func reload() async { await loader.load(model, .fleetMap, OwnerAPI.fleetMap()) }
 
     private var machines: [MachineMapDTO] {
-        FleetPresentation.filter(FleetPresentation.sorted(loader.value ?? []), query: search, tone: tone,
+        FleetPresentation.filter(FleetPresentation.sorted(loader.value ?? []), query: search, tone: model.features.tracking ? tone : nil,
                                  dataIsCached: loader.isFromCache)
     }
 
@@ -156,8 +156,10 @@ struct MachineRow: View {
     var body: some View {
         let style = FleetPresentation.style(for: machine, dataIsCached: dataIsCached)
         HStack(alignment: .top, spacing: 12) {
-            Image(systemName: style.systemImage).foregroundStyle(style.tone.color).frame(width: 28)
-                .accessibilityHidden(true)
+            if tracking {
+                Image(systemName: style.systemImage).foregroundStyle(style.tone.color).frame(width: 28)
+                    .accessibilityHidden(true)
+            }
             VStack(alignment: .leading, spacing: 2) {
                 HStack {
                     Text(FleetPresentation.title(machine)).font(.headline)
@@ -174,8 +176,8 @@ struct MachineRow: View {
                 }
             }
         }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(style.accessibilityLabel)
+        .accessibilityElement(children: tracking ? .ignore : .combine)
+        .accessibilityLabel(tracking ? style.accessibilityLabel : FleetPresentation.title(machine))
     }
 }
 #endif

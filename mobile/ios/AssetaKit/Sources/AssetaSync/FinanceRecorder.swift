@@ -57,6 +57,10 @@ extension FieldRecorder {
             throw FieldRecorderError.invalid("Job \(jobNumber) belongs to another customer.")
         }
         let amount = try FinanceRules.amount(amountText)
+        let purchaseOp = try purchaseOperationID.flatMap { try store.outbox.operation(id: $0) }
+        if purchaseOp?.status == .failed || purchaseOp?.status == .conflict {
+            throw FieldRecorderError.notAllowed(FieldAccountabilityTexts.collectionPurchaseGone)
+        }
         let jobNote = jobNumber.map { "Job \($0)" }
         let combined = [jobNote, FinanceRules.clean(note, max: 1000)].compactMap { $0 }.joined(separator: ". ")
         let payload = CashCollectionPayload(
@@ -65,7 +69,7 @@ extension FieldRecorder {
             note: FinanceRules.clean(combined, max: 1000), staffMemberID: custodianID, purchaseID: purchaseID)
         // A purchase still in the outbox: the collection waits for it, so the server can resolve its client id.
         return try enqueue(.cashCollection, entityType: "cash_collection", entityID: clientID, payload: payload,
-                           dependsOn: purchaseOperationID.map { [$0] } ?? [], createdAt: receivedAt)
+                           dependsOn: purchaseOp.flatMap { $0.status == .acked ? nil : [$0.id] } ?? [], createdAt: receivedAt)
     }
 
     /// Cash handed to the office; CLAIMED until finance verifies it. `method` (only when the server announces
@@ -78,11 +82,13 @@ extension FieldRecorder {
                                    depositAccountID: UUID? = nil,
                                    requirements: RemittanceRequirements = RemittanceRequirements(),
                                    evidence: [StoredEvidence] = [], partialReason: String? = nil, partialReasonID: UUID? = nil,
-                                   clientID: UUID = UUID()) throws -> ClientOperation {
+                                   partialReasonRequired: Bool = false, clientID: UUID = UUID()) throws -> ClientOperation {
         let amount = try FinanceRules.amount(amountText)
         let code = try FinanceRules.currency(currency)
         let partial = FinanceRules.clean(partialReason, max: 1000)
-        if (partial != nil || partialReasonID != nil) && serverCapabilities()?.contains(SyncCapability.cashDetailsV2) != true {
+        if partialReasonRequired && partial == nil { throw FieldRecorderError.invalid(FieldAccountabilityTexts.handoverPartialError) }
+        if let partial, partial.count < PartialRemittance.minReason { throw FieldRecorderError.invalid(FieldAccountabilityTexts.handoverPartialError) }
+        if partial != nil && serverCapabilities()?.contains(SyncCapability.cashDetailsV2) != true {
             throw FieldRecorderError.notAllowed(FieldAccountabilityTexts.serverTooOld)
         }
         if let method {
@@ -107,7 +113,7 @@ extension FieldRecorder {
                 reference: FinanceRules.clean(reference, max: 120), note: FinanceRules.clean(note, max: 1000),
                 staffMemberID: custodianID, method: method, depositAccountID: depositAccountID,
                 // With details the key is always sent (empty, filled as each photo upload completes), as Android.
-                evidenceUploadIDs: method == nil ? nil : [], partialReason: partial, partialReasonID: partialReasonID)
+                evidenceUploadIDs: method == nil ? nil : [], partialReason: partial, partialReasonID: partial == nil ? nil : partialReasonID)
             return try enqueue(.cashHandover, entityType: "cash_handover", entityID: clientID, payload: payload,
                                dependsOn: [], attachments: locals.map { ($0, .evidenceUploads) }, createdAt: handedAt)
         }
