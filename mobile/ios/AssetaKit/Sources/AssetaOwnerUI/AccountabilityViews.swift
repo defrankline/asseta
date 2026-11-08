@@ -90,6 +90,9 @@ struct DecisionDetailView: View {
                         NavigationLink(value: OwnerRoute.machine(machine)) { Label(T.fieldMachine, systemImage: "gauge.with.dots.needle.33percent") }
                     }
                 }
+                if kind == .allocationCorrection, let correction = record.value.flatMap({ try? $0.decode(as: AllocationCorrectionDTO.self) }) {
+                    AllocationCorrectionExtras(model: model, correction: correction)
+                }
                 if item.isPending && model.features.canDecide(kind) { decision(item) }
                 if let message { Text(message).foregroundStyle(Brand.amber).accessibilityIdentifier("decision.message") }
             } else if let error = record.error {

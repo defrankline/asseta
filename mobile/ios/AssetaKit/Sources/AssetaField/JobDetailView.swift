@@ -12,6 +12,7 @@ struct JobDetailView: View {
     let model: FieldModel
     let jobID: UUID
     @State private var capture: ReadingKind?
+    @State private var changeover: ChangeoverCapture?
     @State private var showActivity = false
     @State private var showAcknowledgement = false
     @State private var confirmAction: JobAction?
@@ -37,6 +38,7 @@ struct JobDetailView: View {
                     MeterCaptureView(model: model, job: job, kind: kind, snapshot: snapshot)
                 }
             }
+            .sheet(item: $changeover) { MeterCaptureView(model: model, target: .changeover(job), snapshot: $0.snapshot) }
             .sheet(isPresented: $showActivity) { ActivityFormView(model: model, job: job) }
             .sheet(isPresented: $showAcknowledgement) { AcknowledgementFormView(model: model, job: job) }
             .sheet(item: $explainNonRevenue) { NonRevenueExplainView(model: model, activity: $0) }
@@ -98,6 +100,11 @@ struct JobDetailView: View {
             }
             if progress.canCaptureClosing {
                 actionButton("Capture closing reading", "gauge.with.dots.needle.100percent", enabled: gate.isAllowed) { capture = .closing }
+            }
+            if model.access.changeover && progress.displayStatus == .inProgress {
+                actionButton(DailyReportTexts.changeoverAction, "arrow.triangle.swap", enabled: gate.isAllowed) {
+                    if case let .allowed(snapshot) = gate { changeover = ChangeoverCapture(snapshot: snapshot) }
+                }
             }
             if progress.canAcknowledge {
                 actionButton("Customer acknowledgement", "signature") { showAcknowledgement = true }
@@ -208,6 +215,12 @@ struct JobDetailView: View {
     }
 }
 
+/// The changeover capture sheet and the policy snapshot it enforces.
+struct ChangeoverCapture: Identifiable {
+    let id = UUID()
+    let snapshot: MeterPolicySnapshot
+}
+
 extension ReadingKind: Identifiable {
     public var id: String { rawValue }
 }
@@ -230,7 +243,7 @@ struct OperationRow: View {
             Text(operation.createdAtDevice.formatted(date: .abbreviated, time: .standard))
                 .font(.caption).foregroundStyle(.secondary)
             if let code = operation.errorCode, operation.status != .pending {
-                Text("\(code): \(operation.lastError ?? "")").font(.caption).foregroundStyle(Palette.offline)
+                Text(FieldAccountabilityTexts.conflictText(code) ?? "\(code): \(operation.lastError ?? "")").font(.caption).foregroundStyle(Palette.offline)
             }
         }
     }
@@ -254,7 +267,7 @@ struct OperationRow: View {
         case .meterResetRequest: return "Meter reset request"
         case .jobRequest: return JobRequestText.operation
         case .hoursPurchase, .hoursTransferRequest, .cashTransfer, .cashTransferAcknowledgement, .cashFloatAcknowledgement,
-             .meterBaseline, .meterCorrection, .cashRetentionRequest, .siteCheckin, nil: return operation.opType
+             .meterBaseline, .meterCorrection, .cashRetentionRequest, .siteCheckin, .dailyReport, nil: return operation.opType
         }
     }
 }

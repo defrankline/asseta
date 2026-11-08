@@ -62,6 +62,8 @@ public enum OwnerRoute: Hashable, Sendable {
     case idleMachines
     /// The go-live setup checklist (`/tenant/setup`).
     case setupChecklist
+    /// One daily operational report (figures, evidence; review; DEC-032).
+    case dailyReport(UUID)
 }
 
 /// A route plus the tenant it belongs to (a push may concern another company the user belongs to).
@@ -103,6 +105,8 @@ public enum DeepLinkParser {
         case .hoursPurchase: return .hoursPurchase(id)
         // DEC-031 Phase 5: UNBILLED_WORK names the job.
         case .job: return .job(id)
+        case .dailyReport: return .dailyReport(id)
+        case .workAllocationCorrection: return .decision(.allocationCorrection, id)
         }
     }
 
@@ -212,6 +216,13 @@ public enum DeepLinkParser {
         case let ("revenue-differences", id?): return .revenueDifference(id)
         case let ("non-revenue-approvals", id?): return .decision(.nonRevenue, id)
         case ("revenue-differences", nil), ("non-revenue-approvals", nil): return .approvals
+        case let ("daily-reports", id?): return .dailyReport(id)
+        case ("daily-reports", nil): return .approvals
+        case ("work-allocations", _):
+            if parts.count >= 4, parts[2] == "corrections", let group = UUID(uuidString: parts[3]) {
+                return .decision(.allocationCorrection, group)
+            }
+            return .approvals
         case ("fleet", _):
             if parts.count >= 4, parts[2] == "machines", let machine = UUID(uuidString: parts[3]) {
                 return .machine(machine)
@@ -281,7 +292,7 @@ extension OwnerRoute {
     public var identifiesRecord: Bool {
         switch self {
         case .machine, .alert, .approval, .investigation, .job, .meterReset, .handover, .exception, .notification, .decision,
-             .cashTransfer, .cashFloat, .overdueRemittance, .revenueDifference, .dailySheetDay, .hoursPurchase, .scorecardPerson: true
+             .cashTransfer, .cashFloat, .overdueRemittance, .revenueDifference, .dailySheetDay, .hoursPurchase, .scorecardPerson, .dailyReport: true
         case .fleet, .jobs, .investigations, .alerts, .approvals, .exceptions, .fieldSpend, .cash, .notifications,
              .accountability, .overdueRemittances, .dailySheet, .customerHours, .hoursStatement, .scorecard, .unbilledWork,
              .idleMachines, .setupChecklist: false

@@ -38,8 +38,8 @@ public struct FieldAccess: Sendable, Equatable {
     /// recording for others. Collections, remittances and floats stay either way.
     public var cashCustodyOn: Bool { !disabledCapabilities.contains(TenantCapability.cashCustody) }
 
-    private func supports(_ capability: String) -> Bool { capabilities?.contains(capability) == true }
-    private func can(_ permission: String) -> Bool { permissions.contains(permission) }
+    func supports(_ capability: String) -> Bool { capabilities?.contains(capability) == true }
+    func can(_ permission: String) -> Bool { permissions.contains(permission) }
 
     public var sellHours: Bool { supports(SyncCapability.hoursPurchase) && can(Self.hoursPurchase) && customerHoursOn }
     public var walkIn: Bool { sellHours && hours?.walkInAllowed == true }

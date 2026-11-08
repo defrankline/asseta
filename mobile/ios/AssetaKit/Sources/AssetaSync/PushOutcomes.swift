@@ -32,6 +32,10 @@ public struct PushOutcomeApplier: Sendable {
         "DEPOSIT_ACCOUNT_INACTIVE",
         // Site check-ins (DEC-031 Phase 5): switched off after queueing, or a client id reused for another check-in.
         "SITE_CHECKIN_DISABLED", "CHECKIN_ID_CONFLICT",
+        // Daily reports and changeovers (DEC-032): the day's facts changed after queueing, or evidence became required.
+        "REPORT_READINGS_INVALID", "REPORT_HOURS_EXCEED_TOTAL", "REPORT_ID_CONFLICT", "REPORT_NOT_SUPERSEDABLE",
+        "REPORT_EVIDENCE_REQUIRED", "CHANGEOVER_NOT_ALLOWED", "CHANGEOVER_SAME_CUSTOMER",
+        "CHANGEOVER_JOB_REQUIRED", "CHANGEOVER_JOB_INVALID",
     ]
 
     let outbox: any ClientOperationRepository

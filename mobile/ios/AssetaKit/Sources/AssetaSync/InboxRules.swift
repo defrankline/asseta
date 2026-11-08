@@ -191,6 +191,8 @@ public enum InboxLink: Sendable, Equatable {
     case retention(UUID)
     /// An overdue-remittance flag of mine ("Overdue remittance"; the Money tab when it cannot be read).
     case remittanceOverdue(UUID)
+    /// A daily report of mine (DEC-032: sent back to me).
+    case dailyReport(UUID)
 
     /// The exact record when the notification names one (`data.kind` + `record_id`), else its target.
     public static func from(_ notification: NotificationDTO) -> InboxLink {
@@ -207,6 +209,7 @@ public enum InboxLink: Sendable, Equatable {
         case .remittanceOverdue: .remittanceOverdue(record.id)
         // DEC-031 Phase 5: UNBILLED_WORK names the job.
         case .job: .job(record.id)
+        case .dailyReport: .dailyReport(record.id)
         default: nil
         }
     }

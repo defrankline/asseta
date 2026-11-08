@@ -93,6 +93,8 @@ public struct RevenueDifferenceDTO: Codable, Hashable, Sendable, Identifiable {
     public let policyVersion: String
     /// Server breakdown (`jobs`, `money_sources`, `unexplained`), read leniently.
     public let detail: JSONValue?
+    /// DEC-032 A5: unexplained hours at the job's rate (absent on older servers).
+    public let valueAtRiskAmount: DecimalString?
 
     public var isPending: Bool { RevenueDifferenceStatus.pending.contains(status) }
 
@@ -119,6 +121,7 @@ public struct RevenueDifferenceDTO: Codable, Hashable, Sendable, Identifiable {
         attributedAmount = try c.decode(DecimalString.self, forKey: .attributedAmount)
         inProgressAmount = try c.decode(DecimalString.self, forKey: .inProgressAmount)
         difference = try c.decode(DecimalString.self, forKey: .difference)
+        valueAtRiskAmount = try c.decodeIfPresent(DecimalString.self, forKey: .valueAtRiskAmount)
         adjustedDifference = try c.decodeIfPresent(DecimalString.self, forKey: .adjustedDifference)
         adjustments = try c.decodeIfPresent([RevenueAdjustmentDTO].self, forKey: .adjustments) ?? []
         status = try c.decode(String.self, forKey: .status)
@@ -169,6 +172,7 @@ public struct RevenueDifferenceDTO: Codable, Hashable, Sendable, Identifiable {
         case periodEnd = "period_end", localFrom = "local_from", localTo = "local_to"
         case customerWorkHours = "customer_work_hours", nonRevenueHours = "non_revenue_hours"
         case unexplainedHours = "unexplained_hours", expectedAmount = "expected_amount"
+        case valueAtRiskAmount = "value_at_risk_amount"
         case unexplainedExpectedAmount = "unexplained_expected_amount", attributedAmount = "attributed_amount"
         case inProgressAmount = "in_progress_amount", adjustedDifference = "adjusted_difference"
         case reasonID = "reason_id", reasonName = "reason_name", explanationNote = "explanation_note"
@@ -360,8 +364,11 @@ public struct SheetMoneyDTO: Codable, Hashable, Sendable {
     public let difference: DecimalString
     public let unexplainedHours: DecimalString?
     public let unexplainedExpected: DecimalString?
+    /// DEC-032 A5: unexplained hours at the job's rate; never part of expected, attributed or difference.
+    public let valueAtRisk: DecimalString?
 
     enum CodingKeys: String, CodingKey {
+        case valueAtRisk = "value_at_risk"
         case currency, expected, attributed, difference, inProgress = "in_progress", unexplainedHours = "unexplained_hours"
         case unexplainedExpected = "unexplained_expected"
     }

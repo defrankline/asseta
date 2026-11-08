@@ -161,6 +161,8 @@ public struct BootstrapDTO: Codable, Hashable, Sendable {
     public let protocolVersion: Int?
     /// Optional protocol features the server supports (``SyncCapability``); nil from older servers.
     public let capabilities: [String]?
+    /// The tenant's IANA time zone (report days are cut in it); nil from older servers.
+    public let tenantTimezone: String?
     public let serverTime: Date
     public let cursor: Int64
     public let deviceSession: DeviceSessionDTO
@@ -168,7 +170,7 @@ public struct BootstrapDTO: Codable, Hashable, Sendable {
     public let policySnapshots: [PolicySnapshotDTO]
 
     enum CodingKeys: String, CodingKey {
-        case protocolVersion = "protocol_version", capabilities, serverTime = "server_time", cursor
+        case protocolVersion = "protocol_version", capabilities, tenantTimezone = "tenant_timezone", serverTime = "server_time", cursor
         case deviceSession = "device_session", data, policySnapshots = "policy_snapshots"
     }
 }
@@ -176,6 +178,7 @@ public struct BootstrapDTO: Codable, Hashable, Sendable {
 public struct ChangesDTO: Codable, Hashable, Sendable {
     public let protocolVersion: Int?
     public let capabilities: [String]?
+    public let tenantTimezone: String?
     public let serverTime: Date
     public let cursor: Int64
     public let hasMore: Bool
@@ -183,7 +186,8 @@ public struct ChangesDTO: Codable, Hashable, Sendable {
     public let policySnapshots: [PolicySnapshotDTO]
 
     enum CodingKeys: String, CodingKey {
-        case protocolVersion = "protocol_version", capabilities, serverTime = "server_time", cursor, hasMore = "has_more"
+        case protocolVersion = "protocol_version", capabilities, tenantTimezone = "tenant_timezone", serverTime = "server_time", cursor
+        case hasMore = "has_more"
         case data, policySnapshots = "policy_snapshots"
     }
 }
@@ -298,6 +302,8 @@ public enum BlobPurpose: String, Codable, Sendable, CaseIterable {
     case paymentEvidence = "PAYMENT_EVIDENCE"
     /// Deposit slip / payment confirmation of a remittance (CASH_HANDOVER, REMITTANCE_DETAILS_V1).
     case remittanceEvidence = "REMITTANCE_EVIDENCE"
+    /// Photo of a daily operational report (DAILY_REPORT, DEC-032 A4).
+    case dailyReportEvidence = "DAILY_REPORT_EVIDENCE"
 }
 
 public struct BlobStartIn: Codable, Hashable, Sendable {

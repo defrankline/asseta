@@ -162,6 +162,9 @@ public enum OperationType: String, Codable, Sendable, CaseIterable {
     case cashRetentionRequest = "CASH_RETENTION_REQUEST"
     /// A supervisor's GPS check-in at the site (`SiteCheckinIn`); needs ``SyncCapability/siteCheckin``.
     case siteCheckin = "SITE_CHECKIN"
+    /// A machine's daily operational report (`DailyReportIn` + `evidence_upload_ids`; the operation id is the report
+    /// id); needs ``SyncCapability/dailyReport``.
+    case dailyReport = "DAILY_REPORT"
 }
 
 public enum GpsStatus: String, Codable, Sendable, CaseIterable {
@@ -214,11 +217,16 @@ public struct MeterCapturePayload: Codable, Hashable, Sendable {
     public let deviceID: String
     public let capturedAt: Date
     public let policyVersionIDs: [UUID]
+    /// DEC-032 A3: a DAILY reading on the running job at which the machine moved to this customer
+    /// (``SyncCapability/meterChangeover``).
+    public let changeoverToCustomerID: UUID?
+    /// Optional: the job the machine moves on to.
+    public let changeoverToJobID: UUID?
 
     public init(id: UUID, jobID: UUID?, machineID: UUID? = nil, kind: ReadingKind, captureMode: CaptureMode, reading: String,
                 ocrRawText: String?, ocrValue: String?, ocrConfidence: Double?, ocrEngine: String?,
                 photoAttachmentID: UUID?, gps: GpsPayload, deviceID: String, capturedAt: Date,
-                policyVersionIDs: [UUID]) {
+                policyVersionIDs: [UUID], changeoverToCustomerID: UUID? = nil, changeoverToJobID: UUID? = nil) {
         self.id = id
         self.jobID = jobID
         self.machineID = machineID
@@ -234,10 +242,13 @@ public struct MeterCapturePayload: Codable, Hashable, Sendable {
         self.deviceID = deviceID
         self.capturedAt = capturedAt
         self.policyVersionIDs = policyVersionIDs
+        self.changeoverToCustomerID = changeoverToCustomerID
+        self.changeoverToJobID = changeoverToJobID
     }
 
     enum CodingKeys: String, CodingKey {
         case id, kind, reading, gps
+        case changeoverToCustomerID = "changeover_to_customer_id", changeoverToJobID = "changeover_to_job_id"
         case jobID = "job_id", machineID = "machine_id", captureMode = "capture_mode", ocrRawText = "ocr_raw_text"
         case ocrValue = "ocr_value"
         case ocrConfidence = "ocr_confidence", ocrEngine = "ocr_engine", photoAttachmentID = "photo_attachment_id"

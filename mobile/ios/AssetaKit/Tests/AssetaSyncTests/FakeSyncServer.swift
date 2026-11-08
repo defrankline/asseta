@@ -37,6 +37,8 @@ final class FakeSyncServer: @unchecked Sendable {
     var depositAccounts: [[String: Any]] = []
     /// Advertised protocol capabilities (nil: an older server that sends none).
     var capabilities: [String]? = ["SUPERVISOR_INBOX_V1", "OP_METER_RESET_REQUEST", "OP_JOB_REQUEST"]
+    /// The tenant's time zone in bootstrap and changes; nil: not sent (an older server).
+    var timezone: String?
     /// Supervisor inbox lists sent with every bootstrap/changes (`my_expenses` → rows); empty: not sent.
     var inbox: [String: [[String: Any]]] = [:]
     /// The tenant's `cash.retention_allowed` (false: CASH_RETENTION_REQUEST is a RETENTION_NOT_ALLOWED conflict).
@@ -83,11 +85,13 @@ final class FakeSyncServer: @unchecked Sendable {
             var body: [String: Any] = ["server_time": iso(serverTime), "cursor": cursor, "protocol_version": 1,
                                        "device_session": deviceSession("d"), "data": data(), "policy_snapshots": snapshots]
             if let capabilities { body["capabilities"] = capabilities }
+            if let timezone { body["tenant_timezone"] = timezone }
             return json(200, body)
         case ("GET", "/api/v1/sync/changes"):
             var body: [String: Any] = ["server_time": iso(serverTime), "cursor": cursor, "has_more": false, "data": data(),
                                        "policy_snapshots": snapshots]
             if let capabilities { body["capabilities"] = capabilities }
+            if let timezone { body["tenant_timezone"] = timezone }
             return json(200, body)
         case ("POST", "/api/v1/sync/push"):
             return try push(body)
@@ -191,7 +195,7 @@ final class FakeSyncServer: @unchecked Sendable {
             applyOrder.append(id)
             return ["id": id.uuidString.lowercased(), "status": "ACKED", "result": result, "error": NSNull()]
         }
-        if ["HOURS_PURCHASE", "CASH_HANDOVER"].contains(op["op_type"] as? String) {
+        if ["HOURS_PURCHASE", "CASH_HANDOVER", "DAILY_REPORT"].contains(op["op_type"] as? String) {
             // Mirrors push.py `_hours_purchase` / `_handover`: incomplete evidence uploads defer; an unknown one is rejected.
             let uploads = (payload["evidence_upload_ids"] as? [String] ?? []).compactMap(UUID.init(uuidString:))
             if uploads.contains(where: { blobs[$0] != nil && blobs[$0]?.attachmentID == nil }) {

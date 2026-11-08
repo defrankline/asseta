@@ -138,7 +138,7 @@ public struct OwnerRootView: View {
             target = .more; path.append(MoreItem.cash); path.append(route)
         case .overdueRemittance where model.features.allows(route):
             target = .more; path.append(MoreItem.cash); path.append(OwnerRoute.overdueRemittances); path.append(route)
-        case .revenueDifference where model.features.allows(route):
+        case .revenueDifference where model.features.allows(route), .dailyReport where model.features.allows(route):
             target = .more; path.append(MoreItem.approvals); path.append(route)
         case let .dailySheet(machine) where model.features.allows(route):
             target = .fleet; path.append(OwnerRoute.machine(machine)); path.append(route)
@@ -204,6 +204,9 @@ struct RouteView: View {
         case .overdueRemittances: OverdueRemittancesView(model: model)
         case let .overdueRemittance(id): OverdueRemittanceView(model: model, overdueID: id)
         case let .revenueDifference(id): RevenueDifferenceView(model: model, differenceID: id)
+        // With revenue checks off (or not readable) a machine's days show the allocations alone (DEC-032).
+        case let .dailySheet(machine) where !model.features.revenueRead: LedgerDaysView(model: model, machineID: machine)
+        case let .dailySheetDay(machine, day) where !model.features.revenueRead: LedgerDayView(model: model, machineID: machine, day: day)
         case let .dailySheet(machine): DailySheetView(model: model, machineID: machine)
         case let .dailySheetDay(machine, day): DailySheetDayView(model: model, machineID: machine, day: day)
         case let .hoursPurchase(id): HoursPurchaseView(model: model, purchaseID: id)
@@ -214,6 +217,7 @@ struct RouteView: View {
         case .unbilledWork: UnbilledWorkView(model: model)
         case .idleMachines: IdleMachinesView(model: model)
         case .setupChecklist: SetupChecklistView(model: model)
+        case let .dailyReport(id): DailyReportReviewView(model: model, reportID: id)
         }
     }
 }

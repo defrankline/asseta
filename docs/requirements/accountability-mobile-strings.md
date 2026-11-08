@@ -1429,6 +1429,11 @@ Screens per app:
 | field.report.notFoundHint | Connect to load it, or it is no longer on this phone. |
 | field.report.outbox | Daily report |
 | field.report.waitingPhotos | Waiting for its photos to upload |
+| field.report.statusLabel | Status |
+| field.report.noteLabel | Note |
+| field.report.photos | Photos |
+| field.report.sync | Sync |
+| field.report.onThisPhone | On this phone |
 | field.changeover.action | Record changeover |
 | field.changeover.title | Changeover reading |
 | field.changeover.footer | Take this reading when the machine moves to the next customer while this job is still running. |

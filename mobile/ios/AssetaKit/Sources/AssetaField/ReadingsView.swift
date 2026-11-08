@@ -10,12 +10,22 @@ import SwiftUI
 /// requests (same as Android `ReadingsScreen`).
 struct ReadingsTabView: View {
     let model: FieldModel
+    var open: (FieldRoute) -> Void = { _ in }
     @State private var attentionOnly = false
 
     var body: some View {
         let readings = model.inbox.readings.filter { !attentionOnly || $0.status.needsAttention }
         let resets = model.inbox.resets.filter { !attentionOnly || $0.status.needsAttention }
         List {
+            if model.access.dailyReport {
+                Button { open(.dailyReports) } label: {
+                    LabeledContent {
+                        let returned = model.dailyReportsReturned
+                        if returned > 0 { Text("\(returned)").font(.caption.bold()).foregroundStyle(Palette.warning) }
+                    } label: { Label(DailyReportTexts.menu, systemImage: "doc.text") }
+                }
+                .accessibilityIdentifier("readings.dailyReports")
+            }
             FilterChips(options: [(false, "All"), (true, "Needs attention")], selection: $attentionOnly)
             if readings.isEmpty && resets.isEmpty {
                 if attentionOnly {
@@ -173,6 +183,7 @@ struct MachineDetailView: View {
     let machineID: UUID
     let requestReset: (UUID, String?) -> Void
     var capture: (CaptureTarget) -> Void = { _ in }
+    var dailyReport: (UUID) -> Void = { _ in }
 
     var body: some View {
         if let machine = model.inbox.machines[machineID] {
@@ -198,6 +209,9 @@ struct MachineDetailView: View {
                     }
                 }
                 Section {
+                    if model.access.dailyReport {
+                        Button(DailyReportTexts.action, systemImage: "doc.text") { dailyReport(machineID) }
+                    }
                     if model.access.dailyReading {
                         Button(FieldAccountabilityTexts.meterRecordDaily, systemImage: "gauge.with.dots.needle.33percent") {
                             capture(.daily(machine))

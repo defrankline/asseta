@@ -165,6 +165,11 @@ public enum AssetaSchema {
             name: "remittance_evidence",
             statements: RemittanceV8.statements
         ),
+        Migration(
+            version: 9,
+            name: "daily_report_evidence",
+            statements: DailyReportV9.statements
+        ),
     ]
 }
 

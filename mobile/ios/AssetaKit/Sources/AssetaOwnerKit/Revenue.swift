@@ -361,6 +361,9 @@ public enum RevenuePresentation {
         if d.inProgressAmount.value != 0 { rows.append((T.inProgress, money(d.inProgressAmount.value, d.currency))) }
         rows.append((T.attributed, money(d.attributedAmount.value, d.currency)))
         rows.append((T.difference, money(d.difference.value, d.currency)))
+        if let risk = d.valueAtRiskAmount, risk.value != 0 {
+            rows.append((DailyReportOwnerTexts.valueAtRisk, money(risk.value, d.currency)))
+        }
         if let adjusted = d.adjustedDifference { rows.append((T.adjustedDifference, money(adjusted.value, d.currency))) }
         rows.append((T.customerWork, OwnerFormat.hours(d.customerWorkHours)))
         rows.append((T.nonRevenueHours, OwnerFormat.hours(d.nonRevenueHours)))
@@ -474,16 +477,19 @@ public enum RevenuePresentation {
     }
 
     /// One Money card per currency.
-    public static func sheetMoney(_ s: DailyMachineSheetDTO) -> [(title: String, fields: [DecisionField])] {
+    public static func sheetMoney(_ s: DailyMachineSheetDTO) -> [(title: String, fields: [DecisionField], footer: String?)] {
         s.money.map { m in
             var rows: [DecisionField] = [DecisionField(label: T.expected, value: money(m.expected.value, m.currency))]
             if m.inProgress.value != 0 { rows.append(DecisionField(label: T.inProgress, value: money(m.inProgress.value, m.currency))) }
             rows.append(DecisionField(label: T.attributed, value: money(m.attributed.value, m.currency)))
             rows.append(DecisionField(label: T.difference, value: money(m.difference.value, m.currency)))
+            if let risk = m.valueAtRisk, risk.value != 0 {
+                rows.append(DecisionField(label: DailyReportOwnerTexts.valueAtRisk, value: money(risk.value, m.currency)))
+            }
             if let unexplained = m.unexplainedExpected, unexplained.value != 0 {
                 rows.append(DecisionField(label: T.unexplainedExpected, value: money(unexplained.value, m.currency)))
             }
-            return (T.sheetMoney(m.currency), rows)
+            return (T.sheetMoney(m.currency), rows, (m.valueAtRisk?.value ?? 0) != 0 ? DailyReportOwnerTexts.valueAtRiskFooter : nil)
         }
     }
 
@@ -527,6 +533,7 @@ extension AccountabilityDashboard {
             }
         }
         rows.append(.init(T.dashAmounts, amounts.isEmpty ? OwnerAccountabilityTexts.dashNone : amounts.joined(separator: ", ")))
+        rows += AllocationPresentation.valueAtRiskRows(r)
         if let oldest = r["oldest_open_days"]?.intValue { rows.append(.init(T.dashOldest, OwnerAccountabilityTexts.days(oldest))) }
         rows += [
             .init(T.dashExplained, "\(r["explained_in_window"]?.intValue ?? 0)"),

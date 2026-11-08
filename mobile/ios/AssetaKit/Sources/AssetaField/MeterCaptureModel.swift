@@ -12,10 +12,13 @@ enum CaptureTarget {
     case daily(MachineDTO)
     case baseline(MachineDTO)
     case correction(ReadingItem, MachineDTO)
+    /// A DAILY reading on the running job that moves the machine to the next customer (DEC-032 A3).
+    case changeover(FieldJob)
 
     var machine: MachineDTO? {
         switch self {
         case let .job(job, _): job.machine
+        case let .changeover(job): job.machine
         case let .daily(machine), let .baseline(machine), let .correction(_, machine): machine
         }
     }
@@ -23,6 +26,7 @@ enum CaptureTarget {
     var machineID: UUID? {
         switch self {
         case let .job(job, _): job.job.machineID
+        case let .changeover(job): job.job.machineID
         default: machine?.id
         }
     }
@@ -31,7 +35,7 @@ enum CaptureTarget {
     var kind: ReadingKind {
         switch self {
         case let .job(_, kind): kind
-        case .daily, .baseline: .daily
+        case .daily, .baseline, .changeover: .daily
         case let .correction(reading, _): ReadingKind(rawValue: reading.kind) ?? .closing
         }
     }
@@ -42,6 +46,7 @@ enum CaptureTarget {
         case .daily: FieldAccountabilityTexts.titleDailyReading
         case .baseline: FieldAccountabilityTexts.titleBaseline
         case .correction: FieldAccountabilityTexts.titleCorrection
+        case .changeover: DailyReportTexts.changeoverTitle
         }
     }
 }
@@ -58,6 +63,11 @@ final class MeterCaptureModel {
     let snapshot: MeterPolicySnapshot
     /// The baseline note or the correction reason.
     var extraText = ""
+    /// The changeover's next customer and job.
+    var nextCustomerID: UUID?
+    var nextJobID: UUID?
+    /// The tenant bills the hours after a changeover to the next job, so it is mandatory.
+    var nextJobRequired = false
     let requirements: CaptureRequirements
     let captureID = UUID()
 
@@ -89,8 +99,12 @@ final class MeterCaptureModel {
     /// A correction needs a reason of 10+ characters before it can be saved.
     var extraBlocksSave: Bool {
         if case .correction = target { return !AccountabilityRules.correctionReasonValid(extraText) }
+        if case .changeover = target { return changeoverProblem != nil }
         return false
     }
+
+    /// Why the changeover cannot be saved yet, else nil.
+    var changeoverProblem: String? { ChangeoverRules.problem(customerID: nextCustomerID, jobID: nextJobID, jobRequired: nextJobRequired) }
 
     /// A fresh fix for every capture (never a cached or earlier location).
     func locate(using locator: LocationCapturer) async {
@@ -153,6 +167,7 @@ final class MeterCaptureModel {
         }
         let capturedAt = photoTakenAt ?? Date() // true device time of the reading
         let (mode, ocr, photo, snapshot, captureID, note) = (draft.mode, draft.ocr, photo, snapshot, captureID, extraText)
+        let (nextCustomer, nextJob, jobRequired) = (nextCustomerID, nextJobID, nextJobRequired)
         do {
             try model.perform { recorder in
                 switch target {
@@ -165,6 +180,10 @@ final class MeterCaptureModel {
                 case .baseline:
                     try recorder.proposeBaseline(machineID: machineID, reading: reading, photo: photo, gps: gps, note: note,
                                                  capturedAt: capturedAt, baselineID: captureID)
+                case let .changeover(job):
+                    try recorder.recordChangeover(job: job.job, toCustomerID: nextCustomer, toJobID: nextJob, jobRequired: jobRequired,
+                                                  mode: mode, reading: reading, ocr: ocr, photo: photo, gps: gps,
+                                                  capturedAt: capturedAt, snapshot: snapshot, captureID: captureID)
                 case let .correction(original, _):
                     try recorder.proposeCorrection(of: original, machineID: machineID, mode: mode, value: reading, ocr: ocr,
                                                    photo: photo, gps: gps, capturedAt: capturedAt, reason: note,

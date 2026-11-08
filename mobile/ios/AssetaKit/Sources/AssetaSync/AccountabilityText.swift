@@ -262,7 +262,7 @@ public enum FieldAccountabilityTexts {
             SiteCheckinTexts.conflict(code)
         case "DEPOSIT_ACCOUNT_CURRENCY_MISMATCH":
             "The account you chose holds a different currency. Record the handover again with another account."
-        default: nil
+        default: DailyReportTexts.conflict(code)
         }
     }
 
@@ -314,6 +314,8 @@ public enum FieldAccountabilityTexts {
         case .meterCorrection: outboxCorrection
         case .cashRetentionRequest: outboxRetention
         case .siteCheckin: SiteCheckinTexts.outbox
+        case .dailyReport: DailyReportTexts.outbox
+        case .meterCapture where payload?["changeover_to_customer_id"]?.stringValue != nil: DailyReportTexts.changeoverOutbox
         case .meterCapture where payload?["kind"]?.stringValue == ReadingKind.daily.rawValue: outboxDailyReading
         default: nil
         }

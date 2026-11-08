@@ -25,6 +25,8 @@ public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
     case discount, credit, hoursTransfer, cancellation, baseline, classification, correction, writeOff, retention, adjustment
     /// DEC-031: non-revenue time inside a job (e.g. movement) explained by one person, approved by another.
     case nonRevenue
+    /// DEC-032: a proposed correction of a work allocation (one record = one correction group).
+    case allocationCorrection
 
     /// `GET` path and the status that means "waiting for a decision".
     var list: (path: String, pendingStatus: String) {
@@ -40,8 +42,12 @@ public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
         case .retention: ("cash/retentions", "PENDING")
         case .adjustment: ("cash/adjustments", "PENDING")
         case .nonRevenue: ("non-revenue-approvals", "PROPOSED")
+        case .allocationCorrection: ("work-allocations/corrections", "PROPOSED")
         }
     }
+
+    /// Where the waiting records are listed (corrections have no list of their own: their entries are listed by status).
+    var listPath: String { self == .allocationCorrection ? "work-allocations" : list.path }
 
     /// `POST` path of the decision.
     func decisionPath(_ id: UUID) -> String {
@@ -51,13 +57,13 @@ public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
 
     /// Meter decisions (and `NonRevenueDecisionIn`, the same shape) take `MeterDecisionIn` (note required, 5+
     /// characters); the others `DecisionIn`.
-    public var usesMeterDecision: Bool { [.baseline, .classification, .correction, .nonRevenue].contains(self) }
+    public var usesMeterDecision: Bool { [.baseline, .classification, .correction, .nonRevenue, .allocationCorrection].contains(self) }
 
     /// The permission that lists this kind (as the server's list endpoint).
     public var readPermissions: [String] {
         switch self {
         case .discount, .credit, .hoursTransfer, .cancellation: ["tenant.hours.read"]
-        case .baseline, .classification, .correction: ["tenant.meter.read"]
+        case .baseline, .classification, .correction, .allocationCorrection: ["tenant.meter.read"]
         case .writeOff, .adjustment: ["tenant.finance.read"]
         case .retention: ["tenant.collection.record", "tenant.finance.read"]
         case .nonRevenue: [RevenuePermission.read]
@@ -71,7 +77,7 @@ public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
         case .credit: "tenant.hours.credit_approve"
         case .hoursTransfer: "tenant.hours.transfer_approve"
         case .cancellation: "tenant.hours.cancel_approve"
-        case .baseline, .correction: "tenant.meter.approve"
+        case .baseline, .correction, .allocationCorrection: "tenant.meter.approve"
         case .classification: "tenant.meter.classify"
         case .writeOff: "tenant.finance.writeoff"
         case .retention: "tenant.finance.retention_approve"
@@ -84,7 +90,7 @@ public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
     public var capability: String? {
         switch self {
         case .discount, .credit, .hoursTransfer, .cancellation: TenantCapability.customerHours
-        case .baseline, .correction, .classification: TenantCapability.engineHours
+        case .baseline, .correction, .classification, .allocationCorrection: TenantCapability.engineHours
         case .writeOff, .retention, .adjustment: TenantCapability.cashCustody
         case .nonRevenue: TenantCapability.revenueReconciliation
         }
@@ -106,6 +112,7 @@ public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
         case .retention: OwnerAccountabilityTexts.approvalsRetentions
         case .adjustment: OwnerAccountabilityTexts.approvalsAdjustments
         case .nonRevenue: RevenueTexts.sectionNonRevenue
+        case .allocationCorrection: DailyReportOwnerTexts.allocationSection
         }
     }
 
@@ -122,6 +129,7 @@ public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
         case .retention: OwnerAccountabilityTexts.approvalsRetentionsEmpty
         case .adjustment: OwnerAccountabilityTexts.approvalsAdjustmentsEmpty
         case .nonRevenue: RevenueTexts.sectionNonRevenueEmpty
+        case .allocationCorrection: DailyReportOwnerTexts.allocationEmpty
         }
     }
 
@@ -138,6 +146,7 @@ public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
         case .retention: OwnerAccountabilityTexts.decisionTitleRetention
         case .adjustment: OwnerAccountabilityTexts.decisionTitleAdjustment
         case .nonRevenue: RevenueTexts.titleNonRevenue
+        case .allocationCorrection: DailyReportOwnerTexts.allocationTitle
         }
     }
 
@@ -155,6 +164,7 @@ public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
         case "cash_retention": self = .retention
         case "custody_adjustment": self = .adjustment
         case "non_revenue_approval": self = .nonRevenue
+        case "work_allocation_correction": self = .allocationCorrection
         default: return nil
         }
     }
@@ -461,11 +471,15 @@ extension PendingDecision {
                                 (RevenueTexts.note, n.note), (T.fieldProposedBy, who(n.proposedByName, n.proposedBy))]
                                + decided(n.decidedByName, n.decidedBy, n.decisionNote)),
                         machine: n.machineID, name: n.proposedByName)
+        case .allocationCorrection:
+            guard let c = try? json.decode(as: AllocationCorrectionDTO.self) else { return nil }
+            return AllocationPresentation.decision(group: c.groupID, status: c.status, entries: c.entries, timeZone: timeZone)
         }
     }
 
     public static func list(_ page: Page<JSONValue>, kind: DecisionKind) -> [PendingDecision] {
-        page.items.compactMap { from($0, kind: kind) }
+        if kind == .allocationCorrection { return AllocationPresentation.groups(page) }
+        return page.items.compactMap { from($0, kind: kind) }
     }
 }
 
@@ -486,7 +500,7 @@ extension SnapshotKey {
 extension OwnerAPI {
     /// The records of `kind`, newest first: waiting ones (`pendingOnly`) or the latest of any status.
     public static func decisions(_ kind: DecisionKind, pendingOnly: Bool, pageSize: Int = 100) -> APIRequest<Page<JSONValue>> {
-        .get("\(tenant)/\(kind.list.path)", query: paging(1, pageSize) + compact([
+        .get("\(tenant)/\(kind.listPath)", query: paging(1, pageSize) + compact([
             ("status", pendingOnly ? kind.list.pendingStatus : nil),
         ]))
     }
@@ -532,11 +546,13 @@ public enum DecisionRules {
     public static func needsReload(_ error: any Error) -> Bool {
         guard let code = (error as? APIError)?.code else { return false }
         return code.hasSuffix("ALREADY_DECIDED") || code == "NOT_PENDING" || code == "WRITEOFF_NOT_PROPOSED"
-            || code == "VARIANCE_NOT_OPEN" || code == "STALE_VERSION"
+            || code == "VARIANCE_NOT_OPEN" || code == "STALE_VERSION" || code == "ALLOCATION_NOT_ACTIVE"
     }
 
     public static func message(for error: any Error) -> String {
         if (error as? APIError)?.code == "SEGREGATION_OF_DUTIES" { return OwnerAccountabilityTexts.decisionOwnRequest }
+        if (error as? APIError)?.code == "ALLOCATION_NOT_ACTIVE" { return DailyReportOwnerTexts.errNotActive }
+        if (error as? APIError)?.code == "ALLOCATION_CORRECTION_PENDING" { return DailyReportOwnerTexts.errPending }
         if needsReload(error) { return "\(OwnerAccountabilityTexts.decisionNotFoundTitle). \(OwnerAccountabilityTexts.decisionNotFoundMessage)" }
         return DecisionErrorText.message(for: error)
     }

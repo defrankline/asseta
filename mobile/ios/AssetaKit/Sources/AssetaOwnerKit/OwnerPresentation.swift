@@ -157,7 +157,7 @@ extension OwnerFeatures {
         case .revenueDifference:
             revenueOn ? route : .approvals
         case let .dailySheet(machine), let .dailySheetDay(machine, _):
-            revenueRead ? route : .machine(machine)
+            machineDays ? route : .machine(machine)
         // Customer hours switched off or not readable: the dashboard, as before these screens existed (as Android).
         case .customerHours, .hoursPurchase, .hoursStatement:
             hoursRead ? route : .accountability
@@ -168,6 +168,9 @@ extension OwnerFeatures {
             unbilledWork ? route : .accountability
         case .idleMachines:
             idleMachines ? route : .accountability
+        // ENGINE_HOURS off: a daily report opens Approvals (as a hidden decision does).
+        case .dailyReport:
+            engineHours ? route : .approvals
         default: route
         }
     }
@@ -188,12 +191,13 @@ extension OwnerFeatures {
         case .cashTransfer, .cashFloat, .overdueRemittances, .overdueRemittance: finance && cashCustody
         case .investigations, .investigation: cases
         case .revenueDifference: revenueRead
-        case .dailySheet, .dailySheetDay: revenueRead && fleet
+        case .dailySheet, .dailySheetDay: machineDays && fleet
         case .customerHours, .hoursPurchase, .hoursStatement: hoursRead
         case .scorecard, .scorecardPerson: scorecard
         case .unbilledWork: unbilledWork
         case .idleMachines: idleMachines
         case .setupChecklist: setupRead
+        case .dailyReport: allocationsRead
         case .notifications, .notification: notifications
         }
     }

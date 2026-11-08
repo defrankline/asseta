@@ -25,12 +25,15 @@ struct ApprovalsView: View {
                     .listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
                 approvalRequests
             }
-            ForEach(model.features.decisionKinds.filter { $0 != .nonRevenue }, id: \.self) { kind in
+            ForEach(model.features.decisionKinds.filter { $0 != .nonRevenue && $0 != .allocationCorrection }, id: \.self) { kind in
                 DecisionKindSection(model: model, kind: kind)
             }
             // DEC-031: "Revenue differences" then "Non-revenue hours".
             if model.features.revenueRead { RevenueDifferencesSection(model: model) }
             if model.features.decisionKinds.contains(.nonRevenue) { DecisionKindSection(model: model, kind: .nonRevenue) }
+            // DEC-032: "Daily reports to review" then "Work allocation corrections".
+            if model.features.allocationsRead { DailyReportsSection(model: model) }
+            if model.features.decisionKinds.contains(.allocationCorrection) { DecisionKindSection(model: model, kind: .allocationCorrection) }
             otherSections
         }
         .staleBanner(loader, model: model)

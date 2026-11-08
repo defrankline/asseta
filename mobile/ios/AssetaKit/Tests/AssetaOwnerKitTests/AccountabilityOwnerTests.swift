@@ -78,6 +78,10 @@ struct AccountabilityOwnerTests {
          "proposed_at":"2026-10-24T08:00:00Z","decided_by":null,"decided_by_name":null,"decided_at":null,"decision_note":null,
          "policy_version":"r1"}
         """),
+        (.allocationCorrection, "AllocationCorrectionDto", """
+        {"group_id":"\(DailyReportOwnerTests.groupID.uuidString.lowercased())","status":"PROPOSED",
+         "supersedes_id":"\(DailyReportOwnerTests.originalID.uuidString.lowercased())","entries":[\(DailyReportOwnerTests.entry())]}
+        """),
     ]
 
     static let summary = """
@@ -169,7 +173,7 @@ struct AccountabilityOwnerTests {
 
     @Test func featuresGateEachKindByPermission() {
         let viewer = OwnerFeatures(permissions: ["tenant.hours.read", "tenant.meter.read"])
-        #expect(viewer.decisionKinds == [.discount, .credit, .hoursTransfer, .cancellation, .baseline, .classification, .correction])
+        #expect(viewer.decisionKinds == [.discount, .credit, .hoursTransfer, .cancellation, .baseline, .classification, .correction, .allocationCorrection])
         #expect(viewer.approvalsScreen && !viewer.approvals && !viewer.canDecide(.discount) && !viewer.accountability)
         let boss = OwnerFeatures(permissions: ["tenant.finance.read", "tenant.finance.writeoff", "tenant.accountability.read"])
         #expect(boss.decisionKinds == [.writeOff, .retention, .adjustment] && boss.canDecide(.writeOff) && !boss.canDecide(.retention))

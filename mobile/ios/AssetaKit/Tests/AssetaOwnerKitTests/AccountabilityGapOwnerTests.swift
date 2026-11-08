@@ -32,7 +32,7 @@ struct AccountabilityGapOwnerTests {
         #expect(on.customerHours && on.decisionKinds.contains(.discount) && on.decisionKinds.contains(.cancellation))
         let off = OwnerFeatures(permissions: permissions, disabledCapabilities: [TenantCapability.customerHours])
         #expect(!off.customerHours)
-        #expect(off.decisionKinds == [.baseline, .classification, .correction, .writeOff, .retention, .adjustment])
+        #expect(off.decisionKinds == [.baseline, .classification, .correction, .writeOff, .retention, .adjustment, .allocationCorrection])
         #expect(!off.allows(.decision(.discount, UUID())) && off.allows(.decision(.retention, UUID())))
         let tenant = TenantMembership(tenantID: UUID(), name: "Acme", status: .active, accessState: .full, permissions: permissions,
                                       menus: [], disabledCapabilities: ["CUSTOMER_HOURS"])
@@ -174,7 +174,8 @@ struct AccountabilityGapOwnerTests {
             "METER_BASELINE": .decision(.baseline, rid), "METER_CORRECTION": .decision(.correction, rid),
             "ENGINE_HOURS_CLASSIFICATION": .decision(.classification, rid),
             "REVENUE_DIFFERENCE": .revenueDifference(rid), "NON_REVENUE_APPROVAL": .decision(.nonRevenue, rid),
-            "HOURS_PURCHASE": .hoursPurchase(rid), "JOB": .job(rid),
+            "HOURS_PURCHASE": .hoursPurchase(rid), "JOB": .job(rid), "DAILY_REPORT": .dailyReport(rid),
+            "WORK_ALLOCATION_CORRECTION": .decision(.allocationCorrection, rid),
         ]
         #expect(Set(expected.keys) == Set(RecordKind.allCases.map(\.rawValue)))
         for (kind, route) in expected {

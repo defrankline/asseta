@@ -14,6 +14,8 @@ enum FieldRoute: Hashable {
     case remittanceOverdue(UUID)
     /// My site check-in schedule and check-ins (DEC-031 Phase 5).
     case siteCheckins
+    /// My daily reports and one of them (DEC-032).
+    case dailyReports, dailyReport(UUID)
 }
 
 /// Forms presented as sheets (Cancel / Save), as before.
@@ -23,6 +25,8 @@ enum FieldSheet: Identifiable {
     // Accountability (each gated by server capability, permission and tenant policy)
     case hoursSale, hoursTransfer, cashTransfer, retention, cashAck(UUID, isFloat: Bool)
     case capture(CaptureTarget, MeterPolicySnapshot)
+    /// A new daily report (machine preset when opened from a machine), or the correction of one sent back.
+    case dailyReport(machineID: UUID, resubmitting: DailyReportDTO?)
 
     var id: String {
         switch self {
@@ -38,6 +42,7 @@ enum FieldSheet: Identifiable {
         case .retention: "retention"
         case let .cashAck(id, _): "cash-ack-\(id)"
         case let .capture(target, _): "capture-\(target.title)-\(target.machineID?.uuidString ?? "")"
+        case let .dailyReport(machine, report): "daily-report-\(machine)-\(report?.id.uuidString ?? "")"
         }
     }
 }
@@ -104,6 +109,7 @@ public struct FieldRootView: View {
             case .retention: RetentionFormView(model: model) { id in openOnMoney(.retention(id)) }
             case let .cashAck(id, isFloat): CashAckFormView(model: model, targetID: id, isFloat: isFloat)
             case let .capture(target, snapshot): MeterCaptureView(model: model, target: target, snapshot: snapshot)
+            case let .dailyReport(machine, report): DailyReportFormView(model: model, machineID: machine, resubmitting: report)
             }
         }
         .alert("Can't record now", isPresented: Binding(get: { blockedCapture != nil },
@@ -152,7 +158,7 @@ public struct FieldRootView: View {
     @ViewBuilder private func root(_ item: SupervisorTab) -> some View {
         switch item {
         case .jobs: JobsTabView(model: model, open: open).navigationTitle(model.tenant.name)
-        case .readings: ReadingsTabView(model: model).navigationTitle("Readings")
+        case .readings: ReadingsTabView(model: model, open: open).navigationTitle("Readings")
         case .fuel: FuelTabView(model: model).navigationTitle("Fuel")
         case .money: MoneyTabView(model: model, acknowledge: { sheet = .cashAck($0, isFloat: $1) }).navigationTitle("Money")
         case .inbox: InboxTabView(model: model, open: openNotification, attention: openAttention).navigationTitle("Inbox")
@@ -163,7 +169,9 @@ public struct FieldRootView: View {
         switch route {
         case let .job(id): JobDetailView(model: model, jobID: id)
         case let .reading(id): ReadingDetailView(model: model, id: id, requestReset: requestReset, capture: capture)
-        case let .machine(id): MachineDetailView(model: model, machineID: id, requestReset: requestReset, capture: capture)
+        case let .machine(id):
+            MachineDetailView(model: model, machineID: id, requestReset: requestReset, capture: capture,
+                              dailyReport: { sheet = .dailyReport(machineID: $0, resubmitting: nil) })
         case let .resetDetail(id): ResetDetailView(model: model, id: id)
         case let .fuel(id): FuelDetailView(model: model, id: id)
         case let .expense(id): ExpenseDetailView(model: model, id: id, recordExpense: recordExpense)
@@ -173,6 +181,9 @@ public struct FieldRootView: View {
         case let .retention(id): RetentionStatusView(model: model, id: id)
         case let .remittanceOverdue(id): RemittanceOverdueView(model: model, id: id)
         case .siteCheckins: SiteCheckinView(model: model)
+        case .dailyReports: DailyReportListView(model: model)
+        case let .dailyReport(id):
+            DailyReportDetailView(model: model, id: id) { sheet = .dailyReport(machineID: $0.machineID, resubmitting: $0) }
         }
     }
 
@@ -283,6 +294,9 @@ public struct FieldRootView: View {
             Task {
                 if await model.remittanceOverdue(id) != nil { openOnMoney(.remittanceOverdue(id)) } else { tab = .money }
             }
+        case let .dailyReport(id):
+            // Switched off: as any other notification.
+            if model.access.engineHoursOn { open(.dailyReport(id)) } else { fallback() }
         case .none: fallback()
         }
     }

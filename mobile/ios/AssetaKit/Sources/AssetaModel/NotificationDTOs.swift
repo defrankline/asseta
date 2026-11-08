@@ -232,6 +232,10 @@ public enum RecordKind: String, CaseIterable, Sendable, Hashable {
     case hoursPurchase = "HOURS_PURCHASE"
     /// DEC-031 Phase 5: a job (UNBILLED_WORK: completed work not invoiced yet).
     case job = "JOB"
+    /// DEC-032: a daily operational report (submitted for review, or sent back to its supervisor).
+    case dailyReport = "DAILY_REPORT"
+    /// DEC-032: a proposed work allocation correction (`record_id` is the correction group).
+    case workAllocationCorrection = "WORK_ALLOCATION_CORRECTION"
 
     /// From a notification target entity (`cash_transfer`, `supervisor_cash_custody`, `baseline`, ...).
     public init?(entity: String?) {
@@ -253,6 +257,8 @@ public enum RecordKind: String, CaseIterable, Sendable, Hashable {
         case "revenue_difference": self = .revenueDifference
         case "non_revenue_approval": self = .nonRevenueApproval
         case "hours_purchase": self = .hoursPurchase
+        case "daily_report": self = .dailyReport
+        case "work_allocation_correction": self = .workAllocationCorrection
         default: return nil
         }
     }

@@ -295,8 +295,9 @@ struct DailySheetDayView: View {
                 Section(T.sheetReadings) { FieldList(fields: RevenuePresentation.sheetReadings(s)) }
                 let jobs = RevenuePresentation.sheetJobs(s)
                 if !jobs.isEmpty { Section(T.jobs) { FieldList(fields: jobs) } }
+                if model.features.allocationsRead { AllocationDaySections(model: model, machineID: machineID, day: day) }
                 ForEach(Array(RevenuePresentation.sheetMoney(s).enumerated()), id: \.offset) { _, card in
-                    Section(card.title) { FieldList(fields: card.fields) }
+                    Section { FieldList(fields: card.fields) } header: { Text(card.title) } footer: { if let footer = card.footer { Text(footer) } }
                 }
                 Section(T.sheetFuel) { FieldList(fields: RevenuePresentation.sheetFuelFields(s)) }
                 Section {

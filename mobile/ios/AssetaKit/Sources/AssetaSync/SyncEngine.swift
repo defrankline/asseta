@@ -50,6 +50,8 @@ enum SyncKey {
     static let nextSyncAt = "next_sync_at"
     static let lastSuccessAt = "last_success_at"
     static let clockSkewAlert = "server_clock_skew_alert"
+    /// The tenant's IANA time zone, when the server sends it (report days are cut in it).
+    static let tenantTimezone = "tenant_timezone"
     /// Optional protocol features the server advertised on the last pull (comma separated).
     static let capabilities = "capabilities"
     /// Cached server notifications of the signed-in user (JSON array; cleared with the tenant's state).
@@ -184,6 +186,7 @@ public actor SyncEngine {
             }
             try saveInbox(response.data)
             try setValue((response.capabilities ?? []).joined(separator: ","), SyncKey.capabilities)
+            if let zone = response.tenantTimezone { try setValue(zone, SyncKey.tenantTimezone) }
             try saveCustody(response.data.cashCustody, asOf: response.serverTime)
             try saveSnapshots(response.policySnapshots, receivedAt: response.serverTime)
             try setValue(String(response.cursor), SyncKey.cursor)
@@ -205,6 +208,7 @@ public actor SyncEngine {
                 written += try store.syncState.upsert(entities, tenantID: tenantID)
                 try saveInbox(page.data)
                 try setValue((page.capabilities ?? []).joined(separator: ","), SyncKey.capabilities)
+                if let zone = page.tenantTimezone { try setValue(zone, SyncKey.tenantTimezone) }
                 try saveCustody(page.data.cashCustody, asOf: page.serverTime)
                 try saveSnapshots(page.policySnapshots, receivedAt: page.serverTime)
                 try setValue(String(max(page.cursor, cursor)), SyncKey.cursor)

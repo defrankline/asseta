@@ -129,7 +129,7 @@ struct SyncSection: View {
             Section("Sync") {
                 LabeledContent("On this phone") { SyncStateLabel(status: operation.status) }
                 if let code = operation.errorCode {
-                    Text("\(code): \(operation.lastError ?? "")").font(.caption).foregroundStyle(Palette.offline)
+                    Text(FieldAccountabilityTexts.conflictText(code) ?? "\(code): \(operation.lastError ?? "")").font(.caption).foregroundStyle(Palette.offline)
                 }
             }
         }

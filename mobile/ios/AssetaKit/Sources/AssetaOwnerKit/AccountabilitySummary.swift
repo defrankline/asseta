@@ -297,6 +297,8 @@ public enum AccountabilityDashboard {
         if engineOn, let u = s.unexplainedHours {
             var rows: [DashboardTile.Row] = [.init(T.dashMachines, "\(u["machines"]?.intValue ?? 0)"),
                                              .init(T.fieldHours, hours(u["hours"]))]
+            let atRisk = AllocationPresentation.valueAtRiskRows(u)
+            rows += atRisk
             if case let .array(items)? = u["items"] {
                 for item in items {
                     let line = T.dashUnexplainedLine(hours: item["unexplained_hours"]?.stringValue ?? "0",
@@ -304,7 +306,8 @@ public enum AccountabilityDashboard {
                     rows.append(.init(item["machine_code"]?.stringValue ?? "—", line))
                 }
             }
-            out.append(DashboardTile(id: "unexplained_hours", title: T.dashUnexplained, rows: rows, route: .exceptions(jobID: nil)))
+            out.append(DashboardTile(id: "unexplained_hours", title: T.dashUnexplained, rows: rows, route: .exceptions(jobID: nil),
+                                     footer: atRisk.isEmpty ? nil : DailyReportOwnerTexts.valueAtRiskFooter))
         }
         if engineOn, let m = s.missingDailyReports {
             var rows: [DashboardTile.Row] = [.init(T.dashMissingReports, "\(m["count"]?.intValue ?? 0)")]
