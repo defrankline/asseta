@@ -25,6 +25,19 @@ class FinCtx:
     customer_id: str
 
 
+def allow_direct_void(f: "FinCtx") -> None:
+    """Tenant setting for tests of the plain void path: no second person (the platform default requires one)."""
+    r = f.owner.post(
+        "/api/v1/tenant/policies/HIRE_BILLING/versions",
+        {
+            "scope": "TENANT",
+            "values": {"invoice_void_requires_approval": False},
+            "reason": "Direct voids for this test",
+        },
+    )
+    assert r.status_code == 201, r.text
+
+
 def role(api: Api, tid: str, role_key: str, subject: str) -> Actor:
     return Actor(api, subject, [f"/tenants/{tid}/{role_key}"], tid, email=f"{subject}@fin.example.com")
 

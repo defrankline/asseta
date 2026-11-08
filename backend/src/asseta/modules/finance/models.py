@@ -56,7 +56,16 @@ class SettlementStatus(StrEnum):
 
 
 class AdjustmentKind(StrEnum):
-    INVOICE_REVERSAL = "INVOICE_REVERSAL"
+    INVOICE_REVERSAL = "INVOICE_REVERSAL"  # credit: reduces what the customer owes
+    # DEC-032 B3/B4 (debits: raise what the customer owes back): a verified payment reversed, a refund paid out.
+    PAYMENT_REVERSAL = "PAYMENT_REVERSAL"
+    HOURS_REFUND_PAYOUT = "HOURS_REFUND_PAYOUT"
+    # A refund returned to the customer's unallocated credit: a record only, no receivable effect.
+    HOURS_REFUND_CREDIT = "HOURS_REFUND_CREDIT"
+
+
+CREDIT_KINDS = frozenset({AdjustmentKind.INVOICE_REVERSAL})
+DEBIT_KINDS = frozenset({AdjustmentKind.PAYMENT_REVERSAL, AdjustmentKind.HOURS_REFUND_PAYOUT})
 
 
 class CustodyEntryType(StrEnum):
@@ -150,6 +159,7 @@ class FinancialAdjustment(UuidPk, Base):
     reason: Mapped[str] = mapped_column(Text, nullable=False)
     created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    adjustment_request_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("adjustment_request.id"), index=True)
 
 
 class CustomerPayment(UuidPk, SyncRevisioned, Base):
@@ -181,6 +191,10 @@ class CustomerPayment(UuidPk, SyncRevisioned, Base):
     verified_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     decision_note: Mapped[str | None] = mapped_column(Text)
+    # DEC-032 B4: a single stamp when an approved reversal took this payment back (bounced payment, wrong collection).
+    # The payment stays as recorded; the balance offsets are separate records. Only these two columns may ever change.
+    reversed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reversal_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
 
 
 class HirePaymentAllocation(UuidPk, Base):

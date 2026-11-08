@@ -18,6 +18,8 @@ from asseta.core.errors import BusinessRuleViolation, Conflict, NotFound
 from asseta.core.outbox import OutboxWriter
 from asseta.core.search import ilike_any
 from asseta.core.signals import sod_violation
+from asseta.modules.adjustments.models import AdjustmentEntryStatus, AdjustmentType, AdjustmentUnit
+from asseta.modules.adjustments.posting import AdjustmentPosting, post_adjustment
 from asseta.modules.fleet.models import Machine
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.jobs.models import Customer, Job
@@ -369,6 +371,7 @@ class WorkAllocationService:
             {"superseded_by": [str(p.id) for p in parts], "hours": str(entry.hours)},
             note,
         )
+        self._post(entry, parts, AdjustmentEntryStatus.APPROVED, note)
 
     def decide_correction(self, group_id: uuid.UUID, body: MeterDecisionIn) -> AllocationCorrectionDto:
         rows = self._group(group_id)
@@ -390,11 +393,47 @@ class WorkAllocationService:
                 )
             self._s.flush()
             self._audit("meter.work_allocation.correction_rejected", entry, {"group_id": str(group_id)}, body.note)
+            self._post(entry, rows, AdjustmentEntryStatus.REJECTED, body.note)
         else:
             if entry.status is not AllocationStatus.ACTIVE:
                 raise Conflict("The entry changed since this was proposed; propose again", code="SEGMENT_CHANGED")
             self._apply(entry, rows, body.note)
         return self._correction_dto(group_id, rows)
+
+    def _post(
+        self, entry: WorkAllocation, parts: list[WorkAllocation], status: AdjustmentEntryStatus, note: str | None
+    ) -> None:
+        group = parts[0].correction_group_id
+        assert group is not None
+        post_adjustment(
+            self._s,
+            self._tid,
+            self._now,
+            AdjustmentPosting(
+                adjustment_type=AdjustmentType.ALLOCATION_CORRECTION,
+                status=status,
+                original_type="work_allocation",
+                original_id=entry.id,
+                original_reference=None,
+                source_type="work_allocation_correction",
+                source_id=group,
+                unit=AdjustmentUnit.HOURS,
+                original_value=entry.hours,
+                new_value=sum((p.hours for p in parts), ZERO),
+                amount=ZERO,
+                reason=parts[0].correction_reason,
+                evidence_attachment_ids=list(parts[0].evidence_attachment_ids),
+                customer_id=entry.customer_id,
+                machine_id=entry.machine_id,
+                requested_by=parts[0].recorded_by,
+                requested_at=parts[0].created_at,
+                approved_by=self._ctx.user_id,
+                approved_at=self._now,
+                decision_note=note,
+                details={"parts": [{"kind": p.kind.value, "hours": str(p.hours)} for p in parts]},
+                policy_version=parts[0].policy_version,
+            ),
+        )
 
     def _audit(self, action: str, entry: WorkAllocation, after: dict[str, Any], reason: str | None) -> None:
         AuditService(self._s).record(

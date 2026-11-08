@@ -197,7 +197,25 @@ def _customer_hours_b(api: Api, f: FinCtx) -> dict[tuple[str, str], str]:
         c=f.customer_id,
         m=f.c.t.machine_id,
     )
+    correction = f.accountant.post(
+        f"{T}/adjustment-requests",
+        {
+            "request_type": "HOURS_CORRECTION",
+            "purchase_id": bought.json()["id"],
+            "hours": "-0.5",
+            "reason": "B recount of the lot",
+            "evidence_attachment_ids": [up.json()["id"]],
+        },
+    )
+    assert correction.status_code == 201, correction.text
+    decided = o.post(
+        f"{T}/adjustment-requests/{correction.json()['id']}/decision", {"decision": "REJECT", "note": "No"}
+    )
+    assert decided.status_code == 200, decided.text
+    entry = o.get(f"{T}/adjustments").json()["items"][0]["id"]
     return {
+        ("/adjustment-requests/", "request_id"): correction.json()["id"],
+        ("/adjustments/", "entry_id"): entry,
         ("/hours-low-balance-alerts/", "alert_id"): alert,
         ("/hours-reason-codes/", "code_id"): reason.json()["id"],
         ("/customer-discounts/", "discount_id"): disc.json()["id"],

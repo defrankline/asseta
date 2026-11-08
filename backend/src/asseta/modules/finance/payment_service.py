@@ -124,6 +124,8 @@ class CustomerPaymentService:
     def _allocate(self, payment: CustomerPayment, items: list[HireAllocationIn]) -> None:
         if payment.status is SettlementStatus.REJECTED:
             raise BusinessRuleViolation("A rejected payment cannot be allocated", code="PAYMENT_REJECTED")
+        if payment.reversed_at is not None:
+            raise BusinessRuleViolation("A reversed payment cannot be allocated", code="PAYMENT_REVERSED")
         # Money already linked to hours purchases counts too: a payment is never allocated twice.
         allocated = self._active_allocated(HirePaymentAllocation.payment_id == payment.id) + hours_allocated(
             self._s, payment_id=payment.id

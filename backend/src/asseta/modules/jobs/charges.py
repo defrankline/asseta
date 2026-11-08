@@ -25,6 +25,7 @@ class ChargeKind(StrEnum):
     MOBILIZATION = "MOBILIZATION"
     DISCOUNT = "DISCOUNT"
     TAX = "TAX"
+    HOURS_RECOVERY = "HOURS_RECOVERY"  # prepaid hours already used whose payment was reversed (DEC-032 B4)
 
 
 @dataclass(frozen=True)

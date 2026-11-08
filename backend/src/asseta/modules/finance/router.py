@@ -16,6 +16,7 @@ from asseta.core.errors import ERROR_RESPONSES
 from asseta.core.idempotency import IdempotencyGuard, request_hash
 from asseta.core.paging import Page, PageParams, page_params, paginate
 from asseta.modules.accountability.names import named
+from asseta.modules.adjustments.requests import AdjustmentRequests
 from asseta.modules.finance.common import tenant_settings
 from asseta.modules.finance.dto import (
     CustomerBalanceDto,
@@ -33,7 +34,14 @@ from asseta.modules.finance.dto import (
 from asseta.modules.finance.invoice_service import HireInvoiceService, invoice_dto
 from asseta.modules.finance.models import CustomerPayment, HireInvoiceStatus, SettlementStatus, TenantHireInvoice
 from asseta.modules.finance.payment_service import CustomerPaymentService, payment_dto
-from asseta.modules.finance.permissions import FINANCE_READ, INVOICE_WRITE, PAYMENT_WRITE, REPORT, VERIFY
+from asseta.modules.finance.permissions import (
+    FINANCE_READ,
+    INVOICE_WRITE,
+    PAYMENT_DETAIL_READ,
+    PAYMENT_WRITE,
+    REPORT,
+    VERIFY,
+)
 from asseta.modules.finance.profitability import ProfitabilityService
 from asseta.modules.finance.receivables import ReceivablesService, overdue_conditions
 from asseta.modules.identity.principal import RequestContext
@@ -118,7 +126,14 @@ def void_invoice(
     now: Now,
     ctx: Annotated[RequestContext, Depends(INVOICE_WRITE)],
 ) -> HireInvoiceDto:
-    return HireInvoiceService(session, ctx, now).void(invoice_id, body.reason)
+    svc = HireInvoiceService(session, ctx, now)
+    inv = svc.invoice(invoice_id)
+    if inv.status is HireInvoiceStatus.ISSUED:
+        requests = AdjustmentRequests(session, ctx, now)
+        if requests.requires_void_approval():  # a second person decides; the invoice stays ISSUED until then
+            requests.propose_void(invoice_id, body)
+            return invoice_dto(session, svc.invoice(invoice_id))
+    return svc.void(invoice_id, body.reason)
 
 
 @router.post(
@@ -175,6 +190,17 @@ def decide_payment(
     ctx: Annotated[RequestContext, Depends(VERIFY)],
 ) -> CustomerPaymentDto:
     return CustomerPaymentService(session, ctx, now).decide(payment_id, body)
+
+
+@router.get("/customer-payments/{payment_id}", response_model=CustomerPaymentDto, operation_id="getCustomerPayment")
+@named
+def get_payment(
+    payment_id: uuid.UUID,
+    session: DbSession,
+    now: Now,
+    ctx: Annotated[RequestContext, Depends(PAYMENT_DETAIL_READ)],
+) -> CustomerPaymentDto:
+    return payment_dto(session, CustomerPaymentService(session, ctx, now).payment(payment_id))
 
 
 @router.post(

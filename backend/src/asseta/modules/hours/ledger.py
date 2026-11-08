@@ -59,7 +59,7 @@ class PurchaseTotals:
     @property
     def net_activated(self) -> Decimal:
         """Activated hours still owed for (reversals withdraw activation; expiry does not)."""
-        return self.activated - self.total(T.REVERSAL)
+        return self.activated - self.total(T.REVERSAL) - self.total(T.REFUNDED)
 
     @property
     def remaining(self) -> Decimal:
@@ -158,6 +158,7 @@ class LedgerWriter:
         allocation_id: uuid.UUID | None = None,
         transfer_id: uuid.UUID | None = None,
         cancellation_id: uuid.UUID | None = None,
+        adjustment_request_id: uuid.UUID | None = None,
         reason: str | None = None,
         policy_version: str | None = None,
         usage_day: date | None = None,
@@ -178,6 +179,7 @@ class LedgerWriter:
             allocation_id=allocation_id,
             transfer_id=transfer_id,
             cancellation_id=cancellation_id,
+            adjustment_request_id=adjustment_request_id,
             reason=reason,
             policy_version=policy_version,
             usage_day=usage_day,
@@ -205,7 +207,15 @@ def due_to_expire(session: Session, purchase: HoursPurchase, totals: PurchaseTot
             )
         ).scalar_one()
     )
-    used = totals.total(T.CONSUMED) + totals.total(T.REVERSAL) + totals.total(T.EXPIRED) + totals.provisional
+    used = (
+        totals.total(T.CONSUMED)
+        + totals.total(T.REVERSAL)
+        + totals.total(T.REFUNDED)
+        + totals.total(T.EXPIRED)
+        + totals.total(T.CORRECTION_DEDUCT)
+        - totals.total(T.CORRECTION_ADD)
+        + totals.provisional
+    )
     return min(max(ZERO, lots_due - used), max(ZERO, totals.remaining))
 
 

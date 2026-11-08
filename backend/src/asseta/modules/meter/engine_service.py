@@ -18,6 +18,8 @@ from asseta.core.lifecycle import check_version, flush_versioned, mark_active, m
 from asseta.core.outbox import OutboxWriter
 from asseta.core.search import ilike_any, matches
 from asseta.core.signals import sod_violation
+from asseta.modules.adjustments.models import AdjustmentEntryStatus, AdjustmentType, AdjustmentUnit
+from asseta.modules.adjustments.posting import AdjustmentPosting, post_adjustment
 from asseta.modules.fleet.models import Machine
 from asseta.modules.identity.models import AppUser
 from asseta.modules.identity.principal import RequestContext
@@ -753,6 +755,7 @@ class EngineHoursService:
         }
         self._record("meter.classification.proposed", "engine_hour_classification", row.id, None, after, body.note)
         if direct:
+            self._post_classification(row)
             self._close_flag(row)
             self._revenue_recompute(row)
         else:
@@ -804,10 +807,42 @@ class EngineHoursService:
             {"status": row.status.value, "outcome": row.outcome.value, "hours": str(row.hours)},
             body.note,
         )
+        self._post_classification(row)
         if approve:
             self._close_flag(row)
             self._revenue_recompute(row)
         return self._classification_dtos([row])[0]
+
+    def _post_classification(self, row: EngineHourClassification) -> None:
+        reason = self._s.get(EngineHourReason, row.reason_id)
+        post_adjustment(
+            self._s,
+            self._tid,
+            self._now,
+            AdjustmentPosting(
+                adjustment_type=AdjustmentType.ENGINE_HOUR_CLASSIFICATION,
+                status=AdjustmentEntryStatus(row.status.value),
+                original_type="machine",
+                original_id=row.machine_id,
+                original_reference=None,
+                source_type="engine_hour_classification",
+                source_id=row.id,
+                unit=AdjustmentUnit.HOURS,
+                original_value=row.hours,
+                amount=row.hours,
+                reason_id=row.reason_id,
+                reason_label=reason.name if reason else None,
+                reason=row.note,
+                machine_id=row.machine_id,
+                requested_by=row.proposed_by,
+                requested_at=row.proposed_at,
+                approved_by=row.decided_by,
+                approved_at=row.decided_at,
+                decision_note=row.decision_note,
+                details={"outcome": row.outcome.value},
+                policy_version=row.policy_version,
+            ),
+        )
 
     def _revenue_recompute(self, row: EngineHourClassification) -> None:
         """DEC-031 (owner rule): approved hours stop counting as expected revenue; recorded revenue differences of
@@ -960,6 +995,7 @@ class EngineHoursService:
                 {"status": row.status.value},
                 body.note,
             )
+            self._post_correction(row)
             return self._correction_dtos([row])[0]
         old = self._s.execute(
             select(MeterCapture).where(MeterCapture.id == row.superseded_capture_id).with_for_update()
@@ -998,6 +1034,7 @@ class EngineHoursService:
             },
             f"{row.reason} | decision: {note}",
         )
+        self._post_correction(row)
         self._emit(
             "MeterCorrectionApplied",
             row.machine_id,
@@ -1006,4 +1043,34 @@ class EngineHoursService:
                 "superseded_capture_id": str(old.id),
                 "replacement_capture_id": str(result.capture.id),
             },
+        )
+
+    def _post_correction(self, row: MeterCorrection) -> None:
+        post_adjustment(
+            self._s,
+            self._tid,
+            self._now,
+            AdjustmentPosting(
+                adjustment_type=AdjustmentType.METER_CORRECTION,
+                status=AdjustmentEntryStatus(row.status.value),
+                original_type="meter_capture",
+                original_id=row.superseded_capture_id,
+                original_reference=None,
+                source_type="meter_correction",
+                source_id=row.id,
+                unit=AdjustmentUnit.READING,
+                original_value=row.old_reading,
+                new_value=row.new_reading,
+                amount=row.new_reading - row.old_reading,
+                resulting_balance=row.new_reading if row.status.value == "APPROVED" else None,
+                reason=row.reason,
+                machine_id=row.machine_id,
+                requested_by=row.proposed_by,
+                requested_at=row.proposed_at,
+                approved_by=row.decided_by,
+                approved_at=row.decided_at,
+                decision_note=row.decision_note,
+                details={"job_id": str(row.job_id) if row.job_id else None},
+                policy_version=row.policy_version,
+            ),
         )

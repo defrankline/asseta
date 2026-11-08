@@ -150,6 +150,49 @@ record and resulting balances.
 **B4. Reversal of posted transactions:** propose/approve reversal of a verified payment, collection or purchase. A
 bounced payment deactivates unused hours; used hours become money owed (receivable or case). Offsetting records only.
 
+## Phase 2 implementation notes (backend, 2026-11-08)
+
+**B1 Ledger 6** (`adjustment_ledger_entry`, append-only: guard trigger, no UPDATE/DELETE grant, RLS). One row per *decided*
+adjustment (APPROVED, REJECTED, REVOKED; a retry of the same decided record is ignored by a unique key). Proposals still
+waiting are not rows here: the new actions live in `adjustment_request` until decided; the existing flows keep their own pending
+rows. Original reference, type, original/new value or amount (`unit` says hours, money or reading), tenant reason (id + label kept),
+evidence, requester, approver, timestamps, resulting balance, filterable customer/machine/custodian. Posted from: hours transfers,
+cancellations, credit arrangements (decided and revoked), meter corrections, allocation corrections, engine-hour classifications
+(including direct ones), non-revenue approvals, cash variance resolutions and write-offs (a rejected write-off proposal is
+retained), custody adjustments, invoice voids. Retentions are not posted: an approved retention changes what must be remitted, not
+the custody balance (the guideline's test). Backfilled from decided records (no resulting balance is reconstructed for them).
+
+**B1 invoice voids.** `HIRE_BILLING.invoice_void_requires_approval` (default on): the void endpoint proposes (invoice stays ISSUED,
+`pending_void_request_id`) and `tenant.adjustment.decide` approves; a draft is abandoned as before. Off: voids immediately, posted
+with no approver.
+
+**B1 propose/decide.** `adjustment_request` (uniform flow; proposer != approver is never relaxable). Evidence per
+`CUSTOMER_HOURS.adjustment_evidence_required` (default on, purpose `ADJUSTMENT_EVIDENCE`); reasons from the existing reason lists
+(`hours_reason_code` kinds CORRECTION, REFUND, REVERSAL) under `reason_code_required`. All checks re-run at the decision; the request
+shows a forecast while PROPOSED and what happened once decided. One live or approved reversal per original (unique index).
+
+**B2 corrections.** New ledger entry types `CORRECTION_ADD` (+) / `CORRECTION_DEDUCT` (-): a lot (purchase + machine) cannot go below
+zero (`HOURS_CORRECTION_NEGATIVE`) or above what was activated (`HOURS_CORRECTION_EXCEEDS_LOT`). A correction can name the consumption
+it gives back (`consumed_entry_id`, `job_id`); it cannot give back more than that entry (`HOURS_CORRECTION_EXCEEDS_ENTRY`).
+
+**B3 refunds (D4).** `CUSTOMER_HOURS.refund_allowed` (default off). Entry type `REFUNDED` (-) on unused activated hours; the value
+(hours x effective rate) must be covered by verified money on the purchase. `settlement` CREDIT returns it to unallocated credit;
+PAY_OUT records `payout {method, reference, staff_member_id}` (a cash payout reduces that custodian's custody). The kept part of a
+partly refunded allocation is re-written as a new allocation row (no amount is edited). `financial_adjustment` carries
+HOURS_REFUND_CREDIT / HOURS_REFUND_PAYOUT.
+
+**B4 reversals.** Offsetting records only; the payment keeps status VERIFIED and receives one stamp `reversed_at` + `reversal_id` (guard
+trigger allows exactly that). PAYMENT_REVERSAL (bank/mobile money) and COLLECTION_REVERSAL (cash): allocations released, a `PAYMENT_REVERSAL`
+financial adjustment debits the customer so the receivable stays right, hours the money paid for come off (unused first, `REVERSAL`
+entries linked to the request), hours already used become money owed per `reversal_used_hours_treatment`: RECEIVABLE (default) issues an
+ordinary hire invoice with `HOURS_RECOVERY` lines (one per job; due/overdue/allocation all work as usual; no job claim, the jobs stay
+prepaid); CASE opens an investigation case (subject CUSTOMER) and bills nothing. Cash custody falls by the amount
+(approved `custody_adjustment`, entity customer_payment); the balance may go negative and the ledger shows it. PURCHASE_REVERSAL:
+unused hours come off, money stays with the used hours it paid for, the rest returns to credit, used hours no money covers become owed;
+the purchase gets its existing cancellation stamp (`cancellation_id` = the request id) and open transfer/cancellation requests are
+refused. Credit-activated hours stay active after a payment reversal (their arrangement still covers them). Running jobs' provisional
+hours count as used.
+
 ## Phase 3 — Independence and evidence (3.3, T6, T8)
 
 Custodian cannot confirm own remittance (policy-independent); credit activation approver ≠ purchase recorder; zero-amount

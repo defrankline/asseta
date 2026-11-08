@@ -19,7 +19,7 @@ from asseta.core.storage import ObjectStore, sha256_hex, sniff_image
 from asseta.modules.fleet.photos import PhotoUrlDto, get_object_store
 from asseta.modules.identity.catalog import CATALOG, MenuDef
 from asseta.modules.identity.catalog import PermissionScope as S
-from asseta.modules.identity.dependencies import requires
+from asseta.modules.identity.dependencies import requires, requires_any
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.jobs.models import Job
 from asseta.modules.jobs.scope import (
@@ -59,6 +59,8 @@ from asseta.modules.meter.service import (
 )
 
 CAPTURE = requires("tenant.meter.capture", S.TENANT, "Capture hour-meter readings and evidence")
+EVIDENCE_READ = requires_any(("tenant.meter.read", "tenant.adjustment.read"), S.TENANT)
+EVIDENCE_UPLOAD = requires_any(("tenant.meter.capture", "tenant.adjustment.propose"), S.TENANT)
 METER_READ = requires("tenant.meter.read", S.TENANT, "View meter readings, evidence and exceptions")
 REVIEW = requires("tenant.meter.review", S.TENANT, "Review meter/GPS exceptions")
 APPROVE = requires("tenant.meter.approve", S.TENANT, "Approve meter resets and reading corrections")
@@ -87,7 +89,14 @@ for menu in (
     ),
 ):
     CATALOG.register_menu(menu)
-PURPOSES = {"METER_PHOTO", "SIGNATURE", "RESET_EVIDENCE", "EXPENSE_RECEIPT", "DAILY_REPORT_EVIDENCE"}
+PURPOSES = {
+    "METER_PHOTO",
+    "SIGNATURE",
+    "RESET_EVIDENCE",
+    "EXPENSE_RECEIPT",
+    "DAILY_REPORT_EVIDENCE",
+    "ADJUSTMENT_EVIDENCE",
+}
 
 router = APIRouter(prefix="/api/v1/tenant", tags=["meter"], responses=ERROR_RESPONSES)
 DbSession = Annotated[Session, Depends(get_session)]
@@ -109,7 +118,7 @@ def _own(ctx: RequestContext, mine: bool) -> bool:
 async def upload(
     session: DbSession,
     store: Store,
-    ctx: Annotated[RequestContext, Depends(CAPTURE)],
+    ctx: Annotated[RequestContext, Depends(EVIDENCE_UPLOAD)],
     file: Annotated[UploadFile, File()],
     purpose: Annotated[str, Form()],
 ) -> AttachmentDto:
@@ -178,7 +187,7 @@ def attachment_visible(session: Session, ctx: RequestContext, att: CaptureAttach
 
 @router.get("/attachments/{attachment_id}/url", response_model=PhotoUrlDto, operation_id="getAttachmentUrl")
 def attachment_url(
-    attachment_id: uuid.UUID, session: DbSession, store: Store, ctx: Annotated[RequestContext, Depends(METER_READ)]
+    attachment_id: uuid.UUID, session: DbSession, store: Store, ctx: Annotated[RequestContext, Depends(EVIDENCE_READ)]
 ) -> PhotoUrlDto:
     row = session.get(CaptureAttachment, attachment_id)
     if row is None or not attachment_visible(session, ctx, row):

@@ -16,6 +16,9 @@ from asseta.modules.finance.common import ZERO, local_bounds, tenant_settings
 from asseta.modules.finance.dto import CustomerBalanceDto, CustomerStatementDto, StatementLineDto
 from asseta.modules.finance.invoice_service import verified_paid
 from asseta.modules.finance.models import (
+    CREDIT_KINDS,
+    DEBIT_KINDS,
+    AdjustmentKind,
     CustomerPayment,
     FinancialAdjustment,
     HireInvoiceStatus,
@@ -27,7 +30,7 @@ from asseta.modules.finance.payment_service import payment_dto
 from asseta.modules.hours.models import HoursPaymentAllocation
 from asseta.modules.jobs.models import Customer
 
-Kind = Literal["INVOICE", "REVERSAL", "PAYMENT"]
+Kind = Literal["INVOICE", "REVERSAL", "PAYMENT", "ADJUSTMENT"]
 
 
 @dataclass(frozen=True)
@@ -112,6 +115,19 @@ class ReceivablesService:
         } or {tenant_settings(self._s, self._tid).currency}
         return [self._balance(customer_id, c) for c in sorted(currencies)]
 
+    def balance_of(self, customer_id: uuid.UUID, currency: str) -> CustomerBalanceDto:
+        """One customer's balance in one currency (what an adjustment records as its resulting balance)."""
+        return self._balance(customer_id, currency)
+
+    def _adjustments(self, customer_id: uuid.UUID, currency: str, kinds: frozenset[AdjustmentKind]) -> Decimal:
+        return self._sum(
+            select(func.coalesce(func.sum(FinancialAdjustment.amount), 0)).where(
+                FinancialAdjustment.customer_id == customer_id,
+                FinancialAdjustment.currency == currency,
+                FinancialAdjustment.kind.in_(kinds),
+            )
+        )
+
     def _balance(self, customer_id: uuid.UUID, currency: str) -> CustomerBalanceDto:
         inv = (TenantHireInvoice.customer_id == customer_id, TenantHireInvoice.currency == currency)
         pay = (CustomerPayment.customer_id == customer_id, CustomerPayment.currency == currency)
@@ -120,11 +136,8 @@ class ReceivablesService:
                 *inv, TenantHireInvoice.issued_at.is_not(None)
             )
         )
-        reversed_ = self._sum(
-            select(func.coalesce(func.sum(FinancialAdjustment.amount), 0)).where(
-                FinancialAdjustment.customer_id == customer_id, FinancialAdjustment.currency == currency
-            )
-        )
+        reversed_ = self._adjustments(customer_id, currency, CREDIT_KINDS)
+        debits = self._adjustments(customer_id, currency, DEBIT_KINDS)  # payments reversed, refunds paid out (B3/B4)
         verified = self._sum(
             select(func.coalesce(func.sum(CustomerPayment.amount), 0)).where(
                 *pay, CustomerPayment.status == SettlementStatus.VERIFIED
@@ -159,8 +172,9 @@ class ReceivablesService:
             invoiced=invoiced,
             reversed=reversed_,
             verified_payments=verified,
-            balance=invoiced - reversed_ - verified,
-            unallocated_credit=verified - allocated,
+            balance=invoiced - reversed_ - verified + debits,
+            payment_reversals_and_refunds=debits,
+            unallocated_credit=max(ZERO, verified - allocated - debits),
             claimed_unverified=claimed,
             open_invoices=open_count,
         )
@@ -193,7 +207,11 @@ class ReceivablesService:
             )
         ).scalars():
             ref = numbers.get(a.invoice_id) if a.invoice_id else None
-            out.append((a.created_at, "REVERSAL", ref or str(a.id), f"Reversal: {a.reason}"[:200], ZERO, a.amount))
+            if a.kind in CREDIT_KINDS:
+                out.append((a.created_at, "REVERSAL", ref or str(a.id), f"Reversal: {a.reason}"[:200], ZERO, a.amount))
+            elif a.kind in DEBIT_KINDS:
+                text_ = f"{a.kind.value.replace('_', ' ').capitalize()}: {a.reason}"[:200]
+                out.append((a.created_at, "ADJUSTMENT", str(a.id), text_, a.amount, ZERO))
         for p in self._s.execute(
             select(CustomerPayment).where(
                 CustomerPayment.customer_id == customer_id,

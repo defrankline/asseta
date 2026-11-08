@@ -53,6 +53,7 @@ class SubjectType(StrEnum):
     STAFF = "STAFF"
     EXPENSE = "EXPENSE"
     USER = "USER"  # a login without a staff record (e.g. a segregation-of-duties attempt by office staff)
+    CUSTOMER = "CUSTOMER"  # a customer's account (a reversal that left used hours unpaid)
 
 
 class SignalStatus(StrEnum):
@@ -75,6 +76,7 @@ class CaseSourceType(StrEnum):
     PREDICTION = "PREDICTION"  # surfaced model predictions only (never shadow ones)
     CASH_VARIANCE = "CASH_VARIANCE"  # declared != received cash above the tenant's case threshold
     REVENUE_DIFFERENCE = "REVENUE_DIFFERENCE"  # engine hours not matched by money above the tenant's case threshold
+    ADJUSTMENT = "ADJUSTMENT"  # a reversal that took back hours already used (policy reversal_used_hours_treatment)
 
 
 class CaseOutcomeKind(StrEnum):

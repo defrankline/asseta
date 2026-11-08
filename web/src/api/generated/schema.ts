@@ -1655,6 +1655,141 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenant/adjustment-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Requests */
+        get: operations["listAdjustmentRequests"];
+        put?: never;
+        /**
+         * Propose Adjustment
+         * @description Propose a correction, refund, reversal or invoice void; someone else decides it. HOURS_CORRECTION: `purchase_id`,
+         *     optional `machine_id` (the purchase's machine by default), signed `hours`, optional `job_id` / `consumed_entry_id`.
+         *     HOURS_REFUND: `purchase_id`, `machine_id`, positive `hours`, `settlement` (CREDIT | PAY_OUT, with `payout`).
+         *     PAYMENT_REVERSAL / COLLECTION_REVERSAL: `payment_id`. PURCHASE_REVERSAL: `purchase_id`.
+         *     INVOICE_VOID: `invoice_id`.
+         */
+        post: operations["proposeAdjustment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/adjustment-requests/{request_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Request */
+        get: operations["getAdjustmentRequest"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/adjustment-requests/{request_id}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Decide Request */
+        post: operations["decideAdjustmentRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/adjustment-requests/{request_id}/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Withdraw Request */
+        post: operations["withdrawAdjustmentRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/adjustments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Adjustments
+         * @description Filters: `type` (AdjustmentType), `status`, `person_id` (requester or approver), `date_from`/`date_to`
+         *     (tenant-local days, posting date), `machine_id`, `customer_id`, `staff_member_id`, `reference` (original
+         *     reference, contains), `original_id`, `q` (reference, reason).
+         */
+        get: operations["listAdjustments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/adjustments/export.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Adjustments
+         * @description The list's rows (same filters, no paging) as CSV.
+         */
+        get: operations["exportAdjustmentsCsv"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/adjustments/{entry_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Adjustment */
+        get: operations["getAdjustment"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenant/alerts": {
         parameters: {
             query?: never;
@@ -3053,6 +3188,23 @@ export interface paths {
         put?: never;
         /** Record Payment */
         post: operations["recordCustomerPayment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/customer-payments/{payment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Payment */
+        get: operations["getCustomerPayment"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -7247,6 +7399,244 @@ export interface components {
              */
             unit_price?: number | string | null;
         };
+        /** AdjustmentDecisionIn */
+        AdjustmentDecisionIn: {
+            /**
+             * Decision
+             * @enum {string}
+             */
+            decision: "APPROVE" | "REJECT";
+            /** Note */
+            note?: string | null;
+        };
+        /**
+         * AdjustmentEntryDto
+         * @description One decided adjustment (guideline 4.6 fields; `unit` says what `original_value`, `new_value`, `amount` and
+         *     `resulting_balance` measure).
+         */
+        AdjustmentEntryDto: {
+            adjustment_type: components["schemas"]["AdjustmentType"];
+            /** Amount */
+            amount: string | null;
+            /** Approved At */
+            approved_at: string | null;
+            /** Approved By */
+            approved_by: string | null;
+            /** Approved By Name */
+            approved_by_name?: string | null;
+            /** Currency */
+            currency: string | null;
+            /** Customer Id */
+            customer_id: string | null;
+            /** Customer Name */
+            customer_name?: string | null;
+            /** Decision Note */
+            decision_note: string | null;
+            /** Details */
+            details: {
+                [key: string]: unknown;
+            };
+            /** Evidence Attachment Ids */
+            evidence_attachment_ids: string[];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Machine Code */
+            machine_code?: string | null;
+            /** Machine Id */
+            machine_id: string | null;
+            /** Machine Name */
+            machine_name?: string | null;
+            /** New Value */
+            new_value: string | null;
+            /**
+             * Original Id
+             * Format: uuid
+             */
+            original_id: string;
+            /** Original Reference */
+            original_reference: string | null;
+            /** Original Type */
+            original_type: string;
+            /** Original Value */
+            original_value: string | null;
+            /**
+             * Posted At
+             * Format: date-time
+             */
+            posted_at: string;
+            /** Reason */
+            reason: string | null;
+            /** Reason Id */
+            reason_id: string | null;
+            /** Reason Label */
+            reason_label: string | null;
+            /** Requested At */
+            requested_at: string | null;
+            /** Requested By */
+            requested_by: string | null;
+            /** Requested By Name */
+            requested_by_name?: string | null;
+            /** Resulting Balance */
+            resulting_balance: string | null;
+            /**
+             * Source Id
+             * Format: uuid
+             */
+            source_id: string;
+            /** Source Type */
+            source_type: string;
+            /** Staff Member Id */
+            staff_member_id: string | null;
+            /** Staff Member Name */
+            staff_member_name?: string | null;
+            status: components["schemas"]["AdjustmentEntryStatus"];
+            unit: components["schemas"]["AdjustmentUnit"];
+        };
+        /**
+         * AdjustmentEntryStatus
+         * @enum {string}
+         */
+        AdjustmentEntryStatus: "APPROVED" | "REJECTED" | "REVOKED";
+        /** AdjustmentRequestDto */
+        AdjustmentRequestDto: {
+            /** Amount */
+            amount: string | null;
+            /** Client Id */
+            client_id: string | null;
+            /** Currency */
+            currency: string | null;
+            /** Customer Id */
+            customer_id: string | null;
+            /** Customer Name */
+            customer_name?: string | null;
+            /** Decided At */
+            decided_at: string | null;
+            /** Decided By */
+            decided_by: string | null;
+            /** Decided By Name */
+            decided_by_name?: string | null;
+            /** Decision Note */
+            decision_note: string | null;
+            /**
+             * Effects
+             * @default {}
+             */
+            effects: {
+                [key: string]: unknown;
+            };
+            /** Evidence Attachment Ids */
+            evidence_attachment_ids: string[];
+            /** Hours */
+            hours: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Machine Code */
+            machine_code?: string | null;
+            /** Machine Id */
+            machine_id: string | null;
+            /** Machine Name */
+            machine_name?: string | null;
+            /**
+             * Original Id
+             * Format: uuid
+             */
+            original_id: string;
+            /** Original Reference */
+            original_reference: string | null;
+            /** Original Type */
+            original_type: string;
+            /** Params */
+            params: {
+                [key: string]: unknown;
+            };
+            /**
+             * Proposed At
+             * Format: date-time
+             */
+            proposed_at: string;
+            /** Proposed By */
+            proposed_by: string | null;
+            /** Proposed By Name */
+            proposed_by_name?: string | null;
+            /** Purchase Id */
+            purchase_id: string | null;
+            /** Purchase Number */
+            purchase_number?: string | null;
+            /** Reason */
+            reason: string;
+            /** Reason Code Id */
+            reason_code_id: string | null;
+            /** Reason Label */
+            reason_label?: string | null;
+            request_type: components["schemas"]["AdjustmentRequestType"];
+            settlement: components["schemas"]["RefundSettlement"] | null;
+            status: components["schemas"]["AdjustmentRequestStatus"];
+        };
+        /**
+         * AdjustmentRequestIn
+         * @description Propose a correction, refund, reversal or invoice void. Which fields apply depends on `request_type`: see the
+         *     endpoint notes (hours/machine for corrections and refunds, a payment/purchase/invoice id for reversals).
+         */
+        AdjustmentRequestIn: {
+            /** Client Id */
+            client_id?: string | null;
+            /** Consumed Entry Id */
+            consumed_entry_id?: string | null;
+            /** Evidence Attachment Ids */
+            evidence_attachment_ids?: string[];
+            /** Hours */
+            hours?: number | string | null;
+            /** Invoice Id */
+            invoice_id?: string | null;
+            /** Job Id */
+            job_id?: string | null;
+            /** Machine Id */
+            machine_id?: string | null;
+            /** Payment Id */
+            payment_id?: string | null;
+            payout?: components["schemas"]["PayoutIn"] | null;
+            /** Purchase Id */
+            purchase_id?: string | null;
+            /** Reason */
+            reason: string;
+            /** Reason Code Id */
+            reason_code_id?: string | null;
+            request_type: components["schemas"]["AdjustmentRequestType"];
+            settlement?: components["schemas"]["RefundSettlement"] | null;
+        };
+        /**
+         * AdjustmentRequestStatus
+         * @enum {string}
+         */
+        AdjustmentRequestStatus: "PROPOSED" | "APPROVED" | "REJECTED" | "WITHDRAWN";
+        /**
+         * AdjustmentRequestType
+         * @description The new reversible actions handled by the uniform propose/decide flow.
+         * @enum {string}
+         */
+        AdjustmentRequestType: "HOURS_CORRECTION" | "HOURS_REFUND" | "PAYMENT_REVERSAL" | "COLLECTION_REVERSAL" | "PURCHASE_REVERSAL" | "INVOICE_VOID";
+        /**
+         * AdjustmentType
+         * @description What kind of change the ledger entry records (guideline 4.6). Stable contract values.
+         * @enum {string}
+         */
+        AdjustmentType: "HOURS_TRANSFER" | "HOURS_CANCELLATION" | "HOURS_CORRECTION" | "HOURS_REFUND" | "CREDIT_ARRANGEMENT" | "METER_CORRECTION" | "ALLOCATION_CORRECTION" | "ENGINE_HOUR_CLASSIFICATION" | "NON_REVENUE_APPROVAL" | "CASH_WRITE_OFF" | "CASH_VARIANCE_RESOLUTION" | "CUSTODY_ADJUSTMENT" | "INVOICE_VOID" | "PAYMENT_REVERSAL" | "COLLECTION_REVERSAL" | "PURCHASE_REVERSAL";
+        /**
+         * AdjustmentUnit
+         * @enum {string}
+         */
+        AdjustmentUnit: "HOURS" | "MONEY" | "READING";
+        /** AdjustmentWithdrawIn */
+        AdjustmentWithdrawIn: {
+            /** Reason */
+            reason: string;
+        };
         /** AlertActionIn */
         AlertActionIn: {
             /**
@@ -8203,7 +8593,7 @@ export interface components {
          * CaseSourceType
          * @enum {string}
          */
-        CaseSourceType: "RISK_SIGNAL" | "METER_EXCEPTION" | "TRACKING_ALERT" | "SOD_EVENT" | "PREDICTION" | "CASH_VARIANCE" | "REVENUE_DIFFERENCE";
+        CaseSourceType: "RISK_SIGNAL" | "METER_EXCEPTION" | "TRACKING_ALERT" | "SOD_EVENT" | "PREDICTION" | "CASH_VARIANCE" | "REVENUE_DIFFERENCE" | "ADJUSTMENT";
         /**
          * CaseStatus
          * @enum {string}
@@ -9110,7 +9500,7 @@ export interface components {
          * ChargeKind
          * @enum {string}
          */
-        ChargeKind: "HIRE" | "STANDBY" | "MOBILIZATION" | "DISCOUNT" | "TAX";
+        ChargeKind: "HIRE" | "STANDBY" | "MOBILIZATION" | "DISCOUNT" | "TAX" | "HOURS_RECOVERY";
         /** ChargePreviewDto */
         ChargePreviewDto: {
             /** Amount */
@@ -9830,6 +10220,11 @@ export interface components {
             invoiced: string;
             /** Open Invoices */
             open_invoices: number;
+            /**
+             * Payment Reversals And Refunds
+             * @default 0.0000
+             */
+            payment_reversals_and_refunds: string;
             /** Reversed */
             reversed: string;
             /** Unallocated Credit */
@@ -9947,6 +10342,10 @@ export interface components {
             recorded_by_name?: string | null;
             /** Reference */
             reference: string | null;
+            /** Reversal Id */
+            reversal_id?: string | null;
+            /** Reversed At */
+            reversed_at?: string | null;
             /** Source */
             source: string;
             status: components["schemas"]["SettlementStatus"];
@@ -11601,6 +12000,8 @@ export interface components {
             notes: string | null;
             /** Payment State */
             payment_state: ("UNPAID" | "PARTIALLY_PAID" | "PAID") | null;
+            /** Pending Void Request Id */
+            pending_void_request_id?: string | null;
             status: components["schemas"]["HireInvoiceStatus"];
             /** Subtotal */
             subtotal: string;
@@ -11652,8 +12053,12 @@ export interface components {
         HireInvoiceStatus: "DRAFT" | "ISSUED" | "VOIDED";
         /** HireInvoiceVoidIn */
         HireInvoiceVoidIn: {
+            /** Evidence Attachment Ids */
+            evidence_attachment_ids?: string[];
             /** Reason */
             reason: string;
+            /** Reason Code Id */
+            reason_code_id?: string | null;
         };
         /**
          * HirePaymentMethod
@@ -11692,6 +12097,11 @@ export interface components {
             /** Consumed */
             consumed: string;
             /**
+             * Corrected
+             * @default 0
+             */
+            corrected: string;
+            /**
              * Customer Id
              * Format: uuid
              */
@@ -11717,6 +12127,11 @@ export interface components {
             provisional: string;
             /** Purchases */
             purchases: number;
+            /**
+             * Refunded
+             * @default 0
+             */
+            refunded: string;
             /** Remaining */
             remaining: string;
             /** Reversed */
@@ -12013,6 +12428,12 @@ export interface components {
             cancelled: string;
             /** Closing Balance */
             closing_balance: string;
+            /**
+             * Corrected
+             * @description Net approved corrections
+             * @default 0
+             */
+            corrected: string;
             /** Expired */
             expired: string;
             /** Opening Balance */
@@ -12022,6 +12443,12 @@ export interface components {
              * @description Of `used`: still provisional (jobs running at period end)
              */
             provisional_at_close: string;
+            /**
+             * Refunded
+             * @description Unused hours refunded
+             * @default 0
+             */
+            refunded: string;
             /** Transferred In */
             transferred_in: string;
             /** Transferred Out */
@@ -12793,7 +13220,7 @@ export interface components {
          * LedgerEntryType
          * @enum {string}
          */
-        LedgerEntryType: "ACTIVATED" | "CONSUMED" | "TRANSFER_OUT" | "TRANSFER_IN" | "EXPIRED" | "REVERSAL" | "PROVISIONAL" | "PROVISIONAL_REVERSED";
+        LedgerEntryType: "ACTIVATED" | "CONSUMED" | "TRANSFER_OUT" | "TRANSFER_IN" | "EXPIRED" | "REVERSAL" | "PROVISIONAL" | "PROVISIONAL_REVERSED" | "CORRECTION_ADD" | "CORRECTION_DEDUCT" | "REFUNDED";
         /** LedgerPointDto */
         LedgerPointDto: {
             /**
@@ -13041,6 +13468,11 @@ export interface components {
             activated: string;
             /** Consumed */
             consumed: string;
+            /**
+             * Corrected
+             * @default 0
+             */
+            corrected: string;
             /** Expired */
             expired: string;
             /** Machine Code */
@@ -13058,6 +13490,11 @@ export interface components {
              * @default 0
              */
             provisional: string;
+            /**
+             * Refunded
+             * @default 0
+             */
+            refunded: string;
             /** Remaining */
             remaining: string;
             /** Reversed */
@@ -14995,6 +15432,28 @@ export interface components {
          * @enum {string}
          */
         Ownership: "OWNED" | "LEASED" | "HIRED_IN";
+        /** Page[AdjustmentEntryDto] */
+        Page_AdjustmentEntryDto_: {
+            /** Items */
+            items: components["schemas"]["AdjustmentEntryDto"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+        };
+        /** Page[AdjustmentRequestDto] */
+        Page_AdjustmentRequestDto_: {
+            /** Items */
+            items: components["schemas"]["AdjustmentRequestDto"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+        };
         /** Page[AlertDto] */
         Page_AlertDto_: {
             /** Items */
@@ -15919,6 +16378,14 @@ export interface components {
             /** Awaiting Confirmation */
             awaiting_confirmation: components["schemas"]["CountAmountDto"][];
         };
+        /** PayoutIn */
+        PayoutIn: {
+            method: components["schemas"]["HirePaymentMethod"];
+            /** Reference */
+            reference?: string | null;
+            /** Staff Member Id */
+            staff_member_id?: string | null;
+        };
         /** PendingChargeDto */
         PendingChargeDto: {
             /** Amount */
@@ -16343,6 +16810,11 @@ export interface components {
             awaiting_activation: string;
             /** Consumed */
             consumed: string;
+            /**
+             * Corrected
+             * @default 0
+             */
+            corrected: string;
             /** Expired */
             expired: string;
             /**
@@ -16353,6 +16825,11 @@ export interface components {
             provisional: string;
             /** Purchased */
             purchased: string;
+            /**
+             * Refunded
+             * @default 0
+             */
+            refunded: string;
             /** Remaining */
             remaining: string;
             /** Reversed */
@@ -16637,7 +17114,7 @@ export interface components {
          * @description Which tenant reason list an entry belongs to (the entries themselves are tenant data).
          * @enum {string}
          */
-        ReasonKind: "DISCOUNT" | "CREDIT" | "TRANSFER" | "CANCELLATION";
+        ReasonKind: "DISCOUNT" | "CREDIT" | "TRANSFER" | "CANCELLATION" | "CORRECTION" | "REFUND" | "REVERSAL";
         /**
          * ReconciliationFigure
          * @description A reconciliation figure (the field name on the daily reconciliation) a transaction contributes to.
@@ -16679,6 +17156,11 @@ export interface components {
              */
             tenant_id?: string | null;
         };
+        /**
+         * RefundSettlement
+         * @enum {string}
+         */
+        RefundSettlement: "CREDIT" | "PAY_OUT";
         /**
          * RemittanceDecisionIn
          * @description Verify/reject a remittance (cash handover). `amount_received` is what was actually counted; omitted (older
@@ -18065,7 +18547,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "INVOICE" | "REVERSAL" | "PAYMENT";
+            kind: "INVOICE" | "REVERSAL" | "PAYMENT" | "ADJUSTMENT";
             /** Reference */
             reference: string;
             /** Running Balance */
@@ -18104,7 +18586,7 @@ export interface components {
          * SubjectType
          * @enum {string}
          */
-        SubjectType: "MACHINE" | "JOB" | "STAFF" | "EXPENSE" | "USER";
+        SubjectType: "MACHINE" | "JOB" | "STAFF" | "EXPENSE" | "USER" | "CUSTOMER";
         /** SubscriptionDto */
         SubscriptionDto: {
             /**
@@ -18271,6 +18753,10 @@ export interface components {
             recorded_by_name?: string | null;
             /** Reference */
             reference: string | null;
+            /** Reversal Id */
+            reversal_id?: string | null;
+            /** Reversed At */
+            reversed_at?: string | null;
             /** Source */
             source: string;
             status: components["schemas"]["SettlementStatus"];
@@ -29777,6 +30263,750 @@ export interface operations {
             };
         };
     };
+    listAdjustmentRequests: {
+        parameters: {
+            query?: {
+                request_type?: components["schemas"]["AdjustmentRequestType"] | null;
+                status?: components["schemas"]["AdjustmentRequestStatus"] | null;
+                customer_id?: string | null;
+                machine_id?: string | null;
+                original_id?: string | null;
+                page?: number;
+                page_size?: number;
+                q?: string | null;
+                sort?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_AdjustmentRequestDto_"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    proposeAdjustment: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdjustmentRequestIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdjustmentRequestDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getAdjustmentRequest: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdjustmentRequestDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    decideAdjustmentRequest: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdjustmentDecisionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdjustmentRequestDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    withdrawAdjustmentRequest: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdjustmentWithdrawIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdjustmentRequestDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listAdjustments: {
+        parameters: {
+            query?: {
+                type?: components["schemas"]["AdjustmentType"] | null;
+                status?: components["schemas"]["AdjustmentEntryStatus"] | null;
+                person_id?: string | null;
+                date_from?: string | null;
+                date_to?: string | null;
+                machine_id?: string | null;
+                customer_id?: string | null;
+                staff_member_id?: string | null;
+                reference?: string | null;
+                original_id?: string | null;
+                page?: number;
+                page_size?: number;
+                q?: string | null;
+                sort?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_AdjustmentEntryDto_"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    exportAdjustmentsCsv: {
+        parameters: {
+            query?: {
+                q?: string | null;
+                type?: components["schemas"]["AdjustmentType"] | null;
+                status?: components["schemas"]["AdjustmentEntryStatus"] | null;
+                person_id?: string | null;
+                date_from?: string | null;
+                date_to?: string | null;
+                machine_id?: string | null;
+                customer_id?: string | null;
+                staff_member_id?: string | null;
+                reference?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": unknown;
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getAdjustment: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdjustmentEntryDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     listTrackingAlerts: {
         parameters: {
             query?: {
@@ -38009,6 +39239,94 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerPaymentDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getCustomerPayment: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                payment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };

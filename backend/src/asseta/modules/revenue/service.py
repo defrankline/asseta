@@ -21,6 +21,8 @@ from asseta.core.lifecycle import check_version, flush_versioned, mark_active, m
 from asseta.core.outbox import OutboxWriter
 from asseta.core.search import ilike_any
 from asseta.core.signals import sod_violation
+from asseta.modules.adjustments.models import AdjustmentEntryStatus, AdjustmentType, AdjustmentUnit
+from asseta.modules.adjustments.posting import AdjustmentPosting, post_adjustment
 from asseta.modules.fleet.models import Machine
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.intelligence.models import AnomalyCase
@@ -589,6 +591,7 @@ class RevenueService:
             {"status": row.status.value, "hours": str(row.hours)},
             body.note,
         )
+        self._post_non_revenue(row)
         if approve:
             sync_allocations(self._s, self._tid, row.machine_id, self._now)  # DEC-032 A1: the ledger names the approval
             recompute_after_change(
@@ -603,6 +606,36 @@ class RevenueService:
                 self._now,
             )
         return self.approval_dtos([row])[0]
+
+    def _post_non_revenue(self, row: NonRevenueApproval) -> None:
+        reason = self._s.get(RevenueReason, row.reason_id)
+        post_adjustment(
+            self._s,
+            self._tid,
+            self._now,
+            AdjustmentPosting(
+                adjustment_type=AdjustmentType.NON_REVENUE_APPROVAL,
+                status=AdjustmentEntryStatus(row.status.value),
+                original_type="job_activity",
+                original_id=row.activity_id,
+                original_reference=None,
+                source_type="non_revenue_approval",
+                source_id=row.id,
+                unit=AdjustmentUnit.HOURS,
+                original_value=row.hours,
+                amount=row.hours,
+                reason_id=row.reason_id,
+                reason_label=reason.name if reason else None,
+                reason=row.note,
+                machine_id=row.machine_id,
+                requested_by=row.proposed_by,
+                requested_at=row.proposed_at,
+                approved_by=row.decided_by,
+                approved_at=row.decided_at,
+                decision_note=row.decision_note,
+                details={"activity_type": row.activity_type, "job_id": str(row.job_id)},
+            ),
+        )
 
 
 def _hours(start: datetime, end: datetime) -> Decimal:

@@ -127,6 +127,8 @@ DELETE: frozenset[str] = frozenset(
         "hours_low_balance_alert", "hours_reason_code", "hours_sequence", "credit_arrangement", "customer_discount",
         # revenue reconciliation
         "revenue_difference", "revenue_difference_adjustment", "revenue_reason",
+        # adjustments ledger (Ledger 6) and its propose/decide flow
+        "adjustment_ledger_entry", "adjustment_request",
         # intelligence: cases, signals, insights, ML trained on the tenant's data
         "anomaly_case", "anomaly_case_counter", "case_note", "case_outcome", "case_signal", "risk_signal",
         "feature_snapshot", "prediction", "inference_audit", "model_version", "model_approval", "model_evaluation",

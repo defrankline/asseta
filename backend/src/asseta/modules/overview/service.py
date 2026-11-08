@@ -142,6 +142,7 @@ class OverviewService:
             select(CustomerPayment.currency, func.sum(CustomerPayment.amount))
             .where(
                 CustomerPayment.status == SettlementStatus.VERIFIED,
+                CustomerPayment.reversed_at.is_(None),
                 CustomerPayment.received_at >= since,
                 CustomerPayment.received_at <= self._now,
             )

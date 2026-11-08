@@ -3,6 +3,7 @@ module's summary — the single pricing source), issue as an immutable numbered 
 with a reversal adjustment. A job can be claimed by at most one non-voided invoice (DB partial unique index)."""
 
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
 
@@ -13,6 +14,15 @@ from sqlalchemy.orm import Session
 from asseta.core.audit import AuditService
 from asseta.core.errors import BusinessRuleViolation, Conflict, NotFound
 from asseta.core.outbox import OutboxWriter
+from asseta.modules.adjustments.models import (
+    AdjustmentEntryStatus,
+    AdjustmentRequest,
+    AdjustmentRequestStatus,
+    AdjustmentRequestType,
+    AdjustmentType,
+    AdjustmentUnit,
+)
+from asseta.modules.adjustments.posting import AdjustmentPosting, post_adjustment
 from asseta.modules.finance.common import ZERO, insert, local_date, tenant_settings
 from asseta.modules.finance.dto import HireInvoiceDraftIn, HireInvoiceDto, HireInvoiceIssueIn, HireInvoiceLineDto
 from asseta.modules.finance.models import (
@@ -62,6 +72,15 @@ def invoice_dto(session: Session, inv: TenantHireInvoice) -> HireInvoiceDto:
     state = None
     if inv.status is HireInvoiceStatus.ISSUED:
         state = "PAID" if balance <= 0 else ("PARTIALLY_PAID" if paid > 0 else "UNPAID")
+    pending_void = None
+    if inv.status is HireInvoiceStatus.ISSUED:
+        pending_void = session.execute(
+            select(AdjustmentRequest.id).where(
+                AdjustmentRequest.request_type == AdjustmentRequestType.INVOICE_VOID,
+                AdjustmentRequest.original_id == inv.id,
+                AdjustmentRequest.status == AdjustmentRequestStatus.PROPOSED,
+            )
+        ).scalar_one_or_none()
     return HireInvoiceDto(
         id=inv.id,
         customer_id=inv.customer_id,
@@ -81,9 +100,20 @@ def invoice_dto(session: Session, inv: TenantHireInvoice) -> HireInvoiceDto:
         issued_at=inv.issued_at,
         voided_at=inv.voided_at,
         void_reason=inv.void_reason,
+        pending_void_request_id=pending_void,
         job_ids=list(dict.fromkeys(line.job_id for line in lines)),
         lines=[HireInvoiceLineDto.model_validate(line) for line in lines],
     )
+
+
+@dataclass(frozen=True)
+class RecoveryLine:
+    job_id: uuid.UUID
+    machine_id: uuid.UUID
+    description: str
+    quantity: Decimal
+    unit_price: Decimal
+    amount: Decimal
 
 
 class HireInvoiceService:
@@ -236,7 +266,87 @@ class HireInvoiceService:
         )
         return invoice_dto(self._s, inv)
 
-    def void(self, invoice_id: uuid.UUID, reason: str) -> HireInvoiceDto:
+    def issue_recovery(
+        self, customer_id: uuid.UUID, currency: str, lines: list[RecoveryLine], notes: str
+    ) -> TenantHireInvoice:
+        """An issued receivable for prepaid hours already used whose payment was reversed (DEC-032 B4): an ordinary
+        invoice, so overdue reminders, receivables and payment allocation work unchanged. No job claim: the jobs were
+        billed through prepaid hours and are not invoiceable."""
+        customer = self._s.get(Customer, customer_id)
+        assert customer is not None
+        total = sum((line.amount for line in lines), ZERO)
+        inv = TenantHireInvoice(
+            id=uuid.uuid4(),
+            tenant_id=self._tid,
+            customer_id=customer_id,
+            status=HireInvoiceStatus.DRAFT,
+            currency=currency,
+            subtotal=total,
+            discount_total=ZERO,
+            tax_total=ZERO,
+            total=total,
+            notes=notes,
+            created_by=self._ctx.user_id,
+            created_at=self._now,
+        )
+        self._s.add(inv)
+        self._s.flush()
+        for n, line in enumerate(lines, start=1):
+            self._s.add(
+                HireInvoiceLine(
+                    id=uuid.uuid4(),
+                    invoice_id=inv.id,
+                    tenant_id=self._tid,
+                    line_no=n,
+                    kind=ChargeKind.HOURS_RECOVERY,
+                    job_id=line.job_id,
+                    machine_id=line.machine_id,
+                    description=line.description[:300],
+                    quantity=line.quantity,
+                    unit_price=line.unit_price,
+                    amount=line.amount,
+                )
+            )
+        self._s.flush()
+        issued_on = local_date(tenant_settings(self._s, self._tid).timezone, self._now)
+        inv.invoice_number = self._next_number(issued_on.year)
+        inv.status, inv.issued_at, inv.issued_by = HireInvoiceStatus.ISSUED, self._now, self._ctx.user_id
+        inv.due_date = issued_on + timedelta(days=customer.payment_terms_days)
+        self._s.flush()
+        self._audit.record(
+            actor=self._ctx.audit_actor(),
+            action="finance.invoice.recovery_issued",
+            entity_type="tenant_hire_invoice",
+            entity_id=inv.id,
+            tenant_id=self._tid,
+            after={"invoice_number": inv.invoice_number, "total": str(total), "currency": currency},
+            reason=notes,
+        )
+        self._outbox.emit(
+            topic=TOPIC,
+            event_type="HireInvoiceIssued",
+            key=str(customer_id),
+            payload={
+                "invoice_number": inv.invoice_number,
+                "total": str(total),
+                "currency": currency,
+                "invoice_id": str(inv.id),
+                "customer_id": str(customer_id),
+            },
+            tenant_id=self._tid,
+        )
+        return inv
+
+    def void(
+        self,
+        invoice_id: uuid.UUID,
+        reason: str,
+        *,
+        request: AdjustmentRequest | None = None,
+        reason_label: str | None = None,
+    ) -> HireInvoiceDto:
+        """Void an invoice. An issued one needs a decided request when the tenant requires a second person (policy
+        `HIRE_BILLING.invoice_void_requires_approval`, enforced by the caller); a draft is simply abandoned."""
         inv = self.invoice(invoice_id, lock=True)
         if inv.status is HireInvoiceStatus.VOIDED:
             raise Conflict("Invoice is already voided", code="INVOICE_ALREADY_VOIDED")
@@ -291,6 +401,7 @@ class HireInvoiceService:
             reason=reason,
         )
         if was is HireInvoiceStatus.ISSUED:
+            self._post_void(inv, reason, released, request, reason_label)
             self._outbox.emit(
                 topic=TOPIC,
                 event_type="HireInvoiceVoided",
@@ -304,3 +415,46 @@ class HireInvoiceService:
                 tenant_id=self._tid,
             )
         return invoice_dto(self._s, inv)
+
+    def _post_void(
+        self,
+        inv: TenantHireInvoice,
+        reason: str,
+        released: Decimal,
+        request: AdjustmentRequest | None,
+        reason_label: str | None,
+    ) -> None:
+        from asseta.modules.finance.receivables import ReceivablesService  # lazy: receivables builds on this module
+
+        customer_balance = ReceivablesService(self._s, self._tid).balance_of(inv.customer_id, inv.currency).balance
+        post_adjustment(
+            self._s,
+            self._tid,
+            self._now,
+            AdjustmentPosting(
+                adjustment_type=AdjustmentType.INVOICE_VOID,
+                status=AdjustmentEntryStatus.APPROVED,
+                original_type="tenant_hire_invoice",
+                original_id=inv.id,
+                original_reference=inv.invoice_number,
+                source_type="adjustment_request" if request else "tenant_hire_invoice",
+                source_id=request.id if request else inv.id,
+                unit=AdjustmentUnit.MONEY,
+                original_value=inv.total,
+                new_value=ZERO,
+                amount=-inv.total,
+                currency=inv.currency,
+                resulting_balance=customer_balance,
+                reason_id=request.reason_code_id if request else None,
+                reason_label=reason_label,
+                reason=reason,
+                evidence_attachment_ids=list(request.evidence_attachment_ids) if request else [],
+                customer_id=inv.customer_id,
+                requested_by=request.proposed_by if request else self._ctx.user_id,
+                requested_at=request.proposed_at if request else self._now,
+                approved_by=self._ctx.user_id if request else None,
+                approved_at=self._now if request else None,
+                decision_note=None if request else "Approval not required by tenant policy",
+                details={"allocations_released": str(released)},
+            ),
+        )

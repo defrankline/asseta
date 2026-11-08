@@ -19,6 +19,8 @@ from asseta.core.lifecycle import check_version, flush_versioned, mark_active, m
 from asseta.core.outbox import OutboxWriter
 from asseta.core.search import ilike_any
 from asseta.core.signals import sod_violation
+from asseta.modules.adjustments.models import AdjustmentEntryStatus, AdjustmentType, AdjustmentUnit
+from asseta.modules.adjustments.posting import AdjustmentPosting, post_adjustment
 from asseta.modules.finance.common import currency_or_default
 from asseta.modules.fleet.models import Machine, MachineStatus
 from asseta.modules.hours.dto import (
@@ -116,6 +118,79 @@ class HoursApprovals:
             after=after,
             reason=reason,
             policy_version=self.engine.eff.version_stamp[:64],
+        )
+
+    def _reason_label(self, code_id: uuid.UUID | None) -> str | None:
+        if code_id is None:
+            return None
+        row = self._s.get(HoursReasonCode, code_id)
+        return row.label if row else None
+
+    def _post(
+        self,
+        adjustment_type: AdjustmentType,
+        status: AdjustmentEntryStatus,
+        *,
+        original_type: str,
+        original_id: uuid.UUID,
+        reference: str | None,
+        source: tuple[str, uuid.UUID],
+        unit: AdjustmentUnit,
+        requested: tuple[uuid.UUID | None, datetime],
+        decided: tuple[uuid.UUID | None, datetime | None],
+        reason: str | None,
+        reason_code_id: uuid.UUID | None,
+        note: str | None,
+        **values: Any,
+    ) -> None:
+        post_adjustment(
+            self._s,
+            self._tid,
+            self._now,
+            AdjustmentPosting(
+                adjustment_type=adjustment_type,
+                status=status,
+                original_type=original_type,
+                original_id=original_id,
+                original_reference=reference,
+                source_type=source[0],
+                source_id=source[1],
+                unit=unit,
+                requested_by=requested[0],
+                requested_at=requested[1],
+                approved_by=decided[0],
+                approved_at=decided[1],
+                reason=reason,
+                reason_id=reason_code_id,
+                reason_label=self._reason_label(reason_code_id),
+                decision_note=note,
+                policy_version=self.engine.eff.version_stamp,
+                **values,
+            ),
+        )
+
+    def _post_credit(self, row: CreditArrangement, status: AdjustmentEntryStatus, note: str | None) -> None:
+        revoked = status is AdjustmentEntryStatus.REVOKED
+        customer = self._s.get(Customer, row.customer_id)
+        self._post(
+            AdjustmentType.CREDIT_ARRANGEMENT,
+            status,
+            original_type="credit_arrangement",
+            original_id=row.id,
+            reference=customer.name if customer else None,
+            source=("credit_arrangement", row.id),
+            unit=AdjustmentUnit.MONEY,
+            requested=(row.proposed_by, row.proposed_at),
+            decided=(row.revoked_by, row.revoked_at) if revoked else (row.decided_by, row.decided_at),
+            reason=row.revoke_reason if revoked else row.reason,
+            reason_code_id=row.reason_code_id,
+            note=note,
+            original_value=row.limit_amount if revoked else None,
+            new_value=ZERO if revoked else row.limit_amount,
+            amount=-row.limit_amount if revoked else row.limit_amount,
+            currency=row.currency,
+            customer_id=row.customer_id,
+            details={"effective_from": row.effective_from.isoformat()},
         )
 
     def _notify_requested(self, kind: str, entity_id: uuid.UUID, permission: str, summary: str) -> None:
@@ -354,6 +429,9 @@ class HoursApprovals:
             body.note,
         )
         self._notify_decided(entity.upper(), row.id, row.proposed_by, row.status.value)
+        if isinstance(row, CreditArrangement):
+            posted = AdjustmentEntryStatus.APPROVED if body.approve else AdjustmentEntryStatus.REJECTED
+            self._post_credit(row, posted, body.note)
         return row
 
     def withdraw_proposal(self, model: type[Proposal], row_id: uuid.UUID, reason: str) -> Proposal:
@@ -392,6 +470,8 @@ class HoursApprovals:
             {"status": "REVOKED"},
             reason,
         )
+        if isinstance(row, CreditArrangement):
+            self._post_credit(row, AdjustmentEntryStatus.REVOKED, reason)
         return row
 
     def propose_credit(self, body: CreditArrangementIn) -> CreditArrangementDto:
@@ -571,6 +651,28 @@ class HoursApprovals:
             },
             note,
         )
+        remaining = purchase_totals(self._s, purchase).remaining_on(row.from_machine_id)
+        self._post(
+            AdjustmentType.HOURS_TRANSFER,
+            AdjustmentEntryStatus.APPROVED,
+            original_type="hours_purchase",
+            original_id=purchase.id,
+            reference=purchase.purchase_number,
+            source=("hours_transfer", row.id),
+            unit=AdjustmentUnit.HOURS,
+            requested=(row.requested_by, row.requested_at),
+            decided=(row.decided_by, row.decided_at),
+            reason=row.reason,
+            reason_code_id=row.reason_code_id,
+            note=note,
+            original_value=remaining + row.hours,
+            new_value=remaining,
+            amount=row.hours,
+            resulting_balance=remaining,
+            customer_id=purchase.customer_id,
+            machine_id=row.from_machine_id,
+            details={"to_machine_id": str(row.to_machine_id), "purchase_id": str(purchase.id)},
+        )
         self.engine.cover_overruns(purchase.customer_id, row.to_machine_id)
 
     def decide_transfer(self, row_id: uuid.UUID, body: DecisionIn) -> TransferDto:
@@ -598,6 +700,24 @@ class HoursApprovals:
                 {"status": "PENDING"},
                 {"status": "REJECTED"},
                 body.note,
+            )
+            self._post(
+                AdjustmentType.HOURS_TRANSFER,
+                AdjustmentEntryStatus.REJECTED,
+                original_type="hours_purchase",
+                original_id=purchase.id,
+                reference=purchase.purchase_number,
+                source=("hours_transfer", row.id),
+                unit=AdjustmentUnit.HOURS,
+                requested=(row.requested_by, row.requested_at),
+                decided=(row.decided_by, row.decided_at),
+                reason=row.reason,
+                reason_code_id=row.reason_code_id,
+                note=body.note,
+                amount=row.hours,
+                customer_id=purchase.customer_id,
+                machine_id=row.from_machine_id,
+                details={"to_machine_id": str(row.to_machine_id)},
             )
         self._notify_decided("TRANSFER", row.id, row.requested_by, row.status.value)
         return TransferDto.model_validate(row)
@@ -731,6 +851,27 @@ class HoursApprovals:
             },
             row.reason,
         )
+        self._post(
+            AdjustmentType.HOURS_CANCELLATION,
+            AdjustmentEntryStatus.APPROVED,
+            original_type="hours_purchase",
+            original_id=purchase.id,
+            reference=purchase.purchase_number,
+            source=("hours_cancellation", row.id),
+            unit=AdjustmentUnit.HOURS,
+            requested=(row.requested_by, row.requested_at),
+            decided=(row.decided_by, row.decided_at),
+            reason=row.reason,
+            reason_code_id=row.reason_code_id,
+            note=note,
+            original_value=reversed_total,
+            new_value=ZERO,
+            amount=-reversed_total,
+            resulting_balance=ZERO,
+            customer_id=purchase.customer_id,
+            machine_id=purchase.machine_id,
+            details={"allocations_released": str(released)},
+        )
 
     def decide_cancellation(self, row_id: uuid.UUID, body: DecisionIn) -> CancellationDto:
         row = self.cancellation(row_id, lock=True)
@@ -755,6 +896,22 @@ class HoursApprovals:
                 {"status": "PENDING"},
                 {"status": "REJECTED"},
                 body.note,
+            )
+            self._post(
+                AdjustmentType.HOURS_CANCELLATION,
+                AdjustmentEntryStatus.REJECTED,
+                original_type="hours_purchase",
+                original_id=purchase.id,
+                reference=purchase.purchase_number,
+                source=("hours_cancellation", row.id),
+                unit=AdjustmentUnit.HOURS,
+                requested=(row.requested_by, row.requested_at),
+                decided=(row.decided_by, row.decided_at),
+                reason=row.reason,
+                reason_code_id=row.reason_code_id,
+                note=body.note,
+                customer_id=purchase.customer_id,
+                machine_id=purchase.machine_id,
             )
         self._notify_decided("CANCELLATION", row.id, row.requested_by, row.status.value)
         return CancellationDto.model_validate(row)

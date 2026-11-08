@@ -9,7 +9,15 @@ import pytest
 from sqlalchemy.exc import DBAPIError
 
 from tests.support.api import Api
-from tests.support.finance import FinCtx, complete_job, issue_invoice, priced_job, setup_finance, tenant_sql
+from tests.support.finance import (
+    FinCtx,
+    allow_direct_void,
+    complete_job,
+    issue_invoice,
+    priced_job,
+    setup_finance,
+    tenant_sql,
+)
 
 TERMS = {
     "standby_treatment": "STANDBY_RATE",
@@ -124,6 +132,7 @@ def test_issued_invoice_is_immutable_and_job_cannot_be_double_invoiced(api: Api)
 
 def test_void_creates_reversal_releases_job_and_numbering_continues(api: Api) -> None:
     f = setup_finance(api)
+    allow_direct_void(f)
     job_id = _billed_job(api, f)["job"]["id"]
     inv = issue_invoice(f, [job_id])
     assert f.accountant.post(f"/api/v1/tenant/hire-invoices/{inv['id']}/void", {}).status_code == 422  # reason

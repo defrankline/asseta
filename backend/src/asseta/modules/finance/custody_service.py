@@ -17,6 +17,8 @@ from asseta.core.lifecycle import LifecycleChangeIn, check_version, flush_versio
 from asseta.core.outbox import OutboxWriter
 from asseta.core.search import ilike_any
 from asseta.modules.accountability.security_events import permission_refused
+from asseta.modules.adjustments.models import AdjustmentEntryStatus, AdjustmentType, AdjustmentUnit
+from asseta.modules.adjustments.posting import AdjustmentPosting, post_adjustment
 from asseta.modules.expenses.models import Expense
 from asseta.modules.finance.cash_service import custody_entry_dto
 from asseta.modules.finance.common import ZERO, currency_or_default, insert, resolve_staff
@@ -479,6 +481,55 @@ class CashCustodyControls:
             raise NotFound("Variance not found", code="VARIANCE_NOT_FOUND")
         return row
 
+    def _reason_label(self, reason_id: uuid.UUID | None) -> str | None:
+        row = self._s.get(CashReason, reason_id) if reason_id else None
+        return row.label if row else None
+
+    def _custody_after(self, staff_id: uuid.UUID | None, currency: str) -> Decimal | None:
+        if staff_id is None:
+            return None
+        from asseta.modules.finance.cash_service import CashCustodyService  # lazy: same module group, heavy import
+
+        rows = CashCustodyService(self._s, self._ctx, self._now).balances(staff_id)
+        return next((b.outstanding for b in rows if b.currency == currency), None)
+
+    def _post_variance(self, v: CashVariance, status: AdjustmentEntryStatus, note: str | None) -> None:
+        written_off = v.outcome is VarianceOutcome.WRITTEN_OFF
+        rejected = status is AdjustmentEntryStatus.REJECTED
+        post_adjustment(
+            self._s,
+            self._tid,
+            self._now,
+            AdjustmentPosting(
+                adjustment_type=AdjustmentType.CASH_WRITE_OFF
+                if written_off or rejected
+                else AdjustmentType.CASH_VARIANCE_RESOLUTION,
+                status=status,
+                original_type="cash_variance",
+                original_id=v.id,
+                original_reference=None,
+                source_type="cash_variance_write_off" if rejected else "cash_variance",
+                source_id=uuid.uuid5(v.id, v.proposed_at.isoformat() if v.proposed_at else "") if rejected else v.id,
+                unit=AdjustmentUnit.MONEY,
+                original_value=v.declared_amount,
+                new_value=v.received_amount,
+                amount=v.amount,
+                currency=v.currency,
+                resulting_balance=self._custody_after(v.staff_member_id, v.currency),
+                reason_id=v.reason_id,
+                reason_label=self._reason_label(v.reason_id),
+                reason=note,
+                staff_member_id=v.staff_member_id,
+                requested_by=v.proposed_by,
+                requested_at=v.proposed_at,
+                approved_by=None if rejected else v.resolved_by,
+                approved_at=None if rejected else v.resolved_at,
+                decision_note=note,
+                details={"outcome": v.outcome.value if v.outcome else None, "source_type": v.source_type.value},
+                policy_version=v.policy_version,
+            ),
+        )
+
     def _not_own_variance(self, v: CashVariance, action: str) -> None:
         own = own_staff(self._s, self._ctx)
         if own is not None and own.id == v.staff_member_id:
@@ -502,6 +553,7 @@ class CashCustodyControls:
         self._emit(
             "CashVarianceResolved", v.staff_member_id or v.id, {"variance_id": str(v.id), "outcome": outcome.value}
         )
+        self._post_variance(v, AdjustmentEntryStatus.APPROVED, note)
 
     def resolve_variance(self, variance_id: uuid.UUID, body: VarianceResolutionIn) -> CashVarianceDto:
         v = self.variance(variance_id, lock=True)
@@ -580,6 +632,7 @@ class CashCustodyControls:
         if body.approve:
             self._resolve(v, VarianceOutcome.WRITTEN_OFF, body.note or v.proposal_note or "", None)
         else:
+            self._post_variance(v, AdjustmentEntryStatus.REJECTED, body.note or v.proposal_note)
             v.status, v.proposed_by, v.proposed_at, v.proposal_note = VarianceStatus.OPEN, None, None, None
             self._s.flush()
             self._record(
@@ -741,6 +794,34 @@ class CashCustodyControls:
             before={"status": "PENDING"},
             after={"status": row.status.value, "amount": str(row.amount)},
             reason=body.note,
+        )
+        post_adjustment(
+            self._s,
+            self._tid,
+            self._now,
+            AdjustmentPosting(
+                adjustment_type=AdjustmentType.CUSTODY_ADJUSTMENT,
+                status=AdjustmentEntryStatus(row.status.value),
+                original_type=row.reverses_entity_type or "custody_adjustment",
+                original_id=row.reverses_entity_id or row.id,
+                original_reference=None,
+                source_type="custody_adjustment",
+                source_id=row.id,
+                unit=AdjustmentUnit.MONEY,
+                amount=row.amount,
+                currency=row.currency,
+                resulting_balance=self._custody_after(row.staff_member_id, row.currency) if body.approve else None,
+                reason_id=row.reason_id,
+                reason_label=self._reason_label(row.reason_id),
+                reason=row.reason,
+                staff_member_id=row.staff_member_id,
+                requested_by=row.created_by,
+                requested_at=row.created_at,
+                approved_by=row.decided_by,
+                approved_at=row.decided_at,
+                decision_note=body.note,
+                details={"kind": row.kind.value},
+            ),
         )
         return CustodyAdjustmentDto.model_validate(row)
 

@@ -86,6 +86,7 @@ RECORDS: dict[str, tuple[str, str]] = {
     "revenue_difference": ("REVENUE_DIFFERENCE", "/tenant/revenue-differences"),
     "non_revenue_approval": ("NON_REVENUE_APPROVAL", "/tenant/non-revenue-approvals"),
     "correction_group": ("WORK_ALLOCATION_CORRECTION", "/tenant/work-allocations/corrections"),
+    "adjustment_request": ("ADJUSTMENT_REQUEST", "/tenant/finance/adjustments/requests"),
     "daily_report": ("DAILY_REPORT", "/tenant/daily-reports"),
 }
 
@@ -469,6 +470,41 @@ HOURS_ENTITIES = {
     "TRANSFER": "hours_transfer",
     "CANCELLATION": "hours_cancellation",
 }
+
+
+@rule("AdjustmentApprovalRequested")
+def _adjustment_requested(_: Session, e: DomainEvent) -> list[Intent]:
+    p = e.payload
+    return [
+        Intent(
+            "ADJUSTMENT_APPROVAL_REQUESTED",
+            (perm(p["audience_permission"]),),
+            "Adjustment awaiting a decision",
+            f"{str(p.get('summary', '')).capitalize()}. The proposer cannot decide it themselves.",
+            _key(e),
+            record_link("adjustment_request", p["request_id"], "/tenant/finance/adjustments"),
+            "adjustment_request",
+            p["request_id"],
+        )
+    ]
+
+
+@rule("AdjustmentApprovalDecided")
+def _adjustment_decided(_: Session, e: DomainEvent) -> list[Intent]:
+    p = e.payload
+    label = str(p.get("request_type", "")).replace("_", " ").lower()
+    return [
+        Intent(
+            "ADJUSTMENT_APPROVAL_DECIDED",
+            (user(p["user_id"]),),
+            f"Your {label} was {str(p['outcome']).lower()}",
+            f"The {label} you proposed is now {p['outcome']}.",
+            _key(e),
+            record_link("adjustment_request", p["request_id"], "/tenant/finance/adjustments"),
+            "adjustment_request",
+            p["request_id"],
+        )
+    ]
 
 
 @rule("HoursApprovalRequested")

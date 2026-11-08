@@ -32,6 +32,7 @@ REASON_MANAGE = requires(
 )
 CUSTODY_READ = requires_any(("tenant.collection.record", "tenant.finance.read"), S.TENANT)
 CUSTODY_RECORD = requires_any(("tenant.collection.record", "tenant.finance.cash"), S.TENANT)
+PAYMENT_DETAIL_READ = requires_any(("tenant.finance.read", "tenant.adjustment.read"), S.TENANT)
 
 for menu in (
     MenuDef(

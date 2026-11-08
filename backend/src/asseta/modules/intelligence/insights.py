@@ -226,6 +226,7 @@ def cash_flow(session: Session, tenant_id: uuid.UUID, now: datetime) -> CashFlow
         r = session.execute(
             select(func.coalesce(func.sum(CustomerPayment.amount), 0)).where(
                 CustomerPayment.status == SettlementStatus.VERIFIED,
+                CustomerPayment.reversed_at.is_(None),
                 CustomerPayment.currency == currency,
                 CustomerPayment.received_at >= start,
                 CustomerPayment.received_at < end,

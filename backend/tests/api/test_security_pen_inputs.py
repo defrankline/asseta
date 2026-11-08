@@ -59,6 +59,10 @@ def test_sql_meta_characters_in_every_search_box_are_inert(api: Api) -> None:
             if r.status_code >= 500:
                 failures.append(f"{spec.label} q={q[:30]!r} -> {r.status_code} {r.text[:150]}")
             elif r.status_code == 200 and q.startswith(("'", '"', "%'")):
+                if r.headers["content-type"].startswith("text/csv"):  # exports: the header line and no rows
+                    if len(r.text.splitlines()) > 1:
+                        failures.append(f"{spec.label} q={q[:30]!r} returned CSV rows")
+                    continue
                 body = r.json()
                 items = body.get("items", []) if isinstance(body, dict) else body
                 if items:

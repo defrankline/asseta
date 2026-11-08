@@ -6,7 +6,15 @@ from decimal import Decimal
 from typing import Any
 
 from tests.support.api import Api
-from tests.support.finance import FinCtx, category, complete_job, expense_policy, issue_invoice, setup_finance
+from tests.support.finance import (
+    FinCtx,
+    allow_direct_void,
+    category,
+    complete_job,
+    expense_policy,
+    issue_invoice,
+    setup_finance,
+)
 from tests.support.jobs import unique_jpeg
 
 PROFIT = "/api/v1/tenant/finance/profitability"
@@ -24,6 +32,7 @@ def _money(row: dict[str, Any], *keys: str) -> tuple[Decimal, ...]:
 
 def test_profitability_by_machine_job_customer_and_period(api: Api) -> None:
     f = setup_finance(api)
+    allow_direct_void(f)
     repair, fuel = category(f, "REPAIR", "Repairs"), category(f, "FUEL", "Fuel")
     expense_policy(f, receipt_required_above="100000000", gps_required=False, auto_approve_limit="50000")
     complete_job(api, f, f.c.job_id, "1000.0", "1008.0", 9, downtime_h=1.5)

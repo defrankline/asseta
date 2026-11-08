@@ -44,6 +44,9 @@ class ReasonKind(StrEnum):
     CREDIT = "CREDIT"
     TRANSFER = "TRANSFER"
     CANCELLATION = "CANCELLATION"
+    CORRECTION = "CORRECTION"  # approved correction of a customer-hour lot (DEC-032 B2)
+    REFUND = "REFUND"  # approved refund of unused activated hours (B3)
+    REVERSAL = "REVERSAL"  # reversal of a posted payment, collection, purchase or invoice (B4)
 
 
 class ProposalStatus(StrEnum):
@@ -74,6 +77,11 @@ class LedgerEntryType(StrEnum):
     # billable hours as CONSUMED). Provisional minus reversed is what running jobs currently hold.
     PROVISIONAL = "PROVISIONAL"  # -
     PROVISIONAL_REVERSED = "PROVISIONAL_REVERSED"  # +
+    # DEC-032 B2/B3: an approved correction of a lot (+ give back, - take away; never below zero) and an approved
+    # refund of unused activated hours. Corrections adjust the lot and leave activation history untouched.
+    CORRECTION_ADD = "CORRECTION_ADD"  # +
+    CORRECTION_DEDUCT = "CORRECTION_DEDUCT"  # -
+    REFUNDED = "REFUNDED"  # -
 
 
 class ActivationSource(StrEnum):
@@ -90,6 +98,9 @@ SIGN: dict[LedgerEntryType, int] = {
     LedgerEntryType.REVERSAL: -1,
     LedgerEntryType.PROVISIONAL: -1,
     LedgerEntryType.PROVISIONAL_REVERSED: 1,
+    LedgerEntryType.CORRECTION_ADD: 1,
+    LedgerEntryType.CORRECTION_DEDUCT: -1,
+    LedgerEntryType.REFUNDED: -1,
 }
 
 
@@ -348,6 +359,7 @@ class HoursLedgerEntry(UuidPk, Base):
     allocation_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("work_execution_allocation.id"), index=True)
     transfer_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("hours_transfer.id"))
     cancellation_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("hours_cancellation.id"))
+    adjustment_request_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("adjustment_request.id"), index=True)
     reason: Mapped[str | None] = mapped_column(Text)
     policy_version: Mapped[str | None] = mapped_column(String(80))
     usage_day: Mapped[date | None] = mapped_column(Date)  # PROVISIONAL / PROVISIONAL_REVERSED: the tenant-local day

@@ -113,6 +113,7 @@ class HireBillingPolicy(BaseModel):
 
     billable_hours_increment: Decimal = Field(gt=0, le=Decimal(1))  # e.g. 0.1 h
     rounding: str = Field(pattern="^(UP|HALF_UP|DOWN)$")
+    invoice_void_requires_approval: bool = True  # DEC-032 B1: voiding an issued invoice needs a second person
 
 
 class DeviceSyncPolicy(BaseModel):
@@ -183,6 +184,11 @@ class OverConsumption(StrEnum):
     FLAG_EXCESS = "FLAG_EXCESS"  # it may start; any excess on completion is flagged (never silently consumed)
 
 
+class UsedHoursTreatment(StrEnum):
+    RECEIVABLE = "RECEIVABLE"  # a reversal bills the used hours to the customer (an issued receivable)
+    CASE = "CASE"  # a reversal opens an investigation case about the used hours; no receivable until resolved
+
+
 class HoursDrawdown(StrEnum):
     AT_COMPLETION = "AT_COMPLETION"  # a prepaid job's hours are taken from the balance when it completes (as before)
     DAILY = "DAILY"  # each day's customer-work hours are drawn provisionally; the final allocation replaces them
@@ -220,6 +226,12 @@ class CustomerHoursPolicy(BaseModel):
     # (and the customer has no more on that machine). Null = no low-balance warning.
     low_balance_hours: Decimal | None = Field(default=None, gt=0, le=Decimal(100000))
     low_balance_notify_customer: bool = False  # also SMS the customer's contact phone (uses the tenant's SMS credits)
+    # DEC-032 B3/B4: refunds of unused activated hours are switchable per tenant (D4); a reversal that takes back hours
+    # already used turns them into money owed: an issued receivable (the default) or an investigation case.
+    refund_allowed: bool = False
+    reversal_used_hours_treatment: UsedHoursTreatment = UsedHoursTreatment.RECEIVABLE
+    # T7: corrections, refunds and reversals carry supporting evidence (attachments); a tenant may relax it.
+    adjustment_evidence_required: bool = True
 
     @model_validator(mode="after")
     def _consistent(self) -> "CustomerHoursPolicy":
@@ -458,7 +470,11 @@ SEED_DEFAULTS: dict[PolicyType, dict[str, object]] = {
         "continuity_tolerance_hours": "0.5",
         "telemetry_engine_hours_tolerance": "0.5",
     },
-    PolicyType.HIRE_BILLING: {"billable_hours_increment": "0.1", "rounding": "HALF_UP"},
+    PolicyType.HIRE_BILLING: {
+        "billable_hours_increment": "0.1",
+        "rounding": "HALF_UP",
+        "invoice_void_requires_approval": True,
+    },
     PolicyType.DEVICE_SYNC: {
         "offline_grant_hours": 72,
         "snapshot_validity_hours": 24,
@@ -538,5 +554,8 @@ SEED_DEFAULTS: dict[PolicyType, dict[str, object]] = {
         "drawdown": "AT_COMPLETION",
         "low_balance_hours": None,
         "low_balance_notify_customer": False,
+        "refund_allowed": False,
+        "reversal_used_hours_treatment": "RECEIVABLE",
+        "adjustment_evidence_required": True,
     },
 }

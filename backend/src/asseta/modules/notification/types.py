@@ -110,6 +110,10 @@ _TYPES = (
     NotificationType(
         "HOURS_APPROVAL_DECIDED", "Customer hours decision", Category.INFO, Severity.INFO, T, low_priority=True
     ),
+    NotificationType("ADJUSTMENT_APPROVAL_REQUESTED", "Adjustment to approve", Category.ACTION, Severity.INFO, T),
+    NotificationType(
+        "ADJUSTMENT_APPROVAL_DECIDED", "Adjustment decision", Category.INFO, Severity.INFO, T, low_priority=True
+    ),
     NotificationType("HOURS_EXPIRING", "Customer hours expiring", Category.REMINDER, Severity.WARNING, T),
     NotificationType("HOURS_LOW_BALANCE", "Customer hours running low", Category.REMINDER, Severity.WARNING, T),
     NotificationType("HOURS_EXPIRED", "Customer hours expired", Category.INFO, Severity.INFO, T, low_priority=True),

@@ -295,6 +295,8 @@ class MachineHoursDto(BaseModel):
     transferred_out: Decimal
     expired: Decimal
     reversed: Decimal
+    refunded: Decimal = Decimal(0)
+    corrected: Decimal = Decimal(0)  # net corrections on the lot
     remaining: Decimal
     provisional: Decimal = Field(
         default=Decimal(0), description="Hours held provisionally by running jobs (daily drawdown; final at completion)"
@@ -313,6 +315,8 @@ class PurchaseTotalsDto(BaseModel):
     transferred: Decimal
     expired: Decimal
     reversed: Decimal
+    refunded: Decimal = Decimal(0)
+    corrected: Decimal = Decimal(0)  # net corrections on the lot
     remaining: Decimal
     provisional: Decimal = Field(
         default=Decimal(0), description="Hours held provisionally by running jobs (daily drawdown; final at completion)"
@@ -400,6 +404,8 @@ class HoursBalanceDto(BaseModel):
     transferred_out: Decimal
     expired: Decimal
     reversed: Decimal
+    refunded: Decimal = Decimal(0)
+    corrected: Decimal = Decimal(0)  # net corrections on the lot
     remaining: Decimal
     awaiting_activation: Decimal
     provisional: Decimal = Field(
@@ -549,6 +555,8 @@ class HoursStatementTotalsDto(BaseModel):
     transferred_out: Decimal
     expired: Decimal
     cancelled: Decimal = Field(description="Activated hours withdrawn by approved cancellations")
+    refunded: Decimal = Field(default=Decimal(0), description="Unused hours refunded")
+    corrected: Decimal = Field(default=Decimal(0), description="Net approved corrections")
     closing_balance: Decimal
     provisional_at_close: Decimal = Field(description="Of `used`: still provisional (jobs running at period end)")
     awaiting_activation: Decimal = Field(description="Hours bought but not yet paid / activated (now)")

@@ -57,6 +57,10 @@ TENANT_TEMPLATES = (
             "tenant.oversight.",
             # Go-live setup checklist: see progress, mark steps not needed, confirm default controls.
             "tenant.setup.",
+            # DEC-032 T7: managers read the adjustments ledger and propose corrections/refunds/reversals; they decide
+            # only when a role grants `tenant.adjustment.decide` (never their own: segregation of duties).
+            "tenant.adjustment.read",
+            "tenant.adjustment.propose",
         ),
     ),
     RoleTemplate(
@@ -108,6 +112,7 @@ TENANT_TEMPLATES = (
             "tenant.revenue.read",  # revenue reconciliation (DEC-031): daily sheet, explain differences
             "tenant.revenue.explain",
             "tenant.oversight.read",  # unbilled work and idle machines (DEC-031 M2); not the people scorecard
+            "tenant.adjustment.",  # adjustments ledger: read, propose, decide (never your own proposal)
         ),
     ),
     RoleTemplate(

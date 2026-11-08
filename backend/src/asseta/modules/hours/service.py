@@ -99,6 +99,7 @@ def ledger_dto(e: HoursLedgerEntry) -> LedgerEntryDto:
 def purchase_dto(session: Session, p: HoursPurchase, payment: CustomerPaymentDto | None = None) -> HoursPurchaseDto:
     totals = purchase_totals(session, p)
     verified, claimed = allocated_amounts(session, p.id)
+    units = minor_units(session, p.currency)
     customer = session.get(Customer, p.customer_id)
     allocs = session.execute(
         select(HoursPaymentAllocation, CustomerPayment.status)
@@ -120,6 +121,8 @@ def purchase_dto(session: Session, p: HoursPurchase, payment: CustomerPaymentDto
             transferred_out=m.by_type[T.TRANSFER_OUT],
             expired=m.by_type[T.EXPIRED],
             reversed=m.by_type[T.REVERSAL],
+            refunded=m.by_type[T.REFUNDED],
+            corrected=m.by_type[T.CORRECTION_ADD] - m.by_type[T.CORRECTION_DEDUCT],
             remaining=m.remaining,
             provisional=m.by_type[T.PROVISIONAL] - m.by_type[T.PROVISIONAL_REVERSED],
         )
@@ -155,16 +158,26 @@ def purchase_dto(session: Session, p: HoursPurchase, payment: CustomerPaymentDto
             activated=totals.activated,
             activated_from_payments=totals.activated_payment,
             activated_on_credit=totals.activated_credit,
-            awaiting_activation=(ZERO if p.cancelled_at is not None else max(ZERO, p.hours - totals.net_activated)),
+            awaiting_activation=(
+                ZERO
+                if p.cancelled_at is not None
+                else max(ZERO, p.hours - totals.net_activated - totals.total(T.REFUNDED))
+            ),
             consumed=totals.total(T.CONSUMED),
             transferred=totals.total(T.TRANSFER_OUT),
             expired=totals.total(T.EXPIRED),
             reversed=totals.total(T.REVERSAL),
+            refunded=totals.total(T.REFUNDED),
+            corrected=totals.total(T.CORRECTION_ADD) - totals.total(T.CORRECTION_DEDUCT),
             remaining=totals.remaining,
             provisional=totals.provisional,
             amount_verified=verified,
             amount_claimed_unverified=claimed,
-            amount_outstanding=max(ZERO, p.amount - verified) if p.cancelled_at is None else ZERO,
+            amount_outstanding=(
+                max(ZERO, p.amount - verified - quantize(totals.total(T.REFUNDED) * p.effective_rate, units))
+                if p.cancelled_at is None
+                else ZERO
+            ),
         ),
         machines=machines,
         allocations=allocations,
@@ -281,6 +294,8 @@ def balances(
                 transferred_out=by[T.TRANSFER_OUT],
                 expired=by[T.EXPIRED],
                 reversed=by[T.REVERSAL],
+                refunded=by[T.REFUNDED],
+                corrected=by[T.CORRECTION_ADD] - by[T.CORRECTION_DEDUCT],
                 remaining=sum((SIGN[t] * v for t, v in by.items()), ZERO),
                 awaiting_activation=r["awaiting"],
                 provisional=by[T.PROVISIONAL] - by[T.PROVISIONAL_REVERSED],
@@ -590,6 +605,8 @@ class HoursService:
         purchase = self.engine.lock_purchase(purchase_id)
         if payment.status is SettlementStatus.REJECTED:
             raise BusinessRuleViolation("A rejected payment cannot be allocated", code="PAYMENT_REJECTED")
+        if payment.reversed_at is not None:
+            raise BusinessRuleViolation("A reversed payment cannot be allocated", code="PAYMENT_REVERSED")
         if purchase.cancelled_at is not None:
             raise BusinessRuleViolation("The purchase is cancelled", code="PURCHASE_CANCELLED")
         if payment.customer_id != purchase.customer_id or payment.currency != purchase.currency:

@@ -39,6 +39,8 @@ class HireInvoiceIssueIn(BaseModel):
 
 class HireInvoiceVoidIn(BaseModel):
     reason: Reason
+    reason_code_id: uuid.UUID | None = None  # tenant reason list (kind REVERSAL), when the tenant requires one
+    evidence_attachment_ids: list[uuid.UUID] = Field(default_factory=list, max_length=20)
 
 
 class HireInvoiceLineDto(Dto):
@@ -71,6 +73,7 @@ class HireInvoiceDto(BaseModel):
     issued_at: datetime | None
     voided_at: datetime | None
     void_reason: str | None
+    pending_void_request_id: uuid.UUID | None = None  # a void awaiting a second person's decision (DEC-032 B1)
     job_ids: list[uuid.UUID]
     lines: list[HireInvoiceLineDto]
 
@@ -149,6 +152,8 @@ class CustomerPaymentDto(Dto):
     verified_by_name: str | None = None
     verified_at: datetime | None
     decision_note: str | None
+    reversed_at: datetime | None = None  # a verified payment taken back by an approved reversal (DEC-032 B4)
+    reversal_id: uuid.UUID | None = None  # the adjustment request that reversed it
     allocations: list[HireAllocationDto] = []
 
 
@@ -165,6 +170,7 @@ class CustomerBalanceDto(BaseModel):
     invoiced: Money
     reversed: Money
     verified_payments: Money
+    payment_reversals_and_refunds: Money = Decimal(0)  # debits: verified payments reversed, refunds paid out
     balance: Money
     unallocated_credit: Money
     claimed_unverified: Money  # shown separately; never reduces the balance
@@ -173,7 +179,7 @@ class CustomerBalanceDto(BaseModel):
 
 class StatementLineDto(BaseModel):
     at: datetime
-    kind: Literal["INVOICE", "REVERSAL", "PAYMENT"]
+    kind: Literal["INVOICE", "REVERSAL", "PAYMENT", "ADJUSTMENT"]
     reference: str
     description: str
     debit: Money
