@@ -387,6 +387,22 @@ public struct HoursPurchaseDTO: Codable, Hashable, Sendable, Identifiable {
     public let totals: Totals
     /// The purchase's hours per machine after transfers.
     public let machines: [MachineHours]?
+    /// DEC-032 Phase 2: the payments counted towards this purchase; nil from older servers.
+    public let allocations: [PaymentAllocation]?
+
+    /// `PurchaseAllocationDto`: money of one payment counted towards the purchase.
+    public struct PaymentAllocation: Codable, Hashable, Sendable, Identifiable {
+        public let id: UUID
+        public let paymentID: UUID
+        public let amount: DecimalString
+        public let paymentStatus: String?
+        /// Set when the money no longer counts (never parse `release_reason`).
+        public let releasedAt: Date?
+
+        enum CodingKeys: String, CodingKey {
+            case id, amount, paymentID = "payment_id", paymentStatus = "payment_status", releasedAt = "released_at"
+        }
+    }
 
     public struct Totals: Codable, Hashable, Sendable {
         public let purchased: DecimalString
@@ -399,6 +415,12 @@ public struct HoursPurchaseDTO: Codable, Hashable, Sendable, Identifiable {
         public let expired: DecimalString
         /// DEC-031 Phase 4 daily drawdown: hours held by running jobs (already out of `remaining`); 0 when absent.
         public let provisional: DecimalString
+        /// Hours taken back by reversals; 0 when absent.
+        public let reversed: DecimalString
+        /// DEC-032 Phase 2: unused hours refunded; 0 when absent.
+        public let refunded: DecimalString
+        /// DEC-032 Phase 2: net approved corrections (signed); 0 when absent.
+        public let corrected: DecimalString
 
         public init(from decoder: any Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -411,10 +433,13 @@ public struct HoursPurchaseDTO: Codable, Hashable, Sendable, Identifiable {
             transferred = try c.decodeIfPresent(DecimalString.self, forKey: .transferred) ?? zero
             expired = try c.decodeIfPresent(DecimalString.self, forKey: .expired) ?? zero
             provisional = try c.decodeIfPresent(DecimalString.self, forKey: .provisional) ?? zero
+            reversed = try c.decodeIfPresent(DecimalString.self, forKey: .reversed) ?? zero
+            refunded = try c.decodeIfPresent(DecimalString.self, forKey: .refunded) ?? zero
+            corrected = try c.decodeIfPresent(DecimalString.self, forKey: .corrected) ?? zero
         }
 
         enum CodingKeys: String, CodingKey {
-            case purchased, activated, consumed, remaining, transferred, expired, provisional
+            case purchased, activated, consumed, remaining, transferred, expired, provisional, reversed, refunded, corrected
             case awaitingActivation = "awaiting_activation"
         }
     }
@@ -452,7 +477,7 @@ public struct HoursPurchaseDTO: Codable, Hashable, Sendable, Identifiable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, hours, currency, amount, status, totals, machines, purchaseNumber = "purchase_number", clientID = "client_id"
+        case id, hours, currency, amount, status, totals, machines, allocations, purchaseNumber = "purchase_number", clientID = "client_id"
         case customerID = "customer_id", customerName = "customer_name", machineID = "machine_id", createdAt = "created_at"
         case machineCode = "machine_code", machineName = "machine_name", jobSiteName = "job_site_name"
         case createdByName = "created_by_name", cancelledAt = "cancelled_at"

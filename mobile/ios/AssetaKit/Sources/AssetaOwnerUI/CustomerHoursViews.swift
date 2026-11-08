@@ -57,6 +57,8 @@ struct HoursPurchaseView: View {
     let model: OwnerModel
     let purchaseID: UUID
     @State private var loader = Loader<HoursPurchaseDTO>()
+    /// When released payments were reversed (best effort; saved with the other snapshots for offline reading).
+    @State private var reversedAt: [UUID: Date] = [:]
 
     var body: some View {
         Form {
@@ -67,6 +69,16 @@ struct HoursPurchaseView: View {
                 } header: { Text(T.hours) } footer: { Text(T.provisionalFooter) }
                 let machines = CustomerHoursPresentation.machineRows(p)
                 if !machines.isEmpty { Section(T.machines) { HoursFieldList(fields: machines) } }
+                let payments = CustomerHoursPresentation.paymentLines(p, reversedAt: reversedAt)
+                if !payments.isEmpty {
+                    Section(T.payments) {
+                        ForEach(payments, id: \.self) { line in
+                            LabeledContent(line.amount) {
+                                Pill(text: line.status, color: line.reversed ? Palette.critical : line.released ? Palette.warning : Palette.live)
+                            }
+                        }
+                    }
+                }
                 Section {
                     NavigationLink(value: OwnerRoute.hoursStatement(customer: p.customerID, name: p.customerName)) {
                         Text(T.openStatement)
@@ -87,6 +99,17 @@ struct HoursPurchaseView: View {
 
     private func reload() async {
         await loader.load(model, .hoursPurchase(purchaseID), OwnerAPI.hoursPurchase(purchaseID))
+        await readReversals()
+    }
+
+    /// A released payment that can't be read simply reads "No longer counted".
+    private func readReversals() async {
+        guard let p = loader.value, let repository = model.repository else { return }
+        var found: [UUID: Date] = [:]
+        for id in CustomerHoursPresentation.releasedPaymentIDs(p, features: model.features) {
+            if let at = (try? await repository.load(.customerPayment(id), OwnerAPI.customerPayment(id)))?.value.reversedAt { found[id] = at }
+        }
+        reversedAt = found
     }
 }
 
@@ -126,6 +149,18 @@ private struct StatementBody: View {
                 Section(T.totals) {
                     Text(CustomerHoursPresentation.header(s, fallbackName: customerName)).font(.headline)
                     HoursFieldList(fields: CustomerHoursPresentation.totals(s))
+                }
+                let adjustments = CustomerHoursPresentation.adjustmentLines(s)
+                if !adjustments.isEmpty {
+                    Section(T.adjustments) {
+                        ForEach(adjustments, id: \.self) { line in
+                            VStack(alignment: .leading, spacing: 2) {
+                                LabeledContent(line.label) { Text(line.value).monospacedDigit() }
+                                if !line.caption.isEmpty { Text(line.caption).font(.caption).foregroundStyle(.secondary) }
+                            }
+                            .accessibilityElement(children: .combine)
+                        }
+                    }
                 }
                 Section(T.usage) {
                     let lines = CustomerHoursPresentation.usage(s)

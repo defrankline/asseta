@@ -176,6 +176,7 @@ struct AccountabilityGapOwnerTests {
             "REVENUE_DIFFERENCE": .revenueDifference(rid), "NON_REVENUE_APPROVAL": .decision(.nonRevenue, rid),
             "HOURS_PURCHASE": .hoursPurchase(rid), "JOB": .job(rid), "DAILY_REPORT": .dailyReport(rid),
             "WORK_ALLOCATION_CORRECTION": .decision(.allocationCorrection, rid),
+            "ADJUSTMENT_REQUEST": .decision(.adjustmentRequest, rid),
         ]
         #expect(Set(expected.keys) == Set(RecordKind.allCases.map(\.rawValue)))
         for (kind, route) in expected {

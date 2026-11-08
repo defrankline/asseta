@@ -236,6 +236,8 @@ public enum RecordKind: String, CaseIterable, Sendable, Hashable {
     case dailyReport = "DAILY_REPORT"
     /// DEC-032: a proposed work allocation correction (`record_id` is the correction group).
     case workAllocationCorrection = "WORK_ALLOCATION_CORRECTION"
+    /// DEC-032 Phase 2: a proposed correction, refund, reversal or invoice void.
+    case adjustmentRequest = "ADJUSTMENT_REQUEST"
 
     /// From a notification target entity (`cash_transfer`, `supervisor_cash_custody`, `baseline`, ...).
     public init?(entity: String?) {
@@ -259,6 +261,7 @@ public enum RecordKind: String, CaseIterable, Sendable, Hashable {
         case "hours_purchase": self = .hoursPurchase
         case "daily_report": self = .dailyReport
         case "work_allocation_correction": self = .workAllocationCorrection
+        case "adjustment_request": self = .adjustmentRequest
         default: return nil
         }
     }

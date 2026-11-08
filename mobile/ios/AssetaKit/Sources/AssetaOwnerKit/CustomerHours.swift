@@ -34,6 +34,12 @@ public enum CustomerHoursTexts {
     public static let awaiting = "Awaiting activation"
     public static let machines = "Machines"
     public static let openStatement = "Hours statement"
+    public static let refunded = "Refunded" // owner.hours.refunded
+    public static let corrected = "Corrected" // owner.hours.corrected
+    public static let reversed = "Reversed" // owner.hours.reversed
+    public static let payments = "Payments" // owner.hours.payments
+    public static func paymentReversed(_ date: String) -> String { "Reversed \(date)" } // owner.hours.payment.reversed
+    public static let paymentReleased = "No longer counted" // owner.hours.payment.released
     public static let provisionalFooter = "Hours in use by running jobs are drawn day by day and become final when the job is completed."
 
     public static func purchaseStatus(_ wire: String) -> String {
@@ -59,6 +65,17 @@ public enum CustomerHoursTexts {
     public static let cancelled = "Cancelled"
     public static let closing = "Closing balance"
     public static let awaitingNow = "Awaiting activation (now)"
+    public static let adjustments = "Corrections, refunds and reversals" // owner.stmt.adjustments
+    public static func lineKind(_ wire: String) -> String { // owner.stmt.line.*
+        switch wire {
+        case HoursLedgerEntryType.correctionAdd: "Hours added by correction"
+        case HoursLedgerEntryType.correctionDeduct: "Hours removed by correction"
+        case HoursLedgerEntryType.refunded: "Hours refunded"
+        case HoursLedgerEntryType.reversal: "Hours reversed"
+        default: OwnerFormat.humanize(wire)
+        }
+    }
+    public static func lineRow(day: String, kind: String) -> String { "\(day) · \(kind)" } // owner.stmt.lineRow
     public static let usage = "Hours used"
     public static let usageEmpty = "No hours used in this period."
     public static func usageRow(day: String, job: String) -> String { "\(day) · \(job)" }
@@ -150,6 +167,14 @@ public struct UsageLine: Hashable, Sendable {
     public let caption: String
 }
 
+/// One payment counted (or no longer counted) on a purchase.
+public struct PaymentLine: Hashable, Sendable {
+    public let amount: String
+    public let status: String
+    public let reversed: Bool
+    public let released: Bool
+}
+
 /// Pure presentation of customer hours, purchases and the statement (as Android `HoursPresentation`).
 public enum CustomerHoursPresentation {
     typealias T = CustomerHoursTexts
@@ -188,10 +213,40 @@ public enum CustomerHoursPresentation {
         if positive(t.provisional) { rows.append((T.provisional, h(t.provisional))) }
         if positive(t.transferred) { rows.append((T.transferred, h(t.transferred))) }
         if positive(t.expired) { rows.append((T.expired, h(t.expired))) }
+        if positive(t.refunded) { rows.append((T.refunded, h(t.refunded))) }
+        if t.corrected.value != 0 { rows.append((T.corrected, signed(t.corrected))) }
+        if positive(t.reversed) { rows.append((T.reversed, h(t.reversed))) }
         rows.append((T.remaining, h(t.remaining)))
         if positive(t.awaitingActivation) { rows.append((T.awaiting, h(t.awaitingActivation))) }
         return rows.map { DecisionField(label: $0.0, value: $0.1) }
     }
+
+    /// Payments counted towards the purchase; `reversedAt` holds what could be read for released ones.
+    public static func paymentLines(_ p: HoursPurchaseDTO, reversedAt: [UUID: Date], timeZone: TimeZone = .current) -> [PaymentLine] {
+        (p.allocations ?? []).map { a in
+            let reversal = reversedAt[a.paymentID]
+            let status: String
+            if let reversal {
+                status = T.paymentReversed(RevenuePresentation.day(CashRecordPresentation.localDay(reversal, timeZone: timeZone)))
+            } else if a.releasedAt != nil {
+                status = T.paymentReleased
+            } else {
+                status = a.paymentStatus.map(OwnerFormat.humanize) ?? ""
+            }
+            return PaymentLine(amount: OwnerFormat.money(a.amount, currency: p.currency), status: status, reversed: reversal != nil,
+                               released: a.releasedAt != nil)
+        }
+    }
+
+    /// The released payments to read for a reversal stamp: best effort, at most 25, with permission.
+    public static func releasedPaymentIDs(_ p: HoursPurchaseDTO, features: OwnerFeatures) -> [UUID] {
+        guard features.finance || features.permissions.contains(AdjustmentPermission.read) else { return [] }
+        var seen = Set<UUID>()
+        return (p.allocations ?? []).filter { $0.releasedAt != nil }.map(\.paymentID).filter { seen.insert($0).inserted }.prefix(25).map { $0 }
+    }
+
+    /// "+2 h" / "-2 h".
+    static func signed(_ value: DecimalString) -> String { AdjustmentPresentation.signedHours(value) }
 
     /// Per-machine rows, only when the hours are on more than one machine.
     public static func machineRows(_ p: HoursPurchaseDTO) -> [DecisionField] {
@@ -220,6 +275,8 @@ public enum CustomerHoursPresentation {
         if positive(t.transferredOut) { rows.append((T.transferredOut, h(t.transferredOut))) }
         if positive(t.expired) { rows.append((T.expired, h(t.expired))) }
         if positive(t.cancelled) { rows.append((T.cancelled, h(t.cancelled))) }
+        if positive(t.refunded) { rows.append((T.refunded, h(t.refunded))) }
+        if t.corrected.value != 0 { rows.append((T.corrected, signed(t.corrected))) }
         rows.append((T.closing, h(t.closingBalance)))
         if positive(t.awaitingActivation) { rows.append((T.awaitingNow, h(t.awaitingActivation))) }
         return rows.map { DecisionField(label: $0.0, value: $0.1) }
@@ -232,6 +289,16 @@ public enum CustomerHoursPresentation {
                 + (u.jobRunning ? [T.running] : [])
             return UsageLine(label: T.usageRow(day: RevenuePresentation.day(u.day), job: u.jobNumber ?? "—"),
                              value: h(u.hours), caption: caption.joined(separator: " · "))
+        }
+    }
+
+    /// Corrections, refunds and reversals of the period, newest first (empty hides the card).
+    public static func adjustmentLines(_ s: HoursStatementDTO) -> [UsageLine] {
+        let kinds = [HoursLedgerEntryType.correctionAdd, HoursLedgerEntryType.correctionDeduct, HoursLedgerEntryType.refunded, HoursLedgerEntryType.reversal]
+        return s.lines.filter { kinds.contains($0.entryType) }.sorted { $0.occurredAt > $1.occurredAt }.map { line in
+            let caption = [line.purchaseNumber, line.reason].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
+            return UsageLine(label: T.lineRow(day: RevenuePresentation.day(line.day), kind: T.lineKind(line.entryType)),
+                             value: signed(line.hours), caption: caption)
         }
     }
 

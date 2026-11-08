@@ -11,11 +11,14 @@ private typealias T = OwnerAccountabilityTexts
 struct DecisionKindSection: View {
     let model: OwnerModel
     let kind: DecisionKind
+    /// Told how many wait once the list has loaded (Approvals' empty state for roles with only these sections).
+    var onLoaded: ((DecisionKind, Int) -> Void)? = nil
     @State private var loader = Loader<Page<JSONValue>>()
 
     /// Shown only when something waits (a capability the company does not use never adds an empty section).
     var body: some View {
         let items = loader.value.map { PendingDecision.list($0, kind: kind).filter(\.isPending) } ?? []
+        let waiting = loader.value == nil ? nil : items.count
         Group {
             if !items.isEmpty {
                 Section(kind.sectionTitle) {
@@ -28,6 +31,9 @@ struct DecisionKindSection: View {
         .task(id: model.changeTick) {
             await loader.load(model, .decisions(kind, pendingOnly: true), OwnerAPI.decisions(kind, pendingOnly: true))
         }
+        .onChange(of: waiting, initial: true) { _, count in
+            if let count { onLoaded?(kind, count) }
+        }
     }
 }
 
@@ -37,6 +43,7 @@ struct DecisionRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(item.headline).font(.headline)
+            if let subtitle = item.subtitle { Text(subtitle).font(.subheadline) }
             if let reason = item.reason, !reason.isEmpty {
                 Text(reason).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
             }
@@ -68,6 +75,8 @@ struct DecisionDetailView: View {
         decided ?? record.value.flatMap { PendingDecision.from($0, kind: kind) }
     }
     private var showingCachedData: Bool { record.isFromCache }
+    /// The adjustment request behind the decision (effects, evidence, withdraw).
+    private var adjustment: AdjustmentRequestDTO? { record.value.flatMap { try? $0.decode(as: AdjustmentRequestDTO.self) } }
 
     var body: some View {
         Form {
@@ -93,7 +102,17 @@ struct DecisionDetailView: View {
                 if kind == .allocationCorrection, let correction = record.value.flatMap({ try? $0.decode(as: AllocationCorrectionDTO.self) }) {
                     AllocationCorrectionExtras(model: model, correction: correction)
                 }
+                if kind == .adjustmentRequest, let request = adjustment { AdjustmentRequestExtras(model: model, request: request) }
                 if item.isPending && model.features.canDecide(kind) { decision(item) }
+                if kind == .adjustmentRequest, let request = adjustment,
+                   AdjustmentRules.offersWithdraw(request, userID: model.me.userID, permissions: model.features.permissions) {
+                    AdjustmentWithdrawSection(model: model, requestID: request.id, showingCachedData: showingCachedData) { result in
+                        apply(result)
+                        message = AdjustmentTexts.withdrawn
+                        UIAccessibility.post(notification: .announcement, argument: message)
+                        await reload()
+                    }
+                }
                 if let message { Text(message).foregroundStyle(Brand.amber).accessibilityIdentifier("decision.message") }
             } else if let error = record.error {
                 LoadFailure(message: error) { await reload() }
@@ -146,20 +165,26 @@ struct DecisionDetailView: View {
         do {
             let result = try await repository.send(OwnerAPI.decide(kind, id: recordID, approve: approve, note: note,
                                                                    idempotencyKey: UUID()))
-            decided = PendingDecision.from(result, kind: kind)
+            apply(result)
             decisionError = nil
             note = ""
             message = approve ? T.decisionApproved : T.decisionRejected
             UIAccessibility.post(notification: .announcement, argument: message)
             await reload()
         } catch {
-            decisionError = DecisionRules.message(for: error)
+            decisionError = DecisionRules.message(for: error, kind: kind)
             model.handle(error)
             if DecisionRules.needsReload(error) {
                 decided = nil
                 await reload()
             }
         }
+    }
+
+    /// Shows a decision or withdrawal result at once, also when the reload that follows fails.
+    private func apply(_ result: JSONValue) {
+        decided = PendingDecision.from(result, kind: kind)
+        if kind == .adjustmentRequest { record.replace(result) }
     }
 
     private func reload() async {

@@ -27,6 +27,8 @@ public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
     case nonRevenue
     /// DEC-032: a proposed correction of a work allocation (one record = one correction group).
     case allocationCorrection
+    /// DEC-032 Phase 2: a proposed hours correction, refund, reversal or invoice void.
+    case adjustmentRequest
 
     /// `GET` path and the status that means "waiting for a decision".
     var list: (path: String, pendingStatus: String) {
@@ -43,6 +45,7 @@ public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
         case .adjustment: ("cash/adjustments", "PENDING")
         case .nonRevenue: ("non-revenue-approvals", "PROPOSED")
         case .allocationCorrection: ("work-allocations/corrections", "PROPOSED")
+        case .adjustmentRequest: ("adjustment-requests", AdjustmentRequestStatuses.proposed)
         }
     }
 
@@ -67,6 +70,7 @@ public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
         case .writeOff, .adjustment: ["tenant.finance.read"]
         case .retention: ["tenant.collection.record", "tenant.finance.read"]
         case .nonRevenue: [RevenuePermission.read]
+        case .adjustmentRequest: [AdjustmentPermission.read]
         }
     }
 
@@ -83,6 +87,7 @@ public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
         case .retention: "tenant.finance.retention_approve"
         case .adjustment: "tenant.finance.adjustment_approve"
         case .nonRevenue: RevenuePermission.decide
+        case .adjustmentRequest: AdjustmentPermission.decide
         }
     }
 
@@ -93,6 +98,8 @@ public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
         case .baseline, .correction, .classification, .allocationCorrection: TenantCapability.engineHours
         case .writeOff, .retention, .adjustment: TenantCapability.cashCustody
         case .nonRevenue: TenantCapability.revenueReconciliation
+        // Not tied to one capability: a request can touch hours, payments or invoices.
+        case .adjustmentRequest: nil
         }
     }
 
@@ -113,6 +120,7 @@ public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
         case .adjustment: OwnerAccountabilityTexts.approvalsAdjustments
         case .nonRevenue: RevenueTexts.sectionNonRevenue
         case .allocationCorrection: DailyReportOwnerTexts.allocationSection
+        case .adjustmentRequest: AdjustmentTexts.section
         }
     }
 
@@ -130,6 +138,7 @@ public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
         case .adjustment: OwnerAccountabilityTexts.approvalsAdjustmentsEmpty
         case .nonRevenue: RevenueTexts.sectionNonRevenueEmpty
         case .allocationCorrection: DailyReportOwnerTexts.allocationEmpty
+        case .adjustmentRequest: AdjustmentTexts.empty
         }
     }
 
@@ -147,6 +156,7 @@ public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
         case .adjustment: OwnerAccountabilityTexts.decisionTitleAdjustment
         case .nonRevenue: RevenueTexts.titleNonRevenue
         case .allocationCorrection: DailyReportOwnerTexts.allocationTitle
+        case .adjustmentRequest: AdjustmentTexts.title
         }
     }
 
@@ -165,6 +175,7 @@ public enum DecisionKind: String, CaseIterable, Codable, Hashable, Sendable {
         case "custody_adjustment": self = .adjustment
         case "non_revenue_approval": self = .nonRevenue
         case "work_allocation_correction": self = .allocationCorrection
+        case "adjustment_request": self = .adjustmentRequest
         default: return nil
         }
     }
@@ -189,6 +200,8 @@ public struct PendingDecision: Codable, Hashable, Sendable, Identifiable {
     public let fields: [DecisionField]
     public let machineID: UUID?
     public let photoAttachmentID: UUID?
+    /// A line under the headline in the list row (DEC-032 adjustments: "{customer} · {machine}").
+    public var subtitle: String? = nil
 
     public var id: String { "\(kind.rawValue):\(recordID.lowercased)" }
     public var isPending: Bool { status == kind.list.pendingStatus }
@@ -474,6 +487,9 @@ extension PendingDecision {
         case .allocationCorrection:
             guard let c = try? json.decode(as: AllocationCorrectionDTO.self) else { return nil }
             return AllocationPresentation.decision(group: c.groupID, status: c.status, entries: c.entries, timeZone: timeZone)
+        case .adjustmentRequest:
+            guard let r = try? json.decode(as: AdjustmentRequestDTO.self) else { return nil }
+            return AdjustmentPresentation.decision(r)
         }
     }
 
@@ -509,6 +525,11 @@ extension OwnerAPI {
     public static func decide(_ kind: DecisionKind, id: UUID, approve: Bool, note: String,
                               idempotencyKey: UUID) throws -> APIRequest<JSONValue> {
         let text = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        if kind == .adjustmentRequest {
+            return try .mutation(.post, "\(tenant)/\(kind.decisionPath(id))",
+                                 body: AdjustmentDecisionIn(decision: approve ? "APPROVE" : "REJECT", note: text.isEmpty ? nil : text),
+                                 idempotencyKey: idempotencyKey)
+        }
         if kind.usesMeterDecision {
             return try .mutation(.post, "\(tenant)/\(kind.decisionPath(id))",
                                  body: MeterDecisionIn(decision: approve ? "APPROVE" : "REJECT", note: text),
@@ -547,6 +568,11 @@ public enum DecisionRules {
         guard let code = (error as? APIError)?.code else { return false }
         return code.hasSuffix("ALREADY_DECIDED") || code == "NOT_PENDING" || code == "WRITEOFF_NOT_PROPOSED"
             || code == "VARIANCE_NOT_OPEN" || code == "STALE_VERSION" || code == "ALLOCATION_NOT_ACTIVE"
+    }
+
+    /// The refusal in the wording of `kind` (adjustment requests have their own, other codes as below).
+    public static func message(for error: any Error, kind: DecisionKind) -> String {
+        kind == .adjustmentRequest ? AdjustmentRules.message(for: error) : message(for: error)
     }
 
     public static func message(for error: any Error) -> String {

@@ -17,6 +17,8 @@ struct ApprovalsView: View {
     @State private var supervisorNames: [UUID: String] = [:]
     @State private var openExceptions = Loader<Page<MeterExceptionDTO>>()
     @State private var jobNumbers: [UUID: String] = [:]
+    /// How many wait per decision kind, once each list has loaded.
+    @State private var waiting: [DecisionKind: Int] = [:]
 
     var body: some View {
         List {
@@ -25,16 +27,21 @@ struct ApprovalsView: View {
                     .listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
                 approvalRequests
             }
-            ForEach(model.features.decisionKinds.filter { $0 != .nonRevenue && $0 != .allocationCorrection }, id: \.self) { kind in
-                DecisionKindSection(model: model, kind: kind)
+            ForEach(model.features.decisionKinds.filter { ![.nonRevenue, .allocationCorrection, .adjustmentRequest].contains($0) }, id: \.self) { kind in
+                DecisionKindSection(model: model, kind: kind, onLoaded: noteWaiting)
             }
             // DEC-031: "Revenue differences" then "Non-revenue hours".
             if model.features.revenueRead { RevenueDifferencesSection(model: model) }
-            if model.features.decisionKinds.contains(.nonRevenue) { DecisionKindSection(model: model, kind: .nonRevenue) }
+            if model.features.decisionKinds.contains(.nonRevenue) { DecisionKindSection(model: model, kind: .nonRevenue, onLoaded: noteWaiting) }
             // DEC-032: "Daily reports to review" then "Work allocation corrections".
             if model.features.allocationsRead { DailyReportsSection(model: model) }
-            if model.features.decisionKinds.contains(.allocationCorrection) { DecisionKindSection(model: model, kind: .allocationCorrection) }
+            if model.features.decisionKinds.contains(.allocationCorrection) { DecisionKindSection(model: model, kind: .allocationCorrection, onLoaded: noteWaiting) }
             otherSections
+            // DEC-032 Phase 2: "Adjustments", after the existing sections.
+            if model.features.decisionKinds.contains(.adjustmentRequest) { DecisionKindSection(model: model, kind: .adjustmentRequest, onLoaded: noteWaiting) }
+            if model.features.nothingWaiting(waiting: waiting) {
+                EmptyState(title: ApprovalText.emptyTitle, message: AdjustmentTexts.empty, systemImage: "checkmark.seal")
+            }
         }
         .staleBanner(loader, model: model)
         .navigationTitle("Approvals")
@@ -99,6 +106,8 @@ struct ApprovalsView: View {
                 }
             }
     }
+
+    private func noteWaiting(_ kind: DecisionKind, _ count: Int) { waiting[kind] = count }
 
     private func reload() async {
         async let a: Void = loadApprovals()

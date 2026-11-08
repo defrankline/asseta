@@ -13,6 +13,10 @@ public enum HoursLedgerEntryType {
     /// Hours a running job used on a day (daily drawdown); replaced by CONSUMED when the job completes.
     public static let provisional = "PROVISIONAL"
     public static let provisionalReversed = "PROVISIONAL_REVERSED"
+    /// DEC-032 Phase 2: an approved correction added or removed hours; unused hours refunded.
+    public static let correctionAdd = "CORRECTION_ADD"
+    public static let correctionDeduct = "CORRECTION_DEDUCT"
+    public static let refunded = "REFUNDED"
 }
 
 /// `HoursBalanceDto`: one customer's prepaid hours on one machine.
@@ -94,9 +98,30 @@ public struct HoursStatementDTO: Codable, Hashable, Sendable {
         public let closingBalance: DecimalString
         public let provisionalAtClose: DecimalString
         public let awaitingActivation: DecimalString
+        /// DEC-032 Phase 2: unused hours refunded in the period; 0 when absent.
+        public let refunded: DecimalString
+        /// DEC-032 Phase 2: net approved corrections in the period (signed); 0 when absent.
+        public let corrected: DecimalString
+
+        public init(from decoder: any Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            openingBalance = try c.decode(DecimalString.self, forKey: .openingBalance)
+            bought = try c.decode(DecimalString.self, forKey: .bought)
+            activated = try c.decode(DecimalString.self, forKey: .activated)
+            used = try c.decode(DecimalString.self, forKey: .used)
+            transferredIn = try c.decode(DecimalString.self, forKey: .transferredIn)
+            transferredOut = try c.decode(DecimalString.self, forKey: .transferredOut)
+            expired = try c.decode(DecimalString.self, forKey: .expired)
+            cancelled = try c.decode(DecimalString.self, forKey: .cancelled)
+            closingBalance = try c.decode(DecimalString.self, forKey: .closingBalance)
+            provisionalAtClose = try c.decode(DecimalString.self, forKey: .provisionalAtClose)
+            awaitingActivation = try c.decode(DecimalString.self, forKey: .awaitingActivation)
+            refunded = try c.decodeIfPresent(DecimalString.self, forKey: .refunded) ?? DecimalString(0)
+            corrected = try c.decodeIfPresent(DecimalString.self, forKey: .corrected) ?? DecimalString(0)
+        }
 
         enum CodingKeys: String, CodingKey {
-            case bought, activated, used, expired, cancelled
+            case bought, activated, used, expired, cancelled, refunded, corrected
             case openingBalance = "opening_balance", transferredIn = "transferred_in", transferredOut = "transferred_out"
             case closingBalance = "closing_balance", provisionalAtClose = "provisional_at_close"
             case awaitingActivation = "awaiting_activation"

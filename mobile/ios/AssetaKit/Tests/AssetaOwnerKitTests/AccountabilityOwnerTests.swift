@@ -82,6 +82,7 @@ struct AccountabilityOwnerTests {
         {"group_id":"\(DailyReportOwnerTests.groupID.uuidString.lowercased())","status":"PROPOSED",
          "supersedes_id":"\(DailyReportOwnerTests.originalID.uuidString.lowercased())","entries":[\(DailyReportOwnerTests.entry())]}
         """),
+        (.adjustmentRequest, "AdjustmentRequestDto", AdjustmentOwnerTests.json()),
     ]
 
     static let summary = """
@@ -147,7 +148,7 @@ struct AccountabilityOwnerTests {
             #expect(paths.keys.contains { $0.replacingOccurrences(of: #"\{[a-z_]+\}"#, with: "{id}", options: .regularExpression) == template },
                     "\(template)")
             let body = try #require(request.body.flatMap { try JSONSerialization.jsonObject(with: $0) as? [String: Any] })
-            if kind.usesMeterDecision {
+            if kind.usesMeterDecision || kind == .adjustmentRequest {
                 #expect(body["decision"] as? String == "REJECT" && body["note"] as? String == "Not agreed")
             } else {
                 #expect(body["approve"] as? Bool == false && body["note"] as? String == "Not agreed")

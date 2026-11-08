@@ -107,6 +107,7 @@ public enum DeepLinkParser {
         case .job: return .job(id)
         case .dailyReport: return .dailyReport(id)
         case .workAllocationCorrection: return .decision(.allocationCorrection, id)
+        case .adjustmentRequest: return .decision(.adjustmentRequest, id)
         }
     }
 
@@ -197,6 +198,13 @@ public enum DeepLinkParser {
             if parts.count >= 3, parts[2] == "purchases" { return .customerHours }
             return .accountability
         case ("finance", _):
+            // DEC-032 Phase 2: /tenant/finance/adjustments/requests/<id>; the ledger itself is on the web only.
+            if parts.count >= 3, parts[2] == "adjustments" {
+                if parts.count >= 5, parts[3] == "requests", let request = UUID(uuidString: parts[4]) {
+                    return .decision(.adjustmentRequest, request)
+                }
+                return .approvals
+            }
             // Web cash detail routes /tenant/finance/cash/<segment>/<id> (and their lists).
             guard parts.count >= 4, parts[2] == "cash" else { return nil }
             return cashPath(parts[3], parts.count >= 5 ? UUID(uuidString: parts[4]) : nil)
