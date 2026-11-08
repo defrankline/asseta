@@ -1617,23 +1617,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/tenant/access/roles": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Roles */
-        get: operations["listTenantRoles"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/tenant/accountability/summary": {
         parameters: {
             query?: never;
@@ -4202,23 +4185,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/tenant/fleet/nearby": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Nearby */
-        get: operations["getNearbyMachines"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/tenant/fuel-events": {
         parameters: {
             query?: never;
@@ -4231,23 +4197,6 @@ export interface paths {
         put?: never;
         /** Record Fuel */
         post: operations["recordFuelEvent"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tenant/geofence-events": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Geofence Events */
-        get: operations["listGeofenceEvents"];
-        put?: never;
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -4770,23 +4719,6 @@ export interface paths {
         };
         /** Get Insights */
         get: operations["getTenantInsights"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tenant/insights/cash-flow": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Cash Flow */
-        get: operations["getTenantCashFlowInsight"];
         put?: never;
         post?: never;
         delete?: never;
@@ -11823,34 +11755,6 @@ export interface components {
             /** Version */
             version: number;
         };
-        /** GeofenceEventDto */
-        GeofenceEventDto: {
-            /** Distance M */
-            distance_m: number;
-            /**
-             * Event Time
-             * Format: date-time
-             */
-            event_time: string;
-            /**
-             * Geofence Id
-             * Format: uuid
-             */
-            geofence_id: string;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /**
-             * Machine Id
-             * Format: uuid
-             */
-            machine_id: string;
-            /** Policy Version */
-            policy_version: string;
-            transition: components["schemas"]["GeofenceTransition"];
-        };
         /** GeofenceIn */
         GeofenceIn: {
             corridor?: components["schemas"]["GeoLineString"] | null;
@@ -11883,11 +11787,6 @@ export interface components {
          * @enum {string}
          */
         GeofenceShape: "POLYGON" | "CORRIDOR";
-        /**
-         * GeofenceTransition
-         * @enum {string}
-         */
-        GeofenceTransition: "ENTER" | "EXIT";
         /**
          * GpsIn
          * @description Result of the mandatory GPS attempt; never fabricate coordinates on failure.
@@ -14679,23 +14578,6 @@ export interface components {
             /** Window Minutes */
             window_minutes: number;
         };
-        /** NearbyMachineDto */
-        NearbyMachineDto: {
-            /** Asset Code */
-            asset_code: string;
-            /** Distance M */
-            distance_m: number;
-            /**
-             * Machine Id
-             * Format: uuid
-             */
-            machine_id: string;
-            /**
-             * Position Time
-             * Format: date-time
-             */
-            position_time: string;
-        };
         /** NewRateVersionIn */
         NewRateVersionIn: {
             cadence: components["schemas"]["Cadence"];
@@ -16927,7 +16809,7 @@ export interface components {
          * QuarantineReason
          * @enum {string}
          */
-        QuarantineReason: "MALFORMED" | "UNKNOWN_DEVICE" | "TRACKER_INACTIVE" | "UNASSIGNED" | "NOT_ENROLLED" | "CLOCK_FUTURE" | "TOO_OLD";
+        QuarantineReason: "MALFORMED" | "UNKNOWN_DEVICE" | "TRACKER_INACTIVE" | "UNASSIGNED" | "NOT_ENROLLED" | "CLOCK_FUTURE" | "TOO_OLD" | "TRACKING_DISABLED";
         /** RateCardDto */
         RateCardDto: {
             /** Currency */
@@ -17676,13 +17558,6 @@ export interface components {
              * Format: date-time
              */
             window_start: string;
-        };
-        /** RoleDto */
-        RoleDto: {
-            /** Key */
-            key: string;
-            /** Permissions */
-            permissions: string[];
         };
         /**
          * RoundingMode
@@ -30024,92 +29899,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MemberDto"][];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    listTenantRoles: {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RoleDto"][];
                 };
             };
             /** @description Bad Request */
@@ -45406,96 +45195,6 @@ export interface operations {
             };
         };
     };
-    getNearbyMachines: {
-        parameters: {
-            query: {
-                lon: number;
-                lat: number;
-                radius_m?: number;
-            };
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["NearbyMachineDto"][];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
     listFuelEvents: {
         parameters: {
             query?: {
@@ -45616,96 +45315,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FuelEventDto"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    listGeofenceEvents: {
-        parameters: {
-            query: {
-                from: string;
-                to: string;
-                machine_id?: string | null;
-            };
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GeofenceEventDto"][];
                 };
             };
             /** @description Bad Request */
@@ -49084,92 +48693,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TenantInsightsDto"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    getTenantCashFlowInsight: {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-tenant-id"?: string | null;
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CashFlowInsightDto"];
                 };
             };
             /** @description Bad Request */

@@ -38,6 +38,7 @@ from asseta.modules.overview.dto import (
     OverviewWorkSectionDto,
     TenantOverviewDto,
 )
+from asseta.modules.policy.capabilities import INVESTIGATIONS, TRACKING, capability_on
 
 FLEET, JOBS, FINANCE = "tenant.fleet.read", "tenant.job.read", "tenant.finance.read"
 CASES, SIGNALS, APPROVALS, METER = "tenant.case.read", "tenant.signal.read", "tenant.approval.read", "tenant.meter.read"
@@ -84,12 +85,25 @@ class OverviewService:
             fleet=self.fleet() if self._can(FLEET) else None,
             work=self.work() if self._can(JOBS) else None,
             money=self.money(tz) if self._can(FINANCE) else None,
-            risk=self.risk() if self._can(CASES) or self._can(SIGNALS) else None,
+            risk=self.risk() if (self._can(CASES) or self._can(SIGNALS)) and self._investigations() else None,
         )
 
     # --- sections -----------------------------------------------------------------------------------------------
+    def _investigations(self) -> bool:
+        return capability_on(self._s, self._tid, INVESTIGATIONS, self._now)
+
     def fleet(self) -> OverviewFleetSectionDto:
         rows = FleetMapService(self._s, self._tid).fleet(self._now)
+        if not capability_on(self._s, self._tid, TRACKING, self._now):  # machines and reported work only
+            reported = Counter(r.reported_work_status for r in rows)
+            return OverviewFleetSectionDto(
+                machines=len(rows),
+                connectivity=OverviewConnectivityCountsDto(),
+                reported_work_state={s.value: reported.get(s.value, 0) for s in ReportedWorkState},
+                engine_on_verified=0,
+                open_alerts=OverviewSeverityCountsDto(),
+                latest_source_at=None,
+            )
         conn = Counter(_CONNECTIVITY_FIELD[r.connectivity] for r in rows)
         work = Counter(r.reported_work_status for r in rows)
         alerts = self._s.execute(

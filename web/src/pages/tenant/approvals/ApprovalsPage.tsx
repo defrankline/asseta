@@ -150,7 +150,7 @@ export function ApprovalsPage() {
   return (
     <>
       <PageHeader
-        title="Approvals"
+        title="Expense approvals"
         subtitle="Expenses above the EXPENSE_CAPTURE auto-approval limit wait here for someone other than the submitter"
       />
       <Box className="flex flex-col gap-3">

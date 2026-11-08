@@ -12,7 +12,7 @@ from asseta.core.errors import ERROR_RESPONSES, NotFound, PermissionDenied
 from asseta.core.idempotency import IdempotencyGuard, request_hash
 from asseta.modules.identity.catalog import CATALOG, MenuDef
 from asseta.modules.identity.catalog import PermissionScope as S
-from asseta.modules.identity.dependencies import requires
+from asseta.modules.identity.dependencies import gated, requires
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.managed_service.dto import (
     AssignableRoleDto,
@@ -25,11 +25,18 @@ from asseta.modules.managed_service.dto import (
     PlatformStaffDto,
 )
 from asseta.modules.managed_service.service import ManagedService
+from asseta.modules.policy.capabilities import MANAGED_SERVICE
 
 MANDATE_READ = requires("platform.mandate.read", S.PLATFORM, "View managed-service mandates")
 MANDATE_MANAGE = requires("platform.mandate.manage", S.PLATFORM, "Grant, staff and end managed-service mandates")
-CLIENT_READ = requires("tenant.managed_service.read", S.TENANT, "View the managed-service mandate and its staff")
-CLIENT_REVOKE = requires("tenant.managed_service.revoke", S.TENANT, "Revoke the managed-service mandate")
+# Only the tenant's own page is switchable (MANAGED_SERVICE, tenant policy): mandates and the platform routes stay.
+CLIENT_READ = gated(
+    requires("tenant.managed_service.read", S.TENANT, "View the managed-service mandate and its staff"),
+    MANAGED_SERVICE,
+)
+CLIENT_REVOKE = gated(
+    requires("tenant.managed_service.revoke", S.TENANT, "Revoke the managed-service mandate"), MANAGED_SERVICE
+)
 CATALOG.register_menu(
     MenuDef(
         "platform.managed_service",
@@ -50,6 +57,7 @@ CATALOG.register_menu(
         95,
         "tenant.managed_service.read",
         group="tenant.admin",
+        capability=MANAGED_SERVICE,
     )
 )
 

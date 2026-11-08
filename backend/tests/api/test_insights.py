@@ -63,10 +63,9 @@ def test_machine_insights_from_weekly_snapshots(api: Api) -> None:
 
     accountant = role(api, tid, "accountant", "acct-ins")
     assert accountant.get("/api/v1/tenant/insights").status_code == 403  # no tenant.fleet.read
-    assert get(accountant, "/api/v1/tenant/insights/cash-flow")["status"] == "INSUFFICIENT_DATA"
+    assert body["cash_flow"]["status"] == "INSUFFICIENT_DATA"
     supervisor = role(api, tid, "supervisor", "sup-ins")
     assert get(supervisor, "/api/v1/tenant/insights")["cash_flow"] is None  # no tenant.finance.report
-    assert supervisor.get("/api/v1/tenant/insights/cash-flow").status_code == 403
     other = api.onboard("Other Ins", price="1000")["owner"]
     assert get(other, "/api/v1/tenant/insights")["fuel_efficiency"] == []  # tenant-scoped
 
@@ -88,14 +87,13 @@ def test_cash_flow_trend_from_verified_receipts_and_approved_expenses(api: Api) 
     f.accountant.post("/api/v1/tenant/customer-payments", claimed | {"received_at": api.clock.now.isoformat()})
     api.clock.set_at(start + timedelta(weeks=7, days=1))
 
-    flow = get(f.accountant, "/api/v1/tenant/insights/cash-flow")
+    flow = get(f.owner, "/api/v1/tenant/insights")["cash_flow"]
     assert flow["status"] == "READY" and flow["trend"] == "UP" and flow["currency"] == "TZS"
     assert flow["weeks_observed"] >= 6 and Decimal(flow["trend_per_week"]) > 0 and flow["missing"] == []
     receipts = sum(Decimal(w["receipts"]) for w in flow["weeks"])
     assert receipts == Decimal(100000 * sum(range(1, 8)))  # verified only: the claimed payment is excluded
     assert sum(Decimal(w["expenses"]) for w in flow["weeks"]) == Decimal(7 * 20000)
     assert all(Decimal(w["net"]) == Decimal(w["receipts"]) - Decimal(w["expenses"]) for w in flow["weeks"])
-    assert get(f.owner, "/api/v1/tenant/insights")["cash_flow"]["status"] == "READY"
 
 
 def test_manual_override_audit_lists_ocr_vs_entered_and_is_tenant_isolated(api: Api) -> None:

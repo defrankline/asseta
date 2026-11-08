@@ -15,7 +15,7 @@ from asseta.core.lifecycle import check_version, flush_versioned, mark_active, m
 from asseta.core.search import ilike_any
 from asseta.modules.fleet.models import Machine
 from asseta.modules.geospatial.dto import GeofenceDto, GeofenceIn, GeoPoint, JobSiteDto, JobSiteIn, JobSiteUpdateIn
-from asseta.modules.geospatial.models import Geofence, GeofenceEvent, GeofenceMachine, GeofenceShape, JobSite
+from asseta.modules.geospatial.models import Geofence, GeofenceMachine, GeofenceShape, JobSite
 from asseta.modules.jobs.models import Job, JobStatus
 
 OPEN_JOB_STATES = (JobStatus.DRAFT, JobStatus.PENDING_APPROVAL, JobStatus.APPROVED, JobStatus.IN_PROGRESS)
@@ -275,9 +275,3 @@ class SiteService:
                 {"g": geofence_id},
             ).scalars()
         )
-
-    def events(self, machine_id: uuid.UUID | None, frm: datetime, to: datetime) -> list[GeofenceEvent]:
-        stmt = select(GeofenceEvent).where(GeofenceEvent.event_time >= frm, GeofenceEvent.event_time < to)
-        if machine_id:
-            stmt = stmt.where(GeofenceEvent.machine_id == machine_id)
-        return list(self._s.execute(stmt.order_by(GeofenceEvent.event_time)).scalars())

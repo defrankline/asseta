@@ -32,17 +32,24 @@ from asseta.modules.finance.common import currency_or_default, insert
 from asseta.modules.finance.deposit_models import CompanyDepositAccount, DepositAccountType, RemittanceEvidence
 from asseta.modules.identity.catalog import CATALOG, MenuDef
 from asseta.modules.identity.catalog import PermissionScope as S
-from asseta.modules.identity.dependencies import requires, requires_any
+from asseta.modules.identity.dependencies import gated, requires, requires_any
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.meter.models import CaptureAttachment
 from asseta.modules.platform_billing.dto import CurrencyCode
+from asseta.modules.policy.capabilities import DEPOSIT_ACCOUNTS
 
-ACCOUNTS_MANAGE = requires(
-    "tenant.finance.accounts.manage", S.TENANT, "Manage the company deposit accounts remittances are paid into"
+ACCOUNTS_MANAGE = gated(
+    requires(
+        "tenant.finance.accounts.manage", S.TENANT, "Manage the company deposit accounts remittances are paid into"
+    ),
+    DEPOSIT_ACCOUNTS,
 )
-ACCOUNTS_READ = requires_any(
-    ("tenant.finance.accounts.manage", "tenant.finance.read", "tenant.collection.record", "tenant.finance.cash"),
-    S.TENANT,
+ACCOUNTS_READ = gated(
+    requires_any(
+        ("tenant.finance.accounts.manage", "tenant.finance.read", "tenant.collection.record", "tenant.finance.cash"),
+        S.TENANT,
+    ),
+    DEPOSIT_ACCOUNTS,
 )
 CATALOG.register_menu(
     MenuDef(
@@ -53,6 +60,7 @@ CATALOG.register_menu(
         68,
         "tenant.finance.accounts.manage",
         group="tenant.finance",
+        capability=DEPOSIT_ACCOUNTS,
     )
 )
 

@@ -43,6 +43,12 @@ export interface PolicyFieldDef {
 }
 
 export const TRACKING_FIELDS: readonly PolicyFieldDef[] = [
+  {
+    key: 'enabled',
+    label: 'Tracking',
+    kind: 'bool',
+    help: 'Off: trackers, geofences and alerts are hidden and tracker messages are ignored; machines, job sites and subscription billing stay.',
+  },
   { key: 'live_max_age_seconds', label: 'Live max age', kind: 'int', unit: 's' },
   { key: 'stale_after_seconds', label: 'Stale after', kind: 'int', unit: 's' },
   { key: 'offline_after_seconds', label: 'Offline after', kind: 'int', unit: 's' },

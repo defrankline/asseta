@@ -20,8 +20,10 @@ from asseta.modules.onboarding.models import SetupChoiceAction, TenantSetupChoic
 from asseta.modules.policy.capabilities import (
     CASH_CUSTODY,
     CUSTOMER_HOURS,
+    DEPOSIT_ACCOUNTS,
     ENGINE_HOURS,
     REVENUE_RECONCILIATION,
+    TRACKING,
     disabled_capabilities,
 )
 
@@ -165,7 +167,9 @@ def _machines(f: Facts, _off: frozenset[str], _c: bool) -> Evaluation:
     return Evaluation(done=f["machines"] > 0, done_count=min(f["machines"], 1), total_count=1)
 
 
-def _trackers(f: Facts, _off: frozenset[str], _c: bool) -> Evaluation:
+def _trackers(f: Facts, off: frozenset[str], _c: bool) -> Evaluation:
+    if TRACKING in off:
+        return Evaluation(done=False, applicable=False)
     total = f["machines"]
     checks = (
         Check(
@@ -191,17 +195,20 @@ def _trackers(f: Facts, _off: frozenset[str], _c: bool) -> Evaluation:
     return _from_checks(checks, n, total)
 
 
-def _sites(f: Facts, _off: frozenset[str], _c: bool) -> Evaluation:
+def _sites(f: Facts, off: frozenset[str], _c: bool) -> Evaluation:
+    sites = Check(
+        "JOB_SITES",
+        "At least one job site",
+        f["sites"] > 0,
+        "/tenant/geofences?tab=sites",
+        "tenant.geofence.write",
+        min(f["sites"], 1),
+        1,
+    )
+    if TRACKING in off:  # no geofences: the job sites remain
+        return _from_checks((sites,))
     checks = (
-        Check(
-            "JOB_SITES",
-            "At least one job site",
-            f["sites"] > 0,
-            "/tenant/geofences?tab=sites",
-            "tenant.geofence.write",
-            min(f["sites"], 1),
-            1,
-        ),
+        sites,
         Check(
             "GEOFENCES",
             "Optional: a boundary (geofence) around a site, to be told when a machine leaves it",
@@ -275,7 +282,9 @@ def _reasons(f: Facts, off: frozenset[str], _c: bool) -> Evaluation:
 
 def _deposits(f: Facts, off: frozenset[str], _c: bool) -> Evaluation:
     n = f["deposit_accounts"]
-    return Evaluation(done=n > 0, done_count=min(n, 1), total_count=1, applicable=CASH_CUSTODY not in off)
+    return Evaluation(
+        done=n > 0, done_count=min(n, 1), total_count=1, applicable=not {CASH_CUSTODY, DEPOSIT_ACCOUNTS} & off
+    )
 
 
 def _baselines(f: Facts, off: frozenset[str], _c: bool) -> Evaluation:

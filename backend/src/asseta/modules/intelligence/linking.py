@@ -29,6 +29,7 @@ from asseta.modules.intelligence.models import (
     SignalSeverity,
     SubjectType,
 )
+from asseta.modules.policy.capabilities import INVESTIGATIONS, capability_on
 from asseta.modules.policy.service import PolicyService
 from asseta.modules.tenancy.models import TenantSettings
 
@@ -87,6 +88,7 @@ class CaseLinker:
         self._audit = AuditService(session)
         self.stats = LinkStats()
         self._tz: ZoneInfo | None = None
+        self._cases_on: bool | None = None
 
     def already_linked(self, source_type: CaseSourceType, source_id: uuid.UUID) -> bool:
         return (
@@ -97,7 +99,11 @@ class CaseLinker:
         )
 
     def link(self, item: CaseItem) -> AnomalyCase | None:
-        """Returns the case the item joined (None when it was already linked)."""
+        """Returns the case the item joined (None when it was already linked, or investigations are switched off)."""
+        if self._cases_on is None:
+            self._cases_on = capability_on(self._s, self._tid, INVESTIGATIONS, self._now)
+        if not self._cases_on:
+            return None
         lock = f"case:{self._tid}:{item.subject_type.value}:{item.subject_id}"
         self._s.execute(text("SELECT pg_advisory_xact_lock(hashtext(:k))"), {"k": lock})
         if self.already_linked(item.source_type, item.source_id):

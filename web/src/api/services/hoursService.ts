@@ -212,15 +212,6 @@ export const hoursService = {
       signal,
     );
   },
-  /** GET /tenant/work-execution-allocations/{id} (getWorkExecutionAllocation). */
-  getAllocation(allocationId: string, signal?: AbortSignal): Promise<WorkExecutionAllocationDto> {
-    return tenantGet(
-      `${T}/work-execution-allocations/${seg(allocationId)}`,
-      workExecutionAllocationSchema,
-      'work allocation',
-      signal,
-    );
-  },
   /** POST /tenant/payment-evidence (uploadPaymentEvidence), multipart `file`. */
   uploadEvidence(file: File, idempotencyKey: string): Promise<AttachmentDto> {
     const form = new FormData();

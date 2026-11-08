@@ -35,7 +35,16 @@ def menus_for(
     )
     used = {m.group_key for m in visible}
     return (
-        [MenuDto(key=m.key, label=m.label, path=m.path, order=m.sort_order, group=m.group_key) for m in visible],
+        [
+            MenuDto(
+                key=m.key,
+                label=CATALOG.menu_label(m.key, m.label, disabled),
+                path=m.path,
+                order=m.sort_order,
+                group=m.group_key,
+            )
+            for m in visible
+        ],
         [MenuGroupDto(key=g.key, label=g.label, order=g.order) for g in CATALOG.menu_groups() if g.key in used],
     )
 

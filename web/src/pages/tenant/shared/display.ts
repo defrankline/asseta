@@ -88,6 +88,7 @@ export const QUARANTINE_REASON_HELP: Readonly<Record<QuarantineReason, string>> 
   NOT_ENROLLED: 'The machine is not an enrolled billable asset at the observation time.',
   CLOCK_FUTURE: 'The device timestamp is further in the future than the tolerance allows.',
   TOO_OLD: 'The observation is older than the maximum replay age in the tracking policy.',
+  TRACKING_DISABLED: 'Tracking is switched off for your company, so this message was ignored.',
 };
 
 export const ALERT_STATUS_TONES: Readonly<Record<AlertStatus, StatusTone>> = {

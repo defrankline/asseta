@@ -62,9 +62,9 @@ By default the owner role holds every permission, so you can also make every dec
 | Field work | My jobs, Readings, Fuel, Expenses, Cash, Customer hours, Site check-in |
 | Operations | Jobs, Customers, Staff, Site check-ins |
 | Fleet | Machines, Trackers, Sites & geofences, Alerts, Idle machines |
-| Customer hours | Hours purchases, Balances, Hours ledger, Work allocations, Transfers, Cancellations, Customer discounts, Credit arrangements, Walk-in customers, Reason lists |
+| Customer hours | Hours purchases, Balances, Hours ledger, Prepaid hours used, Transfers, Cancellations, Customer discounts, Credit arrangements, Walk-in customers, Reason lists |
 | Engine hours | Reconciliation, Hours to explain, Hour explanations, Meter baselines, Reading corrections, Engine-hour reasons, Non-revenue hours, Daily machine sheet |
-| Finance | Hire finance, Cash custody, Expenses & fuel, Approvals, Deposit accounts, Revenue differences, Revenue reasons, Unbilled work, Profitability |
+| Finance | Hire finance, Cash custody, Expenses & fuel, Expense approvals, Deposit accounts, Revenue differences, Revenue reasons, Unbilled work, Profitability |
 | Risk & review | Exceptions, Meter resets, Investigations, Insights, Security events, Sync conflicts |
 | Administration | Policies, Users & roles, Audit log, Subscription, Managed service, Notifications, My access |
 
@@ -365,7 +365,7 @@ The person who requested a reset can never decide it: *"You requested this reset
 
 ### 6. Approve expenses and jobs
 
-- **Expenses** above the auto-approval limit wait in **Finance → Approvals**. See the [Manager manual, Task 11](02-manager-dispatcher.md#11-decide-expense-approvals).
+- **Expenses** above the auto-approval limit wait in **Finance → Expense approvals**. See the [Manager manual, Task 11](02-manager-dispatcher.md#11-decide-expense-approvals).
 - **Jobs**: open a job in **Pending approval** and click **Approve**. This fixes the hourly price for billing. See the [Manager manual, Task 3](02-manager-dispatcher.md#3-submit-and-approve-a-job).
 - **Jobs requested from the field** carry a **Field request** chip in **Operations → Jobs**. When you approve one, the dialog shows "Requested from the field by <supervisor>" and what the customer asked for. If no rate card applies, the price shows "No price yet (set on approval)": enter the **Hourly rate** to approve it at that price. To refuse it, click **Decline request** and give a **Reason**. The supervisor is told your reason, and the job stays on record as cancelled.
 

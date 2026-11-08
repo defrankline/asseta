@@ -183,15 +183,6 @@ export const machineService = {
       idempotencyKey,
     );
   },
-  /** GET /tenant/operating-areas/{id} (getOperatingArea). */
-  getArea(areaId: string, signal?: AbortSignal): Promise<AreaDto> {
-    return tenantGet(
-      `/tenant/operating-areas/${seg(areaId)}`,
-      areaSchema,
-      'operating area',
-      signal,
-    );
-  },
   /** PUT /tenant/operating-areas/{id} (updateOperatingArea); `version` required. */
   updateArea(areaId: string, body: AreaUpdateIn, idempotencyKey: string): Promise<AreaDto> {
     return tenantSend(

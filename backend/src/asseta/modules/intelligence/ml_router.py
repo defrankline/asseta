@@ -27,7 +27,7 @@ from asseta.core.idempotency import IdempotencyGuard, request_hash
 from asseta.core.paging import Page, PageParams, page_params, paginate
 from asseta.modules.identity.catalog import CATALOG, MenuDef
 from asseta.modules.identity.catalog import PermissionScope as S
-from asseta.modules.identity.dependencies import requires
+from asseta.modules.identity.dependencies import gated, requires
 from asseta.modules.identity.models import AppUser
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.intelligence.feature_store import snapshot_tenant, sync_feature_definitions
@@ -67,6 +67,7 @@ from asseta.modules.intelligence.ml_monitoring import monitoring_stats
 from asseta.modules.intelligence.ml_monitoring_models import DecisionState, ModelDrift, Prediction
 from asseta.modules.intelligence.ml_training import tracker_from_settings, train_tenant
 from asseta.modules.intelligence.router import CASE_READ, SIGNAL_READ
+from asseta.modules.policy.capabilities import INSIGHTS
 from asseta.modules.tenancy.models import Tenant
 
 ML_READ = requires("platform.ml.read", S.PLATFORM, "View ML model versions, evaluations, readiness and settings")
@@ -348,7 +349,9 @@ def run_training(
 
 # --- tenant ----------------------------------------------------------------------------------------------------------
 @tenant_router.get("/status", response_model=TenantMlStatusDto, operation_id="getTenantMlStatus")
-def tenant_status(session: DbSession, ctx: Annotated[RequestContext, Depends(SIGNAL_READ)]) -> TenantMlStatusDto:
+def tenant_status(
+    session: DbSession, ctx: Annotated[RequestContext, Depends(gated(SIGNAL_READ, INSIGHTS))]
+) -> TenantMlStatusDto:
     name = ANOMALY_MODEL_NAME
     readiness = session.execute(
         select(ModelReadiness)
@@ -417,7 +420,7 @@ def _plain_state(
 @tenant_router.get("/predictions", response_model=Page[TenantPredictionDto], operation_id="listTenantPredictions")
 def tenant_predictions(
     session: DbSession,
-    _: Annotated[RequestContext, Depends(CASE_READ)],
+    _: Annotated[RequestContext, Depends(gated(CASE_READ, INSIGHTS))],
     paging: Annotated[PageParams, Depends(page_params)],
     machine_id: uuid.UUID | None = None,
 ) -> Page[TenantPredictionDto]:

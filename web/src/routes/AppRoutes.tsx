@@ -1,6 +1,6 @@
 import { Suspense, type ReactNode } from 'react';
 import { Route, Routes } from 'react-router';
-import { CAPABILITY, CAPABILITY_FEATURE } from '../access/capabilities';
+import { CAPABILITY, CAPABILITY_FEATURE, type CapabilityCode } from '../access/capabilities';
 import { PERMISSIONS } from '../access/permissionCodes';
 import { RequireCapability } from '../access/RequireCapability';
 import { RequirePermission } from '../access/RequirePermission';
@@ -114,6 +114,15 @@ function guard(permission: string, page: ReactNode) {
     <RequirePermission permission={permission}>
       <Suspense fallback={<LoadingState label="Loading page" />}>{page}</Suspense>
     </RequirePermission>
+  );
+}
+
+/** A page shown only while the tenant's capability is on (direct links get the "not enabled" state). */
+function capabilityOn(capability: CapabilityCode, page: ReactNode) {
+  return (
+    <RequireCapability capability={capability} feature={CAPABILITY_FEATURE[capability]}>
+      {page}
+    </RequireCapability>
   );
 }
 
@@ -273,11 +282,17 @@ export function AppRoutes() {
         />
         <Route
           path={ROUTES.tenantTrackers}
-          element={guard(PERMISSIONS.tenantTrackerRead, <TrackersPage />)}
+          element={capabilityOn(
+            CAPABILITY.tracking,
+            guard(PERMISSIONS.tenantTrackerRead, <TrackersPage />),
+          )}
         />
         <Route
           path={ROUTES.tenantTrackerDetail}
-          element={guard(PERMISSIONS.tenantTrackerRead, <TrackerDetailPage />)}
+          element={capabilityOn(
+            CAPABILITY.tracking,
+            guard(PERMISSIONS.tenantTrackerRead, <TrackerDetailPage />),
+          )}
         />
         <Route
           path={ROUTES.tenantGeofences}
@@ -285,7 +300,10 @@ export function AppRoutes() {
         />
         <Route
           path={ROUTES.tenantAlerts}
-          element={guard(PERMISSIONS.tenantFleetRead, <AlertsPage />)}
+          element={capabilityOn(
+            CAPABILITY.tracking,
+            guard(PERMISSIONS.tenantFleetRead, <AlertsPage />),
+          )}
         />
         <Route
           path={ROUTES.tenantPolicies}
@@ -333,11 +351,17 @@ export function AppRoutes() {
         />
         <Route
           path={ROUTES.tenantDepositAccounts}
-          element={guardAny(DEPOSIT_ACCOUNT_READERS, <DepositAccountsPage />)}
+          element={capabilityOn(
+            CAPABILITY.depositAccounts,
+            guardAny(DEPOSIT_ACCOUNT_READERS, <DepositAccountsPage />),
+          )}
         />
         <Route
           path={ROUTES.tenantDepositAccountDetail}
-          element={guardAny(DEPOSIT_ACCOUNT_READERS, <DepositAccountDetailPage />)}
+          element={capabilityOn(
+            CAPABILITY.depositAccounts,
+            guardAny(DEPOSIT_ACCOUNT_READERS, <DepositAccountDetailPage />),
+          )}
         />
         <Route
           path={ROUTES.tenantProfitability}
@@ -386,15 +410,24 @@ export function AppRoutes() {
         />
         <Route
           path={ROUTES.tenantCases}
-          element={guard(PERMISSIONS.tenantCaseRead, <CasesPage />)}
+          element={capabilityOn(
+            CAPABILITY.investigations,
+            guard(PERMISSIONS.tenantCaseRead, <CasesPage />),
+          )}
         />
         <Route
           path={ROUTES.tenantCaseDetail}
-          element={guard(PERMISSIONS.tenantCaseRead, <CaseDetailPage />)}
+          element={capabilityOn(
+            CAPABILITY.investigations,
+            guard(PERMISSIONS.tenantCaseRead, <CaseDetailPage />),
+          )}
         />
         <Route
           path={ROUTES.tenantInsights}
-          element={guard(PERMISSIONS.tenantFleetRead, <InsightsPage />)}
+          element={capabilityOn(
+            CAPABILITY.insights,
+            guard(PERMISSIONS.tenantFleetRead, <InsightsPage />),
+          )}
         />
         <Route
           path={ROUTES.tenantAccess}
@@ -402,7 +435,10 @@ export function AppRoutes() {
         />
         <Route
           path={ROUTES.tenantManagedService}
-          element={guard(PERMISSIONS.tenantManagedServiceRead, <ClientManagedServicePage />)}
+          element={capabilityOn(
+            CAPABILITY.managedService,
+            guard(PERMISSIONS.tenantManagedServiceRead, <ClientManagedServicePage />),
+          )}
         />
         <Route path={ROUTES.fieldJobs} element={guard(PERMISSIONS.tenantJobLog, <MyJobsPage />)} />
         <Route

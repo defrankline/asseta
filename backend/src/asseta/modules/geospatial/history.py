@@ -52,13 +52,6 @@ class HistoryDto(BaseModel):
     policy_version: str
 
 
-class NearbyMachineDto(BaseModel):
-    machine_id: uuid.UUID
-    asset_code: str
-    distance_m: float
-    position_time: datetime
-
-
 class HistoryService:
     def __init__(self, session: Session, tenant_id: uuid.UUID):
         self._s, self._tenant_id = session, tenant_id
@@ -172,20 +165,3 @@ class HistoryService:
                 )
             )
         return visits
-
-    def nearby(self, lon: float, lat: float, radius_m: float) -> list[NearbyMachineDto]:
-        rows = self._s.execute(
-            text("""
-            SELECT m.id, m.asset_code, lp.event_time,
-                   ST_Distance(lp.location::geography, ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)::geography) d
-            FROM machine_latest_position lp JOIN machine m ON m.id = lp.machine_id
-            WHERE ST_DWithin(lp.location::geography, ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)::geography, :r)
-            ORDER BY d"""),
-            {"lon": lon, "lat": lat, "r": radius_m},
-        ).all()
-        return [
-            NearbyMachineDto(
-                machine_id=r.id, asset_code=r.asset_code, distance_m=round(float(r.d), 1), position_time=r.event_time
-            )
-            for r in rows
-        ]

@@ -59,6 +59,12 @@ export const CASH_CUSTODY_FIELDS: readonly PolicyFieldDef[] = [
     kind: 'bool',
   },
   {
+    key: 'deposit_accounts_enabled',
+    label: 'Deposit accounts',
+    kind: 'bool',
+    help: 'Off: the company deposit accounts and the account picker are hidden, and no account is required on a remittance.',
+  },
+  {
     key: 'max_holding_days',
     label: 'Days a custodian may hold unremitted cash',
     kind: 'nullableNumber',
@@ -168,6 +174,24 @@ const PHASE5_OVERSIGHT_FIELDS: readonly PolicyFieldDef[] = [
 ];
 
 export const OVERSIGHT_FIELDS: readonly PolicyFieldDef[] = [
+  {
+    key: 'insights_enabled',
+    label: 'Insights',
+    kind: 'bool',
+    help: 'Off: the Insights page (fuel, utilisation, cash trend, manual overrides, observations) is hidden.',
+  },
+  {
+    key: 'investigations_enabled',
+    label: 'Investigations',
+    kind: 'bool',
+    help: 'Off: Investigations are hidden and no new cases are opened; cash differences and revenue differences are still recorded.',
+  },
+  {
+    key: 'managed_service_enabled',
+    label: 'Managed service page',
+    kind: 'bool',
+    help: 'Off: only hides your company’s Managed service page. It does not revoke or end a mandate, and the platform keeps its governance screens. Switch it back on to see or revoke a mandate.',
+  },
   {
     key: 'hidden_dashboard_tiles',
     label: 'Hidden dashboard tiles',

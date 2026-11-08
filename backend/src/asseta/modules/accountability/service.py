@@ -64,6 +64,7 @@ from asseta.modules.policy.capabilities import (
     CUSTOMER_HOURS,
     ENGINE_HOURS,
     IDLE_MACHINES,
+    INVESTIGATIONS,
     REVENUE_RECONCILIATION,
     UNBILLED_WORK,
     disabled_capabilities,
@@ -99,6 +100,7 @@ TILE_CAPABILITY = {
     "revenue_differences": REVENUE_RECONCILIATION,
     "unbilled_work": UNBILLED_WORK,
     "idle_machines": IDLE_MACHINES,
+    "investigations": INVESTIGATIONS,
 }
 
 

@@ -1,5 +1,6 @@
 import { Alert, Box, Typography } from '@mui/material';
 import { useId, type ReactNode } from 'react';
+import { CAPABILITY, useCapabilityEnabled } from '../../../access/capabilities';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import type {
   OverviewCurrencyMoneyDto,
@@ -105,6 +106,7 @@ export function FleetSection({
   nowMs,
   timeZone,
 }: SectionProps<OverviewFleetSectionDto>) {
+  const tracking = useCapabilityEnabled(CAPABILITY.tracking);
   const alerts = sevTotal(data.open_alerts);
   const states = Object.entries(data.reported_work_state).sort(([a], [b]) => a.localeCompare(b));
   return (
@@ -119,13 +121,17 @@ export function FleetSection({
         value={data.machines}
         valueText={String(data.machines)}
         to={L.fleet()}
-        rows={CONNECTIVITY_ROWS.map((r) => ({
-          key: r.key,
-          label: r.label,
-          value: data.connectivity[r.key],
-          valueText: String(data.connectivity[r.key]),
-          to: L.fleet(r.filter),
-        }))}
+        rows={
+          tracking
+            ? CONNECTIVITY_ROWS.map((r) => ({
+                key: r.key,
+                label: r.label,
+                value: data.connectivity[r.key],
+                valueText: String(data.connectivity[r.key]),
+                to: L.fleet(r.filter),
+              }))
+            : undefined
+        }
       />
       <KpiCard
         title="Reported work state"
@@ -138,23 +144,27 @@ export function FleetSection({
           to: L.fleet(),
         }))}
       />
-      <KpiCard
-        title="Engine on (verified)"
-        value={data.engine_on_verified}
-        valueText={String(data.engine_on_verified)}
-        to={L.fleet()}
-        description="Verified ignition input with a fresh position; never inferred"
-      />
-      <KpiCard
-        title="Open alerts"
-        value={alerts}
-        valueText={String(alerts)}
-        to={can(PERMISSIONS.tenantFleetRead) ? L.openAlerts() : undefined}
-        rows={severityRows(
-          data.open_alerts,
-          can(PERMISSIONS.tenantFleetRead) ? L.openAlerts : null,
-        )}
-      />
+      {tracking && (
+        <>
+          <KpiCard
+            title="Engine on (verified)"
+            value={data.engine_on_verified}
+            valueText={String(data.engine_on_verified)}
+            to={L.fleet()}
+            description="Verified ignition input with a fresh position; never inferred"
+          />
+          <KpiCard
+            title="Open alerts"
+            value={alerts}
+            valueText={String(alerts)}
+            to={can(PERMISSIONS.tenantFleetRead) ? L.openAlerts() : undefined}
+            rows={severityRows(
+              data.open_alerts,
+              can(PERMISSIONS.tenantFleetRead) ? L.openAlerts : null,
+            )}
+          />
+        </>
+      )}
     </SectionShell>
   );
 }

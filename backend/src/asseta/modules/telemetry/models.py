@@ -44,6 +44,7 @@ class QuarantineReason(StrEnum):
     NOT_ENROLLED = "NOT_ENROLLED"
     CLOCK_FUTURE = "CLOCK_FUTURE"
     TOO_OLD = "TOO_OLD"
+    TRACKING_DISABLED = "TRACKING_DISABLED"  # the tenant has tracking switched off: stored, never applied
 
 
 class PositionQuality(StrEnum):

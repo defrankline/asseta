@@ -73,7 +73,7 @@ for menu in (
     MenuDef(
         "tenant.approvals",
         S.TENANT,
-        "Approvals",
+        "Expense approvals",
         "/tenant/approvals",
         69,
         "tenant.approval.read",

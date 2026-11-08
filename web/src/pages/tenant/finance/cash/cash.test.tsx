@@ -24,7 +24,6 @@ const mocks = vi.hoisted(() => ({
   reconciliation: vi.fn<typeof cashService.reconciliation>(),
   supervisorSummary: vi.fn<typeof cashService.supervisorSummary>(),
   listHandovers: vi.fn<typeof cashService.listHandovers>(),
-  decideHandover: vi.fn<typeof cashService.decideHandover>(),
   issueFloat: vi.fn<typeof cashService.issueFloat>(),
   staff: vi.fn<typeof staffService.list>(),
 }));

@@ -24,6 +24,11 @@ SCORECARD = "SCORECARD"
 UNBILLED_WORK = "UNBILLED_WORK"
 IDLE_MACHINES = "IDLE_MACHINES"
 SITE_CHECKIN = "SITE_CHECKIN"
+INSIGHTS = "INSIGHTS"
+INVESTIGATIONS = "INVESTIGATIONS"
+TRACKING = "TRACKING"
+DEPOSIT_ACCOUNTS = "DEPOSIT_ACCOUNTS"
+MANAGED_SERVICE = "MANAGED_SERVICE"
 
 CAPABILITIES: dict[str, Check] = {
     # Customer prepaid hours (CUSTOMER_HOURS.enabled): purchases, balances, approvals, reason lists.
@@ -45,6 +50,19 @@ CAPABILITIES: dict[str, Check] = {
     UNBILLED_WORK: lambda svc, tid, at: svc.oversight(tid, at=at).policy.unbilled_after_days is not None,
     IDLE_MACHINES: lambda svc, tid, at: svc.oversight(tid, at=at).policy.idle_after_days is not None,
     SITE_CHECKIN: lambda svc, tid, at: svc.oversight(tid, at=at).policy.site_checkin_required,
+    # DEC-032 optional modules (platform default ON; a company turns off what it does not use). Each hides its menus,
+    # refuses its endpoints and stops its background work; recorded business data is never touched.
+    # Insights page: machine insights, cash trend, manual-override audit and model observations.
+    INSIGHTS: lambda svc, tid, at: svc.oversight(tid, at=at).policy.insights_enabled,
+    # Investigation cases: no case is opened or joined (variances, differences and signals are still recorded).
+    INVESTIGATIONS: lambda svc, tid, at: svc.oversight(tid, at=at).policy.investigations_enabled,
+    # Trackers, geofences and tracking alerts. Machines, job sites, the fleet map and billing enrollment are not part
+    # of it; messages from this tenant's trackers are ignored while it is off (TRACKING.enabled; tenant level only).
+    TRACKING: lambda svc, tid, at: svc.tracking(tid, at=at).policy.enabled,
+    # Company deposit accounts (CASH_CUSTODY.deposit_accounts_enabled); off, remittance_account_required reads off.
+    DEPOSIT_ACCOUNTS: lambda svc, tid, at: svc.cash_custody(tid, at=at).policy.deposit_accounts_enabled,
+    # Only the tenant's own Managed service page: mandates stay in force and platform governance is unaffected.
+    MANAGED_SERVICE: lambda svc, tid, at: svc.oversight(tid, at=at).policy.managed_service_enabled,
 }
 
 # Capabilities whose safe platform default is OFF (a tenant opts in): an unconfigured policy counts as off for them.
@@ -64,6 +82,11 @@ REFUSALS: dict[str, tuple[str, str]] = {
     UNBILLED_WORK: ("UNBILLED_WORK_DISABLED", "The unbilled-work check is switched off for this tenant"),
     IDLE_MACHINES: ("IDLE_MACHINES_DISABLED", "The idle-machine check is switched off for this tenant"),
     SITE_CHECKIN: ("SITE_CHECKIN_DISABLED", "Site check-ins are switched off for this tenant"),
+    INSIGHTS: ("INSIGHTS_DISABLED", "Insights are switched off for this tenant"),
+    INVESTIGATIONS: ("INVESTIGATIONS_DISABLED", "Investigations are switched off for this tenant"),
+    TRACKING: ("TRACKING_DISABLED", "Tracking is switched off for this tenant"),
+    DEPOSIT_ACCOUNTS: ("DEPOSIT_ACCOUNTS_DISABLED", "Deposit accounts are switched off for this tenant"),
+    MANAGED_SERVICE: ("MANAGED_SERVICE_DISABLED", "The managed service page is switched off for this tenant"),
 }
 
 

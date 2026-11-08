@@ -39,6 +39,9 @@ class TrackingPolicy(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
+    # Master switch (capability TRACKING; tenant level only). Off: trackers, geofences and alerts are hidden and their
+    # endpoints refused, tracker messages are ignored (quarantined, TRACKING_DISABLED). Machines and job sites stay.
+    enabled: bool = True
     live_max_age_seconds: int = Field(ge=30, le=3600)
     stale_after_seconds: int = Field(ge=60, le=86400)
     offline_after_seconds: int = Field(ge=300, le=7 * 86400)
@@ -270,6 +273,9 @@ class CashCustodyPolicy(BaseModel):
     remittance_reference_required: bool = False  # a BANK_DEPOSIT / MOBILE_MONEY remittance needs its reference
     remittance_evidence_required: bool = False  # every remittance needs at least one evidence photo
     remittance_account_required: bool = False  # every remittance names the company deposit account it went to
+    # Capability DEPOSIT_ACCOUNTS (tenant level only). Off: no deposit accounts, no picker; remittance_account_required
+    # reads as off. Independent of the master switch above: deposit accounts belong to the cash basics.
+    deposit_accounts_enabled: bool = True
     # Remote-site cash allowance (DEC-031 D3): days a custodian may hold unremitted cash (beyond approved retentions)
     # before REMITTANCE_OVERDUE (reason HELD_TOO_LONG). Null = no limit. Site and staff overrides allowed.
     max_holding_days: int | None = Field(default=None, ge=1, le=365)
@@ -277,10 +283,11 @@ class CashCustodyPolicy(BaseModel):
     def in_force(self) -> "CashCustodyPolicy":
         """The rules actually enforced: as configured when enabled; switched off as a whole otherwise (the cash
         behaviour before these controls: own-custody recording, floats counted when issued, no acknowledgement,
-        no variances, retentions, cut-off or partial-remittance flag)."""
-        if self.enabled:
-            return self
-        return self.model_copy(
+        no variances, retentions, cut-off or partial-remittance flag). Deposit accounts off: no account is required."""
+        base = self if self.deposit_accounts_enabled else self.model_copy(update={"remittance_account_required": False})
+        if base.enabled:
+            return base
+        return base.model_copy(
             update={
                 "recorders_may_record_for_others": False,
                 "transfer_ack_required": False,
@@ -347,6 +354,13 @@ class OversightPolicy(BaseModel):
     site_checkin_times: list[time] = Field(default_factory=list, max_length=12)
     site_checkin_window_minutes: int = Field(default=60, ge=5, le=720)
     site_checkin_max_distance_m: int | None = Field(default=None, ge=10, le=100000)  # null = distance shown only
+    # DEC-032 optional modules (capabilities INSIGHTS, INVESTIGATIONS, MANAGED_SERVICE; platform default ON).
+    insights_enabled: bool = True
+    # Off: the case linker opens no cases; cash variances, revenue differences and signals are still recorded.
+    investigations_enabled: bool = True
+    # Off: hides only the tenant's own Managed service page. Never revokes or ends a mandate, and the platform's
+    # governance screens keep working.
+    managed_service_enabled: bool = True
 
     @model_validator(mode="after")
     def _consistent(self) -> "OversightPolicy":
@@ -439,6 +453,7 @@ SEED_DEFAULTS: dict[PolicyType, dict[str, object]] = {
     PolicyType.ENGINE_HOURS: ENGINE_HOURS_SEED,
     PolicyType.REVENUE_RECONCILIATION: REVENUE_RECONCILIATION_SEED,
     PolicyType.TRACKING: {
+        "enabled": True,
         "live_max_age_seconds": 300,
         "stale_after_seconds": 1800,
         "offline_after_seconds": 6 * 3600,
@@ -515,6 +530,7 @@ SEED_DEFAULTS: dict[PolicyType, dict[str, object]] = {
         "remittance_reference_required": False,
         "remittance_evidence_required": False,
         "remittance_account_required": False,
+        "deposit_accounts_enabled": True,
         "max_holding_days": None,
     },
     PolicyType.OVERSIGHT: {
@@ -531,6 +547,9 @@ SEED_DEFAULTS: dict[PolicyType, dict[str, object]] = {
         "site_checkin_times": [],
         "site_checkin_window_minutes": 60,
         "site_checkin_max_distance_m": None,
+        "insights_enabled": True,
+        "investigations_enabled": True,
+        "managed_service_enabled": True,
     },
     PolicyType.CUSTOMER_HOURS: {
         "enabled": True,

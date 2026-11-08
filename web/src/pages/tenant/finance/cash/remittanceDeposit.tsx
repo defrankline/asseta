@@ -1,6 +1,7 @@
 import { Alert, Box, Chip, Typography } from '@mui/material';
 import { useField, useFormikContext } from 'formik';
 import { useCallback, useEffect } from 'react';
+import { CAPABILITY, useCapabilityEnabled } from '../../../../access/capabilities';
 import type { DepositAccountDto } from '../../../../api/custodyTypes';
 import { newIdempotencyKey } from '../../../../api/ids';
 import { cashService } from '../../../../api/services/cashService';
@@ -34,6 +35,7 @@ export function RemittanceDepositFields({
   account,
 }: DepositFieldsProps) {
   const { values, setFieldValue } = useFormikContext<HandoverValues>();
+  const accountsOn = useCapabilityEnabled(CAPABILITY.depositAccounts);
   const [, evidenceMeta] = useField<AttachmentDto[]>('evidence');
   const accountType = METHOD_ACCOUNT_TYPE[values.method];
   // A method change never leaves an account of another type selected.
@@ -59,20 +61,22 @@ export function RemittanceDepositFields({
         options={REMITTANCE_METHOD_OPTIONS}
         required
       />
-      <FormikDepositAccountIdPicker
-        name="deposit_account_id"
-        label={req.account ? 'Company account' : 'Company account (optional)'}
-        accountType={accountType}
-        currency={values.currency}
-        required={req.account}
-        onOptionChange={(a) => {
-          onAccountChange(a);
-          if (a !== null && values.currency !== a.currency) {
-            void setFieldValue('currency', a.currency);
-          }
-        }}
-        helperText={`${REMITTANCE_METHOD_LABELS[values.method]}: only active accounts of that kind are listed.`}
-      />
+      {accountsOn && (
+        <FormikDepositAccountIdPicker
+          name="deposit_account_id"
+          label={req.account ? 'Company account' : 'Company account (optional)'}
+          accountType={accountType}
+          currency={values.currency}
+          required={req.account}
+          onOptionChange={(a) => {
+            onAccountChange(a);
+            if (a !== null && values.currency !== a.currency) {
+              void setFieldValue('currency', a.currency);
+            }
+          }}
+          helperText={`${REMITTANCE_METHOD_LABELS[values.method]}: only active accounts of that kind are listed.`}
+        />
+      )}
       <FormikTextField
         name="reference"
         label={

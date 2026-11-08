@@ -38,6 +38,7 @@ from asseta.modules.intelligence.rules import (
 )
 from asseta.modules.meter.engine_hours import EngineHoursMonitor, MachineLedger, load_machine_ledger
 from asseta.modules.meter.ledger import SegmentClassification, SegmentKind
+from asseta.modules.policy.capabilities import TRACKING, capability_on
 from asseta.modules.policy.schemas import FraudControlsPolicy, FuelCheckPeriod, PolicyScope, PolicyType
 from asseta.modules.policy.service import EffectivePolicy, PolicyService
 from asseta.modules.revenue.compute import overlap_fraction
@@ -151,7 +152,7 @@ def detect_engine_without_work(s: Session, tenant_id: uuid.UUID, now: datetime, 
         return []
     start, end = days[0][1], days[-1][2]
     policies = PolicyService(s)
-    trackers = _verified(s, start)
+    trackers = _verified(s, start) if capability_on(s, tenant_id, TRACKING, now) else {}  # tracker evidence only
     baselined = {m.id: m for m in EngineHoursMonitor(s, tenant_id, now).baselined_machines()}
     candidates = set(trackers) | set(baselined)
     movers = _movements(s, candidates, start, end) if candidates else {}

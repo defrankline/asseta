@@ -2,6 +2,7 @@ import Add from '@mui/icons-material/Add';
 import { Box, Button, Paper, Stack, Typography } from '@mui/material';
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router';
+import { CAPABILITY, useCapabilityEnabled } from '../../../access/capabilities';
 import { CanMutate } from '../../../access/CanMutate';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import { useCanMutate } from '../../../access/useCanMutate';
@@ -62,6 +63,8 @@ export function GeofencesPage() {
   const notify = useNotify();
   const { hasPermission } = useSession();
   const canWrite = useCanMutate(PERMISSIONS.tenantGeofenceWrite);
+  // Geofences belong to the TRACKING capability; job sites stay when it is off.
+  const tracking = useCapabilityEnabled(CAPABILITY.tracking);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editing, setEditing] = useState<Editing>(null);
   const [viewing, setViewing] = useState<Viewing>(null);
@@ -73,7 +76,7 @@ export function GeofencesPage() {
     (signal: AbortSignal) => geofenceService.list(signal, inactiveFences),
     [inactiveFences],
   );
-  const geofences = useAsyncResource(loadGeofences, [inactiveFences]);
+  const geofences = useAsyncResource(loadGeofences, [inactiveFences], tracking);
   const loadSites = useCallback(
     (signal: AbortSignal) => geofenceService.listJobSites(signal, undefined, inactiveSites),
     [inactiveSites],
@@ -83,7 +86,7 @@ export function GeofencesPage() {
   /** `?tab=sites` (e.g. from the go-live checklist) opens on the job sites, once both lists loaded. */
   const sitesRef = useScrollIntoView<HTMLDivElement>(
     params.get('tab') === 'sites',
-    sites.data !== null && geofences.data !== null,
+    sites.data !== null && (!tracking || geofences.data !== null),
   );
   // Machine names for "applies to" (best effort; needs tenant.machine.read).
   const canMachines = hasPermission(PERMISSIONS.tenantMachineRead);
@@ -205,8 +208,12 @@ export function GeofencesPage() {
   return (
     <>
       <PageHeader
-        title="Sites & geofences"
-        subtitle="Job sites, allowed / restricted areas and corridors"
+        title={tracking ? 'Sites & geofences' : 'Job sites'}
+        subtitle={
+          tracking
+            ? 'Job sites, allowed / restricted areas and corridors'
+            : 'Where your machines work'
+        }
         actions={
           <CanMutate permission={PERMISSIONS.tenantGeofenceWrite}>
             <Button
@@ -216,15 +223,17 @@ export function GeofencesPage() {
             >
               New job site
             </Button>
-            <Button
-              variant="contained"
-              startIcon={<Add />}
-              onClick={() => {
-                setEditing({ kind: 'new' });
-              }}
-            >
-              New geofence
-            </Button>
+            {tracking && (
+              <Button
+                variant="contained"
+                startIcon={<Add />}
+                onClick={() => {
+                  setEditing({ kind: 'new' });
+                }}
+              >
+                New geofence
+              </Button>
+            )}
           </CanMutate>
         }
       />
@@ -237,46 +246,48 @@ export function GeofencesPage() {
             </Typography>
           </Paper>
         )}
-        <Box className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          <Paper variant="outlined" className="p-2">
-            {geofences.data !== null && (
-              <GeofencesMap
-                geofences={geofences.data}
-                sites={siteList}
-                selectedId={selectedId}
-                onSelect={setSelectedId}
-              />
-            )}
-          </Paper>
-          <Paper variant="outlined" className="p-3">
-            <SectionTitle
-              title="Geofences"
-              toggle={
-                <ShowInactiveToggle
-                  checked={inactiveFences}
-                  onChange={setInactiveFences}
-                  label="Show inactive geofences"
-                />
-              }
-            />
-            <AsyncContent
-              resource={geofences}
-              isEmpty={(g) => g.length === 0}
-              emptyTitle="No geofences yet"
-              emptyDescription="Draw allowed areas, restricted areas or corridors to get location alerts."
-            >
-              {(rows) => (
-                <GeofencesTable
-                  rows={rows}
-                  siteName={siteName}
-                  machineLabels={machineLabels}
-                  actionsFor={(g) => geofenceActions(g, false)}
+        {tracking && (
+          <Box className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            <Paper variant="outlined" className="p-2">
+              {geofences.data !== null && (
+                <GeofencesMap
+                  geofences={geofences.data}
+                  sites={siteList}
+                  selectedId={selectedId}
                   onSelect={setSelectedId}
                 />
               )}
-            </AsyncContent>
-          </Paper>
-        </Box>
+            </Paper>
+            <Paper variant="outlined" className="p-3">
+              <SectionTitle
+                title="Geofences"
+                toggle={
+                  <ShowInactiveToggle
+                    checked={inactiveFences}
+                    onChange={setInactiveFences}
+                    label="Show inactive geofences"
+                  />
+                }
+              />
+              <AsyncContent
+                resource={geofences}
+                isEmpty={(g) => g.length === 0}
+                emptyTitle="No geofences yet"
+                emptyDescription="Draw allowed areas, restricted areas or corridors to get location alerts."
+              >
+                {(rows) => (
+                  <GeofencesTable
+                    rows={rows}
+                    siteName={siteName}
+                    machineLabels={machineLabels}
+                    actionsFor={(g) => geofenceActions(g, false)}
+                    onSelect={setSelectedId}
+                  />
+                )}
+              </AsyncContent>
+            </Paper>
+          </Box>
+        )}
         <Paper
           ref={sitesRef}
           id="job-sites"

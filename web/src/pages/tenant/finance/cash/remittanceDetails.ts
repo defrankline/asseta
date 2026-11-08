@@ -1,3 +1,4 @@
+import { CAPABILITY, useCapabilityEnabled } from '../../../../access/capabilities';
 import type { CashHandoverDto } from '../../../../api/types';
 import { nameOr } from '../../shared/names';
 import {
@@ -13,7 +14,9 @@ import { useCashPolicy } from './custodyHooks';
  * refusal explains it.
  */
 export function useRemittanceRequirements(): RemittanceRequirements {
-  return useCashPolicy()?.remittance ?? NO_REMITTANCE_REQUIREMENTS;
+  const req = useCashPolicy()?.remittance ?? NO_REMITTANCE_REQUIREMENTS;
+  const accounts = useCapabilityEnabled(CAPABILITY.depositAccounts);
+  return accounts ? req : { ...req, account: false };
 }
 
 /** Plain-language list of the switched-on requirements (empty when none apply). */

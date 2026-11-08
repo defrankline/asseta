@@ -72,7 +72,7 @@ def test_finance_only_role_sees_only_finance_and_its_administration_items() -> N
         ("tenant.finance", "Hire finance"),
         ("tenant.finance", "Cash custody"),
         ("tenant.finance", "Expenses & fuel"),
-        ("tenant.finance", "Approvals"),
+        ("tenant.finance", "Expense approvals"),
         ("tenant.finance", "Profitability"),
         ("tenant.admin", "Notifications"),
     ]

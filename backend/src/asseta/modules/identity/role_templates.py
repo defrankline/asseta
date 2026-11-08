@@ -119,7 +119,7 @@ TENANT_TEMPLATES = (
         "operator",
         "Operator",
         PermissionScope.TENANT,
-        ("tenant.profile.", "tenant.notification.read", "tenant.directory.read"),
+        ("tenant.notification.read", "tenant.directory.read"),
     ),
 )
 

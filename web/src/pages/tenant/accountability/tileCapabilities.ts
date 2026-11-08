@@ -24,6 +24,7 @@ export const CAPABILITY_TILES: Readonly<Record<string, ReadonlySet<string>>> = {
   [CAPABILITY.revenue]: REVENUE_TILES,
   [CAPABILITY.unbilledWork]: new Set(['unbilled_work']),
   [CAPABILITY.idleMachines]: new Set(['idle_machines']),
+  [CAPABILITY.investigations]: new Set(['investigations']),
 };
 
 /** True when the tile belongs to a switched-off capability. */

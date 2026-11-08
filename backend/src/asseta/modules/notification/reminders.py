@@ -39,6 +39,7 @@ from asseta.modules.platform_billing.models_catalog import SmsWalletEntry
 from asseta.modules.platform_billing.models_ledger import PlatformInvoice
 from asseta.modules.platform_billing.repository import BillingRepository
 from asseta.modules.platform_billing.sms_wallet import SmsWalletService
+from asseta.modules.policy.capabilities import TRACKING, capability_on
 from asseta.modules.tenancy.models import Tenant, TenantSettings, TenantStatus
 
 log = structlog.get_logger()
@@ -165,7 +166,7 @@ class TenantReminders:
                             f"Cash not handed over: {sup.full_name}",
                             f"{bal.currency} {bal.outstanding.normalize():f} is still held at end of day.",
                             self._k(f"cash-{bal.currency}", sup.id),
-                            "/tenant/cash/custody",
+                            "/tenant/finance/cash",
                             "staff_member",
                             str(sup.id),
                         )
@@ -194,6 +195,8 @@ class TenantReminders:
         ]
 
     def _trackers(self) -> list[Intent]:
+        if not capability_on(self._s, self._tid, TRACKING, self._now):
+            return []
         count = self._s.execute(
             select(func.count(func.distinct(TrackingAlert.machine_id))).where(
                 TrackingAlert.alert_type.in_([AlertType.TRACKER_STALE, AlertType.TRACKER_OFFLINE]),

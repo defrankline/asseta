@@ -20,6 +20,7 @@ from asseta.modules.intelligence.rules import (
     unreported_engine_activity,
 )
 from asseta.modules.jobs.models import Job
+from asseta.modules.policy.capabilities import TRACKING, capability_on
 from asseta.modules.policy.service import PolicyService
 from asseta.modules.telemetry.models import MachinePositionEvent, MachineStateEvent, StateDimension
 from asseta.modules.tracker.models import Capability, TrackerAssignment, TrackerCapability
@@ -106,6 +107,8 @@ def _supervisors(s: Session, machine_id: uuid.UUID, start: datetime, end: dateti
 def detect_engine_activity(s: Session, tenant_id: uuid.UUID, now: datetime, since: datetime) -> list[SignalFinding]:
     """Ignition-derived engine states are preferred; engine-hour increases are used only when the machine's tracker
     has ENGINE_HOURS but not IGNITION verified. Machines without a verified capability are never evaluated."""
+    if not capability_on(s, tenant_id, TRACKING, now):
+        return []  # no tracker evidence while tracking is off
     findings: list[SignalFinding] = []
     policies = PolicyService(s)
     for machine_id, caps in _verified(s, since).items():

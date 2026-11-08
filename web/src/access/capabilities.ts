@@ -16,6 +16,11 @@ export const CAPABILITY = {
   unbilledWork: 'UNBILLED_WORK',
   idleMachines: 'IDLE_MACHINES',
   siteCheckin: 'SITE_CHECKIN',
+  insights: 'INSIGHTS',
+  investigations: 'INVESTIGATIONS',
+  tracking: 'TRACKING',
+  depositAccounts: 'DEPOSIT_ACCOUNTS',
+  managedService: 'MANAGED_SERVICE',
 } as const;
 
 export type CapabilityCode = (typeof CAPABILITY)[keyof typeof CAPABILITY];
@@ -30,6 +35,11 @@ export const CAPABILITY_FEATURE: Readonly<Record<CapabilityCode, string>> = {
   UNBILLED_WORK: 'Unbilled work',
   IDLE_MACHINES: 'Idle machines',
   SITE_CHECKIN: 'Site check-ins',
+  INSIGHTS: 'Insights',
+  INVESTIGATIONS: 'Investigations',
+  TRACKING: 'Tracking',
+  DEPOSIT_ACCOUNTS: 'Deposit accounts',
+  MANAGED_SERVICE: 'The managed service page',
 };
 
 /** The capability each exact-record kind belongs to (cash floats and remittances are the basics). */
@@ -77,6 +87,12 @@ const PATH_CAPABILITY: readonly [string, CapabilityCode][] = [
   ['/tenant/idle-machines', CAPABILITY.idleMachines],
   ['/tenant/site-checkins', CAPABILITY.siteCheckin],
   ['/tenant/field/check-in', CAPABILITY.siteCheckin],
+  ['/tenant/insights', CAPABILITY.insights],
+  ['/tenant/cases', CAPABILITY.investigations],
+  ['/tenant/trackers', CAPABILITY.tracking],
+  ['/tenant/alerts', CAPABILITY.tracking],
+  ['/tenant/finance/deposit-accounts', CAPABILITY.depositAccounts],
+  ['/tenant/managed-service', CAPABILITY.managedService],
 ];
 
 /** The capability that owns a console path, or null. */

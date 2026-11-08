@@ -450,7 +450,7 @@ def _handover(_: Session, e: DomainEvent) -> list[Intent]:
             "Cash handover to verify",
             f"A supervisor handed over {p['currency']} {p['amount']}; confirm receipt.",
             _key(e),
-            record_link("cash_handover", p["handover_id"], "/tenant/cash/handovers"),
+            record_link("cash_handover", p["handover_id"], f"{CASH}/remittances"),
             "cash_handover",
             p["handover_id"],
         )
@@ -621,7 +621,7 @@ def _cash_transfer(session: Session, e: DomainEvent) -> list[Intent]:
             "Cash transfer to acknowledge",
             f"{sender} handed you {p['currency']} {p['amount']}; confirm the amount you received.",
             _key(e),
-            record_link("cash_transfer", p["transfer_id"], "/tenant/cash/transfers"),
+            record_link("cash_transfer", p["transfer_id"], f"{CASH}/transfers"),
             "cash_transfer",
             p["transfer_id"],
         )
@@ -638,7 +638,7 @@ def _cash_float(_: Session, e: DomainEvent) -> list[Intent]:
             "Cash float to acknowledge",
             f"A float of {p['currency']} {p['amount']} was issued to you; confirm the amount you received.",
             _key(e),
-            record_link("supervisor_cash_custody", p["entry_id"], "/tenant/cash/floats"),
+            record_link("supervisor_cash_custody", p["entry_id"], f"{CASH}/floats"),
             "supervisor_cash_custody",
             p["entry_id"],
         )
@@ -657,7 +657,7 @@ def _cash_approval(_: Session, e: DomainEvent) -> list[Intent]:
             f"Approve {label}",
             f"A {label} of {p['currency']} {p['amount']} awaits approval by someone other than the proposer.",
             _key(e),
-            record_link(p["entity_type"], p["entity_id"], "/tenant/cash"),
+            record_link(p["entity_type"], p["entity_id"], CASH),
             p["entity_type"],
             p["entity_id"],
         )
@@ -677,7 +677,7 @@ def _cash_variance(session: Session, e: DomainEvent) -> list[Intent]:
             f"The amount received on a {source} differs from the declared amount by {p['currency']} {p['amount']}"
             + (f" ({who})." if who else "."),
             _key(e),
-            record_link("cash_variance", p["variance_id"], "/tenant/cash/variances"),
+            record_link("cash_variance", p["variance_id"], f"{CASH}/variances"),
             "cash_variance",
             p["variance_id"],
         )
@@ -750,7 +750,7 @@ def _partial_remittance(session: Session, e: DomainEvent) -> list[Intent]:
             f"{who} remitted {p['currency']} {p['amount']}; {p['currency']} {p['shortfall']} of the expected balance "
             "is not covered by an approved retention.",
             _key(e),
-            record_link("cash_handover", p["handover_id"], "/tenant/cash/handovers"),
+            record_link("cash_handover", p["handover_id"], f"{CASH}/remittances"),
             "cash_handover",
             p["handover_id"],
         )

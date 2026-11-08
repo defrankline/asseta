@@ -23,8 +23,9 @@ from asseta.core.errors import ERROR_RESPONSES, Conflict, NotAuthenticated, NotF
 from asseta.core.lifecycle import IncludeInactive, LifecycleChangeIn
 from asseta.core.paging import Page, PageParams, page_params, paginate
 from asseta.modules.identity.catalog import PermissionScope as S
-from asseta.modules.identity.dependencies import requires
+from asseta.modules.identity.dependencies import gated, requires
 from asseta.modules.identity.principal import RequestContext
+from asseta.modules.policy.capabilities import TRACKING
 from asseta.modules.telemetry.ingestion import IngestionService
 from asseta.modules.telemetry.models import IngestionStatus, QuarantineReason, TelemetryGateway, TrackerIngestionEvent
 from asseta.modules.telemetry.traccar import TraccarAdapter
@@ -32,7 +33,7 @@ from asseta.modules.tracker.models import TelemetryAdapterKind
 
 GATEWAY_MANAGE = requires("platform.gateway.manage", S.PLATFORM, "Manage telemetry gateways and keys")
 GATEWAY_READ = requires("platform.gateway.read", S.PLATFORM, "View telemetry gateways (never their keys)")
-TRACKER_READ = requires("tenant.tracker.read", S.TENANT, "View trackers, capabilities and assignments")
+TRACKER_READ = gated(requires("tenant.tracker.read", S.TENANT, "View trackers, capabilities and assignments"), TRACKING)
 
 router = APIRouter(prefix="/api/v1", tags=["telemetry"], responses=ERROR_RESPONSES)
 DbSession = Annotated[Session, Depends(get_session)]

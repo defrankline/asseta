@@ -11,7 +11,6 @@ import type {
   CustomerPaymentDto,
   Page,
   PhotoUrlDto,
-  SettlementDecisionIn,
 } from '../types';
 import { attachmentSchema, photoUrlSchema } from './meterSchemas';
 import {
@@ -124,17 +123,6 @@ export const cashService = {
     return tenantSend(
       'post',
       '/tenant/cash/handovers',
-      body,
-      handoverSchema,
-      'cash handover',
-      idempotencyKey,
-    );
-  },
-  /** POST /tenant/cash/handovers/{id}/decision (decideCashHandover); never by the recorder. */
-  decideHandover(handoverId: string, body: SettlementDecisionIn, idempotencyKey: string) {
-    return tenantSend(
-      'post',
-      `/tenant/cash/handovers/${seg(handoverId)}/decision`,
       body,
       handoverSchema,
       'cash handover',

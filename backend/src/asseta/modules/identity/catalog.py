@@ -40,6 +40,8 @@ class MenuDef:
     required_permission: str
     group: str  # MenuGroupDef.key of the same scope (validated by `PermissionCatalog.register_menu`)
     capability: str | None = None  # as MenuGroupDef.capability, for a single menu outside a gated group
+    # (capability, label): the menu stays while that capability is off, under this label (part of the page goes).
+    label_when_off: tuple[str, str] | None = None
 
 
 class PermissionCatalog:
@@ -95,6 +97,12 @@ class PermissionCatalog:
             return frozenset()
         group = self._groups.get(menu.group)
         return frozenset(c for c in (menu.capability, group.capability if group else None) if c)
+
+    def menu_label(self, key: str, label: str, disabled: frozenset[str]) -> str:
+        """The menu's label for a tenant, given its switched-off capabilities."""
+        menu = self._menus.get(key)
+        off = menu.label_when_off if menu else None
+        return off[1] if off and off[0] in disabled else label
 
     def capabilities(self) -> frozenset[str]:
         return frozenset(

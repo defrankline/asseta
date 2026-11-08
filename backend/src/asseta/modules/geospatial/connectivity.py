@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from asseta.modules.geospatial.alerts import AlertService
 from asseta.modules.geospatial.fleet_map import Connectivity, connectivity_for
 from asseta.modules.geospatial.models import AlertSeverity, AlertType
+from asseta.modules.policy.capabilities import TRACKING, capability_on
 from asseta.modules.policy.service import PolicyService
 from asseta.modules.telemetry.models import MachineStateEvent, StateDimension
 
@@ -32,6 +33,8 @@ class SweepResult:
 
 def sweep_tenant(session: Session, tenant_id: uuid.UUID, now: datetime) -> SweepResult:
     result = SweepResult()
+    if not capability_on(session, tenant_id, TRACKING, now):
+        return result  # trackers that stop reporting while tracking is off raise nothing
     policies, alerts = PolicyService(session), AlertService(session, tenant_id)
     rows = session.execute(
         text("""

@@ -18,7 +18,7 @@ from asseta.core.paging import Page, PageParams, page_params, paginate
 from asseta.core.search import ilike_any
 from asseta.modules.identity.catalog import CATALOG, MenuDef
 from asseta.modules.identity.catalog import PermissionScope as S
-from asseta.modules.identity.dependencies import requires
+from asseta.modules.identity.dependencies import gated, requires
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.intelligence.cases import CaseService, case_dtos
 from asseta.modules.intelligence.dto import (
@@ -40,13 +40,28 @@ from asseta.modules.intelligence.models import (
     SignalStatus,
     SubjectType,
 )
+from asseta.modules.policy.capabilities import INVESTIGATIONS
 
 SIGNAL_READ = requires("tenant.signal.read", S.TENANT, "View deterministic risk signals and their evidence")
 CASE_READ = requires("tenant.case.read", S.TENANT, "View investigation cases, linked evidence, notes and outcomes")
 CASE_MANAGE = requires("tenant.case.manage", S.TENANT, "Assign, annotate and reopen investigation cases")
 CASE_RESOLVE = requires("tenant.case.resolve", S.TENANT, "Resolve investigation cases with a recorded outcome")
+# Investigation endpoints need the tenant's INVESTIGATIONS capability (the signal/case permissions alone serve ML).
+SIGNALS = gated(SIGNAL_READ, INVESTIGATIONS)
+CASES = gated(CASE_READ, INVESTIGATIONS)
+CASES_MANAGE = gated(CASE_MANAGE, INVESTIGATIONS)
+CASES_RESOLVE = gated(CASE_RESOLVE, INVESTIGATIONS)
 CATALOG.register_menu(
-    MenuDef("tenant.cases", S.TENANT, "Investigations", "/tenant/cases", 63, "tenant.case.read", "tenant.risk")
+    MenuDef(
+        "tenant.cases",
+        S.TENANT,
+        "Investigations",
+        "/tenant/cases",
+        63,
+        "tenant.case.read",
+        "tenant.risk",
+        capability=INVESTIGATIONS,
+    )
 )
 
 router = APIRouter(prefix="/api/v1/tenant", tags=["intelligence"], responses=ERROR_RESPONSES)
@@ -58,7 +73,7 @@ IdemKey = Annotated[str | None, Header()]
 @router.get("/risk-signals", response_model=Page[RiskSignalDto], operation_id="listRiskSignals")
 def list_signals(
     session: DbSession,
-    _: Annotated[RequestContext, Depends(SIGNAL_READ)],
+    _: Annotated[RequestContext, Depends(SIGNALS)],
     paging: Annotated[PageParams, Depends(page_params)],
     rule_code: RuleCode | None = None,
     severity: SignalSeverity | None = None,
@@ -96,7 +111,7 @@ def list_signals(
 @router.get("/cases", response_model=Page[AnomalyCaseDto], operation_id="listAnomalyCases")
 def list_cases(
     session: DbSession,
-    _: Annotated[RequestContext, Depends(CASE_READ)],
+    _: Annotated[RequestContext, Depends(CASES)],
     paging: Annotated[PageParams, Depends(page_params)],
     status: CaseStatus | None = None,
     severity: SignalSeverity | None = None,
@@ -125,7 +140,7 @@ def list_cases(
 
 @router.get("/cases/{case_id}", response_model=AnomalyCaseDetailDto, operation_id="getAnomalyCase")
 def get_case(
-    case_id: uuid.UUID, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(CASE_READ)]
+    case_id: uuid.UUID, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(CASES)]
 ) -> AnomalyCaseDetailDto:
     return CaseService(session, ctx, now).detail(case_id)
 
@@ -140,7 +155,7 @@ def assign_case(
     body: CaseAssignIn,
     session: DbSession,
     now: Now,
-    ctx: Annotated[RequestContext, Depends(CASE_MANAGE)],
+    ctx: Annotated[RequestContext, Depends(CASES_MANAGE)],
     idempotency_key: IdemKey = None,
 ) -> AnomalyCaseDetailDto:
     guard = _guard(session, ctx, f"assignAnomalyCase:{case_id}", idempotency_key, body)
@@ -157,7 +172,7 @@ def add_note(
     body: CaseNoteIn,
     session: DbSession,
     now: Now,
-    ctx: Annotated[RequestContext, Depends(CASE_MANAGE)],
+    ctx: Annotated[RequestContext, Depends(CASES_MANAGE)],
     idempotency_key: IdemKey = None,
 ) -> CaseNoteDto:
     guard = _guard(session, ctx, f"addAnomalyCaseNote:{case_id}", idempotency_key, body)
@@ -174,7 +189,7 @@ def resolve_case(
     body: CaseResolveIn,
     session: DbSession,
     now: Now,
-    ctx: Annotated[RequestContext, Depends(CASE_RESOLVE)],
+    ctx: Annotated[RequestContext, Depends(CASES_RESOLVE)],
     idempotency_key: IdemKey = None,
 ) -> AnomalyCaseDetailDto:
     guard = _guard(session, ctx, f"resolveAnomalyCase:{case_id}", idempotency_key, body)
@@ -191,7 +206,7 @@ def reopen_case(
     body: CaseReopenIn,
     session: DbSession,
     now: Now,
-    ctx: Annotated[RequestContext, Depends(CASE_MANAGE)],
+    ctx: Annotated[RequestContext, Depends(CASES_MANAGE)],
     idempotency_key: IdemKey = None,
 ) -> AnomalyCaseDetailDto:
     guard = _guard(session, ctx, f"reopenAnomalyCase:{case_id}", idempotency_key, body)

@@ -14,18 +14,28 @@ from asseta.core.clock import get_now
 from asseta.core.db import get_session
 from asseta.core.errors import ERROR_RESPONSES, BusinessRuleViolation
 from asseta.core.paging import PageParams, page_params
-from asseta.modules.finance.permissions import REPORT
 from asseta.modules.geospatial.router import FLEET_READ
 from asseta.modules.identity.catalog import CATALOG, MenuDef
 from asseta.modules.identity.catalog import PermissionScope as S
+from asseta.modules.identity.dependencies import gated
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.intelligence.insights import HISTORY_WEEKS, METHOD, cash_flow, machine_insights
-from asseta.modules.intelligence.insights_dto import CashFlowInsightDto, ManualOverrideReportDto, TenantInsightsDto
+from asseta.modules.intelligence.insights_dto import ManualOverrideReportDto, TenantInsightsDto
 from asseta.modules.intelligence.overrides import manual_override_report
 from asseta.modules.meter.router import METER_READ
+from asseta.modules.policy.capabilities import INSIGHTS
 
 CATALOG.register_menu(
-    MenuDef("tenant.insights", S.TENANT, "Insights", "/tenant/insights", 64, "tenant.fleet.read", "tenant.risk")
+    MenuDef(
+        "tenant.insights",
+        S.TENANT,
+        "Insights",
+        "/tenant/insights",
+        64,
+        "tenant.fleet.read",
+        "tenant.risk",
+        capability=INSIGHTS,
+    )
 )
 
 router = APIRouter(prefix="/api/v1/tenant/insights", tags=["insights"], responses=ERROR_RESPONSES)
@@ -35,7 +45,7 @@ Now = Annotated[datetime, Depends(get_now)]
 
 @router.get("", response_model=TenantInsightsDto, operation_id="getTenantInsights")
 def get_insights(
-    session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(FLEET_READ)]
+    session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(gated(FLEET_READ, INSIGHTS))]
 ) -> TenantInsightsDto:
     assert ctx.tenant_id is not None
     fuel, utilisation = machine_insights(session, ctx.tenant_id, now)
@@ -50,16 +60,10 @@ def get_insights(
     )
 
 
-@router.get("/cash-flow", response_model=CashFlowInsightDto, operation_id="getTenantCashFlowInsight")
-def get_cash_flow(session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(REPORT)]) -> CashFlowInsightDto:
-    assert ctx.tenant_id is not None
-    return cash_flow(session, ctx.tenant_id, now)
-
-
 @router.get("/manual-overrides", response_model=ManualOverrideReportDto, operation_id="listManualOverrides")
 def list_manual_overrides(
     session: DbSession,
-    ctx: Annotated[RequestContext, Depends(METER_READ)],
+    ctx: Annotated[RequestContext, Depends(gated(METER_READ, INSIGHTS))],
     paging: Annotated[PageParams, Depends(page_params)],
     captured_from: datetime | None = None,
     captured_to: datetime | None = None,

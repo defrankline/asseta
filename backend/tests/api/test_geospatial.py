@@ -1,8 +1,8 @@
 """Gate 2 (R1-D) acceptance: polygon/corridor geofences with tolerance, late/out-of-order replay, restricted
-areas, unauthorized movement, fleet map status dimensions, stale handling, playback, proximity, connectivity."""
+areas, unauthorized movement, fleet map status dimensions, stale handling, playback, connectivity."""
 
 import uuid
-from datetime import timedelta
+from datetime import UTC, timedelta
 from typing import Any
 
 import pytest
@@ -14,10 +14,18 @@ from asseta.modules.geospatial.connectivity import sweep_tenant
 from asseta.tools.gps_simulator import Fix, route
 from asseta.workers.connectivity_worker import sweep_all
 from tests.support.api import Api
+from tests.support.notify import sql
 from tests.support.telemetry import DAR, Telemetry, Tracked
 
 LAT, LON = DAR
 D = 0.001  # ~111 m of latitude
+
+
+def _fence_events(a: Tracked) -> list[Any]:
+    """The machine's geofence transitions, in event-time order (stored by the timeline writer)."""
+    return sql(
+        "SELECT transition, event_time FROM geofence_event WHERE machine_id = :m ORDER BY event_time", m=a.machine_id
+    )
 
 
 def square(lat: float, lon: float, half: float) -> dict[str, Any]:
@@ -57,11 +65,7 @@ def test_geofence_exit_with_tolerance_and_late_data_replay(api: Api) -> None:
     tel.send("FEN-1", _at(api, 2, edge + 0.0002))  # ~22 m outside: within 30 m tolerance band -> no exit
     tel.send("FEN-1", _at(api, 4, edge + 0.002))  # ~222 m outside -> EXIT
     tel.drain_timeline()
-    events = a.owner.get(
-        "/api/v1/tenant/geofence-events",
-        **{"from": api.clock.now.isoformat(), "to": (api.clock.now + timedelta(hours=1)).isoformat()},
-    )
-    assert [e["transition"] for e in events.json()] == ["ENTER", "EXIT"]
+    assert [e.transition for e in _fence_events(a)] == ["ENTER", "EXIT"]
     [exit_alert] = _alerts(a, alert_type="GEOFENCE_EXIT")
     assert exit_alert["evidence"]["distance_outside_m"] > 30 and exit_alert["policy_version"].startswith("TRACKING@")
 
@@ -69,12 +73,10 @@ def test_geofence_exit_with_tolerance_and_late_data_replay(api: Api) -> None:
     # and the minute-4 alert is SUPERSEDED (kept for audit), not deleted.
     tel.send("FEN-1", _at(api, 3, edge + 0.003))
     tel.drain_timeline()
-    events = a.owner.get(
-        "/api/v1/tenant/geofence-events",
-        **{"from": api.clock.now.isoformat(), "to": (api.clock.now + timedelta(hours=1)).isoformat()},
+    exits = [e for e in _fence_events(a) if e.transition == "EXIT"]
+    assert len(exits) == 1 and exits[0].event_time.astimezone(UTC).isoformat().startswith(
+        _at(api, 3, 0).time.isoformat()[:16]
     )
-    exits = [e for e in events.json() if e["transition"] == "EXIT"]
-    assert len(exits) == 1 and exits[0]["event_time"].startswith(_at(api, 3, 0).time.isoformat()[:16])
     by_status = {x["status"]: x for x in _alerts(a, alert_type="GEOFENCE_EXIT")}
     assert set(by_status) == {"OPEN", "SUPERSEDED"}
     tel.drain_timeline()  # idempotent: nothing pending, nothing changes
@@ -146,8 +148,6 @@ def test_fleet_map_status_dimensions_staleness_and_history(api: Api) -> None:
     ).json()
     assert len(h["points"]) == len(fixes) and 0.1 < h["distance_km"] < 0.3
     assert len(h["stops"]) == 1 and h["stops"][0]["duration_seconds"] >= 300
-    near = a.owner.get("/api/v1/tenant/fleet/nearby", lon=LON + D, lat=LAT + D, radius_m=50).json()
-    assert [n["machine_id"] for n in near] == [a.machine_id]
 
     other = api.onboard("Other Co", price="1")
     assert other["owner"].get("/api/v1/tenant/fleet/map").json() == []

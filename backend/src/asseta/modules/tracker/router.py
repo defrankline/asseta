@@ -17,8 +17,9 @@ from asseta.core.paging import Page, PageParams, page_params, paginate
 from asseta.core.search import ilike_any
 from asseta.modules.identity.catalog import CATALOG, MenuDef
 from asseta.modules.identity.catalog import PermissionScope as S
-from asseta.modules.identity.dependencies import requires
+from asseta.modules.identity.dependencies import gated, requires
 from asseta.modules.identity.principal import RequestContext
+from asseta.modules.policy.capabilities import TRACKING
 from asseta.modules.tracker.dto import (
     AssignTrackerIn,
     TrackerAssignmentDto,
@@ -43,10 +44,19 @@ from asseta.modules.tracker.service import (
 
 PLATFORM_MODELS = requires("platform.tracker_model.manage", S.PLATFORM, "Manage approved tracker drivers/models")
 PLATFORM_MODELS_READ = requires("platform.tracker_model.read", S.PLATFORM, "View the tracker driver/model catalog")
-TRACKER_READ = requires("tenant.tracker.read", S.TENANT, "View trackers, capabilities and assignments")
-TRACKER_WRITE = requires("tenant.tracker.write", S.TENANT, "Register, assign and retire trackers")
+TRACKER_READ = gated(requires("tenant.tracker.read", S.TENANT, "View trackers, capabilities and assignments"), TRACKING)
+TRACKER_WRITE = gated(requires("tenant.tracker.write", S.TENANT, "Register, assign and retire trackers"), TRACKING)
 for menu in (
-    MenuDef("tenant.trackers", S.TENANT, "Trackers", "/tenant/trackers", 40, "tenant.tracker.read", "tenant.fleet"),
+    MenuDef(
+        "tenant.trackers",
+        S.TENANT,
+        "Trackers",
+        "/tenant/trackers",
+        40,
+        "tenant.tracker.read",
+        "tenant.fleet",
+        capability=TRACKING,
+    ),
     MenuDef(
         "platform.telemetry",
         S.PLATFORM,

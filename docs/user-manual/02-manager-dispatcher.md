@@ -20,7 +20,7 @@ You work mainly in the **web console** at <https://asseta.co.tz>.
 - **Field work**: start and complete jobs, log work and record customer acknowledgements from **My jobs**. Meter readings are taken by supervisors.
 - **Fleet**: register and edit machines, assign supervisors and operators to machines, register and assign GPS trackers, draw job sites and geofences.
 - **Monitoring**: watch the fleet map and history, and acknowledge and resolve tracking alerts.
-- **Approvals**: approve or reject expenses that are above the auto-approval limit.
+- **Expense approvals**: approve or reject expenses that are above the auto-approval limit.
 - **Investigations**: assign, annotate, resolve and reopen investigation cases.
 - **Insights**: review machine utilisation, fuel efficiency and model observations.
 - **Customer hours** (if your company uses prepaid hours): record walk-in customers and hours purchases, link payments, propose and decide customer discounts, credit arrangements, hours transfers and cancellations (never your own), and keep the reason lists.
@@ -48,10 +48,10 @@ The **Tenant Owner** handles these. Your company may customise roles.
 | Field work | My jobs, Cash, Customer hours |
 | Operations | Jobs, Customers, Staff, Site check-ins |
 | Fleet | Machines, Trackers, Sites & geofences, Alerts, Idle machines |
-| Customer hours | Hours purchases, Balances, Hours ledger, Work allocations, Transfers, Cancellations, Customer discounts, Credit arrangements, Walk-in customers, Reason lists |
+| Customer hours | Hours purchases, Balances, Hours ledger, Prepaid hours used, Transfers, Cancellations, Customer discounts, Credit arrangements, Walk-in customers, Reason lists |
 | Engine hours | Non-revenue hours, Daily machine sheet |
 | Risk & review | Investigations, Insights, Security events, Sync conflicts |
-| Finance | Approvals, Revenue differences, Revenue reasons, Unbilled work |
+| Finance | Expense approvals, Revenue differences, Revenue reasons, Unbilled work |
 | Administration | Policies (read-only), Audit log, Notifications, My access |
 
 The **Customer hours** menus appear only when your company has switched customer hours on in its policies. The **Engine hours** menus and **Revenue differences** / **Revenue reasons** appear only when your company has switched revenue checks on (the Engine hours menus also need engine-hour controls). **People scorecard**, **Site check-ins**, **Idle machines** and **Unbilled work** appear only when your company switches them on in its **Oversight** policy. The decisions you see depend on the permissions your role holds; the role setup above is an example your company can change.
@@ -290,7 +290,7 @@ Filter by **Type**, **Severity**, **Status** or **Machine**. Open an alert and:
 
 ### 11. Decide expense approvals
 
-1. Go to **Finance → Approvals**. Expenses above the auto-approval limit wait here.
+1. Go to **Finance → Expense approvals**. Expenses above the auto-approval limit wait here.
 2. Each request shows **Subject**, **Amount**, **Requested by** and **Why approval is needed**.
 3. Click **Approve / reject**. The **Decide expense approval** dialog shows the expense and its receipts.
 4. Approve it, or reject it with a note. The supervisor sees your note.
@@ -400,7 +400,7 @@ A job with **Billing** set to **Prepaid customer hours** draws on the customer's
 
 - Depending on your policy (**When a prepaid job has no hours left**), a prepaid job without remaining activated hours either **cannot start**, or starts and the excess is flagged.
 - When the job is completed, its billable hours are taken from the customer's oldest active purchases first. The job page shows **Customer hours used by this job**.
-- **Customer hours → Work allocations** ("Hours each completed prepaid job used, drawn from the customer's oldest active purchases") lists each job's **Billable**, **Covered** and **Not covered** hours. Use **Show purchases used** to see which purchases were drawn on.
+- **Customer hours → Prepaid hours used** ("Hours each completed prepaid job used, drawn from the customer's oldest active purchases") lists each job's **Billable**, **Covered** and **Not covered** hours. Use **Show purchases used** to see which purchases were drawn on.
 - Hours **not covered** appear as the exception **Hours beyond what the customer has active** (the apps say **Hours beyond purchase**), with **Requires review**. "Hours beyond what the customer had active are never used silently: they are flagged for review until new hours cover them." Depending on your policy it may block invoicing until reviewed. The office reviews it in **Risk & review → Exceptions**.
 
 If your company takes prepaid hours **every day** (**Take prepaid hours from the balance** set to **Every day from the readings (final at completion)**), the balance goes down each day the machine works, not only at completion. See [Task 25](#25-prepaid-hours-used-over-days).
@@ -544,7 +544,7 @@ The **Unbilled work** and **Idle machines** tiles are also on the **Accountabili
 - **Keep one active job per machine** and complete jobs promptly so the next one can start.
 - **Link every supervisor's staff record to their login** before their first job.
 - **Write useful notes** when resolving alerts and cases. They form the audit trail.
-- **Check Alerts and Approvals daily.** Reminders are sent when approvals wait too long.
+- **Check Alerts and Expense approvals daily.** Reminders are sent when approvals wait too long.
 - **Decide hours requests promptly**, but never your own. Keep at least two people with each approval permission.
 - **Record sales for the right machine.** Hours belong to the machine named on the purchase; moving them needs a transfer.
 - **Log movement as Mobilization, not Work**, so it can be explained and approved as non-revenue time.

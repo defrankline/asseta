@@ -168,6 +168,16 @@ class IngestionService:
             )
         machine_id = assignment.machine_id
         eff = PolicyService(self._s).tracking(tracker.tenant_id, machine_id, at=obs.event_time)
+        if not eff.policy.enabled:  # tenant-level switch: no position, machine state, alert or billing fact
+            return self._quarantine(
+                payload,
+                digest,
+                obs,
+                tracker,
+                QuarantineReason.TRACKING_DISABLED,
+                "Tracking is switched off for this tenant",
+                machine_id,
+            )
         policy = eff.policy
         if obs.event_time > self._now + timedelta(seconds=policy.future_timestamp_tolerance_seconds):
             return self._quarantine(

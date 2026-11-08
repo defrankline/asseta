@@ -94,8 +94,7 @@ deliver; delivery is best effort and the inbox is the durable record (re-read it
   own median and robust band, `outside_usual_range`), `utilisation[]` (hours per available day, weekly series,
   `trend` UP|DOWN|FLAT), `cash_flow` (only with `tenant.finance.report`, else null) and `method` (plain-words
   explanation). Each item is `READY` or `INSUFFICIENT_DATA` with `min_weeks_required`, `weeks_observed` and
-  `missing` (what is missing). `GET /api/v1/tenant/insights/cash-flow` (`tenant.finance.report`): weekly verified
-  receipts − approved expenses in the tenant currency (money as decimal strings), `trend_per_week`, `trend`.
+  `missing` (what is missing).
 * `GET /api/v1/tenant/insights/manual-overrides` (`tenant.meter.read`): OCR manual-override audit — `summary`
   (`total`, `manual_corrections`, `manual_mode_with_ocr`, `value_differs`, `exceptions_open`) + paged `items`
   (OCR vs entered value, difference, confidence, engine, who, when, machine, job, related exception); filters

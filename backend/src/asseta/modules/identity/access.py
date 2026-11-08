@@ -18,7 +18,7 @@ from asseta.modules.identity.catalog import CATALOG, MenuDef
 from asseta.modules.identity.catalog import PermissionScope as S
 from asseta.modules.identity.dependencies import requires
 from asseta.modules.identity.idp import IdentityProviderAdmin
-from asseta.modules.identity.models import AppUser, Role, RolePermission, TenantMembership
+from asseta.modules.identity.models import AppUser, Role, TenantMembership
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.identity.tokens import tenant_group_path
 from asseta.modules.managed_service.models import ManagedServiceMandate, MandateAssignment
@@ -35,11 +35,6 @@ OWNER_ROLE = "owner"
 router = APIRouter(prefix="/api/v1/tenant/access", tags=["tenant-access"], responses=ERROR_RESPONSES)
 DbSession = Annotated[Session, Depends(get_session)]
 RoleKey = Annotated[str, StringConstraints(pattern=r"^[a-z][a-z0-9-]{1,63}$")]
-
-
-class RoleDto(BaseModel):
-    key: str
-    permissions: list[str]
 
 
 class MemberRoleDto(BaseModel):
@@ -80,20 +75,6 @@ def _role(session: Session, tenant_id: uuid.UUID, key: str) -> Role:
     if role is None:
         raise NotFound(f"Role '{key}' not found")
     return role
-
-
-@router.get("/roles", response_model=list[RoleDto], operation_id="listTenantRoles")
-def roles(session: DbSession, ctx: Annotated[RequestContext, Depends(ACCESS_READ)]) -> list[RoleDto]:
-    rows = session.execute(select(Role).where(Role.tenant_id == ctx.tenant_id).order_by(Role.key)).scalars()
-    return [
-        RoleDto(
-            key=r.key,
-            permissions=sorted(
-                session.execute(select(RolePermission.permission_code).where(RolePermission.role_id == r.id)).scalars()
-            ),
-        )
-        for r in rows
-    ]
 
 
 @router.get("/members", response_model=list[MemberDto], operation_id="listTenantMembers")

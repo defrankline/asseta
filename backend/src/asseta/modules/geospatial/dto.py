@@ -10,7 +10,6 @@ from asseta.modules.geospatial.models import (
     AlertType,
     GeofenceKind,
     GeofenceShape,
-    GeofenceTransition,
 )
 
 Lon = Annotated[float, Field(ge=-180, le=180)]
@@ -103,16 +102,6 @@ class GeofenceDto(BaseModel):
     version: int
     deactivated_at: datetime | None = None
     deactivation_reason: str | None = None
-
-
-class GeofenceEventDto(Dto):
-    id: uuid.UUID
-    machine_id: uuid.UUID
-    geofence_id: uuid.UUID
-    transition: GeofenceTransition
-    event_time: datetime
-    distance_m: float
-    policy_version: str
 
 
 class AlertDto(Dto):

@@ -30,7 +30,7 @@ from asseta.modules.jobs.lifecycle import job_dtos
 from asseta.modules.jobs.models import Customer, Job, JobStatus, RentalContract
 from asseta.modules.jobs.scope import job_filter, own_staff
 from asseta.modules.meter.engine_models import EngineHourReason, EngineHourReasonKind
-from asseta.modules.policy.capabilities import ENGINE_HOURS, capability_on, disabled_capabilities
+from asseta.modules.policy.capabilities import DEPOSIT_ACCOUNTS, ENGINE_HOURS, capability_on, disabled_capabilities
 from asseta.modules.policy.schemas import PolicyType
 from asseta.modules.policy.service import PolicyService
 from asseta.modules.sync.dto import (
@@ -263,6 +263,8 @@ class SyncService:
     def _deposit_accounts(self, min_revision: int | None) -> list[SyncDepositAccountDto]:
         """The remittance account picker for cash recorders (bootstrap: active; deltas: every change)."""
         if "tenant.collection.record" not in self._ctx.permissions:
+            return []
+        if not capability_on(self._s, self._tid, DEPOSIT_ACCOUNTS, self._now):
             return []
         stmt = select(CompanyDepositAccount).order_by(CompanyDepositAccount.name, CompanyDepositAccount.id)
         if min_revision is None:

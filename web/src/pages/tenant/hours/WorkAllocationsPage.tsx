@@ -108,7 +108,7 @@ export function WorkAllocationsPage() {
   return (
     <>
       <PageHeader
-        title="Work allocations"
+        title="Prepaid hours used"
         subtitle="Hours each completed prepaid job used, drawn from the customer’s oldest active purchases"
       />
       <Box className="flex flex-col gap-3">
@@ -135,7 +135,7 @@ export function WorkAllocationsPage() {
           searchable={false}
           initialSort="-created_at"
           filters={{ job_id: jobId, customer_id: customer?.id, machine_id: machine?.id }}
-          emptyTitle="No work allocations"
+          emptyTitle="No prepaid hours used"
           renderDetail={(a) => <AllocationLines a={a} timeZone={timeZone} />}
           detailLabel={() => 'Show purchases used'}
           toolbar={

@@ -28,7 +28,7 @@ You work in the **web console** at <https://asseta.co.tz> on a laptop or desktop
 
 What you cannot do as an accountant:
 
-- You cannot approve expenses. Expenses above the approval limit go to an owner or manager in **Approvals**.
+- You cannot approve expenses. Expenses above the approval limit go to an owner or manager in **Expense approvals**.
 - You cannot create or approve jobs, change machines, or review meter exceptions.
 - You cannot verify a payment or handover that you recorded yourself, or decide a write-off, retention or adjustment you proposed (see [Segregation of duties](#segregation-of-duties)).
 
@@ -44,7 +44,7 @@ These are your side-menu groups in the web console. The exact menus depend on yo
 | Field work | Fuel, Expenses, Cash, Customer hours | Your own fuel events, expenses and cash collections, the same screens a supervisor uses |
 | Operations | Jobs, Customers, Staff, Site check-ins | Looking up jobs, customers (balances, statements), staff and site check-ins (read-only) |
 | Fleet | Machines, Idle machines | Looking up machines and machines without work (read-only) |
-| Customer hours | Hours purchases, Balances, Hours ledger, Work allocations, and the other hours pages (read) | Linking payments to purchases and activating hours on credit |
+| Customer hours | Hours purchases, Balances, Hours ledger, Prepaid hours used, and the other hours pages (read) | Linking payments to purchases and activating hours on credit |
 | Engine hours | Non-revenue hours, Daily machine sheet | Revenue checks: reading each machine's day and explaining non-revenue time |
 | Finance | Hire finance, Cash custody, Expenses & fuel, Deposit accounts, Revenue differences, Unbilled work, Profitability | Your main daily work |
 | Risk & review | Investigations | Reading investigation cases (read-only) |
@@ -416,7 +416,7 @@ Once per job you receive the notification "Work not yet invoiced: job J-â€¦" ("â
 | Payment, collection, handover | Claimed (unverified) | Recorded, waiting for a second person to confirm |
 | | Verified | Confirmed; settles balances or reduces custody |
 | | Rejected | Not received; allocations released |
-| Expense | Pending approval | Above the auto-approval limit; waiting in Approvals |
+| Expense | Pending approval | Above the auto-approval limit; waiting in Expense approvals |
 | | Approved | Counts as cost (and against custody if paid from cash) |
 | | Rejected | Kept as evidence; never counts as cost or custody |
 | Job (for billing) | Billing ready / Not billing ready | Not ready means readings are missing or blocking exceptions are not yet reviewed |

@@ -59,10 +59,6 @@ export const geofenceService = {
       idempotencyKey,
     );
   },
-  /** GET /tenant/job-sites/{id} (getJobSite). */
-  getJobSite(siteId: string, signal?: AbortSignal): Promise<JobSiteDto> {
-    return tenantGet(site(siteId), jobSiteSchema, 'job site', signal);
-  },
   /** PUT /tenant/job-sites/{id} (updateJobSite); centre editable; `version` required. */
   updateJobSite(
     siteId: string,
