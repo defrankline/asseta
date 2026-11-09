@@ -31,6 +31,10 @@ struct DailyReportsSection: View {
                                 ForEach(AllocationPresentation.flags(report), id: \.self) {
                                     Text($0).font(.caption).foregroundStyle(Palette.warning)
                                 }
+                                Text(DisplayName.optional(report.submittedByName, id: report.submittedBy)
+                                    .map { OwnerAccountabilityTexts.approvalsProposedBy(report.submittedAt.shortStamp, $0) }
+                                    ?? OwnerAccountabilityTexts.approvalsProposed(report.submittedAt.shortStamp))
+                                    .font(.caption).foregroundStyle(.secondary)
                             }
                             .accessibilityElement(children: .combine)
                         }

@@ -19,6 +19,7 @@ struct ApprovalsView: View {
     @State private var jobNumbers: [UUID: String] = [:]
     /// How many wait per decision kind, once each list has loaded.
     @State private var waiting: [DecisionKind: Int] = [:]
+    @State private var revenueWaiting: Int?
 
     var body: some View {
         List {
@@ -27,23 +28,23 @@ struct ApprovalsView: View {
                     .listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
                 approvalRequests
             }
+            otherSections
             ForEach(model.features.decisionKinds.filter { ![.nonRevenue, .allocationCorrection, .adjustmentRequest, .partialRemittance, .varianceClosure].contains($0) }, id: \.self) { kind in
                 DecisionKindSection(model: model, kind: kind, onLoaded: noteWaiting)
             }
             // DEC-031: "Revenue differences" then "Non-revenue hours".
-            if model.features.revenueRead { RevenueDifferencesSection(model: model) }
+            if model.features.revenueRead { RevenueDifferencesSection(model: model) { revenueWaiting = $0 } }
             if model.features.decisionKinds.contains(.nonRevenue) { DecisionKindSection(model: model, kind: .nonRevenue, onLoaded: noteWaiting) }
             // DEC-032: "Daily reports to review" then "Work allocation corrections".
             if model.features.allocationsRead { DailyReportsSection(model: model) }
             if model.features.decisionKinds.contains(.allocationCorrection) { DecisionKindSection(model: model, kind: .allocationCorrection, onLoaded: noteWaiting) }
-            otherSections
             // DEC-032 Phase 2: "Adjustments", after the existing sections.
             if model.features.decisionKinds.contains(.adjustmentRequest) { DecisionKindSection(model: model, kind: .adjustmentRequest, onLoaded: noteWaiting) }
             // DEC-032 Phase 3: "Partial remittance reasons", "Variance closures".
             ForEach([DecisionKind.partialRemittance, .varianceClosure].filter(model.features.decisionKinds.contains), id: \.self) { kind in
                 DecisionKindSection(model: model, kind: kind, onLoaded: noteWaiting)
             }
-            if model.features.nothingWaiting(waiting: waiting) {
+            if model.features.nothingWaiting(waiting: waiting, revenueWaiting: revenueWaiting) {
                 EmptyState(title: ApprovalText.emptyTitle, message: AdjustmentTexts.empty, systemImage: "checkmark.seal")
             }
         }

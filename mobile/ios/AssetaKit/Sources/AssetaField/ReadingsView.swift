@@ -17,7 +17,7 @@ struct ReadingsTabView: View {
         let readings = model.inbox.readings.filter { !attentionOnly || $0.status.needsAttention }
         let resets = model.inbox.resets.filter { !attentionOnly || $0.status.needsAttention }
         List {
-            if model.access.dailyReport {
+            if model.access.dailyReport && model.canReadDailyReports {
                 Button { open(.dailyReports) } label: {
                     LabeledContent {
                         let returned = model.dailyReportsReturned

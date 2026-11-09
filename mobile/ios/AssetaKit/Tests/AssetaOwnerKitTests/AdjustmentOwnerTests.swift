@@ -154,6 +154,10 @@ struct AdjustmentOwnerTests {
         #expect(!accountant.nothingWaiting(waiting: [:]))
         #expect(accountant.nothingWaiting(waiting: [.adjustmentRequest: 0]))
         #expect(!accountant.nothingWaiting(waiting: [.adjustmentRequest: 1]))
+        let revenue = OwnerFeatures(permissions: [AdjustmentPermission.read, "tenant.revenue.read"])
+        #expect(!revenue.nothingWaiting(waiting: revenue.decisionKinds.reduce(into: [:]) { $0[$1] = 0 }, revenueWaiting: 2))
+        #expect(!revenue.nothingWaiting(waiting: revenue.decisionKinds.reduce(into: [:]) { $0[$1] = 0 }, revenueWaiting: nil))
+        #expect(revenue.nothingWaiting(waiting: revenue.decisionKinds.reduce(into: [:]) { $0[$1] = 0 }, revenueWaiting: 0))
         #expect(!OwnerFeatures(permissions: [AdjustmentPermission.read, "tenant.approval.read"]).nothingWaiting(waiting: [.adjustmentRequest: 0]))
         #expect(!OwnerFeatures(permissions: [AdjustmentPermission.read, "tenant.job.read"]).nothingWaiting(waiting: [.adjustmentRequest: 0]))
     }

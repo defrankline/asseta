@@ -269,8 +269,9 @@ public enum AdjustmentPresentation {
 extension OwnerFeatures {
     /// Approvals has nothing at all to show a role without expense requests or other sections, once every decision kind
     /// has loaded with nothing waiting ("Reaching Approvals" in the strings doc).
-    public func nothingWaiting(waiting: [DecisionKind: Int]) -> Bool {
+    public func nothingWaiting(waiting: [DecisionKind: Int], revenueWaiting: Int? = 0) -> Bool {
         !approvals && !jobs && !finance && !meterEvidence && decisionKinds.allSatisfy { waiting[$0] == 0 }
+            && (!revenueRead || revenueWaiting == 0)
     }
 }
 

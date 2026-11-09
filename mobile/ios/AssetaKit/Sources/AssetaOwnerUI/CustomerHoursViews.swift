@@ -150,6 +150,17 @@ private struct StatementBody: View {
                     Text(CustomerHoursPresentation.header(s, fallbackName: customerName)).font(.headline)
                     HoursFieldList(fields: CustomerHoursPresentation.totals(s))
                 }
+                Section(T.usage) {
+                    let lines = CustomerHoursPresentation.usage(s)
+                    if lines.isEmpty { Text(T.usageEmpty).font(.footnote).foregroundStyle(.secondary) }
+                    ForEach(lines, id: \.self) { u in
+                        VStack(alignment: .leading, spacing: 2) {
+                            LabeledContent(u.label) { Text(u.value).monospacedDigit() }
+                            Text(u.caption).font(.caption).foregroundStyle(.secondary)
+                        }
+                        .accessibilityElement(children: .combine)
+                    }
+                }
                 let adjustments = CustomerHoursPresentation.adjustmentLines(s)
                 if !adjustments.isEmpty {
                     Section(T.adjustments) {
@@ -160,17 +171,6 @@ private struct StatementBody: View {
                             }
                             .accessibilityElement(children: .combine)
                         }
-                    }
-                }
-                Section(T.usage) {
-                    let lines = CustomerHoursPresentation.usage(s)
-                    if lines.isEmpty { Text(T.usageEmpty).font(.footnote).foregroundStyle(.secondary) }
-                    ForEach(lines, id: \.self) { u in
-                        VStack(alignment: .leading, spacing: 2) {
-                            LabeledContent(u.label) { Text(u.value).monospacedDigit() }
-                            Text(u.caption).font(.caption).foregroundStyle(.secondary)
-                        }
-                        .accessibilityElement(children: .combine)
                     }
                 }
                 Section {

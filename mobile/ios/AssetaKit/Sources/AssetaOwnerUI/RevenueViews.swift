@@ -15,6 +15,8 @@ private typealias T = RevenueTexts
 /// holders. Shown only when something waits.
 struct RevenueDifferencesSection: View {
     let model: OwnerModel
+    /// How many differences wait, once both lists have loaded.
+    var onLoaded: (Int) -> Void = { _ in }
     @State private var open = Loader<Page<RevenueDifferenceDTO>>()
     @State private var proposed = Loader<Page<RevenueDifferenceDTO>>()
 
@@ -39,6 +41,7 @@ struct RevenueDifferencesSection: View {
             }
             await proposed.load(model, .revenueDifferences(status: RevenueDifferenceStatus.explanationProposed),
                                 OwnerAPI.revenueDifferences(status: RevenueDifferenceStatus.explanationProposed))
+            onLoaded(((listsOpen ? open.value?.items : nil) ?? []).count + (proposed.value?.items ?? []).count)
         }
     }
 }
