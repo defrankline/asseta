@@ -2,7 +2,7 @@
  * Runtime (Yup) response schemas for managed-service mandates and tenant access. Each schema is
  * annotated with its generated contract type, so contract drift fails `npm run typecheck`.
  */
-import { array, object, string, type Schema } from 'yup';
+import { array, boolean, object, string, type Schema } from 'yup';
 import type {
   AssignableRoleDto,
   ClientMandateDto,
@@ -107,6 +107,7 @@ const memberRoleSchema: Schema<MemberRoleDto> = object({
   role_key: text(),
   since: text(),
   mandate_reference: string().nullable().optional(),
+  carries_approvals: boolean().required(),
 });
 
 export const memberSchema: Schema<MemberDto> = object({

@@ -19,6 +19,8 @@ from asseta.core.db import utcnow
 from asseta.core.errors import BusinessRuleViolation, Conflict, NotFound
 from asseta.core.outbox import OutboxWriter
 from asseta.core.search import ilike_any, matches
+from asseta.modules.accountability.models import SecurityEventKind
+from asseta.modules.accountability.security_events import record_security_event
 from asseta.modules.identity.authz_sync import AuthzSyncService
 from asseta.modules.identity.idp import IdentityProviderAdmin
 from asseta.modules.identity.models import AppUser, Role, RolePermission, TenantMembership
@@ -203,6 +205,15 @@ class ManagedService:
         if body.user_id not in {s.user_id for s in self.platform_staff()}:
             raise BusinessRuleViolation("Only platform staff can be assigned", code="MANDATE_NOT_PLATFORM_STAFF")
         if body.role_key not in {r.key for r in self.assignable_roles(m)}:
+            record_security_event(
+                m.tenant_id,
+                SecurityEventKind.PERMISSION_DENIED,
+                self._actor.user_id,
+                action="mandate_assign",
+                entity_type="managed_service_mandate",
+                entity_id=m.id,
+                detail={"code": "MANDATE_ROLE_SCOPE", "role": body.role_key, "scope": str(m.scope)},
+            )
             raise BusinessRuleViolation("Role not available under this mandate's scope", code="MANDATE_ROLE_SCOPE")
         path = tenant_group_path(m.tenant_id, body.role_key)
         mine = {a.group_path for a in self._assignments(m.id, active_only=True) if a.user_id == body.user_id}

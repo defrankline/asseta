@@ -109,6 +109,8 @@ export const PERMISSIONS = {
   /** Users & roles (Keycloak group membership): view; invite and grant/revoke roles. */
   tenantAccessRead: 'tenant.access.read',
   tenantAccessManage: 'tenant.access.manage',
+  /** Give or remove roles that carry approvals (the owner). */
+  tenantAccessAssignApprovers: 'tenant.access.assign_approvers',
   /** The managed-service mandate held over this tenant: view; revoke. */
   tenantManagedServiceRead: 'tenant.managed_service.read',
   tenantManagedServiceRevoke: 'tenant.managed_service.revoke',

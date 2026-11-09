@@ -15,7 +15,12 @@ from asseta.modules.finance.custody_totals import all_custody_balances
 from asseta.modules.identity.authz_sync import AuthzSyncService
 from asseta.modules.identity.catalog import CATALOG, PermissionScope
 from asseta.modules.identity.principal import RequestContext
-from asseta.modules.identity.role_templates import DECISION_PERMISSIONS, TENANT_TEMPLATES, template_permissions
+from asseta.modules.identity.role_templates import (
+    ASSIGN_APPROVERS_PERMISSION,
+    DECISION_PERMISSIONS,
+    TENANT_TEMPLATES,
+    template_permissions,
+)
 from tests.support.api import Actor, Api
 from tests.support.finance import FinCtx, cash_policy, role, setup_finance
 from tests.support.hours import purchase, verify
@@ -67,6 +72,9 @@ def test_field_and_administrator_templates_hold_no_decision_permission() -> None
         assert not [c for c in held if any(w in c for w in words)], key
     assert "tenant.hours.transfer" in _template("supervisor")
     assert "tenant.hours.transfer_approve" not in _template("supervisor")
+    # Giving roles that approve belongs to the owner template alone, whatever prefixes the others carry.
+    assert ASSIGN_APPROVERS_PERMISSION in every
+    assert [t.key for t in TENANT_TEMPLATES if ASSIGN_APPROVERS_PERMISSION in template_permissions(t)] == ["owner"]
 
 
 def test_template_contents() -> None:

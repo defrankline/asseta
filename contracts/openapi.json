@@ -22212,6 +22212,11 @@
       },
       "MemberRoleDto": {
         "properties": {
+          "carries_approvals": {
+            "description": "Assigning or removing this role needs the approver-assignment right",
+            "title": "Carries Approvals",
+            "type": "boolean"
+          },
           "mandate_reference": {
             "anyOf": [
               {
@@ -22236,7 +22241,8 @@
         },
         "required": [
           "role_key",
-          "since"
+          "since",
+          "carries_approvals"
         ],
         "title": "MemberRoleDto",
         "type": "object"

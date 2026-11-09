@@ -15043,6 +15043,11 @@ export interface components {
         /** MemberRoleDto */
         MemberRoleDto: {
             /**
+             * Carries Approvals
+             * @description Assigning or removing this role needs the approver-assignment right
+             */
+            carries_approvals: boolean;
+            /**
              * Mandate Reference
              * @description Held by platform staff under this mandate
              */

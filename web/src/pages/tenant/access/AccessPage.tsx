@@ -1,4 +1,4 @@
-import { Button, Chip, Stack, Tooltip } from '@mui/material';
+import { Alert, Button, Chip, Stack, Tooltip } from '@mui/material';
 import { useCallback, useState } from 'react';
 import { CanMutate } from '../../../access/CanMutate';
 import { PERMISSIONS } from '../../../access/permissionCodes';
@@ -12,6 +12,7 @@ import { ConfirmDialog } from '../../../components/forms/ConfirmDialog';
 import { useAsyncResource } from '../../../hooks/useAsyncResource';
 import { useIdempotencyKey } from '../../../hooks/useIdempotencyKey';
 import { useNotify } from '../../../notifications/useNotify';
+import { useSession } from '../../../session/useSession';
 import { formatInstant } from '../../../utils/dates';
 
 interface Revoking {
@@ -27,6 +28,8 @@ function mandateRef(role: MemberRoleDto): string | null {
 /** Tenant users and their roles. Roles held under a mandate are revoked with the mandate. */
 export function AccessPage() {
   const notify = useNotify();
+  const { hasPermission } = useSession();
+  const canAssignApprovers = hasPermission(PERMISSIONS.tenantAccessAssignApprovers);
   const keyFor = useIdempotencyKey();
   const load = useCallback((signal: AbortSignal) => tenantAccessService.listMembers(signal), []);
   const resource = useAsyncResource(load);
@@ -72,6 +75,7 @@ export function AccessPage() {
                       size="small"
                       color="error"
                       aria-label={`Revoke ${r.role_key} from ${m.display_name}`}
+                      disabled={r.carries_approvals && !canAssignApprovers}
                       onClick={() => {
                         setRevoking({ member: m, role: r });
                       }}
@@ -94,6 +98,11 @@ export function AccessPage() {
         title="Users & roles"
         subtitle="Who can sign in to this account and what they can do. Managed-service roles end with their mandate."
       />
+      {!canAssignApprovers && hasPermission(PERMISSIONS.tenantAccessManage) && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          Only the company owner can give someone a role that approves things.
+        </Alert>
+      )}
       <AsyncContent
         resource={shown}
         isEmpty={(rows) => rows.length === 0}

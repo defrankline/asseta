@@ -43,66 +43,11 @@ from asseta.modules.oversight.checkins import SiteCheckinService
 from asseta.modules.oversight.dto import SiteCheckinIn
 from asseta.modules.policy.capabilities import CASH_CUSTODY, ENGINE_HOURS, SITE_CHECKIN, require_capability
 from asseta.modules.policy.service import PolicyService
+from asseta.modules.sync.conflicts import is_conflict
 from asseta.modules.sync.dto import OperationIn, OperationResultDto, PushIn, PushResultDto
 from asseta.modules.sync.models import BlobUploadSession, ClientOperation, DeviceSession, OperationStatus
 from asseta.modules.sync.service import SyncService
 
-CONFLICT_CODES = {
-    "INVALID_JOB_TRANSITION",
-    "READING_NOT_ALLOWED",
-    "MACHINE_BUSY",
-    "CAPTURE_ID_CONFLICT",
-    "JOB_NOT_ACTIVE",
-    "STALE_VERSION",
-    "DUPLICATE_PAYMENT_REFERENCE",
-    "TRANSFER_ALREADY_DECIDED",  # cash custody: a second acknowledgement of the same transfer/float
-    "FLOAT_ALREADY_ACKNOWLEDGED",
-    # customer hours: two field users drawing on the same remaining hours are serialised; the loser sees a conflict
-    "NO_AVAILABLE_HOURS",
-    "EXCEEDS_REMAINING_HOURS",
-    # engine-hour controls: resolvable later (a baseline approved, the other job corrected), never silently applied
-    "BASELINE_REQUIRED",
-    "OVERLAPPING_ALLOCATION",
-    "OVERLAPPING_ACTIVITY",
-    "BASELINE_PENDING",
-    "CORRECTION_PENDING",
-    # cash retention: the tenant switched retention off after the device's snapshot, or a concurrent duplicate
-    "RETENTION_NOT_ALLOWED",
-    "DUPLICATE_RETENTION",
-    # the tenant switched a capability off after the device queued the operation (kept for review, never applied)
-    "ENGINE_HOURS_DISABLED",
-    "CASH_CUSTODY_DISABLED",
-    # stronger remittances (DEC-031 D2): the tenant switched a requirement on, or deactivated the chosen deposit
-    # account, after the device queued the remittance (kept for review, never applied)
-    "REMITTANCE_REFERENCE_REQUIRED",
-    "REMITTANCE_EVIDENCE_REQUIRED",
-    "REMITTANCE_ACCOUNT_REQUIRED",
-    "DEPOSIT_ACCOUNT_INACTIVE",
-    # site check-ins (DEC-031 M3): switched off after the device queued it, or the same client id reused by another
-    # person (kept for review, never applied)
-    "SITE_CHECKIN_DISABLED",
-    "CHECKIN_ID_CONFLICT",
-    # DEC-032: a daily report whose readings changed or arrived differently, a repeat of its id, a report replaced
-    # already, evidence newly required, or a changeover the job's state no longer allows (kept for review)
-    "REPORT_READINGS_INVALID",
-    "REPORT_HOURS_EXCEED_TOTAL",
-    "REPORT_ID_CONFLICT",
-    "REPORT_NOT_SUPERSEDABLE",
-    "REPORT_EVIDENCE_REQUIRED",
-    "CHANGEOVER_NOT_ALLOWED",
-    "CHANGEOVER_SAME_CUSTOMER",
-    "CHANGEOVER_JOB_REQUIRED",  # billing split switched on after the device queued the changeover
-    "CHANGEOVER_JOB_INVALID",  # the follow-on job was approved, cancelled or changed since
-    # DEC-032 Phase 3: the tenant now requires a collection link or supporting evidence, the balance left a partial
-    # remittance without a reason, or the purchase a collection names changed (kept for review, never applied)
-    "COLLECTION_LINK_REQUIRED",
-    "PARTIAL_REMITTANCE_REASON_REQUIRED",
-    "EVIDENCE_REQUIRED",
-    "PURCHASE_NOT_FOUND",
-    "PURCHASE_CANCELLED",
-    "OVER_ALLOCATION",
-    "ALLOCATION_MISMATCH",
-}
 # Operations that belong to a tenant capability (sync capabilities: dto.TENANT_CAPABILITY_OF). A DAILY meter capture
 # is refused by the meter service itself (same code). Customer-hours operations keep their service refusal.
 OP_CAPABILITY = {
@@ -421,7 +366,7 @@ class PushService:
         except (KeyError, ValueError) as exc:
             return OperationStatus.REJECTED, {"error": {"code": "BAD_PAYLOAD", "message": str(exc)[:500]}}
         except AppError as exc:
-            status = OperationStatus.CONFLICT if exc.code in CONFLICT_CODES else OperationStatus.REJECTED
+            status = OperationStatus.CONFLICT if is_conflict(op.op_type, exc.code) else OperationStatus.REJECTED
             return status, {"error": {"code": exc.code, "message": exc.message}, "server_state": self._state(op)}
 
     def _pending_uploads(self, op: OperationIn) -> list[str]:
