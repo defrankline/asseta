@@ -46,6 +46,11 @@ class ParityPresentationTest {
     )
 
     @Test
+    fun `a saved risk section stays hidden with investigations switched off`() {
+        assertTrue(OverviewPresentation.sections(overview, cached = false, nowMs = now, investigations = false).none { it.title == "Investigations and signals" })
+    }
+
+    @Test
     fun `overview sections, labels and links`() {
         val sections = OverviewPresentation.sections(overview, cached = false, nowMs = now)
         assertEquals(listOf("Fleet", "Jobs and work", "Money (month from 2026-10-01)", "Investigations and signals"), sections.map { it.title })

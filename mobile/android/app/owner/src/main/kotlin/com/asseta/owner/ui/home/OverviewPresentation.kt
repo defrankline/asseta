@@ -51,6 +51,8 @@ object OverviewPresentation {
         money: (BigDecimal, String) -> String = { v, c -> OwnerFormat.money(v, c) },
         /** False when TRACKING is switched off: no connectivity, tracker or alert figures (the server sends zeros). */
         tracking: Boolean = true,
+        /** False when INVESTIGATIONS is switched off: no risk section, even from a saved snapshot. */
+        investigations: Boolean = true,
     ): List<OverviewSection> = listOfNotNull(
         o.fleet?.let { f ->
             val c = f.connectivity
@@ -107,7 +109,7 @@ object OverviewPresentation {
                 emptyText = "No financial activity this month.".takeIf { groups.isEmpty() },
             )
         },
-        o.risk?.let { r ->
+        o.risk?.takeIf { investigations }?.let { r ->
             val rows = listOfNotNull(
                 r.openCases?.let { OverviewRow("Open investigations", "${it.total}", breakdown(it), if (it.critical > 0) KpiTone.CRITICAL else KpiTone.NORMAL) },
                 r.signalsLast7Days?.let { OverviewRow("Signals (last 7 days)", "${it.total}", breakdown(it)) },

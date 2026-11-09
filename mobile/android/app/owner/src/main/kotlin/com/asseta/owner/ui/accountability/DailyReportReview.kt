@@ -73,6 +73,10 @@ object DailyReportPresentation {
         add(T.SUBMITTED to OwnerFormat.dateTime(r.submittedAt, zone))
     }
 
+    /** One row per allocation: the kind as the title, then "{hours} h · {who}". */
+    fun allocationRows(r: DailyReportDto): List<Pair<String, String>> =
+        r.allocations.map { T.kind(it.kind) to T.partValue(R.hours(it.hours), AllocationPresentation.who(it)) }
+
     fun flags(r: DailyReportDto): List<String> = listOfNotNull(
         T.FLAG_LATE.takeIf { r.isLate }, T.FLAG_REPEAT.takeIf { r.isDuplicate }, T.REPLACES.takeIf { r.supersedesId != null },
     )
@@ -134,7 +138,7 @@ fun DailyReportReviewScreen(vm: DailyReportReviewViewModel, session: OwnerSessio
             }
             if (r.allocations.isNotEmpty()) item {
                 SectionCard(T.ALLOCATIONS) {
-                    r.allocations.forEach { a -> KeyValue(listOfNotNull(T.kind(a.kind), AllocationPresentation.who(a)).joinToString(" · "), R.hours(a.hours)) }
+                    DailyReportPresentation.allocationRows(r).forEach { (label, value) -> KeyValue(label, value) }
                 }
             }
             r.note?.takeIf { it.isNotBlank() }?.let { n -> item { SectionCard(T.NOTE) { Text(n) } } }

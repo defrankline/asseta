@@ -6,6 +6,7 @@ import com.asseta.core.domain.owner.OwnerDestination
 import com.asseta.core.model.TenantAccess
 import com.asseta.core.model.owner.AllocationDayDto
 import com.asseta.core.model.owner.DailyReportDto
+import com.asseta.core.model.owner.ReportAllocationDto
 import com.asseta.core.model.owner.SheetMoneyDto
 import com.asseta.core.model.owner.WorkAllocationDto
 import com.asseta.core.network.NetworkFactory
@@ -58,6 +59,15 @@ class AllocationOwnerTest {
         assertEquals("1 h", figures[AllocationTexts.NOT_ACCOUNTED])
         assertEquals("Asha", figures[AllocationTexts.SUBMITTED_BY])
         assertEquals(listOf(AllocationTexts.FLAG_LATE, AllocationTexts.FLAG_REPEAT), DailyReportPresentation.flags(r))
+        assertEquals(DailyReportPresentation.flags(r), item.flags)
+        val allocation = NetworkFactory.json.decodeFromString(
+            ReportAllocationDto.serializer(),
+            """{"allocation_id":"a1","kind":"CUSTOMER_WORK","customer_id":"abcdef12-0000-4000-8000-000000000001","job_number":"J-1","start_reading":"10","end_reading":"12","hours":"2.00"}""",
+        )
+        assertEquals(
+            listOf(AllocationTexts.kind("CUSTOMER_WORK") to "2 h · abcdef12 · J-1"),
+            DailyReportPresentation.allocationRows(r.copy(allocations = listOf(allocation))),
+        )
         assertTrue(DailyReportPresentation.isOwn(r, me))
         assertFalse(DailyReportPresentation.isOwn(r, "someone-else"))
         assertFalse(DailyReportPresentation.canReview(dailyReport("REVIEWED")))

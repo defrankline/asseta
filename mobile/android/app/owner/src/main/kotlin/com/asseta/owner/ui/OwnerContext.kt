@@ -60,6 +60,7 @@ data class OwnerFeatures(val permissions: Set<String>, val disabled: Set<String>
 
     /** Live tracking is in use (TRACKING not switched off): trackers, alerts, geofences and connectivity figures. */
     val tracking get() = TenantAccess.TRACKING !in disabled
+    val investigations get() = TenantAccess.INVESTIGATIONS !in disabled
 
     /** Alerts tab and lists (tenant.fleet.read with TRACKING on). */
     val alerts get() = fleet && tracking

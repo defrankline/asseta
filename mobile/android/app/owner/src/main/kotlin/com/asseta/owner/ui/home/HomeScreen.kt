@@ -54,7 +54,7 @@ fun HomeScreen(
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     SnapshotScaffold(state, vm::refresh) { o ->
-        val sections = OverviewPresentation.sections(o, state.stale, now(), tracking = features.tracking)
+        val sections = OverviewPresentation.sections(o, state.stale, now(), tracking = features.tracking, investigations = features.investigations)
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
             header?.let { h -> item(key = "header") { h() } }
             sections.forEach { section ->

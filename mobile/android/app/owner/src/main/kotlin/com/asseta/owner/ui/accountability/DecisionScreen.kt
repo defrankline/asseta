@@ -198,7 +198,7 @@ fun DecisionScreen(vm: DecisionViewModel, session: OwnerSession, online: Boolean
                     }
                     if (gate !is MutationCheck.Blocked) {
                         OutlinedTextField(
-                            note, { note = it.take(1000) }, Modifier.fillMaxWidth().testTag("decision-note"),
+                            note, { note = it.take(if (deciding.meter) DecisionMapper.METER_NOTE_MAX else DecisionMapper.NOTE_MAX) }, Modifier.fillMaxWidth().testTag("decision-note"),
                             label = { Text(if (deciding.meter) T.NOTE_REQUIRED else T.NOTE_OPTIONAL) }, minLines = 2, enabled = !own,
                         )
                         // Same as the expense approvals: a green "Approve" and a bordered red "Reject" on one row; both
@@ -246,6 +246,7 @@ fun DecisionRow(item: DecisionItem, zone: ZoneId) {
         Text(item.headline, style = AssetaType.headline)
         item.subline?.let { Text(it, style = AssetaType.subheadline, color = palette.secondaryText) }
         item.reason?.takeIf { it.isNotBlank() }?.let { Text(it, style = AssetaType.subheadline, color = palette.secondaryText, maxLines = 2) }
+        item.flags.forEach { Text(it, style = AssetaType.caption, color = OwnerColors.Warning) }
         item.proposedAt?.let {
             val time = OwnerFormat.dateTime(it, zone)
             FootNote(item.proposedByName?.let { name -> T.proposedBy(time, name) } ?: T.proposed(time))

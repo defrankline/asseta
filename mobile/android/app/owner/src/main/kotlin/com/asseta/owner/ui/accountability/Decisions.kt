@@ -135,6 +135,8 @@ data class DecisionItem(
     val originalLine: String? = null,
     /** Who and what the request is about, shown under the headline of its row. */
     val subline: String? = null,
+    /** Warnings shown on the row (a daily report sent late, a repeat). */
+    val flags: List<String> = emptyList(),
     /** Card title of [effects] ("If approved" / "What it did"). */
     val effectsTitle: String? = null,
     val effects: List<DecisionField> = emptyList(),
@@ -173,6 +175,7 @@ object DecisionMapper {
             AllocationTexts.reportLine(RevenuePresentation.num(r.totalHours), RevenuePresentation.num(r.billableHours), RevenuePresentation.num(r.unbillableHours)),
             r.submittedAt, r.submittedBy, r.status, r.status == DailyReportDto.SUBMITTED, emptyList(),
             proposedByName = name(r.submittedByName, r.submittedBy),
+            flags = DailyReportPresentation.flags(r),
         )
     }
 
@@ -411,4 +414,6 @@ object DecisionMapper {
         if (kind.meter) note.trim().length >= METER_NOTE_MIN else approve || note.isNotBlank()
 
     const val METER_NOTE_MIN = 5
+    const val METER_NOTE_MAX = 2000
+    const val NOTE_MAX = 1000
 }
