@@ -85,13 +85,7 @@ The top bar has:
 - A light/dark mode toggle.
 - **Sign out**.
 
-#### 47. Devices (lost phones)
-
-**Administration → Devices** ("Phones signed in to the Supervisor app, and revoking a lost one") needs the permission to view and revoke field devices. The owner and the Administrator role have it. Each row shows the **Person**, the **App**, the **Phone** (or "Model not known"), **Last seen** ("Never synced" if it has not) and the **Status**. Search by person, phone or version.
-
-To revoke a lost or stolen phone, click **Revoke** on its row, enter a **Reason for revoking** and click **Revoke phone**. The dialog warns: "Any unsent work on this phone will be erased." That happens the next time the phone connects, and it cannot be recovered. Records already synced are not affected. The phone can no longer sync or be registered again. The revocation is shown on the row with who did it and why, and is recorded in the audit log. Revoking is not available while the company is read-only.
-
-## The Asseta Owner app
+### The Asseta Owner app
 
 | Tab | What it holds |
 |---|---|
@@ -1025,6 +1019,12 @@ By default only the owner holds these. The Administrator role does not.
 ### 46. Your company goes live
 
 When your company has moved into real use, the Platform Owner marks it live with **Mark as live**, typing your company's name to confirm. From then on the data reset tool refuses your company without a deliberate, recorded override. Finishing the [go-live checklist](#getting-started-the-go-live-checklist) does not do this by itself. If you are ready, ask the Platform Owner.
+
+### 47. Devices (lost phones)
+
+**Administration → Devices** ("Phones signed in to the Supervisor app, and revoking a lost one") needs the permission to view and revoke field devices. The owner and the Administrator role have it. Each row shows the **Person**, the **App**, the **Phone** (or "Model not known"), **Last seen** ("Never synced" if it has not) and the **Status**. Search by person, phone or version.
+
+To revoke a lost or stolen phone, click **Revoke** on its row, enter a **Reason for revoking** and click **Revoke phone**. The dialog warns: "Any unsent work on this phone will be erased." That happens the next time the phone connects, and it cannot be recovered. Records already synced are not affected. The phone can no longer sync or be registered again. The revocation is shown on the row with who did it and why, and is recorded in the audit log. Revoking is not available while the company is read-only.
 
 ---
 
