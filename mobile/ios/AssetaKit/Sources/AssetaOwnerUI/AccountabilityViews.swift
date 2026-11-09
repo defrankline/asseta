@@ -214,12 +214,14 @@ struct AccountabilityDashboardView: View {
             }
             if let summary = loader.value {
                 ManagementGroupsView(model: model, summary: summary)
+                let hasGroups = !ManagementDashboard.groups(summary, features: model.features).isEmpty
+                if hasGroups { Section { Text(ManagementTexts.periodNote).font(.footnote).foregroundStyle(.secondary) } }
                 let tiles = AccountabilityDashboard.tiles(summary, disabled: model.features.disabledCapabilities,
                                                             revenueRead: model.features.revenueRead)
                 if AccountabilityDashboard.showsHiddenNote(summary) {
                     Text(T.dashHiddenNote).font(.footnote).foregroundStyle(.secondary)
                 }
-                if tiles.isEmpty { EmptyState(title: T.dashEmpty, systemImage: "checkmark.shield") }
+                if tiles.isEmpty && !hasGroups { EmptyState(title: T.dashEmpty, systemImage: "checkmark.shield") }
                 ForEach(tiles) { tile in
                     Section {
                         ForEach(Array(tile.rows.enumerated()), id: \.offset) { _, row in TileRow(row: row) }
@@ -231,12 +233,7 @@ struct AccountabilityDashboardView: View {
                         }
                     } header: { Text(tile.title) } footer: { if let footer = tile.footer { Text(footer) } }
                 }
-                Section {
-                    if summary.hoursSection != nil || summary.operationsSection != nil || summary.cashSection != nil || summary.exceptionsSection != nil {
-                        Text(ManagementTexts.periodNote).font(.footnote).foregroundStyle(.secondary)
-                    }
-                    Text(AccountabilityDashboard.footer(summary)).font(.footnote).foregroundStyle(.secondary)
-                }
+                Section { Text(AccountabilityDashboard.footer(summary)).font(.footnote).foregroundStyle(.secondary) }
             } else if let error = loader.error {
                 LoadFailure(message: error) { await reload() }
             } else {

@@ -21,12 +21,11 @@ public enum CollectionLinks {
     typealias T = FieldAccountabilityTexts
 
     /// The customer's open purchases, newest first, then this phone's unsynced sales of that customer, then the open
-    /// invoices (soonest due first), all in the form's currency when one is entered. Nil customer: none.
+    /// invoices in the form's currency (soonest due first). Nil customer: none.
     public static func options(purchases: [HoursPurchaseDTO], unsynced: [ClientOperation], customerID: UUID?,
-                               invoices: [SyncOpenInvoiceDTO] = [], currency: String? = nil) -> [CollectionLinkOption] {
+                               invoices: [SyncOpenInvoiceDTO] = [], currency: String = "") -> [CollectionLinkOption] {
         guard let customerID else { return [] }
-        let code = currency?.trimmingCharacters(in: .whitespaces).uppercased() ?? ""
-        let synced = purchases.filter { $0.customerID == customerID && $0.status != "CANCELLED" && (code.isEmpty || $0.currency == code) }
+        let synced = purchases.filter { $0.customerID == customerID && $0.status != "CANCELLED" }
         let known = Set(synced.compactMap(\.clientID))
         let local: [CollectionLinkOption] = unsynced.compactMap { op in
             guard op.opType == OperationType.hoursPurchase.rawValue, !known.contains(op.entityID),
@@ -37,8 +36,8 @@ public enum CollectionLinks {
         return synced.map {
             CollectionLinkOption(id: $0.id, title: $0.purchaseNumber, subtitle: T.collectionLinkLeft(hours: DecimalInput.format($0.totals.remaining.value)),
                                  operationID: nil)
-        } + local + OpenInvoices.options(invoices, customerID: customerID, currency: code).map {
-            CollectionLinkOption(id: $0.id, title: $0.invoiceNumber, subtitle: T.collectionInvoiceRow(balance: "\($0.currency) \(DecimalInput.format($0.balance.value))"),
+        } + local + OpenInvoices.options(invoices, customerID: customerID, currency: currency).map {
+            CollectionLinkOption(id: $0.id, title: $0.invoiceNumber, subtitle: T.collectionInvoiceRow(balance: "\(DecimalInput.format($0.balance.value)) \($0.currency)"),
                                  operationID: nil, invoice: $0)
         }
     }
@@ -46,7 +45,7 @@ public enum CollectionLinks {
 
 extension AccountabilityDirectory {
     /// "Pays for" rows of one customer: cached purchases plus this phone's sales the server does not have yet.
-    public func collectionLinks(customerID: UUID?, currency: String? = nil) -> [CollectionLinkOption] {
+    public func collectionLinks(customerID: UUID?, currency: String = "") -> [CollectionLinkOption] {
         let waiting = (try? store.outbox.operations(tenantID: tenantID, owner: owner?.subject,
                                                     statuses: [.pending, .sent, .quarantined])) ?? []
         let invoices = (try? OpenInvoices.load(store: store, tenantID: tenantID)) ?? []

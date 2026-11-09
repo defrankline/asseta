@@ -56,7 +56,10 @@ struct CashCollectionFormView: View {
                             Text(FieldAccountabilityTexts.collectionErrLink).font(.footnote).foregroundStyle(Palette.warning)
                         }
                     } footer: { Text(linkedInvoice == nil ? FieldAccountabilityTexts.collectionLinkFooter : FieldAccountabilityTexts.collectionInvoiceFooter) }
-                    .onChange(of: links.map(\.id)) { _, ids in if let linkID, !ids.contains(linkID) { self.linkID = nil } }
+                    // A chosen invoice leaves when the list no longer has it (currency changed, paid off at the last pull).
+                    .onChange(of: links.filter { $0.invoice != nil }.map(\.id)) { old, new in
+                        if let linkID, old.contains(linkID), !new.contains(linkID) { self.linkID = nil }
+                    }
                 }
                 Section {
                     TextField("Amount", text: $amount).keyboardType(.decimalPad).font(.title3.monospacedDigit())

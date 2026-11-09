@@ -27,9 +27,8 @@ public enum ManagementRoutes {
 
     /// Excavator rows use the machine: daily sheet, else machine, else web on the route.
     public static func excavatorTarget(machineID: UUID, route: String, features: OwnerFeatures) -> FigureTarget? {
-        for screen in [OwnerRoute.dailySheet(machineID), .machine(machineID)] where features.allows(screen) && features.route(screen) == screen {
-            return .screen(screen)
-        }
+        if features.machineDays { return .screen(.dailySheet(machineID)) }
+        if features.fleet { return .screen(.machine(machineID)) }
         return webPath(route).map(FigureTarget.web)
     }
 
@@ -52,7 +51,7 @@ public enum ManagementRoutes {
             if rest.count == 2, rest[1] == "balances" {
                 return query["customer_id"].flatMap(UUID.init(uuidString:)).map { .hoursStatement(customer: $0, name: nil) } ?? .customerHours
             }
-            if rest.count == 2, ["transfers", "cancellations", "credit", "discounts"].contains(rest[1]), status == "PENDING" || status == "PROPOSED" {
+            if rest.count == 2, ["transfers", "cancellations", "credit", "discounts"].contains(rest[1]), pendingStatuses.contains(status) {
                 return .approvals
             }
             return nil
@@ -89,7 +88,7 @@ public enum ManagementRoutes {
         guard cash.count == 1 else { return nil }
         switch cash[0] {
         case "remittance-overdue": return .overdueRemittances
-        case "retentions", "adjustments": return status == "PENDING" ? .approvals : nil
+        case "retentions", "adjustments": return pendingStatuses.contains(status) ? .approvals : nil
         case "variances": return status == "WRITE_OFF_PROPOSED" || status == "CLOSURE_PROPOSED" ? .approvals : nil
         case "remittances": return status == "CLAIMED" || query["partial_reason_pending"] == "true" ? .approvals : nil
         default: return nil

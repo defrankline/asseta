@@ -60,8 +60,9 @@ struct OpenInvoicesTests {
                         try Self.invoice("SOON", due: "2026-11-15"), try Self.invoice("USD", currency: "USD"),
                         try Self.invoice("OTHER", customer: Self.other)]
         #expect(OpenInvoices.options(invoices, customerID: Self.customer, currency: " tzs").map(\.invoiceNumber) == ["SOON", "LATE", "NODUE"])
-        #expect(OpenInvoices.options(invoices, customerID: Self.customer).count == 4)
-        #expect(OpenInvoices.options(invoices, customerID: nil).isEmpty)
+        #expect(OpenInvoices.options(invoices, customerID: Self.customer, currency: "").isEmpty) // none until a currency is entered
+        #expect(OpenInvoices.options(invoices + [try Self.invoice("PAID", balance: "0.00")], customerID: Self.customer, currency: "TZS").count == 3)
+        #expect(OpenInvoices.options(invoices, customerID: nil, currency: "TZS").isEmpty)
     }
 
     @Test func allocationIsCappedAtTheOpenBalance() throws {
@@ -91,8 +92,8 @@ struct CollectionInvoiceLinkTests {
         let invoices = [try O.invoice("TZS-1"), try O.invoice("USD-1", currency: "USD"), try O.invoice("X", customer: O.other)]
         let tzs = CollectionLinks.options(purchases: [], unsynced: [], customerID: O.customer, invoices: invoices, currency: "tzs")
         #expect(tzs.map(\.title) == ["TZS-1"] && tzs[0].invoice != nil)
-        #expect(tzs[0].subtitle == "Invoice · TZS 500,000 due" || tzs[0].subtitle?.hasPrefix("Invoice · TZS ") == true)
-        #expect(CollectionLinks.options(purchases: [], unsynced: [], customerID: nil, invoices: invoices).isEmpty)
+        #expect(tzs[0].subtitle == "Invoice · 500000 TZS due")
+        #expect(CollectionLinks.options(purchases: [], unsynced: [], customerID: nil, invoices: invoices, currency: "TZS").isEmpty)
     }
 
     @Test func conflictWordingMatchesTheStringsDoc() {

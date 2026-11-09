@@ -8,6 +8,14 @@ public struct ManagementRow: Hashable, Sendable, Identifiable {
     public let value: String
     public var caption: String? = nil
     public var target: FigureTarget? = nil
+
+    public init(id: String, label: String, value: String, caption: String? = nil, target: FigureTarget? = nil) {
+        self.id = id
+        self.label = label
+        self.value = value
+        self.caption = caption
+        self.target = target
+    }
 }
 
 /// A block of rows under an optional heading.
@@ -16,6 +24,8 @@ public struct ManagementBlock: Hashable, Sendable, Identifiable {
     public var heading: String? = nil
     public let rows: [ManagementRow]
     public var footer: String? = nil
+    /// The heading itself opens this (Pending adjustments).
+    public var headingTarget: FigureTarget? = nil
 }
 
 public struct ManagementGroup: Hashable, Sendable, Identifiable {
@@ -66,7 +76,7 @@ public enum ManagementDashboard {
 
     static func hoursGroup(_ h: CustomerHoursSectionDTO, _ f: OwnerFeatures) -> ManagementGroup {
         let customers = h.remainingByCustomer.map { c in
-            ManagementRow(id: "customer.\(c.customerID)", label: c.customerName ?? "—", value: OwnerFormat.hours(c.remaining),
+            ManagementRow(id: "customer.\(c.customerID)", label: c.customerName ?? c.customerID.uuidString.lowercased(), value: OwnerFormat.hours(c.remaining),
                           target: ManagementRoutes.target(c.route, features: f))
         }
         var blocks = [ManagementBlock(rows: [
@@ -104,8 +114,7 @@ public enum ManagementDashboard {
         var blocks = [ManagementBlock(rows: main)]
         if !o.byExcavator.isEmpty {
             blocks.append(ManagementBlock(heading: T.opsByExcavator, rows: o.byExcavator.map { e in
-                let name = [e.machineCode, e.machineName].compactMap { $0 }.joined(separator: " · ")
-                return ManagementRow(id: "excavator.\(e.machineID)", label: name.isEmpty ? "—" : name, value: OwnerFormat.hours(e.operatingHours),
+                ManagementRow(id: "excavator.\(e.machineID)", label: e.machineCode ?? e.machineName ?? e.machineID.uuidString.lowercased(), value: OwnerFormat.hours(e.operatingHours),
                                      caption: T.opsExcavatorRow(customer: OwnerFormat.hoursNumber(e.customerHours),
                                                                 authorized: OwnerFormat.hoursNumber(e.authorizedHours),
                                                                 unexplained: OwnerFormat.hoursNumber(e.unexplainedHours)),
@@ -129,7 +138,7 @@ public enum ManagementDashboard {
         ])]
         if !c.heldByEmployee.isEmpty {
             blocks.append(ManagementBlock(heading: T.cashHeld, rows: c.heldByEmployee.map { e in
-                ManagementRow(id: "held.\(e.staffMemberID).\(e.currency)", label: e.staffMemberName ?? "—",
+                ManagementRow(id: "held.\(e.staffMemberID).\(e.currency)", label: e.staffMemberName ?? e.staffMemberID.uuidString.lowercased(),
                               value: OwnerFormat.money(e.outstanding, currency: e.currency),
                               caption: T.heldCaption(transit: nonZero(e.inTransitOut, e.currency), claimed: nonZero(e.claimedUnverifiedHandovers, e.currency),
                                                      float: nonZero(e.pendingFloats, e.currency), retained: nonZero(e.approvedRetention, e.currency)),
@@ -159,27 +168,22 @@ public enum ManagementDashboard {
         ]
         main += changeover.items.map { job in
             ManagementRow(id: "changeover.\(job.jobID)",
-                          label: T.excChangeoverRow(job: job.jobNumber ?? "—", machine: job.machineCode ?? job.machineName ?? "—", customer: job.customerName ?? "—"),
+                          label: T.excChangeoverRow(job: job.jobNumber ?? "", machine: job.machineCode ?? job.machineName ?? "", customer: job.customerName ?? ""),
                           value: T.excChangeoverDays(job.daysWaiting), target: ManagementRoutes.target(job.route, features: f))
         }
         var blocks = [ManagementBlock(rows: main)]
         let kinds = { (items: [KindCountDTO]) in items.map { k in
             ManagementRow(id: "kind.\(k.kind)", label: T.kind(k.kind), value: "\(k.count)",
-                          caption: k.oldestAt.map { T.oldest(OwnerFormat.stamp($0, timeZone: timeZone)) },
+                          caption: k.oldestAt.map { T.oldest(OwnerFormat.date($0, timeZone: timeZone)) },
                           target: ManagementRoutes.target(k.route, features: f))
         } }
-        if !e.outstandingApprovals.byKind.isEmpty {
-            blocks.append(ManagementBlock(heading: T.excApprovals(e.outstandingApprovals.total), rows: kinds(e.outstandingApprovals.byKind)))
-        }
-        if !e.pendingAdjustments.byKind.isEmpty {
-            blocks.append(ManagementBlock(heading: T.excPending(e.pendingAdjustments.total), rows: kinds(e.pendingAdjustments.byKind)))
-        }
-        if !e.unresolvedVariances.bySource.isEmpty {
-            blocks.append(ManagementBlock(heading: T.excVariances(e.unresolvedVariances.total), rows: e.unresolvedVariances.bySource.map { v in
-                ManagementRow(id: "variance.\(v.source)", label: T.excVariance(v.source), value: "\(v.count)",
-                              caption: v.unit == "MONEY" ? moneyCaption(v.amounts) : nil, target: ManagementRoutes.target(v.route, features: f))
-            }))
-        }
+        blocks.append(ManagementBlock(heading: T.excApprovals(e.outstandingApprovals.total), rows: kinds(e.outstandingApprovals.byKind)))
+        blocks.append(ManagementBlock(heading: T.excPending(e.pendingAdjustments.total), rows: kinds(e.pendingAdjustments.byKind),
+                                      headingTarget: ManagementRoutes.target(e.pendingAdjustments.route, features: f)))
+        blocks.append(ManagementBlock(heading: T.excVariances(e.unresolvedVariances.total), rows: e.unresolvedVariances.bySource.map { v in
+            ManagementRow(id: "variance.\(v.source).\(v.unit)", label: T.excVariance(v.source), value: "\(v.count)",
+                          caption: moneyCaption(v.amounts), target: ManagementRoutes.target(v.route, features: f))
+        }))
         return ManagementGroup(id: "exceptions_section", title: T.excTitle, blocks: blocks)
     }
 }
@@ -187,6 +191,12 @@ public enum ManagementDashboard {
 /// Employee accountability rows (strings doc): figures, cash held, then one list per non-empty group, DTO order.
 public enum EmployeePresentation {
     typealias T = ManagementTexts
+
+    /// The chip a period handed over by the scorecard matches; nil when no chip covers it (it stays that period).
+    public static func initialPeriod(from: String?, to: String?, now: Date = Date(), timeZone: TimeZone = .current) -> ScorecardPeriod? {
+        guard let from, let to else { return .default }
+        return ScorecardPeriod.allCases.first { $0.range(now: now, timeZone: timeZone) == (from, to) }
+    }
 
     public struct RecordList: Hashable, Sendable, Identifiable {
         public var id: String { title }
@@ -210,11 +220,12 @@ public enum EmployeePresentation {
     /// "{count}" or "{count} · {money}" with money totals per currency (only rows with an amount in a currency).
     public static func figureRows(_ d: EmployeeAccountabilityDTO) -> [ManagementRow] {
         lists(d).map { title, records in
-            var totals: [String: Decimal] = [:]
+            var totals: [(currency: String, amount: Decimal)] = [] // in order of first appearance, as Android
             for record in records {
-                if let amount = record.amount?.value, let currency = record.currency, record.unit != "HOURS" { totals[currency, default: 0] += amount }
+                guard let amount = record.amount?.value, let currency = record.currency, record.unit != "HOURS" else { continue }
+                if let at = totals.firstIndex(where: { $0.currency == currency }) { totals[at].amount += amount } else { totals.append((currency, amount)) }
             }
-            let money = totals.sorted { $0.key < $1.key }.map { OwnerFormat.money($0.value, currency: $0.key) }.joined(separator: ", ")
+            let money = totals.map { OwnerFormat.money($0.amount, currency: $0.currency) }.joined(separator: ", ")
             return ManagementRow(id: title, label: title, value: money.isEmpty ? "\(records.count)" : T.employeeCountMoney(records.count, money))
         }
     }
@@ -231,12 +242,11 @@ public enum EmployeePresentation {
     public static func recordLists(_ d: EmployeeAccountabilityDTO, features: OwnerFeatures, timeZone: TimeZone = .current) -> [RecordList] {
         lists(d).compactMap { title, records in
             records.isEmpty ? nil : RecordList(title: title, rows: records.enumerated().map { index, r in
-                let when = OwnerFormat.stamp(r.occurredAt, timeZone: timeZone)
+                let when = OwnerFormat.date(r.occurredAt, timeZone: timeZone)
                 let status = r.status.map(OwnerFormat.humanize)
                 let amount: String? = if let a = r.amount { r.unit == "HOURS" || r.currency == nil ? OwnerFormat.hours(a) : OwnerFormat.money(a, currency: r.currency!) } else { nil }
-                let parts: [String?] = [r.label, r.counterpartyStaffName]
-                return ManagementRow(id: "\(title).\(index)", label: r.reference ?? r.label ?? OwnerFormat.humanize(r.recordType), value: amount ?? "",
-                                     caption: ([status.map { "\(when) · \($0)" } ?? when] + parts.compactMap { $0 }.filter { $0 != r.reference }).joined(separator: "\n"),
+                return ManagementRow(id: "\(title).\(index)", label: r.reference ?? r.label ?? T.lookupType(r.recordType), value: amount ?? "",
+                                     caption: [status.map { "\(when) · \($0)" } ?? when, r.counterpartyStaffName].compactMap { $0 }.joined(separator: " · "),
                                      target: ManagementRoutes.target(r.route, features: features))
             })
         }
@@ -250,31 +260,28 @@ public enum LookupPresentation {
     public struct Card: Hashable, Sendable, Identifiable {
         public let id: UUID
         public let title: String
-        public let reference: String?
-        public let status: String?
+        /// Reference · status.
+        public let subtitle: String
         public let rows: [ManagementRow]
         public let target: FigureTarget?
     }
 
     public static func card(_ m: LookupMatchDTO, features: OwnerFeatures, timeZone: TimeZone = .current) -> Card {
         func who(_ name: String?, _ at: Date?) -> String? {
-            let when = at.map { OwnerFormat.stamp($0, timeZone: timeZone) }
-            let joined = [name, when].compactMap { $0 }.joined(separator: " · ")
-            return joined.isEmpty ? nil : joined
+            name.map { n in at.map { "\(n) · \(OwnerFormat.stamp($0, timeZone: timeZone))" } ?? n }
         }
         let balance: String? = m.balanceOutstanding.map { value in
             if m.balanceUnit == "HOURS" { return OwnerFormat.hours(value) }
             return m.currency.map { OwnerFormat.money(value, currency: $0) } ?? OwnerFormat.hoursNumber(value)
         }
-        let amount = m.amount.flatMap { value in m.currency.map { OwnerFormat.money(value, currency: $0) } }
-        let machine = [m.machineCode, m.machineName].compactMap { $0 }.joined(separator: " · ")
+        let amount = m.amount.map { value in m.currency.map { OwnerFormat.money(value, currency: $0) } ?? OwnerFormat.hoursNumber(value) }
         let pairs: [(String, String?)] = [
             (T.lookupRecordedBy, who(m.recordedByName, m.recordedAt)), (T.lookupDecidedBy, who(m.decidedByName, m.decidedAt)),
-            (T.lookupCustomer, m.customerName), (T.lookupMachine, machine.isEmpty ? nil : machine), (T.lookupStaff, m.staffMemberName),
+            (T.lookupCustomer, m.customerName), (T.lookupMachine, m.machineCode ?? m.machineName), (T.lookupStaff, m.staffMemberName),
             (T.lookupAmount, amount), (T.lookupBalance, balance), (T.lookupHoursRemaining, m.hoursRemaining.map { OwnerFormat.hours($0) }),
         ]
         let rows = pairs.compactMap { label, value in value.map { ManagementRow(id: label, label: label, value: $0) } }
-        return Card(id: m.id, title: T.lookupType(m.recordType), reference: m.reference, status: m.status.map(OwnerFormat.humanize), rows: rows,
+        return Card(id: m.id, title: T.lookupType(m.recordType), subtitle: [m.reference, m.status.map(OwnerFormat.humanize)].compactMap { $0 }.joined(separator: " · "), rows: rows,
                     target: ManagementRoutes.target(m.route, features: features))
     }
 }

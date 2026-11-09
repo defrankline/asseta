@@ -21,11 +21,13 @@ struct ManagementRowView: View {
         case let .screen(route)?:
             NavigationLink(value: route) { content }
         case let .web(path)?:
-            VStack(alignment: .leading, spacing: 4) {
-                content
-                Button(T.openWeb) { if let url = model.session.configuration?.webURL(for: path) { openURL(url) } }
-                    .font(.footnote).buttonStyle(.borderless)
+            Button { if let url = model.session.configuration?.webURL(for: path) { openURL(url) } } label: {
+                VStack(alignment: .leading, spacing: 2) {
+                    content
+                    Text(T.openWeb).font(.footnote).foregroundStyle(Color.accentColor)
+                }
             }
+            .buttonStyle(.plain)
         case nil:
             content
         }
@@ -45,12 +47,15 @@ struct ManagementGroupsView: View {
     let summary: AccountabilitySummaryDTO
 
     var body: some View {
-        ForEach(ManagementDashboard.groups(summary, features: model.features)) { group in
+        ForEach(ManagementDashboard.groups(summary, features: model.features.without(summary.disabledCapabilities))) { group in
             ForEach(Array(group.blocks.enumerated()), id: \.element.id) { index, block in
                 Section {
+                    if let target = block.headingTarget, let heading = block.heading {
+                        ManagementRowView(model: model, row: ManagementRow(id: "heading", label: heading, value: "", target: target)).fontWeight(.semibold)
+                    }
                     ForEach(block.rows) { ManagementRowView(model: model, row: $0) }
                 } header: {
-                    Text(block.heading ?? (index == 0 ? group.title : ""))
+                    Text(block.headingTarget != nil ? "" : block.heading ?? (index == 0 ? group.title : ""))
                 } footer: {
                     if let footer = block.footer { Text(footer) }
                 }
@@ -66,18 +71,29 @@ struct EmployeeAccountabilityView: View {
     let name: String?
     let from: String?
     let to: String?
-    @State private var period = ScorecardPeriod.default
+    /// Nil: the period handed over by the scorecard, when no chip covers it.
+    @State private var period: ScorecardPeriod?
     @State private var loader = Loader<EmployeeAccountabilityDTO>()
 
+    init(model: OwnerModel, staffID: UUID, name: String?, from: String?, to: String?) {
+        self.model = model
+        self.staffID = staffID
+        self.name = name
+        self.from = from
+        self.to = to
+        _period = State(initialValue: EmployeePresentation.initialPeriod(from: from, to: to))
+    }
+
     private var range: (from: String, to: String) {
-        if let from, let to, period == ScorecardPeriod.default { return (from, to) }
-        return period.range()
+        if let period { return period.range() }
+        if let from, let to { return (from, to) }
+        return ScorecardPeriod.default.range()
     }
 
     var body: some View {
         List {
             Section {
-                FilterChips(options: ScorecardPeriod.allCases.map { ($0, $0.label) }, selection: $period)
+                FilterChips(options: ScorecardPeriod.allCases.map { (Optional($0), $0.label) }, selection: $period)
                     .listRowInsets(EdgeInsets()).accessibilityIdentifier("employee.period")
             }
             if let d = loader.value {
@@ -98,7 +114,7 @@ struct EmployeeAccountabilityView: View {
         .staleBanner(loader, model: model)
         .navigationTitle(T.employeeTitle)
         .refreshable { await reload() }
-        .task(id: "\(model.changeTick)\(period)") { await reload() }
+        .task(id: "\(model.changeTick)\(String(describing: period))") { await reload() }
     }
 
     @ViewBuilder private func identity(_ i: EmployeeIdentityDTO) -> some View {
@@ -127,7 +143,6 @@ struct FindReferenceView: View {
     @State private var result: LookupResultDTO?
     @State private var error: String?
     @State private var working = false
-    @Environment(\.openURL) private var openURL
 
     private var trimmed: String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
 
@@ -151,18 +166,9 @@ struct FindReferenceView: View {
     }
 
     @ViewBuilder private func card(_ card: LookupPresentation.Card) -> some View {
-        Section {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(card.title).font(.headline)
-                if let reference = card.reference { Text(reference).font(.subheadline.monospacedDigit()) }
-                if let status = card.status { Text(status).font(.footnote).foregroundStyle(.secondary) }
-            }
+        Section(card.title) {
+            ManagementRowView(model: model, row: ManagementRow(id: "head", label: card.subtitle, value: "", target: card.target))
             ForEach(card.rows) { LabeledContent($0.label, value: $0.value) }
-            switch card.target {
-            case let .screen(route)?: NavigationLink(value: route) { Text(card.title).foregroundStyle(Color.accentColor) }
-            case let .web(path)?: Button(T.openWeb) { if let url = model.session.configuration?.webURL(for: path) { openURL(url) } }
-            case nil: EmptyView()
-            }
         }
     }
 

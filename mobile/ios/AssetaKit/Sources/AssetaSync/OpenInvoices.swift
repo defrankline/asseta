@@ -9,12 +9,12 @@ public enum OpenInvoices {
     /// `sync_entity.entity_type` of the snapshot.
     public static let entityType = "open_invoice"
 
-    /// The customer's open invoices in a currency (any currency when `currency` is blank), soonest due first; invoices
-    /// without a due date last, then by issue date. Nil customer: none.
-    public static func options(_ invoices: [SyncOpenInvoiceDTO], customerID: UUID?, currency: String? = nil) -> [SyncOpenInvoiceDTO] {
+    /// The customer's open invoices in the collection's currency (the server refuses another; none until one is entered),
+    /// with money still owed, in the server's order: soonest due first, no due date last, then by issue date.
+    public static func options(_ invoices: [SyncOpenInvoiceDTO], customerID: UUID?, currency: String) -> [SyncOpenInvoiceDTO] {
         guard let customerID else { return [] }
-        let code = currency?.trimmingCharacters(in: .whitespaces).uppercased() ?? ""
-        return invoices.filter { $0.customerID == customerID && (code.isEmpty || $0.currency == code) }.sorted { a, b in
+        let code = currency.trimmingCharacters(in: .whitespaces).uppercased()
+        return invoices.filter { $0.customerID == customerID && $0.currency == code && $0.balance.value > 0 }.sorted { a, b in
             switch (a.dueDate, b.dueDate) {
             case let (x?, y?) where x != y: x < y
             case (_?, nil): true

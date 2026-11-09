@@ -81,6 +81,11 @@ public struct OwnerFeatures: Equatable, Sendable {
     /// Find a reference (`tenant.lookup.read`).
     public var lookup: Bool { permissions.contains("tenant.lookup.read") }
 
+    /// These features with more capabilities switched off (the summary's own `disabled_capabilities`).
+    public func without(_ capabilities: [String]) -> OwnerFeatures {
+        OwnerFeatures(permissions: permissions, disabledCapabilities: Array(disabledCapabilities.union(capabilities)))
+    }
+
     /// The Approvals screen shows approval requests or at least one kind of accountability decision.
     public var approvalsScreen: Bool { approvals || !decisionKinds.isEmpty || revenueRead }
 

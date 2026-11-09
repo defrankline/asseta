@@ -26,7 +26,8 @@ struct ManagementPresentationTests {
         #expect(target("/tenant/hours/purchases?queue=UNPAID") == .web("/tenant/hours/purchases?queue=UNPAID"))
         #expect(target("/tenant/hours/ledger") == .web("/tenant/hours/ledger"))
         #expect(target("/tenant/hours/transfers?status=PENDING") == .screen(.approvals))
-        #expect(target("/tenant/hours/transfers") == .web("/tenant/hours/transfers"))
+        #expect(target("/tenant/hours/transfers") == .screen(.approvals))
+        #expect(target("/tenant/hours/transfers?status=APPROVED") == .web("/tenant/hours/transfers?status=APPROVED"))
         #expect(target("/tenant/jobs?status=PENDING_APPROVAL") == .screen(.approvals))
         #expect(target("/tenant/jobs") == .web("/tenant/jobs"))
         #expect(target("/tenant/daily-reports?status=SUBMITTED") == .screen(.approvals))
@@ -57,6 +58,14 @@ struct ManagementPresentationTests {
         let m = Self.id
         #expect(ManagementRoutes.excavatorTarget(machineID: m, route: "/tenant/x", features: Self.all) != nil)
         #expect(ManagementRoutes.excavatorTarget(machineID: m, route: "/tenant/x", features: Self.none) == .web("/tenant/x"))
+    }
+
+    @Test func employeeChipFollowsTheScorecardPeriod() {
+        let now = Date(timeIntervalSince1970: 1_793_000_000), utc = TimeZone(identifier: "UTC")!
+        let week = ScorecardPeriod.last7Days.range(now: now, timeZone: utc)
+        #expect(EmployeePresentation.initialPeriod(from: week.from, to: week.to, now: now, timeZone: utc) == .last7Days)
+        #expect(EmployeePresentation.initialPeriod(from: "2020-01-01", to: "2020-01-05", now: now, timeZone: utc) == nil)
+        #expect(EmployeePresentation.initialPeriod(from: nil, to: nil, now: now, timeZone: utc) == .last30Days)
     }
 
     @Test func deepLinkAndGating() {
@@ -102,7 +111,7 @@ struct ManagementPresentationTests {
         #expect(attempts.value == "3" && attempts.caption == "Denied 1 · Second person required 2")
         #expect(exc[0].rows.contains { $0.id == "changeover" && $0.caption == "Oldest 5 days" })
         let ops = groups[1].blocks[1].rows[0]
-        #expect(ops.label == "EX-1 · Ex" && ops.caption == "Customer 6 h · Authorized 1 h · Unexplained 1 h")
+        #expect(ops.label == "EX-1" && ops.caption == "Customer 6 h · Authorized 1 h · Unexplained 1 h")
         #expect(groups[2].blocks[1].heading == T.cashHeld)
     }
 
@@ -127,7 +136,7 @@ struct ManagementPresentationTests {
         #expect(EmployeePresentation.cashHeld(d)[0].caption?.hasPrefix("Claimed") == true)
         let lists = EmployeePresentation.recordLists(d, features: Self.all, timeZone: TimeZone(identifier: "UTC")!)
         #expect(lists.map(\.title) == [T.employeeListCollections])
-        #expect(lists[0].rows[0].caption?.contains(" · Verified") == true)
+        #expect(lists[0].rows[0].caption == "1 Nov 2026 · Verified")
         #expect(lists[0].rows[0].target == .web("/tenant/customer-payments/\(S.uuid)"))
         #expect(EmployeePresentation.figureRows(try Self.employee(scorecard: true)).count == 14)
     }
@@ -136,7 +145,7 @@ struct ManagementPresentationTests {
         let json = #"{"record_type":"hours_purchase","id":"\#(S.uuid)","reference":"HP-1","route":"/tenant/hours/purchases/\#(S.uuid)","status":"ACTIVE","recorded_by_name":"Sam","recorded_at":"2026-11-01T08:00:00Z","balance_outstanding":"3.50","balance_unit":"HOURS","hours_remaining":"2"}"#
         let match = try AssetaJSON.decoder().decode(LookupMatchDTO.self, from: Data(json.utf8))
         let card = LookupPresentation.card(match, features: Self.all, timeZone: TimeZone(identifier: "UTC")!)
-        #expect(card.title == "Hours purchase" && card.status == "Active")
+        #expect(card.title == "Hours purchase" && card.subtitle == "HP-1 · Active")
         #expect(card.rows.map(\.label) == [T.lookupRecordedBy, T.lookupBalance, T.lookupHoursRemaining])
         #expect(card.rows[1].value == "3.5 h" && card.target == .screen(.hoursPurchase(Self.id)))
         #expect(T.lookupType("cash_handover") == "Remittance" && T.lookupType("new_thing") == OwnerFormat.humanize("new_thing"))
