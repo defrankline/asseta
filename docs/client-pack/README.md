@@ -23,20 +23,28 @@ Everything here describes the system as it is built today. Where something canno
 | Documents 01 to 05 and 07 | Written and checked against the system as built |
 | Document 06 | **Draft.** The Platform Owner must review it before it is given to the company |
 | The 13 scenarios | The script is written. **The demonstration has not yet been held.** The scenarios count as accepted only when the signature page in document 05 is signed |
-| Schedule and cost | Not yet written (see below) |
+| Schedule and cost | Draft below, to be completed |
 
-## Schedule and cost — to be completed by the Platform Owner
+## Schedule and cost
 
-*This section is a placeholder. The Platform Owner completes it before the pack is handed over.*
+*Draft for the Platform Owner to correct before the pack is handed over. Timings are suggestions. Amounts and dates in **[bold brackets]** must be filled in.*
 
-| Item | To be completed |
+| Step | What happens | Suggested timing | Date |
+|---|---|---|---|
+| 1. Demonstration | The 13 acceptance scenarios are shown on a test company and signed off | Week 1 | **[date]** |
+| 2. Company setup | Go-live checklist: people, machines, customers, rates, trackers, controls, deposit accounts | Week 1–2 | **[date]** |
+| 3. Training | Owner, field managers (supervisors), finance, by role | Week 2 | **[date]** |
+| 4. Starting readings | A verified starting meter reading is approved for every excavator | Week 2 | **[date]** |
+| 5. Pilot | Real work on one or two excavators, reviewed daily | Week 3 | **[date]** |
+| 6. Go-live | All excavators, company marked as live | Week 4 | **[date]** |
+
+| Cost item | Amount |
 |---|---|
-| Implementation schedule (demonstration date, training dates, go-live date) | |
-| Implementation cost | |
-| Monthly subscription (per billable machine) | |
-| Trackers and installation, if any | |
-| SMS credits, if any | |
-| Payment terms | |
+| Implementation and setup | **[amount]** |
+| Monthly subscription, per billable machine | **[amount]** |
+| Trackers and installation, if any, per machine | **[amount]** |
+| SMS credits, if any | **[amount]** |
+| Payment terms | **[terms]** |
 
 ## Words used in this pack
 

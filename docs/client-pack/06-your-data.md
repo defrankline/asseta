@@ -2,7 +2,7 @@
 
 > **DRAFT for the Platform Owner to review. Not yet approved. Do not give this to the company until it has been reviewed.**
 >
-> This draft describes what the system does today. It makes no legal promise. Any ownership statement, contract term or legal commitment is for the Platform Owner to add. Items the Platform Owner must decide are marked **[To decide]**.
+> This draft describes what the system does today. It makes no legal promise. The proposed statements below are suggestions for the Platform Owner to accept, change or remove, and should be reviewed by a lawyer before they are given to the company. Anything still to be filled in is shown in **[bold brackets]**.
 
 ## What data the company has in Asseta
 
@@ -15,7 +15,9 @@
 | **History** | The audit log, security events, investigations and sync records |
 | **People** | Staff records and the roles they hold |
 
-**[To decide]** Proposed statement on ownership, for the Platform Owner and the company to agree. Your guideline asks for confirmation that the company will own and have access to its data, system configuration and necessary accounts.
+**Proposed statement on ownership** *(draft wording, Platform Owner to confirm; have a lawyer review it before signing)*:
+
+> The company owns all data it records in Asseta, including its business records, ledgers, evidence files, tracking data, configuration and history. The Platform Owner holds and processes this data only to provide the service. The Platform Owner does not sell it, and does not use it for any other company. The Asseta software itself remains the property of the Platform Owner. The company can export its data at any time during the agreement using **Administration → Data export**.
 
 ## How to export it
 
@@ -52,7 +54,7 @@ Every export request and every download is recorded in the audit log.
 | Company owner role | Held by the company. Asseta will not let the last owner be removed |
 | Servers, domain, app store listings | Held by the Platform Owner |
 
-**[To decide]** Whether any of these accounts are to be transferred or shared with the company. The system has no feature for this.
+**Proposed position** *(draft, Platform Owner to confirm)*: Asseta is a shared service, so the servers, domain and app store listings stay with the Platform Owner and are not transferred. The company holds its own owner role, controls who has which role, and can take its data out at any time. If the company has its own SIM cards and trackers, those remain the company's property.
 
 ## How long data is kept
 
@@ -65,7 +67,14 @@ Every export request and every download is recorded in the audit log.
 | Saved screens on the Owner app | Up to 7 days | Erased on sign-out |
 | Unsent records on the Supervisor app | Until they sync | Erased if the phone is revoked. See limit 16 |
 
-**[To decide]** Retention period and deletion after the end of a contract. Any legal minimum retention. The system has no legal minimums built in.
+**Proposed position after a contract ends** *(draft, Platform Owner to confirm; the periods are suggestions)*:
+
+| Step | Proposed |
+|---|---|
+| Access to export | The company keeps access to export its data for **90 days** after the agreement ends |
+| Deletion | After that, the company's records and evidence files are erased on the company's written request, or after **[period to confirm]** if no request is made |
+| Backups | Erased copies leave the backups as those age out (30 days by default) |
+| Legal minimums | Tanzanian tax, accounting and personal-data rules may require records to be kept for a minimum time or handled in a set way. **Confirm these with an accountant and a lawyer**; the system has no legal minimums built in |
 
 **Removal tools.** The Platform Owner holds administrative tools that can erase a company's records. They are for test companies and for clearing trial data before go-live, and they need a recent backup. Once the Platform Owner marks a company as live, the reset tool refuses it unless a deliberate override is used, which is recorded.
 
@@ -88,6 +97,13 @@ Every export request and every download is recorded in the audit log.
 
 **Without a mandate**, the Platform Owner can see subscription and billing information for each company, and per-company counts from balance verification, but not the records behind them.
 
-**What this does not cover.** The people who run the servers have technical access below the level of these rules. Direct actions at that level would not appear in the company's audit log. See limit 18 in [What the technology cannot fully enforce](04-what-the-technology-cannot-fully-enforce.md). **[To decide]** What the Platform Owner commits to in the agreement about such access.
+**What this does not cover.** The people who run the servers have technical access below the level of these rules. Direct actions at that level would not appear in the company's audit log. See limit 18 in [What the technology cannot fully enforce](04-what-the-technology-cannot-fully-enforce.md). **Proposed commitment** *(draft, Platform Owner to confirm)*: server-level access is limited to the people who run the service, is used only to operate, secure or repair the service, and is not used to read or change the company's records except where needed for a repair the company has been told about.
 
-**[To decide]** Backup arrangements to be confirmed to the company: whether the off-site copy is in place, and when a restore was last tested.
+**Proposed backup statement** *(draft; fill in the facts before giving this to the company)*:
+
+| Item | Statement |
+|---|---|
+| Frequency | Daily |
+| Kept for | 30 days |
+| Off-site copy | **[Confirm: in place at (location) / not yet in place]** |
+| Last restore test | **[Date of the last successful restore test]** |
