@@ -15,9 +15,10 @@ from asseta.core.db import get_session
 from asseta.core.errors import ERROR_RESPONSES
 from asseta.core.idempotency import IdempotencyGuard, request_hash
 from asseta.core.paging import Page, PageParams, page_params, paginate
+from asseta.core.search import ilike_any
 from asseta.modules.accountability.names import named
 from asseta.modules.adjustments.requests import AdjustmentRequests
-from asseta.modules.finance.common import tenant_settings
+from asseta.modules.finance.common import period_conditions, tenant_settings
 from asseta.modules.finance.dto import (
     CustomerBalanceDto,
     CustomerPaymentDto,
@@ -32,7 +33,13 @@ from asseta.modules.finance.dto import (
     SettlementDecisionIn,
 )
 from asseta.modules.finance.invoice_service import HireInvoiceService, invoice_dto
-from asseta.modules.finance.models import CustomerPayment, HireInvoiceStatus, SettlementStatus, TenantHireInvoice
+from asseta.modules.finance.models import (
+    CustomerPayment,
+    HireInvoiceStatus,
+    HirePaymentMethod,
+    SettlementStatus,
+    TenantHireInvoice,
+)
 from asseta.modules.finance.payment_service import CustomerPaymentService, payment_dto
 from asseta.modules.finance.permissions import (
     FINANCE_READ,
@@ -161,19 +168,28 @@ def record_payment(
 @named
 def list_payments(
     session: DbSession,
-    _: Annotated[RequestContext, Depends(FINANCE_READ)],
+    ctx: Annotated[RequestContext, Depends(FINANCE_READ)],
     paging: Annotated[PageParams, Depends(page_params)],
     status: SettlementStatus | None = None,
     customer_id: uuid.UUID | None = None,
     staff_member_id: uuid.UUID | None = None,
+    method: HirePaymentMethod | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
 ) -> Page[CustomerPaymentDto]:
-    stmt = select(CustomerPayment).order_by(CustomerPayment.received_at.desc())
+    assert ctx.tenant_id is not None
+    period = period_conditions(session, ctx.tenant_id, CustomerPayment.received_at, date_from, date_to)
+    stmt = select(CustomerPayment).where(*period).order_by(CustomerPayment.received_at.desc())
+    if method:
+        stmt = stmt.where(CustomerPayment.method == method)
     if status:
         stmt = stmt.where(CustomerPayment.status == status)
     if customer_id:
         stmt = stmt.where(CustomerPayment.customer_id == customer_id)
     if staff_member_id:
         stmt = stmt.where(CustomerPayment.received_by_staff_id == staff_member_id)
+    if (match := ilike_any(paging.q, CustomerPayment.collection_number, CustomerPayment.reference)) is not None:
+        stmt = stmt.where(match)
     rows, total = paginate(session, stmt, paging)
     return Page(
         items=[payment_dto(session, p) for p in rows], total=total, page=paging.page, page_size=paging.page_size

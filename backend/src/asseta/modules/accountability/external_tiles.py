@@ -56,11 +56,13 @@ def customer_hours_tile(s: Session, _: RequestContext, __: datetime) -> dict[str
 def _purchase_statuses(s: Session) -> dict[str, int]:
     """Count of open purchases per derived status (AWAITING_PAYMENT, PARTLY_ACTIVE, ...), from the hours ledger."""
     purchase = _optional("asseta.modules.hours.models", "HoursPurchase")
-    totals = _optional("asseta.modules.hours.ledger", "purchase_totals")
+    totals = _optional("asseta.modules.hours.ledger", "purchase_totals_bulk")
     status_of = _optional("asseta.modules.hours.ledger", "derived_status")
+    purchases = list(s.execute(select(purchase).where(purchase.cancelled_at.is_(None))).scalars())
+    totals_of = totals(s, purchases)
     counts: dict[str, int] = {}
-    for p in s.execute(select(purchase).where(purchase.cancelled_at.is_(None))).scalars():
-        st = str(status_of(p, totals(s, p)))
+    for p in purchases:
+        st = str(status_of(p, totals_of[p.id]))
         counts[st] = counts.get(st, 0) + 1
     return counts
 

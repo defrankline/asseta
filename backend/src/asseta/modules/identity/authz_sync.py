@@ -20,6 +20,7 @@ from asseta.modules.identity.role_templates import (
 from asseta.modules.identity.tokens import platform_group_path, tenant_group_path
 
 log = structlog.get_logger()
+RETIRED_MARK = "retired:"  # role_template_grant row recording a one-time removal, so it never repeats
 
 
 class AuthzSyncService:
@@ -41,9 +42,22 @@ class AuthzSyncService:
         self.apply_templates(session, only_paths={tenant_group_path(tenant_id, k) for k in result})
         return result
 
+    def ensure_tenant_roles(self, session: Session) -> None:
+        """A template added by a release also exists for tenants provisioned before it."""
+        existing = {g.path for g in self._idp.list_role_groups()}
+        for tenant_id in IdentityRepository(session).tenant_ids():
+            for template in TENANT_TEMPLATES:
+                if (path := tenant_group_path(tenant_id, template.key)) not in existing:
+                    self._idp.ensure_group(path)
+
     def apply_templates(self, session: Session, only_paths: set[str] | None = None) -> int:
         """Offer each template permission to each matching role group exactly once. New permissions from a
-        release reach existing groups; permissions an owner removed after being offered are never re-added."""
+        release reach existing groups; permissions an owner removed after being offered are never re-added. A group
+        whose name matches no template (a custom role) is never touched.
+
+        Two one-time corrections: a permission moved into a template later (`later_additions`) reaches an existing group
+        only if nobody has edited that group, so a tenant's own arrangement of it is not widened; and a permission a
+        template should never have held (`retired`) is taken away once, after which a deliberate re-grant stands."""
         repo = IdentityRepository(session)
         templates = {t.key: t for t in (*PLATFORM_TEMPLATES, *TENANT_TEMPLATES)}
         changed = 0
@@ -51,14 +65,17 @@ class AuthzSyncService:
             template = templates.get(group.name)
             if template is None or (only_paths is not None and group.path not in only_paths):
                 continue
-            wanted = template_permissions(template)
-            to_offer = wanted - repo.offered_codes(group.path)
-            if not to_offer:
-                continue
-            if to_offer - group.permission_codes:
-                self._idp.set_group_permissions(group.group_id, set(group.permission_codes) | to_offer)
+            offered = repo.offered_codes(group.path)
+            current = set(group.permission_codes)
+            edited = current != {c for c in offered if not c.startswith(RETIRED_MARK)}
+            to_offer = template_permissions(template) - offered
+            held_back = to_offer & template.later_additions if edited else set()
+            retire = {c for c in template.retired if f"{RETIRED_MARK}{c}" not in offered}
+            wanted = (current | (to_offer - held_back)) - (retire & current)
+            if wanted != current:
+                self._idp.set_group_permissions(group.group_id, wanted)
                 changed += 1
-            repo.record_offered(group.path, to_offer)
+            repo.record_offered(group.path, to_offer | {f"{RETIRED_MARK}{c}" for c in retire})
         if changed:
             log.info("authz_template_permissions_offered", groups=changed)
         return changed
@@ -99,5 +116,6 @@ class AuthzSyncService:
     def full_sync(self, session: Session) -> int:
         self.push_catalog(session)
         self.ensure_platform_roles()
+        self.ensure_tenant_roles(session)
         self.apply_templates(session)
         return self.pull_role_mirror(session)

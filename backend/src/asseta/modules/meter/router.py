@@ -59,8 +59,25 @@ from asseta.modules.meter.service import (
 )
 
 CAPTURE = requires("tenant.meter.capture", S.TENANT, "Capture hour-meter readings and evidence")
-EVIDENCE_READ = requires_any(("tenant.meter.read", "tenant.adjustment.read"), S.TENANT)
-EVIDENCE_UPLOAD = requires_any(("tenant.meter.capture", "tenant.adjustment.propose"), S.TENANT)
+# Who may attach supporting evidence (each flow still enforces its own permission on the record it evidences).
+EVIDENCE_READ = requires_any(
+    ("tenant.meter.read", "tenant.adjustment.read", "tenant.finance.read", "tenant.hours.read", "tenant.revenue.read"),
+    S.TENANT,
+)
+EVIDENCE_UPLOAD = requires_any(
+    (
+        "tenant.meter.capture",
+        "tenant.meter.review",
+        "tenant.adjustment.propose",
+        "tenant.finance.variance",
+        "tenant.finance.cash",
+        "tenant.collection.record",
+        "tenant.hours.transfer",
+        "tenant.hours.credit",
+        "tenant.revenue.explain",
+    ),
+    S.TENANT,
+)
 METER_READ = requires("tenant.meter.read", S.TENANT, "View meter readings, evidence and exceptions")
 REVIEW = requires("tenant.meter.review", S.TENANT, "Review meter/GPS exceptions")
 APPROVE = requires("tenant.meter.approve", S.TENANT, "Approve meter resets and reading corrections")

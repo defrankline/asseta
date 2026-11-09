@@ -1,7 +1,7 @@
 """Versioned offline sync protocol DTOs (`/api/v1/sync`, protocol version 1)."""
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -13,6 +13,7 @@ from asseta.modules.fleet.dto import MachineDto, StaffDto
 from asseta.modules.geospatial.dto import JobSiteDto
 from asseta.modules.jobs.dto import AcknowledgementDto, ActivityDto, ContractDto, CustomerDto, JobDto
 from asseta.modules.meter.dto import ExceptionDto, MeterCaptureDto, ResetDto
+from asseta.modules.platform_billing.dto import Money
 
 PROTOCOL_VERSION = 1
 # Additive, optional features of protocol 1 (old clients ignore unknown fields; new clients check before relying).
@@ -40,6 +41,7 @@ CAPABILITIES = [
     "METER_CHANGEOVER",
     "SYNC_CHANGEOVER_JOBS",  # SyncData.changeover_jobs: pending/approved jobs on the supervisor's machines
     "SYNC_UNBILLABLE_REASONS",  # SyncData.unbillable_reasons: tenant list for daily reports (capture permission)
+    "SYNC_OPEN_INVOICES",  # SyncData.open_invoices: current open invoices of the recorder's customers (full snapshot)
     # DEC-032 Phase 3: CASH_COLLECTION accepts purchase_id (the purchase's id or offline client id; refused with
     # COLLECTION_LINK_REQUIRED when the tenant requires a link and none is given); CASH_HANDOVER accepts
     # partial_reason + partial_reason_id (PARTIAL_REMITTANCE_REASON_REQUIRED when the balance is not fully remitted);
@@ -174,6 +176,21 @@ class SyncUnbillableReasonDto(BaseModel):
     sync_revision: int
 
 
+class SyncOpenInvoiceDto(BaseModel):
+    """An issued invoice with money still owed, so a collection can be linked to it (DEC-032)."""
+
+    id: uuid.UUID
+    invoice_number: str
+    customer_id: uuid.UUID
+    customer_name: str
+    currency: str
+    total: Money
+    paid: Money
+    balance: Money
+    due_date: date | None
+    issued_at: datetime
+
+
 class SyncData(BaseModel):
     jobs: list[JobDto] = []
     machines: list[MachineDto] = []
@@ -183,6 +200,9 @@ class SyncData(BaseModel):
     staff: list[StaffDto] = []
     expense_categories: list[ExpenseCategoryDto] = []
     cash_custody: list[CashCustodyBalanceDto] = []  # the signed-in supervisor's current custody (server-owned)
+    # SYNC_OPEN_INVOICES: open invoices of the customers on the caller's jobs (collection recorders only). A full
+    # snapshot on every bootstrap and delta, like cash_custody (invoices carry no sync revision): replace the local set.
+    open_invoices: list[SyncOpenInvoiceDto] = []
     # Company deposit accounts for the remittance picker (REMITTANCE_DETAILS_V1; cash recorders only). Bootstrap:
     # active accounts; deltas: changes since the cursor, deactivations included (is_active=false).
     deposit_accounts: list[SyncDepositAccountDto] = []

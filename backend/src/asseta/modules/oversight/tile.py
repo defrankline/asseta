@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from asseta.modules.accountability.names import fill_names
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.oversight.idle import idle_machines
-from asseta.modules.oversight.unbilled import unbilled_jobs
+from asseta.modules.oversight.unbilled import changeovers_awaiting_approval, unbilled_jobs
 from asseta.modules.policy.service import PolicyService
 
 ITEMS = 20
@@ -24,8 +24,14 @@ def unbilled_work_tile(s: Session, ctx: RequestContext, now: datetime) -> dict[s
     for r in rows:
         if r.total is not None:
             amounts[r.currency].append(r.total)
+    changeovers = changeovers_awaiting_approval(s, now)
     return {
         "count": len(rows),
+        "changeovers_awaiting_approval": {
+            "count": len(changeovers),
+            "oldest_days": max((c["days_waiting"] for c in changeovers), default=None),
+            "items": changeovers[:ITEMS],
+        },
         "after_days": PolicyService(s).oversight(ctx.tenant_id, at=now).policy.unbilled_after_days,
         "amounts": [
             {"currency": c, "count": len(v), "amount": str(sum(v, Decimal(0)))} for c, v in sorted(amounts.items())

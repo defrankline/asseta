@@ -9,8 +9,10 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from decimal import ROUND_FLOOR, Decimal
+from enum import StrEnum
+from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import Select, case, func, select
 from sqlalchemy.orm import Session
 
 from asseta.modules.finance.models import CustomerPayment, SettlementStatus
@@ -96,6 +98,91 @@ def purchase_totals(session: Session, purchase: HoursPurchase) -> PurchaseTotals
         elif source is ActivationSource.CREDIT:
             credit += Decimal(hours)
     return PurchaseTotals(purchase.hours, dict(machines), paid, credit)
+
+
+def purchase_totals_bulk(session: Session, purchases: list[HoursPurchase]) -> dict[uuid.UUID, PurchaseTotals]:
+    """`purchase_totals` for many purchases in one query."""
+    if not purchases:
+        return {}
+    wanted = {p.id for p in purchases}
+    machines: dict[uuid.UUID, dict[uuid.UUID, MachineTotals]] = {
+        p.id: defaultdict(MachineTotals, {p.machine_id: MachineTotals()}) for p in purchases
+    }
+    paid: dict[uuid.UUID, Decimal] = defaultdict(lambda: ZERO)
+    credit: dict[uuid.UUID, Decimal] = defaultdict(lambda: ZERO)
+    for purchase_id, machine_id, entry_type, source, hours in session.execute(
+        select(
+            HoursLedgerEntry.purchase_id,
+            HoursLedgerEntry.machine_id,
+            HoursLedgerEntry.entry_type,
+            HoursLedgerEntry.activation_source,
+            func.sum(HoursLedgerEntry.hours),
+        )
+        .where(HoursLedgerEntry.purchase_id.in_(wanted))
+        .group_by(
+            HoursLedgerEntry.purchase_id,
+            HoursLedgerEntry.machine_id,
+            HoursLedgerEntry.entry_type,
+            HoursLedgerEntry.activation_source,
+        )
+    ):
+        machines[purchase_id][machine_id].by_type[entry_type] += Decimal(hours)
+        if source is ActivationSource.PAYMENT:
+            paid[purchase_id] += Decimal(hours)
+        elif source is ActivationSource.CREDIT:
+            credit[purchase_id] += Decimal(hours)
+    return {p.id: PurchaseTotals(p.hours, dict(machines[p.id]), paid[p.id], credit[p.id]) for p in purchases}
+
+
+class PurchaseQueue(StrEnum):
+    AWAITING_ACTIVATION = "AWAITING_ACTIVATION"  # hours bought and not yet activated
+    UNPAID = "UNPAID"  # awaiting activation with no payment waiting to be confirmed
+    UNCONFIRMED = "UNCONFIRMED"  # awaiting activation with a claimed payment the office has not confirmed
+
+
+def purchase_queue_select() -> Any:
+    """One row per open purchase with hours still awaiting activation: (purchase, awaiting, verified, claimed)."""
+    e, a, p, c = HoursLedgerEntry, HoursPaymentAllocation, HoursPurchase, CustomerPayment
+    signed = case(
+        (e.entry_type == T.ACTIVATED, e.hours),
+        (e.entry_type.in_((T.REVERSAL, T.REFUNDED)), -e.hours),
+        else_=ZERO,
+    )
+    net = select(e.purchase_id.label("id"), func.sum(signed).label("net")).group_by(e.purchase_id).subquery("net")
+    money = (
+        select(
+            a.purchase_id.label("id"),
+            func.sum(case((c.status == SettlementStatus.VERIFIED, a.amount), else_=ZERO)).label("verified"),
+            func.sum(case((c.status == SettlementStatus.CLAIMED, a.amount), else_=ZERO)).label("claimed"),
+        )
+        .join(c, c.id == a.payment_id)
+        .where(a.released_at.is_(None))
+        .group_by(a.purchase_id)
+        .subquery("money")
+    )
+    awaiting = p.hours - func.coalesce(net.c.net, ZERO)
+    return (
+        select(
+            p,
+            awaiting.label("awaiting"),
+            func.coalesce(money.c.verified, ZERO).label("verified"),
+            func.coalesce(money.c.claimed, ZERO).label("claimed"),
+        )
+        .outerjoin(net, net.c.id == p.id)
+        .outerjoin(money, money.c.id == p.id)
+        .where(p.cancelled_at.is_(None), awaiting > 0)
+    )
+
+
+def purchase_queue_ids(queue: PurchaseQueue) -> Select[Any]:
+    """Purchase ids in a queue (the filter behind the dashboard's purchase figures)."""
+    sub = purchase_queue_select().subquery("queue")
+    stmt = select(sub.c.id)
+    if queue is PurchaseQueue.UNPAID:
+        return stmt.where(sub.c.claimed <= 0)
+    if queue is PurchaseQueue.UNCONFIRMED:
+        return stmt.where(sub.c.claimed > 0)
+    return stmt
 
 
 def allocated_amounts(session: Session, purchase_id: uuid.UUID) -> tuple[Decimal, Decimal]:

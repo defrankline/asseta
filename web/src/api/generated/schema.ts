@@ -1674,6 +1674,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenant/accountability/pending-adjustments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Pending Adjustments
+         * @description Everything proposed and not yet decided across all flows, oldest first. `q` searches the record's number.
+         */
+        get: operations["listPendingAdjustments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenant/accountability/summary": {
         parameters: {
             query?: never;
@@ -1683,8 +1703,9 @@ export interface paths {
         };
         /**
          * Accountability Summary
-         * @description The 3.6 oversight list in one call (web dashboard and Owner app summary). Tiles hidden by the tenant's
-         *     OVERSIGHT policy are null and listed in `hidden_tiles`.
+         * @description The oversight list in one call (web dashboard and Owner app summary). Tiles hidden by the tenant's OVERSIGHT
+         *     policy are null and listed in `hidden_tiles`. `date_from`/`date_to` (tenant-local, inclusive, optional) set the
+         *     period of the section figures that are flows; balances and open queues are always the position now.
          */
         get: operations["getAccountabilitySummary"];
         put?: never;
@@ -4047,6 +4068,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenant/employees/{staff_member_id}/accountability": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Employee Accountability
+         * @description One person: identity and roles, cash held now, and every record behind it over the period. Scorecard items need
+         *     the scorecard permission (`scorecard_visible`).
+         */
+        get: operations["getEmployeeAccountability"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenant/engine-hour-reasons": {
         parameters: {
             query?: never;
@@ -5292,6 +5334,27 @@ export interface paths {
          *     without a rate card) cannot be approved without it (422 PRICE_REQUIRED). Decline a request with CANCEL + reason.
          */
         post: operations["transitionJob"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/lookup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lookup Transaction
+         * @description Any generated number (HP-, HINV-, J-, COL-, PAY-, RMT-, CTR-, HTR-, RET-, CADJ-, ARQ-, ADJ-, case numbers), an
+         *     outside bank or mobile-money reference, or a record id. No match is an empty list.
+         */
+        get: operations["lookupTransaction"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -7433,6 +7496,8 @@ export interface components {
              */
             as_of: string;
             cash?: components["schemas"]["CashTileDto"] | null;
+            /** @description Section 8 Cash Accountability */
+            cash_section?: components["schemas"]["CashSectionDto"] | null;
             /**
              * Customer Hours
              * @description [3.6.2] purchased/activated/consumed/remaining (customer hours module)
@@ -7453,6 +7518,8 @@ export interface components {
             engine_hours?: {
                 [key: string]: unknown;
             } | null;
+            /** @description Section 8 Exceptions */
+            exceptions_section?: components["schemas"]["ExceptionsSectionDto"] | null;
             /** Hidden Tiles */
             hidden_tiles: string[];
             /**
@@ -7462,6 +7529,8 @@ export interface components {
             hours_awaiting_activation?: {
                 [key: string]: unknown;
             } | null;
+            /** @description Section 8 Customer Hours; null when hidden or CUSTOMER_HOURS is off */
+            hours_section?: components["schemas"]["CustomerHoursSectionDto"] | null;
             /**
              * Idle Machines
              * @description [DEC-031 M2] idle machines: count, after_days, longest_idle_days, items [{machine_id, machine_code, machine_name, idle_since, idle_days, planned_job_id, planned_job_number}] (oversight module)
@@ -7477,8 +7546,11 @@ export interface components {
             missing_daily_reports?: {
                 [key: string]: unknown;
             } | null;
+            /** @description Section 8 Excavator Operations; null when hidden or ENGINE_HOURS is off */
+            operations_section?: components["schemas"]["ExcavatorOperationsSectionDto"] | null;
             outstanding_approvals?: components["schemas"]["ApprovalsTileDto"] | null;
             payments?: components["schemas"]["PaymentsTileDto"] | null;
+            period?: components["schemas"]["PeriodDto"] | null;
             /** Policy Version */
             policy_version: string;
             /**
@@ -8322,21 +8394,106 @@ export interface components {
         ApprovalStatus: "PENDING" | "APPROVED" | "REJECTED";
         /**
          * ApprovalsTileDto
-         * @description [3.6.10] Outstanding approvals across modules.
+         * @description [3.6.10] Outstanding approvals across modules, every kind (`total` is their sum).
          */
         ApprovalsTileDto: {
+            /**
+             * Adjustment Requests
+             * @default 0
+             */
+            adjustment_requests: number;
+            /**
+             * Allocation Corrections
+             * @default 0
+             */
+            allocation_corrections: number;
             /** Approval Requests */
             approval_requests: number;
+            /**
+             * Case Closures
+             * @default 0
+             */
+            case_closures: number;
             /** Cash Retentions */
             cash_retentions: number;
+            /**
+             * Classifications
+             * @default 0
+             */
+            classifications: number;
+            /**
+             * Credit Arrangements
+             * @default 0
+             */
+            credit_arrangements: number;
             /** Custody Adjustments */
             custody_adjustments: number;
+            /**
+             * Daily Reports To Review
+             * @default 0
+             */
+            daily_reports_to_review: number;
+            /**
+             * Discounts
+             * @default 0
+             */
+            discounts: number;
+            /**
+             * Hours Cancellations
+             * @default 0
+             */
+            hours_cancellations: number;
+            /**
+             * Hours Transfers
+             * @default 0
+             */
+            hours_transfers: number;
+            /**
+             * Jobs Awaiting Approval
+             * @default 0
+             */
+            jobs_awaiting_approval: number;
+            /**
+             * Meter Baselines
+             * @default 0
+             */
+            meter_baselines: number;
+            /**
+             * Meter Corrections
+             * @default 0
+             */
+            meter_corrections: number;
+            /**
+             * Meter Resets
+             * @default 0
+             */
+            meter_resets: number;
+            /**
+             * Non Revenue Approvals
+             * @default 0
+             */
+            non_revenue_approvals: number;
+            /**
+             * Partial Reasons
+             * @default 0
+             */
+            partial_reasons: number;
             /** Payments To Verify */
             payments_to_verify: number;
             /** Remittances To Verify */
             remittances_to_verify: number;
+            /**
+             * Revenue Decisions
+             * @default 0
+             */
+            revenue_decisions: number;
             /** Total */
             total: number;
+            /**
+             * Variance Closures
+             * @default 0
+             */
+            variance_closures: number;
             /** Write Offs */
             write_offs: number;
         };
@@ -8477,6 +8634,20 @@ export interface components {
              * Format: date-time
              */
             uploaded_at: string;
+        };
+        /** AttemptsFigureDto */
+        AttemptsFigureDto: {
+            /** Permission Denied */
+            permission_denied: number;
+            /** Route */
+            route: string;
+            /** Segregation Of Duties */
+            segregation_of_duties: number;
+            /**
+             * Since
+             * Format: date-time
+             */
+            since: string;
         };
         /**
          * AttemptsTileDto
@@ -9561,6 +9732,20 @@ export interface components {
             /** Valid Until */
             valid_until?: string | null;
         };
+        /** CashSectionDto */
+        CashSectionDto: {
+            collected: components["schemas"]["MoneyFigureDto"];
+            confirmed_by_company: components["schemas"]["MoneyFigureDto"];
+            declared_for_remittance: components["schemas"]["MoneyFigureDto"];
+            disputed_remittances: components["schemas"]["MoneyFigureDto"];
+            disputed_transfers: components["schemas"]["MoneyFigureDto"];
+            /** Held By Employee */
+            held_by_employee: components["schemas"]["EmployeeCashDto"][];
+            in_transit: components["schemas"]["MoneyFigureDto"];
+            outstanding: components["schemas"]["MoneyFigureDto"];
+            transferred: components["schemas"]["MoneyFigureDto"];
+            unconfirmed_remittances: components["schemas"]["MoneyFigureDto"];
+        };
         /**
          * CashSupervisorSummaryDto
          * @description One custodian x currency over a tenant-local period: the daily reconciliation, totalled.
@@ -9917,6 +10102,53 @@ export interface components {
              * @description Optimistic concurrency token from the last read
              */
             version: number;
+        };
+        /** ChangeoverJobDto */
+        ChangeoverJobDto: {
+            /**
+             * Changed Over At
+             * Format: date-time
+             */
+            changed_over_at: string;
+            /**
+             * Customer Id
+             * Format: uuid
+             */
+            customer_id: string;
+            /** Customer Name */
+            customer_name?: string | null;
+            /** Days Waiting */
+            days_waiting: number;
+            /**
+             * Job Id
+             * Format: uuid
+             */
+            job_id: string;
+            /** Job Number */
+            job_number?: string | null;
+            /** Machine Code */
+            machine_code?: string | null;
+            /**
+             * Machine Id
+             * Format: uuid
+             */
+            machine_id: string;
+            /** Machine Name */
+            machine_name?: string | null;
+            /** Route */
+            route: string;
+        };
+        /**
+         * ChangeoverJobsDto
+         * @description Follow-on jobs still unapproved: hours after the changeover are unbilled until they are.
+         */
+        ChangeoverJobsDto: {
+            /** Count */
+            count: number;
+            /** Items */
+            items: components["schemas"]["ChangeoverJobDto"][];
+            /** Oldest Days */
+            oldest_days: number | null;
         };
         /** ChangesDto */
         ChangesDto: {
@@ -10331,6 +10563,13 @@ export interface components {
             /** Currency */
             currency: string;
         };
+        /** CountFigureDto */
+        CountFigureDto: {
+            /** Count */
+            count: number;
+            /** Route */
+            route: string;
+        };
         /** CreditActivationIn */
         CreditActivationIn: {
             /** Hours */
@@ -10451,6 +10690,11 @@ export interface components {
             effective_from: string;
             /** Effective To */
             effective_to?: string | null;
+            /**
+             * Evidence Attachment Ids
+             * @description Replaces the evidence; omit to keep what is attached
+             */
+            evidence_attachment_ids?: string[] | null;
             /** Limit Amount */
             limit_amount: number | string;
             /** Reason */
@@ -10748,6 +10992,21 @@ export interface components {
              */
             version: number;
         };
+        /** CustomerHoursSectionDto */
+        CustomerHoursSectionDto: {
+            activated: components["schemas"]["HoursFigureDto"];
+            awaiting_activation: components["schemas"]["PurchaseQueueDto"];
+            consumed: components["schemas"]["HoursFigureDto"];
+            purchased: components["schemas"]["HoursFigureDto"];
+            purchased_value: components["schemas"]["MoneyFigureDto"];
+            remaining: components["schemas"]["HoursFigureDto"];
+            /** Remaining By Customer */
+            remaining_by_customer: components["schemas"]["CustomerRemainingDto"][];
+            /** Remaining Customers Total */
+            remaining_customers_total: number;
+            unconfirmed_purchases: components["schemas"]["PurchaseQueueDto"];
+            unpaid_purchases: components["schemas"]["PurchaseQueueDto"];
+        };
         /** CustomerIn */
         CustomerIn: {
             /** Code */
@@ -10897,6 +11156,24 @@ export interface components {
             tax_id?: string | null;
             /** Version */
             version?: number | null;
+        };
+        /** CustomerRemainingDto */
+        CustomerRemainingDto: {
+            /** Activated */
+            activated: string;
+            /** Consumed */
+            consumed: string;
+            /**
+             * Customer Id
+             * Format: uuid
+             */
+            customer_id: string;
+            /** Customer Name */
+            customer_name?: string | null;
+            /** Remaining */
+            remaining: string;
+            /** Route */
+            route: string;
         };
         /** CustomerStatementDto */
         CustomerStatementDto: {
@@ -11624,6 +11901,15 @@ export interface components {
             /** Version */
             version: number;
         };
+        /** DiscrepanciesFigureDto */
+        DiscrepanciesFigureDto: {
+            /** By Type */
+            by_type: components["schemas"]["TypeCountDto"][];
+            /** Count */
+            count: number;
+            /** Route */
+            route: string;
+        };
         /**
          * DiscrepanciesTileDto
          * @description [3.6.10] Unresolved cash variances and offline operations awaiting review.
@@ -11657,6 +11943,132 @@ export interface components {
             };
             /** Version Stamp */
             version_stamp: string;
+        };
+        /** EmployeeAccountabilityDto */
+        EmployeeAccountabilityDto: {
+            /** Adjustments Decided */
+            adjustments_decided: components["schemas"]["EmployeeRecordDto"][];
+            /** Adjustments Requested */
+            adjustments_requested: components["schemas"]["EmployeeRecordDto"][];
+            /** Approvals Made */
+            approvals_made: components["schemas"]["EmployeeRecordDto"][];
+            /** Cash Held */
+            cash_held: components["schemas"]["CashCustodyBalanceDto"][];
+            /** Collections */
+            collections: components["schemas"]["EmployeeRecordDto"][];
+            /** Custody Adjustments */
+            custody_adjustments: components["schemas"]["EmployeeRecordDto"][];
+            /**
+             * Date From
+             * Format: date
+             */
+            date_from: string;
+            /**
+             * Date To
+             * Format: date
+             */
+            date_to: string;
+            /** Differences */
+            differences: components["schemas"]["EmployeeRecordDto"][];
+            /** Floats */
+            floats: components["schemas"]["EmployeeRecordDto"][];
+            identity: components["schemas"]["EmployeeIdentityDto"];
+            /** Remittances */
+            remittances: components["schemas"]["EmployeeRecordDto"][];
+            /** Reports Submitted */
+            reports_submitted: components["schemas"]["EmployeeRecordDto"][];
+            /** Retentions */
+            retentions: components["schemas"]["EmployeeRecordDto"][];
+            /** Scorecard Items */
+            scorecard_items: components["schemas"]["EmployeeRecordDto"][];
+            /** Scorecard Visible */
+            scorecard_visible: boolean;
+            /** Spending */
+            spending: components["schemas"]["EmployeeRecordDto"][];
+            /** Transfers In */
+            transfers_in: components["schemas"]["EmployeeRecordDto"][];
+            /** Transfers Out */
+            transfers_out: components["schemas"]["EmployeeRecordDto"][];
+            /** Truncated */
+            truncated: string[];
+        };
+        /** EmployeeCashDto */
+        EmployeeCashDto: {
+            /** Approved Retention */
+            approved_retention: string;
+            /** Claimed Unverified Handovers */
+            claimed_unverified_handovers: string;
+            /** Currency */
+            currency: string;
+            /** In Transit Out */
+            in_transit_out: string;
+            /** Outstanding */
+            outstanding: string;
+            /** Pending Floats */
+            pending_floats: string;
+            /** Route */
+            route: string;
+            /**
+             * Staff Member Id
+             * Format: uuid
+             */
+            staff_member_id: string;
+            /** Staff Member Name */
+            staff_member_name?: string | null;
+        };
+        /** EmployeeIdentityDto */
+        EmployeeIdentityDto: {
+            /** Employee Code */
+            employee_code: string | null;
+            /** Full Name */
+            full_name: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Kind */
+            kind: string;
+            /** Login Email */
+            login_email: string | null;
+            /** Phone */
+            phone: string | null;
+            /** Roles */
+            roles: string[];
+            /**
+             * Staff Member Id
+             * Format: uuid
+             */
+            staff_member_id: string;
+            /** User Id */
+            user_id: string | null;
+        };
+        /** EmployeeRecordDto */
+        EmployeeRecordDto: {
+            /** Amount */
+            amount?: string | null;
+            /** Counterparty Staff Id */
+            counterparty_staff_id?: string | null;
+            /** Counterparty Staff Name */
+            counterparty_staff_name?: string | null;
+            /** Currency */
+            currency?: string | null;
+            /** Id */
+            id: string | null;
+            /** Label */
+            label?: string | null;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Record Type */
+            record_type: string;
+            /** Reference */
+            reference?: string | null;
+            /** Route */
+            route?: string | null;
+            /** Status */
+            status?: string | null;
+            /** Unit */
+            unit?: string | null;
         };
         /** EndAssignmentIn */
         EndAssignmentIn: {
@@ -11820,6 +12232,40 @@ export interface components {
             /** Attachment Ids */
             attachment_ids: string[];
         };
+        /** ExcavatorHoursDto */
+        ExcavatorHoursDto: {
+            /** Authorized Hours */
+            authorized_hours: string;
+            /** Customer Hours */
+            customer_hours: string;
+            /** Machine Code */
+            machine_code?: string | null;
+            /**
+             * Machine Id
+             * Format: uuid
+             */
+            machine_id: string;
+            /** Machine Name */
+            machine_name?: string | null;
+            /** Operating Hours */
+            operating_hours: string;
+            /** Route */
+            route: string;
+            /** Unexplained Hours */
+            unexplained_hours: string;
+        };
+        /** ExcavatorOperationsSectionDto */
+        ExcavatorOperationsSectionDto: {
+            authorized_non_customer_hours: components["schemas"]["HoursFigureDto"];
+            /** By Excavator */
+            by_excavator: components["schemas"]["ExcavatorHoursDto"][];
+            customer_hours: components["schemas"]["HoursFigureDto"];
+            meter_discrepancies: components["schemas"]["DiscrepanciesFigureDto"];
+            operating_hours: components["schemas"]["HoursFigureDto"];
+            pending_reports: components["schemas"]["CountFigureDto"];
+            returned_reports: components["schemas"]["CountFigureDto"];
+            unexplained_hours: components["schemas"]["HoursFigureDto"];
+        };
         /** ExceptionDto */
         ExceptionDto: {
             /** Blocking */
@@ -11868,6 +12314,21 @@ export interface components {
          * @enum {string}
          */
         ExceptionType: "GPS_UNAVAILABLE" | "GPS_INACCURATE" | "GPS_STALE" | "LOCATION_MISMATCH" | "MODE_POLICY_VIOLATION" | "PHOTO_MISSING" | "LOW_OCR_CONFIDENCE" | "MANUAL_CORRECTION" | "METER_DECREASE" | "IMPOSSIBLE_INCREMENT" | "CONTINUITY_GAP" | "DUPLICATE_IMAGE" | "TELEMETRY_MISMATCH" | "CLOCK_SKEW" | "POLICY_SNAPSHOT_UNVERIFIED" | "MISSING_DAILY_REPORT" | "UNEXPLAINED_HOURS" | "OVERLAPPING_ALLOCATION" | "HOURS_OVERRUN" | "DUPLICATE_DAILY_REPORT";
+        /** ExceptionsSectionDto */
+        ExceptionsSectionDto: {
+            changeover_jobs_awaiting_approval: components["schemas"]["ChangeoverJobsDto"];
+            outstanding_approvals: components["schemas"]["OutstandingApprovalsDto"];
+            overages: components["schemas"]["MoneyFigureDto"];
+            overages_opened_in_period: components["schemas"]["MoneyFigureDto"];
+            overdue_reports: components["schemas"]["OverdueReportsDto"];
+            pending_adjustments: components["schemas"]["PendingAdjustmentsDto"];
+            shortages: components["schemas"]["MoneyFigureDto"];
+            shortages_opened_in_period: components["schemas"]["MoneyFigureDto"];
+            unauthorized_attempts: components["schemas"]["AttemptsFigureDto"];
+            unconfirmed_payments: components["schemas"]["MoneyFigureDto"];
+            unexplained_engine_hours: components["schemas"]["HoursFigureDto"];
+            unresolved_variances: components["schemas"]["UnresolvedVariancesDto"];
+        };
         /** ExpenseCategoryDto */
         ExpenseCategoryDto: {
             /** Code */
@@ -12656,6 +13117,15 @@ export interface components {
             transferred_in: string;
             /** Transferred Out */
             transferred_out: string;
+        };
+        /** HoursFigureDto */
+        HoursFigureDto: {
+            /** Count */
+            count: number;
+            /** Hours */
+            hours: string;
+            /** Route */
+            route: string;
         };
         /** HoursPurchaseDto */
         HoursPurchaseDto: {
@@ -13666,6 +14136,17 @@ export interface components {
              */
             version: number;
         };
+        /** KindCountDto */
+        KindCountDto: {
+            /** Count */
+            count: number;
+            /** Kind */
+            kind: string;
+            /** Oldest At */
+            oldest_at: string | null;
+            /** Route */
+            route: string;
+        };
         /** LedgerEntryDto */
         LedgerEntryDto: {
             activation_source: components["schemas"]["ActivationSource"] | null;
@@ -13790,6 +14271,65 @@ export interface components {
              * Format: uuid
              */
             line_id: string;
+        };
+        /** LookupMatchDto */
+        LookupMatchDto: {
+            /** Amount */
+            amount?: string | null;
+            /** Balance Outstanding */
+            balance_outstanding?: string | null;
+            /** Balance Unit */
+            balance_unit?: string | null;
+            /** Currency */
+            currency?: string | null;
+            /** Customer Id */
+            customer_id?: string | null;
+            /** Customer Name */
+            customer_name?: string | null;
+            /** Decided At */
+            decided_at?: string | null;
+            /** Decided By */
+            decided_by?: string | null;
+            /** Decided By Name */
+            decided_by_name?: string | null;
+            /** Hours Remaining */
+            hours_remaining?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Machine Code */
+            machine_code?: string | null;
+            /** Machine Id */
+            machine_id?: string | null;
+            /** Machine Name */
+            machine_name?: string | null;
+            /** Record Type */
+            record_type: string;
+            /** Recorded At */
+            recorded_at?: string | null;
+            /** Recorded By */
+            recorded_by?: string | null;
+            /** Recorded By Name */
+            recorded_by_name?: string | null;
+            /** Reference */
+            reference: string | null;
+            /** Route */
+            route: string | null;
+            /** Staff Member Id */
+            staff_member_id?: string | null;
+            /** Staff Member Name */
+            staff_member_name?: string | null;
+            /** Status */
+            status: string | null;
+        };
+        /** LookupResultDto */
+        LookupResultDto: {
+            /** Matches */
+            matches: components["schemas"]["LookupMatchDto"][];
+            /** Reference */
+            reference: string;
         };
         /**
          * LowBalanceAlertDto
@@ -15172,6 +15712,27 @@ export interface components {
          */
         ModelStatus: "TRAINED" | "EVALUATED" | "APPROVED" | "DEPLOYED_SHADOW" | "DEPLOYED_ACTIVE" | "RETIRED" | "DISABLED" | "REJECTED";
         /**
+         * MoneyFigureDto
+         * @description Per currency, never mixed. `count` is the number of records across currencies.
+         */
+        MoneyFigureDto: {
+            /** Count */
+            count: number;
+            /** Lines */
+            lines: components["schemas"]["MoneyLineDto"][];
+            /** Route */
+            route: string;
+        };
+        /** MoneyLineDto */
+        MoneyLineDto: {
+            /** Amount */
+            amount: string;
+            /** Count */
+            count: number;
+            /** Currency */
+            currency: string;
+        };
+        /**
          * MySiteCheckinsDto
          * @description The caller's own check-ins and schedule (shown to the person in the app).
          */
@@ -15742,6 +16303,13 @@ export interface components {
          * @enum {string}
          */
         OperationStatus: "ACKED" | "REJECTED" | "CONFLICT" | "QUARANTINED";
+        /** OutstandingApprovalsDto */
+        OutstandingApprovalsDto: {
+            /** By Kind */
+            by_kind: components["schemas"]["KindCountDto"][];
+            /** Total */
+            total: number;
+        };
         /** OverdueAmountDto */
         OverdueAmountDto: {
             /**
@@ -15757,6 +16325,13 @@ export interface components {
          * @enum {string}
          */
         OverdueReason: "CUTOFF" | "HELD_TOO_LONG";
+        /** OverdueReportsDto */
+        OverdueReportsDto: {
+            missing_daily_reports: components["schemas"]["CountFigureDto"];
+            remittances_overdue_today: components["schemas"]["CountFigureDto"];
+            /** Total */
+            total: number;
+        };
         /** OverridePendingChargeIn */
         OverridePendingChargeIn: {
             /** Amount */
@@ -16527,6 +17102,17 @@ export interface components {
             /** Total */
             total: number;
         };
+        /** Page[PendingItemDto] */
+        Page_PendingItemDto_: {
+            /** Items */
+            items: components["schemas"]["PendingItemDto"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+        };
         /** Page[ProductDto] */
         Page_ProductDto_: {
             /** Items */
@@ -16968,6 +17554,20 @@ export interface components {
             /** Staff Member Id */
             staff_member_id?: string | null;
         };
+        /**
+         * PendingAdjustmentsDto
+         * @description Every adjustment proposed and not yet decided, across all flows.
+         */
+        PendingAdjustmentsDto: {
+            /** By Kind */
+            by_kind: components["schemas"]["KindCountDto"][];
+            /** Oldest */
+            oldest: components["schemas"]["PendingItemDto"][];
+            /** Route */
+            route: string;
+            /** Total */
+            total: number;
+        };
         /** PendingChargeDto */
         PendingChargeDto: {
             /** Amount */
@@ -17010,6 +17610,63 @@ export interface components {
          * @enum {string}
          */
         PendingChargeStatus: "PENDING" | "INVOICED" | "WAIVED";
+        /**
+         * PendingItemDto
+         * @description One record waiting for a decision (the pending list and the dashboard's oldest items).
+         */
+        PendingItemDto: {
+            /** Amount */
+            amount: string | null;
+            /** Currency */
+            currency: string | null;
+            /** Customer Id */
+            customer_id: string | null;
+            /** Customer Name */
+            customer_name?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Machine Code */
+            machine_code?: string | null;
+            /** Machine Id */
+            machine_id: string | null;
+            /** Machine Name */
+            machine_name?: string | null;
+            /** Record Type */
+            record_type: string;
+            /** Reference */
+            reference: string | null;
+            /**
+             * Requested At
+             * Format: date-time
+             */
+            requested_at: string;
+            /** Requested By */
+            requested_by: string | null;
+            /** Requested By Name */
+            requested_by_name?: string | null;
+            /** Route */
+            route: string | null;
+            /** Staff Member Id */
+            staff_member_id: string | null;
+            /** Staff Member Name */
+            staff_member_name?: string | null;
+            /** Status */
+            status: string;
+            /** Unit */
+            unit: string | null;
+        };
+        /** PeriodDto */
+        PeriodDto: {
+            /** Date From */
+            date_from: string | null;
+            /** Date To */
+            date_to: string | null;
+        };
         /** PersonDto */
         PersonDto: {
             /** Display Name */
@@ -17385,6 +18042,54 @@ export interface components {
              * @description Cash custodian (defaults to the caller's staff record for CASH)
              */
             staff_member_id?: string | null;
+        };
+        /**
+         * PurchaseQueue
+         * @enum {string}
+         */
+        PurchaseQueue: "AWAITING_ACTIVATION" | "UNPAID" | "UNCONFIRMED";
+        /** PurchaseQueueDto */
+        PurchaseQueueDto: {
+            /** Amounts */
+            amounts: components["schemas"]["MoneyLineDto"][];
+            /** Count */
+            count: number;
+            /** Hours */
+            hours: string;
+            /** Items */
+            items: components["schemas"]["PurchaseQueueItemDto"][];
+            /** Route */
+            route: string;
+        };
+        /** PurchaseQueueItemDto */
+        PurchaseQueueItemDto: {
+            /** Amount Open */
+            amount_open: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Currency */
+            currency: string;
+            /**
+             * Customer Id
+             * Format: uuid
+             */
+            customer_id: string;
+            /** Customer Name */
+            customer_name?: string | null;
+            /** Hours Awaiting */
+            hours_awaiting: string;
+            /**
+             * Purchase Id
+             * Format: uuid
+             */
+            purchase_id: string;
+            /** Purchase Number */
+            purchase_number?: string | null;
+            /** Route */
+            route: string;
         };
         /**
          * PurchaseTotalsDto
@@ -19623,6 +20328,11 @@ export interface components {
              */
             my_meter_resets: components["schemas"]["SyncMeterResetDto"][];
             /**
+             * Open Invoices
+             * @default []
+             */
+            open_invoices: components["schemas"]["SyncOpenInvoiceDto"][];
+            /**
              * Sites
              * @default []
              */
@@ -19955,6 +20665,41 @@ export interface components {
             status: string;
             /** Sync Revision */
             sync_revision: number;
+        };
+        /**
+         * SyncOpenInvoiceDto
+         * @description An issued invoice with money still owed, so a collection can be linked to it (DEC-032).
+         */
+        SyncOpenInvoiceDto: {
+            /** Balance */
+            balance: string;
+            /** Currency */
+            currency: string;
+            /**
+             * Customer Id
+             * Format: uuid
+             */
+            customer_id: string;
+            /** Customer Name */
+            customer_name: string;
+            /** Due Date */
+            due_date: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Invoice Number */
+            invoice_number: string;
+            /**
+             * Issued At
+             * Format: date-time
+             */
+            issued_at: string;
+            /** Paid */
+            paid: string;
+            /** Total */
+            total: string;
         };
         /** SyncResolutionDto */
         SyncResolutionDto: {
@@ -20665,6 +21410,15 @@ export interface components {
             reason: string;
             to_status: components["schemas"]["SubscriptionStatus"];
         };
+        /** TypeCountDto */
+        TypeCountDto: {
+            /** Count */
+            count: number;
+            /** Route */
+            route: string;
+            /** Type */
+            type: string;
+        };
         /** UnallocatedSegmentDto */
         UnallocatedSegmentDto: {
             /** Age Days */
@@ -20787,6 +21541,13 @@ export interface components {
              * @description What the job is worth under its terms (the invoice would snapshot it)
              */
             total: string | null;
+        };
+        /** UnresolvedVariancesDto */
+        UnresolvedVariancesDto: {
+            /** By Source */
+            by_source: components["schemas"]["VarianceSourceDto"][];
+            /** Total */
+            total: number;
         };
         /** UtilisationInsightDto */
         UtilisationInsightDto: {
@@ -20911,6 +21672,19 @@ export interface components {
          * @enum {string}
          */
         VarianceSource: "TRANSFER" | "REMITTANCE" | "FLOAT" | "CUSTOMER_HOUR";
+        /** VarianceSourceDto */
+        VarianceSourceDto: {
+            /** Amounts */
+            amounts: components["schemas"]["MoneyLineDto"][];
+            /** Count */
+            count: number;
+            /** Route */
+            route: string;
+            /** Source */
+            source: string;
+            /** Unit */
+            unit: string;
+        };
         /**
          * VarianceStatus
          * @enum {string}
@@ -31187,9 +31961,106 @@ export interface operations {
             };
         };
     };
+    listPendingAdjustments: {
+        parameters: {
+            query?: {
+                record_type?: string | null;
+                /** @description Every outstanding approval, not only adjustments */
+                all_approvals?: boolean;
+                page?: number;
+                page_size?: number;
+                q?: string | null;
+                sort?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_PendingItemDto_"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     getAccountabilitySummary: {
         parameters: {
-            query?: never;
+            query?: {
+                date_from?: string | null;
+                date_to?: string | null;
+            };
             header?: {
                 "x-tenant-id"?: string | null;
                 authorization?: string | null;
@@ -35844,6 +36715,10 @@ export interface operations {
             query?: {
                 status?: components["schemas"]["SettlementStatus"] | null;
                 staff_member_id?: string | null;
+                /** @description True: only remittances whose partial reason awaits a decision */
+                partial_reason_pending?: boolean | null;
+                date_from?: string | null;
+                date_to?: string | null;
                 page?: number;
                 page_size?: number;
                 q?: string | null;
@@ -38032,6 +38907,8 @@ export interface operations {
             query?: {
                 status?: components["schemas"]["CashTransferStatus"] | null;
                 staff_member_id?: string | null;
+                date_from?: string | null;
+                date_to?: string | null;
                 page?: number;
                 page_size?: number;
                 q?: string | null;
@@ -38398,6 +39275,8 @@ export interface operations {
                 staff_member_id?: string | null;
                 source_type?: components["schemas"]["VarianceSource"] | null;
                 assignee_user_id?: string | null;
+                /** @description SHORTAGE: less received than declared; OVERAGE: more */
+                direction?: ("SHORTAGE" | "OVERAGE") | null;
                 page?: number;
                 page_size?: number;
                 q?: string | null;
@@ -41135,6 +42014,9 @@ export interface operations {
                 status?: components["schemas"]["SettlementStatus"] | null;
                 customer_id?: string | null;
                 staff_member_id?: string | null;
+                method?: components["schemas"]["HirePaymentMethod"] | null;
+                date_from?: string | null;
+                date_to?: string | null;
                 page?: number;
                 page_size?: number;
                 q?: string | null;
@@ -44877,6 +45759,99 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DeviceSessionDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getEmployeeAccountability: {
+        parameters: {
+            query?: {
+                /** @description First tenant-local day (default: 29 days before date_to) */
+                date_from?: string | null;
+                /** @description Last tenant-local day, inclusive (default: today) */
+                date_to?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                staff_member_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmployeeAccountabilityDto"];
                 };
             };
             /** @description Bad Request */
@@ -49416,6 +50391,8 @@ export interface operations {
                 machine_id?: string | null;
                 job_id?: string | null;
                 entry_type?: components["schemas"]["LedgerEntryType"] | null;
+                date_from?: string | null;
+                date_to?: string | null;
                 page?: number;
                 page_size?: number;
                 q?: string | null;
@@ -49693,6 +50670,9 @@ export interface operations {
                 customer_id?: string | null;
                 machine_id?: string | null;
                 cancelled?: boolean | null;
+                queue?: components["schemas"]["PurchaseQueue"] | null;
+                date_from?: string | null;
+                date_to?: string | null;
                 page?: number;
                 page_size?: number;
                 q?: string | null;
@@ -52992,6 +53972,94 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JobDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    lookupTransaction: {
+        parameters: {
+            query: {
+                reference: string;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LookupResultDto"];
                 };
             };
             /** @description Bad Request */

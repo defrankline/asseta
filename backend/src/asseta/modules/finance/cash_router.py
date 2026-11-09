@@ -13,8 +13,12 @@ from asseta.core.db import get_session
 from asseta.core.errors import ERROR_RESPONSES
 from asseta.core.idempotency import IdempotencyGuard, request_hash
 from asseta.core.paging import Page, PageParams, page_params, paginate
+from asseta.core.search import ilike_any
 from asseta.modules.accountability.names import named
 from asseta.modules.finance.cash_service import CashCustodyService
+from asseta.modules.finance.common import period_conditions
+from asseta.modules.finance.custody_models import CashDecisionStatus
+from asseta.modules.finance.deposit_models import PartialRemittanceApproval
 from asseta.modules.finance.dto import (
     CashCollectionIn,
     CashCustodyBalanceDto,
@@ -93,16 +97,32 @@ def record_handover(
 @named
 def list_handovers(
     session: DbSession,
-    _: Annotated[RequestContext, Depends(FINANCE_READ)],
+    ctx: Annotated[RequestContext, Depends(FINANCE_READ)],
     paging: Annotated[PageParams, Depends(page_params)],
     status: SettlementStatus | None = None,
     staff_member_id: uuid.UUID | None = None,
+    partial_reason_pending: Annotated[
+        bool | None, Query(description="True: only remittances whose partial reason awaits a decision")
+    ] = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
 ) -> Page[CashHandoverDto]:
-    stmt = select(CashHandover).order_by(CashHandover.handed_at.desc())
+    assert ctx.tenant_id is not None
+    period = period_conditions(session, ctx.tenant_id, CashHandover.handed_at, date_from, date_to)
+    stmt = select(CashHandover).where(*period).order_by(CashHandover.handed_at.desc())
     if status:
         stmt = stmt.where(CashHandover.status == status)
     if staff_member_id:
         stmt = stmt.where(CashHandover.staff_member_id == staff_member_id)
+    if partial_reason_pending is not None:
+        pending = CashHandover.id.in_(
+            select(PartialRemittanceApproval.handover_id).where(
+                PartialRemittanceApproval.status == CashDecisionStatus.PENDING.value
+            )
+        )
+        stmt = stmt.where(pending if partial_reason_pending else ~pending)
+    if (match := ilike_any(paging.q, CashHandover.remittance_number, CashHandover.reference)) is not None:
+        stmt = stmt.where(match)
     rows, total = paginate(session, stmt, paging)
     return Page(
         items=[CashHandoverDto.model_validate(h) for h in rows],

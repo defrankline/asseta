@@ -243,8 +243,8 @@ def test_classification_needs_a_second_person_and_tenant_lists(api: Api) -> None
     decide = {"decision": "APPROVE", "note": "Service record seen"}
     url = f"{T}/engine-hours/classifications/{proposed['id']}/decision"
     assert _code(o.post(url, decide)) == "SEGREGATION_OF_DUTIES"
-    manager = role(api, tid, "manager", "eng-manager")  # no tenant.meter.classify unless granted
-    assert manager.post(url, decide).status_code == 403
+    field = role(api, tid, "supervisor", "eng-field")  # field roles never decide a classification
+    assert field.post(url, decide).status_code == 403
     done = _ok(approver.post(url, decide))
     assert done["status"] == "APPROVED" and done["reason_name"] == "Servicing"
     rec = _ok(o.get(f"{T}/engine-hours/machines/{c.t.machine_id}"))

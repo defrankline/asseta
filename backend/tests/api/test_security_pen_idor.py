@@ -373,6 +373,7 @@ def _oversight_b(api: Api, f: FinCtx) -> dict[tuple[str, str], str]:
     assert checkin.status_code == 201, checkin.text
     return {
         ("/scorecard/", "staff_member_id"): f.sup_staff_id,
+        ("/employees/", "staff_member_id"): f.sup_staff_id,
         ("/site-checkins/", "checkin_id"): checkin.json()["id"],
     }
 

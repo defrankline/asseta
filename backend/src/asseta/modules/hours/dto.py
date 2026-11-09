@@ -180,6 +180,9 @@ class CreditArrangementUpdateIn(BaseModel):
     terms: Note | None = None
     reason: Reason
     reason_code_id: uuid.UUID | None = None
+    evidence_attachment_ids: list[uuid.UUID] | None = Field(
+        default=None, max_length=20, description="Replaces the evidence; omit to keep what is attached"
+    )
     version: int = Field(ge=1)
 
     @model_validator(mode="after")

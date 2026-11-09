@@ -19,6 +19,8 @@ from asseta.modules.finance.cash_service import CashCustodyService
 from asseta.modules.finance.deposit_accounts import SyncDepositAccountDto
 from asseta.modules.finance.deposit_models import CompanyDepositAccount
 from asseta.modules.finance.dto import CashCustodyBalanceDto
+from asseta.modules.finance.models import HireInvoiceStatus, TenantHireInvoice
+from asseta.modules.finance.receivables import verified_paid_subquery
 from asseta.modules.fleet.dto import StaffDto
 from asseta.modules.fleet.machine_view import machine_dtos
 from asseta.modules.fleet.models import Machine, MachineAssignment, StaffMember
@@ -41,6 +43,7 @@ from asseta.modules.sync.dto import (
     PolicySnapshotDto,
     SyncChangeoverJobDto,
     SyncData,
+    SyncOpenInvoiceDto,
     SyncUnbillableReasonDto,
     announced_capabilities,
 )
@@ -232,6 +235,7 @@ class SyncService:
             else [],
             expense_categories=[ExpenseCategoryDto.model_validate(c) for c in self._s.execute(categories).scalars()],
             cash_custody=self._custody(staff),
+            open_invoices=self._open_invoices(contract_ids),
             deposit_accounts=self._deposit_accounts(min_revision),
             changeover_jobs=changeover_jobs,
             unbillable_reasons=self._unbillable_reasons(min_revision),
@@ -259,6 +263,39 @@ class SyncService:
         if staff is None or "tenant.collection.record" not in self._ctx.permissions:
             return []
         return CashCustodyService(self._s, self._ctx, self._now).balances(staff.id)
+
+    def _open_invoices(self, contract_ids: set[uuid.UUID]) -> list[SyncOpenInvoiceDto]:
+        """Issued invoices with a balance for the customers on the caller's jobs (cash recorders only)."""
+        if not contract_ids or "tenant.collection.record" not in self._ctx.permissions:
+            return []
+        customers = select(RentalContract.customer_id).where(RentalContract.id.in_(contract_ids))
+        paid = verified_paid_subquery()
+        rows = self._s.execute(
+            select(TenantHireInvoice, Customer.name, paid.label("paid"))
+            .join(Customer, Customer.id == TenantHireInvoice.customer_id)
+            .where(
+                TenantHireInvoice.status == HireInvoiceStatus.ISSUED,
+                TenantHireInvoice.customer_id.in_(customers),
+                TenantHireInvoice.total > paid,
+            )
+            .order_by(TenantHireInvoice.due_date.asc().nulls_last(), TenantHireInvoice.issued_at, TenantHireInvoice.id)
+            .limit(PAGE)
+        ).all()
+        return [
+            SyncOpenInvoiceDto(
+                id=inv.id,
+                invoice_number=inv.invoice_number,
+                customer_id=inv.customer_id,
+                customer_name=name,
+                currency=inv.currency,
+                total=inv.total,
+                paid=paid_amount,
+                balance=inv.total - paid_amount,
+                due_date=inv.due_date,
+                issued_at=inv.issued_at,
+            )
+            for inv, name, paid_amount in rows
+        ]
 
     def _deposit_accounts(self, min_revision: int | None) -> list[SyncDepositAccountDto]:
         """The remittance account picker for cash recorders (bootstrap: active; deltas: every change)."""

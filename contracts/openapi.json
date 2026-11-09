@@ -19,6 +19,17 @@
               }
             ]
           },
+          "cash_section": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CashSectionDto"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Section 8 Cash Accountability"
+          },
           "customer_hours": {
             "anyOf": [
               {
@@ -63,6 +74,17 @@
             "description": "[3.6.3] engine-hour reconciliation per machine (meter module)",
             "title": "Engine Hours"
           },
+          "exceptions_section": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExceptionsSectionDto"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Section 8 Exceptions"
+          },
           "hidden_tiles": {
             "items": {
               "type": "string"
@@ -82,6 +104,17 @@
             ],
             "description": "[3.6.8] hours awaiting activation (customer hours module)",
             "title": "Hours Awaiting Activation"
+          },
+          "hours_section": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CustomerHoursSectionDto"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Section 8 Customer Hours; null when hidden or CUSTOMER_HOURS is off"
           },
           "idle_machines": {
             "anyOf": [
@@ -119,6 +152,17 @@
             "description": "[3.6.9] missing or overdue operational reports (meter module)",
             "title": "Missing Daily Reports"
           },
+          "operations_section": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExcavatorOperationsSectionDto"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Section 8 Excavator Operations; null when hidden or ENGINE_HOURS is off"
+          },
           "outstanding_approvals": {
             "anyOf": [
               {
@@ -133,6 +177,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/PaymentsTileDto"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "period": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PeriodDto"
               },
               {
                 "type": "null"
@@ -2908,18 +2962,93 @@
         "type": "string"
       },
       "ApprovalsTileDto": {
-        "description": "[3.6.10] Outstanding approvals across modules.",
+        "description": "[3.6.10] Outstanding approvals across modules, every kind (`total` is their sum).",
         "properties": {
+          "adjustment_requests": {
+            "default": 0,
+            "title": "Adjustment Requests",
+            "type": "integer"
+          },
+          "allocation_corrections": {
+            "default": 0,
+            "title": "Allocation Corrections",
+            "type": "integer"
+          },
           "approval_requests": {
             "title": "Approval Requests",
+            "type": "integer"
+          },
+          "case_closures": {
+            "default": 0,
+            "title": "Case Closures",
             "type": "integer"
           },
           "cash_retentions": {
             "title": "Cash Retentions",
             "type": "integer"
           },
+          "classifications": {
+            "default": 0,
+            "title": "Classifications",
+            "type": "integer"
+          },
+          "credit_arrangements": {
+            "default": 0,
+            "title": "Credit Arrangements",
+            "type": "integer"
+          },
           "custody_adjustments": {
             "title": "Custody Adjustments",
+            "type": "integer"
+          },
+          "daily_reports_to_review": {
+            "default": 0,
+            "title": "Daily Reports To Review",
+            "type": "integer"
+          },
+          "discounts": {
+            "default": 0,
+            "title": "Discounts",
+            "type": "integer"
+          },
+          "hours_cancellations": {
+            "default": 0,
+            "title": "Hours Cancellations",
+            "type": "integer"
+          },
+          "hours_transfers": {
+            "default": 0,
+            "title": "Hours Transfers",
+            "type": "integer"
+          },
+          "jobs_awaiting_approval": {
+            "default": 0,
+            "title": "Jobs Awaiting Approval",
+            "type": "integer"
+          },
+          "meter_baselines": {
+            "default": 0,
+            "title": "Meter Baselines",
+            "type": "integer"
+          },
+          "meter_corrections": {
+            "default": 0,
+            "title": "Meter Corrections",
+            "type": "integer"
+          },
+          "meter_resets": {
+            "default": 0,
+            "title": "Meter Resets",
+            "type": "integer"
+          },
+          "non_revenue_approvals": {
+            "default": 0,
+            "title": "Non Revenue Approvals",
+            "type": "integer"
+          },
+          "partial_reasons": {
+            "default": 0,
+            "title": "Partial Reasons",
             "type": "integer"
           },
           "payments_to_verify": {
@@ -2930,8 +3059,18 @@
             "title": "Remittances To Verify",
             "type": "integer"
           },
+          "revenue_decisions": {
+            "default": 0,
+            "title": "Revenue Decisions",
+            "type": "integer"
+          },
           "total": {
             "title": "Total",
+            "type": "integer"
+          },
+          "variance_closures": {
+            "default": 0,
+            "title": "Variance Closures",
             "type": "integer"
           },
           "write_offs": {
@@ -3244,6 +3383,35 @@
           "uploaded_at"
         ],
         "title": "AttachmentDto",
+        "type": "object"
+      },
+      "AttemptsFigureDto": {
+        "properties": {
+          "permission_denied": {
+            "title": "Permission Denied",
+            "type": "integer"
+          },
+          "route": {
+            "title": "Route",
+            "type": "string"
+          },
+          "segregation_of_duties": {
+            "title": "Segregation Of Duties",
+            "type": "integer"
+          },
+          "since": {
+            "format": "date-time",
+            "title": "Since",
+            "type": "string"
+          }
+        },
+        "required": [
+          "since",
+          "permission_denied",
+          "segregation_of_duties",
+          "route"
+        ],
+        "title": "AttemptsFigureDto",
         "type": "object"
       },
       "AttemptsTileDto": {
@@ -6337,6 +6505,58 @@
         "title": "CashRetentionIn",
         "type": "object"
       },
+      "CashSectionDto": {
+        "properties": {
+          "collected": {
+            "$ref": "#/components/schemas/MoneyFigureDto"
+          },
+          "confirmed_by_company": {
+            "$ref": "#/components/schemas/MoneyFigureDto"
+          },
+          "declared_for_remittance": {
+            "$ref": "#/components/schemas/MoneyFigureDto"
+          },
+          "disputed_remittances": {
+            "$ref": "#/components/schemas/MoneyFigureDto"
+          },
+          "disputed_transfers": {
+            "$ref": "#/components/schemas/MoneyFigureDto"
+          },
+          "held_by_employee": {
+            "items": {
+              "$ref": "#/components/schemas/EmployeeCashDto"
+            },
+            "title": "Held By Employee",
+            "type": "array"
+          },
+          "in_transit": {
+            "$ref": "#/components/schemas/MoneyFigureDto"
+          },
+          "outstanding": {
+            "$ref": "#/components/schemas/MoneyFigureDto"
+          },
+          "transferred": {
+            "$ref": "#/components/schemas/MoneyFigureDto"
+          },
+          "unconfirmed_remittances": {
+            "$ref": "#/components/schemas/MoneyFigureDto"
+          }
+        },
+        "required": [
+          "collected",
+          "held_by_employee",
+          "transferred",
+          "in_transit",
+          "declared_for_remittance",
+          "confirmed_by_company",
+          "outstanding",
+          "unconfirmed_remittances",
+          "disputed_remittances",
+          "disputed_transfers"
+        ],
+        "title": "CashSectionDto",
+        "type": "object"
+      },
       "CashSupervisorSummaryDto": {
         "description": "One custodian x currency over a tenant-local period: the daily reconciliation, totalled.\nclosing_outstanding = opening + floats_issued + collections - approved_spending - verified_handovers.",
         "properties": {
@@ -7508,6 +7728,126 @@
         "title": "CategoryUpdateIn",
         "type": "object"
       },
+      "ChangeoverJobDto": {
+        "properties": {
+          "changed_over_at": {
+            "format": "date-time",
+            "title": "Changed Over At",
+            "type": "string"
+          },
+          "customer_id": {
+            "format": "uuid",
+            "title": "Customer Id",
+            "type": "string"
+          },
+          "customer_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Name"
+          },
+          "days_waiting": {
+            "title": "Days Waiting",
+            "type": "integer"
+          },
+          "job_id": {
+            "format": "uuid",
+            "title": "Job Id",
+            "type": "string"
+          },
+          "job_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Number"
+          },
+          "machine_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Code"
+          },
+          "machine_id": {
+            "format": "uuid",
+            "title": "Machine Id",
+            "type": "string"
+          },
+          "machine_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Name"
+          },
+          "route": {
+            "title": "Route",
+            "type": "string"
+          }
+        },
+        "required": [
+          "job_id",
+          "machine_id",
+          "customer_id",
+          "changed_over_at",
+          "days_waiting",
+          "route"
+        ],
+        "title": "ChangeoverJobDto",
+        "type": "object"
+      },
+      "ChangeoverJobsDto": {
+        "description": "Follow-on jobs still unapproved: hours after the changeover are unbilled until they are.",
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ChangeoverJobDto"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "oldest_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Oldest Days"
+          }
+        },
+        "required": [
+          "count",
+          "oldest_days",
+          "items"
+        ],
+        "title": "ChangeoverJobsDto",
+        "type": "object"
+      },
       "ChangesDto": {
         "properties": {
           "capabilities": {
@@ -8617,6 +8957,24 @@
         "title": "CountAmountDto",
         "type": "object"
       },
+      "CountFigureDto": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "route": {
+            "title": "Route",
+            "type": "string"
+          }
+        },
+        "required": [
+          "count",
+          "route"
+        ],
+        "title": "CountFigureDto",
+        "type": "object"
+      },
       "CreditActivationIn": {
         "properties": {
           "hours": {
@@ -9037,6 +9395,23 @@
               }
             ],
             "title": "Effective To"
+          },
+          "evidence_attachment_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 20,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Replaces the evidence; omit to keep what is attached",
+            "title": "Evidence Attachment Ids"
           },
           "limit_amount": {
             "anyOf": [
@@ -9940,6 +10315,59 @@
         "title": "CustomerDto",
         "type": "object"
       },
+      "CustomerHoursSectionDto": {
+        "properties": {
+          "activated": {
+            "$ref": "#/components/schemas/HoursFigureDto"
+          },
+          "awaiting_activation": {
+            "$ref": "#/components/schemas/PurchaseQueueDto"
+          },
+          "consumed": {
+            "$ref": "#/components/schemas/HoursFigureDto"
+          },
+          "purchased": {
+            "$ref": "#/components/schemas/HoursFigureDto"
+          },
+          "purchased_value": {
+            "$ref": "#/components/schemas/MoneyFigureDto"
+          },
+          "remaining": {
+            "$ref": "#/components/schemas/HoursFigureDto"
+          },
+          "remaining_by_customer": {
+            "items": {
+              "$ref": "#/components/schemas/CustomerRemainingDto"
+            },
+            "title": "Remaining By Customer",
+            "type": "array"
+          },
+          "remaining_customers_total": {
+            "title": "Remaining Customers Total",
+            "type": "integer"
+          },
+          "unconfirmed_purchases": {
+            "$ref": "#/components/schemas/PurchaseQueueDto"
+          },
+          "unpaid_purchases": {
+            "$ref": "#/components/schemas/PurchaseQueueDto"
+          }
+        },
+        "required": [
+          "purchased",
+          "purchased_value",
+          "activated",
+          "consumed",
+          "remaining",
+          "remaining_by_customer",
+          "remaining_customers_total",
+          "unpaid_purchases",
+          "unconfirmed_purchases",
+          "awaiting_activation"
+        ],
+        "title": "CustomerHoursSectionDto",
+        "type": "object"
+      },
       "CustomerIn": {
         "properties": {
           "code": {
@@ -10479,6 +10907,51 @@
           "code"
         ],
         "title": "CustomerRegistrationIn",
+        "type": "object"
+      },
+      "CustomerRemainingDto": {
+        "properties": {
+          "activated": {
+            "title": "Activated",
+            "type": "string"
+          },
+          "consumed": {
+            "title": "Consumed",
+            "type": "string"
+          },
+          "customer_id": {
+            "format": "uuid",
+            "title": "Customer Id",
+            "type": "string"
+          },
+          "customer_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Name"
+          },
+          "remaining": {
+            "title": "Remaining",
+            "type": "string"
+          },
+          "route": {
+            "title": "Route",
+            "type": "string"
+          }
+        },
+        "required": [
+          "customer_id",
+          "remaining",
+          "activated",
+          "consumed",
+          "route"
+        ],
+        "title": "CustomerRemainingDto",
         "type": "object"
       },
       "CustomerStatementDto": {
@@ -12611,6 +13084,32 @@
         "title": "DiscountUpdateIn",
         "type": "object"
       },
+      "DiscrepanciesFigureDto": {
+        "properties": {
+          "by_type": {
+            "items": {
+              "$ref": "#/components/schemas/TypeCountDto"
+            },
+            "title": "By Type",
+            "type": "array"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "route": {
+            "title": "Route",
+            "type": "string"
+          }
+        },
+        "required": [
+          "count",
+          "by_type",
+          "route"
+        ],
+        "title": "DiscrepanciesFigureDto",
+        "type": "object"
+      },
       "DiscrepanciesTileDto": {
         "description": "[3.6.10] Unresolved cash variances and offline operations awaiting review.",
         "properties": {
@@ -12687,6 +13186,441 @@
           "values"
         ],
         "title": "EffectivePolicyDto",
+        "type": "object"
+      },
+      "EmployeeAccountabilityDto": {
+        "properties": {
+          "adjustments_decided": {
+            "items": {
+              "$ref": "#/components/schemas/EmployeeRecordDto"
+            },
+            "title": "Adjustments Decided",
+            "type": "array"
+          },
+          "adjustments_requested": {
+            "items": {
+              "$ref": "#/components/schemas/EmployeeRecordDto"
+            },
+            "title": "Adjustments Requested",
+            "type": "array"
+          },
+          "approvals_made": {
+            "items": {
+              "$ref": "#/components/schemas/EmployeeRecordDto"
+            },
+            "title": "Approvals Made",
+            "type": "array"
+          },
+          "cash_held": {
+            "items": {
+              "$ref": "#/components/schemas/CashCustodyBalanceDto"
+            },
+            "title": "Cash Held",
+            "type": "array"
+          },
+          "collections": {
+            "items": {
+              "$ref": "#/components/schemas/EmployeeRecordDto"
+            },
+            "title": "Collections",
+            "type": "array"
+          },
+          "custody_adjustments": {
+            "items": {
+              "$ref": "#/components/schemas/EmployeeRecordDto"
+            },
+            "title": "Custody Adjustments",
+            "type": "array"
+          },
+          "date_from": {
+            "format": "date",
+            "title": "Date From",
+            "type": "string"
+          },
+          "date_to": {
+            "format": "date",
+            "title": "Date To",
+            "type": "string"
+          },
+          "differences": {
+            "items": {
+              "$ref": "#/components/schemas/EmployeeRecordDto"
+            },
+            "title": "Differences",
+            "type": "array"
+          },
+          "floats": {
+            "items": {
+              "$ref": "#/components/schemas/EmployeeRecordDto"
+            },
+            "title": "Floats",
+            "type": "array"
+          },
+          "identity": {
+            "$ref": "#/components/schemas/EmployeeIdentityDto"
+          },
+          "remittances": {
+            "items": {
+              "$ref": "#/components/schemas/EmployeeRecordDto"
+            },
+            "title": "Remittances",
+            "type": "array"
+          },
+          "reports_submitted": {
+            "items": {
+              "$ref": "#/components/schemas/EmployeeRecordDto"
+            },
+            "title": "Reports Submitted",
+            "type": "array"
+          },
+          "retentions": {
+            "items": {
+              "$ref": "#/components/schemas/EmployeeRecordDto"
+            },
+            "title": "Retentions",
+            "type": "array"
+          },
+          "scorecard_items": {
+            "items": {
+              "$ref": "#/components/schemas/EmployeeRecordDto"
+            },
+            "title": "Scorecard Items",
+            "type": "array"
+          },
+          "scorecard_visible": {
+            "title": "Scorecard Visible",
+            "type": "boolean"
+          },
+          "spending": {
+            "items": {
+              "$ref": "#/components/schemas/EmployeeRecordDto"
+            },
+            "title": "Spending",
+            "type": "array"
+          },
+          "transfers_in": {
+            "items": {
+              "$ref": "#/components/schemas/EmployeeRecordDto"
+            },
+            "title": "Transfers In",
+            "type": "array"
+          },
+          "transfers_out": {
+            "items": {
+              "$ref": "#/components/schemas/EmployeeRecordDto"
+            },
+            "title": "Transfers Out",
+            "type": "array"
+          },
+          "truncated": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Truncated",
+            "type": "array"
+          }
+        },
+        "required": [
+          "identity",
+          "date_from",
+          "date_to",
+          "cash_held",
+          "collections",
+          "floats",
+          "transfers_in",
+          "transfers_out",
+          "remittances",
+          "spending",
+          "retentions",
+          "differences",
+          "custody_adjustments",
+          "reports_submitted",
+          "approvals_made",
+          "adjustments_requested",
+          "adjustments_decided",
+          "scorecard_items",
+          "scorecard_visible",
+          "truncated"
+        ],
+        "title": "EmployeeAccountabilityDto",
+        "type": "object"
+      },
+      "EmployeeCashDto": {
+        "properties": {
+          "approved_retention": {
+            "title": "Approved Retention",
+            "type": "string"
+          },
+          "claimed_unverified_handovers": {
+            "title": "Claimed Unverified Handovers",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "in_transit_out": {
+            "title": "In Transit Out",
+            "type": "string"
+          },
+          "outstanding": {
+            "title": "Outstanding",
+            "type": "string"
+          },
+          "pending_floats": {
+            "title": "Pending Floats",
+            "type": "string"
+          },
+          "route": {
+            "title": "Route",
+            "type": "string"
+          },
+          "staff_member_id": {
+            "format": "uuid",
+            "title": "Staff Member Id",
+            "type": "string"
+          },
+          "staff_member_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Staff Member Name"
+          }
+        },
+        "required": [
+          "staff_member_id",
+          "currency",
+          "outstanding",
+          "in_transit_out",
+          "claimed_unverified_handovers",
+          "pending_floats",
+          "approved_retention",
+          "route"
+        ],
+        "title": "EmployeeCashDto",
+        "type": "object"
+      },
+      "EmployeeIdentityDto": {
+        "properties": {
+          "employee_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employee Code"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "login_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Login Email"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "roles": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Roles",
+            "type": "array"
+          },
+          "staff_member_id": {
+            "format": "uuid",
+            "title": "Staff Member Id",
+            "type": "string"
+          },
+          "user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Id"
+          }
+        },
+        "required": [
+          "staff_member_id",
+          "full_name",
+          "kind",
+          "employee_code",
+          "phone",
+          "is_active",
+          "user_id",
+          "login_email",
+          "roles"
+        ],
+        "title": "EmployeeIdentityDto",
+        "type": "object"
+      },
+      "EmployeeRecordDto": {
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "counterparty_staff_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Counterparty Staff Id"
+          },
+          "counterparty_staff_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Counterparty Staff Name"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "record_type": {
+            "title": "Record Type",
+            "type": "string"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference"
+          },
+          "route": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Route"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          }
+        },
+        "required": [
+          "record_type",
+          "id",
+          "occurred_at"
+        ],
+        "title": "EmployeeRecordDto",
         "type": "object"
       },
       "EndAssignmentIn": {
@@ -13114,6 +14048,111 @@
         "title": "EvidenceLinkIn",
         "type": "object"
       },
+      "ExcavatorHoursDto": {
+        "properties": {
+          "authorized_hours": {
+            "title": "Authorized Hours",
+            "type": "string"
+          },
+          "customer_hours": {
+            "title": "Customer Hours",
+            "type": "string"
+          },
+          "machine_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Code"
+          },
+          "machine_id": {
+            "format": "uuid",
+            "title": "Machine Id",
+            "type": "string"
+          },
+          "machine_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Name"
+          },
+          "operating_hours": {
+            "title": "Operating Hours",
+            "type": "string"
+          },
+          "route": {
+            "title": "Route",
+            "type": "string"
+          },
+          "unexplained_hours": {
+            "title": "Unexplained Hours",
+            "type": "string"
+          }
+        },
+        "required": [
+          "machine_id",
+          "operating_hours",
+          "customer_hours",
+          "authorized_hours",
+          "unexplained_hours",
+          "route"
+        ],
+        "title": "ExcavatorHoursDto",
+        "type": "object"
+      },
+      "ExcavatorOperationsSectionDto": {
+        "properties": {
+          "authorized_non_customer_hours": {
+            "$ref": "#/components/schemas/HoursFigureDto"
+          },
+          "by_excavator": {
+            "items": {
+              "$ref": "#/components/schemas/ExcavatorHoursDto"
+            },
+            "title": "By Excavator",
+            "type": "array"
+          },
+          "customer_hours": {
+            "$ref": "#/components/schemas/HoursFigureDto"
+          },
+          "meter_discrepancies": {
+            "$ref": "#/components/schemas/DiscrepanciesFigureDto"
+          },
+          "operating_hours": {
+            "$ref": "#/components/schemas/HoursFigureDto"
+          },
+          "pending_reports": {
+            "$ref": "#/components/schemas/CountFigureDto"
+          },
+          "returned_reports": {
+            "$ref": "#/components/schemas/CountFigureDto"
+          },
+          "unexplained_hours": {
+            "$ref": "#/components/schemas/HoursFigureDto"
+          }
+        },
+        "required": [
+          "operating_hours",
+          "customer_hours",
+          "authorized_non_customer_hours",
+          "unexplained_hours",
+          "by_excavator",
+          "meter_discrepancies",
+          "pending_reports",
+          "returned_reports"
+        ],
+        "title": "ExcavatorOperationsSectionDto",
+        "type": "object"
+      },
       "ExceptionDto": {
         "properties": {
           "blocking": {
@@ -13261,6 +14300,62 @@
         ],
         "title": "ExceptionType",
         "type": "string"
+      },
+      "ExceptionsSectionDto": {
+        "properties": {
+          "changeover_jobs_awaiting_approval": {
+            "$ref": "#/components/schemas/ChangeoverJobsDto"
+          },
+          "outstanding_approvals": {
+            "$ref": "#/components/schemas/OutstandingApprovalsDto"
+          },
+          "overages": {
+            "$ref": "#/components/schemas/MoneyFigureDto"
+          },
+          "overages_opened_in_period": {
+            "$ref": "#/components/schemas/MoneyFigureDto"
+          },
+          "overdue_reports": {
+            "$ref": "#/components/schemas/OverdueReportsDto"
+          },
+          "pending_adjustments": {
+            "$ref": "#/components/schemas/PendingAdjustmentsDto"
+          },
+          "shortages": {
+            "$ref": "#/components/schemas/MoneyFigureDto"
+          },
+          "shortages_opened_in_period": {
+            "$ref": "#/components/schemas/MoneyFigureDto"
+          },
+          "unauthorized_attempts": {
+            "$ref": "#/components/schemas/AttemptsFigureDto"
+          },
+          "unconfirmed_payments": {
+            "$ref": "#/components/schemas/MoneyFigureDto"
+          },
+          "unexplained_engine_hours": {
+            "$ref": "#/components/schemas/HoursFigureDto"
+          },
+          "unresolved_variances": {
+            "$ref": "#/components/schemas/UnresolvedVariancesDto"
+          }
+        },
+        "required": [
+          "unexplained_engine_hours",
+          "shortages",
+          "overages",
+          "shortages_opened_in_period",
+          "overages_opened_in_period",
+          "pending_adjustments",
+          "unauthorized_attempts",
+          "unconfirmed_payments",
+          "outstanding_approvals",
+          "overdue_reports",
+          "unresolved_variances",
+          "changeover_jobs_awaiting_approval"
+        ],
+        "title": "ExceptionsSectionDto",
+        "type": "object"
       },
       "ExpenseCategoryDto": {
         "properties": {
@@ -15576,6 +16671,29 @@
           "awaiting_activation"
         ],
         "title": "HoursBalanceDto",
+        "type": "object"
+      },
+      "HoursFigureDto": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "hours": {
+            "title": "Hours",
+            "type": "string"
+          },
+          "route": {
+            "title": "Route",
+            "type": "string"
+          }
+        },
+        "required": [
+          "hours",
+          "count",
+          "route"
+        ],
+        "title": "HoursFigureDto",
         "type": "object"
       },
       "HoursPurchaseDto": {
@@ -18408,6 +19526,42 @@
         "title": "JobUpdateIn",
         "type": "object"
       },
+      "KindCountDto": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "oldest_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Oldest At"
+          },
+          "route": {
+            "title": "Route",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "count",
+          "oldest_at",
+          "route"
+        ],
+        "title": "KindCountDto",
+        "type": "object"
+      },
       "LedgerEntryDto": {
         "properties": {
           "activation_source": {
@@ -18775,6 +19929,287 @@
           "amount"
         ],
         "title": "LineAllocationIn",
+        "type": "object"
+      },
+      "LookupMatchDto": {
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "balance_outstanding": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Balance Outstanding"
+          },
+          "balance_unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Balance Unit"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "customer_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Id"
+          },
+          "customer_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Name"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "decided_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided By"
+          },
+          "decided_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided By Name"
+          },
+          "hours_remaining": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours Remaining"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "machine_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Code"
+          },
+          "machine_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Id"
+          },
+          "machine_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Name"
+          },
+          "record_type": {
+            "title": "Record Type",
+            "type": "string"
+          },
+          "recorded_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recorded At"
+          },
+          "recorded_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recorded By"
+          },
+          "recorded_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recorded By Name"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference"
+          },
+          "route": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Route"
+          },
+          "staff_member_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Staff Member Id"
+          },
+          "staff_member_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Staff Member Name"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          }
+        },
+        "required": [
+          "record_type",
+          "id",
+          "reference",
+          "route",
+          "status"
+        ],
+        "title": "LookupMatchDto",
+        "type": "object"
+      },
+      "LookupResultDto": {
+        "properties": {
+          "matches": {
+            "items": {
+              "$ref": "#/components/schemas/LookupMatchDto"
+            },
+            "title": "Matches",
+            "type": "array"
+          },
+          "reference": {
+            "title": "Reference",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reference",
+          "matches"
+        ],
+        "title": "LookupResultDto",
         "type": "object"
       },
       "LowBalanceAlertDto": {
@@ -22605,6 +24040,56 @@
         "title": "ModelStatus",
         "type": "string"
       },
+      "MoneyFigureDto": {
+        "description": "Per currency, never mixed. `count` is the number of records across currencies.",
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/MoneyLineDto"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "route": {
+            "title": "Route",
+            "type": "string"
+          }
+        },
+        "required": [
+          "lines",
+          "count",
+          "route"
+        ],
+        "title": "MoneyFigureDto",
+        "type": "object"
+      },
+      "MoneyLineDto": {
+        "properties": {
+          "amount": {
+            "title": "Amount",
+            "type": "string"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          }
+        },
+        "required": [
+          "currency",
+          "count",
+          "amount"
+        ],
+        "title": "MoneyLineDto",
+        "type": "object"
+      },
       "MySiteCheckinsDto": {
         "description": "The caller's own check-ins and schedule (shown to the person in the app).",
         "properties": {
@@ -24013,6 +25498,27 @@
         "title": "OperationStatus",
         "type": "string"
       },
+      "OutstandingApprovalsDto": {
+        "properties": {
+          "by_kind": {
+            "items": {
+              "$ref": "#/components/schemas/KindCountDto"
+            },
+            "title": "By Kind",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "by_kind"
+        ],
+        "title": "OutstandingApprovalsDto",
+        "type": "object"
+      },
       "OverdueAmountDto": {
         "properties": {
           "amount": {
@@ -24039,6 +25545,27 @@
         ],
         "title": "OverdueReason",
         "type": "string"
+      },
+      "OverdueReportsDto": {
+        "properties": {
+          "missing_daily_reports": {
+            "$ref": "#/components/schemas/CountFigureDto"
+          },
+          "remittances_overdue_today": {
+            "$ref": "#/components/schemas/CountFigureDto"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "missing_daily_reports",
+          "remittances_overdue_today",
+          "total"
+        ],
+        "title": "OverdueReportsDto",
+        "type": "object"
       },
       "OverridePendingChargeIn": {
         "properties": {
@@ -26055,6 +27582,37 @@
         "title": "Page[PaymentDto]",
         "type": "object"
       },
+      "Page_PendingItemDto_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PendingItemDto"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "Page[PendingItemDto]",
+        "type": "object"
+      },
       "Page_ProductDto_": {
         "properties": {
           "items": {
@@ -27278,6 +28836,41 @@
         "title": "PayoutIn",
         "type": "object"
       },
+      "PendingAdjustmentsDto": {
+        "description": "Every adjustment proposed and not yet decided, across all flows.",
+        "properties": {
+          "by_kind": {
+            "items": {
+              "$ref": "#/components/schemas/KindCountDto"
+            },
+            "title": "By Kind",
+            "type": "array"
+          },
+          "oldest": {
+            "items": {
+              "$ref": "#/components/schemas/PendingItemDto"
+            },
+            "title": "Oldest",
+            "type": "array"
+          },
+          "route": {
+            "title": "Route",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "by_kind",
+          "oldest",
+          "route"
+        ],
+        "title": "PendingAdjustmentsDto",
+        "type": "object"
+      },
       "PendingChargeDto": {
         "properties": {
           "amount": {
@@ -27363,6 +28956,243 @@
         ],
         "title": "PendingChargeStatus",
         "type": "string"
+      },
+      "PendingItemDto": {
+        "description": "One record waiting for a decision (the pending list and the dashboard's oldest items).",
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "customer_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Id"
+          },
+          "customer_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Name"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "machine_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Code"
+          },
+          "machine_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Id"
+          },
+          "machine_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Name"
+          },
+          "record_type": {
+            "title": "Record Type",
+            "type": "string"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference"
+          },
+          "requested_at": {
+            "format": "date-time",
+            "title": "Requested At",
+            "type": "string"
+          },
+          "requested_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requested By"
+          },
+          "requested_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requested By Name"
+          },
+          "route": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Route"
+          },
+          "staff_member_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Staff Member Id"
+          },
+          "staff_member_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Staff Member Name"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          }
+        },
+        "required": [
+          "kind",
+          "record_type",
+          "id",
+          "reference",
+          "status",
+          "requested_by",
+          "requested_at",
+          "amount",
+          "unit",
+          "currency",
+          "customer_id",
+          "machine_id",
+          "staff_member_id",
+          "route"
+        ],
+        "title": "PendingItemDto",
+        "type": "object"
+      },
+      "PeriodDto": {
+        "properties": {
+          "date_from": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date From"
+          },
+          "date_to": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date To"
+          }
+        },
+        "required": [
+          "date_from",
+          "date_to"
+        ],
+        "title": "PeriodDto",
+        "type": "object"
       },
       "PersonDto": {
         "properties": {
@@ -28272,6 +30102,122 @@
           "received_at"
         ],
         "title": "PurchasePaymentIn",
+        "type": "object"
+      },
+      "PurchaseQueue": {
+        "enum": [
+          "AWAITING_ACTIVATION",
+          "UNPAID",
+          "UNCONFIRMED"
+        ],
+        "title": "PurchaseQueue",
+        "type": "string"
+      },
+      "PurchaseQueueDto": {
+        "properties": {
+          "amounts": {
+            "items": {
+              "$ref": "#/components/schemas/MoneyLineDto"
+            },
+            "title": "Amounts",
+            "type": "array"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "hours": {
+            "title": "Hours",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PurchaseQueueItemDto"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "route": {
+            "title": "Route",
+            "type": "string"
+          }
+        },
+        "required": [
+          "count",
+          "hours",
+          "amounts",
+          "route",
+          "items"
+        ],
+        "title": "PurchaseQueueDto",
+        "type": "object"
+      },
+      "PurchaseQueueItemDto": {
+        "properties": {
+          "amount_open": {
+            "title": "Amount Open",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "customer_id": {
+            "format": "uuid",
+            "title": "Customer Id",
+            "type": "string"
+          },
+          "customer_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Name"
+          },
+          "hours_awaiting": {
+            "title": "Hours Awaiting",
+            "type": "string"
+          },
+          "purchase_id": {
+            "format": "uuid",
+            "title": "Purchase Id",
+            "type": "string"
+          },
+          "purchase_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purchase Number"
+          },
+          "route": {
+            "title": "Route",
+            "type": "string"
+          }
+        },
+        "required": [
+          "purchase_id",
+          "customer_id",
+          "hours_awaiting",
+          "amount_open",
+          "currency",
+          "created_at",
+          "route"
+        ],
+        "title": "PurchaseQueueItemDto",
         "type": "object"
       },
       "PurchaseTotalsDto": {
@@ -34007,6 +35953,14 @@
             "title": "My Meter Resets",
             "type": "array"
           },
+          "open_invoices": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/SyncOpenInvoiceDto"
+            },
+            "title": "Open Invoices",
+            "type": "array"
+          },
           "sites": {
             "default": [],
             "items": {
@@ -35053,6 +37007,76 @@
           "sync_revision"
         ],
         "title": "SyncMeterResetDto",
+        "type": "object"
+      },
+      "SyncOpenInvoiceDto": {
+        "description": "An issued invoice with money still owed, so a collection can be linked to it (DEC-032).",
+        "properties": {
+          "balance": {
+            "title": "Balance",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "customer_id": {
+            "format": "uuid",
+            "title": "Customer Id",
+            "type": "string"
+          },
+          "customer_name": {
+            "title": "Customer Name",
+            "type": "string"
+          },
+          "due_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Date"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "invoice_number": {
+            "title": "Invoice Number",
+            "type": "string"
+          },
+          "issued_at": {
+            "format": "date-time",
+            "title": "Issued At",
+            "type": "string"
+          },
+          "paid": {
+            "title": "Paid",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "invoice_number",
+          "customer_id",
+          "customer_name",
+          "currency",
+          "total",
+          "paid",
+          "balance",
+          "due_date",
+          "issued_at"
+        ],
+        "title": "SyncOpenInvoiceDto",
         "type": "object"
       },
       "SyncResolutionDto": {
@@ -37059,6 +39083,29 @@
         "title": "TransitionIn",
         "type": "object"
       },
+      "TypeCountDto": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "route": {
+            "title": "Route",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "count",
+          "route"
+        ],
+        "title": "TypeCountDto",
+        "type": "object"
+      },
       "UnallocatedSegmentDto": {
         "properties": {
           "age_days": {
@@ -37397,6 +39444,27 @@
         "title": "UnbilledJobDto",
         "type": "object"
       },
+      "UnresolvedVariancesDto": {
+        "properties": {
+          "by_source": {
+            "items": {
+              "$ref": "#/components/schemas/VarianceSourceDto"
+            },
+            "title": "By Source",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "by_source"
+        ],
+        "title": "UnresolvedVariancesDto",
+        "type": "object"
+      },
       "UtilisationInsightDto": {
         "properties": {
           "asset_code": {
@@ -37721,6 +39789,42 @@
         ],
         "title": "VarianceSource",
         "type": "string"
+      },
+      "VarianceSourceDto": {
+        "properties": {
+          "amounts": {
+            "items": {
+              "$ref": "#/components/schemas/MoneyLineDto"
+            },
+            "title": "Amounts",
+            "type": "array"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "route": {
+            "title": "Route",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "unit",
+          "count",
+          "amounts",
+          "route"
+        ],
+        "title": "VarianceSourceDto",
+        "type": "object"
       },
       "VarianceStatus": {
         "enum": [
@@ -55567,11 +57671,256 @@
         ]
       }
     },
+    "/api/v1/tenant/accountability/pending-adjustments": {
+      "get": {
+        "description": "Everything proposed and not yet decided across all flows, oldest first. `q` searches the record's number.",
+        "operationId": "listPendingAdjustments",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "record_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Record Type"
+            }
+          },
+          {
+            "description": "Every outstanding approval, not only adjustments",
+            "in": "query",
+            "name": "all_approvals",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Every outstanding approval, not only adjustments",
+              "title": "All Approvals",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sort"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_PendingItemDto_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "List Pending Adjustments",
+        "tags": [
+          "accountability"
+        ]
+      }
+    },
     "/api/v1/tenant/accountability/summary": {
       "get": {
-        "description": "The 3.6 oversight list in one call (web dashboard and Owner app summary). Tiles hidden by the tenant's\nOVERSIGHT policy are null and listed in `hidden_tiles`.",
+        "description": "The oversight list in one call (web dashboard and Owner app summary). Tiles hidden by the tenant's OVERSIGHT\npolicy are null and listed in `hidden_tiles`. `date_from`/`date_to` (tenant-local, inclusive, optional) set the\nperiod of the section figures that are flows; balances and open queues are always the position now.",
         "operationId": "getAccountabilitySummary",
         "parameters": [
+          {
+            "in": "query",
+            "name": "date_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "date_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date To"
+            }
+          },
           {
             "in": "header",
             "name": "x-tenant-id",
@@ -64265,6 +66614,58 @@
             }
           },
           {
+            "description": "True: only remittances whose partial reason awaits a decision",
+            "in": "query",
+            "name": "partial_reason_pending",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "True: only remittances whose partial reason awaits a decision",
+              "title": "Partial Reason Pending"
+            }
+          },
+          {
+            "in": "query",
+            "name": "date_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "date_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date To"
+            }
+          },
+          {
             "in": "query",
             "name": "page",
             "required": false,
@@ -68160,6 +70561,40 @@
           },
           {
             "in": "query",
+            "name": "date_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "date_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date To"
+            }
+          },
+          {
+            "in": "query",
             "name": "page",
             "required": false,
             "schema": {
@@ -68836,6 +71271,28 @@
                 }
               ],
               "title": "Assignee User Id"
+            }
+          },
+          {
+            "description": "SHORTAGE: less received than declared; OVERAGE: more",
+            "in": "query",
+            "name": "direction",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "SHORTAGE",
+                    "OVERAGE"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "SHORTAGE: less received than declared; OVERAGE: more",
+              "title": "Direction"
             }
           },
           {
@@ -73419,6 +75876,56 @@
                 }
               ],
               "title": "Staff Member Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "method",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/HirePaymentMethod"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Method"
+            }
+          },
+          {
+            "in": "query",
+            "name": "date_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "date_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date To"
             }
           },
           {
@@ -79984,6 +82491,180 @@
         "summary": "Revoke",
         "tags": [
           "sync"
+        ]
+      }
+    },
+    "/api/v1/tenant/employees/{staff_member_id}/accountability": {
+      "get": {
+        "description": "One person: identity and roles, cash held now, and every record behind it over the period. Scorecard items need\nthe scorecard permission (`scorecard_visible`).",
+        "operationId": "getEmployeeAccountability",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "staff_member_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Staff Member Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "First tenant-local day (default: 29 days before date_to)",
+            "in": "query",
+            "name": "date_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First tenant-local day (default: 29 days before date_to)",
+              "title": "Date From"
+            }
+          },
+          {
+            "description": "Last tenant-local day, inclusive (default: today)",
+            "in": "query",
+            "name": "date_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last tenant-local day, inclusive (default: today)",
+              "title": "Date To"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmployeeAccountabilityDto"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Employee Accountability",
+        "tags": [
+          "accountability"
         ]
       }
     },
@@ -87892,6 +90573,40 @@
           },
           {
             "in": "query",
+            "name": "date_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "date_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date To"
+            }
+          },
+          {
+            "in": "query",
             "name": "page",
             "required": false,
             "schema": {
@@ -88504,6 +91219,56 @@
                 }
               ],
               "title": "Cancelled"
+            }
+          },
+          {
+            "in": "query",
+            "name": "queue",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/PurchaseQueue"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Queue"
+            }
+          },
+          {
+            "in": "query",
+            "name": "date_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "date_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date To"
             }
           },
           {
@@ -94236,6 +97001,143 @@
         "summary": "Transition",
         "tags": [
           "jobs"
+        ]
+      }
+    },
+    "/api/v1/tenant/lookup": {
+      "get": {
+        "description": "Any generated number (HP-, HINV-, J-, COL-, PAY-, RMT-, CTR-, HTR-, RET-, CADJ-, ARQ-, ADJ-, case numbers), an\noutside bank or mobile-money reference, or a record id. No match is an empty list.",
+        "operationId": "lookupTransaction",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "reference",
+            "required": true,
+            "schema": {
+              "maxLength": 120,
+              "minLength": 1,
+              "title": "Reference",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LookupResultDto"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Lookup Transaction",
+        "tags": [
+          "accountability"
         ]
       }
     },

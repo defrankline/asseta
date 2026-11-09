@@ -4,6 +4,7 @@ invoice claims — the same rule invoicing applies, never a second copy. Off whi
 
 import uuid
 from datetime import datetime, timedelta
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -14,6 +15,7 @@ from asseta.modules.finance.models import HireInvoiceJob, HireInvoiceStatus, Ten
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.jobs.models import Customer, Job, JobStatus, RentalContract
 from asseta.modules.jobs.service import JobService
+from asseta.modules.meter.allocation_models import MachineChangeover
 from asseta.modules.oversight.dto import UnbilledJobDto
 from asseta.modules.policy.schemas import BillingMode
 from asseta.modules.policy.service import PolicyService
@@ -92,3 +94,26 @@ def unbilled_jobs(
             )
         )
     return out
+
+
+def changeovers_awaiting_approval(s: Session, now: datetime) -> list[dict[str, Any]]:
+    """Follow-on jobs a changeover named that are still unapproved: the hours after the changeover cannot be billed
+    until someone approves the job, so each is flagged with its age. Oldest first."""
+    rows = s.execute(
+        select(MachineChangeover, Job.job_number)
+        .join(Job, Job.id == MachineChangeover.to_job_id)
+        .where(Job.status == JobStatus.PENDING_APPROVAL)
+        .order_by(MachineChangeover.created_at, MachineChangeover.id)
+    ).all()
+    return [
+        {
+            "changeover_id": str(c.id),
+            "job_id": str(c.to_job_id),
+            "job_number": number,
+            "machine_id": str(c.machine_id),
+            "customer_id": str(c.to_customer_id),
+            "changed_over_at": c.created_at.isoformat(),
+            "days_waiting": (now - c.created_at).days,
+        }
+        for c, number in rows
+    ]

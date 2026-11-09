@@ -2,7 +2,7 @@
 rejected offline operations, and the accountability dashboard summary."""
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
@@ -18,6 +18,7 @@ from asseta.modules.accountability.dto import (
     SyncConflictDto,
     SyncResolutionIn,
 )
+from asseta.modules.accountability.management_router import router as management_router
 from asseta.modules.accountability.models import SecurityEventKind
 from asseta.modules.accountability.names import named
 from asseta.modules.accountability.service import AccountabilityDashboard, SecurityEventService, SyncConflictService
@@ -72,6 +73,7 @@ for menu in (
     CATALOG.register_menu(menu)
 
 router = APIRouter(prefix="/api/v1/tenant", tags=["accountability"], responses=ERROR_RESPONSES)
+router.include_router(management_router)
 DbSession = Annotated[Session, Depends(get_session)]
 Now = Annotated[datetime, Depends(get_now)]
 Paging = Annotated[PageParams, Depends(page_params)]
@@ -147,8 +149,13 @@ def resolve_sync_conflict(
 @router.get("/accountability/summary", response_model=AccountabilitySummaryDto, operation_id="getAccountabilitySummary")
 @named
 def accountability_summary(
-    session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(ACCOUNTABILITY_READ)]
+    session: DbSession,
+    now: Now,
+    ctx: Annotated[RequestContext, Depends(ACCOUNTABILITY_READ)],
+    date_from: date | None = None,
+    date_to: date | None = None,
 ) -> AccountabilitySummaryDto:
-    """The 3.6 oversight list in one call (web dashboard and Owner app summary). Tiles hidden by the tenant's
-    OVERSIGHT policy are null and listed in `hidden_tiles`."""
-    return AccountabilityDashboard(session, ctx, now).summary()
+    """The oversight list in one call (web dashboard and Owner app summary). Tiles hidden by the tenant's OVERSIGHT
+    policy are null and listed in `hidden_tiles`. `date_from`/`date_to` (tenant-local, inclusive, optional) set the
+    period of the section figures that are flows; balances and open queues are always the position now."""
+    return AccountabilityDashboard(session, ctx, now).summary(date_from, date_to)

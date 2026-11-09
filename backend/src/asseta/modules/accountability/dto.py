@@ -7,6 +7,13 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from asseta.modules.accountability.models import SecurityEventKind, SyncResolutionOutcome
+from asseta.modules.accountability.sections_dto import (
+    CashSectionDto,
+    CustomerHoursSectionDto,
+    ExcavatorOperationsSectionDto,
+    ExceptionsSectionDto,
+    PeriodDto,
+)
 from asseta.modules.platform_billing.dto import Money, Reason
 
 
@@ -143,7 +150,7 @@ class AttemptsTileDto(BaseModel):
 
 
 class ApprovalsTileDto(BaseModel):
-    """[3.6.10] Outstanding approvals across modules."""
+    """[3.6.10] Outstanding approvals across modules, every kind (`total` is their sum)."""
 
     approval_requests: int
     cash_retentions: int
@@ -151,6 +158,23 @@ class ApprovalsTileDto(BaseModel):
     write_offs: int
     payments_to_verify: int
     remittances_to_verify: int
+    adjustment_requests: int = 0
+    hours_transfers: int = 0
+    hours_cancellations: int = 0
+    credit_arrangements: int = 0
+    discounts: int = 0
+    meter_corrections: int = 0
+    allocation_corrections: int = 0
+    classifications: int = 0
+    non_revenue_approvals: int = 0
+    variance_closures: int = 0
+    meter_baselines: int = 0
+    meter_resets: int = 0
+    partial_reasons: int = 0
+    jobs_awaiting_approval: int = 0
+    daily_reports_to_review: int = 0
+    case_closures: int = 0
+    revenue_decisions: int = 0
     total: int
 
 
@@ -211,3 +235,12 @@ class AccountabilitySummaryDto(BaseModel):
     discrepancies: DiscrepanciesTileDto | None = None
     unauthorized_attempts: AttemptsTileDto | None = None
     outstanding_approvals: ApprovalsTileDto | None = None
+    period: PeriodDto | None = None
+    hours_section: CustomerHoursSectionDto | None = Field(
+        default=None, description="Section 8 Customer Hours; null when hidden or CUSTOMER_HOURS is off"
+    )
+    operations_section: ExcavatorOperationsSectionDto | None = Field(
+        default=None, description="Section 8 Excavator Operations; null when hidden or ENGINE_HOURS is off"
+    )
+    cash_section: CashSectionDto | None = Field(default=None, description="Section 8 Cash Accountability")
+    exceptions_section: ExceptionsSectionDto | None = Field(default=None, description="Section 8 Exceptions")

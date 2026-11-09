@@ -91,7 +91,8 @@ class AdjustmentRequests:
         ):
             if value is not None:
                 stmt = stmt.where(column == value)
-        if (match := ilike_any(q, AdjustmentRequest.original_reference, AdjustmentRequest.reason)) is not None:
+        r = AdjustmentRequest
+        if (match := ilike_any(q, r.request_number, r.original_reference, r.reason)) is not None:
             stmt = stmt.where(match)
         return stmt
 

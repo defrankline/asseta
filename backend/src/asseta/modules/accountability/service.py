@@ -30,32 +30,32 @@ from asseta.modules.accountability.dto import (
     SyncResolutionIn,
 )
 from asseta.modules.accountability.external_tiles import EXTERNAL_TILES, TileUnavailable
+from asseta.modules.accountability.flows import PendingCount, pending_counts
 from asseta.modules.accountability.models import (
     SecurityEvent,
     SecurityEventKind,
     SyncOperationResolution,
 )
-from asseta.modules.expenses.models import ApprovalRequest, ApprovalStatus
-from asseta.modules.finance.cash_service import CashCustodyService
+from asseta.modules.accountability.sections import ManagementSections, approvals_tile
+from asseta.modules.accountability.sections_dto import PeriodDto
 from asseta.modules.finance.common import local_date, tenant_settings
 from asseta.modules.finance.custody_models import (
-    CashDecisionStatus,
     CashFloatAcknowledgement,
-    CashRetention,
     CashTransfer,
     CashTransferStatus,
     CashVariance,
-    CustodyAdjustment,
     RemittanceOverdue,
     VarianceStatus,
 )
 from asseta.modules.finance.custody_rules import cash_policy
+from asseta.modules.finance.custody_totals import CustodianBalance, all_custody_balances
 from asseta.modules.finance.models import (
     CashHandover,
     CustomerPayment,
     SettlementStatus,
     SupervisorCashCustody,
 )
+from asseta.modules.fleet.models import StaffMember
 from asseta.modules.identity.models import AppUser
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.intelligence.models import AnomalyCase, CaseStatus
@@ -89,9 +89,12 @@ TILES = (
     "unauthorized_attempts",
     "outstanding_approvals",
 )
+SECTIONS = ("hours_section", "operations_section", "cash_section", "exceptions_section")
 # Tiles that belong to a tenant capability: hidden (listed in hidden_tiles) while the tenant has it switched off.
 # The cash, discrepancies and approvals tiles stay; only their cash-custody-control figures go (empty / zero).
 TILE_CAPABILITY = {
+    "hours_section": CUSTOMER_HOURS,
+    "operations_section": ENGINE_HOURS,
     "customer_hours": CUSTOMER_HOURS,
     "hours_awaiting_activation": CUSTOMER_HOURS,
     "engine_hours": ENGINE_HOURS,
@@ -275,6 +278,8 @@ class AccountabilityDashboard:
         assert ctx.tenant_id is not None
         self._s, self._ctx, self._tid, self._now = session, ctx, ctx.tenant_id, now
         self._disabled: frozenset[str] = frozenset()
+        self._pending: dict[str, PendingCount] = {}
+        self._custody: list[CustodianBalance] | None = None
 
     @property
     def _cash_controls(self) -> bool:
@@ -285,11 +290,12 @@ class AccountabilityDashboard:
             CountAmountDto(currency=c, count=int(n), amount=a or Decimal(0)) for c, n, a in self._s.execute(stmt).all()
         ]
 
-    def summary(self) -> AccountabilitySummaryDto:
+    def summary(self, date_from: date | None = None, date_to: date | None = None) -> AccountabilitySummaryDto:
         eff = PolicyService(self._s).oversight(self._tid, at=self._now)
         self._disabled = disabled_capabilities(self._s, self._tid, self._now)
+        self._pending = pending_counts(self._s, self._disabled)
         off = {tile for tile, capability in TILE_CAPABILITY.items() if capability in self._disabled}
-        hidden = sorted((set(eff.policy.hidden_dashboard_tiles) & set(TILES)) | off)
+        hidden = sorted((set(eff.policy.hidden_dashboard_tiles) & {*TILES, *SECTIONS}) | off)
         out = AccountabilitySummaryDto(
             as_of=self._now,
             policy_version=eff.version_stamp,
@@ -307,7 +313,28 @@ class AccountabilityDashboard:
                     out.unavailable_tiles.append(tile)
                 continue
             setattr(out, tile, getattr(self, f"_{tile}")(eff.policy.security_event_window_days))
+        self._sections(out, set(hidden), date_from, date_to, eff.policy.security_event_window_days)
         return out
+
+    def _sections(
+        self,
+        out: AccountabilitySummaryDto,
+        hidden: set[str],
+        date_from: date | None,
+        date_to: date | None,
+        window_days: int,
+    ) -> None:
+        """The guideline section 8 groups: flows over the period, balances and queues as they stand now."""
+        sections = ManagementSections(self._s, self._tid, self._now, date_from, date_to, self._disabled)
+        out.period = PeriodDto(date_from=date_from, date_to=date_to)
+        if "hours_section" not in hidden:
+            out.hours_section = sections.customer_hours()
+        if "operations_section" not in hidden:
+            out.operations_section = sections.operations()
+        if "cash_section" not in hidden:
+            out.cash_section = sections.cash(self._balances())
+        if "exceptions_section" not in hidden:
+            out.exceptions_section = sections.exceptions(self._pending, window_days)
 
     def _investigations(self, _: int) -> InvestigationsTileDto:
         counts = dict(
@@ -320,22 +347,30 @@ class AccountabilityDashboard:
         return InvestigationsTileDto(open=counts.get(CaseStatus.OPEN, 0), in_review=counts.get(CaseStatus.IN_REVIEW, 0))
 
     def _cash(self, window_days: int) -> CashTileDto:
-        custody = CashCustodyService(self._s, self._ctx, self._now)
-        rows = []
-        for staff in custody.custodians():
-            for b in custody.balances(staff.id):
-                if b.outstanding or b.in_transit_out or b.claimed_unverified_handovers or b.pending_floats:
-                    rows.append(
-                        CustodianCashDto(
-                            staff_member_id=staff.id,
-                            staff_name=staff.full_name,
-                            currency=b.currency,
-                            outstanding=b.outstanding,
-                            in_transit_out=b.in_transit_out,
-                            claimed_unverified_handovers=b.claimed_unverified_handovers,
-                            pending_floats=b.pending_floats,
-                        )
-                    )
+        held = [
+            b
+            for b in self._balances()
+            if b.outstanding or b.in_transit_out or b.claimed_unverified_handovers or b.pending_floats
+        ]
+        names = dict(
+            self._s.execute(
+                select(StaffMember.id, StaffMember.full_name).where(
+                    StaffMember.id.in_({b.staff_member_id for b in held})
+                )
+            ).all()
+        )
+        rows = [
+            CustodianCashDto(
+                staff_member_id=b.staff_member_id,
+                staff_name=names.get(b.staff_member_id, ""),
+                currency=b.currency,
+                outstanding=b.outstanding,
+                in_transit_out=b.in_transit_out,
+                claimed_unverified_handovers=b.claimed_unverified_handovers,
+                pending_floats=b.pending_floats,
+            )
+            for b in held
+        ]
         rows.sort(key=lambda r: (-r.outstanding, r.staff_name))
         pending_floats = (
             select(SupervisorCashCustody.currency, func.count(), func.sum(SupervisorCashCustody.amount))
@@ -449,29 +484,12 @@ class AccountabilityDashboard:
         )
 
     def _outstanding_approvals(self, _: int) -> ApprovalsTileDto:
-        counts = {
-            "approval_requests": self._count(
-                select(func.count()).where(ApprovalRequest.status == ApprovalStatus.PENDING)
-            ),
-            "cash_retentions": self._count(
-                select(func.count()).where(CashRetention.status == CashDecisionStatus.PENDING)
-            ),
-            "custody_adjustments": self._count(
-                select(func.count()).where(CustodyAdjustment.status == CashDecisionStatus.PENDING)
-            ),
-            "write_offs": self._count(
-                select(func.count()).where(CashVariance.status == VarianceStatus.WRITE_OFF_PROPOSED)
-            ),
-            "payments_to_verify": self._count(
-                select(func.count()).where(CustomerPayment.status == SettlementStatus.CLAIMED)
-            ),
-            "remittances_to_verify": self._count(
-                select(func.count()).where(CashHandover.status == SettlementStatus.CLAIMED)
-            ),
-        }
-        if not self._cash_controls:  # their approvals are refused while cash custody controls are off
-            counts |= {"cash_retentions": 0, "custody_adjustments": 0, "write_offs": 0}
-        return ApprovalsTileDto(**counts, total=sum(counts.values()))
+        return approvals_tile(self._pending)
+
+    def _balances(self) -> list[CustodianBalance]:
+        if self._custody is None:
+            self._custody = all_custody_balances(self._s, self._now)
+        return self._custody
 
     def _count(self, stmt: Any) -> int:
         return int(self._s.execute(stmt).scalar_one())

@@ -130,5 +130,5 @@ def test_mandate_roles_q_on_role_key(api: Api) -> None:
         )
     )
     roles = api.platform.get(f"/api/v1/platform/mandates/{m['id']}/roles", q="oPER").json()
-    assert [r["key"] for r in roles] == ["operator"]
+    assert [r["key"] for r in roles] == ["operator", "operator-readings"]
     assert len(api.platform.get(f"/api/v1/platform/mandates/{m['id']}/roles").json()) > 1

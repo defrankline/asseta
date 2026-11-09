@@ -6,7 +6,7 @@ import uuid
 from collections.abc import Callable
 from datetime import date, datetime
 from functools import cache
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, File, Header, Query, UploadFile
 from pydantic import BaseModel, Field
@@ -20,10 +20,11 @@ from asseta.core.errors import ERROR_RESPONSES, Conflict, NotFound
 from asseta.core.idempotency import IdempotencyGuard, request_hash
 from asseta.core.lifecycle import IncludeInactive, LifecycleChangeIn
 from asseta.core.paging import Page, PageParams, page_params, paginate
+from asseta.core.search import ilike_any
 from asseta.core.storage import ObjectStore
 from asseta.modules.accountability.names import named
 from asseta.modules.finance.cash_service import CashCustodyService, custody_entry_dto
-from asseta.modules.finance.common import resolve_staff
+from asseta.modules.finance.common import period_conditions, resolve_staff
 from asseta.modules.finance.custody_dto import (
     CashAcknowledgementIn,
     CashReasonDto,
@@ -54,6 +55,7 @@ from asseta.modules.finance.custody_models import (
     CashRetention,
     CashTransfer,
     CashTransferStatus,
+    CashVariance,
     CustodyAdjustment,
     OverdueReason,
     RemittanceOverdue,
@@ -157,9 +159,16 @@ def list_transfers(
     paging: Paging,
     status: CashTransferStatus | None = None,
     staff_member_id: uuid.UUID | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
 ) -> Page[CashTransferDto]:
     svc = CashCustodyControls(session, ctx, now)
-    rows, total = paginate(session, svc.list_transfers(status, staff_member_id), paging)
+    assert ctx.tenant_id is not None
+    period = period_conditions(session, ctx.tenant_id, CashTransfer.transferred_at, date_from, date_to)
+    stmt = svc.list_transfers(status, staff_member_id).where(*period)
+    if (match := ilike_any(paging.q, CashTransfer.transfer_number, CashTransfer.note)) is not None:
+        stmt = stmt.where(match)
+    rows, total = paginate(session, stmt, paging)
     return _page([svc.transfer_dto(t) for t in rows], total, paging)
 
 
@@ -355,10 +364,15 @@ def list_variances(
     staff_member_id: uuid.UUID | None = None,
     source_type: VarianceSource | None = None,
     assignee_user_id: uuid.UUID | None = None,
+    direction: Annotated[
+        Literal["SHORTAGE", "OVERAGE"] | None, Query(description="SHORTAGE: less received than declared; OVERAGE: more")
+    ] = None,
 ) -> Page[CashVarianceDto]:
     """Cash and customer-hour variances (`source_type` CUSTOMER_HOUR). Refused per capability: CASH_CUSTODY_DISABLED,
     or HOURS_DISABLED when asking for customer-hour variances with hours switched off."""
     stmt = CashCustodyControls(session, ctx, now).list_variances(status, staff_member_id, source_type, assignee_user_id)
+    if direction is not None:
+        stmt = stmt.where(CashVariance.amount > 0 if direction == "SHORTAGE" else CashVariance.amount < 0)
     rows, total = paginate(session, stmt, paging)
     return _page([CashVarianceDto.model_validate(v) for v in rows], total, paging)
 
@@ -510,6 +524,8 @@ def list_retentions(
         stmt = stmt.where(CashRetention.status == status)
     if staff_member_id:
         stmt = stmt.where(CashRetention.staff_member_id == staff_member_id)
+    if (match := ilike_any(paging.q, CashRetention.retention_number, CashRetention.reason)) is not None:
+        stmt = stmt.where(match)
     rows, total = paginate(session, stmt, paging)
     return _page([CashRetentionDto.model_validate(r) for r in rows], total, paging)
 
@@ -600,6 +616,8 @@ def list_adjustments(
         stmt = stmt.where(CustodyAdjustment.status == status)
     if staff_member_id:
         stmt = stmt.where(CustodyAdjustment.staff_member_id == staff_member_id)
+    if (match := ilike_any(paging.q, CustodyAdjustment.adjustment_number, CustodyAdjustment.reason)) is not None:
+        stmt = stmt.where(match)
     rows, total = paginate(session, stmt, paging)
     return _page([CustodyAdjustmentDto.model_validate(r) for r in rows], total, paging)
 

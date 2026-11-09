@@ -24,7 +24,7 @@ from asseta.core.search import ilike_any
 from asseta.core.storage import ObjectStore
 from asseta.modules.accountability.names import named
 from asseta.modules.finance import permissions as _finance_permissions  # noqa: F401  (declares finance codes)
-from asseta.modules.finance.common import tenant_settings
+from asseta.modules.finance.common import period_conditions, tenant_settings
 from asseta.modules.fleet.models import Machine
 from asseta.modules.fleet.photos import PhotoUrlDto, get_object_store
 from asseta.modules.hours.approvals import HoursApprovals, proposal_query, reason_code_query, request_query
@@ -60,6 +60,7 @@ from asseta.modules.hours.dto import (
     WalkInCustomerIn,
     WorkExecutionAllocationDto,
 )
+from asseta.modules.hours.ledger import PurchaseQueue
 from asseta.modules.hours.models import (
     CreditArrangement,
     CustomerDiscount,
@@ -448,13 +449,18 @@ def credit_exposure(
 @named
 def list_purchases(
     session: DbSession,
-    _: Read,
+    ctx: Read,
     paging: Paging,
     customer_id: uuid.UUID | None = None,
     machine_id: uuid.UUID | None = None,
     cancelled: bool | None = None,
+    queue: PurchaseQueue | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
 ) -> Page[HoursPurchaseDto]:
-    rows, total = paginate(session, purchase_query(paging.q, customer_id, machine_id, cancelled), paging)
+    assert ctx.tenant_id is not None
+    period = period_conditions(session, ctx.tenant_id, HoursPurchase.created_at, date_from, date_to)
+    rows, total = paginate(session, purchase_query(paging.q, customer_id, machine_id, cancelled, queue, period), paging)
     return Page(
         items=[purchase_dto(session, p) for p in rows], total=total, page=paging.page, page_size=paging.page_size
     )
@@ -557,15 +563,23 @@ def request_cancellation(
 @named
 def list_ledger(
     session: DbSession,
-    _: Read,
+    ctx: Read,
     paging: Paging,
     purchase_id: uuid.UUID | None = None,
     customer_id: uuid.UUID | None = None,
     machine_id: uuid.UUID | None = None,
     job_id: uuid.UUID | None = None,
     entry_type: LedgerEntryType | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
 ) -> Page[LedgerEntryDto]:
-    stmt = select(HoursLedgerEntry).order_by(HoursLedgerEntry.occurred_at.desc(), HoursLedgerEntry.created_at.desc())
+    assert ctx.tenant_id is not None
+    period = period_conditions(session, ctx.tenant_id, HoursLedgerEntry.occurred_at, date_from, date_to)
+    stmt = (
+        select(HoursLedgerEntry)
+        .where(*period)
+        .order_by(HoursLedgerEntry.occurred_at.desc(), HoursLedgerEntry.created_at.desc())
+    )
     for col, value in (
         (HoursLedgerEntry.purchase_id, purchase_id),
         (HoursLedgerEntry.customer_id, customer_id),

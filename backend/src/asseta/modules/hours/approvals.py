@@ -94,7 +94,10 @@ def request_query[R: (HoursTransfer, HoursCancellation)](
         stmt = stmt.where(model.status == status)
     if purchase_id is not None:
         stmt = stmt.where(model.purchase_id == purchase_id)
-    if (match := ilike_any(q, HoursPurchase.purchase_number, model.reason)) is not None:
+    columns: list[Any] = [HoursPurchase.purchase_number, model.reason]
+    if model is HoursTransfer:
+        columns.append(HoursTransfer.transfer_number)
+    if (match := ilike_any(q, *columns)) is not None:
         stmt = stmt.join(HoursPurchase, HoursPurchase.id == model.purchase_id).where(match)
     return stmt
 
@@ -522,6 +525,10 @@ class HoursApprovals:
         )
         row.terms, row.reason = body.terms, body.reason
         row.reason_code_id = self._reason_code(ReasonKind.CREDIT, body.reason_code_id)
+        evidence = row.evidence_attachment_ids if body.evidence_attachment_ids is None else body.evidence_attachment_ids
+        row.evidence_attachment_ids = require_evidence(
+            self._s, self.engine.policy.credit_evidence_required, list(evidence)
+        )
         flush_versioned(self._s, "Credit arrangement")
         dto = CreditArrangementDto.model_validate(row)
         self._record("hours.arrangement.updated", "credit_arrangement", row.id, before, dto.model_dump(mode="json"))

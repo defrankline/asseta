@@ -57,7 +57,7 @@ class AdjustmentLedger:
                 stmt = stmt.where(e.posted_at < local_bounds(tz, date_to, date_to)[1])
         if (ref := ilike_any(reference, e.original_reference)) is not None:
             stmt = stmt.where(ref)
-        if (match := ilike_any(q, e.original_reference, e.reason, e.reason_label)) is not None:
+        if (match := ilike_any(q, e.entry_number, e.original_reference, e.reason, e.reason_label)) is not None:
             stmt = stmt.where(match)
         return stmt
 

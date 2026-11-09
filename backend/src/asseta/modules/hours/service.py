@@ -2,6 +2,7 @@
 typed price), payment links and evidence, credit activation, derived balances and work execution allocations."""
 
 import uuid
+from collections.abc import Sequence
 from datetime import datetime
 from decimal import Decimal
 from typing import Any
@@ -51,10 +52,13 @@ from asseta.modules.hours.dto import (
 from asseta.modules.hours.engine import TOPIC, HoursEngine, minor_units
 from asseta.modules.hours.ledger import (
     ZERO,
+    PurchaseQueue,
     active_allocated,
     allocated_amounts,
     derived_status,
+    purchase_queue_ids,
     purchase_totals,
+    purchase_totals_bulk,
 )
 from asseta.modules.hours.models import (
     SIGN,
@@ -194,8 +198,12 @@ def purchase_query(
     customer_id: uuid.UUID | None,
     machine_id: uuid.UUID | None,
     cancelled: bool | None,
+    queue: PurchaseQueue | None = None,
+    period: Sequence[ColumnElement[bool]] = (),
 ) -> Select[HoursPurchase]:
-    stmt = select(HoursPurchase).order_by(HoursPurchase.created_at.desc(), HoursPurchase.id)
+    stmt = select(HoursPurchase).where(*period).order_by(HoursPurchase.created_at.desc(), HoursPurchase.id)
+    if queue is not None:
+        stmt = stmt.where(HoursPurchase.id.in_(purchase_queue_ids(queue)))
     if customer_id:
         stmt = stmt.where(HoursPurchase.customer_id == customer_id)
     if machine_id:
@@ -278,8 +286,10 @@ def balances(
         r = row(cid, mid)
         r["by"][t] += Decimal(h)
         r["purchases"].add(pid)
-    for p in session.execute(select(HoursPurchase).where(*purchase_conds)).scalars():
-        awaiting = max(ZERO, p.hours - purchase_totals(session, p).net_activated)
+    purchases = list(session.execute(select(HoursPurchase).where(*purchase_conds)).scalars())
+    totals_of = purchase_totals_bulk(session, purchases)
+    for p in purchases:
+        awaiting = max(ZERO, p.hours - totals_of[p.id].net_activated)
         if awaiting > 0:
             r = row(p.customer_id, p.machine_id)
             r["awaiting"] += awaiting

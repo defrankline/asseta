@@ -6,7 +6,7 @@ from decimal import Decimal
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import ColumnElement, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -88,3 +88,17 @@ def local_bounds(tz_name: str, first: date, last: date) -> tuple[datetime, datet
 
 def local_date(tz_name: str, instant: datetime) -> date:
     return instant.astimezone(ZoneInfo(tz_name)).date()
+
+
+def period_conditions(
+    session: Session, tenant_id: uuid.UUID, column: Any, date_from: date | None, date_to: date | None
+) -> list[ColumnElement[bool]]:
+    """`column` within the tenant-local days [date_from, date_to]; either end may be open."""
+    if date_from is not None and date_to is not None and date_to < date_from:
+        raise BusinessRuleViolation("Period end is before its start", code="INVALID_PERIOD")
+    tz, out = tenant_settings(session, tenant_id).timezone, []
+    if date_from is not None:
+        out.append(column >= local_bounds(tz, date_from, date_from)[0])
+    if date_to is not None:
+        out.append(column < local_bounds(tz, date_to, date_to)[1])
+    return out
