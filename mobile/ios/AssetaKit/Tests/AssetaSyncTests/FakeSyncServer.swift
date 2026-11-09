@@ -35,6 +35,7 @@ final class FakeSyncServer: @unchecked Sendable {
     var expenseCategories: [[String: Any]] = []
     var cashCustody: [[String: Any]] = []
     var depositAccounts: [[String: Any]] = []
+    var openInvoices: [[String: Any]] = []
     var changeoverJobs: [[String: Any]] = []
     var unbillableReasons: [[String: Any]] = []
     /// Advertised protocol capabilities (nil: an older server that sends none).
@@ -325,7 +326,7 @@ final class FakeSyncServer: @unchecked Sendable {
         var data: [String: Any] = ["jobs": jobs, "machines": machines, "sites": [], "customers": customers, "contracts": [],
                                    "staff": [], "expense_categories": expenseCategories, "cash_custody": cashCustody,
                                    "deposit_accounts": depositAccounts, "changeover_jobs": changeoverJobs,
-                                   "unbillable_reasons": unbillableReasons]
+                                   "unbillable_reasons": unbillableReasons, "open_invoices": openInvoices]
         for (key, rows) in inbox { data[key] = rows }
         return data
     }

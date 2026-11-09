@@ -76,6 +76,11 @@ public struct OwnerFeatures: Equatable, Sendable {
         !disabledCapabilities.contains(TenantCapability.idleMachines) && permissions.contains("tenant.oversight.read")
     }
 
+    /// One employee's accountability (`tenant.accountability.employee.read`).
+    public var employeeAccountability: Bool { permissions.contains("tenant.accountability.employee.read") }
+    /// Find a reference (`tenant.lookup.read`).
+    public var lookup: Bool { permissions.contains("tenant.lookup.read") }
+
     /// The Approvals screen shows approval requests or at least one kind of accountability decision.
     public var approvalsScreen: Bool { approvals || !decisionKinds.isEmpty || revenueRead }
 

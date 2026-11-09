@@ -88,6 +88,9 @@ public struct SyncData: Codable, Hashable, Sendable {
     /// The tenant's unbillable reasons (SYNC_UNBILLABLE_REASONS; deltas include deactivations, `is_active` false).
     /// Stored as entities of type `unbillable_reason`.
     public var unbillableReasons: [JSONValue]
+    /// Open invoices of the recorder's customers (SYNC_OPEN_INVOICES). A full snapshot on every pull, like `cashCustody`:
+    /// it replaces the local set (entities of type `open_invoice`) instead of being merged.
+    public var openInvoices: [JSONValue]
     /// Supervisor inbox lists (SUPERVISOR_INBOX_V1), raw as sent; `nil` when the server did not send
     /// the field (an older server): the stored inbox is then left untouched.
     public var inbox: [InboxList: [JSONValue]] = [:]
@@ -95,7 +98,7 @@ public struct SyncData: Codable, Hashable, Sendable {
     public init(jobs: [JSONValue] = [], machines: [JSONValue] = [], sites: [JSONValue] = [],
                 customers: [JSONValue] = [], contracts: [JSONValue] = [], staff: [JSONValue] = [],
                 expenseCategories: [JSONValue] = [], cashCustody: [JSONValue] = [], depositAccounts: [JSONValue] = [],
-                changeoverJobs: [JSONValue] = [], unbillableReasons: [JSONValue] = []) {
+                changeoverJobs: [JSONValue] = [], unbillableReasons: [JSONValue] = [], openInvoices: [JSONValue] = []) {
         self.jobs = jobs
         self.machines = machines
         self.sites = sites
@@ -107,12 +110,14 @@ public struct SyncData: Codable, Hashable, Sendable {
         self.depositAccounts = depositAccounts
         self.changeoverJobs = changeoverJobs
         self.unbillableReasons = unbillableReasons
+        self.openInvoices = openInvoices
     }
 
     enum CodingKeys: String, CodingKey {
         case jobs, machines, sites, customers, contracts, staff
         case expenseCategories = "expense_categories", cashCustody = "cash_custody"
         case depositAccounts = "deposit_accounts", changeoverJobs = "changeover_jobs", unbillableReasons = "unbillable_reasons"
+        case openInvoices = "open_invoices"
     }
 
     /// The `my_*` inbox lists of `SyncData`.
@@ -136,6 +141,7 @@ public struct SyncData: Codable, Hashable, Sendable {
         try c.encode(depositAccounts, forKey: .depositAccounts)
         try c.encode(changeoverJobs, forKey: .changeoverJobs)
         try c.encode(unbillableReasons, forKey: .unbillableReasons)
+        try c.encode(openInvoices, forKey: .openInvoices)
         var lists = encoder.container(keyedBy: InboxList.self)
         for (key, rows) in inbox { try lists.encode(rows, forKey: key) }
     }
@@ -156,6 +162,7 @@ public struct SyncData: Codable, Hashable, Sendable {
         depositAccounts = try c.decodeIfPresent([JSONValue].self, forKey: .depositAccounts) ?? []
         changeoverJobs = try c.decodeIfPresent([JSONValue].self, forKey: .changeoverJobs) ?? []
         unbillableReasons = try c.decodeIfPresent([JSONValue].self, forKey: .unbillableReasons) ?? []
+        openInvoices = try c.decodeIfPresent([JSONValue].self, forKey: .openInvoices) ?? []
         let lists = try decoder.container(keyedBy: InboxList.self)
         for key in InboxList.allCases {
             if let rows = try lists.decodeIfPresent([JSONValue].self, forKey: key) { inbox[key] = rows }

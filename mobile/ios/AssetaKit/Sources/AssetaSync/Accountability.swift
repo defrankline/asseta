@@ -69,6 +69,8 @@ public struct FieldAccess: Sendable, Equatable {
     public var cashDetails: Bool { supports(SyncCapability.cashDetailsV2) }
     /// Collections offer "Pays for" (a purchase, or an offline purchase's client id).
     public var collectionLink: Bool { cashDetails && can(Self.collectionRecord) }
+    /// Open invoices appear in "Pays for" (DEC-032 Phase 4, server SYNC_OPEN_INVOICES).
+    public var collectionInvoices: Bool { collectionLink && supports(SyncCapability.syncOpenInvoices) }
     /// The collection must name its purchase (the tenant's `collection_link_required`).
     public var collectionLinkRequired: Bool { collectionLink && cash?.collectionLinkRequired == true }
     /// Under the full-remittance policy the hand-over asks why part of the balance stays with the custodian.

@@ -22,7 +22,10 @@ struct CashCollectionFormView: View {
     @State private var linkID: UUID?
     @State private var error: String?
 
-    private var links: [CollectionLinkOption] { model.accountabilityData?.collectionLinks(customerID: customerID) ?? [] }
+    private var links: [CollectionLinkOption] {
+        model.accountabilityData?.collectionLinks(customerID: customerID, currency: currency) ?? []
+    }
+    private var linkedInvoice: SyncOpenInvoiceDTO? { links.first { $0.id == linkID }?.invoice }
     private var linkMissing: Bool { model.access.collectionLinkRequired && linkID == nil }
     /// Why the required link stops saving (once the rest of the form is filled in, as Android).
     private var showLinkMissing: Bool { linkMissing && customerID != nil && !amount.isEmpty }
@@ -47,11 +50,13 @@ struct CashCollectionFormView: View {
                         SearchablePickerField(label: required ? FieldAccountabilityTexts.collectionLink : FieldAccountabilityTexts.collectionLinkOptional,
                                               options: links.map { PickerOption(id: $0.id, title: $0.title, subtitle: $0.subtitle) },
                                               selection: $linkID, noneTitle: required ? nil : FieldAccountabilityTexts.collectionLinkNone,
-                                              emptyMessage: FieldAccountabilityTexts.collectionLinkEmpty, identifier: "collection.link")
+                                              emptyMessage: model.access.collectionInvoices ? FieldAccountabilityTexts.collectionLinkEmptyAll : FieldAccountabilityTexts.collectionLinkEmpty,
+                                              identifier: "collection.link")
                         if showLinkMissing {
                             Text(FieldAccountabilityTexts.collectionErrLink).font(.footnote).foregroundStyle(Palette.warning)
                         }
-                    } footer: { Text(FieldAccountabilityTexts.collectionLinkFooter) }
+                    } footer: { Text(linkedInvoice == nil ? FieldAccountabilityTexts.collectionLinkFooter : FieldAccountabilityTexts.collectionInvoiceFooter) }
+                    .onChange(of: links.map(\.id)) { _, ids in if let linkID, !ids.contains(linkID) { self.linkID = nil } }
                 }
                 Section {
                     TextField("Amount", text: $amount).keyboardType(.decimalPad).font(.title3.monospacedDigit())
@@ -103,9 +108,10 @@ struct CashCollectionFormView: View {
                                             jobNumber: jobID.flatMap { model.job($0)?.job.jobNumber },
                                             jobCustomerID: jobID.flatMap { model.job($0)?.customer?.id },
                                             custodianID: holder, receivedAt: receivedAt,
-                                            purchaseID: model.access.collectionLink ? linkID : nil,
+                                            purchaseID: model.access.collectionLink && linkedInvoice == nil ? linkID : nil,
                                             purchaseOperationID: links.first { $0.id == linkID }?.operationID,
-                                            linkRequired: model.access.collectionLinkRequired, clientID: clientID)
+                                            linkRequired: model.access.collectionLinkRequired,
+                                            invoice: model.access.collectionInvoices ? linkedInvoice : nil, clientID: clientID)
             }
             dismiss()
         } catch {

@@ -24,6 +24,10 @@ public struct CashCustodyBalanceDTO: Codable, Hashable, Sendable {
     public let claimedUnverifiedHandovers: DecimalString
     public let pendingSpending: DecimalString
     public let asOf: Date
+    /// Employee accountability (DEC-032 Phase 4): absent from older payloads.
+    public var inTransitOut: DecimalString? = nil
+    public var pendingFloats: DecimalString? = nil
+    public var approvedRetention: DecimalString? = nil
 
     public init(staffMemberID: UUID, currency: String, outstanding: DecimalString,
                 claimedUnverifiedHandovers: DecimalString, pendingSpending: DecimalString, asOf: Date) {
@@ -39,6 +43,7 @@ public struct CashCustodyBalanceDTO: Codable, Hashable, Sendable {
         case currency, outstanding
         case staffMemberID = "staff_member_id", claimedUnverifiedHandovers = "claimed_unverified_handovers"
         case pendingSpending = "pending_spending", asOf = "as_of"
+        case inTransitOut = "in_transit_out", pendingFloats = "pending_floats", approvedRetention = "approved_retention"
     }
 }
 
@@ -127,9 +132,12 @@ public struct CashCollectionPayload: Codable, Hashable, Sendable {
     public let staffMemberID: UUID?
     /// CASH_DETAILS_V2: the hours purchase this cash pays for (its id, or the client id of a sale still in the outbox).
     public let purchaseID: UUID?
+    /// SYNC_OPEN_INVOICES: the invoice this cash pays for (nil = key omitted, today's payload).
+    public let allocations: [CollectionAllocation]?
 
     public init(clientID: UUID, customerID: UUID, amount: Decimal, currency: String?, receivedAt: Date,
-                reference: String?, note: String?, staffMemberID: UUID? = nil, purchaseID: UUID? = nil) {
+                reference: String?, note: String?, staffMemberID: UUID? = nil, purchaseID: UUID? = nil,
+                allocations: [CollectionAllocation]? = nil) {
         self.clientID = clientID
         self.customerID = customerID
         self.amount = DecimalString(amount)
@@ -139,13 +147,27 @@ public struct CashCollectionPayload: Codable, Hashable, Sendable {
         self.note = note
         self.staffMemberID = staffMemberID
         self.purchaseID = purchaseID
+        self.allocations = allocations
     }
 
     enum CodingKeys: String, CodingKey {
-        case amount, currency, reference, note
+        case amount, currency, reference, note, allocations
         case clientID = "client_id", customerID = "customer_id", receivedAt = "received_at"
         case staffMemberID = "staff_member_id", purchaseID = "purchase_id"
     }
+}
+
+/// One invoice a collection pays (`HireAllocationIn`).
+public struct CollectionAllocation: Codable, Hashable, Sendable {
+    public let invoiceID: UUID
+    public let amount: DecimalString
+
+    public init(invoiceID: UUID, amount: Decimal) {
+        self.invoiceID = invoiceID
+        self.amount = DecimalString(amount)
+    }
+
+    enum CodingKeys: String, CodingKey { case amount, invoiceID = "invoice_id" }
 }
 
 /// `CASH_HANDOVER`: cash handed to the office (CLAIMED until finance verifies it). With REMITTANCE_DETAILS_V1 it

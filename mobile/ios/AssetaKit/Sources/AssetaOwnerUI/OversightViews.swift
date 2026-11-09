@@ -86,6 +86,13 @@ struct ScorecardPersonView: View {
                 }
                 let held = OversightPresentation.cashHeldRows(d.row)
                 if !held.isEmpty { Section(T.cashHeld) { OversightFieldList(fields: held) } }
+                if model.features.employeeAccountability {
+                    Section {
+                        NavigationLink(value: OwnerRoute.employeeAccountability(staffID, name: OversightPresentation.name(d.row), from: range.from, to: range.to)) {
+                            Text(ManagementTexts.employeeOpen)
+                        }
+                    }
+                }
                 Section(T.records) {
                     let records = OversightPresentation.records(d, features: model.features)
                     if records.isEmpty { Text(T.recordsEmpty).font(.footnote).foregroundStyle(.secondary) }

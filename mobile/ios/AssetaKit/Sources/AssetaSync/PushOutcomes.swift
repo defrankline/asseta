@@ -38,7 +38,7 @@ public struct PushOutcomeApplier: Sendable {
         "CHANGEOVER_JOB_REQUIRED", "CHANGEOVER_JOB_INVALID",
         // Independence and evidence (DEC-032 Phase 3): a requirement switched on, or the purchase changed, after queueing.
         "COLLECTION_LINK_REQUIRED", "PARTIAL_REMITTANCE_REASON_REQUIRED", "EVIDENCE_REQUIRED", "PURCHASE_NOT_FOUND",
-        "PURCHASE_CANCELLED", "OVER_ALLOCATION", "ALLOCATION_MISMATCH",
+        "PURCHASE_CANCELLED", "OVER_ALLOCATION", "ALLOCATION_MISMATCH", "INVOICE_NOT_OPEN",
     ]
 
     let outbox: any ClientOperationRepository

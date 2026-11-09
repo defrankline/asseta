@@ -152,6 +152,14 @@ public final class SyncStateStore: Sendable {
         }
     }
 
+    /// Replaces every entity of one type (a server list sent as a full snapshot on each pull).
+    public func replaceEntities(type: String, with entities: [StoredEntity], tenantID: UUID) throws {
+        try db.transaction {
+            try db.execute("DELETE FROM sync_entity WHERE tenant_id = ? AND entity_type = ?", [.text(tenantID.lowercased), .text(type)])
+            try upsert(entities, tenantID: tenantID)
+        }
+    }
+
     // MARK: - Policy snapshots
 
     public func savePolicySnapshots(_ snapshots: [StoredPolicySnapshot], tenantID: UUID) throws {

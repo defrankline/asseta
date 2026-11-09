@@ -180,6 +180,8 @@ extension OwnerFeatures {
         // ENGINE_HOURS off: a daily report opens Approvals (as a hidden decision does).
         case .dailyReport:
             engineHours ? route : .approvals
+        case .employeeAccountability:
+            employeeAccountability ? route : .accountability
         default: route
         }
     }
@@ -209,6 +211,7 @@ extension OwnerFeatures {
         case .idleMachines: idleMachines
         case .setupChecklist: setupRead
         case .dailyReport: allocationsRead
+        case .employeeAccountability: employeeAccountability
         case .notifications, .notification: notifications
         }
     }
@@ -216,6 +219,7 @@ extension OwnerFeatures {
     /// Entries of the More tab, in order.
     public var moreEntries: [String] {
         (setupRead ? [SetupTexts.more] : []) + (approvalsScreen ? ["Approvals"] : []) + (accountability ? [OwnerAccountabilityTexts.moreAccountability] : [])
+            + (lookup ? [ManagementTexts.lookupMore] : [])
             + (hoursRead ? [CustomerHoursTexts.more] : []) + (scorecard ? [OversightTexts.scoreMore] : [])
             + (meterEvidence ? ["Meter exceptions"] : []) + (expenses ? ["Field spend"] : [])
             + (finance ? ["Cash with supervisors"] : []) + (cases ? ["Investigations"] : [])

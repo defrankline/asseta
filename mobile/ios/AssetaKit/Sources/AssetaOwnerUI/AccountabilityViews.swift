@@ -204,10 +204,16 @@ struct DecisionDetailView: View {
 struct AccountabilityDashboardView: View {
     let model: OwnerModel
     @State private var loader = Loader<AccountabilitySummaryDTO>()
+    @State private var period = ScorecardPeriod.default
 
     var body: some View {
         List {
+            Section {
+                FilterChips(options: ScorecardPeriod.allCases.map { ($0, $0.label) }, selection: $period)
+                    .listRowInsets(EdgeInsets()).accessibilityIdentifier("accountability.period")
+            }
             if let summary = loader.value {
+                ManagementGroupsView(model: model, summary: summary)
                 let tiles = AccountabilityDashboard.tiles(summary, disabled: model.features.disabledCapabilities,
                                                             revenueRead: model.features.revenueRead)
                 if AccountabilityDashboard.showsHiddenNote(summary) {
@@ -225,7 +231,12 @@ struct AccountabilityDashboardView: View {
                         }
                     } header: { Text(tile.title) } footer: { if let footer = tile.footer { Text(footer) } }
                 }
-                Section { Text(AccountabilityDashboard.footer(summary)).font(.footnote).foregroundStyle(.secondary) }
+                Section {
+                    if summary.hoursSection != nil || summary.operationsSection != nil || summary.cashSection != nil || summary.exceptionsSection != nil {
+                        Text(ManagementTexts.periodNote).font(.footnote).foregroundStyle(.secondary)
+                    }
+                    Text(AccountabilityDashboard.footer(summary)).font(.footnote).foregroundStyle(.secondary)
+                }
             } else if let error = loader.error {
                 LoadFailure(message: error) { await reload() }
             } else {
@@ -235,10 +246,13 @@ struct AccountabilityDashboardView: View {
         .staleBanner(loader, model: model)
         .navigationTitle(T.dashTitle)
         .refreshable { await reload() }
-        .task(id: model.changeTick) { await reload() }
+        .task(id: "\(model.changeTick)\(period)") { await reload() }
     }
 
-    private func reload() async { await loader.load(model, .accountability, OwnerAPI.accountabilitySummary()) }
+    private func reload() async {
+        let range = period.range()
+        await loader.load(model, .accountabilityPeriod(from: range.from, to: range.to), OwnerAPI.accountabilitySummary(from: range.from, to: range.to))
+    }
 }
 /// One label/value line of a dashboard tile.
 private struct TileRow: View {

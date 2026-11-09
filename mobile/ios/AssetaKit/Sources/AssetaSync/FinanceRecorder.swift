@@ -47,16 +47,25 @@ extension FieldRecorder {
                                      note: String?, jobNumber: String? = nil, jobCustomerID: UUID? = nil,
                                      custodianID: UUID? = nil, receivedAt: Date, purchaseID: UUID? = nil,
                                      purchaseOperationID: UUID? = nil, linkRequired: Bool = false,
-                                     clientID: UUID = UUID()) throws -> ClientOperation {
+                                     invoice: SyncOpenInvoiceDTO? = nil, clientID: UUID = UUID()) throws -> ClientOperation {
         guard let customerID else { throw FieldRecorderError.invalid("Choose the customer who paid.") }
-        if linkRequired && purchaseID == nil { throw FieldRecorderError.invalid(FieldAccountabilityTexts.collectionErrLink) }
+        if linkRequired && purchaseID == nil && invoice == nil { throw FieldRecorderError.invalid(FieldAccountabilityTexts.collectionErrLink) }
         if purchaseID != nil && serverCapabilities()?.contains(SyncCapability.cashDetailsV2) != true {
             throw FieldRecorderError.notAllowed(FieldAccountabilityTexts.serverTooOld)
         }
         if let jobNumber, let jobCustomerID, jobCustomerID != customerID {
             throw FieldRecorderError.invalid("Job \(jobNumber) belongs to another customer.")
         }
+        if invoice != nil && serverCapabilities()?.contains(SyncCapability.syncOpenInvoices) != true {
+            throw FieldRecorderError.notAllowed(FieldAccountabilityTexts.serverTooOld)
+        }
         let amount = try FinanceRules.amount(amountText)
+        let code = try FinanceRules.currency(currency)
+        if let invoice {
+            if invoice.customerID != customerID || invoice.currency != code {
+                throw FieldRecorderError.invalid(FieldAccountabilityTexts.allocationMismatch)
+            }
+        }
         let purchaseOp = try purchaseOperationID.flatMap { try store.outbox.operation(id: $0) }
         if purchaseOp?.status == .failed || purchaseOp?.status == .conflict {
             throw FieldRecorderError.notAllowed(FieldAccountabilityTexts.collectionPurchaseGone)
@@ -64,9 +73,10 @@ extension FieldRecorder {
         let jobNote = jobNumber.map { "Job \($0)" }
         let combined = [jobNote, FinanceRules.clean(note, max: 1000)].compactMap { $0 }.joined(separator: ". ")
         let payload = CashCollectionPayload(
-            clientID: clientID, customerID: customerID, amount: amount, currency: try FinanceRules.currency(currency),
+            clientID: clientID, customerID: customerID, amount: amount, currency: code,
             receivedAt: receivedAt, reference: FinanceRules.clean(reference, max: 120),
-            note: FinanceRules.clean(combined, max: 1000), staffMemberID: custodianID, purchaseID: purchaseID)
+            note: FinanceRules.clean(combined, max: 1000), staffMemberID: custodianID, purchaseID: purchaseID,
+            allocations: invoice.map { [CollectionAllocation(invoiceID: $0.id, amount: OpenInvoices.allocation(amount: amount, invoice: $0))] })
         // A purchase still in the outbox: the collection waits for it, so the server can resolve its client id.
         return try enqueue(.cashCollection, entityType: "cash_collection", entityID: clientID, payload: payload,
                            dependsOn: purchaseOp.flatMap { $0.status == .acked ? nil : [$0.id] } ?? [], createdAt: receivedAt)

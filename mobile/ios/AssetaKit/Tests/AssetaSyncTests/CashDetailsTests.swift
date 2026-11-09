@@ -226,8 +226,8 @@ struct CashDetailsTests {
             "EVIDENCE_REQUIRED": "Your company requires evidence for this. Record it again with a photo.",
             "PURCHASE_NOT_FOUND": "The purchase you chose is no longer on record. Record it again and choose another.",
             "PURCHASE_CANCELLED": "The purchase you chose is cancelled. Record it again and choose another.",
-            "OVER_ALLOCATION": "This is more than the purchase still owes. Record it again with the right amount.",
-            "ALLOCATION_MISMATCH": "The purchase you chose is for another customer or currency. Record it again and choose another.",
+            "OVER_ALLOCATION": "This is more than the purchase or invoice still owes. Record it again with the right amount.",
+            "ALLOCATION_MISMATCH": "What you chose is for another customer or currency. Record it again and choose another.",
         ]
         for (code, text) in expected {
             let result = OperationResultDTO(id: UUID(), status: .duplicate, error: .object(["code": .string(code)]))

@@ -7,7 +7,7 @@ import SwiftUI
 enum OwnerTab: Hashable { case overview, fleet, jobs, alerts, more }
 
 /// Lists reachable from the "More" tab.
-enum MoreItem: Hashable { case setup, approvals, accountability, customerHours, scorecard, exceptions, fieldSpend, cash, investigations, notifications, settings }
+enum MoreItem: Hashable { case setup, approvals, accountability, findReference, customerHours, scorecard, exceptions, fieldSpend, cash, investigations, notifications, settings }
 
 /// Owner home for one tenant: tabs, deep links from notification taps, offline/stale state.
 public struct OwnerRootView: View {
@@ -157,6 +157,10 @@ public struct OwnerRootView: View {
             target = .more
             if model.features.accountability { path.append(MoreItem.accountability) }
             path.append(route)
+        case .employeeAccountability where model.features.allows(route):
+            target = .more
+            if model.features.accountability { path.append(MoreItem.accountability) }
+            path.append(route)
         case .setupChecklist where model.features.setupRead:
             target = .more; path.append(MoreItem.setup)
         case .setupChecklist:
@@ -220,6 +224,8 @@ struct RouteView: View {
         case .idleMachines: IdleMachinesView(model: model)
         case .setupChecklist: SetupChecklistView(model: model)
         case let .dailyReport(id): DailyReportReviewView(model: model, reportID: id)
+        case let .employeeAccountability(id, name, from, to):
+            EmployeeAccountabilityView(model: model, staffID: id, name: name, from: from, to: to)
         }
     }
 }
@@ -233,6 +239,7 @@ struct MoreDestination: View {
         case .setup: SetupChecklistView(model: model)
         case .approvals: ApprovalsView(model: model)
         case .accountability: AccountabilityDashboardView(model: model)
+        case .findReference: FindReferenceView(model: model)
         case .customerHours: CustomerHoursView(model: model)
         case .scorecard: ScorecardView(model: model)
         case .exceptions: ExceptionsView(model: model, jobID: nil)
@@ -261,6 +268,9 @@ struct MoreView: View {
                     NavigationLink(value: MoreItem.accountability) {
                         Label(OwnerAccountabilityTexts.moreAccountability, systemImage: "checkmark.shield")
                     }
+                }
+                if model.features.lookup {
+                    NavigationLink(value: MoreItem.findReference) { Label(ManagementTexts.lookupMore, systemImage: "magnifyingglass") }
                 }
                 if model.features.hoursRead {
                     NavigationLink(value: MoreItem.customerHours) {

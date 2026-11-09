@@ -65,6 +65,8 @@ public enum OwnerRoute: Hashable, Sendable {
     case setupChecklist
     /// One daily operational report (figures, evidence; review; DEC-032).
     case dailyReport(UUID)
+    /// One employee's accountability (DEC-032 Phase 4), optionally over a period.
+    case employeeAccountability(UUID, name: String?, from: String?, to: String?)
 }
 
 /// A route plus the tenant it belongs to (a push may concern another company the user belongs to).
@@ -222,6 +224,8 @@ public enum DeepLinkParser {
             guard parts.count >= 3 else { return .cash }
             return cashPath(parts[2], parts.count >= 4 ? UUID(uuidString: parts[3]) : nil)
         case ("accountability", _): return .accountability
+        case let ("staff", id?) where parts.count >= 4 && parts[3] == "accountability":
+            return .employeeAccountability(id, name: nil, from: nil, to: nil)
         case let ("revenue-differences", id?): return .revenueDifference(id)
         case let ("non-revenue-approvals", id?): return .decision(.nonRevenue, id)
         case ("revenue-differences", nil), ("non-revenue-approvals", nil): return .approvals
@@ -301,7 +305,7 @@ extension OwnerRoute {
     public var identifiesRecord: Bool {
         switch self {
         case .machine, .alert, .approval, .investigation, .job, .meterReset, .handover, .exception, .notification, .decision,
-             .cashTransfer, .cashFloat, .overdueRemittance, .revenueDifference, .dailySheetDay, .hoursPurchase, .scorecardPerson, .dailyReport: true
+             .cashTransfer, .cashFloat, .overdueRemittance, .revenueDifference, .dailySheetDay, .hoursPurchase, .scorecardPerson, .dailyReport, .employeeAccountability: true
         case .overview, .fleet, .jobs, .investigations, .alerts, .approvals, .exceptions, .fieldSpend, .cash, .notifications,
              .accountability, .overdueRemittances, .dailySheet, .customerHours, .hoursStatement, .scorecard, .unbilledWork,
              .idleMachines, .setupChecklist: false

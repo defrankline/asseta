@@ -541,7 +541,9 @@ extension OwnerAPI {
     }
 
     /// `GET /tenant/accountability/summary`.
-    public static func accountabilitySummary() -> APIRequest<AccountabilitySummaryDTO> { .get("\(tenant)/accountability/summary") }
+    public static func accountabilitySummary(from: String? = nil, to: String? = nil) -> APIRequest<AccountabilitySummaryDTO> {
+        .get("\(tenant)/accountability/summary", query: compact([("date_from", from), ("date_to", to)]))
+    }
 }
 
 /// Input rules of a decision (as Android `DecisionRules`).

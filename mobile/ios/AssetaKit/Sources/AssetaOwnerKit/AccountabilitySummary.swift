@@ -27,6 +27,13 @@ public struct AccountabilitySummaryDTO: Codable, Hashable, Sendable {
     /// DEC-031 Phase 5 tiles (open objects, read leniently).
     public let unbilledWork: JSONValue?
     public let idleMachines: JSONValue?
+    /// DEC-032 Phase 4 management view: the period asked for and the four sections (nil when hidden or from an older
+    /// server; a section that does not decode is left out rather than failing the dashboard).
+    public let period: PeriodDTO?
+    public let hoursSection: CustomerHoursSectionDTO?
+    public let operationsSection: ExcavatorOperationsSectionDTO?
+    public let cashSection: CashSectionDTO?
+    public let exceptionsSection: ExceptionsSectionDTO?
 
     public struct CountAmount: Codable, Hashable, Sendable {
         public let currency: String
@@ -108,10 +115,51 @@ public struct AccountabilitySummaryDTO: Codable, Hashable, Sendable {
         public let paymentsToVerify: Int
         public let remittancesToVerify: Int
         public let total: Int
-        enum CodingKeys: String, CodingKey {
+        /// Counts added in DEC-032 Phase 4 (absent on older servers), keyed by their wire name for `owner.mgmt.kind.*`.
+        public let moreCounts: [String: Int]
+
+        enum CodingKeys: String, CodingKey, CaseIterable {
             case total, approvalRequests = "approval_requests", cashRetentions = "cash_retentions"
             case custodyAdjustments = "custody_adjustments", writeOffs = "write_offs", paymentsToVerify = "payments_to_verify"
             case remittancesToVerify = "remittances_to_verify"
+        }
+
+        struct WireKey: CodingKey {
+            let stringValue: String
+            var intValue: Int? { nil }
+            init(stringValue: String) { self.stringValue = stringValue }
+            init?(intValue: Int) { nil }
+        }
+
+        public init(from decoder: any Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            total = try c.decode(Int.self, forKey: .total)
+            approvalRequests = try c.decode(Int.self, forKey: .approvalRequests)
+            cashRetentions = try c.decode(Int.self, forKey: .cashRetentions)
+            custodyAdjustments = try c.decode(Int.self, forKey: .custodyAdjustments)
+            writeOffs = try c.decode(Int.self, forKey: .writeOffs)
+            paymentsToVerify = try c.decode(Int.self, forKey: .paymentsToVerify)
+            remittancesToVerify = try c.decode(Int.self, forKey: .remittancesToVerify)
+            let wire = try decoder.container(keyedBy: WireKey.self)
+            let known = Set(CodingKeys.allCases.map(\.stringValue))
+            var more: [String: Int] = [:]
+            for key in wire.allKeys where !known.contains(key.stringValue) {
+                if let count = try? wire.decode(Int.self, forKey: key) { more[key.stringValue] = count }
+            }
+            moreCounts = more
+        }
+
+        public func encode(to encoder: any Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encode(total, forKey: .total)
+            try c.encode(approvalRequests, forKey: .approvalRequests)
+            try c.encode(cashRetentions, forKey: .cashRetentions)
+            try c.encode(custodyAdjustments, forKey: .custodyAdjustments)
+            try c.encode(writeOffs, forKey: .writeOffs)
+            try c.encode(paymentsToVerify, forKey: .paymentsToVerify)
+            try c.encode(remittancesToVerify, forKey: .remittancesToVerify)
+            var wire = encoder.container(keyedBy: WireKey.self)
+            for (key, count) in moreCounts { try wire.encode(count, forKey: WireKey(stringValue: key)) }
         }
     }
 
@@ -124,6 +172,8 @@ public struct AccountabilitySummaryDTO: Codable, Hashable, Sendable {
         case unauthorizedAttempts = "unauthorized_attempts", outstandingApprovals = "outstanding_approvals"
         case revenueDifferences = "revenue_differences"
         case unbilledWork = "unbilled_work", idleMachines = "idle_machines"
+        case period, hoursSection = "hours_section", operationsSection = "operations_section"
+        case cashSection = "cash_section", exceptionsSection = "exceptions_section"
     }
 
     public init(from decoder: any Decoder) throws {
@@ -152,6 +202,11 @@ public struct AccountabilitySummaryDTO: Codable, Hashable, Sendable {
         discrepancies = (try? c.decodeIfPresent(Discrepancies.self, forKey: .discrepancies)) ?? nil
         unauthorizedAttempts = (try? c.decodeIfPresent(Attempts.self, forKey: .unauthorizedAttempts)) ?? nil
         outstandingApprovals = (try? c.decodeIfPresent(Approvals.self, forKey: .outstandingApprovals)) ?? nil
+        period = (try? c.decodeIfPresent(PeriodDTO.self, forKey: .period)) ?? nil
+        hoursSection = (try? c.decodeIfPresent(CustomerHoursSectionDTO.self, forKey: .hoursSection)) ?? nil
+        operationsSection = (try? c.decodeIfPresent(ExcavatorOperationsSectionDTO.self, forKey: .operationsSection)) ?? nil
+        cashSection = (try? c.decodeIfPresent(CashSectionDTO.self, forKey: .cashSection)) ?? nil
+        exceptionsSection = (try? c.decodeIfPresent(ExceptionsSectionDTO.self, forKey: .exceptionsSection)) ?? nil
     }
 }
 
@@ -211,7 +266,8 @@ public enum AccountabilityDashboard {
         let engineOn = !off.contains(TenantCapability.engineHours)
         let cashOn = !off.contains(TenantCapability.cashCustody)
         var out: [DashboardTile] = []
-        if let a = s.outstandingApprovals {
+        // DEC-032 Phase 4: a section that is present replaces its old tiles; a null section keeps them (older servers).
+        if s.exceptionsSection == nil, let a = s.outstandingApprovals {
             var rows: [DashboardTile.Row] = [
                 .init(T.dashTotal, "\(a.total)"),
                 .init(T.dashApprovalRequests, "\(a.approvalRequests)"), .init(T.dashPaymentsToVerify, "\(a.paymentsToVerify)"),
@@ -221,9 +277,12 @@ public enum AccountabilityDashboard {
                 rows += [.init(T.dashCashRetentions, "\(a.cashRetentions)"), .init(T.dashCustodyAdjustments, "\(a.custodyAdjustments)"),
                          .init(T.dashWriteOffs, "\(a.writeOffs)")]
             }
+            for kind in ManagementTexts.kindOrder {
+                if let count = a.moreCounts[kind], count > 0 { rows.append(.init(ManagementTexts.kind(kind), "\(count)")) }
+            }
             out.append(DashboardTile(id: "outstanding_approvals", title: T.dashApprovals, rows: rows, route: .approvals))
         }
-        if let c = s.cash {
+        if s.cashSection == nil, let c = s.cash {
             // CASH_CUSTODY off: only the cash basics (remittances awaiting confirmation, what each custodian holds).
             var rows: [DashboardTile.Row] = cashOn ? [
                 .init(T.dashTransfersAwaiting, counts(c.transfersAwaitingAcknowledgement)),
@@ -247,7 +306,7 @@ public enum AccountabilityDashboard {
                                      footer: overdue ? c.remittanceCutoffHour.map(T.dashCutoff) : nil,
                                      moreLinks: overdue ? [.init(label: T.dashRemittancesOverdue, route: .overdueRemittances)] : []))
         }
-        if let p = s.payments {
+        if s.cashSection == nil, let p = s.payments {
             out.append(DashboardTile(id: "payments", title: T.dashPayments, rows: [.init(T.dashPayments, counts(p.awaitingConfirmation))],
                                      route: nil))
         }
@@ -263,12 +322,12 @@ public enum AccountabilityDashboard {
                                      rows: [.init(T.dashOpen, "\(i.open)"), .init(T.dashInReview, "\(i.inReview)")],
                                      route: .investigations))
         }
-        if let a = s.unauthorizedAttempts {
+        if s.exceptionsSection == nil, let a = s.unauthorizedAttempts {
             out.append(DashboardTile(id: "unauthorized_attempts", title: T.dashAttempts, rows: [
                 .init(T.dashPermissionDenied, "\(a.permissionDenied)"), .init(T.dashSod, "\(a.segregationOfDuties)"),
             ], route: nil, footer: T.dashWindow(a.windowDays)))
         }
-        if customerHours, let h = s.customerHours {
+        if s.hoursSection == nil, customerHours, let h = s.customerHours {
             var rows: [DashboardTile.Row] = [
                 .init(T.dashHoursActivated, hours(h["activated"])), .init(T.dashHoursConsumed, hours(h["consumed"])),
                 .init(T.dashHoursRemaining, hours(h["remaining"])), .init(T.dashHoursAwaiting, hours(h["awaiting_activation"])),
@@ -277,7 +336,7 @@ public enum AccountabilityDashboard {
             if let overruns = h["open_overruns"]?.intValue { rows.append(.init(T.dashOpenOverruns, "\(overruns)")) }
             out.append(DashboardTile(id: "customer_hours", title: T.dashCustomerHours, rows: rows, route: nil))
         }
-        if customerHours, let h = s.hoursAwaitingActivation {
+        if s.hoursSection == nil, customerHours, let h = s.hoursAwaitingActivation {
             out.append(DashboardTile(id: "hours_awaiting_activation", title: T.dashHoursAwaitingTile, rows: [
                 .init(T.dashHoursAwaiting, hours(h["hours"])),
                 .init(T.dashPurchasesAwaitingPayment, "\(h["purchases_awaiting_payment"]?.intValue ?? 0)"),

@@ -227,6 +227,10 @@ public enum FieldAccountabilityTexts {
     public static let collectionLink = "Pays for" // field.collection.link
     public static let collectionLinkOptional = "Pays for (optional)"
     public static let collectionLinkNone = "Not linked"
+    public static let allocationMismatch = "What you chose is for another customer or currency. Record it again and choose another."
+    public static func collectionInvoiceRow(balance: String) -> String { "Invoice · \(balance) due" } // field.collection.invoiceRow
+    public static let collectionLinkEmptyAll = "No open purchases or invoices for this customer on this phone."
+    public static let collectionInvoiceFooter = "The cash pays this invoice up to what it still owes; anything above stays as customer credit."
     public static let collectionLinkEmpty = "No open purchases for this customer on this phone."
     public static func collectionLinkLeft(hours: String) -> String { "\(hours) h left" }
     public static let collectionPurchaseGone = "The purchase you chose was not accepted by the server. Choose another one."
@@ -297,8 +301,9 @@ public enum FieldAccountabilityTexts {
         case "EVIDENCE_REQUIRED": "Your company requires evidence for this. Record it again with a photo."
         case "PURCHASE_NOT_FOUND": "The purchase you chose is no longer on record. Record it again and choose another."
         case "PURCHASE_CANCELLED": "The purchase you chose is cancelled. Record it again and choose another."
-        case "OVER_ALLOCATION": "This is more than the purchase still owes. Record it again with the right amount."
-        case "ALLOCATION_MISMATCH": "The purchase you chose is for another customer or currency. Record it again and choose another."
+        case "OVER_ALLOCATION": "This is more than the purchase or invoice still owes. Record it again with the right amount."
+        case "ALLOCATION_MISMATCH": allocationMismatch
+        case "INVOICE_NOT_OPEN": "This invoice is no longer open. Record it again and choose another."
         case "DEPOSIT_ACCOUNT_CURRENCY_MISMATCH":
             "The account you chose holds a different currency. Record the handover again with another account."
         default: DailyReportTexts.conflict(code)

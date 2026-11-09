@@ -188,6 +188,7 @@ public actor SyncEngine {
             try setValue((response.capabilities ?? []).joined(separator: ","), SyncKey.capabilities)
             if let zone = response.tenantTimezone { try setValue(zone, SyncKey.tenantTimezone) }
             try saveCustody(response.data.cashCustody, asOf: response.serverTime)
+            try saveOpenInvoices(response.data, capabilities: response.capabilities, revision: response.cursor)
             try saveSnapshots(response.policySnapshots, receivedAt: response.serverTime)
             try setValue(String(response.cursor), SyncKey.cursor)
             try setDate(response.deviceSession.offlineGrantUntil, SyncKey.grantUntil)
@@ -210,6 +211,7 @@ public actor SyncEngine {
                 try setValue((page.capabilities ?? []).joined(separator: ","), SyncKey.capabilities)
                 if let zone = page.tenantTimezone { try setValue(zone, SyncKey.tenantTimezone) }
                 try saveCustody(page.data.cashCustody, asOf: page.serverTime)
+                try saveOpenInvoices(page.data, capabilities: page.capabilities, revision: page.cursor)
                 try saveSnapshots(page.policySnapshots, receivedAt: page.serverTime)
                 try setValue(String(max(page.cursor, cursor)), SyncKey.cursor)
             }
@@ -302,6 +304,17 @@ public actor SyncEngine {
             return StoredCustodyBalance(staffMemberID: staff, currency: currency, json: try object.jsonString(), asOf: at)
         }
         try store.syncState.replaceCustody(balances, asOf: asOf, tenantID: tenantID)
+    }
+
+    /// Open invoices are a full snapshot (they carry no sync revision), so each pull replaces the local set. A server
+    /// without SYNC_OPEN_INVOICES never sent the field: the stored list is left untouched.
+    private func saveOpenInvoices(_ data: SyncData, capabilities: [String]?, revision: Int64) throws {
+        guard capabilities?.contains(SyncCapability.syncOpenInvoices) == true else { return }
+        let invoices = try data.openInvoices.compactMap { object -> StoredEntity? in
+            guard let id = object["id"]?.stringValue.flatMap(UUID.init(uuidString:)) else { return nil }
+            return StoredEntity(entityType: OpenInvoices.entityType, id: id, revision: revision, version: nil, json: try object.jsonString())
+        }
+        try store.syncState.replaceEntities(type: OpenInvoices.entityType, with: invoices, tenantID: tenantID)
     }
 
     private func saveSnapshots(_ snapshots: [PolicySnapshotDTO], receivedAt: Date) throws {
