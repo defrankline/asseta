@@ -35,7 +35,7 @@ private val T = FieldAccountabilityTexts
 /** Pure wording of the Supervisor "Overdue remittance" screen (unit-tested; same lines on iOS). */
 object RemittanceOverdueText {
     /** The custodian's name, else the short id. */
-    fun name(o: RemittanceOverdueDto): String = DisplayNames.of(o.staffMemberName, o.staffMemberId).orEmpty()
+    fun name(o: RemittanceOverdueDto): String = DisplayNames.or(o.staffMemberName, o.staffMemberId)
 
     /** "TZS 50,000.00, USD 20.00" (the amounts still held when flagged). */
     fun amounts(o: RemittanceOverdueDto): String = o.amounts.joinToString(", ") { a ->

@@ -141,7 +141,7 @@ object RevenuePresentation {
         val c = d.currency
         add(T.REV_MACHINE to machine(d.machineCode, d.machineName, d.machineId))
         add(T.REV_PERIOD to DecisionMapper.period(d.localFrom, d.localTo))
-        d.jobId?.let { add(T.REV_JOB to DisplayNames.of(d.jobNumber, it).orEmpty()) }
+        d.jobId?.let { add(T.REV_JOB to DisplayNames.or(d.jobNumber, it)) }
         add(T.REV_EXPECTED to money(d.expectedAmount, c))
         if (nonZero(d.inProgressAmount)) add(T.REV_IN_PROGRESS to money(d.inProgressAmount, c))
         add(T.REV_ATTRIBUTED to money(d.attributedAmount, c))
@@ -152,7 +152,7 @@ object RevenuePresentation {
         add(T.REV_NON_REVENUE_HOURS to hours(d.nonRevenueHours))
         if (nonZero(d.unexplainedHours)) add(T.REV_UNEXPLAINED_HOURS to hours(d.unexplainedHours))
         if (nonZero(d.unexplainedExpectedAmount)) add(T.REV_UNEXPLAINED_EXPECTED to money(d.unexplainedExpectedAmount, c))
-        if (d.caseId != null) add(T.REV_CASE to DisplayNames.of(d.caseNumber, d.caseId).orEmpty())
+        if (d.caseId != null) add(T.REV_CASE to DisplayNames.or(d.caseNumber, d.caseId))
     }
 
     private fun JsonObject.text(key: String): String? = (this[key] as? JsonPrimitive)?.contentOrNull
@@ -173,13 +173,13 @@ object RevenuePresentation {
         return listOfNotNull(
             d.reasonName?.let { T.REV_REASON to it },
             d.explanationNote?.takeIf { it.isNotBlank() }?.let { T.REV_NOTE to it },
-            d.explainedBy?.let { T.REV_EXPLAINED_BY to DisplayNames.of(d.explainedByName, it).orEmpty() },
+            d.explainedBy?.let { T.REV_EXPLAINED_BY to DisplayNames.or(d.explainedByName, it) },
             d.explainedAt?.let { T.REV_EXPLAINED to OwnerFormat.dateTime(it, zone) },
         )
     }
 
     fun decided(d: RevenueDifferenceDto): List<Pair<String, String>> = listOfNotNull(
-        d.decidedBy?.let { T.REV_DECIDED_BY to DisplayNames.of(d.decidedByName, it).orEmpty() },
+        d.decidedBy?.let { T.REV_DECIDED_BY to DisplayNames.or(d.decidedByName, it) },
         d.decisionNote?.takeIf { it.isNotBlank() && d.decidedBy != null }?.let { T.REV_DECISION_NOTE to it },
     )
 
@@ -270,7 +270,7 @@ object RevenuePresentation {
         d.flagRecords.filter { it.recordType == SheetFlagRefDto.ANOMALY_CASE }.map { it.recordId }.distinct()
 
     fun jobRows(d: DailyMachineSheetDetailDto): List<Pair<String, String>> = d.jobs.map { j ->
-        listOfNotNull(DisplayNames.of(j.jobNumber, j.jobId), j.customerName).joinToString(" · ") to hours(j.customerWorkHours)
+        listOfNotNull(DisplayNames.of(j.jobNumber, j.jobId), DisplayNames.of(j.customerName, j.customerId)).joinToString(" · ") to hours(j.customerWorkHours)
     }
 }
 

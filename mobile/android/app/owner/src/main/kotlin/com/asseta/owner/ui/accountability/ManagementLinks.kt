@@ -27,7 +27,7 @@ object ManagementLinks {
     private val WAITING = setOf("PENDING", "PROPOSED")
     private val WAITING_VARIANCES = setOf("WRITE_OFF_PROPOSED", "CLOSURE_PROPOSED")
 
-    private fun query(route: String): Map<String, String> = route.substringAfter('?', "").split('&').filter { '=' in it }.associate { it.substringBefore('=') to it.substringAfter('=') }
+    private fun query(route: String): Map<String, String> = route.substringAfter('?', "").split('&').filter { it.substringAfter('=', "").isNotEmpty() }.associate { it.substringBefore('=') to it.substringAfter('=') }
 
     /** The app screen for [route] the role may open, or null (the web then). */
     fun destination(route: String, f: OwnerFeatures): OwnerDestination? {
@@ -35,15 +35,23 @@ object ManagementLinks {
         if (path.firstOrNull() != "tenant") return null
         val rest = path.drop(1)
         val employee = rest.size == 3 && rest[0] == "staff" && rest[2] == "accountability"
-        val d = if (employee || rest.lastOrNull()?.let(UUID::matches) == true) record(rest, route) else list(rest.joinToString("/"), query(route))
-        return d?.takeIf { allowed(it, f) }
+        val d = if (employee || rest.lastOrNull()?.let(UUID::matches) == true) record(route) else list(rest.joinToString("/"), query(route))
+        return d?.takeIf { allowed(it, f) && f.route(it) == it }
     }
 
-    /** A record route with an id: as a notification deep link, except the two record kinds the app has no screen for. */
-    private fun record(rest: List<String>, route: String): OwnerDestination? = when {
-        rest.first() == "work-allocations" && rest.getOrNull(1) != "corrections" -> null
-        rest.first() == "finance" && rest.getOrNull(1) == "adjustments" && rest.getOrNull(2) != "requests" -> null
-        else -> DeepLinkRouter.fromPath(route)
+    /** A record route with an id opens that record as a notification deep link does; a deep link's list fallback is not that record. */
+    private fun record(route: String): OwnerDestination? = DeepLinkRouter.fromPath(route)?.takeIf(::identifiesRecord)
+
+    private fun identifiesRecord(d: OwnerDestination): Boolean = when (d) {
+        is OwnerDestination.Machine, is OwnerDestination.Case, is OwnerDestination.Job, is OwnerDestination.MeterReset, is OwnerDestination.MeterException,
+        is OwnerDestination.Handover, is OwnerDestination.Decision, is OwnerDestination.CashRecord, is OwnerDestination.SheetDay,
+        is OwnerDestination.HoursPurchase, is OwnerDestination.ScorecardPerson, is OwnerDestination.EmployeeAccountability,
+        -> true
+        is OwnerDestination.Alerts -> d.alertId != null
+        is OwnerDestination.Approvals -> d.approvalId != null
+        is OwnerDestination.Notifications -> d.notificationId != null
+        is OwnerDestination.RemittanceOverdue -> d.id != null
+        else -> false
     }
 
     private fun list(key: String, q: Map<String, String>): OwnerDestination? {
@@ -54,7 +62,8 @@ object ManagementLinks {
             key == "finance/cash/remittance-overdue" -> OwnerDestination.RemittanceOverdue()
             key == "exceptions" -> OwnerDestination.Exceptions()
             key == "cases" -> OwnerDestination.Cases
-            key == "accountability/pending-adjustments" || key == "revenue-differences" -> OwnerDestination.Approvals()
+            key == "accountability/pending-adjustments" -> OwnerDestination.Approvals()
+            key == "revenue-differences" -> OwnerDestination.Approvals().takeIf { status == null || status == "EXPLANATION_PROPOSED" }
             key == "daily-reports" -> OwnerDestination.Approvals().takeIf { status == "SUBMITTED" }
             key == "jobs" -> OwnerDestination.Approvals().takeIf { status == "PENDING_APPROVAL" }
             key == "finance/cash/variances" -> OwnerDestination.Approvals().takeIf { status in WAITING_VARIANCES }
@@ -65,7 +74,7 @@ object ManagementLinks {
     }
 
     private fun allowed(d: OwnerDestination, f: OwnerFeatures): Boolean = when (d) {
-        is OwnerDestination.Approvals -> f.approvalsScreen
+        is OwnerDestination.Approvals -> if (d.approvalId != null) f.approvals else f.approvalsScreen
         is OwnerDestination.Decision -> DecisionKind.of(d.kind)?.visibleTo(f) == true
         is OwnerDestination.Handover, is OwnerDestination.CashRecord, OwnerDestination.Cash -> f.finance
         is OwnerDestination.RemittanceOverdue -> f.finance && f.cashCustody
@@ -76,6 +85,7 @@ object ManagementLinks {
         is OwnerDestination.Job, OwnerDestination.Jobs -> f.jobs
         is OwnerDestination.Machine, OwnerDestination.Fleet -> f.fleet
         is OwnerDestination.Alerts -> f.alerts
+        is OwnerDestination.Notifications -> f.notifications
         else -> true
     }
 

@@ -157,7 +157,7 @@ object OversightPresentation {
     private fun money(amount: String?, currency: String?) = RevenuePresentation.money(amount, currency.orEmpty())
     private fun totals(list: List<AmountByCurrencyDto>) = list.joinToString(", ") { money(it.amount, it.currency) }
 
-    fun name(r: ScorecardRowDto): String = DisplayNames.of(r.staffMemberName, r.staffMemberId).orEmpty()
+    fun name(r: ScorecardRowDto): String = DisplayNames.or(r.staffMemberName, r.staffMemberId)
 
     /** Most items first, then by name. */
     fun sorted(rows: List<ScorecardRowDto>): List<ScorecardRowDto> =
@@ -252,7 +252,7 @@ object OversightPresentation {
         val machine = RevenuePresentation.machine(j.machineCode, j.machineName, j.machineId)
         OversightRow(
             j.jobId,
-            T.unbilledRow(j.jobNumber ?: "—", DisplayNames.of(j.customerName, j.customerId).orEmpty()),
+            T.unbilledRow(j.jobNumber ?: "—", DisplayNames.or(j.customerName, j.customerId)),
             listOfNotNull(machine, j.jobSiteName).joinToString(" · "),
             T.unbilledCompleted(OwnerFormat.date(j.completedAt, zone), j.daysUnbilled) + if (j.draftInvoiceId != null) " · " + T.UNBILLED_DRAFT else "",
             j.total?.let { money(it, j.currency) },

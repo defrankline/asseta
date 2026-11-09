@@ -9,7 +9,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -20,10 +23,13 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
+import com.asseta.core.domain.accountability.DisplayNames
 import com.asseta.core.domain.owner.OwnerDestination
 import com.asseta.core.domain.owner.OwnerFormat
 import com.asseta.core.model.owner.EmployeeAccountabilityDto
@@ -44,9 +50,11 @@ import com.asseta.owner.ui.common.EmptyState
 import com.asseta.owner.ui.common.ErrorLine
 import com.asseta.owner.ui.common.FootNote
 import com.asseta.owner.ui.common.KeyValue
+import com.asseta.owner.ui.common.OwnerColors
 import com.asseta.owner.ui.common.SectionCard
 import com.asseta.owner.ui.common.SnapshotScaffold
 import com.asseta.owner.ui.common.SnapshotViewModel
+import com.asseta.owner.ui.common.StatusPill
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -133,7 +141,7 @@ class EmployeePresentation(private val f: OwnerFeatures, private val webBase: St
 
     private fun record(key: String, r: EmployeeRecordDto) = ManagementRow(
         key, listOfNotNull(r.reference, r.label).firstOrNull() ?: T.recordType(r.recordType), money(r.amount, r.currency, r.unit),
-        caption = listOfNotNull(T.recordRow(OwnerFormat.date(r.occurredAt, zone), r.status), r.counterpartyStaffName).joinToString(" · "),
+        caption = listOfNotNull(T.recordRow(OwnerFormat.date(r.occurredAt, zone), r.status), DisplayNames.of(r.counterpartyStaffName, r.counterpartyStaffId)).joinToString(" · "),
         target = ManagementLinks.target(r.route, f, webBase),
     )
 }
@@ -189,8 +197,10 @@ fun EmployeeAccountabilityScreen(vm: EmployeeAccountabilityViewModel, features: 
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp)) {
                 item(key = "identity") {
                     SectionCard(null) {
-                        Text(d.identity.fullName, style = AssetaType.headline)
-                        if (!d.identity.isActive) KeyValue(T.EMP_INACTIVE, "")
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Text(d.identity.fullName, style = AssetaType.headline, modifier = Modifier.weight(1f))
+                            if (!d.identity.isActive) StatusPill(T.EMP_INACTIVE, OwnerColors.Warning)
+                        }
                         d.identity.employeeCode?.let { KeyValue(T.EMP_CODE, it) }
                         if (d.identity.roles.isNotEmpty()) KeyValue(T.EMP_ROLES, d.identity.roles.joinToString(", "))
                         d.identity.phone?.let { KeyValue(T.EMP_PHONE, it) }
@@ -217,11 +227,11 @@ class LookupPresentation(private val f: OwnerFeatures, private val webBase: Stri
 
     /** What, when, who, balance: rows left empty are hidden. */
     fun rows(m: LookupMatchDto): List<Pair<String, String>> = listOfNotNull(
-        m.recordedByName?.let { T.LOOKUP_RECORDED_BY to who(it, m.recordedAt) },
-        m.decidedByName?.let { T.LOOKUP_DECIDED_BY to who(it, m.decidedAt) },
-        m.customerName?.let { T.LOOKUP_CUSTOMER to it },
-        (m.machineCode ?: m.machineName)?.let { T.LOOKUP_MACHINE to it },
-        m.staffMemberName?.let { T.LOOKUP_STAFF to it },
+        DisplayNames.of(m.recordedByName, m.recordedBy)?.let { T.LOOKUP_RECORDED_BY to who(it, m.recordedAt) },
+        DisplayNames.of(m.decidedByName, m.decidedBy)?.let { T.LOOKUP_DECIDED_BY to who(it, m.decidedAt) },
+        DisplayNames.of(m.customerName, m.customerId)?.let { T.LOOKUP_CUSTOMER to it },
+        DisplayNames.of(m.machineCode ?: m.machineName, m.machineId)?.let { T.LOOKUP_MACHINE to it },
+        DisplayNames.of(m.staffMemberName, m.staffMemberId)?.let { T.LOOKUP_STAFF to it },
         m.amount?.let { a -> T.LOOKUP_AMOUNT to money(a, m.currency) },
         m.balanceOutstanding?.let { b -> T.LOOKUP_BALANCE to (if (m.balanceUnit == "HOURS") "${OwnerFormat.hoursNumber(b)} h" else money(b, m.currency)) },
         m.hoursRemaining?.let { h -> T.LOOKUP_HOURS_REMAINING to "${OwnerFormat.hoursNumber(h)} h" },
@@ -263,10 +273,15 @@ fun LookupScreen(vm: LookupViewModel, features: OwnerFeatures, webBase: String, 
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp)) {
         item(key = "search") {
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(state.query, vm::edit, Modifier.fillMaxWidth().testTag("lookup-field"), label = { Text(T.LOOKUP_HINT) }, singleLine = true)
+                OutlinedTextField(
+                    state.query, vm::edit, Modifier.fillMaxWidth().testTag("lookup-field"), label = { Text(T.LOOKUP_HINT) }, singleLine = true,
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters, autoCorrectEnabled = false, imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = { vm.search() }),
+                )
                 Button(vm::search, Modifier.fillMaxWidth().testTag("lookup-search"), enabled = state.query.isNotBlank() && !state.busy) { Text(T.LOOKUP_SEARCH) }
                 state.error?.let { ErrorLine(it) }
                 if (state.offline) Text(T.LOOKUP_OFFLINE, color = palette.secondaryText)
+                if (state.busy) CircularProgressIndicator(Modifier.align(Alignment.CenterHorizontally))
             }
         }
         state.result?.let { r ->

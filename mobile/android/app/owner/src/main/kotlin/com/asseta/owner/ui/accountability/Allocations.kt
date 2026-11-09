@@ -147,9 +147,9 @@ object AllocationPresentation {
         else -> null
     }
 
-    fun who(a: WorkAllocationDto) = who(a.kind, a.customerName, a.jobNumber, a.reasonName, a.activityType)
+    fun who(a: WorkAllocationDto) = who(a.kind, DisplayNames.of(a.customerName, a.customerId), a.jobNumber, a.reasonName, a.activityType)
 
-    fun who(a: ReportAllocationDto) = who(a.kind, a.customerName, a.jobNumber, null, a.activityType)
+    fun who(a: ReportAllocationDto) = who(a.kind, DisplayNames.of(a.customerName, a.customerId), a.jobNumber, null, a.activityType)
 
     fun dayRows(d: AllocationDayDto): List<Pair<String, String>> = listOf(
         A.DAY_TOTAL to R.hours(d.totalEngineHours),
@@ -160,7 +160,7 @@ object AllocationPresentation {
         A.DAY_DIFFERENCE to R.hours(d.differenceHours),
     )
 
-    fun lots(a: WorkAllocationDto): List<String> = a.lots.map { A.lotLine(DisplayNames.of(it.purchaseNumber, it.purchaseId).orEmpty(), R.num(it.hours)) }
+    fun lots(a: WorkAllocationDto): List<String> = a.lots.map { A.lotLine(DisplayNames.or(it.purchaseNumber, it.purchaseId), R.num(it.hours)) }
 
     /** `value_at_risk` of a dashboard tile: one row per currency, none when empty. */
     fun valueAtRiskRows(tile: JsonObject): List<Pair<String, String>> =

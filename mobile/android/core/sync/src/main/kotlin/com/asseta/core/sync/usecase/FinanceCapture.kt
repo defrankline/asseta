@@ -214,6 +214,7 @@ class FinanceCapture(
         }
         if (r.linkRequired && r.purchaseId == null && r.invoiceId == null) return FinanceResult.Invalid(listOf(AccountabilityMessages.COLLECTION_LINK_REQUIRED))
         if (r.purchaseId != null && !supports(r.tenantId, SyncCapabilities.CASH_DETAILS_V2)) return FinanceResult.Blocked(CaptureMeterReading.SERVER_TOO_OLD)
+        if (r.invoiceId != null && !supports(r.tenantId, SyncCapabilities.SYNC_OPEN_INVOICES)) return FinanceResult.Blocked(CaptureMeterReading.SERVER_TOO_OLD)
         val purchaseOp = r.purchaseOperationId?.let { db().clientOperationDao().findById(it) }
         if (purchaseOp != null && (purchaseOp.status == ClientOperationStatus.FAILED || purchaseOp.status == ClientOperationStatus.CONFLICT)) {
             return FinanceResult.Blocked(AccountabilityMessages.PURCHASE_GONE)

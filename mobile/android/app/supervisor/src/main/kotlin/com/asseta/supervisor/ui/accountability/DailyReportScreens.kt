@@ -118,17 +118,17 @@ fun DailyReportDetailScreen(field: FieldGraph, tenantId: String, key: String, sn
                 LabeledRow(T.UNBILLABLE_HOURS, "${T.hours(it.unbillableHours)} h")
                 if (it.differenceHours.toBigDecimalOrNull()?.signum() != 0) LabeledRow(T.NOT_ACCOUNTED, "${T.hours(it.differenceHours)} h")
                 LabeledRow(T.SUBMITTED, LocalTime.formatIso(it.submittedAt))
-                LabeledRow(T.SUBMITTED_BY, DisplayNames.of(it.submittedByName, it.submittedBy).orEmpty())
+                LabeledRow(T.SUBMITTED_BY, DisplayNames.or(it.submittedByName, it.submittedBy))
                 if (it.isLate) Text(T.FLAG_LATE, color = palette.warning, style = AssetaType.footnote)
                 if (it.isDuplicate) Text(T.FLAG_REPEAT, color = palette.warning, style = AssetaType.footnote)
             }
         }
         s?.takeIf { it.unbillable.isNotEmpty() }?.let { r ->
-            Section(T.UNBILLABLE) { r.unbillable.forEach { LabeledRow(it.reasonName ?: DisplayNames.shortId(it.reasonId).orEmpty(), "${T.hours(it.hours)} h") } }
+            Section(T.UNBILLABLE) { r.unbillable.forEach { LabeledRow(DisplayNames.or(it.reasonName, it.reasonId), "${T.hours(it.hours)} h") } }
         }
         s?.takeIf { it.allocations.isNotEmpty() }?.let { r ->
             Section(T.ALLOCATIONS) {
-                r.allocations.forEach { a -> LabeledRow(listOfNotNull(T.kind(a.kind), a.customerName, a.jobNumber).joinToString(" · "), "${T.hours(a.hours)} h") }
+                r.allocations.forEach { a -> LabeledRow(listOfNotNull(T.kind(a.kind), DisplayNames.of(a.customerName, a.customerId), a.jobNumber).joinToString(" · "), "${T.hours(a.hours)} h") }
             }
         }
         (s?.note ?: row.local?.note)?.takeIf { it.isNotBlank() }?.let { Section(T.NOTE_LABEL) { Text(it, style = AssetaType.subheadline) } }

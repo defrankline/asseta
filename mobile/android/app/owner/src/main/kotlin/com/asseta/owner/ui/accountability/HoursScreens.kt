@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
+import com.asseta.core.domain.accountability.DisplayNames
 import com.asseta.core.domain.owner.OwnerDestination
 import com.asseta.core.domain.owner.OwnerFormat
 import com.asseta.core.model.owner.HoursStatementDto
@@ -101,7 +102,7 @@ object HoursPresentation {
 
     fun machine(p: OwnerHoursPurchaseDto): String = RevenuePresentation.machine(p.machineCode, p.machineName, p.machineId)
 
-    fun customer(p: OwnerHoursPurchaseDto): String = p.customerName ?: p.customerId.take(8)
+    fun customer(p: OwnerHoursPurchaseDto): String = DisplayNames.or(p.customerName, p.customerId)
 
     /** Hours card rows in the documented order (zero-only optional rows left out). */
     fun purchaseRows(p: OwnerHoursPurchaseDto): List<Pair<String, String>> = buildList {
@@ -131,7 +132,7 @@ object HoursPresentation {
         if (from == to) RevenuePresentation.day(from) else "${RevenuePresentation.day(from)} – ${RevenuePresentation.day(to)}"
 
     fun header(s: HoursStatementDto, fallbackName: String?): String =
-        T.stmtHeader(s.customerName ?: fallbackName ?: s.customerId.take(8), period(s.dateFrom, s.dateTo))
+        T.stmtHeader(DisplayNames.or(s.customerName ?: fallbackName, s.customerId), period(s.dateFrom, s.dateTo))
 
     /** Totals rows in the documented order (optional rows only when > 0). */
     fun totals(s: HoursStatementDto): List<Pair<String, String>> = buildList {

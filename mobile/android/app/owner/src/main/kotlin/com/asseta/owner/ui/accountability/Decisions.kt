@@ -167,7 +167,7 @@ object DecisionMapper {
         arrayOf(T.F_DECIDED_BY to name(name, id), T.F_DECISION_NOTE to note)
 
     fun dailyReport(r: DailyReportDto): DecisionItem {
-        val machine = r.machineCode ?: r.machineName ?: DisplayNames.shortId(r.machineId).orEmpty()
+        val machine = DisplayNames.or(r.machineCode ?: r.machineName, r.machineId)
         return DecisionItem(
             DecisionKinds.DAILY_REPORT, r.id, AllocationTexts.reportRow(machine, RevenuePresentation.day(r.reportDate)),
             AllocationTexts.reportLine(RevenuePresentation.num(r.totalHours), RevenuePresentation.num(r.billableHours), RevenuePresentation.num(r.unbillableHours)),
@@ -184,7 +184,7 @@ object DecisionMapper {
     fun allocationCorrection(groupId: String, status: String, parts: List<WorkAllocationDto>, original: WorkAllocationDto?): DecisionItem {
         val first = parts.first()
         val A = AllocationTexts
-        val machine = first.machineCode ?: first.machineName ?: DisplayNames.shortId(first.machineId).orEmpty()
+        val machine = DisplayNames.or(first.machineCode ?: first.machineName, first.machineId)
         val total = parts.mapNotNull { it.hours.toBigDecimalOrNull() }.fold(java.math.BigDecimal.ZERO, java.math.BigDecimal::add)
         val originalLine = original?.let { listOfNotNull(A.kind(it.kind), A.partValue(RevenuePresentation.hours(it.hours), AllocationPresentation.who(it))).joinToString(" · ") }
         val rows = parts.map { A.part(it.kind) to A.partValue(RevenuePresentation.hours(it.hours), AllocationPresentation.who(it)) }
@@ -232,7 +232,7 @@ object DecisionMapper {
     )
 
     fun baseline(b: BaselineDto, zone: ZoneId): DecisionItem {
-        val machine = b.machineCode ?: b.machineName ?: DisplayNames.shortId(b.machineId).orEmpty()
+        val machine = DisplayNames.or(b.machineCode ?: b.machineName, b.machineId)
         return DecisionItem(
             DecisionKinds.BASELINE, b.id, T.rowBaseline(num(b.reading), machine), b.note, b.proposedAt, b.proposedBy, b.status, b.status == "PROPOSED",
             fields(T.F_MACHINE to DisplayNames.machine(b.machineCode, b.machineName, b.machineId), T.F_READING to num(b.reading),
@@ -254,7 +254,7 @@ object DecisionMapper {
 
     fun correction(c: CorrectionDto) = DecisionItem(
         DecisionKinds.CORRECTION, c.id,
-        T.rowCorrection(num(c.oldReading), num(c.newReading), c.machineCode ?: c.machineName ?: DisplayNames.shortId(c.machineId).orEmpty()), c.reason,
+        T.rowCorrection(num(c.oldReading), num(c.newReading), DisplayNames.or(c.machineCode ?: c.machineName, c.machineId)), c.reason,
         c.proposedAt, c.proposedBy, c.status, c.status == "PROPOSED",
         fields(T.F_MACHINE to DisplayNames.machine(c.machineCode, c.machineName, c.machineId), T.F_JOB to DisplayNames.of(c.jobNumber, c.jobId),
             T.F_OLD_READING to num(c.oldReading), T.F_NEW_READING to num(c.newReading),
@@ -372,7 +372,7 @@ object DecisionMapper {
     }
 
     fun revenueDifference(d: RevenueDifferenceDto, zone: ZoneId): DecisionItem {
-        val machine = d.machineCode ?: d.machineName ?: DisplayNames.shortId(d.machineId).orEmpty()
+        val machine = DisplayNames.or(d.machineCode ?: d.machineName, d.machineId)
         val shown = d.adjustedDifference ?: d.difference
         return DecisionItem(
             DecisionKinds.REVENUE_DIFFERENCE, d.id, T.rowDifference(money(shown, d.currency), machine),
@@ -387,7 +387,7 @@ object DecisionMapper {
     }
 
     fun nonRevenue(a: NonRevenueApprovalDto, zone: ZoneId): DecisionItem {
-        val machine = a.machineCode ?: a.machineName ?: DisplayNames.shortId(a.machineId).orEmpty()
+        val machine = DisplayNames.or(a.machineCode ?: a.machineName, a.machineId)
         val type = OwnerFormat.humanize(a.activityType)
         return DecisionItem(
             DecisionKinds.NON_REVENUE, a.id, T.rowNonRevenue(num(a.hours), type, machine), a.reasonName ?: a.note, a.proposedAt, a.proposedBy, a.status,

@@ -1,5 +1,6 @@
 package com.asseta.owner.ui.accountability
 
+import com.asseta.core.domain.accountability.DisplayNames
 import com.asseta.core.domain.owner.OwnerFormat
 import com.asseta.core.model.owner.AccountabilitySummaryDto
 import com.asseta.core.model.owner.ApprovalsTileDto
@@ -64,7 +65,7 @@ class ManagementPresentation(private val f: OwnerFeatures, private val webBase: 
             if (s.remainingByCustomer.isNotEmpty()) {
                 add(heading("by_customer", T.HOURS_BY_CUSTOMER))
                 s.remainingByCustomer.forEach { c ->
-                    add(ManagementRow("customer-${c.customerId}", c.customerName ?: c.customerId, h(c.remaining), target = target(c.route)))
+                    add(ManagementRow("customer-${c.customerId}", DisplayNames.or(c.customerName, c.customerId), h(c.remaining), target = target(c.route)))
                 }
             }
         }
@@ -88,7 +89,7 @@ class ManagementPresentation(private val f: OwnerFeatures, private val webBase: 
                 s.byExcavator.forEach { e ->
                     add(
                         ManagementRow(
-                            "excavator-${e.machineId}", e.machineCode ?: e.machineName ?: e.machineId, h(e.operatingHours),
+                            "excavator-${e.machineId}", DisplayNames.or(e.machineCode ?: e.machineName, e.machineId), h(e.operatingHours),
                             caption = T.excavatorRow(OwnerFormat.hoursNumber(e.customerHours), OwnerFormat.hoursNumber(e.authorizedHours), OwnerFormat.hoursNumber(e.unexplainedHours)),
                             target = ManagementLinks.excavatorTarget(e.machineId, e.route, f, webBase),
                         ),
@@ -115,7 +116,7 @@ class ManagementPresentation(private val f: OwnerFeatures, private val webBase: 
                 s.heldByEmployee.forEach { b ->
                     add(
                         ManagementRow(
-                            "held-${b.staffMemberId}-${b.currency}", b.staffMemberName ?: b.staffMemberId, money(b.outstanding, b.currency),
+                            "held-${b.staffMemberId}-${b.currency}", DisplayNames.or(b.staffMemberName, b.staffMemberId), money(b.outstanding, b.currency),
                             caption = T.heldCaption(nonZero(b.inTransitOut, b.currency), nonZero(b.claimedUnverifiedHandovers, b.currency), nonZero(b.pendingFloats, b.currency), nonZero(b.approvedRetention, b.currency)),
                             target = target(b.route),
                         ),
@@ -143,7 +144,7 @@ class ManagementPresentation(private val f: OwnerFeatures, private val webBase: 
             c.items.forEach { j ->
                 add(
                     ManagementRow(
-                        "changeover-${j.jobId}", T.changeoverRow(j.jobNumber.orEmpty(), j.machineCode ?: j.machineName.orEmpty(), j.customerName.orEmpty()),
+                        "changeover-${j.jobId}", T.changeoverRow(DisplayNames.or(j.jobNumber, j.jobId), DisplayNames.or(j.machineCode ?: j.machineName, j.machineId), DisplayNames.or(j.customerName, j.customerId)),
                         T.changeoverDays(j.daysWaiting), target = target(j.route),
                     ),
                 )

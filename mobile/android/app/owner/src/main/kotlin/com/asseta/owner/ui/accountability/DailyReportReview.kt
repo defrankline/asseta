@@ -69,7 +69,7 @@ object DailyReportPresentation {
         add(T.BILLABLE to R.hours(r.billableHours))
         add(T.UNBILLABLE to R.hours(r.unbillableHours))
         if (R.nonZero(r.differenceHours)) add(T.NOT_ACCOUNTED to R.hours(r.differenceHours))
-        add(T.SUBMITTED_BY to DisplayNames.of(r.submittedByName, r.submittedBy).orEmpty())
+        add(T.SUBMITTED_BY to DisplayNames.or(r.submittedByName, r.submittedBy))
         add(T.SUBMITTED to OwnerFormat.dateTime(r.submittedAt, zone))
     }
 
@@ -130,7 +130,7 @@ fun DailyReportReviewScreen(vm: DailyReportReviewViewModel, session: OwnerSessio
                 }
             }
             if (r.unbillable.isNotEmpty()) item {
-                SectionCard(T.REASONS) { r.unbillable.forEach { KeyValue(it.reasonName ?: DisplayNames.shortId(it.reasonId).orEmpty(), R.hours(it.hours)) } }
+                SectionCard(T.REASONS) { r.unbillable.forEach { KeyValue(DisplayNames.or(it.reasonName, it.reasonId), R.hours(it.hours)) } }
             }
             if (r.allocations.isNotEmpty()) item {
                 SectionCard(T.ALLOCATIONS) {
@@ -145,7 +145,7 @@ fun DailyReportReviewScreen(vm: DailyReportReviewViewModel, session: OwnerSessio
             }
             if (r.reviewedBy != null) item {
                 SectionCard(T.REVIEW) {
-                    KeyValue(T.REVIEWED_BY, DisplayNames.of(r.reviewedByName, r.reviewedBy).orEmpty())
+                    KeyValue(T.REVIEWED_BY, DisplayNames.or(r.reviewedByName, r.reviewedBy))
                     r.reviewNote?.let { KeyValue(T.REVIEW_NOTE, it) }
                 }
             }

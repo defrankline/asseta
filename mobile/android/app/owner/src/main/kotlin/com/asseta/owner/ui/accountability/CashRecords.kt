@@ -78,7 +78,7 @@ object CashRecords {
     /** "TZS 50,000.00, USD 20.00" (the amounts still held when flagged). */
     fun amounts(o: RemittanceOverdueDto): String = o.amounts.joinToString(", ") { money(it.amount, it.currency) }
 
-    fun overdueName(o: RemittanceOverdueDto): String = DisplayNames.of(o.staffMemberName, o.staffMemberId).orEmpty()
+    fun overdueName(o: RemittanceOverdueDto): String = DisplayNames.or(o.staffMemberName, o.staffMemberId)
 
     /** Held longer than the allowance (DEC-031 D3) rather than past the daily cut-off. */
     fun heldTooLong(o: RemittanceOverdueDto): Boolean = o.reason == RemittanceOverdueDto.HELD_TOO_LONG

@@ -87,6 +87,26 @@ class ManagementViewOwnerTest {
     }
 
     @Test
+    fun `revenue differences open Approvals only while waiting`() {
+        assertEquals(OwnerDestination.Approvals(), app("/tenant/revenue-differences"))
+        assertEquals(OwnerDestination.Approvals(), app("/tenant/revenue-differences?status=EXPLANATION_PROPOSED"))
+        assertEquals("https://example.test/tenant/revenue-differences?status=RESOLVED", webOf("/tenant/revenue-differences?status=RESOLVED"))
+    }
+
+    @Test
+    fun `a record route the app has no screen for opens the web`() {
+        assertEquals("https://example.test/tenant/hours/ledger/$id", webOf("/tenant/hours/ledger/$id"))
+        assertEquals("https://example.test/tenant/exceptions/$id", webOf("/tenant/exceptions/$id"))
+        assertEquals("https://example.test/tenant/finance/cash/other/$id", webOf("/tenant/finance/cash/other/$id"))
+    }
+
+    @Test
+    fun `a record of a switched-off module opens the web`() {
+        val off = all.copy(disabled = setOf(com.asseta.core.model.TenantAccess.CASH_CUSTODY))
+        assertEquals("https://example.test/tenant/finance/cash/transfers/$id", webOf("/tenant/finance/cash/transfers/$id", off))
+    }
+
+    @Test
     fun `a role that may not open the screen gets the web`() {
         val none = OwnerFeatures(setOf("tenant.accountability.read"))
         assertEquals("https://example.test/tenant/finance/cash", webOf("/tenant/finance/cash", none))
@@ -224,6 +244,32 @@ class ManagementViewOwnerTest {
         val cash = p.cash(employee.cashHeld.single())
         assertEquals("TZS 90,000.00", cash.value)
         assertEquals("Claimed TZS 5,000.00", cash.caption)
+    }
+
+    @Test
+    fun `a missing name shows the short id and never the whole id`() {
+        val nameless = Regex("\"(customer_name|machine_code|machine_name|staff_member_name|job_number)\":\"[^\"]*\"").let { names ->
+            summary(names.replace(hoursSection + cashSection + exceptionsSection, "\"\$1\":null"))
+        }
+        val short = id.take(8)
+        assertEquals(short, row("hours_section", "customer-$id", nameless).label)
+        assertEquals(short, row("cash_section", "held-$id-TZS", nameless).label)
+        assertEquals(ManagementTexts.changeoverRow(short, short, short), row("exceptions_section", "changeover-$id", nameless).label)
+        assertFalse(presentation().groups(nameless).flatMap { it.rows }.any { id in it.label })
+    }
+
+    @Test
+    fun `lookup shows the short id for a missing name`() {
+        val m = json.decodeFromString(
+            LookupMatchDto.serializer(),
+            """{"record_type":"job","id":"$id","reference":"J-1","route":"/tenant/x","recorded_by":"$id","customer_id":"$id","machine_id":"$id","staff_member_id":"$id"}""",
+        )
+        val rows = LookupPresentation(all, web, ZoneOffset.UTC).rows(m)
+        assertEquals(
+            listOf(ManagementTexts.LOOKUP_RECORDED_BY, ManagementTexts.LOOKUP_CUSTOMER, ManagementTexts.LOOKUP_MACHINE, ManagementTexts.LOOKUP_STAFF),
+            rows.map { it.first },
+        )
+        assertTrue(rows.all { it.second == id.take(8) })
     }
 
     @Test

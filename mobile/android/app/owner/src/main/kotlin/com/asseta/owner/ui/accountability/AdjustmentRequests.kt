@@ -162,7 +162,7 @@ object AdjustmentPresentation {
 
     fun headline(r: AdjustmentRequestDto): String = listOfNotNull(T.type(r.requestType), quantity(r)).joinToString(" · ")
 
-    private fun machine(r: AdjustmentRequestDto) = r.machineCode ?: r.machineName ?: DisplayNames.shortId(r.machineId)
+    private fun machine(r: AdjustmentRequestDto) = DisplayNames.of(r.machineCode ?: r.machineName, r.machineId)
 
     /** "{customer} · {machine}", each only when present. */
     fun subline(r: AdjustmentRequestDto): String? =
@@ -195,7 +195,7 @@ object AdjustmentPresentation {
             val p = element as? JsonObject ?: return@mapNotNull null
             val owed = money(p.text("money_owed") ?: "0", currency).orEmpty()
             DecisionField(
-                p.text("purchase_number") ?: DisplayNames.shortId(p.text("purchase_id")).orEmpty(),
+                DisplayNames.of(p.text("purchase_number"), p.text("purchase_id")) ?: T.PURCHASE,
                 T.purchaseLine(OwnerFormat.hoursNumber(p.text("unused_hours")), OwnerFormat.hoursNumber(p.text("used_hours")), owed),
             )
         }

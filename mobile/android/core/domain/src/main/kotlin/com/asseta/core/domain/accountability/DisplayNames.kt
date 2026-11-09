@@ -7,12 +7,21 @@ package com.asseta.core.domain.accountability
 object DisplayNames {
     const val SHORT = 8
 
-    fun shortId(id: String?): String? = id?.takeIf { it.isNotBlank() }?.take(SHORT)
+    /** Shown when neither a name nor an id is known. */
+    const val NONE = "—"
 
-    /** [name] when known, else the short id (null when both are missing). */
-    fun of(name: String?, id: String?): String? = name?.takeIf { it.isNotBlank() } ?: shortId(id)
+    private fun clean(text: String?): String? = text?.trim()?.takeIf { it.isNotEmpty() }
+
+    /** The first [SHORT] characters of the id, lower case. */
+    fun shortId(id: String?): String? = clean(id)?.take(SHORT)?.lowercase()
+
+    /** [name] when known, else the short id (null when both are missing: a missing person or record is left out). */
+    fun of(name: String?, id: String?): String? = clean(name) ?: shortId(id)
+
+    /** [name] when known, else the short id, never empty (iOS `DisplayName.or`). */
+    fun or(name: String?, id: String?): String = of(name, id) ?: NONE
 
     /** "CODE · Name" for a machine (either part may be missing), else the short id. */
     fun machine(code: String?, name: String?, id: String?): String? =
-        listOfNotNull(code?.takeIf { it.isNotBlank() }, name?.takeIf { it.isNotBlank() }).joinToString(" · ").ifEmpty { null } ?: shortId(id)
+        listOfNotNull(clean(code), clean(name)).joinToString(" · ").ifEmpty { null } ?: shortId(id)
 }

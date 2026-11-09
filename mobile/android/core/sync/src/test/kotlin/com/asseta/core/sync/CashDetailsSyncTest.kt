@@ -97,6 +97,7 @@ class CashDetailsSyncTest : SyncTestBase() {
 
     @Test
     fun aCollectionPaysAnInvoiceUpToWhatItOwes() = runBlocking {
+        fake.capabilities = fake.capabilities.orEmpty() + SyncCapabilities.SYNC_OPEN_INVOICES
         synced()
         val base = CashCollectionRequest(tenant, UUID.randomUUID().toString(), fake.customerId, null, "50000", "TZS", "", "", clock.now, invoiceId = "i1", linkRequired = true)
         val opId = saved(finance.cashCollection(base.copy(invoiceBalance = "20000".toBigDecimal()))).operationId
@@ -108,6 +109,13 @@ class CashDetailsSyncTest : SyncTestBase() {
         // Cash below what it owes: all the cash is allocated.
         val second = base.copy(clientId = UUID.randomUUID().toString(), invoiceBalance = "90000".toBigDecimal())
         assertEquals("50000", payload(saved(finance.cashCollection(second)).operationId)["allocations"]!!.jsonArray.single().jsonObject["amount"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun aServerThatDoesNotAnnounceInvoicesRefusesTheLink() = runBlocking {
+        synced()
+        val request = CashCollectionRequest(tenant, UUID.randomUUID().toString(), fake.customerId, null, "50000", "TZS", "", "", clock.now, invoiceId = "i1", invoiceBalance = "20000".toBigDecimal())
+        assertEquals(FinanceResult.Blocked(com.asseta.core.sync.usecase.CaptureMeterReading.SERVER_TOO_OLD), finance.cashCollection(request))
     }
 
     @Test
