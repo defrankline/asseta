@@ -34,7 +34,7 @@ RECORD_ROUTES: dict[str, str] = {
     "meter_baseline": "/tenant/meter-baselines",
     "meter_correction": "/tenant/meter-corrections",
     "meter_reset": "/tenant/meter-resets",
-    "meter_capture": "/tenant/exceptions",
+    "meter_capture": "/tenant/meter-captures",
     "job_exception": "/tenant/exceptions",
     "classification": "/tenant/engine-hours/classifications",
     "engine_hour_classification": "/tenant/engine-hours/classifications",

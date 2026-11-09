@@ -40,6 +40,7 @@ from asseta.modules.accountability.sections import ManagementSections, approvals
 from asseta.modules.accountability.sections_dto import PeriodDto
 from asseta.modules.finance.common import local_date, tenant_settings
 from asseta.modules.finance.custody_models import (
+    OPEN_VARIANCE_STATUSES,
     CashFloatAcknowledgement,
     CashTransfer,
     CashTransferStatus,
@@ -138,6 +139,12 @@ class SecurityEventService:
             q, SecurityEvent.permission, SecurityEvent.action, SecurityEvent.entity_type, SecurityEvent.request_path
         )
         return stmt.where(cond) if cond is not None else stmt
+
+    def get(self, event_id: uuid.UUID) -> SecurityEventDto:
+        row = self._s.get(SecurityEvent, event_id)
+        if row is None:
+            raise NotFound("Security event not found")
+        return self.dtos([row])[0]
 
     def dtos(self, rows: list[SecurityEvent]) -> list[SecurityEventDto]:
         names = _names(self._s, {r.actor_user_id for r in rows if r.actor_user_id})
@@ -441,11 +448,12 @@ class AccountabilityDashboard:
         )
 
     def _discrepancies(self, _: int) -> DiscrepanciesTileDto:
-        open_states = (VarianceStatus.OPEN, VarianceStatus.WRITE_OFF_PROPOSED, VarianceStatus.CLOSURE_PROPOSED)
         variances: dict[str, list[Any]] = defaultdict(lambda: [0, Decimal(0)])
         rows = (
             self._s.execute(
-                select(CashVariance.currency, CashVariance.amount).where(CashVariance.status.in_(open_states))
+                select(CashVariance.currency, CashVariance.amount).where(
+                    CashVariance.status.in_(OPEN_VARIANCE_STATUSES)
+                )
             ).all()
             if self._cash_controls
             else []

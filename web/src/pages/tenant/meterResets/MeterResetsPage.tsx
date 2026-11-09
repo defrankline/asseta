@@ -3,6 +3,7 @@ import { useCallback, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router';
 import { initialFilter } from '../../../navigation/urlFilters';
 import { FocusMissingAlert } from '../shared/FocusMissingAlert';
+import { useRecordById } from '../shared/useRecordById';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import { useCanMutate } from '../../../access/useCanMutate';
 import { meterService } from '../../../api/services/meterService';
@@ -49,6 +50,33 @@ export function MeterResetsPage() {
     [status, machineId],
   );
   const resource = useAsyncResource(load);
+  const loadFocused = useCallback(
+    (id: string, signal: AbortSignal) => meterService.getReset(id, signal),
+    [],
+  );
+  const focus = useRecordById<ResetDto>(loadFocused, focusId);
+  const decideAction = (r: ResetDto) => {
+    if (!canDecide || r.status !== 'PENDING') return null;
+    const own = me !== null && r.requested_by === me.user_id;
+    return own ? (
+      <Tooltip title={OWN_RESET_TEXT}>
+        <span>
+          <Button size="small" disabled aria-label={`Decide reset (${OWN_RESET_TEXT})`}>
+            Decide
+          </Button>
+        </span>
+      </Tooltip>
+    ) : (
+      <Button
+        size="small"
+        onClick={() => {
+          setDeciding(r);
+        }}
+      >
+        Decide
+      </Button>
+    );
+  };
   const columns: DataColumn<ResetDto>[] = [
     { id: 'at', header: 'Effective', render: (r) => formatInstantIn(r.effective_at, timeZone) },
     { id: 'machine', header: 'Machine', render: (r) => machineName(r.machine_id) },
@@ -87,33 +115,11 @@ export function MeterResetsPage() {
       id: 'decide',
       header: '',
       align: 'right',
-      render: (r) => {
-        if (!canDecide || r.status !== 'PENDING') return null;
-        const own = me !== null && r.requested_by === me.user_id;
-        return own ? (
-          <Tooltip title={OWN_RESET_TEXT}>
-            <span>
-              <Button size="small" disabled aria-label={`Decide reset (${OWN_RESET_TEXT})`}>
-                Decide
-              </Button>
-            </span>
-          </Tooltip>
-        ) : (
-          <Button
-            size="small"
-            onClick={() => {
-              setDeciding(r);
-            }}
-          >
-            Decide
-          </Button>
-        );
-      },
+      render: decideAction,
     },
   ];
-  const focused =
-    focusId === undefined ? null : ((resource.data ?? []).find((r) => r.id === focusId) ?? null);
-  const focusMissing = focusId !== undefined && resource.data !== null && focused === null;
+  const focused = focusId === undefined ? null : focus.data;
+  const focusMissing = focusId !== undefined && focus.error !== null;
   return (
     <>
       <PageHeader
@@ -121,7 +127,7 @@ export function MeterResetsPage() {
         subtitle="Replaced or rolled-over hour meters across all machines, awaiting or after a decision"
       />
       {focused !== null && (
-        <Alert severity="info" className="mb-3">
+        <Alert severity="info" className="mb-3" action={decideAction(focused)}>
           {`The reset you opened: ${machineName(focused.machine_id)}, ${focused.old_reading} → ${focused.new_reading}, effective ${formatInstantIn(focused.effective_at, timeZone)}. Status: ${focused.status.toLowerCase()}.`}
         </Alert>
       )}
@@ -173,6 +179,7 @@ export function MeterResetsPage() {
           onDecided={(r) => {
             notify.success(`Meter reset ${r.status.toLowerCase()}.`);
             resource.reload();
+            if (focusId !== undefined) focus.reload();
           }}
         />
       )}

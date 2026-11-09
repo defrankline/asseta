@@ -1,4 +1,4 @@
-import { Box, Chip, Typography } from '@mui/material';
+import { Box, Chip } from '@mui/material';
 import { useCallback, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { PERMISSIONS } from '../../../../access/permissionCodes';
@@ -14,6 +14,8 @@ import type { FetchPage } from '../../../../components/data/useServerPage';
 import { StaticSelectFilter } from '../../../../components/forms/StaticSelectFilter';
 import { RowActionsMenu } from '../../../../components/lifecycle/RowActionsMenu';
 import { recordPath } from '../../../../navigation/recordRoutes';
+import { UrlPeriodChip } from '../../shared/UrlPeriodChip';
+import { urlPeriod } from '../../shared/urlPeriod';
 import { initialFilter } from '../../../../navigation/urlFilters';
 import { useSession } from '../../../../session/useSession';
 import { formatInstantIn } from '../../../../utils/time';
@@ -47,10 +49,11 @@ export function VariancesTab({
   const direction = params.get('direction');
   const urlDirection = direction === 'SHORTAGE' || direction === 'OVERAGE' ? direction : undefined;
   const directionLabel = urlDirection === 'SHORTAGE' ? 'Shortages only' : 'Overages only';
-  const hasPeriod = params.has('date_from') || params.has('date_to');
-  const [status, setStatus] = useState(
-    initialStatus ?? (urlDirection !== undefined || hasPeriod ? '' : 'OPEN'),
-  );
+  const { dateFrom, dateTo } = urlPeriod(params);
+  const openOnly = params.get('open_only') === 'true';
+  const fromLink =
+    urlDirection !== undefined || openOnly || dateFrom !== undefined || dateTo !== undefined;
+  const [status, setStatus] = useState(initialStatus ?? (fromLink ? '' : 'OPEN'));
   const [source, setSource] = useState(() =>
     initialFilter(params, 'source_type', VARIANCE_SOURCE_OPTIONS, ''),
   );
@@ -121,12 +124,6 @@ export function VariancesTab({
   ];
   return (
     <Box className="flex flex-col gap-3">
-      {hasPeriod && (
-        <Typography variant="body2" color="text.secondary">
-          This list shows variances from every date. The dashboard figure counted only those opened
-          in its period.
-        </Typography>
-      )}
       <ServerDataTable
         columns={columns}
         fetchPage={fetchPage}
@@ -137,6 +134,9 @@ export function VariancesTab({
           status: status || undefined,
           source_type: source || undefined,
           direction: urlDirection,
+          date_from: dateFrom,
+          date_to: dateTo,
+          open_only: openOnly ? 'true' : undefined,
           staff_member_id: who?.staff_member_id,
           assignee_user_id: assignee?.user_id,
         }}
@@ -156,6 +156,18 @@ export function VariancesTab({
                 }}
               />
             )}
+            {openOnly && (
+              <Chip
+                size="small"
+                label="Still open"
+                onDelete={() => {
+                  const next = new URLSearchParams(params);
+                  next.delete('open_only');
+                  setParams(next, { replace: true });
+                }}
+              />
+            )}
+            <UrlPeriodChip params={params} setParams={setParams} />
             <StaticSelectFilter
               label="Status"
               value={status}

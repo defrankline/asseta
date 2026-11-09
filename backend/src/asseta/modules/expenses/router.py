@@ -296,6 +296,16 @@ def list_approvals(
     )
 
 
+@router.get("/approvals/{approval_id}", response_model=ApprovalRequestDto, operation_id="getApprovalRequest")
+def get_approval(
+    approval_id: uuid.UUID, session: DbSession, _: Annotated[RequestContext, Depends(APPROVAL_READ)]
+) -> ApprovalRequestDto:
+    row = session.get(ApprovalRequest, approval_id)
+    if row is None:
+        raise NotFound("Approval request not found")
+    return ApprovalRequestDto.model_validate(row)
+
+
 @router.post(
     "/approvals/{approval_id}/decision", response_model=ApprovalRequestDto, operation_id="decideApprovalRequest"
 )

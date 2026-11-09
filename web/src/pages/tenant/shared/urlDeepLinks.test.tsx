@@ -28,6 +28,25 @@ beforeEach(() => {
 });
 
 describe('dashboard links carry their filters to the API', () => {
+  it('variances: a period figure and a still-open figure carry their filters', async () => {
+    renderWithProviders(<VariancesTab timeZone="UTC" />, {
+      tenantPermissions: [P.tenantFinanceRead],
+      route: '/?direction=OVERAGE&date_from=2026-11-01&date_to=2026-11-09&open_only=true',
+    });
+    await waitFor(() => {
+      expect(m.variances).toHaveBeenCalled();
+    });
+    expect(m.variances.mock.calls[0]?.[0].filters).toMatchObject({
+      direction: 'OVERAGE',
+      date_from: '2026-11-01',
+      date_to: '2026-11-09',
+      open_only: 'true',
+    });
+    expect(m.variances.mock.calls[0]?.[0].filters?.status).toBeUndefined();
+    expect(screen.getByText('Still open')).toBeInTheDocument();
+    expect(screen.queryByText(/every date/)).toBeNull();
+  });
+
   it('variances: direction, all statuses', async () => {
     renderWithProviders(<VariancesTab timeZone="UTC" />, {
       tenantPermissions: [P.tenantFinanceRead],
@@ -59,23 +78,30 @@ describe('dashboard links carry their filters to the API', () => {
 });
 
 describe('useFocusedRecord', () => {
-  const rows = [{ id: 'a' }, { id: 'b' }];
-  it('finds a record on a later page', async () => {
-    const fetchList = vi
-      .fn()
-      .mockResolvedValueOnce({ items: rows, total: 400, page: 1, page_size: 200 })
-      .mockResolvedValueOnce({ items: [{ id: 'z' }], total: 400, page: 2, page_size: 200 });
-    const { result } = renderHook(() => useFocusedRecord<{ id: string }>(fetchList, 'z'));
+  it('opens the record by its own id and hands it over', async () => {
+    const load = vi.fn().mockResolvedValue({ id: 'z' });
+    const onFound = vi.fn();
+    const { result } = renderHook(() => useFocusedRecord<{ id: string }>(load, 'z', onFound));
     await waitFor(() => {
       expect(result.current.record).toEqual({ id: 'z' });
     });
+    expect(load).toHaveBeenCalledWith('z', expect.any(AbortSignal));
+    expect(onFound).toHaveBeenCalledWith({ id: 'z' });
+    expect(result.current.missing).toBe(false);
   });
 
-  it('reports a record it cannot find', async () => {
-    const fetchList = vi.fn().mockResolvedValue({ items: rows, total: 2, page: 1, page_size: 200 });
-    const { result } = renderHook(() => useFocusedRecord<{ id: string }>(fetchList, 'nope'));
+  it('reports a record it cannot open', async () => {
+    const load = vi.fn().mockRejectedValue(new Error('404'));
+    const { result } = renderHook(() => useFocusedRecord<{ id: string }>(load, 'nope'));
     await waitFor(() => {
       expect(result.current.missing).toBe(true);
     });
+  });
+
+  it('does nothing without an id', () => {
+    const load = vi.fn();
+    const { result } = renderHook(() => useFocusedRecord<{ id: string }>(load, undefined));
+    expect(load).not.toHaveBeenCalled();
+    expect(result.current).toEqual({ record: null, missing: false });
   });
 });

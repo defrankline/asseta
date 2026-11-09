@@ -86,6 +86,15 @@ export const accountabilityService = {
   securityEvents(query: TenantListQuery, signal?: AbortSignal): Promise<Page<SecurityEventDto>> {
     return tenantPage('/tenant/security-events', eventPage, query, 'security events', signal);
   },
+  /** GET /tenant/security-events/{id} (getSecurityEvent). */
+  securityEvent(eventId: string, signal?: AbortSignal): Promise<SecurityEventDto> {
+    return tenantGet(
+      `/tenant/security-events/${seg(eventId)}`,
+      securityEventSchema,
+      'security event',
+      signal,
+    );
+  },
   /** GET /tenant/sync/conflicts (listSyncConflicts). Filters: `status`, `op_type`, `resolved`. */
   syncConflicts(query: TenantListQuery, signal?: AbortSignal): Promise<Page<SyncConflictDto>> {
     return tenantPage('/tenant/sync/conflicts', conflictPage, query, 'sync conflicts', signal);

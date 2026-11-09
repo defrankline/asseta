@@ -5,13 +5,19 @@ import type { meterService } from '../../../api/services/meterService';
 import { MACHINE, ME_ID, makeReset } from '../../../test/jobFixtures';
 import { renderWithProviders } from '../../../test/renderWithProviders';
 import { MeterResetsPage } from './MeterResetsPage';
+import { Route, Routes } from 'react-router';
 
 const mocks = vi.hoisted(() => ({
   listResets: vi.fn<typeof meterService.listResets>(),
   decideReset: vi.fn<typeof meterService.decideReset>(),
+  getReset: vi.fn<typeof meterService.getReset>(),
 }));
 vi.mock('../../../api/services/meterService', () => ({
-  meterService: { listResets: mocks.listResets, decideReset: mocks.decideReset },
+  meterService: {
+    listResets: mocks.listResets,
+    decideReset: mocks.decideReset,
+    getReset: mocks.getReset,
+  },
 }));
 vi.mock('../../../api/services/machineService', () => ({
   machineService: {
@@ -84,5 +90,51 @@ describe('MeterResetsPage', () => {
         expect.any(AbortSignal),
       );
     });
+  });
+
+  const openFocused = () =>
+    renderWithProviders(
+      <Routes>
+        <Route path="/tenant/meter-resets/:focusId" element={<MeterResetsPage />} />
+      </Routes>,
+      { tenantPermissions: APPROVER, route: `/tenant/meter-resets/${makeReset().id}` },
+    );
+
+  it('a linked reset opens by its id, even one the list does not show, with its decide action', async () => {
+    const user = userEvent.setup();
+    mocks.listResets.mockResolvedValue([]);
+    mocks.getReset.mockResolvedValue(makeReset());
+    mocks.decideReset.mockResolvedValue(makeReset({ status: 'APPROVED' }));
+    openFocused();
+    const banner = await screen.findByText(/The reset you opened/);
+    expect(mocks.getReset).toHaveBeenCalledWith(makeReset().id, expect.any(AbortSignal));
+    await user.click(
+      within(banner.closest('[role="alert"]') as HTMLElement).getByRole('button', {
+        name: 'Decide',
+      }),
+    );
+    const dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('combobox', { name: /Decision/ }));
+    await user.click(await screen.findByRole('option', { name: /^Approve reset/ }));
+    await user.type(within(dialog).getByRole('textbox', { name: /Note/ }), 'Workshop card seen');
+    await user.click(within(dialog).getByRole('button', { name: 'Record decision' }));
+    await waitFor(() => {
+      expect(mocks.decideReset).toHaveBeenCalled();
+    });
+    await waitFor(() => {
+      expect(mocks.getReset).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it('a requester cannot decide a reset they opened by link; a missing one says so', async () => {
+    mocks.listResets.mockResolvedValue([]);
+    mocks.getReset.mockResolvedValue(makeReset({ requested_by: ME_ID }));
+    const { unmount } = openFocused();
+    await screen.findByText(/The reset you opened/);
+    expect(screen.getByRole('button', { name: /Decide reset \(You requested/ })).toBeDisabled();
+    unmount();
+    mocks.getReset.mockRejectedValue(new Error('not found'));
+    openFocused();
+    expect(await screen.findByText(/could not be opened/)).toBeInTheDocument();
   });
 });

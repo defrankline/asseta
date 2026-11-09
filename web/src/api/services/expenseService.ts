@@ -87,6 +87,15 @@ export const approvalService = {
   list(query: TenantListQuery, signal?: AbortSignal): Promise<Page<ApprovalRequestDto>> {
     return tenantPage('/tenant/approvals', approvalPageSchema, query, 'approvals', signal);
   },
+  /** GET /tenant/approvals/{id} (getApprovalRequest). */
+  get(approvalId: string, signal?: AbortSignal): Promise<ApprovalRequestDto> {
+    return tenantGet(
+      `/tenant/approvals/${seg(approvalId)}`,
+      approvalRequestSchema,
+      'approval',
+      signal,
+    );
+  },
   /** POST /tenant/approvals/{id}/decision (decideApprovalRequest); never by the requester. */
   decide(approvalId: string, body: ApprovalDecisionIn, idempotencyKey: string) {
     return tenantSend(

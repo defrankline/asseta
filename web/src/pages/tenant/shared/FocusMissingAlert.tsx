@@ -1,10 +1,10 @@
 import { Alert } from '@mui/material';
 
-/** Shown when a link opened one record that is not among the entries this list could search. */
+/** Shown when a link opened one record that cannot be loaded. */
 export function FocusMissingAlert({ missing }: { missing: boolean }) {
   return missing ? (
     <Alert severity="info" className="mb-3">
-      That record is not among the most recent entries. Use the filters to find it.
+      That record could not be opened. It may not exist, or you may not have access to it.
     </Alert>
   ) : null;
 }

@@ -50,6 +50,7 @@ from asseta.modules.finance.custody_dto import (
     WriteOffProposalIn,
 )
 from asseta.modules.finance.custody_models import (
+    OPEN_VARIANCE_STATUSES,
     CashDecisionStatus,
     CashReasonKind,
     CashRetention,
@@ -61,6 +62,7 @@ from asseta.modules.finance.custody_models import (
     RemittanceOverdue,
     VarianceSource,
     VarianceStatus,
+    VarianceUnit,
 )
 from asseta.modules.finance.custody_service import CashCustodyControls, custodian_dto
 from asseta.modules.finance.deposit_accounts import DepositAccountService, RemittanceEvidenceDto
@@ -367,12 +369,21 @@ def list_variances(
     direction: Annotated[
         Literal["SHORTAGE", "OVERAGE"] | None, Query(description="SHORTAGE: less received than declared; OVERAGE: more")
     ] = None,
+    date_from: Annotated[date | None, Query(description="Opened on or after this tenant-local day")] = None,
+    date_to: Annotated[date | None, Query(description="Opened on or before this tenant-local day")] = None,
+    open_only: Annotated[bool, Query(description="Only those still in question, whatever their stage")] = False,
 ) -> Page[CashVarianceDto]:
-    """Cash and customer-hour variances (`source_type` CUSTOMER_HOUR). Refused per capability: CASH_CUSTODY_DISABLED,
-    or HOURS_DISABLED when asking for customer-hour variances with hours switched off."""
+    """Cash and customer-hour variances (`source_type` CUSTOMER_HOUR). `direction` concerns money only, as the
+    dashboard's shortage and overage figures do. Refused per capability: CASH_CUSTODY_DISABLED, or HOURS_DISABLED when
+    asking for customer-hour variances with hours switched off."""
     stmt = CashCustodyControls(session, ctx, now).list_variances(status, staff_member_id, source_type, assignee_user_id)
+    assert ctx.tenant_id is not None
+    stmt = stmt.where(*period_conditions(session, ctx.tenant_id, CashVariance.opened_at, date_from, date_to))
+    if open_only:
+        stmt = stmt.where(CashVariance.status.in_(OPEN_VARIANCE_STATUSES))
     if direction is not None:
-        stmt = stmt.where(CashVariance.amount > 0 if direction == "SHORTAGE" else CashVariance.amount < 0)
+        side = CashVariance.amount > 0 if direction == "SHORTAGE" else CashVariance.amount < 0
+        stmt = stmt.where(CashVariance.unit == VarianceUnit.MONEY, side)
     rows, total = paginate(session, stmt, paging)
     return _page([CashVarianceDto.model_validate(v) for v in rows], total, paging)
 

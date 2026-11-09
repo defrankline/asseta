@@ -93,6 +93,7 @@ export const ROUTES = {
   tenantJobs: '/tenant/jobs',
   tenantJobDetail: '/tenant/jobs/:jobId',
   tenantExceptions: '/tenant/exceptions',
+  tenantMeterCaptureDetail: '/tenant/meter-captures/:captureId',
   /** Matches the backend `tenant.meter_resets` menu path (company-wide reset approvals). */
   tenantMeterResets: '/tenant/meter-resets',
   // Engine hours (backend `tenant.engine_hours` group): baselines, reconciliation, explanations, corrections.

@@ -201,7 +201,10 @@ export const custodyService = {
     );
   },
 
-  /** GET /tenant/cash/variances (listCashVariances). Filters: `status`, `staff_member_id`, `source_type`, `assignee_user_id`. */
+  /**
+   * GET /tenant/cash/variances (listCashVariances). Filters: `status`, `staff_member_id`, `source_type`,
+   * `assignee_user_id`, `direction`, `date_from`, `date_to`, `open_only`.
+   */
   variances(query: TenantListQuery, signal?: AbortSignal): Promise<Page<CashVarianceDto>> {
     return tenantPage(`${base}/variances`, variancePage, query, 'cash variances', signal);
   },

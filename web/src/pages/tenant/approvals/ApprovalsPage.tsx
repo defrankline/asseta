@@ -57,7 +57,11 @@ export function ApprovalsPage() {
     (query, signal) => approvalService.list(query, signal),
     [],
   );
-  const focus = useFocusedRecord<ApprovalRequestDto>(fetchPage, focusId, (a) => {
+  const loadFocused = useCallback(
+    (id: string, signal: AbortSignal) => approvalService.get(id, signal),
+    [],
+  );
+  const focus = useFocusedRecord<ApprovalRequestDto>(loadFocused, focusId, (a) => {
     expenseService.get(a.subject_id).then(setExpense, (err: unknown) => {
       setLoadError(toApiError(err));
     });

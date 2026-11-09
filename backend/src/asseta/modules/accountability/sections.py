@@ -43,11 +43,11 @@ from asseta.modules.accountability.sections_dto import (
 )
 from asseta.modules.finance.common import local_bounds, local_date, period_conditions, tenant_settings
 from asseta.modules.finance.custody_models import (
+    OPEN_VARIANCE_STATUSES,
     CashTransfer,
     CashTransferStatus,
     CashVariance,
     RemittanceOverdue,
-    VarianceStatus,
     VarianceUnit,
 )
 from asseta.modules.finance.custody_totals import CustodianBalance
@@ -70,7 +70,6 @@ from asseta.modules.revenue.models import RevenueDifference, RevenueDifferenceSt
 ZERO = Decimal(0)
 TOP = 200  # most customers listed; the total says how many there are
 OLDEST = 20  # records shown under a queue; its route lists them all
-OPEN_VARIANCE = (VarianceStatus.OPEN, VarianceStatus.WRITE_OFF_PROPOSED, VarianceStatus.CLOSURE_PROPOSED)
 UNRESOLVED_REVENUE = (RevenueDifferenceStatus.OPEN, RevenueDifferenceStatus.EXPLANATION_PROPOSED)
 # Reading problems: what the meter says does not add up (evidence-quality flags are reviewed under exceptions).
 METER_DISCREPANCIES = (
@@ -468,7 +467,7 @@ class ManagementSections:
         rows: dict[tuple[str, str], list[Any]] = {}
         for source, unit, currency, n, amount in self._s.execute(
             select(v.source_type, v.unit, v.currency, func.count(), func.sum(func.abs(v.amount)))
-            .where(v.status.in_(OPEN_VARIANCE))
+            .where(v.status.in_(OPEN_VARIANCE_STATUSES))
             .group_by(v.source_type, v.unit, v.currency)
         ):
             row = rows.setdefault((source.value, unit.value), [0, []])
@@ -481,7 +480,7 @@ class ManagementSections:
                 count=n,
                 # Hour variances keep the tenant currency only as a column default: their figures are hours.
                 amounts=lines if unit == VarianceUnit.MONEY.value else [],
-                route=list_route(f"{CASH}/variances", source_type=source),
+                route=list_route(f"{CASH}/variances", source_type=source, open_only="true"),
             )
             for (source, unit), (n, lines) in sorted(rows.items())
         ]
@@ -553,13 +552,13 @@ class ManagementSections:
         adjustments = adjustment_keys()
         sub = pending_union(self._disabled, adjustments_only=True)
         oldest = self._s.execute(select(sub).order_by(sub.c.requested_at, sub.c.id).limit(OLDEST)).all()
-        open_now = [v.status.in_(OPEN_VARIANCE)]
+        open_now = [v.status.in_(OPEN_VARIANCE_STATUSES)]
         opened = self._in_period(v.opened_at)
         pending_total = sum(c.count for k, c in counts.items() if k in adjustments)
         return ExceptionsSectionDto(
             unexplained_engine_hours=self._allocation_figure(AllocationKind.UNEXPLAINED),
-            shortages=self._variance_money(1, "SHORTAGE", open_now),
-            overages=self._variance_money(-1, "OVERAGE", open_now),
+            shortages=self._variance_money(1, "SHORTAGE", open_now, open_only="true"),
+            overages=self._variance_money(-1, "OVERAGE", open_now, open_only="true"),
             shortages_opened_in_period=self._variance_money(1, "SHORTAGE", opened, **self._period),
             overages_opened_in_period=self._variance_money(-1, "OVERAGE", opened, **self._period),
             pending_adjustments=PendingAdjustmentsDto(

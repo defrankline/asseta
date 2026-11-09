@@ -67,6 +67,10 @@ class VarianceStatus(StrEnum):
     RESOLVED = "RESOLVED"
 
 
+# Still in question: the open queue on the dashboard and the list's `open_only` filter.
+OPEN_VARIANCE_STATUSES = (VarianceStatus.OPEN, VarianceStatus.WRITE_OFF_PROPOSED, VarianceStatus.CLOSURE_PROPOSED)
+
+
 class VarianceOutcome(StrEnum):
     RECOVERED = "RECOVERED"
     CORRECTED_ERROR = "CORRECTED_ERROR"

@@ -262,6 +262,20 @@ def list_captures(
     )
 
 
+@router.get("/meter-captures/{capture_id}", response_model=MeterCaptureDto, operation_id="getMeterCapture")
+def get_capture(
+    capture_id: uuid.UUID, session: DbSession, ctx: Annotated[RequestContext, Depends(METER_READ)]
+) -> MeterCaptureDto:
+    """One reading. Field users open only their own and those on jobs they supervise, as in the list."""
+    stmt = select(MeterCapture).where(MeterCapture.id == capture_id)
+    if _own(ctx, False):
+        stmt = stmt.where(own_capture_filter(ctx, own_staff(session, ctx)))
+    row = session.execute(stmt).scalar_one_or_none()
+    if row is None:
+        raise NotFound("Reading not found")
+    return MeterCaptureDto.model_validate(row)
+
+
 @router.post("/meter-resets", response_model=ResetDto, status_code=201, operation_id="requestMeterReset")
 def request_reset(
     body: ResetIn,
@@ -310,6 +324,7 @@ def exceptions(
     status: ExceptionStatus | None = None,
     exception_type: ExceptionType | None = None,
     job_id: uuid.UUID | None = None,
+    meter_capture_id: uuid.UUID | None = None,
     mine: Mine = False,
 ) -> Page[ExceptionDto]:
     stmt = select(JobException).order_by(JobException.created_at.desc())
@@ -321,10 +336,26 @@ def exceptions(
         stmt = stmt.where(JobException.exception_type == exception_type)
     if job_id:
         stmt = stmt.where(JobException.job_id == job_id)
+    if meter_capture_id:
+        stmt = stmt.where(JobException.meter_capture_id == meter_capture_id)
     rows, total = paginate(session, stmt, paging)
     return Page(
         items=[ExceptionDto.model_validate(e) for e in rows], total=total, page=paging.page, page_size=paging.page_size
     )
+
+
+@router.get("/exceptions/{exception_id}", response_model=ExceptionDto, operation_id="getJobException")
+def get_exception(
+    exception_id: uuid.UUID, session: DbSession, ctx: Annotated[RequestContext, Depends(METER_READ)]
+) -> ExceptionDto:
+    """One exception, under the same rule as the list for field users."""
+    stmt = select(JobException).where(JobException.id == exception_id)
+    if _own(ctx, False):
+        stmt = stmt.where(own_exception_filter(ctx, own_staff(session, ctx)))
+    row = session.execute(stmt).scalar_one_or_none()
+    if row is None:
+        raise NotFound("Exception not found")
+    return ExceptionDto.model_validate(row)
 
 
 @router.post("/exceptions/{exception_id}/review", response_model=ExceptionDto, operation_id="reviewJobException")
@@ -352,6 +383,18 @@ def review(
     )
     session.flush()
     return ExceptionDto.model_validate(row)
+
+
+@router.get("/meter-resets/{reset_id}", response_model=ResetDto, operation_id="getMeterReset")
+def get_reset(reset_id: uuid.UUID, session: DbSession, ctx: Annotated[RequestContext, Depends(METER_READ)]) -> ResetDto:
+    """One reset, under the same rule as the list for field users."""
+    stmt = select(MeterResetEvent).where(MeterResetEvent.id == reset_id)
+    if _own(ctx, False):
+        stmt = stmt.where(own_reset_filter(ctx, own_staff(session, ctx)))
+    row = session.execute(stmt).scalar_one_or_none()
+    if row is None:
+        raise NotFound("Reset not found")
+    return ResetDto.model_validate(row)
 
 
 @router.get("/meter-resets", response_model=list[ResetDto], operation_id="listMeterResets")

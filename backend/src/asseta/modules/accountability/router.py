@@ -98,6 +98,14 @@ def list_security_events(
     return Page(items=svc.dtos(rows), total=total, page=paging.page, page_size=paging.page_size)
 
 
+@router.get("/security-events/{event_id}", response_model=SecurityEventDto, operation_id="getSecurityEvent")
+@named
+def get_security_event(
+    event_id: uuid.UUID, session: DbSession, _: Annotated[RequestContext, Depends(SECURITY_READ)]
+) -> SecurityEventDto:
+    return SecurityEventService(session).get(event_id)
+
+
 @router.get("/sync/conflicts", response_model=Page[SyncConflictDto], operation_id="listSyncConflicts")
 @named
 def list_sync_conflicts(

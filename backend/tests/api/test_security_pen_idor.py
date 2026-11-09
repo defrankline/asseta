@@ -29,6 +29,7 @@ from tests.support.finance import (
     issue_invoice,
     role,
     setup_finance,
+    tenant_sql,
 )
 from tests.support.intelligence import cases, expense, feed_events, receipt
 from tests.support.jobs import capture, photo, unique_jpeg
@@ -128,7 +129,45 @@ def _populate_b(api: Api) -> tuple[FinCtx, dict[tuple[str, str], str]]:
         found = _first_id(o, path)
         if found:
             ids[key] = found
+    ids.update(_meter_records_b(api, f))
     return f, ids
+
+
+def _meter_records_b(api: Api, f: FinCtx) -> dict[tuple[str, str], str]:
+    """B's reading, meter reset and refused attempt, for the routes that open one record by id."""
+    o = f.owner
+    reset = o.post(
+        f"{T}/meter-resets",
+        {
+            "machine_id": f.c.t.machine_id,
+            "old_reading": "200.0",
+            "new_reading": "1.0",
+            "effective_at": api.clock.now.isoformat(),
+            "reason": "Instrument cluster replaced after fault",
+        },
+    )
+    assert reset.status_code == 201, reset.text
+    assert f.supervisor.get(f"{T}/security-events").status_code == 403  # recorded as a refused attempt
+    capture_id, event_id = _first_id(o, f"{T}/meter-captures"), _first_id(o, f"{T}/security-events")
+    assert capture_id and event_id
+    # Alerts come from telemetry, which this data set has not produced; the row is what the by-id route needs.
+    alert_id = str(uuid.uuid4())
+    tenant_sql(
+        f.tid,
+        "INSERT INTO tracking_alert (id, tenant_id, machine_id, alert_type, severity, status, event_time, dedupe_key,"
+        " title, evidence, created_at) VALUES (:i, :t, :m, 'GEOFENCE_EXIT', 'WARNING', 'OPEN', now(), :k,"
+        " 'Left the site', '{}', now()) RETURNING id",
+        i=alert_id,
+        k=alert_id,
+        t=f.tid,
+        m=f.c.t.machine_id,
+    )
+    return {
+        ("/alerts/", "alert_id"): alert_id,
+        ("/meter-resets/", "reset_id"): reset.json()["id"],
+        ("/meter-captures/", "capture_id"): capture_id,
+        ("/security-events/", "event_id"): event_id,
+    }
 
 
 def _customer_hours_b(api: Api, f: FinCtx) -> dict[tuple[str, str], str]:

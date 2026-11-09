@@ -236,6 +236,14 @@ def alerts(
     )
 
 
+@router.get("/alerts/{alert_id}", response_model=AlertDto, operation_id="getTrackingAlert")
+def get_alert(alert_id: uuid.UUID, session: DbSession, _: Annotated[RequestContext, Depends(ALERT_READ)]) -> AlertDto:
+    alert = session.get(TrackingAlert, alert_id)
+    if alert is None:
+        raise NotFound("Alert not found")
+    return AlertDto.model_validate(alert)
+
+
 @router.post("/alerts/{alert_id}/action", response_model=AlertDto, operation_id="actOnTrackingAlert")
 def alert_action(
     alert_id: uuid.UUID, body: AlertActionIn, session: DbSession, ctx: Annotated[RequestContext, Depends(ALERT_ACT)]

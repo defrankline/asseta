@@ -120,7 +120,29 @@ export const meterService = {
       idempotencyKey,
     );
   },
-  /** GET /tenant/exceptions (listJobExceptions). Filters: `status`, `exception_type`, `job_id`. */
+  /** GET /tenant/meter-captures/{id} (getMeterCapture). */
+  getCapture(captureId: string, signal?: AbortSignal): Promise<MeterCaptureDto> {
+    return tenantGet(
+      `/tenant/meter-captures/${seg(captureId)}`,
+      meterCaptureSchema,
+      'meter capture',
+      signal,
+    );
+  },
+  /** GET /tenant/exceptions/{id} (getJobException). */
+  getException(exceptionId: string, signal?: AbortSignal): Promise<ExceptionDto> {
+    return tenantGet(
+      `/tenant/exceptions/${seg(exceptionId)}`,
+      exceptionSchema,
+      'exception',
+      signal,
+    );
+  },
+  /** GET /tenant/meter-resets/{id} (getMeterReset). */
+  getReset(resetId: string, signal?: AbortSignal): Promise<ResetDto> {
+    return tenantGet(`/tenant/meter-resets/${seg(resetId)}`, resetSchema, 'meter reset', signal);
+  },
+  /** GET /tenant/exceptions (listJobExceptions). Filters: `status`, `exception_type`, `job_id`, `meter_capture_id`. */
   listExceptions(query: TenantListQuery, signal?: AbortSignal): Promise<Page<ExceptionDto>> {
     return tenantPage('/tenant/exceptions', exceptionPageSchema, query, 'exception page', signal);
   },

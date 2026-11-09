@@ -60,7 +60,11 @@ export function SecurityEventsPage() {
     (query, signal) => accountabilityService.securityEvents(query, signal),
     [],
   );
-  const focus = useFocusedRecord<SecurityEventDto>(fetchPage, focusId, setViewing);
+  const loadFocused = useCallback(
+    (id: string, signal: AbortSignal) => accountabilityService.securityEvent(id, signal),
+    [],
+  );
+  const focus = useFocusedRecord<SecurityEventDto>(loadFocused, focusId, setViewing);
   const columns: DataColumn<SecurityEventDto>[] = [
     { id: 'at', header: 'When', render: (e) => formatInstantIn(e.occurred_at, timeZone) },
     { id: 'kind', header: 'Kind', render: chip },

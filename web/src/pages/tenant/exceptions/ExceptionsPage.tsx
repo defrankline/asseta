@@ -69,7 +69,11 @@ export function ExceptionsPage() {
       ),
     [],
   );
-  const focus = useFocusedRecord<ExceptionDto>(fetchPage, focusId, setSelected);
+  const loadFocused = useCallback(
+    (id: string, signal: AbortSignal) => meterService.getException(id, signal),
+    [],
+  );
+  const focus = useFocusedRecord<ExceptionDto>(loadFocused, focusId, setSelected);
   const fetchJobs = useCallback(
     async (q: string, signal: AbortSignal) =>
       (await jobService.list({ page: 1, page_size: 20, q }, signal)).items,

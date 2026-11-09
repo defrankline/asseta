@@ -67,7 +67,11 @@ export function AlertsPage() {
     (q: ServerQuery, signal: AbortSignal) => alertService.list(q, signal),
     [],
   );
-  const focus = useFocusedRecord<AlertDto>(fetchPage, focusId, setSelected);
+  const loadFocused = useCallback(
+    (id: string, signal: AbortSignal) => alertService.get(id, signal),
+    [],
+  );
+  const focus = useFocusedRecord<AlertDto>(loadFocused, focusId, setSelected);
   const filters = useMemo(
     () => ({ status, alert_type: type, severity, machine_id: machine?.id }),
     [status, type, severity, machine],

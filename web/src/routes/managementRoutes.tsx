@@ -33,6 +33,10 @@ const CustomerPaymentsPage = page(
   () => import('../pages/tenant/finance/payments/CustomerPaymentsPage'),
   'CustomerPaymentsPage',
 );
+const MeterCaptureDetailPage = page(
+  () => import('../pages/tenant/exceptions/MeterCaptureDetailPage'),
+  'MeterCaptureDetailPage',
+);
 const CustomerPaymentDetailPage = page(
   () => import('../pages/tenant/finance/payments/CustomerPaymentDetailPage'),
   'CustomerPaymentDetailPage',
@@ -66,6 +70,11 @@ export function managementRouteElements(guard: Guard): ReactNode[] {
       ROUTES.tenantCustomerPaymentDetail,
       PERMISSIONS.tenantFinanceRead,
       <CustomerPaymentDetailPage key="cd" />,
+    ],
+    [
+      ROUTES.tenantMeterCaptureDetail,
+      PERMISSIONS.tenantMeterRead,
+      <MeterCaptureDetailPage key="c" />,
     ],
     [
       `${ROUTES.tenantExceptions}/:focusId`,
