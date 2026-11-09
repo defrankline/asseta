@@ -1789,3 +1789,210 @@ Row format in Approvals: Partial reason `{amount} not remitted · {custodian}` t
 | owner.closure.error.VARIANCE_OUTCOME_NOT_ALLOWED | This outcome is not allowed for this variance. |
 | owner.partial.error.SEGREGATION_OF_DUTIES | You recorded this remittance, so someone else must decide its reason. |
 | owner.partial.error.PARTIAL_APPROVAL_NOT_FOUND | This reason was already decided. Reload to see it. |
+
+## DEC-032 Phase 4 — management view
+
+Contract: `contracts/openapi.json` (commit a15d864). Rules shared by both apps:
+- **Owner, online for lookup; the dashboard and employee screens are cached snapshots like the other Owner reads.**
+- **Dashboard (`GET /accountability/summary?date_from&date_to`):** period chips reuse `owner.score.period.*` (Last 7 days, Last 30 days default, This month, Last month; at most 93 days). The four group cards come first, in guideline order, each only when its section is non-null: `hours_section`, `operations_section`, `cash_section`, `exceptions_section`. Every figure is a row (label, value, optional caption); a figure opens its screen (rule below). Rows without a target are plain.
+- **Tiles that stay below the groups:** investigations, revenue differences, unbilled work, idle machines, discrepancies, unexplained hours, missing daily reports, engine hours. Replaced when the section is present: `customer_hours` and `hours_awaiting_activation` (hours_section), `cash` and `payments` (cash_section), `approvals` and `attempts` (exceptions_section). A section that is null (hidden or switched off) keeps its old tile, so an older server shows exactly what it did.
+- **Value formats:** hours `{hours} h` (phone number format, 0–2 decimals); money figure: its `lines` as money joined with ", ", `owner.mgmt.none` when empty; count figure `{count}`; purchase queue: `{count} · {hours} h` with the money `amounts` as caption.
+- **Where a figure opens (`route` from the server; same table on both apps):** the app screen when one exists **and** shows those records and the role may open it; else `owner.mgmt.openWeb` ("Open on the web") with the base web URL + route, only when the route starts `/tenant/` (never absolute, `//` or containing `\`). Empty route: no link.
+
+| Route (query ignored unless stated) | App screen | Needs |
+|---|---|---|
+| `/tenant/hours/balances` (no customer) | Customer hours | customer hours readable |
+| `/tenant/hours/balances?customer_id=X` | Hours statement of X | customer hours readable |
+| `/tenant/hours/purchases/{id}` | Hours purchase | customer hours readable |
+| `/tenant/hours/purchases?…`, `/tenant/hours/ledger…` | Web (the app's Customer hours lists only open purchases) | |
+| `/tenant/hours/{transfers,cancellations,credit,discounts}/{id}` | Decision of that record | decision kind visible |
+| Same lists with `status=PENDING` or `PROPOSED`; `/tenant/meter-corrections`, `/tenant/meter-baselines`, `/tenant/meter-resets`, `/tenant/engine-hours/classifications`, `/tenant/non-revenue-approvals`, `/tenant/finance/adjustments/requests`, `/tenant/work-allocations/corrections`, `/tenant/approvals` with that status or none; `/tenant/jobs?status=PENDING_APPROVAL`; `/tenant/daily-reports?status=SUBMITTED`; `/tenant/revenue-differences?status=EXPLANATION_PROPOSED`; cash `/retentions`, `/adjustments` with `status=PENDING`; `/variances?status=WRITE_OFF_PROPOSED` or `CLOSURE_PROPOSED`; `/remittances?status=CLAIMED` or `partial_reason_pending=true`; `/tenant/accountability/pending-adjustments` | Approvals | Approvals open to the role |
+| Record routes with an id | The record's screen, same as a notification deep link (decision, remittance, cash record, overdue flag, hours purchase, job, machine, case, meter reset, meter exception, alert) | role may open it |
+| `/tenant/finance/cash` (no query) | Cash with supervisors | finance read |
+| `/tenant/finance/cash/remittance-overdue` | Overdue remittances | finance read, cash custody on |
+| `/tenant/exceptions` | Meter exceptions | meter read |
+| `/tenant/revenue-differences` (no status) | Approvals | Approvals open to the role |
+| `/tenant/cases` | Investigations | investigations on and readable |
+| `/tenant/staff/{id}/accountability` | Employee accountability | `tenant.accountability.employee.read` |
+| anything else (`/tenant/work-allocations?…`, `/tenant/customer-payments…`, `/tenant/finance/invoices…`, `/tenant/expenses…`, `/tenant/security-events`, `/tenant/daily-reports?status=RETURNED`, `/tenant/daily-reports` no status, other cash lists, ledger entries `/tenant/finance/adjustments/{id}`, `/tenant/customers…`, `/tenant/sync-conflicts`) | Web | |
+
+  Excavator rows use `machine_id`: Daily sheet when machine days are open to the role, else Machine with fleet read, else web on the route. Employee rows use their route. The `/tenant/staff/{id}/accountability` path also deep-links (notification link) to the Employee screen; without the permission it opens the Accountability dashboard.
+- **Employee accountability (`GET /employees/{staff_member_id}/accountability?date_from&date_to`, `tenant.accountability.employee.read`):** from a People scorecard person (row `owner.emp.open`, same period as that screen), from Cash held by employee rows, and by link. Period chips as the dashboard. Cards: identity (name, code, roles, phone, inactive pill), figures (one row per list: count, and money totals per currency for money rows), cash held per currency (`outstanding`, caption in transit / floats / claimed / retained when non-zero), then one list per non-empty group in the DTO order. Records open their route by the table above, else web, else plain. `truncated` non-empty: footnote `owner.emp.truncated`. `scorecard_items` shown only when `scorecard_visible`.
+- **Find a reference (`GET /lookup?reference=`, `tenant.lookup.read`, online only):** More entry `owner.lookup.more` after Accountability. Text field + Search (trimmed; empty disabled; ≤100 characters). One card per match: title `owner.lookup.type.{record_type}` (unknown: humanized), reference, status (humanized); rows Recorded by + when, Decided by + when, Customer, Machine, Staff, Amount, Balance (`balance_outstanding` with `balance_unit`: MONEY as money, HOURS as `{n} h`), Hours remaining; empty rows hidden. Opens the record by the table above, else web. No matches: `owner.lookup.empty`. Offline/failure: `owner.lookup.offline`.
+- **Outstanding approvals (tile and group):** the old tile now also shows each new count present and non-zero, labels `owner.mgmt.kind.*`. The group shows `by_kind` rows (label, count, caption `owner.mgmt.oldest`) opening per the table.
+- **Supervisor (capability `SYNC_OPEN_INVOICES`; `CASH_DETAILS_V2` gates the picker as before):** `SyncData.open_invoices` is a full snapshot: on every bootstrap and every changes page where the capability is announced, replace the local set (nothing delivered → none). Stored encrypted with the sync references. **Pays for** now lists, for the chosen customer and the form's currency only, purchases then open invoices (`field.collection.invoiceRow`). Choosing an invoice sends `CASH_COLLECTION.allocations: [{invoice_id, amount}]` with `amount = min(collection amount, invoice balance)`; choosing a purchase sends `purchase_id` as before (one or the other, never both). The rule `CASH_CUSTODY.collection_link_required` is met by either. Changing customer clears the link; changing currency, or a pull that no longer delivers the invoice, drops a chosen invoice. This replaces the Phase 3 note "Invoices are not selectable on the phone".
+
+Screens per app:
+| App | Screen | Change |
+|---|---|---|
+| Owner | Accountability | Period chips; four group cards; old tiles as above; footnote `owner.mgmt.periodNote` |
+| Owner | People scorecard person | Row `owner.emp.open` when permitted |
+| Owner | Employee accountability (new) | As above |
+| Owner | More | `owner.lookup.more` when `tenant.lookup.read` |
+| Owner | Find a reference (new) | As above |
+| Supervisor | Record cash collection | Open invoices in "Pays for" |
+
+### Supervisor
+| Key | English |
+|---|---|
+| field.collection.invoiceRow | Invoice · {balance} due |
+| field.collection.linkEmptyAll | No open purchases or invoices for this customer on this phone. |
+| field.collection.invoiceFooter | The cash pays this invoice up to what it still owes; anything above stays as customer credit. |
+| field.conflict.OVER_ALLOCATION (updated) | This is more than the purchase or invoice still owes. Record it again with the right amount. |
+| field.conflict.ALLOCATION_MISMATCH (updated) | What you chose is for another customer or currency. Record it again and choose another. |
+| field.conflict.INVOICE_NOT_OPEN | This invoice is no longer open. Record it again and choose another. |
+
+### Owner
+| Key | English |
+|---|---|
+| owner.mgmt.openWeb | Open on the web |
+| owner.mgmt.none | None |
+| owner.mgmt.periodNote | Money and hours moved are for the period chosen. Balances and open queues are as they stand now. |
+| owner.mgmt.oldest | Oldest {date} |
+| owner.mgmt.hours.title | Customer hours |
+| owner.mgmt.hours.purchased | Hours purchased |
+| owner.mgmt.hours.purchasedValue | Value of hours purchased |
+| owner.mgmt.hours.activated | Hours activated |
+| owner.mgmt.hours.consumed | Hours consumed |
+| owner.mgmt.hours.remaining | Hours remaining |
+| owner.mgmt.hours.unpaid | Unpaid purchases |
+| owner.mgmt.hours.unconfirmed | Purchases not confirmed |
+| owner.mgmt.hours.awaiting | Awaiting activation |
+| owner.mgmt.hours.byCustomer | Remaining by customer |
+| owner.mgmt.hours.customersShown | Showing {shown} of {total} customers. |
+| owner.mgmt.ops.title | Excavator operations |
+| owner.mgmt.ops.operating | Operating hours |
+| owner.mgmt.ops.customer | Customer hours |
+| owner.mgmt.ops.authorized | Authorized non-customer hours |
+| owner.mgmt.ops.unexplained | Unexplained hours |
+| owner.mgmt.ops.discrepancies | Meter discrepancies |
+| owner.mgmt.ops.pendingReports | Daily reports to review |
+| owner.mgmt.ops.returnedReports | Daily reports returned |
+| owner.mgmt.ops.byExcavator | Hours by excavator |
+| owner.mgmt.ops.excavatorRow | Customer {customer} h · Authorized {authorized} h · Unexplained {unexplained} h |
+| owner.mgmt.ops.discrepancy.METER_DECREASE | Meter went down |
+| owner.mgmt.ops.discrepancy.IMPOSSIBLE_INCREMENT | Impossible increase |
+| owner.mgmt.ops.discrepancy.CONTINUITY_GAP | Gap between readings |
+| owner.mgmt.ops.discrepancy.TELEMETRY_MISMATCH | Tracker disagrees |
+| owner.mgmt.ops.discrepancy.OVERLAPPING_ALLOCATION | Overlapping allocation |
+| owner.mgmt.cash.title | Cash accountability |
+| owner.mgmt.cash.collected | Cash collected |
+| owner.mgmt.cash.transferred | Transferred between staff |
+| owner.mgmt.cash.inTransit | In transit |
+| owner.mgmt.cash.declared | Declared for remittance |
+| owner.mgmt.cash.confirmed | Confirmed by the company |
+| owner.mgmt.cash.outstanding | Outstanding with staff |
+| owner.mgmt.cash.unconfirmed | Remittances not confirmed |
+| owner.mgmt.cash.disputedRemittances | Remittances disputed |
+| owner.mgmt.cash.disputedTransfers | Transfers disputed |
+| owner.mgmt.cash.held | Cash held by employee |
+| owner.mgmt.cash.heldCaption | In transit {a} · Claimed {b} · Float pending {c} · Retained {d} (non-zero parts only) |
+| owner.mgmt.exc.title | Exceptions and approvals |
+| owner.mgmt.exc.unexplained | Unexplained engine hours |
+| owner.mgmt.exc.shortages | Shortages |
+| owner.mgmt.exc.overages | Overages |
+| owner.mgmt.exc.shortagesPeriod | Shortages opened in period |
+| owner.mgmt.exc.overagesPeriod | Overages opened in period |
+| owner.mgmt.exc.unconfirmedPayments | Payments not confirmed |
+| owner.mgmt.exc.attempts | Refused attempts |
+| owner.mgmt.exc.attemptsCaption | Denied {denied} · Second person required {sod} |
+| owner.mgmt.exc.missingReports | Daily reports missing |
+| owner.mgmt.exc.overdueRemittances | Remittances overdue today |
+| owner.mgmt.exc.changeover | Changeover jobs waiting |
+| owner.mgmt.exc.changeoverCaption | Oldest {days} days |
+| owner.mgmt.exc.changeoverRow | {job} · {machine} · {customer} |
+| owner.mgmt.exc.changeoverDays | {days} days |
+| owner.mgmt.exc.approvals | Outstanding approvals ({total}) |
+| owner.mgmt.exc.pending | Pending adjustments ({total}) |
+| owner.mgmt.exc.variances | Unresolved variances ({total}) |
+| owner.mgmt.exc.variance.TRANSFER | Cash transfers |
+| owner.mgmt.exc.variance.REMITTANCE | Remittances |
+| owner.mgmt.exc.variance.FLOAT | Floats |
+| owner.mgmt.exc.variance.CUSTOMER_HOUR | Customer hours |
+| owner.mgmt.exc.variance.REVENUE_DIFFERENCE | Revenue differences |
+| owner.mgmt.kind.adjustment_requests | Adjustment requests |
+| owner.mgmt.kind.hours_transfers | Hours transfers |
+| owner.mgmt.kind.hours_cancellations | Hours cancellations |
+| owner.mgmt.kind.credit_arrangements | Credit arrangements |
+| owner.mgmt.kind.discounts | Discounts |
+| owner.mgmt.kind.meter_corrections | Meter corrections |
+| owner.mgmt.kind.allocation_corrections | Allocation corrections |
+| owner.mgmt.kind.classifications | Engine-hour classifications |
+| owner.mgmt.kind.non_revenue_approvals | Non-revenue time |
+| owner.mgmt.kind.custody_adjustments | Custody adjustments |
+| owner.mgmt.kind.write_offs | Write-offs |
+| owner.mgmt.kind.variance_closures | Variance closures |
+| owner.mgmt.kind.meter_baselines | Meter baselines |
+| owner.mgmt.kind.meter_resets | Meter resets |
+| owner.mgmt.kind.cash_retentions | Cash retentions |
+| owner.mgmt.kind.partial_reasons | Partial remittance reasons |
+| owner.mgmt.kind.approval_requests | Expense approvals |
+| owner.mgmt.kind.payments_to_verify | Payments to verify |
+| owner.mgmt.kind.remittances_to_verify | Remittances to verify |
+| owner.mgmt.kind.jobs_awaiting_approval | Jobs awaiting approval |
+| owner.mgmt.kind.daily_reports_to_review | Daily reports to review |
+| owner.mgmt.kind.case_closures | Case closures |
+| owner.mgmt.kind.revenue_decisions | Revenue decisions |
+| owner.emp.open | Employee accountability |
+| owner.emp.title | Employee accountability |
+| owner.emp.code | Employee code |
+| owner.emp.roles | Roles |
+| owner.emp.phone | Phone |
+| owner.emp.inactive | Inactive |
+| owner.emp.figures | Figures |
+| owner.emp.cashHeld | Cash held now |
+| owner.emp.cashCaption | In transit {a} · Claimed {b} · Float pending {c} · Retained {d} (non-zero parts only) |
+| owner.emp.count | {count} |
+| owner.emp.countMoney | {count} · {money} |
+| owner.emp.truncated | Some lists are shortened. Open the web for all records. |
+| owner.emp.list.collections | Collections |
+| owner.emp.list.floats | Floats |
+| owner.emp.list.transfersIn | Transfers in |
+| owner.emp.list.transfersOut | Transfers out |
+| owner.emp.list.remittances | Remittances |
+| owner.emp.list.spending | Spending |
+| owner.emp.list.retentions | Retentions |
+| owner.emp.list.differences | Differences |
+| owner.emp.list.custodyAdjustments | Custody adjustments |
+| owner.emp.list.reports | Daily reports submitted |
+| owner.emp.list.approvals | Approvals made |
+| owner.emp.list.adjustmentsRequested | Adjustments requested |
+| owner.emp.list.adjustmentsDecided | Adjustments decided |
+| owner.emp.list.scorecard | Scorecard items |
+| owner.emp.recordRow | {when} · {status} (status hidden when null, humanized) |
+| owner.lookup.more | Find a reference |
+| owner.lookup.title | Find a reference |
+| owner.lookup.hint | Number or outside reference |
+| owner.lookup.search | Search |
+| owner.lookup.empty | Nothing found for this reference. |
+| owner.lookup.offline | Searching needs a connection. Try again when online. |
+| owner.lookup.recordedBy | Recorded by |
+| owner.lookup.decidedBy | Decided by |
+| owner.lookup.customer | Customer |
+| owner.lookup.machine | Machine |
+| owner.lookup.staff | Employee |
+| owner.lookup.amount | Amount |
+| owner.lookup.balance | Balance |
+| owner.lookup.hoursRemaining | Hours remaining |
+| owner.lookup.type.hours_purchase | Hours purchase |
+| owner.lookup.type.hire_invoice | Invoice |
+| owner.lookup.type.job | Job |
+| owner.lookup.type.customer_payment | Collection |
+| owner.lookup.type.cash_handover | Remittance |
+| owner.lookup.type.cash_transfer | Cash transfer |
+| owner.lookup.type.hours_transfer | Hours transfer |
+| owner.lookup.type.cash_retention | Cash retention |
+| owner.lookup.type.custody_adjustment | Custody adjustment |
+| owner.lookup.type.adjustment_request | Adjustment request |
+| owner.lookup.type.adjustment_entry | Ledger adjustment |
+| owner.lookup.type.anomaly_case | Investigation |
+| owner.lookup.type.cash_variance | Variance |
+| owner.lookup.type.daily_report | Daily report |
+| owner.lookup.type.meter_correction | Meter correction |
+| owner.lookup.type.classification | Engine-hour classification |
+| owner.lookup.type.non_revenue_approval | Non-revenue approval |
+| owner.lookup.type.meter_reset | Meter reset |
+| owner.lookup.type.revenue_difference | Revenue difference |
+| owner.lookup.type.hours_cancellation | Hours cancellation |
+| owner.lookup.type.approval_request | Expense approval |
+| owner.lookup.type.expense | Expense |
