@@ -121,7 +121,7 @@ struct EmployeeAccountabilityView: View {
         Section {
             HStack {
                 Text(i.fullName).font(.headline)
-                if !i.isActive { Spacer(); Text(T.employeeInactive).font(.caption).foregroundStyle(Palette.warning) }
+                if !i.isActive { Spacer(); Pill(text: T.employeeInactive, color: Palette.warning) }
             }
             if let code = i.employeeCode { LabeledContent(T.employeeCode, value: code) }
             if !i.roles.isEmpty { LabeledContent(T.employeeRoles, value: i.roles.joined(separator: ", ")) }
@@ -181,7 +181,7 @@ struct FindReferenceView: View {
             error = nil
         } catch {
             result = nil
-            if case .transport? = error as? APIError { self.error = T.lookupOffline } else { self.error = DecisionErrorText.message(for: error) }
+            self.error = LookupPresentation.failureMessage(error)
             model.handle(error)
         }
     }

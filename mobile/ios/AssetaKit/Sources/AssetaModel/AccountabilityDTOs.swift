@@ -332,11 +332,14 @@ public struct CashFloatDTO: Codable, Hashable, Sendable, Identifiable {
     public let amountReceived: DecimalString?
     public let acknowledgedAt: Date?
     public let staffMemberName: String?
+    public let createdBy: UUID?
     public let createdByName: String?
+    public let acknowledgedBy: UUID?
     public let acknowledgedByName: String?
 
     enum CodingKeys: String, CodingKey {
         case staffMemberName = "staff_member_name", createdByName = "created_by_name", acknowledgedByName = "acknowledged_by_name"
+        case createdBy = "created_by", acknowledgedBy = "acknowledged_by"
         case id, amount, currency, reference, note, staffMemberID = "staff_member_id", entryType = "entry_type"
         case occurredAt = "occurred_at", ackRequired = "ack_required", ackStatus = "ack_status"
         case amountReceived = "amount_received", acknowledgedAt = "acknowledged_at"

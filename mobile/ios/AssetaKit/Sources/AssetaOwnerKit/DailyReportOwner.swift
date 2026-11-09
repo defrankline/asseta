@@ -176,7 +176,7 @@ public enum AllocationPresentation {
     }
 
     public static func who(_ a: WorkAllocationDTO) -> String {
-        who(kind: a.kind, customer: a.customerName, job: a.jobNumber, reason: a.reasonName, activity: a.activityType)
+        who(kind: a.kind, customer: DisplayName.optional(a.customerName, id: a.customerID), job: a.jobNumber, reason: a.reasonName, activity: a.activityType)
     }
 
     /// One row per report allocation: kind, then "{hours} h · {who}".
@@ -184,7 +184,7 @@ public enum AllocationPresentation {
         r.allocations.map {
             DecisionField(label: T.kind($0.kind), value: T.allocationPartValue(
                 hours: OwnerFormat.hoursNumber($0.hours),
-                who: who(kind: $0.kind, customer: $0.customerName, job: $0.jobNumber, reason: nil, activity: $0.activityType)))
+                who: who(kind: $0.kind, customer: DisplayName.optional($0.customerName, id: $0.customerID), job: $0.jobNumber, reason: nil, activity: $0.activityType)))
         }
     }
 

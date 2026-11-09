@@ -1,4 +1,5 @@
 import AssetaModel
+import AssetaNetwork
 import Foundation
 
 /// One figure row of a management group (or employee / lookup list): label, value, optional caption and where it opens.
@@ -76,7 +77,7 @@ public enum ManagementDashboard {
 
     static func hoursGroup(_ h: CustomerHoursSectionDTO, _ f: OwnerFeatures) -> ManagementGroup {
         let customers = h.remainingByCustomer.map { c in
-            ManagementRow(id: "customer.\(c.customerID)", label: c.customerName ?? c.customerID.uuidString.lowercased(), value: OwnerFormat.hours(c.remaining),
+            ManagementRow(id: "customer.\(c.customerID)", label: DisplayName.or(c.customerName, id: c.customerID), value: OwnerFormat.hours(c.remaining),
                           target: ManagementRoutes.target(c.route, features: f))
         }
         var blocks = [ManagementBlock(rows: [
@@ -114,7 +115,7 @@ public enum ManagementDashboard {
         var blocks = [ManagementBlock(rows: main)]
         if !o.byExcavator.isEmpty {
             blocks.append(ManagementBlock(heading: T.opsByExcavator, rows: o.byExcavator.map { e in
-                ManagementRow(id: "excavator.\(e.machineID)", label: e.machineCode ?? e.machineName ?? e.machineID.uuidString.lowercased(), value: OwnerFormat.hours(e.operatingHours),
+                ManagementRow(id: "excavator.\(e.machineID)", label: DisplayName.or(e.machineCode ?? e.machineName, id: e.machineID), value: OwnerFormat.hours(e.operatingHours),
                                      caption: T.opsExcavatorRow(customer: OwnerFormat.hoursNumber(e.customerHours),
                                                                 authorized: OwnerFormat.hoursNumber(e.authorizedHours),
                                                                 unexplained: OwnerFormat.hoursNumber(e.unexplainedHours)),
@@ -138,7 +139,7 @@ public enum ManagementDashboard {
         ])]
         if !c.heldByEmployee.isEmpty {
             blocks.append(ManagementBlock(heading: T.cashHeld, rows: c.heldByEmployee.map { e in
-                ManagementRow(id: "held.\(e.staffMemberID).\(e.currency)", label: e.staffMemberName ?? e.staffMemberID.uuidString.lowercased(),
+                ManagementRow(id: "held.\(e.staffMemberID).\(e.currency)", label: DisplayName.or(e.staffMemberName, id: e.staffMemberID),
                               value: OwnerFormat.money(e.outstanding, currency: e.currency),
                               caption: T.heldCaption(transit: nonZero(e.inTransitOut, e.currency), claimed: nonZero(e.claimedUnverifiedHandovers, e.currency),
                                                      float: nonZero(e.pendingFloats, e.currency), retained: nonZero(e.approvedRetention, e.currency)),
@@ -168,7 +169,8 @@ public enum ManagementDashboard {
         ]
         main += changeover.items.map { job in
             ManagementRow(id: "changeover.\(job.jobID)",
-                          label: T.excChangeoverRow(job: job.jobNumber ?? "", machine: job.machineCode ?? job.machineName ?? "", customer: job.customerName ?? ""),
+                          label: T.excChangeoverRow(job: DisplayName.or(job.jobNumber, id: job.jobID), machine: DisplayName.or(job.machineCode ?? job.machineName, id: job.machineID),
+                                                    customer: DisplayName.or(job.customerName, id: job.customerID)),
                           value: T.excChangeoverDays(job.daysWaiting), target: ManagementRoutes.target(job.route, features: f))
         }
         var blocks = [ManagementBlock(rows: main)]
@@ -246,7 +248,7 @@ public enum EmployeePresentation {
                 let status = r.status.map(OwnerFormat.humanize)
                 let amount: String? = if let a = r.amount { r.unit == "HOURS" || r.currency == nil ? OwnerFormat.hours(a) : OwnerFormat.money(a, currency: r.currency!) } else { nil }
                 return ManagementRow(id: "\(title).\(index)", label: r.reference ?? r.label ?? T.lookupType(r.recordType), value: amount ?? "",
-                                     caption: [status.map { "\(when) · \($0)" } ?? when, r.counterpartyStaffName].compactMap { $0 }.joined(separator: " · "),
+                                     caption: [status.map { "\(when) · \($0)" } ?? when, DisplayName.optional(r.counterpartyStaffName, id: r.counterpartyStaffID)].compactMap { $0 }.joined(separator: " · "),
                                      target: ManagementRoutes.target(r.route, features: features))
             })
         }
@@ -266,9 +268,15 @@ public enum LookupPresentation {
         public let target: FigureTarget?
     }
 
+    /// A refusal from the server shows its message; anything else means the search did not get through.
+    public static func failureMessage(_ error: Error) -> String {
+        if case .server? = error as? APIError { return DecisionErrorText.message(for: error) }
+        return T.lookupOffline
+    }
+
     public static func card(_ m: LookupMatchDTO, features: OwnerFeatures, timeZone: TimeZone = .current) -> Card {
-        func who(_ name: String?, _ at: Date?) -> String? {
-            name.map { n in at.map { "\(n) · \(OwnerFormat.stamp($0, timeZone: timeZone))" } ?? n }
+        func who(_ name: String?, _ id: UUID?, _ at: Date?) -> String? {
+            DisplayName.optional(name, id: id).map { n in at.map { "\(n) · \(OwnerFormat.stamp($0, timeZone: timeZone))" } ?? n }
         }
         let balance: String? = m.balanceOutstanding.map { value in
             if m.balanceUnit == "HOURS" { return OwnerFormat.hours(value) }
@@ -276,8 +284,10 @@ public enum LookupPresentation {
         }
         let amount = m.amount.map { value in m.currency.map { OwnerFormat.money(value, currency: $0) } ?? OwnerFormat.hoursNumber(value) }
         let pairs: [(String, String?)] = [
-            (T.lookupRecordedBy, who(m.recordedByName, m.recordedAt)), (T.lookupDecidedBy, who(m.decidedByName, m.decidedAt)),
-            (T.lookupCustomer, m.customerName), (T.lookupMachine, m.machineCode ?? m.machineName), (T.lookupStaff, m.staffMemberName),
+            (T.lookupRecordedBy, who(m.recordedByName, m.recordedBy, m.recordedAt)), (T.lookupDecidedBy, who(m.decidedByName, m.decidedBy, m.decidedAt)),
+            (T.lookupCustomer, DisplayName.optional(m.customerName, id: m.customerID)),
+            (T.lookupMachine, DisplayName.optional(m.machineCode ?? m.machineName, id: m.machineID)),
+            (T.lookupStaff, DisplayName.optional(m.staffMemberName, id: m.staffMemberID)),
             (T.lookupAmount, amount), (T.lookupBalance, balance), (T.lookupHoursRemaining, m.hoursRemaining.map { OwnerFormat.hours($0) }),
         ]
         let rows = pairs.compactMap { label, value in value.map { ManagementRow(id: label, label: label, value: $0) } }

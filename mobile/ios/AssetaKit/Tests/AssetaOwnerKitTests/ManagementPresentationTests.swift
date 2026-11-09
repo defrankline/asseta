@@ -1,4 +1,5 @@
 import AssetaModel
+import AssetaNetwork
 @testable import AssetaOwnerKit
 import Foundation
 import Testing
@@ -44,6 +45,19 @@ struct ManagementPresentationTests {
         #expect(target("/tenant/cases") == .screen(.investigations))
         #expect(target("/tenant/customer-payments/\(u)") == .web("/tenant/customer-payments/\(u)"))
         #expect(target("/tenant/staff/\(u)/accountability") == .screen(.employeeAccountability(Self.id, name: nil, from: nil, to: nil)))
+    }
+
+    @Test func revenueDifferencesOpenApprovalsOnlyWhenWaiting() {
+        #expect(target("/tenant/revenue-differences") == .screen(.approvals))
+        #expect(target("/tenant/revenue-differences?status=EXPLANATION_PROPOSED") == .screen(.approvals))
+        #expect(target("/tenant/revenue-differences?status=RESOLVED") == .web("/tenant/revenue-differences?status=RESOLVED"))
+    }
+
+    @Test func aRecordRouteTheAppHasNoScreenForOpensTheWeb() {
+        let u = S.uuid
+        #expect(target("/tenant/hours/ledger/\(u)") == .web("/tenant/hours/ledger/\(u)"))
+        #expect(target("/tenant/exceptions/\(u)") == .web("/tenant/exceptions/\(u)"))
+        #expect(target("/tenant/finance/cash/other/\(u)") == .web("/tenant/finance/cash/other/\(u)"))
     }
 
     @Test func aRoleWithoutTheScreenGoesToTheWebAndUnsafePathsNowhere() {
@@ -113,6 +127,44 @@ struct ManagementPresentationTests {
         let ops = groups[1].blocks[1].rows[0]
         #expect(ops.label == "EX-1" && ops.caption == "Customer 6 h · Authorized 1 h · Unexplained 1 h")
         #expect(groups[2].blocks[1].heading == T.cashHeld)
+    }
+
+    /// `{"name":"X"}` to `{"name":null}` for a fixture's field.
+    static func nulling(_ json: String, _ keys: [String]) -> String {
+        keys.reduce(json) { text, key in
+            text.replacingOccurrences(of: #""\#(key)":"[^"]*""#, with: "\"\(key)\":null", options: .regularExpression)
+        }
+    }
+
+    @Test func aMissingNameShowsTheShortIDNeverTheWholeID() throws {
+        let short = String(S.uuid.prefix(8))
+        let names = ["customer_name", "machine_code", "machine_name", "staff_member_name", "job_number"]
+        let s = try summary(#","hours_section":\#(Self.nulling(S.hoursSection, names)),"operations_section":\#(Self.nulling(S.operations, names)),"cash_section":\#(Self.nulling(S.cash, names)),"exceptions_section":\#(Self.nulling(S.exceptions, names))"#)
+        let groups = ManagementDashboard.groups(s, features: Self.all, timeZone: TimeZone(identifier: "UTC")!)
+        #expect(groups[0].blocks[1].rows[0].label == short)
+        #expect(groups[1].blocks[1].rows[0].label == short)
+        #expect(groups[2].blocks[1].rows[0].label == short)
+        let changeover = try #require(groups[3].blocks[0].rows.first { $0.id.hasPrefix("changeover.") })
+        #expect(changeover.label == T.excChangeoverRow(job: short, machine: short, customer: short))
+        let everything = groups.flatMap(\.blocks).flatMap(\.rows).map(\.label).joined(separator: " ")
+        #expect(!everything.contains(S.uuid))
+    }
+
+    @Test func lookupShowsTheShortIDForAMissingName() throws {
+        let u = S.uuid
+        let json = #"{"record_type":"job","id":"\#(u)","reference":"J-1","route":"/tenant/x","recorded_by":"\#(u)","customer_id":"\#(u)","machine_id":"\#(u)","staff_member_id":"\#(u)"}"#
+        let match = try AssetaJSON.decoder().decode(LookupMatchDTO.self, from: Data(json.utf8))
+        let card = LookupPresentation.card(match, features: Self.all, timeZone: TimeZone(identifier: "UTC")!)
+        let short = String(u.prefix(8))
+        #expect(card.rows.map(\.value) == [short, short, short, short])
+        #expect(card.rows.map(\.label) == [T.lookupRecordedBy, T.lookupCustomer, T.lookupMachine, T.lookupStaff])
+    }
+
+    @Test func lookupFailureIsOfflineUnlessTheServerRefused() {
+        #expect(LookupPresentation.failureMessage(APIError.transport(code: -1009, message: "x", correlationID: "c")) == T.lookupOffline)
+        #expect(LookupPresentation.failureMessage(APIError.unexpectedStatus(status: 502, correlationID: "c")) == T.lookupOffline)
+        let body = try! AssetaJSON.decoder().decode(ErrorBody.self, from: Data(#"{"code":"FORBIDDEN","message":"Not for you","correlation_id":"c"}"#.utf8))
+        #expect(LookupPresentation.failureMessage(APIError.server(status: 403, body: body)) != T.lookupOffline)
     }
 
     static func employee(unit: String? = nil, scorecard: Bool = false) throws -> EmployeeAccountabilityDTO {

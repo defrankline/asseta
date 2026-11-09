@@ -55,6 +55,16 @@ struct OpenInvoicesTests {
         #expect(try h.directoryView.openInvoices().map(\.invoiceNumber) == ["INV-1"])
     }
 
+    @Test func aServerThatDoesNotAnnounceInvoicesRefusesTheLink() throws {
+        let h = try SyncHarness()
+        try AccountabilityTests.supported(h.store, CashDetailsTests.all)
+        let invoice = try Self.invoice("INV-1")
+        #expect(throws: FieldRecorderError.notAllowed(FieldAccountabilityTexts.serverTooOld)) {
+            try h.recorder.recordCashCollection(customerID: Self.customer, amountText: "1", currency: "TZS", reference: nil, note: nil,
+                                                receivedAt: h.clock.wallNow, invoice: invoice)
+        }
+    }
+
     @Test func optionsAreTheCustomersInCurrencySoonestDueFirst() throws {
         let invoices = [try Self.invoice("LATE", due: "2026-12-01"), try Self.invoice("NODUE", due: nil),
                         try Self.invoice("SOON", due: "2026-11-15"), try Self.invoice("USD", currency: "USD"),

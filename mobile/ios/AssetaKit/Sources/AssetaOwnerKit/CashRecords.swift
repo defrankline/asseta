@@ -94,7 +94,8 @@ public enum CashRecordPresentation {
                 (T.fieldReceived, f.amountReceived.map { OwnerFormat.money($0, currency: f.currency) }),
                 (T.fieldStatus, f.ackStatus.map(OwnerFormat.humanize)),
                 (T.fieldIssued, OwnerFormat.stamp(f.occurredAt, timeZone: timeZone)),
-                (T.fieldRecordedBy, f.createdByName), (T.fieldAcknowledgedBy, f.acknowledgedByName), (T.fieldNote, f.note)])
+                (T.fieldRecordedBy, DisplayName.optional(f.createdByName, id: f.createdBy)),
+                (T.fieldAcknowledgedBy, DisplayName.optional(f.acknowledgedByName, id: f.acknowledgedBy)), (T.fieldNote, f.note)])
     }
 
     /// The tenant-local day of `date` (`YYYY-MM-DD`), for "today's" overdue flags.

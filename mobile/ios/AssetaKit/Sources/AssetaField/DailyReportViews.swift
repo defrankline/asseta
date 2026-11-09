@@ -212,7 +212,7 @@ struct DailyReportDetailView: View {
             if let s, !s.allocations.isEmpty {
                 Section(T.allocations) {
                     ForEach(s.allocations) { a in
-                        LabeledContent([T.allocationKind(a.kind), a.customerName, a.jobNumber].compactMap { $0 }.joined(separator: " · "),
+                        LabeledContent([T.allocationKind(a.kind), DisplayName.optional(a.customerName, id: a.customerID), a.jobNumber].compactMap { $0 }.joined(separator: " · "),
                                        value: "\(T.hours(a.hours.value)) h")
                     }
                 }

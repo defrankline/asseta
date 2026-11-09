@@ -290,7 +290,7 @@ public struct RetentionItem: Identifiable, Sendable, Equatable {
         at = server?.createdAt ?? op.createdAtDevice
         status = server?.status
         decisionNote = server?.decisionNote
-        decidedByName = server?.decidedByName
+        decidedByName = DisplayName.optional(server?.decidedByName, id: server?.decidedBy)
         syncStatus = op.status == .acked ? nil : op.status
         errorCode = op.errorCode
     }
@@ -306,7 +306,7 @@ public struct RetentionItem: Identifiable, Sendable, Equatable {
         at = server.createdAt
         status = server.status
         decisionNote = server.decisionNote
-        decidedByName = server.decidedByName
+        decidedByName = DisplayName.optional(server.decidedByName, id: server.decidedBy)
         syncStatus = nil
         errorCode = nil
     }
