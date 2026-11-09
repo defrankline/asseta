@@ -107,7 +107,7 @@ export function RetentionsTab({
         columns={columns}
         fetchPage={fetchPage}
         getRowId={(r) => r.id}
-        searchable={false}
+        searchPlaceholder="Search retention number or reason"
         reloadKey={reloadKey}
         filters={{ status: status || undefined, staff_member_id: who?.staff_member_id }}
         emptyTitle="No retention requests"

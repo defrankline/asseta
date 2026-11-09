@@ -1,6 +1,6 @@
 import { Alert, Tooltip } from '@mui/material';
 import { useCallback, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router';
+import { useParams, useSearchParams } from 'react-router';
 import { alertService } from '../../../api/services/alertService';
 import { fleetService } from '../../../api/services/fleetService';
 import type { AlertDto, MachineDto } from '../../../api/types';
@@ -29,14 +29,17 @@ import { AlertDetailDialog } from './AlertDetailDialog';
 import { ENTITY } from '../../../realtime/entities';
 import { useLiveRefresh } from '../../../realtime/hooks';
 import { initialFilter } from '../../../navigation/urlFilters';
+import { useFocusedRecord } from '../shared/useFocusedRecord';
+import { FocusMissingAlert } from '../shared/FocusMissingAlert';
 
 /** Tracking alerts: server-filtered list, evidence detail, acknowledge / resolve. */
 export function AlertsPage() {
   const tz = useDisplayTimeZone();
   const notify = useNotify();
   const [params] = useSearchParams();
+  const { focusId } = useParams();
   const [status, setStatus] = useState(() =>
-    initialFilter(params, 'status', ALERT_STATUS_OPTIONS, 'OPEN'),
+    focusId !== undefined ? '' : initialFilter(params, 'status', ALERT_STATUS_OPTIONS, 'OPEN'),
   );
   const [type, setType] = useState(() =>
     initialFilter(params, 'alert_type', ALERT_TYPE_OPTIONS, ''),
@@ -64,6 +67,7 @@ export function AlertsPage() {
     (q: ServerQuery, signal: AbortSignal) => alertService.list(q, signal),
     [],
   );
+  const focus = useFocusedRecord<AlertDto>(fetchPage, focusId, setSelected);
   const filters = useMemo(
     () => ({ status, alert_type: type, severity, machine_id: machine?.id }),
     [status, type, severity, machine],
@@ -106,6 +110,7 @@ export function AlertsPage() {
         subtitle={`Tracking alerts · times in ${tz}`}
         actions={<ExportMenu reports={[{ code: 'alerts', filters }]} />}
       />
+      <FocusMissingAlert missing={focus.missing} />
       {status === 'SUPERSEDED' && (
         <Alert severity="info" className="mb-3">
           {SUPERSEDED_HELP}

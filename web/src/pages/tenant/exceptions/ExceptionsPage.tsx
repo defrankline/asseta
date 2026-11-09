@@ -1,6 +1,6 @@
 import { Alert, Box, Chip, MenuItem, Stack, TextField } from '@mui/material';
 import { useCallback, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router';
+import { useSearchParams, useParams } from 'react-router';
 import { jobService } from '../../../api/services/jobService';
 import { meterService } from '../../../api/services/meterService';
 import type { ExceptionDto, JobDto } from '../../../api/types';
@@ -29,6 +29,8 @@ import { ExceptionDetailDialog } from './ExceptionDetailDialog';
 import { ENTITY } from '../../../realtime/entities';
 import { useLiveRefresh } from '../../../realtime/hooks';
 import { initialFilter } from '../../../navigation/urlFilters';
+import { useFocusedRecord } from '../shared/useFocusedRecord';
+import { FocusMissingAlert } from '../shared/FocusMissingAlert';
 
 /** Meter/GPS exceptions awaiting or after human review; filtered by status, type and job. */
 export function ExceptionsPage() {
@@ -36,9 +38,10 @@ export function ExceptionsPage() {
   const timeZone = useDisplayTimeZone();
   const machineName = useMachineLabels();
   const [params, setParams] = useSearchParams();
+  const { focusId } = useParams();
   const jobId = params.get('job_id') ?? '';
   const [status, setStatus] = useState(() =>
-    initialFilter(params, 'status', EXCEPTION_STATUS_OPTIONS, 'OPEN'),
+    focusId !== undefined ? '' : initialFilter(params, 'status', EXCEPTION_STATUS_OPTIONS, 'OPEN'),
   );
   const [type, setType] = useState(() =>
     initialFilter(params, 'exception_type', EXCEPTION_TYPE_OPTIONS, ''),
@@ -66,6 +69,7 @@ export function ExceptionsPage() {
       ),
     [],
   );
+  const focus = useFocusedRecord<ExceptionDto>(fetchPage, focusId, setSelected);
   const fetchJobs = useCallback(
     async (q: string, signal: AbortSignal) =>
       (await jobService.list({ page: 1, page_size: 20, q }, signal)).items,
@@ -115,6 +119,7 @@ export function ExceptionsPage() {
         title="Exceptions"
         subtitle="Meter and GPS evidence that requires review before billing"
       />
+      <FocusMissingAlert missing={focus.missing} />
       <Stack spacing={2}>
         <Alert severity="info">{NEUTRAL_REVIEW_NOTICE}</Alert>
         <ServerDataTable<ExceptionDto>

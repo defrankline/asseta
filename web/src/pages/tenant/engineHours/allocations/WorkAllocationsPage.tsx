@@ -38,10 +38,13 @@ export function WorkAllocationsPage() {
   );
   const [kind, setKind] = useState(() => initialFilter(params, 'kind', KIND_OPTIONS, ''));
   const [machine, setMachine] = useState<MachineDto | null>(null);
-  const [pinned, setPinned] = useState<PinnedMachine | null>(null);
+  const [pinned, setPinned] = useState<PinnedMachine | null>(() => {
+    const id = params.get('machine_id');
+    return id === null ? null : { id, label: 'One machine' };
+  });
   const [customer, setCustomer] = useState<CustomerDto | null>(null);
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  const [from, setFrom] = useState(() => params.get('from') ?? '');
+  const [to, setTo] = useState(() => params.get('to') ?? '');
   const fetchPage = useCallback<FetchPage<WorkAllocationDto>>(
     (query, signal) => allocationService.list(query, signal),
     [],

@@ -101,7 +101,7 @@ export function AdjustmentsTab({
         columns={columns}
         fetchPage={fetchPage}
         getRowId={(a) => a.id}
-        searchable={false}
+        searchPlaceholder="Search adjustment number or reason"
         reloadKey={reloadKey}
         filters={{ status: status || undefined, staff_member_id: who?.staff_member_id }}
         emptyTitle="No custody adjustments"

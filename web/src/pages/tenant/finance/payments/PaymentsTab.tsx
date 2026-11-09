@@ -1,14 +1,5 @@
 import Add from '@mui/icons-material/Add';
-import {
-  Alert,
-  Box,
-  Button,
-  Chip,
-  Link,
-  ToggleButton,
-  ToggleButtonGroup,
-  Typography,
-} from '@mui/material';
+import { Alert, Box, Button, Link, ToggleButton, ToggleButtonGroup } from '@mui/material';
 import { useCallback, useEffect, useState } from 'react';
 import { Link as RouterLink, useSearchParams } from 'react-router';
 import { PERMISSIONS } from '../../../../access/permissionCodes';
@@ -22,7 +13,6 @@ import type {
 } from '../../../../api/types';
 import type { DataColumn } from '../../../../components/data/ServerDataTable';
 import { ServerDataTable } from '../../../../components/data/ServerDataTable';
-import { StaticTable } from '../../../../components/data/StaticTable';
 import type { FetchPage } from '../../../../components/data/useServerPage';
 import { KeyValueGrid } from '../../../../components/display/KeyValueGrid';
 import { MoneyText } from '../../../../components/display/MoneyText';
@@ -31,7 +21,6 @@ import { ActionButtons } from '../../../../components/lifecycle/ActionButtons';
 import { DetailsDrawer } from '../../../../components/lifecycle/DetailsDrawer';
 import { RowActionsMenu } from '../../../../components/lifecycle/RowActionsMenu';
 import { adjustmentRequestPath } from '../../../../navigation/adjustmentRoutes';
-import { hoursPurchasePath } from '../../../../navigation/hoursRoutes';
 import { useNotify } from '../../../../notifications/useNotify';
 import { formatInstantIn } from '../../../../utils/time';
 import {
@@ -40,10 +29,15 @@ import {
   SETTLEMENT_TONES,
   shortId,
 } from '../../shared/financeDisplay';
-import { PersonName } from '../../shared/PersonName';
 import { CustomerFilter, StaffFilter } from '../../shared/financePickers';
 import { useCustomerLabels, useStaffLabels } from '../../shared/useFinanceLabels';
-import { unallocatedOf } from './paymentForm';
+import { PaymentAllocations, ReversedChip } from './PaymentParts';
+import { paymentItems } from './paymentRecord';
+import { StaticSelectFilter } from '../../../../components/forms/StaticSelectFilter';
+import { initialFilter } from '../../../../navigation/urlFilters';
+import { urlPeriod } from '../../shared/urlPeriod';
+import { UrlPeriodChip } from '../../shared/UrlPeriodChip';
+import { PAYMENT_METHOD_OPTIONS } from '../../shared/financeDisplay';
 import { RecordPaymentDialog } from './RecordPaymentDialog';
 import { SOD_RECORDER_NOTE, usePaymentActions } from './usePaymentActions';
 import { ENTITY } from '../../../../realtime/entities';
@@ -60,33 +54,6 @@ const VIEW_HELP: Readonly<Record<View, string>> = {
   REJECTED: 'Rejected: not received; any allocations were released.',
   ALL: 'All payments. Check each status: only VERIFIED money settles balances.',
 };
-
-/** A reversed payment keeps its VERIFIED status; this says the money was taken back. */
-function ReversedChip({ payment: p }: { payment: CustomerPaymentDto }) {
-  return p.reversed_at == null ? null : (
-    <Chip size="small" color="warning" variant="outlined" label="Reversed" />
-  );
-}
-
-/** The hours purchases a collection pays for (linked up to their open amounts). */
-function purchaseLinkItems(p: CustomerPaymentDto) {
-  const links = p.purchase_links ?? [];
-  if (links.length === 0) return [];
-  return [
-    {
-      label: 'Pays for',
-      value: (
-        <Box component="span" className="inline-flex flex-wrap gap-2">
-          {links.map((l) => (
-            <Link key={l.purchase_id} component={RouterLink} to={hoursPurchasePath(l.purchase_id)}>
-              {l.purchase_number}
-            </Link>
-          ))}
-        </Box>
-      ),
-    },
-  ];
-}
 
 function PaymentDrawer({
   payment: p,
@@ -133,63 +100,8 @@ function PaymentDrawer({
           )}
         </Alert>
       )}
-      <KeyValueGrid
-        columns={2}
-        items={[
-          { label: 'Customer', value: p.customer_name ?? customerLabel(p.customer_id) },
-          { label: 'Amount', value: <MoneyText amount={p.amount} currency={p.currency} strong /> },
-          {
-            label: 'Unallocated',
-            value: <MoneyText amount={unallocatedOf(p)} currency={p.currency} />,
-          },
-          { label: 'Method', value: PAYMENT_METHOD_LABELS[p.method] },
-          { label: 'Number', value: p.collection_number ?? '—' },
-          { label: 'Reference', value: p.reference ?? '—' },
-          ...purchaseLinkItems(p),
-          { label: 'Received at', value: formatInstantIn(p.received_at, timeZone) },
-          {
-            label: 'Received by',
-            value: p.received_by_staff_name ?? staffLabel(p.received_by_staff_id),
-          },
-          { label: 'Source', value: p.source },
-          {
-            label: 'Recorded by',
-            value: <PersonName userId={p.recorded_by} name={p.recorded_by_name} />,
-          },
-          { label: 'Recorded at', value: formatInstantIn(p.recorded_at, timeZone) },
-          {
-            label: 'Decided by',
-            value: <PersonName userId={p.verified_by} name={p.verified_by_name} />,
-          },
-          {
-            label: 'Decided at',
-            value: p.verified_at === null ? '—' : formatInstantIn(p.verified_at, timeZone),
-          },
-          { label: 'Decision note', value: p.decision_note ?? '—' },
-          { label: 'Note', value: p.note ?? '—' },
-        ]}
-      />
-      <Typography variant="subtitle2">Allocations</Typography>
-      <StaticTable
-        ariaLabel="Allocations"
-        rows={p.allocations}
-        getRowId={(a) => a.id}
-        isRowMuted={(a) => a.released_at !== null}
-        columns={[
-          { id: 'inv', header: 'Invoice', render: (a) => shortId(a.invoice_id) },
-          {
-            id: 'amt',
-            header: 'Amount',
-            align: 'right',
-            render: (a) => <MoneyText amount={a.amount} currency={p.currency} />,
-          },
-          {
-            id: 'rel',
-            header: 'Released',
-            render: (a) => (a.released_at === null ? 'Active' : (a.release_reason ?? 'Released')),
-          },
-        ]}
-      />
+      <KeyValueGrid columns={2} items={paymentItems(p, timeZone, customerLabel, staffLabel)} />
+      <PaymentAllocations payment={p} />
     </DetailsDrawer>
   );
 }
@@ -198,9 +110,18 @@ function PaymentDrawer({
 export function PaymentsTab({ timeZone }: { timeZone: string }) {
   const notify = useNotify();
   const customerLabel = useCustomerLabels();
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   const linkedPaymentId = params.get('payment_id');
-  const [view, setView] = useState<View>(linkedPaymentId === null ? 'CLAIMED' : 'ALL');
+  const { dateFrom, dateTo } = urlPeriod(params);
+  const [view, setView] = useState<View>(() => {
+    const s = params.get('status');
+    if (s === 'CLAIMED' || s === 'VERIFIED' || s === 'REJECTED' || s === 'ALL') return s;
+    const filtered = linkedPaymentId !== null || params.has('method') || dateFrom !== undefined;
+    return filtered || dateTo !== undefined ? 'ALL' : 'CLAIMED';
+  });
+  const [method, setMethod] = useState(() =>
+    initialFilter(params, 'method', PAYMENT_METHOD_OPTIONS, ''),
+  );
   const [customer, setCustomer] = useState<CustomerDto | null>(null);
   const [staff, setStaff] = useState<StaffDto | null>(null);
   const [recording, setRecording] = useState(false);
@@ -318,12 +239,15 @@ export function PaymentsTab({ timeZone }: { timeZone: string }) {
         columns={columns}
         fetchPage={fetchPage}
         getRowId={(p) => p.id}
-        searchable={false}
+        searchPlaceholder="Search collection number or reference"
         reloadKey={reloadKey}
         filters={{
           status: view === 'ALL' ? undefined : view,
           customer_id: customer?.id,
           staff_member_id: staff?.id,
+          method: method === '' ? undefined : method,
+          date_from: dateFrom,
+          date_to: dateTo,
         }}
         emptyTitle="No payments"
         isRowMuted={(p) => p.status === 'REJECTED' || p.reversed_at != null}
@@ -336,6 +260,14 @@ export function PaymentsTab({ timeZone }: { timeZone: string }) {
             <Box sx={{ minWidth: 220 }}>
               <StaffFilter label="Received by" value={staff} onChange={setStaff} />
             </Box>
+            <StaticSelectFilter
+              label="Method"
+              value={method}
+              options={PAYMENT_METHOD_OPTIONS}
+              allLabel="All methods"
+              onChange={setMethod}
+            />
+            <UrlPeriodChip params={params} setParams={setParams} />
           </Box>
         }
       />

@@ -1,6 +1,6 @@
 import { Alert, Stack } from '@mui/material';
 import { useCallback, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import type { CancellationDto } from '../../../api/hoursTypes';
 import { hoursRequestService } from '../../../api/services/hoursService';
 import { ServerDataTable } from '../../../components/data/ServerDataTable';
@@ -8,12 +8,16 @@ import type { FetchPage } from '../../../components/data/useServerPage';
 import { PageHeader } from '../../../components/feedback/PageHeader';
 import { StaticSelectFilter } from '../../../components/forms/StaticSelectFilter';
 import { recordPath } from '../../../navigation/recordRoutes';
+import { initialFilter } from '../../../navigation/urlFilters';
 import { REQUEST_STATUS_OPTIONS } from './hoursDisplay';
 import { useCancellationRequests } from './useHoursRequests';
 
 /** Hours purchase cancellation requests: awaiting a decision by default; decide or withdraw. */
 export function HoursCancellationsPage() {
-  const [status, setStatus] = useState('PENDING');
+  const [params] = useSearchParams();
+  const [status, setStatus] = useState(() =>
+    initialFilter(params, 'status', REQUEST_STATUS_OPTIONS, 'PENDING'),
+  );
   const navigate = useNavigate();
   const [reloadKey, setReloadKey] = useState(0);
   const reload = useCallback(() => {
@@ -41,7 +45,7 @@ export function HoursCancellationsPage() {
           onRowClick={(c) => {
             void navigate(recordPath('HOURS_CANCELLATION', c.id));
           }}
-          searchable={false}
+          searchPlaceholder="Search purchase number or reason"
           reloadKey={reloadKey}
           filters={{ status: status === '' ? undefined : status }}
           emptyTitle={

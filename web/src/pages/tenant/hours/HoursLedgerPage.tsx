@@ -18,6 +18,8 @@ import { CustomerFilter, MachineFilter } from '../shared/financePickers';
 import { PersonName } from '../shared/PersonName';
 import { machineText, nameOr } from '../shared/names';
 import { hoursText, LEDGER_TYPE_LABELS, LEDGER_TYPE_OPTIONS } from './hoursDisplay';
+import { urlPeriod } from '../shared/urlPeriod';
+import { UrlPeriodChip } from '../shared/UrlPeriodChip';
 
 /** Append-only hours ledger: every activation, use, transfer, expiry and reversal (never edited). */
 export function HoursLedgerPage() {
@@ -25,6 +27,7 @@ export function HoursLedgerPage() {
   const [params, setParams] = useSearchParams();
   const purchaseId = params.get('purchase_id') ?? undefined;
   const jobId = params.get('job_id') ?? undefined;
+  const { dateFrom, dateTo } = urlPeriod(params);
   const [customer, setCustomer] = useState<CustomerDto | null>(null);
   const [machine, setMachine] = useState<MachineDto | null>(null);
   const [entryType, setEntryType] = useState(() =>
@@ -129,7 +132,7 @@ export function HoursLedgerPage() {
           columns={columns}
           fetchPage={fetchPage}
           getRowId={(e) => e.id}
-          searchable={false}
+          searchPlaceholder="Search purchase number or reason"
           initialSort="-occurred_at"
           filters={{
             purchase_id: purchaseId,
@@ -137,6 +140,8 @@ export function HoursLedgerPage() {
             customer_id: customer?.id,
             machine_id: machine?.id,
             entry_type: entryType === '' ? undefined : entryType,
+            date_from: dateFrom,
+            date_to: dateTo,
           }}
           emptyTitle="No ledger entries"
           toolbar={
@@ -154,6 +159,7 @@ export function HoursLedgerPage() {
                 allLabel="All entries"
                 onChange={setEntryType}
               />
+              <UrlPeriodChip params={params} setParams={setParams} />
             </Box>
           }
         />

@@ -2,7 +2,7 @@ import { Chip } from '@mui/material';
 import Add from '@mui/icons-material/Add';
 import { Box, Button, Stack } from '@mui/material';
 import { useCallback, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import { useCanMutate } from '../../../access/useCanMutate';
 import type { HoursPurchaseDto } from '../../../api/hoursTypes';
@@ -16,6 +16,7 @@ import { PageHeader } from '../../../components/feedback/PageHeader';
 import { StaticSelectFilter } from '../../../components/forms/StaticSelectFilter';
 import { useDisplayTimeZone } from '../../../hooks/useDisplayTimeZone';
 import { hoursPurchasePath } from '../../../navigation/hoursRoutes';
+import { initialFilter } from '../../../navigation/urlFilters';
 import { useNotify } from '../../../notifications/useNotify';
 import { formatInstantIn } from '../../../utils/time';
 import { CustomerFilter, MachineFilter } from '../shared/financePickers';
@@ -29,6 +30,14 @@ import {
 } from './hoursDisplay';
 import { RecordPurchaseDialog } from './RecordPurchaseDialog';
 import { useHoursPolicy } from './useHoursPolicy';
+import { urlPeriod } from '../shared/urlPeriod';
+import { UrlPeriodChip } from '../shared/UrlPeriodChip';
+
+const QUEUE_OPTIONS = [
+  { value: 'UNPAID', label: 'Unpaid' },
+  { value: 'UNCONFIRMED', label: 'Payment not confirmed' },
+  { value: 'AWAITING_ACTIVATION', label: 'Awaiting activation' },
+] as const;
 
 /** Prepaid customer hours purchases: search, filter, record (incl. walk-ins), open a purchase. */
 export function HoursPurchasesPage() {
@@ -39,7 +48,12 @@ export function HoursPurchasesPage() {
   const canRecord = useCanMutate(PERMISSIONS.tenantHoursPurchase) && hours.on;
   const [customer, setCustomer] = useState<CustomerDto | null>(null);
   const [machine, setMachine] = useState<MachineDto | null>(null);
-  const [cancelled, setCancelled] = useState('');
+  const [params, setParams] = useSearchParams();
+  const { dateFrom, dateTo } = urlPeriod(params);
+  const [cancelled, setCancelled] = useState(() =>
+    initialFilter(params, 'cancelled', CANCELLED_OPTIONS, ''),
+  );
+  const [queue, setQueue] = useState(() => initialFilter(params, 'queue', QUEUE_OPTIONS, ''));
   const [recording, setRecording] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const fetchPage = useCallback<FetchPage<HoursPurchaseDto>>(
@@ -127,6 +141,9 @@ export function HoursPurchasesPage() {
             customer_id: customer?.id,
             machine_id: machine?.id,
             cancelled: cancelled === '' ? undefined : cancelled,
+            queue: queue === '' ? undefined : queue,
+            date_from: dateFrom,
+            date_to: dateTo,
           }}
           emptyTitle="No hours purchases"
           isRowMuted={(p) => p.status === 'CANCELLED'}
@@ -148,6 +165,14 @@ export function HoursPurchasesPage() {
                 allLabel="All purchases"
                 onChange={setCancelled}
               />
+              <StaticSelectFilter
+                label="Queue"
+                value={queue}
+                options={QUEUE_OPTIONS}
+                allLabel="All purchases"
+                onChange={setQueue}
+              />
+              <UrlPeriodChip params={params} setParams={setParams} />
             </Box>
           }
         />

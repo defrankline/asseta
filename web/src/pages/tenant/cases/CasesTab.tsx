@@ -1,4 +1,4 @@
-import { Box } from '@mui/material';
+import { Box, Chip } from '@mui/material';
 import { useCallback, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { initialFilter } from '../../../navigation/urlFilters';
@@ -34,9 +34,10 @@ export function CasesTab({ timeZone }: { timeZone: string }) {
   const navigate = useNavigate();
   const machineName = useMachineLabels();
   const staffName = useStaffLabels();
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
+  const closureProposed = params.get('closure_proposed') === 'true';
   const [status, setStatus] = useState(() =>
-    initialFilter(params, 'status', CASE_STATUS_OPTIONS, 'OPEN'),
+    initialFilter(params, 'status', CASE_STATUS_OPTIONS, closureProposed ? '' : 'OPEN'),
   );
   const [severity, setSeverity] = useState(() =>
     initialFilter(params, 'severity', SEVERITY_FILTER_OPTIONS, ''),
@@ -54,8 +55,9 @@ export function CasesTab({ timeZone }: { timeZone: string }) {
       severity: severity || undefined,
       assignee_user_id: assignee?.user_id,
       machine_id: machine?.id,
+      closure_proposed: closureProposed ? 'true' : undefined,
     }),
-    [status, severity, assignee, machine],
+    [status, severity, assignee, machine, closureProposed],
   );
   const fetchPage = useCallback(
     (q: ServerQuery, signal: AbortSignal) =>
@@ -130,6 +132,17 @@ export function CasesTab({ timeZone }: { timeZone: string }) {
       }}
       toolbar={
         <>
+          {closureProposed && (
+            <Chip
+              size="small"
+              label="Resolution awaiting a decision"
+              onDelete={() => {
+                const next = new URLSearchParams(params);
+                next.delete('closure_proposed');
+                setParams(next, { replace: true });
+              }}
+            />
+          )}
           <StaticSelectFilter
             label="Status"
             value={status}

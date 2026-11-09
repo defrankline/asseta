@@ -1,6 +1,6 @@
 import { Box, Button } from '@mui/material';
 import { useCallback, useState } from 'react';
-import { Link as RouterLink, useNavigate } from 'react-router';
+import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router';
 import { engineHoursService } from '../../../api/services/engineHoursService';
 import type { ClassificationDto, MachineDto } from '../../../api/types';
 import { ServerDataTable, type DataColumn } from '../../../components/data/ServerDataTable';
@@ -14,13 +14,17 @@ import { formatInstantIn } from '../../../utils/time';
 import { MachineFilter } from '../shared/financePickers';
 import { PersonName } from '../shared/PersonName';
 import { OUTCOME_LABELS, PROPOSAL_STATUS_OPTIONS } from './engineHoursDisplay';
+import { initialFilter } from '../../../navigation/urlFilters';
 import { machineOf, proposalChip, useClassificationKit } from './engineRecords';
 
 /** Explanations of unallocated engine hours (non-customer activity or identified variance) and their decisions. */
 export function ClassificationsPage() {
   const timeZone = useDisplayTimeZone();
   const navigate = useNavigate();
-  const [status, setStatus] = useState('PROPOSED');
+  const [urlParams] = useSearchParams();
+  const [status, setStatus] = useState(() =>
+    initialFilter(urlParams, 'status', PROPOSAL_STATUS_OPTIONS, 'PROPOSED'),
+  );
   const [machine, setMachine] = useState<MachineDto | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const kit = useClassificationKit(() => {

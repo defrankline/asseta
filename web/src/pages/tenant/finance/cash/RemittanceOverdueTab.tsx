@@ -1,6 +1,6 @@
 import { Alert, Box, TextField } from '@mui/material';
 import { useCallback, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import type { CustodianDto, RemittanceOverdueDto } from '../../../../api/custodyTypes';
 import { custodyService } from '../../../../api/services/custodyService';
 import { ServerDataTable, type DataColumn } from '../../../../components/data/ServerDataTable';
@@ -30,8 +30,9 @@ export function RemittanceOverdueTab({ timeZone }: { timeZone: string }) {
   const navigate = useNavigate();
   const [who, setWho] = useState<CustodianDto | null>(null);
   const [reason, setReason] = useState('');
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  const [params] = useSearchParams();
+  const [from, setFrom] = useState(() => params.get('local_day') ?? '');
+  const [to, setTo] = useState(() => params.get('local_day') ?? '');
   const fetchPage = useCallback<FetchPage<RemittanceOverdueDto>>(
     (query, signal) => custodyService.remittanceOverdue(query, signal),
     [],

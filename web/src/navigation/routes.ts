@@ -45,6 +45,8 @@ export const ROUTES = {
   tenantMachineDetail: '/tenant/machines/:machineId',
   tenantStaff: '/tenant/staff',
   tenantStaffDetail: '/tenant/staff/:staffId',
+  /** One employee's cash, reports, decisions and adjustments (DEC-032 Phase 4). */
+  tenantEmployeeAccountability: '/tenant/staff/:staffId/accountability',
   tenantTrackers: '/tenant/trackers',
   tenantTrackerDetail: '/tenant/trackers/:trackerId',
   tenantGeofences: '/tenant/geofences',
@@ -65,6 +67,9 @@ export const ROUTES = {
   tenantApprovals: '/tenant/approvals',
   /** Matches the backend `tenant.finance` menu path (invoices, payments, cash custody). */
   tenantFinance: '/tenant/finance',
+  /** Standalone list of customer payments (server dashboard links; `status`, `method`, period). */
+  tenantCustomerPayments: '/tenant/customer-payments',
+  tenantCustomerPaymentDetail: '/tenant/customer-payments/:paymentId',
   tenantHireInvoiceDetail: '/tenant/finance/invoices/:invoiceId',
   tenantHireInvoicePrint: '/tenant/finance/invoices/:invoiceId/print',
   /** Matches the backend `tenant.cash_custody` menu path (custody chain, remittances, reconciliation). */
@@ -74,6 +79,10 @@ export const ROUTES = {
   tenantDepositAccountDetail: '/tenant/finance/deposit-accounts/:accountId',
   /** Matches the backend `tenant.accountability` menu path (Overview group). */
   tenantAccountability: '/tenant/accountability',
+  /** Everything proposed and not yet decided, across every flow. */
+  tenantPendingAdjustments: '/tenant/accountability/pending-adjustments',
+  /** Results of the top-bar "Find a reference" box (`?reference=`). */
+  tenantLookup: '/tenant/lookup',
   /** Matches the backend `tenant.security_events` menu path (Risk & review group). */
   tenantSecurityEvents: '/tenant/security-events',
   /** Matches the backend `tenant.sync_conflicts` menu path (Risk & review group). */
@@ -136,6 +145,18 @@ export function trackerDetailPath(trackerId: string): string {
 
 export function staffDetailPath(staffId: string): string {
   return `${ROUTES.tenantStaff}/${encodeURIComponent(staffId)}`;
+}
+
+export function employeeAccountabilityPath(staffId: string): string {
+  return `${ROUTES.tenantStaff}/${encodeURIComponent(staffId)}/accountability`;
+}
+
+export function customerPaymentPath(paymentId: string): string {
+  return `${ROUTES.tenantCustomerPayments}/${encodeURIComponent(paymentId)}`;
+}
+
+export function lookupPath(reference: string): string {
+  return `${ROUTES.tenantLookup}?reference=${encodeURIComponent(reference)}`;
 }
 
 export function customerDetailPath(customerId: string): string {
@@ -292,6 +313,9 @@ export const IMPLEMENTED_PATHS: ReadonlySet<string> = new Set([
   ADJUSTMENT_ROUTES.requests,
   ROUTES.tenantDepositAccounts,
   ROUTES.tenantAccountability,
+  ROUTES.tenantPendingAdjustments,
+  ROUTES.tenantCustomerPayments,
+  ROUTES.tenantLookup,
   ROUTES.tenantSecurityEvents,
   ROUTES.tenantSyncConflicts,
   ROUTES.tenantProfitability,

@@ -34614,6 +34614,7 @@ export interface operations {
                 subject_type?: components["schemas"]["SubjectType"] | null;
                 subject_id?: string | null;
                 machine_id?: string | null;
+                closure_proposed?: boolean | null;
                 page?: number;
                 page_size?: number;
                 q?: string | null;

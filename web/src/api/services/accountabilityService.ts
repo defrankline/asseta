@@ -1,6 +1,9 @@
 import type { Page } from '../types';
 import type {
   AccountabilitySummaryDto,
+  EmployeeAccountabilityDto,
+  LookupResultDto,
+  PendingItemDto,
   SecurityEventDto,
   SyncConflictDto,
   SyncResolutionIn,
@@ -10,6 +13,11 @@ import {
   securityEventSchema,
   syncConflictSchema,
 } from './custodySchemas';
+import {
+  employeeAccountabilitySchema,
+  lookupResultSchema,
+  pendingItemSchema,
+} from './managementSchemas';
 import {
   seg,
   tenantGet,
@@ -21,17 +29,55 @@ import {
 
 const eventPage = tenantPageSchema(securityEventSchema);
 const conflictPage = tenantPageSchema(syncConflictSchema);
+const pendingPage = tenantPageSchema(pendingItemSchema);
+
+/** Tenant-local days, inclusive; undefined keeps the server's default. */
+export interface Period {
+  date_from?: string | undefined;
+  date_to?: string | undefined;
+}
 
 /** Oversight (accountability design D): dashboard summary, refused attempts, sync-conflict review. */
 export const accountabilityService = {
   /** GET /tenant/accountability/summary (getAccountabilitySummary); hidden tiles are null. */
-  summary(signal?: AbortSignal): Promise<AccountabilitySummaryDto> {
+  summary(signal?: AbortSignal, period?: Period): Promise<AccountabilitySummaryDto> {
     return tenantGet(
       '/tenant/accountability/summary',
       accountabilitySummarySchema,
       'accountability summary',
       signal,
+      period === undefined ? undefined : { ...period },
     );
+  },
+  /** GET /tenant/accountability/pending-adjustments. Filters: `record_type`, `all_approvals`; `q`. */
+  pendingAdjustments(query: TenantListQuery, signal?: AbortSignal): Promise<Page<PendingItemDto>> {
+    return tenantPage(
+      '/tenant/accountability/pending-adjustments',
+      pendingPage,
+      query,
+      'pending adjustments',
+      signal,
+    );
+  },
+  /** GET /tenant/employees/{id}/accountability. */
+  employee(
+    staffMemberId: string,
+    period: Period,
+    signal?: AbortSignal,
+  ): Promise<EmployeeAccountabilityDto> {
+    return tenantGet(
+      `/tenant/employees/${seg(staffMemberId)}/accountability`,
+      employeeAccountabilitySchema,
+      'employee accountability',
+      signal,
+      { ...period },
+    );
+  },
+  /** GET /tenant/lookup: any number, an outside reference or a record id; no match is an empty list. */
+  lookup(reference: string, signal?: AbortSignal): Promise<LookupResultDto> {
+    return tenantGet('/tenant/lookup', lookupResultSchema, 'reference lookup', signal, {
+      reference,
+    });
   },
   /**
    * GET /tenant/security-events (listSecurityEvents). Filters: `kind`, `actor_user_id`,

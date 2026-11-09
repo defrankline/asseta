@@ -1,6 +1,6 @@
 import { Alert, Box, Button } from '@mui/material';
 import { useCallback, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { PERMISSIONS } from '../../../../access/permissionCodes';
 import { useMutationGuard } from '../../../../access/useCanMutate';
 import { custodyService } from '../../../../api/services/custodyService';
@@ -17,6 +17,8 @@ import { TRANSFER_STATUS_OPTIONS } from './custodyDisplay';
 import { TransferDialog } from './CustodyDialogs';
 import { useCashPolicy } from './custodyHooks';
 import { CustodianFilter } from './custodyPickers';
+import { urlPeriod } from '../../shared/urlPeriod';
+import { UrlPeriodChip } from '../../shared/UrlPeriodChip';
 import { transferChip, transferFrom, transferTo, useTransferActions } from './transferRecord';
 
 interface TransfersTabProps {
@@ -38,6 +40,8 @@ export function TransfersTab({ timeZone, field = false, initialStatus }: Transfe
     can(PERMISSIONS.tenantFinanceCash) || policy?.recordersMayRecordForOthers === true;
   const [status, setStatus] = useState(initialStatus ?? (field ? 'PENDING_ACKNOWLEDGEMENT' : ''));
   const [who, setWho] = useState<CustodianDto | null>(null);
+  const [params, setParams] = useSearchParams();
+  const { dateFrom, dateTo } = urlPeriod(params);
   const [recording, setRecording] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const reload = () => {
@@ -107,9 +111,14 @@ export function TransfersTab({ timeZone, field = false, initialStatus }: Transfe
         columns={columns}
         fetchPage={fetchPage}
         getRowId={(t) => t.id}
-        searchable={false}
+        searchPlaceholder="Search transfer number"
         reloadKey={reloadKey}
-        filters={{ status: status || undefined, staff_member_id: who?.staff_member_id }}
+        filters={{
+          status: status || undefined,
+          staff_member_id: who?.staff_member_id,
+          date_from: dateFrom,
+          date_to: dateTo,
+        }}
         emptyTitle="No cash transfers"
         isRowMuted={(t) => t.status === 'DISPUTED'}
         onRowClick={open}
@@ -124,6 +133,7 @@ export function TransfersTab({ timeZone, field = false, initialStatus }: Transfe
             <Box sx={{ minWidth: 240 }}>
               <CustodianFilter value={who} onChange={setWho} />
             </Box>
+            <UrlPeriodChip params={params} setParams={setParams} />
             {canRecord && (
               <Button
                 variant="outlined"

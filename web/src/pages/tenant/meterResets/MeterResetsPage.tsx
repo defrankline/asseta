@@ -1,5 +1,8 @@
 import { Alert, Box, Button, Stack, Tooltip } from '@mui/material';
 import { useCallback, useState } from 'react';
+import { useParams, useSearchParams } from 'react-router';
+import { initialFilter } from '../../../navigation/urlFilters';
+import { FocusMissingAlert } from '../shared/FocusMissingAlert';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import { useCanMutate } from '../../../access/useCanMutate';
 import { meterService } from '../../../api/services/meterService';
@@ -30,7 +33,13 @@ export function MeterResetsPage() {
   const machineName = useMachineLabels();
   const { me } = useSession();
   const canDecide = useCanMutate(PERMISSIONS.tenantMeterApprove);
-  const [status, setStatus] = useState('PENDING');
+  const { focusId } = useParams();
+  const [urlParams] = useSearchParams();
+  const [status, setStatus] = useState(() =>
+    focusId !== undefined
+      ? ''
+      : initialFilter(urlParams, 'status', RESET_STATUS_OPTIONS, 'PENDING'),
+  );
   const [machine, setMachine] = useState<MachineDto | null>(null);
   const [deciding, setDeciding] = useState<ResetDto | null>(null);
   const machineId = machine?.id;
@@ -102,12 +111,21 @@ export function MeterResetsPage() {
       },
     },
   ];
+  const focused =
+    focusId === undefined ? null : ((resource.data ?? []).find((r) => r.id === focusId) ?? null);
+  const focusMissing = focusId !== undefined && resource.data !== null && focused === null;
   return (
     <>
       <PageHeader
         title="Meter resets"
         subtitle="Replaced or rolled-over hour meters across all machines, awaiting or after a decision"
       />
+      {focused !== null && (
+        <Alert severity="info" className="mb-3">
+          {`The reset you opened: ${machineName(focused.machine_id)}, ${focused.old_reading} → ${focused.new_reading}, effective ${formatInstantIn(focused.effective_at, timeZone)}. Status: ${focused.status.toLowerCase()}.`}
+        </Alert>
+      )}
+      <FocusMissingAlert missing={focusMissing} />
       <Stack spacing={2}>
         <Alert severity="info">
           Approving a reset re-bases later readings for that machine from its effective time. The

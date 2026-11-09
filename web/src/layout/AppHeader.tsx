@@ -9,6 +9,7 @@ import { ConnectionIndicator } from '../realtime/ConnectionIndicator';
 import { useSession } from '../session/useSession';
 import { useColorMode } from '../theme/ColorModeContext';
 import { TenantSwitcher } from './TenantSwitcher';
+import { TransactionLookup } from './TransactionLookup';
 import { Logo } from './Logo';
 
 interface AppHeaderProps {
@@ -39,6 +40,7 @@ export function AppHeader({ onToggleNav }: AppHeaderProps) {
           <Logo height={24} compact />
         </Box>
         <Box className="flex-1" />
+        <TransactionLookup />
         <TenantSwitcher />
         <ConnectionIndicator />
         <NotificationBell />

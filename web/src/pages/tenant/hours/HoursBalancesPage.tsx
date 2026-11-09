@@ -7,8 +7,9 @@ import {
   ToggleButtonGroup,
   Typography,
 } from '@mui/material';
-import { useCallback, useState } from 'react';
-import { Link as RouterLink } from 'react-router';
+import { useCallback, useEffect, useState } from 'react';
+import { Link as RouterLink, useSearchParams } from 'react-router';
+import { customerService } from '../../../api/services/customerService';
 import type { HoursBalanceDto } from '../../../api/hoursTypes';
 import { hoursService } from '../../../api/services/hoursService';
 import type { CustomerDto, MachineDto } from '../../../api/types';
@@ -179,6 +180,18 @@ export function HoursBalancesPage() {
   const [view, setView] = useState<View>('customer');
   const [customer, setCustomer] = useState<CustomerDto | null>(null);
   const [machine, setMachine] = useState<MachineDto | null>(null);
+  const [params] = useSearchParams();
+  const urlCustomer = params.get('customer_id');
+  useEffect(() => {
+    if (urlCustomer === null) return undefined;
+    const controller = new AbortController();
+    customerService.get(urlCustomer, controller.signal).then(setCustomer, () => {
+      // Not readable or gone: the customer is chosen by hand.
+    });
+    return () => {
+      controller.abort();
+    };
+  }, [urlCustomer]);
   return (
     <>
       <PageHeader

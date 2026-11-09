@@ -1,7 +1,7 @@
 import Add from '@mui/icons-material/Add';
 import { Box, Button } from '@mui/material';
-import { useCallback, useState } from 'react';
-import { useSearchParams } from 'react-router';
+import { useCallback, useEffect, useState } from 'react';
+import { useParams, useSearchParams } from 'react-router';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import { CanMutate } from '../../../access/CanMutate';
 import { expenseService } from '../../../api/services/expenseService';
@@ -42,6 +42,19 @@ export function ExpensesTab({ timeZone }: { timeZone: string }) {
   const [machine, setMachine] = useState<MachineDto | null>(null);
   const [custodian, setCustodian] = useState<StaffDto | null>(null);
   const [viewing, setViewing] = useState<ExpenseDto | null>(null);
+  const { expenseId } = useParams();
+  useEffect(() => {
+    if (expenseId === undefined) return undefined;
+    const controller = new AbortController();
+    expenseService.get(expenseId, controller.signal).then(setViewing, (err: unknown) => {
+      if (!controller.signal.aborted) notify.error(err, 'Could not open that expense.');
+    });
+    return () => {
+      controller.abort();
+    };
+    // `notify` is only used for the failure message.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expenseId]);
   const [recording, setRecording] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const liveReload = useCallback(() => {

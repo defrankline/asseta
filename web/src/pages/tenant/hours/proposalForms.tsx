@@ -164,7 +164,7 @@ export function CreditFormDialog({
     limit_amount: positiveDecimalField('Credit limit'),
     currency: string().ensure(),
     terms: optionalText('Terms', 1000),
-    // Evidence is added when proposing; a later edit keeps what was attached.
+    // New evidence replaces what is attached; leaving it empty on an edit keeps it.
     evidence: evidenceRule(record === null && evidenceRequired),
   });
   return (
@@ -204,7 +204,14 @@ export function CreditFormDialog({
             };
             onSaved(await creditArrangementService.propose(body, keyFor(body)));
           } else {
-            const body = { ...fields, version: record.version };
+            const body = {
+              ...fields,
+              version: record.version,
+              // Omitted keeps what is attached; a new upload replaces it.
+              ...(v.evidence.length > 0
+                ? { evidence_attachment_ids: evidenceIds(v.evidence) }
+                : {}),
+            };
             onSaved(
               await guard(() => creditArrangementService.update(record.id, body, keyFor(body))),
             );
@@ -238,7 +245,10 @@ export function CreditFormDialog({
         required={reasonCodeRequired}
       />
       <FormikTextField name="reason" label="Reason" required multiline minRows={2} />
-      {record === null && <FormikEvidenceField required={evidenceRequired} />}
+      <FormikEvidenceField
+        required={record === null && evidenceRequired}
+        {...(record === null ? {} : { label: 'Replace evidence (leave empty to keep it)' })}
+      />
     </FormDialog>
   );
 }

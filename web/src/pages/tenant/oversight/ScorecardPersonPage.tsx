@@ -1,3 +1,5 @@
+import { PERMISSIONS } from '../../../access/permissionCodes';
+import { useSession } from '../../../session/useSession';
 import { Alert, Box, Chip, Link, Stack, Typography } from '@mui/material';
 import { useCallback, useState } from 'react';
 import { Link as RouterLink, useParams, useSearchParams } from 'react-router';
@@ -22,7 +24,11 @@ import {
 import { useAsyncResource } from '../../../hooks/useAsyncResource';
 import { useDisplayTimeZone } from '../../../hooks/useDisplayTimeZone';
 import { OVERSIGHT_ROUTES } from '../../../navigation/oversightRoutes';
-import { jobDetailPath, staffDetailPath } from '../../../navigation/routes';
+import {
+  jobDetailPath,
+  employeeAccountabilityPath,
+  staffDetailPath,
+} from '../../../navigation/routes';
 import { formatDate } from '../../../utils/dates';
 import { humanize } from '../../../utils/text';
 import { formatInstantIn } from '../../../utils/time';
@@ -122,6 +128,9 @@ export function ScorecardPersonPage() {
   const { staffId = '' } = useParams();
   const timeZone = useDisplayTimeZone();
   const disabled = useDisabledCapabilities();
+  const canSeeAccountability = useSession().hasPermission(
+    PERMISSIONS.tenantAccountabilityEmployeeRead,
+  );
   const [params, setParams] = useSearchParams();
   const [from, setFrom] = useState(() => params.get('day_from') ?? '');
   const [to, setTo] = useState(() => params.get('day_to') ?? '');
@@ -228,9 +237,19 @@ export function ScorecardPersonPage() {
               )
             }
             actions={
-              <Link component={RouterLink} to={staffDetailPath(d.row.staff_member_id)}>
-                Open staff record
-              </Link>
+              <Box className="flex flex-wrap gap-3">
+                <Link component={RouterLink} to={staffDetailPath(d.row.staff_member_id)}>
+                  Open staff record
+                </Link>
+                {canSeeAccountability && (
+                  <Link
+                    component={RouterLink}
+                    to={employeeAccountabilityPath(d.row.staff_member_id)}
+                  >
+                    Open accountability
+                  </Link>
+                )}
+              </Box>
             }
           >
             <Box className="flex flex-wrap items-center gap-3">

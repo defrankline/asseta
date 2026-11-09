@@ -1,5 +1,8 @@
 import { useCallback } from 'react';
-import { useParams } from 'react-router';
+import { Link as RouterLink, useParams } from 'react-router';
+import { Button } from '@mui/material';
+import { PERMISSIONS } from '../../../access/permissionCodes';
+import { useSession } from '../../../session/useSession';
 import { staffService } from '../../../api/services/staffService';
 import { KeyValueGrid } from '../../../components/display/KeyValueGrid';
 import { AsyncContent } from '../../../components/feedback/AsyncContent';
@@ -11,7 +14,7 @@ import {
 } from '../../../components/lifecycle/EntityDetailsLayout';
 import { useAsyncResource } from '../../../hooks/useAsyncResource';
 import { useDisplayTimeZone } from '../../../hooks/useDisplayTimeZone';
-import { ROUTES } from '../../../navigation/routes';
+import { employeeAccountabilityPath, ROUTES } from '../../../navigation/routes';
 import { formatInstantIn } from '../../../utils/time';
 import { STAFF_KIND_OPTIONS, labelOf } from '../shared/display';
 import { useStaffActions } from './useStaffActions';
@@ -20,6 +23,9 @@ import { useStaffActions } from './useStaffActions';
 export function StaffDetailPage() {
   const { staffId = '' } = useParams();
   const timeZone = useDisplayTimeZone();
+  const canSeeAccountability = useSession().hasPermission(
+    PERMISSIONS.tenantAccountabilityEmployeeRead,
+  );
   const load = useCallback((signal: AbortSignal) => staffService.get(staffId, signal), [staffId]);
   const resource = useAsyncResource(load);
   const staff = resource.data;
@@ -37,7 +43,21 @@ export function StaffDetailPage() {
         {...(staff !== null
           ? {
               status: <ActiveChip active={staff.is_active} />,
-              actions: <ActionButtons actions={actionsFor(staff)} />,
+              actions: (
+                <>
+                  {canSeeAccountability && (
+                    <Button
+                      component={RouterLink}
+                      to={employeeAccountabilityPath(staff.id)}
+                      variant="outlined"
+                      size="small"
+                    >
+                      Accountability
+                    </Button>
+                  )}
+                  <ActionButtons actions={actionsFor(staff)} />
+                </>
+              ),
             }
           : {})}
         inactive={

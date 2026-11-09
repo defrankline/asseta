@@ -1,7 +1,7 @@
 import Add from '@mui/icons-material/Add';
 import { Alert, Button, Stack } from '@mui/material';
 import { useCallback, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import { useCanMutate } from '../../../access/useCanMutate';
 import type { TransferDto } from '../../../api/hoursTypes';
@@ -11,6 +11,7 @@ import type { FetchPage } from '../../../components/data/useServerPage';
 import { PageHeader } from '../../../components/feedback/PageHeader';
 import { StaticSelectFilter } from '../../../components/forms/StaticSelectFilter';
 import { recordPath } from '../../../navigation/recordRoutes';
+import { initialFilter } from '../../../navigation/urlFilters';
 import { useNotify } from '../../../notifications/useNotify';
 import { HoursOffNotice } from './HoursDialogs';
 import { REQUEST_STATUS_OPTIONS } from './hoursDisplay';
@@ -23,7 +24,10 @@ export function HoursTransfersPage() {
   const notify = useNotify();
   const hours = useHoursPolicy();
   const canRequest = useCanMutate(PERMISSIONS.tenantHoursTransfer) && hours.on;
-  const [status, setStatus] = useState('PENDING');
+  const [params] = useSearchParams();
+  const [status, setStatus] = useState(() =>
+    initialFilter(params, 'status', REQUEST_STATUS_OPTIONS, 'PENDING'),
+  );
   const [requesting, setRequesting] = useState(false);
   const navigate = useNavigate();
   const [reloadKey, setReloadKey] = useState(0);
@@ -66,7 +70,7 @@ export function HoursTransfersPage() {
           onRowClick={(t) => {
             void navigate(recordPath('HOURS_TRANSFER', t.id));
           }}
-          searchable={false}
+          searchPlaceholder="Search transfer or purchase number"
           reloadKey={reloadKey}
           filters={{ status: status === '' ? undefined : status }}
           emptyTitle={status === 'PENDING' ? 'No transfers awaiting a decision' : 'No transfers'}

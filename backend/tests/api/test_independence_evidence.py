@@ -642,12 +642,16 @@ def test_case_resolution_second_person_when_policy_on(api: Api) -> None:
     proposed = _ok(reviewer.post(f"{url}/resolve", body), 200)
     assert proposed["case"]["status"] == "IN_REVIEW" and proposed["case"]["closure_outcome"] == "UNCONFIRMED"
     version = proposed["case"]["version"]
+    waiting = _ok(reviewer.get(f"{T}/cases", closure_proposed="true"), 200)
+    assert [c["id"] for c in waiting["items"]] == [case["id"]]
+    assert _ok(reviewer.get(f"{T}/cases", closure_proposed="false"), 200)["total"] == 0
     _err(
         reviewer.post(f"{url}/resolution-decision", {"approve": True, "version": version}), 422, "SEGREGATION_OF_DUTIES"
     )
     _err(reviewer2.post(f"{url}/resolve", {**body, "version": version}), 409, "CASE_CLOSURE_PENDING")
     decided = _ok(reviewer2.post(f"{url}/resolution-decision", {"approve": True, "version": version}), 200)
     assert decided["case"]["status"] == "RESOLVED" and decided["case"]["closure_proposed_by"] is None
+    assert _ok(reviewer2.get(f"{T}/cases", closure_proposed="true"), 200)["total"] == 0
 
 
 # --- 11. managed service safety -------------------------------------------------------------------------------------

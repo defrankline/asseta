@@ -1,7 +1,7 @@
 import Add from '@mui/icons-material/Add';
 import { Box, Button } from '@mui/material';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { object, string, type ObjectSchema } from 'yup';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import { useMutationGuard } from '../../../access/useCanMutate';
@@ -23,6 +23,7 @@ import { MachineFilter } from '../shared/financePickers';
 import { optionId } from '../shared/lookups';
 import { PersonName } from '../shared/PersonName';
 import { PROPOSAL_STATUS_OPTIONS } from './engineHoursDisplay';
+import { initialFilter } from '../../../navigation/urlFilters';
 import { machineOf, proposalChip, useCorrectionKit } from './engineRecords';
 import { readingOptionLabel, searchMachineReadings } from './engineHoursLookups';
 import { ProposeCorrectionDialog } from './ProposeCorrectionDialog';
@@ -132,7 +133,10 @@ export function MeterCorrectionsPage() {
   const notify = useNotify();
   const timeZone = useDisplayTimeZone();
   const can = useMutationGuard();
-  const [status, setStatus] = useState('PROPOSED');
+  const [urlParams] = useSearchParams();
+  const [status, setStatus] = useState(() =>
+    initialFilter(urlParams, 'status', PROPOSAL_STATUS_OPTIONS, 'PROPOSED'),
+  );
   const [machine, setMachine] = useState<MachineDto | null>(null);
   const [picking, setPicking] = useState(false);
   const [picked, setPicked] = useState<Picked | null>(null);

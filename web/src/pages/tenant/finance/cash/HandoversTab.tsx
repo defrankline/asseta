@@ -1,7 +1,7 @@
-import { Alert, Box, ToggleButton, ToggleButtonGroup } from '@mui/material';
+import { Alert, Box, Chip, ToggleButton, ToggleButtonGroup } from '@mui/material';
 import { CAPABILITY, useCapabilityEnabled } from '../../../../access/capabilities';
 import { useCallback, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { cashService } from '../../../../api/services/cashService';
 import type { CashHandoverDto, SettlementStatus } from '../../../../api/types';
 import type { CustodianDto } from '../../../../api/custodyTypes';
@@ -15,6 +15,8 @@ import { PersonName } from '../../shared/PersonName';
 import { ENTITY } from '../../../../realtime/entities';
 import { useLiveRefresh } from '../../../../realtime/hooks';
 import { CustodianFilter } from './custodyPickers';
+import { urlPeriod } from '../../shared/urlPeriod';
+import { UrlPeriodChip } from '../../shared/UrlPeriodChip';
 import { remittanceAccountText, remittanceMethodText } from './remittanceDetails';
 import {
   remittanceChip,
@@ -50,7 +52,14 @@ const shortfallColumn: DataColumn<CashHandoverDto> = {
 export function HandoversTab({ timeZone }: { timeZone: string }) {
   const controlsOn = useCapabilityEnabled(CAPABILITY.cashCustody);
   const navigate = useNavigate();
-  const [view, setView] = useState<View>('CLAIMED');
+  const [params, setParams] = useSearchParams();
+  const { dateFrom, dateTo } = urlPeriod(params);
+  const partialPending = params.get('partial_reason_pending') === 'true';
+  const [view, setView] = useState<View>(() => {
+    const s = params.get('status');
+    if (s === 'CLAIMED' || s === 'VERIFIED' || s === 'REJECTED' || s === 'ALL') return s;
+    return partialPending || dateFrom !== undefined || dateTo !== undefined ? 'ALL' : 'CLAIMED';
+  });
   const [staff, setStaff] = useState<CustodianDto | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const liveReload = useCallback(() => {
@@ -150,18 +159,35 @@ export function HandoversTab({ timeZone }: { timeZone: string }) {
         columns={columns}
         fetchPage={fetchPage}
         getRowId={(h) => h.id}
-        searchable={false}
+        searchPlaceholder="Search remittance number or bank reference"
         reloadKey={reloadKey}
         filters={{
           status: view === 'ALL' ? undefined : view,
           staff_member_id: staff?.staff_member_id,
+          partial_reason_pending: partialPending ? 'true' : undefined,
+          date_from: dateFrom,
+          date_to: dateTo,
         }}
         emptyTitle="No remittances"
         isRowMuted={(h) => h.status === 'REJECTED'}
         onRowClick={open}
         toolbar={
-          <Box sx={{ minWidth: 240 }}>
-            <CustodianFilter value={staff} onChange={setStaff} />
+          <Box className="flex flex-wrap items-center gap-3">
+            <Box sx={{ minWidth: 240 }}>
+              <CustodianFilter value={staff} onChange={setStaff} />
+            </Box>
+            {partialPending && (
+              <Chip
+                size="small"
+                label="Partial reason awaiting a decision"
+                onDelete={() => {
+                  const next = new URLSearchParams(params);
+                  next.delete('partial_reason_pending');
+                  setParams(next, { replace: true });
+                }}
+              />
+            )}
+            <UrlPeriodChip params={params} setParams={setParams} />
           </Box>
         }
       />

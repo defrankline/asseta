@@ -21,6 +21,7 @@ import { engineHoursDetailRouteElements } from './engineHoursRoutes';
 import { hoursRouteElements } from './hoursRoutes';
 import { adjustmentRouteElements } from './adjustmentRoutes';
 import { cashRecordRouteElements } from './cashRoutes';
+import { managementRouteElements } from './managementRoutes';
 import { oversightRouteElements } from './oversightRoutes';
 import { revenueRouteElements } from './revenueRoutes';
 import {
@@ -482,6 +483,7 @@ export function AppRoutes() {
         {engineHoursDetailRouteElements(engineGuard)}
         {revenueRouteElements(revenueGuard)}
         {oversightRouteElements(guard)}
+        {managementRouteElements(guard)}
         <Route path={ROUTES.forbidden} element={<ForbiddenPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>

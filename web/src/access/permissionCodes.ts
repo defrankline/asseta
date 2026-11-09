@@ -150,6 +150,10 @@ export const PERMISSIONS = {
   tenantFinanceAccountsManage: 'tenant.finance.accounts.manage',
   /** Accountability dashboard summary. */
   tenantAccountabilityRead: 'tenant.accountability.read',
+  /** One employee's cash, reports, decisions and adjustments (DEC-032 Phase 4). */
+  tenantAccountabilityEmployeeRead: 'tenant.accountability.employee.read',
+  /** Find any transaction by reference or record id. */
+  tenantLookupRead: 'tenant.lookup.read',
   /** Refused attempts (missing permission, segregation of duties). */
   tenantSecurityEventRead: 'tenant.security_event.read',
   /** Offline field operations the server did not apply: view; resolve. */

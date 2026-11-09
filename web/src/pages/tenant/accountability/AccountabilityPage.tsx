@@ -1,7 +1,7 @@
 import Refresh from '@mui/icons-material/Refresh';
-import { Box, Button, Link, Typography } from '@mui/material';
-import { useCallback, useId } from 'react';
-import { Link as RouterLink } from 'react-router';
+import { Alert, Box, Button, Link, Typography } from '@mui/material';
+import { useCallback, useId, useState } from 'react';
+import { Link as RouterLink, useSearchParams } from 'react-router';
 import { accountabilityService } from '../../../api/services/accountabilityService';
 import { AsyncContent } from '../../../components/feedback/AsyncContent';
 import { PageHeader } from '../../../components/feedback/PageHeader';
@@ -12,15 +12,27 @@ import { ROUTES } from '../../../navigation/routes';
 import { useSession } from '../../../session/useSession';
 import { formatInstantIn } from '../../../utils/time';
 import { AccountabilityTiles } from './AccountabilityTiles';
+import { DashboardPeriod, ManagementDashboard } from './management/ManagementDashboard';
 
 const REFRESH_MS = 5 * 60_000;
 
-function useSummary() {
-  const load = useCallback((signal: AbortSignal) => accountabilityService.summary(signal), []);
+function useSummary(from = '', to = '') {
+  const load = useCallback(
+    (signal: AbortSignal) =>
+      accountabilityService.summary(
+        signal,
+        from === '' && to === ''
+          ? undefined
+          : { date_from: from || undefined, date_to: to || undefined },
+      ),
+    [from, to],
+  );
   const res = useAsyncResource(load);
   useInterval(res.reload, REFRESH_MS);
   return res;
 }
+
+const isDay = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
 
 /**
  * Accountability dashboard (design D, controls 3.6): every tile the tenant's OVERSIGHT policy shows,
@@ -29,8 +41,18 @@ function useSummary() {
 export function AccountabilityPage() {
   const { hasPermission } = useSession();
   const timeZone = useDisplayTimeZone();
-  const res = useSummary();
+  const [params, setParams] = useSearchParams();
+  const [from, setFrom] = useState(() => params.get('date_from') ?? '');
+  const [to, setTo] = useState(() => params.get('date_to') ?? '');
+  const backwards = isDay(from) && isDay(to) && from > to;
+  const res = useSummary(isDay(from) && !backwards ? from : '', isDay(to) && !backwards ? to : '');
   const data = res.data;
+  const syncPeriod = (key: string, value: string) => {
+    const next = new URLSearchParams(params);
+    if (isDay(value)) next.set(key, value);
+    else next.delete(key);
+    setParams(next, { replace: true });
+  };
   return (
     <>
       <PageHeader
@@ -51,12 +73,46 @@ export function AccountabilityPage() {
           </Button>
         }
       />
+      <Box className="mb-4">
+        <DashboardPeriod
+          from={from}
+          to={to}
+          onFrom={(v) => {
+            setFrom(v);
+            syncPeriod('date_from', v);
+          }}
+          onTo={(v) => {
+            setTo(v);
+            syncPeriod('date_to', v);
+          }}
+          onClear={() => {
+            setFrom('');
+            setTo('');
+            setParams({}, { replace: true });
+          }}
+        />
+        {backwards && (
+          <Alert severity="error" className="mt-2">
+            The start of the period is after its end.
+          </Alert>
+        )}
+      </Box>
       <AsyncContent
         resource={res}
         errorTitle="Could not load the accountability summary"
         loadingLabel="Loading accountability summary"
       >
-        {(d) => <AccountabilityTiles data={d} can={(p) => hasPermission(p)} />}
+        {(d) => (
+          <Box className="flex flex-col gap-6">
+            <ManagementDashboard data={d} />
+            <Box component="section" aria-label="Other controls" className="flex flex-col gap-3">
+              <Typography variant="h6" component="h2">
+                Other controls
+              </Typography>
+              <AccountabilityTiles data={d} can={(p) => hasPermission(p)} />
+            </Box>
+          </Box>
+        )}
       </AsyncContent>
     </>
   );

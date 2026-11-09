@@ -1,7 +1,7 @@
 import Add from '@mui/icons-material/Add';
 import { Alert, Box, Button, Stack } from '@mui/material';
 import { useCallback, useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { useNavigate, useParams, useSearchParams } from 'react-router';
 import type { CustomerDto } from '../../../api/types';
 import { ServerDataTable, type DataColumn } from '../../../components/data/ServerDataTable';
 import type { FetchPage } from '../../../components/data/useServerPage';
@@ -10,6 +10,7 @@ import { StaticSelectFilter } from '../../../components/forms/StaticSelectFilter
 import { RowActionsMenu } from '../../../components/lifecycle/RowActionsMenu';
 import { useDisplayTimeZone } from '../../../hooks/useDisplayTimeZone';
 import { recordPath, RECORD_LIST_ROUTES } from '../../../navigation/recordRoutes';
+import { initialFilter } from '../../../navigation/urlFilters';
 import { CustomerFilter } from '../shared/financePickers';
 import { PersonName } from '../shared/PersonName';
 import { RecordDetail } from '../shared/RecordDetail';
@@ -31,7 +32,10 @@ import {
 export function ProposalsPage<D extends ProposalRow>(config: ProposalConfig<D>) {
   const { noun, calls, kind } = config;
   const navigate = useNavigate();
-  const [status, setStatus] = useState('PROPOSED');
+  const [params] = useSearchParams();
+  const [status, setStatus] = useState(() =>
+    initialFilter(params, 'status', PROPOSAL_STATUS_OPTIONS, 'PROPOSED'),
+  );
   const [customer, setCustomer] = useState<CustomerDto | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const kit = useProposalKit(config, () => {
@@ -112,7 +116,7 @@ export function ProposalsPage<D extends ProposalRow>(config: ProposalConfig<D>) 
           columns={columns}
           fetchPage={fetchPage}
           getRowId={(d) => d.id}
-          searchable={false}
+          searchPlaceholder="Search customer or reason"
           reloadKey={reloadKey}
           filters={{ status: status === '' ? undefined : status, customer_id: customer?.id }}
           emptyTitle={`No ${noun}s`}

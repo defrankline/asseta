@@ -62764,6 +62764,22 @@
           },
           {
             "in": "query",
+            "name": "closure_proposed",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Closure Proposed"
+            }
+          },
+          {
+            "in": "query",
             "name": "page",
             "required": false,
             "schema": {

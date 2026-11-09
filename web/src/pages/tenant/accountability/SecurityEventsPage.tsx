@@ -1,7 +1,7 @@
 import { Box, Paper, TextField } from '@mui/material';
 import dayjs from 'dayjs';
 import { useCallback, useState } from 'react';
-import { useSearchParams } from 'react-router';
+import { useParams, useSearchParams } from 'react-router';
 import { accountabilityService } from '../../../api/services/accountabilityService';
 import type { SecurityEventDto, SecurityEventKind } from '../../../api/custodyTypes';
 import { ServerDataTable, type DataColumn } from '../../../components/data/ServerDataTable';
@@ -12,6 +12,8 @@ import { PageHeader } from '../../../components/feedback/PageHeader';
 import { StaticSelectFilter } from '../../../components/forms/StaticSelectFilter';
 import { DetailsDrawer } from '../../../components/lifecycle/DetailsDrawer';
 import { useDisplayTimeZone } from '../../../hooks/useDisplayTimeZone';
+import { useFocusedRecord } from '../shared/useFocusedRecord';
+import { FocusMissingAlert } from '../shared/FocusMissingAlert';
 import { initialFilter } from '../../../navigation/urlFilters';
 import { isIsoDate } from '../../../utils/dates';
 import { formatInstantIn } from '../../../utils/time';
@@ -49,6 +51,7 @@ const dayEnd = (d: string) =>
 export function SecurityEventsPage() {
   const timeZone = useDisplayTimeZone();
   const [params] = useSearchParams();
+  const { focusId } = useParams();
   const [kind, setKind] = useState(() => initialFilter(params, 'kind', KIND_OPTIONS, ''));
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
@@ -57,6 +60,7 @@ export function SecurityEventsPage() {
     (query, signal) => accountabilityService.securityEvents(query, signal),
     [],
   );
+  const focus = useFocusedRecord<SecurityEventDto>(fetchPage, focusId, setViewing);
   const columns: DataColumn<SecurityEventDto>[] = [
     { id: 'at', header: 'When', render: (e) => formatInstantIn(e.occurred_at, timeZone) },
     { id: 'kind', header: 'Kind', render: chip },
@@ -80,6 +84,7 @@ export function SecurityEventsPage() {
         title="Security events"
         subtitle="Attempts the system refused: a missing permission, or someone deciding their own record"
       />
+      <FocusMissingAlert missing={focus.missing} />
       <Paper variant="outlined" className="p-3">
         <ServerDataTable
           columns={columns}

@@ -1,5 +1,6 @@
 import { Alert, Box, Button, Paper, Tab, Tabs } from '@mui/material';
 import { useCallback, useState } from 'react';
+import { initialFilter } from '../../../navigation/urlFilters';
 import { useNavigate, useSearchParams } from 'react-router';
 import { revenueService } from '../../../api/services/revenueService';
 import type { MachineDto, NonRevenueActivityDto, NonRevenueApprovalDto } from '../../../api/types';
@@ -145,7 +146,10 @@ function ActivitiesTab({ timeZone }: { timeZone: string }) {
 
 function ApprovalsTab({ timeZone }: { timeZone: string }) {
   const navigate = useNavigate();
-  const [status, setStatus] = useState('PROPOSED');
+  const [urlParams] = useSearchParams();
+  const [status, setStatus] = useState(() =>
+    initialFilter(urlParams, 'status', APPROVAL_STATUS_OPTIONS, 'PROPOSED'),
+  );
   const [machine, setMachine] = useState<MachineDto | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const kit = useApprovalKit(() => {
@@ -241,7 +245,8 @@ function ApprovalsTab({ timeZone }: { timeZone: string }) {
 export function NonRevenuePage() {
   const timeZone = useDisplayTimeZone();
   const [params, setParams] = useSearchParams();
-  const tab: TabKey = params.get('tab') === 'approvals' ? 'approvals' : 'activities';
+  const tab: TabKey =
+    params.get('tab') === 'approvals' || params.has('status') ? 'approvals' : 'activities';
   return (
     <>
       <PageHeader

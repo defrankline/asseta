@@ -1,5 +1,8 @@
 import { Alert, Box, ToggleButton, ToggleButtonGroup } from '@mui/material';
 import { useCallback, useState, type ReactNode } from 'react';
+import { useParams, useSearchParams } from 'react-router';
+import { FocusMissingAlert } from '../shared/FocusMissingAlert';
+import { useFocusedRecord } from '../shared/useFocusedRecord';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import { useCanMutate } from '../../../access/useCanMutate';
 import { approvalService, expenseService } from '../../../api/services/expenseService';
@@ -35,7 +38,13 @@ export function ApprovalsPage() {
   const me = useMyUserId();
   const canDecide = useCanMutate(PERMISSIONS.tenantApprovalExpense);
   const canReadExpenses = useSession().hasPermission(PERMISSIONS.tenantExpenseRead);
-  const [view, setView] = useState<View>('PENDING');
+  const [urlParams] = useSearchParams();
+  const { focusId } = useParams();
+  const [view, setView] = useState<View>(() => {
+    if (focusId !== undefined) return 'ALL';
+    const s = urlParams.get('status');
+    return s === 'PENDING' || s === 'APPROVED' || s === 'REJECTED' ? s : 'PENDING';
+  });
   const [deciding, setDeciding] = useState<ApprovalRequestDto | null>(null);
   const [expense, setExpense] = useState<ExpenseDto | null>(null);
   const [loadError, setLoadError] = useState<ApiError | null>(null);
@@ -48,6 +57,11 @@ export function ApprovalsPage() {
     (query, signal) => approvalService.list(query, signal),
     [],
   );
+  const focus = useFocusedRecord<ApprovalRequestDto>(fetchPage, focusId, (a) => {
+    expenseService.get(a.subject_id).then(setExpense, (err: unknown) => {
+      setLoadError(toApiError(err));
+    });
+  });
   const mine = (a: ApprovalRequestDto) => a.requested_by !== null && a.requested_by === me;
   const openExpense = (a: ApprovalRequestDto) => {
     setLoadError(null);
@@ -173,6 +187,7 @@ export function ApprovalsPage() {
             Requests you submitted yourself cannot be approved by you (segregation of duties).
           </Alert>
         )}
+        <FocusMissingAlert missing={focus.missing} />
         {loadError !== null && <ErrorState error={loadError} title="Could not load the expense" />}
         <ServerDataTable
           columns={columns}

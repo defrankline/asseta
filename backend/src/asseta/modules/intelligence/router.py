@@ -120,8 +120,12 @@ def list_cases(
     subject_type: SubjectType | None = None,
     subject_id: uuid.UUID | None = None,
     machine_id: uuid.UUID | None = None,
+    closure_proposed: bool | None = None,
 ) -> Page[AnomalyCaseDto]:
     stmt = select(AnomalyCase).order_by(AnomalyCase.last_signal_at.desc(), AnomalyCase.id)
+    if closure_proposed is not None:
+        waiting = AnomalyCase.closure_proposed_by.is_not(None)
+        stmt = stmt.where(waiting if closure_proposed else AnomalyCase.closure_proposed_by.is_(None))
     filters = {
         AnomalyCase.status: status,
         AnomalyCase.severity: severity,

@@ -19,6 +19,7 @@ import { PersonName } from '../shared/PersonName';
 import type { ReadingMachine } from '../jobDetail/ConsoleCaptureDialog';
 import { ProposeBaselineDialog } from './BaselineDialogs';
 import { PROPOSAL_STATUS_OPTIONS } from './engineHoursDisplay';
+import { initialFilter } from '../../../navigation/urlFilters';
 import { baselineSource, machineOf, proposalChip, useBaselineKit } from './engineRecords';
 
 const NO_BASELINE_FILTER = { status: 'NO_BASELINE' };
@@ -93,7 +94,10 @@ export function MeterBaselinesPage() {
   const notify = useNotify();
   const timeZone = useDisplayTimeZone();
   const can = useMutationGuard();
-  const [status, setStatus] = useState('PROPOSED');
+  const [urlSearch] = useSearchParams();
+  const [status, setStatus] = useState(() =>
+    initialFilter(urlSearch, 'status', PROPOSAL_STATUS_OPTIONS, 'PROPOSED'),
+  );
   const [machine, setMachine] = useState<MachineDto | null>(null);
   const [proposing, setProposing] = useState<ReadingMachine | 'choose' | null>(null);
   const [params, setParams] = useSearchParams();

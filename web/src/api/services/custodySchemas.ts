@@ -329,6 +329,8 @@ export const syncConflictSchema: Schema<SyncConflictDto> = object({
     .defined(),
 });
 
+import { summarySectionFields } from './managementSchemas';
+
 const countAmountSchema: Schema<CountAmountDto> = object({
   currency: text(),
   count: int(),
@@ -337,6 +339,7 @@ const countAmountSchema: Schema<CountAmountDto> = object({
 const countAmounts = () => array(countAmountSchema).required();
 
 export const accountabilitySummarySchema: Schema<AccountabilitySummaryDto> = object({
+  ...summarySectionFields(),
   as_of: text(),
   policy_version: text(),
   hidden_tiles: array(text()).required(),
