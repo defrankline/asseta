@@ -13,6 +13,9 @@ enum class OwnerAction(val permission: String) {
     /** Confirm (verify) or dispute (reject) a cash handover a supervisor claimed. */
     DECIDE_HANDOVER("tenant.finance.verify"),
 
+    /** Confirm (verify) or reject a customer payment someone recorded. */
+    DECIDE_PAYMENT("tenant.finance.verify"),
+
     /** Record the review of a meter exception (EXPLAINED / CONFIRMED with a note). */
     REVIEW_EXCEPTION("tenant.meter.review"),
 

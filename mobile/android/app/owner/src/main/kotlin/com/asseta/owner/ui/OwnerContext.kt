@@ -67,6 +67,9 @@ data class OwnerFeatures(val permissions: Set<String>, val disabled: Set<String>
     val meterEvidence get() = "tenant.meter.read" in permissions
     val meterApprove get() = "tenant.meter.approve" in permissions
     val verifyHandovers get() = "tenant.finance.verify" in permissions
+
+    /** The "Payments to confirm" queue: the role can read customer payments and decide them. */
+    val confirmPayments get() = finance && verifyHandovers
     val issueFloats get() = "tenant.finance.cash" in permissions
     val reviewExceptions get() = "tenant.meter.review" in permissions
     val notifications get() = "tenant.notification.read" in permissions
@@ -120,7 +123,7 @@ data class OwnerFeatures(val permissions: Set<String>, val disabled: Set<String>
     val adjustmentPropose get() = "tenant.adjustment.propose" in permissions
 
     /** Approvals opens for expense approvers and for adjustment holders, who may hold no tenant.approval.* at all. */
-    val approvalsScreen get() = approvals || DecisionKind.visible(this).isNotEmpty() || revenueRead
+    val approvalsScreen get() = approvals || DecisionKind.visible(this).isNotEmpty() || revenueRead || confirmPayments
 
     /** One customer payment can be read (to mark a reversed one). */
     val paymentDetails get() = finance || adjustmentRead
@@ -157,6 +160,8 @@ data class OwnerFeatures(val permissions: Set<String>, val disabled: Set<String>
         // DEC-032 switches: a link to a hidden module opens the overview instead.
         OwnerDestination.Cases, is OwnerDestination.Case -> if (cases) d else OwnerDestination.Home
         is OwnerDestination.Alerts -> if (alerts) d else OwnerDestination.Home
+        // A link to a customer payment for a role that cannot read them: the inbox, where the notification already is.
+        is OwnerDestination.CustomerPayment -> if (finance) d else OwnerDestination.Notifications()
         else -> d
     }
     val custodyRead get() = finance || "tenant.collection.record" in permissions

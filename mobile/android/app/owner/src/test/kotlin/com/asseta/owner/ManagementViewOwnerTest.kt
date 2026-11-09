@@ -240,7 +240,7 @@ class ManagementViewOwnerTest {
         val lists = p.lists(employee)
         assertEquals(listOf(ManagementTexts.LIST_COLLECTIONS, ManagementTexts.LIST_REMITTANCES), lists.map { it.title })
         assertEquals(FigureTarget.App(OwnerDestination.Handover(id)), lists[1].rows.single().target)
-        assertEquals("https://example.test/tenant/customer-payments/$id", (lists[0].rows[0].target as FigureTarget.Web).url)
+        assertEquals(FigureTarget.App(OwnerDestination.CustomerPayment(id)), lists[0].rows[0].target)
         val cash = p.cash(employee.cashHeld.single())
         assertEquals("TZS 90,000.00", cash.value)
         assertEquals("Claimed TZS 5,000.00", cash.caption)

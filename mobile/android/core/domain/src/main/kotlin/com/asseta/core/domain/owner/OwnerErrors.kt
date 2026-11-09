@@ -18,6 +18,7 @@ object OwnerErrors {
         "DUPLICATE_JOB" -> DUPLICATE_JOB
         "MACHINE_BUSY" -> "This machine already has an approved or running job; complete or cancel that job first."
         "HANDOVER_ALREADY_DECIDED" -> HANDOVER_DECIDED
+        "PAYMENT_ALREADY_DECIDED" -> PAYMENT_DECIDED
         "ALREADY_REVIEWED" -> EXCEPTION_REVIEWED
         "NOT_CUSTODIAN" -> "Only office cash staff may record custody for someone else."
         "STAFF_INACTIVE" -> "The staff member is inactive."
@@ -39,15 +40,24 @@ object OwnerErrors {
         else -> message(code, serverMessage)
     }
 
+    /** Wording for a refused payment decision: segregation of duties is about who recorded the payment. */
+    fun paymentMessage(code: String?, serverMessage: String): String = when (code) {
+        "SEGREGATION_OF_DUTIES" -> PAYMENT_SEGREGATION
+        null -> serverMessage
+        else -> message(code, serverMessage)
+    }
+
     const val RESET_DECIDED = "This reset was already decided."
     const val PRICE_REQUIRED = "Set an hourly rate before approving this job."
     const val NO_RATE = "No rate card applies to this machine; choose Negotiated rate and enter a price."
     const val DUPLICATE_JOB = "That job number is already used."
     const val HANDOVER_DECIDED = "Someone already decided this handover. Reload to see it."
+    const val PAYMENT_DECIDED = "Someone already decided this payment. Reload to see it."
+    const val PAYMENT_SEGREGATION = "You recorded this payment, so someone else must confirm or reject it."
     const val EXCEPTION_REVIEWED = "Someone else has already reviewed this exception; reload the list."
     const val RESET_SEGREGATION = "You requested this reset, so someone else must decide it."
 
     /** Codes after which the shown list is out of date and must be reloaded. */
     fun needsReload(code: String): Boolean = code == "ALERT_CLOSED" || code == "APPROVAL_ALREADY_DECIDED" || code == "RESET_DECIDED" ||
-        code == "HANDOVER_ALREADY_DECIDED" || code == "ALREADY_REVIEWED"
+        code == "HANDOVER_ALREADY_DECIDED" || code == "PAYMENT_ALREADY_DECIDED" || code == "ALREADY_REVIEWED"
 }

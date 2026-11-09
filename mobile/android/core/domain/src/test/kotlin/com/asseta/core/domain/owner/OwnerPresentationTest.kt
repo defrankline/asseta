@@ -20,7 +20,7 @@ class DeepLinkRouterTest {
 
     @Test
     fun `console only targets open the inbox and bad ids are dropped`() {
-        assertEquals(OwnerDestination.Notifications(id), DeepLinkRouter.fromTarget("customer_payment", "x", "/tenant/customer-payments", id))
+        assertEquals(OwnerDestination.Notifications(id), DeepLinkRouter.fromTarget("tenant_user", "x", "/tenant/users", id))
         assertEquals(OwnerDestination.Jobs, DeepLinkRouter.fromTarget("job", "../../etc", null))
     }
 

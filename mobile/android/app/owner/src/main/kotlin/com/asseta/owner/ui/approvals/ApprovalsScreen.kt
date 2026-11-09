@@ -40,6 +40,7 @@ import com.asseta.core.domain.owner.OwnerAction
 import com.asseta.core.domain.owner.OwnerDestination
 import com.asseta.core.domain.owner.OwnerFormat
 import com.asseta.core.model.owner.ApprovalRequestDto
+import com.asseta.core.model.owner.CustomerPaymentDto
 import com.asseta.core.model.owner.ExpenseDto
 import com.asseta.core.model.owner.JobDto
 import com.asseta.core.model.owner.MeterResetDto
@@ -131,6 +132,7 @@ class ApprovalsViewModel private constructor(
     meterResets: Boolean,
     jobs: Boolean,
     handovers: Boolean,
+    payments: Boolean,
     exceptions: Boolean,
     decisions: List<DecisionKind>,
     revenueOpen: Boolean,
@@ -141,7 +143,7 @@ class ApprovalsViewModel private constructor(
      * [meterResets]: also list pending meter reset requests (`tenant.meter.read`); [jobs]: also list jobs waiting for
      * approval, e.g. requested from the field by a supervisor (`tenant.job.read`); [handovers]: cash handovers waiting
      * to be confirmed (`tenant.finance.read`); [exceptions]: open meter exceptions (`tenant.meter.read`), named by their
-     * job number when [jobs] is allowed.
+     * job number when [jobs] is allowed; [payments]: customer payments waiting to be confirmed (read and verify).
      */
     constructor(
         data: OwnerData,
@@ -149,12 +151,13 @@ class ApprovalsViewModel private constructor(
         meterResets: Boolean = false,
         jobs: Boolean = false,
         handovers: Boolean = false,
+        payments: Boolean = false,
         exceptions: Boolean = false,
         decisions: List<DecisionKind> = emptyList(),
         /** Also list revenue differences still to explain (explain or decide holders); otherwise only proposed ones. */
         revenueOpen: Boolean = true,
         expenseRequests: Boolean = true,
-    ) : this(data, MutableStateFlow(ApprovalText.DEFAULT_FILTER), refreshOn, meterResets, jobs, handovers, exceptions, decisions, revenueOpen, expenseRequests)
+    ) : this(data, MutableStateFlow(ApprovalText.DEFAULT_FILTER), refreshOn, meterResets, jobs, handovers, payments, exceptions, decisions, revenueOpen, expenseRequests)
 
     val status: StateFlow<String?> get() = selected
 
@@ -167,6 +170,9 @@ class ApprovalsViewModel private constructor(
     /** Cash handovers waiting to be confirmed, loaded independently (null when the role cannot read finance). */
     val claimedHandovers: Section<HandoverList>? = if (handovers) Section(viewModelScope) { data.handovers(HandoverText.CLAIMED) } else null
 
+    /** Customer payments waiting to be confirmed, loaded independently (null when the role cannot decide them). */
+    val claimedPayments: Section<PageDto<CustomerPaymentDto>>? = if (payments) Section(viewModelScope) { data.paymentsToConfirm() } else null
+
     /** Open meter exceptions, loaded independently (null when the role cannot read meter evidence). */
     val openExceptions: Section<ExceptionList>? = if (exceptions) Section(viewModelScope) { data.openExceptions(jobNumbers = jobs) } else null
 
@@ -177,7 +183,7 @@ class ApprovalsViewModel private constructor(
         }
     }
 
-    private val sections get() = listOfNotNull(resets, pendingJobs, claimedHandovers, openExceptions) + decisionSections.map { it.second }
+    private val sections get() = listOfNotNull(resets, pendingJobs, claimedHandovers, claimedPayments, openExceptions) + decisionSections.map { it.second }
 
     init {
         sections.forEach { it.refresh() }
@@ -234,6 +240,7 @@ fun ApprovalsScreen(vm: ApprovalsViewModel, onOpen: (OwnerDestination) -> Unit) 
     val resets = vm.resets?.state?.collectAsStateWithLifecycle()?.value
     val jobs = vm.pendingJobs?.state?.collectAsStateWithLifecycle()?.value
     val handovers = vm.claimedHandovers?.state?.collectAsStateWithLifecycle()?.value
+    val payments = vm.claimedPayments?.state?.collectAsStateWithLifecycle()?.value
     val exceptions = vm.openExceptions?.state?.collectAsStateWithLifecycle()?.value
     val decisions = vm.decisionSections.map { (kind, section) -> kind to section.state.collectAsStateWithLifecycle().value }
     Column(Modifier.fillMaxSize()) {
@@ -242,7 +249,7 @@ fun ApprovalsScreen(vm: ApprovalsViewModel, onOpen: (OwnerDestination) -> Unit) 
             val zone = ZoneId.systemDefault()
             val rows = buildList {
                 if (page.items.isEmpty() && vm.expenseRequests) add(GroupedItem("empty") { EmptyState(ApprovalText.EMPTY_TITLE, ApprovalText.EMPTY_MESSAGE, R.drawable.ic_approval) })
-                if (!vm.expenseRequests && listOf(resets, jobs, handovers, exceptions).all { it == null } && decisions.all { (_, st) -> st.data.orEmpty().none { it.pending } }) {
+                if (!vm.expenseRequests && listOf(resets, jobs, handovers, payments, exceptions).all { it == null } && decisions.all { (_, st) -> st.data.orEmpty().none { it.pending } }) {
                     add(GroupedItem("empty") { EmptyState(ApprovalText.EMPTY_TITLE, AdjustmentTexts.EMPTY, R.drawable.ic_approval) })
                 }
                 page.items.forEach { a ->
@@ -285,6 +292,14 @@ fun ApprovalsScreen(vm: ApprovalsViewModel, onOpen: (OwnerDestination) -> Unit) 
                     }
                 }
             }
+            // Customer payments someone recorded, waiting to be confirmed or rejected.
+            val paymentRows = payments?.let { p ->
+                sectionRows(p, PaymentReviewText.EMPTY) { page ->
+                    page.items.map { item ->
+                        GroupedItem(item.id.toString(), onClick = { onOpen(OwnerDestination.CustomerPayment(item.id.toString())) }) { PaymentRow(item, zone) }
+                    }
+                }
+            }
             // Open meter exceptions, each opening its review.
             val exceptionRows = exceptions?.let { x ->
                 sectionRows(x, ExceptionReviewText.EMPTY) { list ->
@@ -299,6 +314,7 @@ fun ApprovalsScreen(vm: ApprovalsViewModel, onOpen: (OwnerDestination) -> Unit) 
                 groupedSection("approvals", rows)
                 jobRows?.let { groupedSection("jobs", it, header = JobApprovalText.SECTION) }
                 handoverRows?.let { groupedSection("handovers", it, header = HandoverText.SECTION) }
+                paymentRows?.let { groupedSection("payments", it, header = PaymentReviewText.SECTION) }
                 exceptionRows?.let { groupedSection("exceptions", it, header = ExceptionReviewText.SECTION) }
                 resetRows?.let { groupedSection("resets", it, header = MeterResetText.SECTION) }
                 // Accountability sections appear only when something waits (a capability the company does not use

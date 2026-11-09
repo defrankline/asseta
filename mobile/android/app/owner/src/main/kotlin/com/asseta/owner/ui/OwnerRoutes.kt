@@ -41,6 +41,8 @@ import com.asseta.owner.ui.approvals.ApprovalsScreen
 import com.asseta.owner.ui.approvals.ApprovalsViewModel
 import com.asseta.owner.ui.approvals.MeterResetScreen
 import com.asseta.owner.ui.approvals.MeterResetViewModel
+import com.asseta.owner.ui.approvals.PaymentReviewScreen
+import com.asseta.owner.ui.approvals.PaymentReviewViewModel
 import com.asseta.owner.ui.cash.CashScreen
 import com.asseta.owner.ui.cash.CashViewModel
 import com.asseta.owner.ui.cash.HandoverScreen
@@ -144,8 +146,9 @@ fun OwnerRoutes(
                 val vm: ApprovalsViewModel = viewModel(key = "approvals-$t") {
                     ApprovalsViewModel(
                         data,
-                        graph.refreshTriggers("approval", "expense", "meter_reset", "job", "cash_handover", "meter_exception", "exception", *ACCOUNTABILITY_ENTITIES),
+                        graph.refreshTriggers("approval", "expense", "meter_reset", "job", "cash_handover", "customer_payment", "meter_exception", "exception", *ACCOUNTABILITY_ENTITIES),
                         meterResets = features.meterEvidence, jobs = features.jobs, handovers = features.finance, exceptions = features.meterEvidence,
+                        payments = features.confirmPayments,
                         decisions = DecisionKind.visible(features),
                         revenueOpen = features.revenueExplain || features.revenueDecide,
                         expenseRequests = features.approvals,
@@ -172,6 +175,10 @@ fun OwnerRoutes(
                 ExceptionDetailViewModel(data, route.exceptionId, graph.refreshTriggers("meter_exception", "exception"))
             }
             ExceptionDetailScreen(vm, session, online, open)
+        }
+        is OwnerDestination.CustomerPayment -> {
+            val vm: PaymentReviewViewModel = viewModel(key = "payment-$t-${route.paymentId}") { PaymentReviewViewModel(data, route.paymentId, graph.refreshTriggers("customer_payment")) }
+            PaymentReviewScreen(vm, session, online, open)
         }
         is OwnerDestination.Handover -> {
             val vm: HandoverViewModel = viewModel(key = "handover-$t-${route.handoverId}") { HandoverViewModel(data, route.handoverId, graph.refreshTriggers("cash_handover")) }

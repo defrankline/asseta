@@ -26,6 +26,8 @@ import com.asseta.core.model.owner.MeterResetDecisionIn
 import com.asseta.core.model.owner.MeterResetDto
 import com.asseta.core.model.owner.NotificationDto
 import com.asseta.core.model.owner.PageDto
+import com.asseta.core.model.owner.CustomerPaymentDto
+import com.asseta.core.model.owner.PaymentReview
 import com.asseta.core.model.owner.SettlementDecisionIn
 import com.asseta.core.model.owner.TenantOverviewDto
 import com.asseta.core.model.owner.AccountabilitySummaryDto
@@ -176,6 +178,22 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
                     .associate { it.staffMemberId.toString() to it.staffName }
             }
             HandoverList(items, names)
+        }
+
+    /** Customer payments waiting to be confirmed (CLAIMED), newest first. */
+    suspend fun paymentsToConfirm(): Load<PageDto<CustomerPaymentDto>> =
+        repo.load(tenantId, "payments:CLAIMED", PageDto.serializer(CustomerPaymentDto.serializer())) { customerPayments(status = "CLAIMED", pageSize = LIST_PAGE) }
+
+    /** One payment by id, with its evidence photos and the invoice numbers (both read beside it; never fails the payment). */
+    suspend fun paymentReview(id: String): Load<PaymentReview> =
+        repo.load(tenantId, "payment:$id", PaymentReview.serializer()) {
+            val payment = customerPaymentDetail(id)
+            val evidence = runCatching { paymentEvidence(id).map { it.attachmentId } }
+                .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
+            val invoices = payment.allocations.filter { it.releasedAt == null }.map { it.invoiceId.toString() }.distinct().mapNotNull { invoice ->
+                runCatching { invoiceNumber(invoice).invoiceNumber }.getOrNull()?.takeIf { it.isNotBlank() }?.let { invoice to it }
+            }.toMap()
+            PaymentReview(payment, evidence.getOrDefault(emptyList()), evidence.isFailure, invoices)
         }
 
     /** Open exceptions for the Approvals section; [jobNumbers]: also look up their jobs' numbers (`tenant.job.read`). */
@@ -511,6 +529,10 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
             decideCashHandover(id, SettlementDecisionIn(verified, note?.trim()?.takeIf { it.isNotEmpty() }, amountReceived?.takeIf { verified }))
         }
 
+    /** Confirm ([verified]) or reject a claimed customer payment; a rejection carries the reason. */
+    suspend fun decidePayment(id: String, verified: Boolean, note: String?) =
+        repo.act { decideCustomerPayment(id, SettlementDecisionIn(verified, note?.trim()?.takeIf { it.isNotEmpty() })) }
+
     /** Record the review of a meter exception: [outcome] EXPLAINED or CONFIRMED, with the review note. */
     suspend fun reviewException(id: String, outcome: String, note: String) =
         repo.act { reviewException(id, MeterResetDecisionIn(outcome, note.trim())) }
@@ -540,6 +562,7 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
     suspend fun attachmentUrl(attachmentId: String) = repo.act { attachmentUrl(attachmentId) }
     suspend fun receiptUrl(expenseId: String, attachmentId: String) = repo.act { receiptUrl(expenseId, attachmentId) }
     suspend fun remittanceEvidenceUrl(handoverId: String, attachmentId: String) = repo.act { remittanceEvidenceUrl(handoverId, attachmentId) }
+    suspend fun paymentEvidenceUrl(paymentId: String, attachmentId: String) = repo.act { paymentEvidenceUrl(paymentId, attachmentId) }
     suspend fun expense(id: String) = repo.act { expense(id) }
     suspend fun notification(id: String) = repo.act { notification(id) }
     suspend fun markRead(ids: List<String>) = repo.act { markRead(com.asseta.core.model.owner.NotificationMarkReadIn(ids)) }

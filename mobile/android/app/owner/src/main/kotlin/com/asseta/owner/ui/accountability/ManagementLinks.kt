@@ -35,7 +35,7 @@ object ManagementLinks {
         if (path.firstOrNull() != "tenant") return null
         val rest = path.drop(1)
         val employee = rest.size == 3 && rest[0] == "staff" && rest[2] == "accountability"
-        val d = if (employee || rest.lastOrNull()?.let(UUID::matches) == true) record(route) else list(rest.joinToString("/"), query(route))
+        val d = if (employee || rest.lastOrNull()?.let(UUID::matches) == true) record(route) else list(rest.joinToString("/"), query(route), f)
         return d?.takeIf { allowed(it, f) && f.route(it) == it }
     }
 
@@ -46,6 +46,7 @@ object ManagementLinks {
         is OwnerDestination.Machine, is OwnerDestination.Case, is OwnerDestination.Job, is OwnerDestination.MeterReset, is OwnerDestination.MeterException,
         is OwnerDestination.Handover, is OwnerDestination.Decision, is OwnerDestination.CashRecord, is OwnerDestination.SheetDay,
         is OwnerDestination.HoursPurchase, is OwnerDestination.ScorecardPerson, is OwnerDestination.EmployeeAccountability,
+        is OwnerDestination.CustomerPayment,
         -> true
         is OwnerDestination.Alerts -> d.alertId != null
         is OwnerDestination.Approvals -> d.approvalId != null
@@ -54,7 +55,7 @@ object ManagementLinks {
         else -> false
     }
 
-    private fun list(key: String, q: Map<String, String>): OwnerDestination? {
+    private fun list(key: String, q: Map<String, String>, f: OwnerFeatures): OwnerDestination? {
         val status = q["status"]
         return when {
             key == "hours/balances" -> q["customer_id"]?.takeIf(UUID::matches)?.let { OwnerDestination.HoursStatement(it) } ?: OwnerDestination.CustomerHours
@@ -67,6 +68,7 @@ object ManagementLinks {
             key == "daily-reports" -> OwnerDestination.Approvals().takeIf { status == "SUBMITTED" }
             key == "jobs" -> OwnerDestination.Approvals().takeIf { status == "PENDING_APPROVAL" }
             key == "finance/cash/variances" -> OwnerDestination.Approvals().takeIf { status in WAITING_VARIANCES }
+            key == "customer-payments" -> OwnerDestination.Approvals().takeIf { status == "CLAIMED" && f.confirmPayments }
             key == "finance/cash/remittances" -> OwnerDestination.Approvals().takeIf { status == "CLAIMED" || q["partial_reason_pending"] == "true" }
             key in APPROVAL_LISTS -> OwnerDestination.Approvals().takeIf { status == null || status in WAITING }
             else -> null
@@ -76,7 +78,7 @@ object ManagementLinks {
     private fun allowed(d: OwnerDestination, f: OwnerFeatures): Boolean = when (d) {
         is OwnerDestination.Approvals -> if (d.approvalId != null) f.approvals else f.approvalsScreen
         is OwnerDestination.Decision -> DecisionKind.of(d.kind)?.visibleTo(f) == true
-        is OwnerDestination.Handover, is OwnerDestination.CashRecord, OwnerDestination.Cash -> f.finance
+        is OwnerDestination.Handover, is OwnerDestination.CashRecord, OwnerDestination.Cash, is OwnerDestination.CustomerPayment -> f.finance
         is OwnerDestination.RemittanceOverdue -> f.finance && f.cashCustody
         OwnerDestination.CustomerHours, is OwnerDestination.HoursPurchase, is OwnerDestination.HoursStatement -> f.customerHours
         is OwnerDestination.Exceptions, is OwnerDestination.MeterException, is OwnerDestination.MeterReset -> f.meterEvidence

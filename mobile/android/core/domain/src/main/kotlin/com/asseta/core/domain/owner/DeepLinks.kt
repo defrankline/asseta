@@ -18,6 +18,8 @@ sealed interface OwnerDestination {
     data class MeterException(val exceptionId: String) : OwnerDestination
     /** One cash handover a supervisor claimed, with confirm received / dispute. */
     data class Handover(val handoverId: String) : OwnerDestination
+    /** One customer payment, with confirm / reject while it waits (CUSTOMER_PAYMENT_TO_VERIFY). */
+    data class CustomerPayment(val paymentId: String) : OwnerDestination
     /** Expenses and fuel recorded in the field. */
     data object FieldSpend : OwnerDestination
     /** Cash held by each supervisor over a period. */
@@ -201,7 +203,7 @@ data class DeepLink(val destination: OwnerDestination, val tenantId: String?, va
 
 /**
  * Maps notification targets (`{"entity","id","path"}`) and push data (`notification_id`, `type`, `tenant_id`, `link`)
- * to owner destinations. Anything the Owner app does not show (customer payments, cash handovers, access...) opens
+ * to owner destinations. Anything the Owner app does not show (access, billing...) opens
  * the notification inbox instead of a console-only screen. Ids are accepted only in canonical UUID form.
  */
 object DeepLinkRouter {
@@ -239,6 +241,7 @@ object DeepLinkRouter {
             "job_exception" -> target?.let { OwnerDestination.MeterException(it) } ?: OwnerDestination.Exceptions()
             // PARTIAL_REMITTANCE: the remittance (cash handover).
             "cash_handover" -> target?.let { OwnerDestination.Handover(it) } ?: OwnerDestination.Approvals()
+            "customer_payment" -> target?.let { OwnerDestination.CustomerPayment(it) } ?: OwnerDestination.Approvals()
             "cash_transfer" -> target?.let { OwnerDestination.CashRecord(RecordKinds.CASH_TRANSFER, it) } ?: OwnerDestination.Cash
             "supervisor_cash_custody" -> target?.let { OwnerDestination.CashRecord(RecordKinds.CASH_FLOAT, it) } ?: OwnerDestination.Cash
             "cash_remittance_overdue" -> OwnerDestination.RemittanceOverdue(target)
@@ -257,6 +260,7 @@ object DeepLinkRouter {
             "alerts" -> OwnerDestination.Alerts(second)
             "approvals" -> OwnerDestination.Approvals(second)
             "meter-resets" -> second?.let { OwnerDestination.MeterReset(it) } ?: OwnerDestination.Approvals()
+            "customer-payments" -> second?.let { OwnerDestination.CustomerPayment(it) } ?: OwnerDestination.Approvals()
             "exceptions" -> OwnerDestination.Exceptions()
             "jobs" -> second?.let { OwnerDestination.Job(it) } ?: OwnerDestination.Jobs
             "cases" -> second?.let { OwnerDestination.Case(it) } ?: OwnerDestination.Cases
@@ -326,12 +330,14 @@ object DeepLinkRouter {
 
     /**
      * Push data map from FCM (`notification_id`, `type`, `severity`, `tenant_id`, `link`, and for a record `entity`,
-     * `entity_id`, `kind`, `record_id`). The exact record wins over the link. Null when not ours.
+     * `entity_id`, `kind`, `record_id`). The exact record wins over the link (a customer payment is named by its entity:
+     * its link is the list). Null when not ours.
      */
     fun fromPush(data: Map<String, String?>): DeepLink? {
         val notificationId = id(data["notification_id"])
         val link = data["link"]
-        val record = RecordKinds.destination(data["kind"], id(data["record_id"]))
+        val payment = id(data["entity_id"])?.takeIf { data["entity"] == "customer_payment" }?.let { OwnerDestination.CustomerPayment(it) }
+        val record = RecordKinds.destination(data["kind"], id(data["record_id"])) ?: payment
         if (notificationId == null && link.isNullOrBlank() && record == null) return null
         val destination = record ?: fromPath(link) ?: OwnerDestination.Notifications(notificationId)
         return DeepLink(destination, id(data["tenant_id"]), notificationId)

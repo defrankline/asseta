@@ -2020,7 +2020,6 @@ Deep links: the notification `CUSTOMER_PAYMENT_TO_VERIFY` (entity `customer_paym
 | owner.payments.empty | No customer payments waiting. |
 | owner.payments.screenTitle | Customer payment |
 | owner.payments.card | Payment |
-| owner.payments.notFound | Payment not found |
 | owner.payments.customerFallback | A customer |
 | owner.payments.headline | {customer} paid {amount} |
 | owner.payments.received | Received {date} |

@@ -781,4 +781,32 @@ interface TenantApi {
     /** getCustomerPayment (tenant.finance.read or tenant.adjustment.read): read here only to mark a reversed payment. */
     @GET("api/v1/tenant/customer-payments/{id}")
     suspend fun customerPayment(@Path("id") id: String): com.asseta.core.model.owner.PaymentReversalDto
+
+    /** listCustomerPayments (newest first); [status] CLAIMED, VERIFIED or REJECTED. */
+    @GET("api/v1/tenant/customer-payments")
+    suspend fun customerPayments(
+        @Query("status") status: String? = null,
+        @Query("page") page: Int = 1,
+        @Query("page_size") pageSize: Int = 50,
+    ): PageDto<com.asseta.core.model.owner.CustomerPaymentDto>
+
+    /** getCustomerPayment in full, for reviewing one payment. */
+    @GET("api/v1/tenant/customer-payments/{id}")
+    suspend fun customerPaymentDetail(@Path("id") id: String): com.asseta.core.model.owner.CustomerPaymentDto
+
+    /** decideCustomerPayment (needs tenant.finance.verify; the recorder cannot decide it). */
+    @POST("api/v1/tenant/customer-payments/{id}/decision")
+    suspend fun decideCustomerPayment(@Path("id") id: String, @Body body: SettlementDecisionIn): com.asseta.core.model.owner.CustomerPaymentDto
+
+    /** listPaymentEvidence: the photos attached to a payment. */
+    @GET("api/v1/tenant/customer-payments/{id}/evidence")
+    suspend fun paymentEvidence(@Path("id") id: String): List<com.asseta.core.model.owner.PaymentEvidenceDto>
+
+    /** getPaymentEvidenceUrl: one evidence photo (on demand only). */
+    @GET("api/v1/tenant/customer-payments/{id}/evidence/{attachmentId}/url")
+    suspend fun paymentEvidenceUrl(@Path("id") id: String, @Path("attachmentId") attachmentId: String): PhotoUrlDto
+
+    /** getHireInvoice, read here only for the invoice number beside a payment. */
+    @GET("api/v1/tenant/hire-invoices/{id}")
+    suspend fun invoiceNumber(@Path("id") id: String): com.asseta.core.model.owner.InvoiceNumberDto
 }
