@@ -103,6 +103,28 @@ describe('Data export', () => {
   });
 });
 
+describe('Data export on a read-only subscription', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    m.listExports.mockResolvedValue(page([exportRow]));
+  });
+
+  it('still offers the export request and the download', async () => {
+    m.requestExport.mockResolvedValue({ ...exportRow, id: 'e2', status: 'QUEUED' });
+    m.downloadLink.mockResolvedValue({ url: 'about:blank', expires_in_seconds: 300 });
+    renderWithProviders(<DataExportPage />, {
+      tenantPermissions: [P.tenantDataExport],
+      accessState: 'READ_ONLY',
+    });
+    await userEvent.click(await screen.findByRole('button', { name: 'Download' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Request export' }));
+    await waitFor(() => {
+      expect(m.downloadLink).toHaveBeenCalledWith('e1');
+      expect(m.requestExport).toHaveBeenCalledWith('CSV');
+    });
+  });
+});
+
 describe('Balance verification', () => {
   beforeEach(() => {
     vi.clearAllMocks();

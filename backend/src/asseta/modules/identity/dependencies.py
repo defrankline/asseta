@@ -83,7 +83,7 @@ def _context(
     session: Session,
     x_tenant_id: str | None,
     scope: PermissionScope,
-    quarantine_when_read_only: bool,
+    runs_when_read_only: bool,
 ) -> RequestContext:
     repo = IdentityRepository(session)
     user = repo.upsert_user_from_claims(claims)
@@ -107,7 +107,7 @@ def _context(
     if access is None or access is TenantAccessState.BLOCKED:
         raise PermissionDenied("Tenant access is blocked", code="TENANT_ACCESS_BLOCKED")
     read_only = access is TenantAccessState.READ_ONLY
-    if read_only and request.method not in READ_METHODS and not quarantine_when_read_only:
+    if read_only and request.method not in READ_METHODS and not runs_when_read_only:
         raise PermissionDenied("Subscription allows read-only access", code="SUBSCRIPTION_READ_ONLY")
     permissions = repo.permissions_for_groups(group_paths)
     return RequestContext(
@@ -143,12 +143,18 @@ def _bind(session: Session, ctx: RequestContext) -> RequestContext:
 
 
 def requires(
-    code: str, scope: PermissionScope, description: str, quarantine_when_read_only: bool = False
+    code: str,
+    scope: PermissionScope,
+    description: str,
+    quarantine_when_read_only: bool = False,
+    read_only_exempt: bool = False,
 ) -> Callable[..., RequestContext]:
     """Declare a route permission (registered in the catalog at import time) and enforce it.
 
     `quarantine_when_read_only` lets a write route (offline sync push) run for READ_ONLY tenants so the handler can
     *quarantine* writes instead of losing them; `RequestContext.read_only` tells it to do so.
+    `read_only_exempt` lets a write route really run for a READ_ONLY tenant. Only for what guideline 9 keeps open
+    (the company's access to its own data); such a route audits that it ran under `read_only`. BLOCKED still refuses.
     """
     CATALOG.register(code, scope, description)
 
@@ -158,7 +164,7 @@ def requires(
         session: Annotated[Session, Depends(get_session)],
         x_tenant_id: Annotated[str | None, Header()] = None,
     ) -> RequestContext:
-        ctx = _context(request, claims, session, x_tenant_id, scope, quarantine_when_read_only)
+        ctx = _context(request, claims, session, x_tenant_id, scope, quarantine_when_read_only or read_only_exempt)
         if code not in ctx.permissions:
             _refused(request, ctx, code)
             raise PermissionDenied(f"Missing permission {code}")

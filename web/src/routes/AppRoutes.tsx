@@ -75,6 +75,7 @@ import {
   DashboardPage,
   SetupChecklistPage,
   DataExportPage,
+  DevicesPage,
   BalanceVerificationPage,
   PlatformBalanceVerificationPage,
   AccountabilityPage,
@@ -243,6 +244,10 @@ export function AppRoutes() {
         <Route
           path={ROUTES.tenantDataExport}
           element={guard(PERMISSIONS.tenantDataExport, <DataExportPage />)}
+        />
+        <Route
+          path={ROUTES.tenantDevices}
+          element={guard(PERMISSIONS.tenantDeviceManage, <DevicesPage />)}
         />
         <Route
           path={ROUTES.tenantBalanceVerification}

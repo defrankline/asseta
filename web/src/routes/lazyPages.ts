@@ -309,6 +309,11 @@ export const DataExportPage = lazy(() =>
     default: m.DataExportPage,
   })),
 );
+export const DevicesPage = lazy(() =>
+  import('../pages/tenant/devices/DevicesPage').then((m) => ({
+    default: m.DevicesPage,
+  })),
+);
 export const BalanceVerificationPage = lazy(() =>
   import('../pages/tenant/dataProtection/BalanceVerificationPage').then((m) => ({
     default: m.BalanceVerificationPage,

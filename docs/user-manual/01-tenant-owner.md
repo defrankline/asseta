@@ -53,7 +53,7 @@ Everything any other role can do, plus the tasks reserved for owners by default:
 - **Correct the records**: the [adjustments ledger](#37-adjustments-ledger-and-requests), customer-hour corrections, refunds, reversals and invoice voids.
 - **Investigate**: [Employee accountability](#42-employee-accountability), [Find a reference](#43-find-a-reference), and the four groups of the [Accountability dashboard](#14-accountability-dashboard).
 - **Decide who approves**: only the owner can give someone a role that approves things, or take one away ([Task 9](#9-users-and-roles)).
-- **Protect your data**: [Data export and Balance verification](#45-data-export-and-balance-verification).
+- **Protect your data**: [Data export and Balance verification](#45-data-export-and-balance-verification), and [Devices](#47-devices-lost-phones) for lost phones.
 
 By default the owner role holds every permission, so you can also make every decision described in the other chapters (hours discounts, credit, transfers, cancellations, write-offs, retentions, custody adjustments). Your company can give any of these permissions to other roles; the person who proposed something can never decide it.
 
@@ -71,7 +71,7 @@ By default the owner role holds every permission, so you can also make every dec
 | Engine hours | Reconciliation, Hours to explain, Hour explanations, Meter baselines, Reading corrections, Engine-hour reasons, Work allocations, Daily reports, Non-revenue hours, Daily machine sheet |
 | Finance | Hire finance, Cash custody, Expenses & fuel, Expense approvals, Deposit accounts, Adjustments ledger, Revenue differences, Revenue reasons, Unbilled work, Profitability |
 | Risk & review | Exceptions, Meter resets, Investigations, Insights, Security events, Sync conflicts |
-| Administration | Policies, Users & roles, Audit log, Data export, Balance verification, Subscription, Managed service, Notifications, My access |
+| Administration | Policies, Users & roles, Devices, Audit log, Data export, Balance verification, Subscription, Managed service, Notifications, My access |
 
 When a control is switched off in your policies, its menus are left out. For example, with **Customer hours switched on** set to No, the whole **Customer hours** group and **Field work → Customer hours** disappear. Opening such a page by its address shows "Customer hours is not enabled for your company". **Engine-hour controls switched on** works the same way for the **Engine hours** group. With **Cash custody controls switched on** set to No, **Finance → Cash custody** stays (custodians, custody, floats, remittances and reconciliation), but its Transfers, Overdue remittances, Variances, Retentions, Adjustments and Reason lists tabs disappear. With **Revenue checks switched on** set to No, **Engine hours → Non-revenue hours**, **Engine hours → Daily machine sheet**, **Finance → Revenue differences** and **Finance → Revenue reasons** disappear. Because the first two sit in the **Engine hours** group, they also need **Engine-hour controls switched on**. The **Oversight** policy works the same way: **Overview → People scorecard** appears only with **People scorecard** switched on, **Finance → Unbilled work** only when **Completed work not invoiced after** is set, **Fleet → Idle machines** only when **Machine idle after** is set, and **Operations → Site check-ins** and **Field work → Site check-in** only with **Supervisors check in at the site** switched on. **Engine hours → Work allocations** and **Daily reports** follow **Engine-hour controls switched on**. The five optional modules can each be switched off too ([Task 44](#44-five-per-company-switches)).
 
@@ -85,7 +85,13 @@ The top bar has:
 - A light/dark mode toggle.
 - **Sign out**.
 
-### The Asseta Owner app
+#### 47. Devices (lost phones)
+
+**Administration → Devices** ("Phones signed in to the Supervisor app, and revoking a lost one") needs the permission to view and revoke field devices. The owner and the Administrator role have it. Each row shows the **Person**, the **App**, the **Phone** (or "Model not known"), **Last seen** ("Never synced" if it has not) and the **Status**. Search by person, phone or version.
+
+To revoke a lost or stolen phone, click **Revoke** on its row, enter a **Reason for revoking** and click **Revoke phone**. The dialog warns: "Any unsent work on this phone will be erased." That happens the next time the phone connects, and it cannot be recovered. Records already synced are not affected. The phone can no longer sync or be registered again. The revocation is shown on the row with who did it and why, and is recorded in the audit log. Revoking is not available while the company is read-only.
+
+## The Asseta Owner app
 
 | Tab | What it holds |
 |---|---|
@@ -488,7 +494,7 @@ SMS uses credits from your **SMS wallet**, which is shown on the **Subscription*
 
 Pricing is agreed with the Platform Owner and is read-only here.
 
-If a payment is overdue, your account may become **read-only**. A banner says: "…is read-only. You can view data, but changes are disabled until the subscription is restored." **Your data is never deleted.** Field work recorded offline during that time is held and applied after reactivation.
+If a payment is overdue, your account may become **read-only**. A banner says: "…is read-only. You can view data and take a data export, but other changes are disabled until the subscription is restored." You can still request and download a **Data export** ([Task 45](#45-data-export-and-balance-verification)). **Your data is never deleted.** Field work recorded offline during that time is held and applied after reactivation.
 
 ### 12. Managed service
 
@@ -1310,7 +1316,7 @@ It has a blocking exception or a missing reading. Open the job: "N blocking bill
 Segregation of duties. Another approver must decide.
 
 **A supervisor lost their phone.**
-Unsent records on that phone cannot be recovered. Contact the Platform Owner to revoke the device so its local data is wiped and it can no longer sync. Then have the supervisor sign in on a new phone.
+Unsent records on that phone cannot be recovered. Revoke the phone under **Administration → Devices** so its local data is erased and it can no longer sync ([Task 47](#47-devices-lost-phones)). Then have the supervisor sign in on a new phone. If the phone may be found, try to sync it first: revoking erases anything it has not sent.
 
 **The console says the company is read-only.**
 Your Asseta subscription is past due or suspended. Pay the open Asseta invoice (**Subscription → Invoices**) or contact the Platform Owner. Access returns when the payment is verified.

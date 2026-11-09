@@ -565,4 +565,4 @@ You opened it, proposed its closure or are a party to it, or your company requir
 The server held it for review because something changed while the phone was offline. Nothing was lost and nothing was applied.
 
 **The page says the company is read-only.**
-Your company's Asseta subscription is restricted. You can view everything but cannot make changes. Contact your account owner.
+Your company's Asseta subscription is restricted. You can view everything but cannot make changes. Someone with the data export permission can still take a data export. Contact your account owner.

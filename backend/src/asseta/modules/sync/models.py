@@ -54,6 +54,7 @@ class DeviceSession(UuidPk, Base):
     device_id: Mapped[str] = mapped_column(String(128), nullable=False)
     platform: Mapped[str] = mapped_column(String(16), nullable=False)  # ANDROID | IOS
     app_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    device_model: Mapped[str | None] = mapped_column(String(100))  # as reported by the app; null when not sent
     status: Mapped[DeviceStatus] = mapped_column(_enum(DeviceStatus), nullable=False)
     registered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
     last_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

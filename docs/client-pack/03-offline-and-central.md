@@ -48,7 +48,7 @@ These are done in the web console or, where shown, the Owner app. Nothing in thi
 | Approve, price or decline a job | Yes | Yes |
 | Create a job | Yes | Yes |
 | Confirm a remittance (amount actually received) | Yes | Yes |
-| Confirm or reject a customer payment | Yes | No |
+| Confirm or reject a customer payment | Yes | Yes |
 | Record a customer payment received at the office or bank | Yes | No |
 | Activate hours on credit | Yes | No |
 | Issue a cash float | Yes | Yes |
@@ -65,6 +65,7 @@ These are done in the web console or, where shown, the Owner app. Nothing in thi
 | Change rate cards, policies, reason lists and deposit accounts | Yes | No |
 | Manage users and roles | Yes | No |
 | Data export, balance verification | Yes | No |
+| Revoke a lost phone | Yes | No |
 | Find a reference | Yes | Yes |
 
 ## How long a phone can work offline

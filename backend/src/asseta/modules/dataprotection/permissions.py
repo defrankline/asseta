@@ -5,7 +5,11 @@ from asseta.modules.identity.catalog import CATALOG, MenuDef
 from asseta.modules.identity.catalog import PermissionScope as S
 from asseta.modules.identity.dependencies import requires
 
-DATA_EXPORT = requires("tenant.data.export", S.TENANT, "Export all of the company's data and fetch its evidence files")
+_DATA_EXPORT_TEXT = "Export all of the company's data and fetch its evidence files"
+DATA_EXPORT = requires("tenant.data.export", S.TENANT, _DATA_EXPORT_TEXT)
+# Guideline 9: a company on a read-only subscription keeps access to its data. Exactly two writes use this guard:
+# requesting an export and requesting its download link. Every other write stays refused.
+DATA_EXPORT_READ_ONLY_EXEMPT = requires("tenant.data.export", S.TENANT, _DATA_EXPORT_TEXT, read_only_exempt=True)
 BALANCE_READ = requires("tenant.balance.read", S.TENANT, "View balance verification results")
 BALANCE_VERIFY = requires("tenant.balance.verify", S.TENANT, "Run balance verification on the company's records")
 PLATFORM_BALANCE_READ = requires(

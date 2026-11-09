@@ -12,7 +12,7 @@ from typing import Any
 from sqlalchemy import and_, or_, select, text
 from sqlalchemy.orm import Session
 
-from asseta.core.errors import AppError, ErrorDetail, NotFound, PermissionDenied
+from asseta.core.errors import AppError, Conflict, ErrorDetail, NotFound, PermissionDenied
 from asseta.modules.expenses.dto import ExpenseCategoryDto
 from asseta.modules.expenses.models import ExpenseCategory
 from asseta.modules.finance.cash_service import CashCustodyService
@@ -99,6 +99,7 @@ class SyncService:
                 body.platform,
                 grant,
             )
+            existing.device_model = body.device_model or existing.device_model
             self._s.flush()
             return existing
         session = DeviceSession(
@@ -108,6 +109,7 @@ class SyncService:
             device_id=body.device_id,
             platform=body.platform,
             app_version=body.app_version,
+            device_model=body.device_model,
             status=DeviceStatus.ACTIVE,
             offline_grant_until=grant,
         )
@@ -442,6 +444,8 @@ class SyncService:
         row = self._s.get(DeviceSession, device_session_id)
         if row is None:
             raise NotFound("Device session not found")
+        if row.status is DeviceStatus.REVOKED:
+            raise Conflict("This device is already revoked", code="DEVICE_ALREADY_REVOKED")
         row.status, row.revoked_at, row.revoked_by, row.revoke_reason = (
             DeviceStatus.REVOKED,
             self._now,

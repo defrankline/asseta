@@ -207,7 +207,7 @@ def test_conflict_rejection_quarantine_and_revocation(api: Api) -> None:
     assert bad["status"] == "REJECTED" and bad["error"]["code"] == "VALIDATION_FAILED"
 
     # Lost phone: owner revokes; the device is told to wipe and can no longer sync or re-register.
-    dev = c.owner.get("/api/v1/tenant/devices").json()[0]
+    dev = c.owner.get("/api/v1/tenant/devices").json()["items"][0]
     c.owner.post(f"/api/v1/tenant/devices/{dev['id']}/revoke", {"reason": "Phone reported stolen"})
     r = api.client.get("/api/v1/sync/bootstrap", headers=_h(sup))
     assert r.status_code == 403 and r.json()["error"]["code"] == "DEVICE_REVOKED"

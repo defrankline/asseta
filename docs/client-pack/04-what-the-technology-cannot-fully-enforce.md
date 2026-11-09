@@ -44,9 +44,9 @@ If a clock is changed, a record made, and the clock put right before the next sy
 
 **The limit.** A record shows which login and which phone made it. It cannot prove which human being was holding the phone. Passwords can be shared and phones can be passed around. The app stays signed in between uses.
 
-**What the system does instead.** Each login is personal, each phone is registered to a login, and every record names both. The Platform Owner can revoke a phone on request; there is no screen for the company to do this itself today.
+**What the system does instead.** Each login is personal, each phone is registered to a login, and every record names both. Someone with the device permission (by default the Tenant Owner or an Administrator) can revoke a phone in **Administration → Devices**.
 
-**What the company should do.** Forbid sharing of logins, in writing. Issue company phones with a screen lock. Report a lost phone to the Platform Owner at once, and when a person leaves.
+**What the company should do.** Forbid sharing of logins, in writing. Issue company phones with a screen lock. Report a lost phone to the office at once, and revoke the phone of anyone who leaves.
 
 ### 6. Automatic meter reading can be wrong
 
@@ -132,7 +132,7 @@ If a clock is changed, a record made, and the clock put right before the next sy
 
 ### 16. A lost or broken phone can lose what has not synced
 
-**The limit.** Offline records exist only on that phone until they sync. There is deliberately no cloud copy. If the phone is destroyed before syncing, those records and photos are gone. Revoking a phone (done by the Platform Owner on request) wipes everything on it, including what had not been sent.
+**The limit.** Offline records exist only on that phone until they sync. There is deliberately no cloud copy. If the phone is destroyed before syncing, those records and photos are gone. Revoking a phone in **Administration → Devices** erases everything on it the next time it connects, including what had not been sent. The screen warns of this and asks for a reason.
 
 **What the system does instead.** Everything on the phone is encrypted, and the **Sync status** screen shows what has not been sent.
 
@@ -160,9 +160,11 @@ If a clock is changed, a record made, and the clock put right before the next sy
 
 **What the company should do.** Ask the Platform Owner to confirm that the daily backup and the off-site copy are in place, and when a restore was last tested.
 
-### 20. A suspended subscription stops new data exports
+### 20. A blocked account cannot export its data
 
-**The limit.** If the company's subscription is restricted to read-only, its people can still view everything, but a new data export cannot be requested or downloaded. If the account is blocked, nobody in the company can sign in.
+**The limit.** If the account is blocked, nobody in the company can sign in, so nobody can take a data export.
+
+**What the system does instead.** While the subscription is only restricted to read-only, its people can still view everything, and someone with the data export permission can still request an export and download it. Those two actions are recorded in the audit log as made while read-only.
 
 **What the company should do.** Take regular exports while the account is active. See [Your data](06-your-data.md).
 

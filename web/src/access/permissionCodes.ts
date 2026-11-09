@@ -192,6 +192,7 @@ export const PERMISSIONS = {
   tenantHoursTransferApprove: 'tenant.hours.transfer_approve',
   /** Adjustments ledger (DEC-032 Phase 2): corrections, refunds, reversals, invoice voids. */
   tenantDataExport: 'tenant.data.export',
+  tenantDeviceManage: 'tenant.device.manage',
   tenantBalanceRead: 'tenant.balance.read',
   tenantBalanceVerify: 'tenant.balance.verify',
   platformBalanceRead: 'platform.balance.read',

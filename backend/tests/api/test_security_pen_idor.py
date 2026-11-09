@@ -520,7 +520,14 @@ def _data_protection_b(api: Api, f: FinCtx, attachment: str) -> dict[tuple[str, 
     assert run_pending(get_sessionmaker(), api.client.app.state.object_store, api.clock.now) == 1  # type: ignore[attr-defined]
     run = f.owner.post(f"{T}/balance-verification/runs")
     assert run.status_code == 201, run.text
+    phone = api.client.post(
+        "/api/v1/sync/devices",
+        headers=f.supervisor.headers(True, None),
+        json={"device_id": "idor-phone-0001", "platform": "ANDROID", "app_version": "1.0.0"},
+    )
+    assert phone.status_code == 201, phone.text
     return {
+        ("/devices/", "device_session_id"): phone.json()["id"],
         ("/data-exports/", "export_id"): r.json()["id"],
         ("/balance-verification/runs/", "run_id"): run.json()["id"],
         ("/data-exports/evidence/", "source"): "capture_attachment",

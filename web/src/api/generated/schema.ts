@@ -3927,7 +3927,8 @@ export interface paths {
         put?: never;
         /**
          * Request Export
-         * @description Queues a full export of the company's records; the export worker builds the ZIP in the background.
+         * @description Queues a full export of the company's records; the export worker builds the ZIP in the background. Stays open
+         *     on a read-only subscription (guideline 9), audited as such.
          */
         post: operations["requestDataExport"];
         delete?: never;
@@ -3984,7 +3985,8 @@ export interface paths {
         put?: never;
         /**
          * Download Export
-         * @description A short-lived link to the finished ZIP. Every request for a link is audited.
+         * @description A short-lived link to the finished ZIP. Every request for a link is audited. Stays open on a read-only
+         *     subscription (guideline 9), audited as such.
          */
         post: operations["getDataExportDownload"];
         delete?: never;
@@ -4076,8 +4078,28 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Devices */
+        /**
+         * Devices
+         * @description Registered phones, newest first. `q` searches the person, device id, model, platform and app version.
+         */
         get: operations["listDevices"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/devices/{device_session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Device */
+        get: operations["getDevice"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4095,7 +4117,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Revoke */
+        /**
+         * Revoke
+         * @description The phone is told to erase its local data, including anything it has not sent, at its next contact.
+         */
         post: operations["revokeDevice"];
         delete?: never;
         options?: never;
@@ -11879,6 +11904,11 @@ export interface components {
             /** Device Id */
             device_id: string;
             /**
+             * Device Model
+             * @description e.g. 'Samsung SM-A155' when known
+             */
+            device_model?: string | null;
+            /**
              * Platform
              * @enum {string}
              */
@@ -17384,6 +17414,17 @@ export interface components {
             /** Total */
             total: number;
         };
+        /** Page[TenantDeviceDto] */
+        Page_TenantDeviceDto_: {
+            /** Items */
+            items: components["schemas"]["TenantDeviceDto"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+        };
         /** Page[TenantDto] */
         Page_TenantDto_: {
             /** Items */
@@ -20938,6 +20979,56 @@ export interface components {
          * @enum {string}
          */
         TenantAccessState: "FULL" | "READ_ONLY" | "BLOCKED";
+        /**
+         * TenantDeviceDto
+         * @description Administration -> Devices: a registered phone, the person it belongs to, and how it was revoked.
+         */
+        TenantDeviceDto: {
+            /** App Version */
+            app_version: string;
+            /** Device Id */
+            device_id: string;
+            /** Device Model */
+            device_model: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Last Clock Offset S */
+            last_clock_offset_s: number | null;
+            /** Last Sync At */
+            last_sync_at: string | null;
+            /**
+             * Offline Grant Until
+             * Format: date-time
+             */
+            offline_grant_until: string;
+            /** Platform */
+            platform: string;
+            /**
+             * Registered At
+             * Format: date-time
+             */
+            registered_at: string;
+            /** Revoke Reason */
+            revoke_reason: string | null;
+            /** Revoked At */
+            revoked_at: string | null;
+            /** Revoked By */
+            revoked_by: string | null;
+            /** Revoked By Name */
+            revoked_by_name?: string | null;
+            /** Status */
+            status: string;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+            /** User Name */
+            user_name?: string | null;
+        };
         /** TenantDto */
         TenantDto: {
             access_state: components["schemas"]["TenantAccessState"];
@@ -45950,7 +46041,12 @@ export interface operations {
     };
     listDevices: {
         parameters: {
-            query?: never;
+            query?: {
+                page?: number;
+                page_size?: number;
+                q?: string | null;
+                sort?: string | null;
+            };
             header?: {
                 "x-tenant-id"?: string | null;
                 authorization?: string | null;
@@ -45966,7 +46062,95 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DeviceSessionDto"][];
+                    "application/json": components["schemas"]["Page_TenantDeviceDto_"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getDevice: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                device_session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TenantDeviceDto"];
                 };
             };
             /** @description Bad Request */
@@ -46058,7 +46242,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DeviceSessionDto"];
+                    "application/json": components["schemas"]["TenantDeviceDto"];
                 };
             };
             /** @description Bad Request */

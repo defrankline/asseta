@@ -44,7 +44,7 @@ Someone with the data export permission does this. By default only the **Tenant 
 
 Every export request and every download is recorded in the audit log.
 
-**If the subscription is restricted.** A company in read-only status can view its records but cannot request a new export or download link. A blocked company cannot sign in. Take regular exports while the account is active. **[To decide]** How the company obtains its data if the subscription ends.
+**If the subscription is restricted.** A company in read-only status can view its records, and it can still request an export and download it. These are the only two changes allowed in read-only status, and each is recorded in the audit log as made during it. A cancelled subscription is read-only under the standard setting, so these exports stay available after cancellation. A blocked company cannot sign in, so nobody there can export. Take regular exports while the account is active. How long access continues after an agreement ends is covered in the proposed position below.
 
 ## Accounts
 

@@ -159,6 +159,8 @@ LIKE-escaping (`core/search.py`) held under the sweep.
 * `asseta-api` uses a broad Keycloak service account; least privilege through fine-grained admin permissions is not
   done.
 * Consent and retention notices for employee GPS and photos depend on the deployment jurisdiction and are an owner
-  and legal input. Evidence retention is policy-configurable, but no legal minimums are encoded.
+  and legal input. Evidence files and business records are kept: no policy or job deletes them over time. The only retention
+  setting is for finished data export files (`data_export_retention_days` in the DATA_PROTECTION policy, 1 to 90 days,
+  default 7). No legal minimums are encoded.
 * Platform role revocation (`/platform/*`) is still bounded by token expiry (300 s). Tenant roles and mandates are
   immediate.

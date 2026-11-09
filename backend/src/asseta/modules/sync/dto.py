@@ -76,6 +76,7 @@ class DeviceRegisterIn(BaseModel):
     device_id: str = Field(min_length=8, max_length=128)
     platform: Literal["ANDROID", "IOS"]
     app_version: str = Field(min_length=1, max_length=32)
+    device_model: str | None = Field(default=None, max_length=100, description="e.g. 'Samsung SM-A155' when known")
 
 
 class DeviceSessionDto(BaseModel):
@@ -92,6 +93,16 @@ class DeviceSessionDto(BaseModel):
     last_clock_offset_s: float | None
     revoked_at: datetime | None
     revoke_reason: str | None
+
+
+class TenantDeviceDto(DeviceSessionDto):
+    """Administration -> Devices: a registered phone, the person it belongs to, and how it was revoked."""
+
+    user_id: uuid.UUID
+    user_name: str | None = None
+    device_model: str | None
+    revoked_by: uuid.UUID | None
+    revoked_by_name: str | None = None
 
 
 class PolicySnapshotDto(BaseModel):

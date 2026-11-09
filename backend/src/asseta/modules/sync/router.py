@@ -5,19 +5,21 @@ from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, Query, Request
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from asseta.core.audit import AuditService
 from asseta.core.clock import get_now
 from asseta.core.db import get_session
 from asseta.core.errors import ERROR_RESPONSES, BusinessRuleViolation
+from asseta.core.paging import Page, PageParams, page_params
 from asseta.core.storage import ObjectStore
 from asseta.modules.fleet.photos import get_object_store
+from asseta.modules.identity.catalog import CATALOG, MenuDef
 from asseta.modules.identity.catalog import PermissionScope as S
 from asseta.modules.identity.dependencies import requires
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.sync.blobs import CHUNK_SIZE, BlobService
+from asseta.modules.sync.device_admin import device_dto, device_page, get_device
 from asseta.modules.sync.dto import (
     BlobSessionDto,
     BlobStartIn,
@@ -28,8 +30,8 @@ from asseta.modules.sync.dto import (
     PushIn,
     PushResultDto,
     RevokeIn,
+    TenantDeviceDto,
 )
-from asseta.modules.sync.models import DeviceSession
 from asseta.modules.sync.push import PushService
 from asseta.modules.sync.service import SyncService
 
@@ -38,6 +40,9 @@ SYNC_PUSH = requires(
     "tenant.sync.push", S.TENANT, "Device offline operation push and evidence upload", quarantine_when_read_only=True
 )
 DEVICE_ADMIN = requires("tenant.device.manage", S.TENANT, "View and revoke field devices")
+CATALOG.register_menu(
+    MenuDef("tenant.devices", S.TENANT, "Devices", "/tenant/devices", 84, "tenant.device.manage", group="tenant.admin")
+)
 
 router = APIRouter(prefix="/api/v1", tags=["sync"], responses=ERROR_RESPONSES)
 DbSession = Annotated[Session, Depends(get_session)]
@@ -130,20 +135,32 @@ def complete_blob(
     return BlobService(session, ctx, now).complete(session_id, store)
 
 
-@router.get("/tenant/devices", response_model=list[DeviceSessionDto], operation_id="listDevices")
-def devices(session: DbSession, _: Annotated[RequestContext, Depends(DEVICE_ADMIN)]) -> list[DeviceSessionDto]:
-    rows = session.execute(select(DeviceSession).order_by(DeviceSession.registered_at.desc())).scalars()
-    return [DeviceSessionDto.model_validate(r) for r in rows]
+@router.get("/tenant/devices", response_model=Page[TenantDeviceDto], operation_id="listDevices")
+def devices(
+    session: DbSession,
+    _: Annotated[RequestContext, Depends(DEVICE_ADMIN)],
+    paging: Annotated[PageParams, Depends(page_params)],
+) -> Page[TenantDeviceDto]:
+    """Registered phones, newest first. `q` searches the person, device id, model, platform and app version."""
+    return device_page(session, paging)
 
 
-@router.post("/tenant/devices/{device_session_id}/revoke", response_model=DeviceSessionDto, operation_id="revokeDevice")
+@router.get("/tenant/devices/{device_session_id}", response_model=TenantDeviceDto, operation_id="getDevice")
+def device(
+    device_session_id: uuid.UUID, session: DbSession, _: Annotated[RequestContext, Depends(DEVICE_ADMIN)]
+) -> TenantDeviceDto:
+    return device_dto(session, get_device(session, device_session_id))
+
+
+@router.post("/tenant/devices/{device_session_id}/revoke", response_model=TenantDeviceDto, operation_id="revokeDevice")
 def revoke(
     device_session_id: uuid.UUID,
     body: RevokeIn,
     session: DbSession,
     now: Now,
     ctx: Annotated[RequestContext, Depends(DEVICE_ADMIN)],
-) -> DeviceSessionDto:
+) -> TenantDeviceDto:
+    """The phone is told to erase its local data, including anything it has not sent, at its next contact."""
     row = SyncService(session, ctx, now).revoke(device_session_id, body.reason)
     AuditService(session).record(
         actor=ctx.audit_actor(),
@@ -153,4 +170,4 @@ def revoke(
         tenant_id=ctx.tenant_id,
         reason=body.reason,
     )
-    return DeviceSessionDto.model_validate(row)
+    return device_dto(session, row)

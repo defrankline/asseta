@@ -12631,6 +12631,19 @@
             "title": "Device Id",
             "type": "string"
           },
+          "device_model": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "e.g. 'Samsung SM-A155' when known",
+            "title": "Device Model"
+          },
           "platform": {
             "enum": [
               "ANDROID",
@@ -28053,6 +28066,37 @@
         "title": "Page[SyncConflictDto]",
         "type": "object"
       },
+      "Page_TenantDeviceDto_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TenantDeviceDto"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "Page[TenantDeviceDto]",
+        "type": "object"
+      },
       "Page_TenantDto_": {
         "properties": {
           "items": {
@@ -37407,6 +37451,156 @@
         ],
         "title": "TenantAccessState",
         "type": "string"
+      },
+      "TenantDeviceDto": {
+        "description": "Administration -> Devices: a registered phone, the person it belongs to, and how it was revoked.",
+        "properties": {
+          "app_version": {
+            "title": "App Version",
+            "type": "string"
+          },
+          "device_id": {
+            "title": "Device Id",
+            "type": "string"
+          },
+          "device_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Model"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_clock_offset_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Clock Offset S"
+          },
+          "last_sync_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Sync At"
+          },
+          "offline_grant_until": {
+            "format": "date-time",
+            "title": "Offline Grant Until",
+            "type": "string"
+          },
+          "platform": {
+            "title": "Platform",
+            "type": "string"
+          },
+          "registered_at": {
+            "format": "date-time",
+            "title": "Registered At",
+            "type": "string"
+          },
+          "revoke_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoke Reason"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          },
+          "revoked_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked By"
+          },
+          "revoked_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked By Name"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          },
+          "user_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Name"
+          }
+        },
+        "required": [
+          "id",
+          "device_id",
+          "platform",
+          "app_version",
+          "status",
+          "registered_at",
+          "last_sync_at",
+          "offline_grant_until",
+          "last_clock_offset_s",
+          "revoked_at",
+          "revoke_reason",
+          "user_id",
+          "device_model",
+          "revoked_by"
+        ],
+        "title": "TenantDeviceDto",
+        "type": "object"
       },
       "TenantDto": {
         "properties": {
@@ -81099,7 +81293,7 @@
         ]
       },
       "post": {
-        "description": "Queues a full export of the company's records; the export worker builds the ZIP in the background.",
+        "description": "Queues a full export of the company's records; the export worker builds the ZIP in the background. Stays open\non a read-only subscription (guideline 9), audited as such.",
         "operationId": "requestDataExport",
         "parameters": [
           {
@@ -81515,7 +81709,7 @@
     },
     "/api/v1/tenant/data-exports/{export_id}/download": {
       "post": {
-        "description": "A short-lived link to the finished ZIP. Every request for a link is audited.",
+        "description": "A short-lived link to the finished ZIP. Every request for a link is audited. Stays open on a read-only\nsubscription (guideline 9), audited as such.",
         "operationId": "getDataExportDownload",
         "parameters": [
           {
@@ -82564,8 +82758,66 @@
     },
     "/api/v1/tenant/devices": {
       "get": {
+        "description": "Registered phones, newest first. `q` searches the person, device id, model, platform and app version.",
         "operationId": "listDevices",
         "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sort"
+            }
+          },
           {
             "in": "header",
             "name": "x-tenant-id",
@@ -82604,11 +82856,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/DeviceSessionDto"
-                  },
-                  "title": "Response Listdevices",
-                  "type": "array"
+                  "$ref": "#/components/schemas/Page_TenantDeviceDto_"
                 }
               }
             },
@@ -82691,8 +82939,144 @@
         ]
       }
     },
+    "/api/v1/tenant/devices/{device_session_id}": {
+      "get": {
+        "operationId": "getDevice",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "device_session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Device Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantDeviceDto"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Device",
+        "tags": [
+          "sync"
+        ]
+      }
+    },
     "/api/v1/tenant/devices/{device_session_id}/revoke": {
       "post": {
+        "description": "The phone is told to erase its local data, including anything it has not sent, at its next contact.",
         "operationId": "revokeDevice",
         "parameters": [
           {
@@ -82753,7 +83137,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DeviceSessionDto"
+                  "$ref": "#/components/schemas/TenantDeviceDto"
                 }
               }
             },

@@ -111,7 +111,7 @@ def test_revoked_device_is_refused_on_every_sync_endpoint_and_device_ids_are_use
         "DEVICE_NOT_REGISTERED"
     )
 
-    dev = c.owner.get(f"{T}/devices").json()[0]
+    dev = c.owner.get(f"{T}/devices").json()["items"][0]
     assert c.owner.post(f"{T}/devices/{dev['id']}/revoke", {"reason": "Phone lost on site"}).status_code == 200
     note = {
         "id": str(uuid.uuid4()),

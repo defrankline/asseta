@@ -39,6 +39,7 @@ DbSession = Annotated[Session, Depends(get_session)]
 Now = Annotated[datetime, Depends(get_now)]
 Store = Annotated[ObjectStore, Depends(get_object_store)]
 Exporter = Annotated[RequestContext, Depends(P.DATA_EXPORT)]
+ExporterOnReadOnly = Annotated[RequestContext, Depends(P.DATA_EXPORT_READ_ONLY_EXEMPT)]
 Paging = Annotated[PageParams, Depends(page_params)]
 
 
@@ -48,8 +49,9 @@ def _tid(ctx: RequestContext) -> uuid.UUID:
 
 
 @router.post("/data-exports", response_model=DataExportDto, status_code=201, operation_id="requestDataExport")
-def request_export(body: DataExportIn, session: DbSession, ctx: Exporter, now: Now) -> DataExportDto:
-    """Queues a full export of the company's records; the export worker builds the ZIP in the background."""
+def request_export(body: DataExportIn, session: DbSession, ctx: ExporterOnReadOnly, now: Now) -> DataExportDto:
+    """Queues a full export of the company's records; the export worker builds the ZIP in the background. Stays open
+    on a read-only subscription (guideline 9), audited as such."""
     return DataExportDto.model_validate(DataExportService(session, ctx, now).request(body.format))
 
 
@@ -67,8 +69,11 @@ def get_export(export_id: uuid.UUID, session: DbSession, ctx: Exporter, now: Now
 
 
 @router.post("/data-exports/{export_id}/download", response_model=DownloadLinkDto, operation_id="getDataExportDownload")
-def download_export(export_id: uuid.UUID, session: DbSession, ctx: Exporter, now: Now, store: Store) -> DownloadLinkDto:
-    """A short-lived link to the finished ZIP. Every request for a link is audited."""
+def download_export(
+    export_id: uuid.UUID, session: DbSession, ctx: ExporterOnReadOnly, now: Now, store: Store
+) -> DownloadLinkDto:
+    """A short-lived link to the finished ZIP. Every request for a link is audited. Stays open on a read-only
+    subscription (guideline 9), audited as such."""
     return DataExportService(session, ctx, now).download_link(export_id, store)
 
 

@@ -8,8 +8,9 @@ export function TenantAccessBanner() {
   if (activeTenant.access_state === 'READ_ONLY') {
     return (
       <Alert severity="warning" className="mb-4" role="status">
-        <strong>{activeTenant.name} is read-only.</strong> You can view data, but changes are
-        disabled until the subscription is restored. Contact your account owner.
+        <strong>{activeTenant.name} is read-only.</strong> You can view data and take a data export,
+        but other changes are disabled until the subscription is restored. Contact your account
+        owner.
       </Alert>
     );
   }

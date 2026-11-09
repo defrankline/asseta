@@ -32,6 +32,10 @@ class DataExportService:
         self._s, self._ctx, self._tid, self._now = session, ctx, ctx.tenant_id, now
         self._audit = AuditService(session)
 
+    def _read_only_note(self) -> dict[str, Any]:
+        """Marks an audit entry written while the subscription was read-only (the guideline 9 exemption)."""
+        return {"subscription_read_only": True} if self._ctx.read_only else {}
+
     def request(self, fmt: ExportFormat) -> TenantDataExport:
         policy = PolicyService(self._s).data_protection(self._tid, at=self._now)
         row = TenantDataExport(
@@ -56,7 +60,7 @@ class DataExportService:
             entity_type=ENTITY,
             entity_id=row.id,
             tenant_id=self._tid,
-            after={"format": fmt.value, "status": row.status.value},
+            after={"format": fmt.value, "status": row.status.value} | self._read_only_note(),
             policy_version=policy.version_stamp,
         )
         return row
@@ -83,7 +87,7 @@ class DataExportService:
             entity_type=ENTITY,
             entity_id=row.id,
             tenant_id=self._tid,
-            after={"sha256": row.sha256, "size_bytes": row.size_bytes},
+            after={"sha256": row.sha256, "size_bytes": row.size_bytes} | self._read_only_note(),
         )
         return DownloadLinkDto(url=store.presigned_get(row.object_key, ttl), expires_in_seconds=ttl)
 
