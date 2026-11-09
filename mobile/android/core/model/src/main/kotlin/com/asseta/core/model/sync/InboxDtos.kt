@@ -50,6 +50,9 @@ object SyncCapabilities {
     /** SyncData.unbillable_reasons: the tenant's list for daily reports. */
     const val SYNC_UNBILLABLE_REASONS = "SYNC_UNBILLABLE_REASONS"
 
+    /** DEC-032 Phase 4: SyncData.open_invoices, the recorder's customers' open invoices (full snapshot each pull). */
+    const val SYNC_OPEN_INVOICES = "SYNC_OPEN_INVOICES"
+
     /**
      * DEC-032 Phase 3: CASH_COLLECTION accepts `purchase_id`, CASH_HANDOVER `partial_reason` and `partial_reason_id`,
      * HOURS_TRANSFER_REQUEST `evidence_upload_ids` (blob ADJUSTMENT_EVIDENCE).

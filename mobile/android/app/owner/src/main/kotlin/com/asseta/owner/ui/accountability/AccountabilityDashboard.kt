@@ -1,5 +1,6 @@
 package com.asseta.owner.ui.accountability
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
@@ -13,6 +14,7 @@ import com.asseta.core.model.TenantAccess
 import com.asseta.core.domain.owner.OwnerFormat
 import com.asseta.core.model.owner.AccountabilitySummaryDto
 import com.asseta.core.model.owner.CountAmountDto
+import com.asseta.core.ui.components.FilterChipRow
 import com.asseta.core.ui.components.NavigationRow
 import com.asseta.owner.data.OwnerData
 import com.asseta.owner.ui.OwnerFeatures
@@ -23,11 +25,14 @@ import com.asseta.owner.ui.common.SectionCard
 import com.asseta.owner.ui.common.SnapshotScaffold
 import com.asseta.owner.ui.common.SnapshotViewModel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
+import java.time.LocalDate
 import java.time.ZoneId
 
 private val T = OwnerAccountabilityTexts
@@ -56,7 +61,10 @@ object DashboardPresentation {
     private fun JsonObject.int(key: String): Int? = (this[key] as? JsonPrimitive)?.intOrNull
     private fun JsonObject.items(): List<JsonObject> = (this["items"] as? JsonArray).orEmpty().mapNotNull { it as? JsonObject }
 
-    fun tiles(s: AccountabilitySummaryDto, sessionFeatures: OwnerFeatures): List<DashboardTile> = buildList {
+    fun tiles(s: AccountabilitySummaryDto, sessionFeatures: OwnerFeatures): List<DashboardTile> =
+        ManagementPresentation.replacedTiles(s).let { replaced -> allTiles(s, sessionFeatures).filterNot { it.key in replaced } }
+
+    private fun allTiles(s: AccountabilitySummaryDto, sessionFeatures: OwnerFeatures): List<DashboardTile> = buildList {
         // Switched-off capabilities from `/me` and from the summary itself (follow-up F1).
         val features = sessionFeatures.without(s.disabledCapabilities)
         val cashOn = features.cashCustody
@@ -74,7 +82,7 @@ object DashboardPresentation {
                         listOf(T.DASH_CASH_RETENTIONS to "${a.cashRetentions}", T.DASH_CUSTODY_ADJUSTMENTS to "${a.custodyAdjustments}", T.DASH_WRITE_OFFS to "${a.writeOffs}")
                     } else {
                         emptyList()
-                    },
+                    } + ManagementPresentation.newApprovalCounts(a),
                     approvals,
                 ),
             )
@@ -174,16 +182,39 @@ object DashboardPresentation {
     }
 }
 
-class AccountabilityViewModel(data: OwnerData, refreshOn: Flow<Unit>) : SnapshotViewModel<AccountabilitySummaryDto>({ data.accountabilitySummary() }, refreshOn)
+class AccountabilityViewModel private constructor(
+    data: OwnerData,
+    private val selected: MutableStateFlow<ScorecardPeriod>,
+    private val today: () -> LocalDate,
+    refreshOn: Flow<Unit>,
+) : SnapshotViewModel<AccountabilitySummaryDto>({ selected.value.range(today()).let { (f, t) -> data.accountabilitySummary(f, t) } }, refreshOn) {
+    constructor(data: OwnerData, refreshOn: Flow<Unit>, today: () -> LocalDate = { LocalDate.now() }) :
+        this(data, MutableStateFlow(ScorecardPeriod.LAST_30_DAYS), today, refreshOn)
+
+    val period: StateFlow<ScorecardPeriod> get() = selected
+
+    fun select(p: ScorecardPeriod) {
+        if (selected.value == p) return
+        selected.value = p
+        refresh()
+    }
+}
 
 @Composable
-fun AccountabilityScreen(vm: AccountabilityViewModel, features: OwnerFeatures, onOpen: (OwnerDestination) -> Unit) {
+fun AccountabilityScreen(vm: AccountabilityViewModel, features: OwnerFeatures, webBase: String, onOpen: (OwnerDestination) -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
-    SnapshotScaffold(state, vm::refresh) { summary ->
+    val period by vm.period.collectAsStateWithLifecycle()
+    val go = rememberFigureOpener(onOpen)
+    Column(Modifier.fillMaxSize()) {
+        FilterChipRow(ScorecardPeriod.entries.map { it to it.label }, period, vm::select)
+        SnapshotScaffold(state, vm::refresh) { summary ->
         val zone = ZoneId.systemDefault()
         val tiles = DashboardPresentation.tiles(summary, features)
+        val groups = ManagementPresentation(features.without(summary.disabledCapabilities), webBase, zone).groups(summary)
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp)) {
-            if (tiles.isEmpty()) item { EmptyState(T.DASH_EMPTY) }
+            groups.forEach { managementGroup(it, go) }
+            if (groups.isNotEmpty()) item(key = "period-note") { SectionCard(null) { FootNote(ManagementTexts.PERIOD_NOTE) } }
+            if (tiles.isEmpty() && groups.isEmpty()) item { EmptyState(T.DASH_EMPTY) }
             tiles.forEach { tile ->
                 item(key = tile.key) {
                     SectionCard(tile.title, footer = tile.footer) {
@@ -199,6 +230,7 @@ fun AccountabilityScreen(vm: AccountabilityViewModel, features: OwnerFeatures, o
                     FootNote(T.dashFooter(summary.policyVersion, OwnerFormat.dateTime(summary.asOf, zone)))
                 }
             }
+        }
         }
     }
 }

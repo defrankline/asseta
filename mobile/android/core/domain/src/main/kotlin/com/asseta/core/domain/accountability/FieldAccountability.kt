@@ -175,6 +175,9 @@ data class FieldAccess(
     val collectionLink: Boolean get() = cashDetailsV2 && can(COLLECTION_RECORD)
     val collectionLinkRequired: Boolean get() = collectionLink && cash?.collectionLinkRequired == true
 
+    /** "Pays for" also lists open invoices (DEC-032 Phase 4, SYNC_OPEN_INVOICES). */
+    val openInvoices: Boolean get() = collectionLink && supports(SyncCapabilities.SYNC_OPEN_INVOICES)
+
     /** Under the full-remittance policy the handover asks why part of the balance stays with the custodian. */
     val partialReason: Boolean get() = cashDetailsV2 && cashCustody && cash?.remitFullBalance == true
 

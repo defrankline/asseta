@@ -29,6 +29,7 @@ import com.asseta.core.model.owner.UnbilledJobDto
 import com.asseta.core.ui.components.FilterChipRow
 import com.asseta.core.ui.components.GroupedItem
 import com.asseta.core.ui.components.groupedSection
+import com.asseta.core.ui.components.NavigationRow
 import com.asseta.core.ui.theme.AssetaType
 import com.asseta.core.ui.theme.palette
 import com.asseta.owner.data.OwnerData
@@ -373,7 +374,7 @@ fun ScorecardScreen(vm: ScorecardViewModel, onOpen: (OwnerDestination) -> Unit) 
 }
 
 @Composable
-fun ScorecardPersonScreen(vm: ScorecardPersonViewModel, features: OwnerFeatures, onOpen: (OwnerDestination) -> Unit) {
+fun ScorecardPersonScreen(vm: ScorecardPersonViewModel, features: OwnerFeatures, employee: OwnerDestination?, onOpen: (OwnerDestination) -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
     SnapshotScaffold(state, vm::refresh) { d ->
         val zone = ZoneId.systemDefault()
@@ -383,6 +384,7 @@ fun ScorecardPersonScreen(vm: ScorecardPersonViewModel, features: OwnerFeatures,
                 SectionCard(OversightTexts.SCORE_FIGURES) {
                     Text(OversightPresentation.name(d.row), style = AssetaType.headline)
                     OversightPresentation.figureRows(d.row).forEach { (l, v) -> KeyValue(l, v) }
+                    employee?.let { NavigationRow(ManagementTexts.EMP_OPEN) { onOpen(it) } }
                 }
             }
             val held = OversightPresentation.cashHeld(d.row, zone)

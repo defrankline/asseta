@@ -384,7 +384,22 @@ interface TenantApi {
 
     /** getAccountabilitySummary (tenant.accountability.read). */
     @GET("api/v1/tenant/accountability/summary")
-    suspend fun accountabilitySummary(): AccountabilitySummaryDto
+    suspend fun accountabilitySummary(
+        @Query("date_from") dateFrom: String? = null,
+        @Query("date_to") dateTo: String? = null,
+    ): AccountabilitySummaryDto
+
+    /** One employee's identity, cash held and records over the local days (tenant.accountability.employee.read). */
+    @GET("api/v1/tenant/employees/{staff_member_id}/accountability")
+    suspend fun employeeAccountability(
+        @Path("staff_member_id") staffMemberId: String,
+        @Query("date_from") dateFrom: String? = null,
+        @Query("date_to") dateTo: String? = null,
+    ): com.asseta.core.model.owner.EmployeeAccountabilityDto
+
+    /** Find any record by its number, outside reference or id (tenant.lookup.read). */
+    @GET("api/v1/tenant/lookup")
+    suspend fun lookup(@Query("reference") reference: String): com.asseta.core.model.owner.LookupResultDto
 
     @GET("api/v1/tenant/customer-discounts")
     suspend fun customerDiscounts(@Query("status") status: String? = null, @Query("page_size") pageSize: Int = 100): PageDto<DiscountDto>

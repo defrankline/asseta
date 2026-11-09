@@ -18,7 +18,9 @@ import com.asseta.core.domain.finance.PaidFrom
 import com.asseta.core.model.ClientOperationStatus
 import com.asseta.core.model.DecimalAmount
 import com.asseta.core.model.sync.BlobPurpose
+import com.asseta.core.domain.accountability.CollectionLinks
 import com.asseta.core.model.sync.CashCollectionPayload
+import com.asseta.core.model.sync.CollectionAllocationPayload
 import com.asseta.core.model.sync.CashHandoverPayload
 import com.asseta.core.model.sync.ExpensePayload
 import com.asseta.core.model.sync.FuelEventPayload
@@ -79,6 +81,9 @@ data class CashCollectionRequest(
     val purchaseOperationId: String? = null,
     /** The tenant requires a purchase or invoice on every collection. */
     val linkRequired: Boolean = false,
+    /** The open invoice this cash pays (never together with [purchaseId]) and what it still owes. */
+    val invoiceId: String? = null,
+    val invoiceBalance: java.math.BigDecimal? = null,
 )
 
 data class CashHandoverRequest(
@@ -207,7 +212,7 @@ class FinanceCapture(
             val jobCustomer = finance.customerOfContract(job.contractId)
             if (jobCustomer != null && jobCustomer != r.customerId) return FinanceResult.Invalid(listOf("Job ${job.jobNumber} belongs to another customer."))
         }
-        if (r.linkRequired && r.purchaseId == null) return FinanceResult.Invalid(listOf(AccountabilityMessages.COLLECTION_LINK_REQUIRED))
+        if (r.linkRequired && r.purchaseId == null && r.invoiceId == null) return FinanceResult.Invalid(listOf(AccountabilityMessages.COLLECTION_LINK_REQUIRED))
         if (r.purchaseId != null && !supports(r.tenantId, SyncCapabilities.CASH_DETAILS_V2)) return FinanceResult.Blocked(CaptureMeterReading.SERVER_TOO_OLD)
         val purchaseOp = r.purchaseOperationId?.let { db().clientOperationDao().findById(it) }
         if (purchaseOp != null && (purchaseOp.status == ClientOperationStatus.FAILED || purchaseOp.status == ClientOperationStatus.CONFLICT)) {
@@ -215,9 +220,13 @@ class FinanceCapture(
         }
         // The collection contract has no job field: the job is recorded in the note so the office can see it.
         val note = listOfNotNull(job?.let { "Job ${it.jobNumber}" }, values.note).joinToString(" · ").takeIf { it.isNotEmpty() }?.take(CashRules.MAX_NOTE)
+        val invoiceLine = r.invoiceId?.takeIf { r.purchaseId == null }?.let { id ->
+            CollectionAllocationPayload(id, DecimalAmount.of(CollectionLinks.allocationAmount(values.amount, r.invoiceBalance ?: values.amount)))
+        }
         val payload = CashCollectionPayload(
             r.clientId, r.customerId, DecimalAmount.of(values.amount), values.currency, IsoTime.format(r.receivedAtMs), values.reference, note,
             r.cashHolderId, r.purchaseId,
+            allocations = invoiceLine?.let { listOf(it) },
         )
         val dependsOn = purchaseOp?.takeIf { it.status != ClientOperationStatus.ACKED }?.let { listOf(it.id) } ?: emptyList()
         return queue(r.tenantId, OpTypes.CASH_COLLECTION, FieldOps.CASH_COLLECTION, r.clientId, CashCollectionPayload.serializer(), payload, dependsOn)

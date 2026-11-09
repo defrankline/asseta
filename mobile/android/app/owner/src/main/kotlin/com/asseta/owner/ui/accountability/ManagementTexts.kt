@@ -1,0 +1,181 @@
+package com.asseta.owner.ui.accountability
+
+import com.asseta.core.domain.owner.OwnerFormat
+
+/** Wording of the DEC-032 Phase 4 management view (`owner.mgmt.*`, `owner.emp.*`, `owner.lookup.*` in the strings doc). */
+object ManagementTexts {
+    const val OPEN_WEB = "Open on the web"
+    const val NONE = "None"
+    const val PERIOD_NOTE = "Money and hours moved are for the period chosen. Balances and open queues are as they stand now."
+    fun oldest(date: String) = "Oldest $date"
+
+    const val HOURS_TITLE = "Customer hours"
+    const val HOURS_PURCHASED = "Hours purchased"
+    const val HOURS_PURCHASED_VALUE = "Value of hours purchased"
+    const val HOURS_ACTIVATED = "Hours activated"
+    const val HOURS_CONSUMED = "Hours consumed"
+    const val HOURS_REMAINING = "Hours remaining"
+    const val HOURS_UNPAID = "Unpaid purchases"
+    const val HOURS_UNCONFIRMED = "Purchases not confirmed"
+    const val HOURS_AWAITING = "Awaiting activation"
+    const val HOURS_BY_CUSTOMER = "Remaining by customer"
+    fun customersShown(shown: Int, total: Int) = "Showing $shown of $total customers."
+
+    const val OPS_TITLE = "Excavator operations"
+    const val OPS_OPERATING = "Operating hours"
+    const val OPS_CUSTOMER = "Customer hours"
+    const val OPS_AUTHORIZED = "Authorized non-customer hours"
+    const val OPS_UNEXPLAINED = "Unexplained hours"
+    const val OPS_DISCREPANCIES = "Meter discrepancies"
+    const val OPS_PENDING_REPORTS = "Daily reports to review"
+    const val OPS_RETURNED_REPORTS = "Daily reports returned"
+    const val OPS_BY_EXCAVATOR = "Hours by excavator"
+    fun excavatorRow(customer: String, authorized: String, unexplained: String) = "Customer $customer h · Authorized $authorized h · Unexplained $unexplained h"
+    fun discrepancy(type: String) = when (type) {
+        "METER_DECREASE" -> "Meter went down"
+        "IMPOSSIBLE_INCREMENT" -> "Impossible increase"
+        "CONTINUITY_GAP" -> "Gap between readings"
+        "TELEMETRY_MISMATCH" -> "Tracker disagrees"
+        "OVERLAPPING_ALLOCATION" -> "Overlapping allocation"
+        else -> OwnerFormat.humanize(type)
+    }
+
+    const val CASH_TITLE = "Cash accountability"
+    const val CASH_COLLECTED = "Cash collected"
+    const val CASH_TRANSFERRED = "Transferred between staff"
+    const val CASH_IN_TRANSIT = "In transit"
+    const val CASH_DECLARED = "Declared for remittance"
+    const val CASH_CONFIRMED = "Confirmed by the company"
+    const val CASH_OUTSTANDING = "Outstanding with staff"
+    const val CASH_UNCONFIRMED = "Remittances not confirmed"
+    const val CASH_DISPUTED_REMITTANCES = "Remittances disputed"
+    const val CASH_DISPUTED_TRANSFERS = "Transfers disputed"
+    const val CASH_HELD = "Cash held by employee"
+
+    /** Non-zero parts only, null when all are zero. */
+    fun heldCaption(inTransit: String?, claimed: String?, floatPending: String?, retained: String?): String? = listOfNotNull(
+        inTransit?.let { "In transit $it" }, claimed?.let { "Claimed $it" }, floatPending?.let { "Float pending $it" }, retained?.let { "Retained $it" },
+    ).joinToString(" · ").takeIf { it.isNotEmpty() }
+
+    const val EXC_TITLE = "Exceptions and approvals"
+    const val EXC_UNEXPLAINED = "Unexplained engine hours"
+    const val EXC_SHORTAGES = "Shortages"
+    const val EXC_OVERAGES = "Overages"
+    const val EXC_SHORTAGES_PERIOD = "Shortages opened in period"
+    const val EXC_OVERAGES_PERIOD = "Overages opened in period"
+    const val EXC_UNCONFIRMED_PAYMENTS = "Payments not confirmed"
+    const val EXC_ATTEMPTS = "Refused attempts"
+    fun attemptsCaption(denied: Int, sod: Int) = "Denied $denied · Second person required $sod"
+    const val EXC_MISSING_REPORTS = "Daily reports missing"
+    const val EXC_OVERDUE_REMITTANCES = "Remittances overdue today"
+    const val EXC_CHANGEOVER = "Changeover jobs waiting"
+    fun changeoverCaption(days: Int) = "Oldest $days days"
+    fun changeoverRow(job: String, machine: String, customer: String) = listOf(job, machine, customer).filter { it.isNotBlank() }.joinToString(" · ")
+    fun changeoverDays(days: Int) = "$days days"
+    fun approvals(total: Int) = "Outstanding approvals ($total)"
+    fun pending(total: Int) = "Pending adjustments ($total)"
+    fun variances(total: Int) = "Unresolved variances ($total)"
+    fun varianceSource(source: String) = when (source) {
+        "TRANSFER" -> "Cash transfers"
+        "REMITTANCE" -> "Remittances"
+        "FLOAT" -> "Floats"
+        "CUSTOMER_HOUR" -> "Customer hours"
+        "REVENUE_DIFFERENCE" -> "Revenue differences"
+        else -> OwnerFormat.humanize(source)
+    }
+
+    fun kind(kind: String) = when (kind) {
+        "adjustment_requests" -> "Adjustment requests"
+        "hours_transfers" -> "Hours transfers"
+        "hours_cancellations" -> "Hours cancellations"
+        "credit_arrangements" -> "Credit arrangements"
+        "discounts" -> "Discounts"
+        "meter_corrections" -> "Meter corrections"
+        "allocation_corrections" -> "Allocation corrections"
+        "classifications" -> "Engine-hour classifications"
+        "non_revenue_approvals" -> "Non-revenue time"
+        "custody_adjustments" -> "Custody adjustments"
+        "write_offs" -> "Write-offs"
+        "variance_closures" -> "Variance closures"
+        "meter_baselines" -> "Meter baselines"
+        "meter_resets" -> "Meter resets"
+        "cash_retentions" -> "Cash retentions"
+        "partial_reasons" -> "Partial remittance reasons"
+        "approval_requests" -> "Expense approvals"
+        "payments_to_verify" -> "Payments to verify"
+        "remittances_to_verify" -> "Remittances to verify"
+        "jobs_awaiting_approval" -> "Jobs awaiting approval"
+        "daily_reports_to_review" -> "Daily reports to review"
+        "case_closures" -> "Case closures"
+        "revenue_decisions" -> "Revenue decisions"
+        else -> OwnerFormat.humanize(kind)
+    }
+
+    const val EMP_OPEN = "Employee accountability"
+    const val EMP_TITLE = "Employee accountability"
+    const val EMP_CODE = "Employee code"
+    const val EMP_ROLES = "Roles"
+    const val EMP_PHONE = "Phone"
+    const val EMP_INACTIVE = "Inactive"
+    const val EMP_FIGURES = "Figures"
+    const val EMP_CASH_HELD = "Cash held now"
+    const val EMP_TRUNCATED = "Some lists are shortened. Open the web for all records."
+    fun empCount(count: Int, money: String?) = if (money.isNullOrEmpty()) "$count" else "$count · $money"
+    fun recordRow(whenText: String, status: String?) = listOfNotNull(whenText, status?.let(OwnerFormat::humanize)).joinToString(" · ")
+
+    const val LIST_COLLECTIONS = "Collections"
+    const val LIST_FLOATS = "Floats"
+    const val LIST_TRANSFERS_IN = "Transfers in"
+    const val LIST_TRANSFERS_OUT = "Transfers out"
+    const val LIST_REMITTANCES = "Remittances"
+    const val LIST_SPENDING = "Spending"
+    const val LIST_RETENTIONS = "Retentions"
+    const val LIST_DIFFERENCES = "Differences"
+    const val LIST_CUSTODY_ADJUSTMENTS = "Custody adjustments"
+    const val LIST_REPORTS = "Daily reports submitted"
+    const val LIST_APPROVALS = "Approvals made"
+    const val LIST_ADJUSTMENTS_REQUESTED = "Adjustments requested"
+    const val LIST_ADJUSTMENTS_DECIDED = "Adjustments decided"
+    const val LIST_SCORECARD = "Scorecard items"
+
+    const val LOOKUP_MORE = "Find a reference"
+    const val LOOKUP_TITLE = "Find a reference"
+    const val LOOKUP_HINT = "Number or outside reference"
+    const val LOOKUP_SEARCH = "Search"
+    const val LOOKUP_EMPTY = "Nothing found for this reference."
+    const val LOOKUP_OFFLINE = "Searching needs a connection. Try again when online."
+    const val LOOKUP_RECORDED_BY = "Recorded by"
+    const val LOOKUP_DECIDED_BY = "Decided by"
+    const val LOOKUP_CUSTOMER = "Customer"
+    const val LOOKUP_MACHINE = "Machine"
+    const val LOOKUP_STAFF = "Employee"
+    const val LOOKUP_AMOUNT = "Amount"
+    const val LOOKUP_BALANCE = "Balance"
+    const val LOOKUP_HOURS_REMAINING = "Hours remaining"
+
+    fun recordType(type: String) = when (type) {
+        "hours_purchase" -> "Hours purchase"
+        "hire_invoice" -> "Invoice"
+        "job" -> "Job"
+        "customer_payment" -> "Collection"
+        "cash_handover" -> "Remittance"
+        "cash_transfer" -> "Cash transfer"
+        "hours_transfer" -> "Hours transfer"
+        "cash_retention" -> "Cash retention"
+        "custody_adjustment" -> "Custody adjustment"
+        "adjustment_request" -> "Adjustment request"
+        "adjustment_entry" -> "Ledger adjustment"
+        "anomaly_case" -> "Investigation"
+        "cash_variance" -> "Variance"
+        "daily_report" -> "Daily report"
+        "meter_correction" -> "Meter correction"
+        "classification" -> "Engine-hour classification"
+        "non_revenue_approval" -> "Non-revenue approval"
+        "meter_reset" -> "Meter reset"
+        "revenue_difference" -> "Revenue difference"
+        "hours_cancellation" -> "Hours cancellation"
+        "approval_request" -> "Expense approval"
+        "expense" -> "Expense"
+        else -> OwnerFormat.humanize(type)
+    }
+}

@@ -64,6 +64,23 @@ data class SyncData(
     @SerialName("my_cash_handovers") val myCashHandovers: List<SyncCashHandoverDto>? = null,
     /** Company deposit accounts (REMITTANCE_DETAILS_V1), by sync revision; deactivations arrive with is_active=false. */
     @SerialName("deposit_accounts") val depositAccounts: List<SyncDepositAccountDto>? = null,
+    /** SYNC_OPEN_INVOICES: a full snapshot on every pull (invoices carry no revision), so the local set is replaced. */
+    @SerialName("open_invoices") val openInvoices: List<SyncOpenInvoiceDto> = emptyList(),
+)
+
+/** `SyncOpenInvoiceDto`: an issued invoice with money still owed, so a collection can name it. */
+@Serializable
+data class SyncOpenInvoiceDto(
+    val id: String,
+    @SerialName("invoice_number") val invoiceNumber: String,
+    @SerialName("customer_id") val customerId: String,
+    @SerialName("customer_name") val customerName: String,
+    val currency: String,
+    val total: String,
+    val paid: String,
+    val balance: String,
+    @SerialName("due_date") val dueDate: String?,
+    @SerialName("issued_at") val issuedAt: String,
 )
 
 /** `SyncDepositAccountDto`: a company account remittances are paid into (account number masked by the server). */

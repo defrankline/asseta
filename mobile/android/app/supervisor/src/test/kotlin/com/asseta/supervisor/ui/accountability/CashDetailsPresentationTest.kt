@@ -1,5 +1,6 @@
 package com.asseta.supervisor.ui.accountability
 
+import com.asseta.core.domain.accountability.CollectionLinkOption
 import com.asseta.core.domain.accountability.PartialReasonMode
 import com.asseta.core.domain.accountability.RemittanceRequirements
 import com.asseta.supervisor.ui.finance.CashForm
@@ -37,5 +38,27 @@ class CashDetailsPresentationTest {
         assertFalse(RemittanceForm.partialReasonOk(PartialReasonMode.OPTIONAL, "ab"))
         assertFalse(RemittanceForm.partialReasonOk(PartialReasonMode.REQUIRED, ""))
         assertTrue(RemittanceForm.partialReasonOk(PartialReasonMode.REQUIRED, "Kept for fuel"))
+    }
+
+    @Test
+    fun `an invoice meets the link rule and the choice is one or the other`() {
+        val required = RemittanceAccess(true, RemittanceRequirements(), linkOffered = true, linkRequired = true)
+        val links = listOf(CollectionLinkOption("p1", "P-1", null), CollectionLinkOption("i1", "INV-1", "Invoice", invoiceBalance = "10".toBigDecimal()))
+        val invoice = RemittanceForm.selectLink(CashForm(customerId = "c1"), "i1", links)
+        assertEquals("i1", invoice.invoiceId)
+        assertNull(invoice.purchaseId)
+        assertNull(RemittanceForm.linkIssue(required, invoice))
+        assertEquals(FieldAccountabilityTexts.COLLECTION_INVOICE_FOOTER, RemittanceForm.linkFooter(invoice))
+        val purchase = RemittanceForm.selectLink(invoice, "p1", links)
+        assertEquals("p1", purchase.purchaseId)
+        assertNull(purchase.invoiceId)
+        assertEquals(FieldAccountabilityTexts.COLLECTION_LINK_FOOTER, RemittanceForm.linkFooter(purchase))
+    }
+
+    @Test
+    fun `an invoice that left the options is dropped`() {
+        val form = CashForm(customerId = "c1", invoiceId = "i1")
+        assertNull(RemittanceForm.dropMissingInvoice(form, emptyList()).invoiceId)
+        assertEquals("i1", RemittanceForm.dropMissingInvoice(form, listOf(CollectionLinkOption("i1", "INV-1", null, invoiceBalance = "1".toBigDecimal()))).invoiceId)
     }
 }

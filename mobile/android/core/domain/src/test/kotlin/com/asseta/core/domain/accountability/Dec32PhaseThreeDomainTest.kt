@@ -116,4 +116,33 @@ class Dec32PhaseThreeDomainTest {
         assertEquals(OwnerDestination.Decision(DecisionKinds.WRITE_OFF, id), DeepLinkRouter.fromPath("/tenant/finance/cash/variances/$id"))
         assertEquals(OwnerDestination.Handover(id), DeepLinkRouter.fromPath("/tenant/finance/cash/remittances/$id"))
     }
+
+    @Test
+    fun `open invoices follow the customer and currency and are capped at what they owe`() {
+        val invoices = listOf(
+            LinkableInvoice("i1", "INV-1", "c1", "TZS", "120000"), LinkableInvoice("i2", "INV-2", "c2", "TZS", "5"),
+            LinkableInvoice("i3", "INV-3", "c1", "USD", "40"), LinkableInvoice("i4", "INV-4", "c1", "TZS", "0"),
+        )
+        val options = CollectionLinks.options("c1", emptyList(), emptyList(), invoices, "TZS")
+        assertEquals(listOf("i1"), options.map { it.id })
+        assertTrue(options.single().isInvoice)
+        assertEquals("Invoice · 120000 TZS due", options.single().subtitle)
+        assertEquals(BigDecimal("50"), CollectionLinks.allocationAmount(BigDecimal("50"), BigDecimal("120")))
+        assertEquals(BigDecimal("120"), CollectionLinks.allocationAmount(BigDecimal("500"), BigDecimal("120")))
+    }
+
+    @Test
+    fun `open invoices are offered only when the server announces them`() {
+        val without = FieldAccess(caps, perms, cash, null)
+        assertFalse(without.openInvoices)
+        assertTrue(FieldAccess(caps + SyncCapabilities.SYNC_OPEN_INVOICES, perms, cash, null).openInvoices)
+        assertFalse(FieldAccess(caps + SyncCapabilities.SYNC_OPEN_INVOICES, setOf("tenant.hours.read"), cash, null).openInvoices)
+    }
+
+    @Test
+    fun `an employee link opens the employee screen`() {
+        val id = "11111111-1111-4111-8111-111111111111"
+        assertEquals(OwnerDestination.EmployeeAccountability(id), DeepLinkRouter.fromPath("/tenant/staff/$id/accountability"))
+        assertEquals(null, DeepLinkRouter.fromPath("/tenant/staff/$id"))
+    }
 }

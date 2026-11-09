@@ -359,6 +359,24 @@ data class ApprovalsTileDto(
     @SerialName("custody_adjustments") val custodyAdjustments: Int,
     @SerialName("write_offs") val writeOffs: Int,
     val total: Int,
+    // DEC-032 Phase 4: the remaining kinds (absent from older servers).
+    @SerialName("adjustment_requests") val adjustmentRequests: Int? = null,
+    @SerialName("allocation_corrections") val allocationCorrections: Int? = null,
+    @SerialName("case_closures") val caseClosures: Int? = null,
+    val classifications: Int? = null,
+    @SerialName("credit_arrangements") val creditArrangements: Int? = null,
+    @SerialName("daily_reports_to_review") val dailyReportsToReview: Int? = null,
+    val discounts: Int? = null,
+    @SerialName("hours_cancellations") val hoursCancellations: Int? = null,
+    @SerialName("hours_transfers") val hoursTransfers: Int? = null,
+    @SerialName("jobs_awaiting_approval") val jobsAwaitingApproval: Int? = null,
+    @SerialName("meter_baselines") val meterBaselines: Int? = null,
+    @SerialName("meter_corrections") val meterCorrections: Int? = null,
+    @SerialName("meter_resets") val meterResets: Int? = null,
+    @SerialName("non_revenue_approvals") val nonRevenueApprovals: Int? = null,
+    @SerialName("partial_reasons") val partialReasons: Int? = null,
+    @SerialName("revenue_decisions") val revenueDecisions: Int? = null,
+    @SerialName("variance_closures") val varianceClosures: Int? = null,
 )
 
 @Serializable
@@ -434,4 +452,10 @@ data class AccountabilitySummaryDto(
     @SerialName("unbilled_work") val unbilledWork: JsonObject? = null,
     /** DEC-031 M2: machines idle for a while (null while IDLE_MACHINES is off). */
     @SerialName("idle_machines") val idleMachines: JsonObject? = null,
+    // DEC-032 Phase 4: the four guideline groups, null when hidden or switched off (or on an older server).
+    val period: PeriodDto? = null,
+    @SerialName("hours_section") val hoursSection: CustomerHoursSectionDto? = null,
+    @SerialName("operations_section") val operationsSection: ExcavatorOperationsSectionDto? = null,
+    @SerialName("cash_section") val cashSection: CashSectionDto? = null,
+    @SerialName("exceptions_section") val exceptionsSection: ExceptionsSectionDto? = null,
 )

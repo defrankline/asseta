@@ -471,8 +471,17 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
     }
 
     /** The accountability dashboard summary (tiles the tenant hides come back null). */
-    suspend fun accountabilitySummary(): Load<AccountabilitySummaryDto> =
-        repo.load(tenantId, "accountability_summary", AccountabilitySummaryDto.serializer()) { accountabilitySummary() }
+    suspend fun accountabilitySummary(from: java.time.LocalDate? = null, to: java.time.LocalDate? = null): Load<AccountabilitySummaryDto> =
+        repo.load(tenantId, "accountability_summary:$from:$to", AccountabilitySummaryDto.serializer()) { accountabilitySummary(from?.toString(), to?.toString()) }
+
+    /** One employee's accountability over local days. */
+    suspend fun employeeAccountability(staffId: String, from: java.time.LocalDate?, to: java.time.LocalDate?): Load<com.asseta.core.model.owner.EmployeeAccountabilityDto> =
+        repo.load(tenantId, "employee:$staffId:$from:$to", com.asseta.core.model.owner.EmployeeAccountabilityDto.serializer()) {
+            employeeAccountability(staffId, from?.toString(), to?.toString())
+        }
+
+    /** Find a record by reference (online only, never cached). */
+    suspend fun lookup(reference: String) = repo.act { lookup(reference) }
 
     // --- owner mutations (online only, never queued) ---------------------------------------------------------------
     suspend fun acknowledgeAlert(id: String) = repo.act { alertAction(id, AlertActionIn(AlertActionIn.ACKNOWLEDGE)) }

@@ -24,6 +24,7 @@ fun moreEntries(features: OwnerFeatures): List<Pair<String, OwnerDestination>> =
     (com.asseta.owner.ui.setup.SetupTexts.MORE to OwnerDestination.SetupChecklist).takeIf { features.setupRead },
     ("Approvals" to OwnerDestination.Approvals()).takeIf { features.approvalsScreen },
     (OwnerAccountabilityTexts.MORE_ACCOUNTABILITY to OwnerDestination.Accountability).takeIf { features.accountability },
+    (com.asseta.owner.ui.accountability.ManagementTexts.LOOKUP_MORE to OwnerDestination.Lookup).takeIf { features.lookup },
     (OwnerAccountabilityTexts.HOURS_MORE to OwnerDestination.CustomerHours).takeIf { features.customerHours },
     (com.asseta.owner.ui.accountability.OversightTexts.SCORE_MORE to OwnerDestination.Scorecard).takeIf { features.scorecard },
     ("Meter exceptions" to OwnerDestination.Exceptions()).takeIf { features.meterEvidence },
@@ -66,6 +67,7 @@ private fun moreIcon(d: OwnerDestination): Int = when (d) {
     OwnerDestination.FieldSpend -> R.drawable.ic_receipt
     OwnerDestination.Cash -> R.drawable.ic_cash
     OwnerDestination.Accountability -> R.drawable.ic_approval
+    OwnerDestination.Lookup -> R.drawable.ic_investigation
     OwnerDestination.CustomerHours -> R.drawable.ic_receipt
     OwnerDestination.Scorecard -> R.drawable.ic_investigation
     OwnerDestination.SetupChecklist -> R.drawable.ic_approval

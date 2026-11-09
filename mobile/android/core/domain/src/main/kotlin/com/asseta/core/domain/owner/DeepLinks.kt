@@ -70,6 +70,12 @@ sealed interface OwnerDestination {
 
     /** The go-live setup checklist (tenant.setup.read). */
     data object SetupChecklist : OwnerDestination
+
+    /** One employee's accountability over the local days [dayFrom]..[dayTo] (null: the default period). */
+    data class EmployeeAccountability(val staffId: String, val name: String? = null, val dayFrom: String? = null, val dayTo: String? = null) : OwnerDestination
+
+    /** Find a record by its reference (tenant.lookup.read). */
+    data object Lookup : OwnerDestination
 }
 
 /**
@@ -301,6 +307,8 @@ object DeepLinkRouter {
             "unbilled-work" -> OwnerDestination.UnbilledWork
             "idle-machines" -> OwnerDestination.IdleMachines
             "setup" -> OwnerDestination.SetupChecklist
+            // Employee accountability (DEC-032 Phase 4): /tenant/staff/{id}/accountability.
+            "staff" -> second?.takeIf { rest.getOrNull(2) == "accountability" }?.let { OwnerDestination.EmployeeAccountability(it) }
             else -> null
         }
     }

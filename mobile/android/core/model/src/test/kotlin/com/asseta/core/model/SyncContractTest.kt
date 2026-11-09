@@ -51,6 +51,8 @@ class SyncContractTest {
             "FieldContractDto" to com.asseta.core.model.sync.FieldContractDto.serializer(),
             "JobRequestIn" to com.asseta.core.model.sync.JobRequestPayload.serializer(),
         ).forEach { (name, serializer) -> ContractCheck.check(name, serializer.descriptor) }
+        ContractCheck.check("SyncOpenInvoiceDto", com.asseta.core.model.sync.SyncOpenInvoiceDto.serializer().descriptor)
+        ContractCheck.check("HireAllocationIn", com.asseta.core.model.sync.CollectionAllocationPayload.serializer().descriptor, request = true)
         // The picker needs only part of a deposit account (no audit fields).
         ContractCheck.check("SyncDepositAccountDto", com.asseta.core.model.sync.SyncDepositAccountDto.serializer().descriptor, subset = true)
     }

@@ -310,7 +310,8 @@ fun OwnerRoutes(
             val vm: com.asseta.owner.ui.accountability.ScorecardPersonViewModel = viewModel(key = "scorecard-person-$t-${route.staffId}-$from-$to") {
                 com.asseta.owner.ui.accountability.ScorecardPersonViewModel(data, route.staffId, from, to, graph.refreshTriggers(*OVERSIGHT_ENTITIES))
             }
-            com.asseta.owner.ui.accountability.ScorecardPersonScreen(vm, features, open)
+            val employee = OwnerDestination.EmployeeAccountability(route.staffId, route.name, from.toString(), to.toString()).takeIf { features.employeeAccountability }
+            com.asseta.owner.ui.accountability.ScorecardPersonScreen(vm, features, employee, open)
         }
         OwnerDestination.UnbilledWork -> {
             val vm: com.asseta.owner.ui.accountability.UnbilledWorkViewModel = viewModel(key = "unbilled-$t") {
@@ -334,7 +335,17 @@ fun OwnerRoutes(
             val vm: AccountabilityViewModel = viewModel(key = "accountability-$t") {
                 AccountabilityViewModel(data, graph.refreshTriggers(*ACCOUNTABILITY_ENTITIES, "cash_handover", "approval", "case", "cash_remittance_overdue"))
             }
-            AccountabilityScreen(vm, features, open)
+            AccountabilityScreen(vm, features, com.asseta.core.network.NetworkFactory.defaultWebBaseUrl, open)
+        }
+        is OwnerDestination.EmployeeAccountability -> {
+            val vm: com.asseta.owner.ui.accountability.EmployeeAccountabilityViewModel = viewModel(key = "employee-$t-${route.staffId}") {
+                com.asseta.owner.ui.accountability.EmployeeAccountabilityViewModel(data, route.staffId, route.dayFrom, route.dayTo, graph.refreshTriggers(*ACCOUNTABILITY_ENTITIES, "cash_handover", "cash_transfer"))
+            }
+            com.asseta.owner.ui.accountability.EmployeeAccountabilityScreen(vm, features, com.asseta.core.network.NetworkFactory.defaultWebBaseUrl, open)
+        }
+        OwnerDestination.Lookup -> {
+            val vm: com.asseta.owner.ui.accountability.LookupViewModel = viewModel(key = "lookup-$t") { com.asseta.owner.ui.accountability.LookupViewModel(data) }
+            com.asseta.owner.ui.accountability.LookupScreen(vm, features, com.asseta.core.network.NetworkFactory.defaultWebBaseUrl, open)
         }
     }
 }

@@ -19,6 +19,7 @@ import com.asseta.core.model.sync.SyncChangeoverJobDto
 import com.asseta.core.model.sync.SyncData
 import com.asseta.core.model.sync.SyncUnbillableReasonDto
 import com.asseta.core.model.sync.SyncDepositAccountDto
+import com.asseta.core.model.sync.SyncOpenInvoiceDto
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
@@ -76,6 +77,7 @@ class ServerDataWriter(private val db: () -> AssetaDatabase, private val json: J
             if (SyncCapabilities.SYNC_CHANGEOVER_JOBS in dto.capabilities) keepOnly(field, tenantId, KIND_CHANGEOVER_JOB, dto.data.changeoverJobs.map { it.id })
             if (SyncCapabilities.SYNC_UNBILLABLE_REASONS in dto.capabilities) keepOnly(field, tenantId, KIND_UNBILLABLE_REASON, dto.data.unbillableReasons.map { it.id })
             applyData(database, tenantId, dto.data)
+            replaceOpenInvoices(database, tenantId, dto.capabilities, dto.data.openInvoices)
             applySnapshots(database, tenantId, dto.policySnapshots)
             val states = database.syncStateDao()
             val current = states.get(tenantId) ?: SyncStateEntity(tenantId)
@@ -97,6 +99,7 @@ class ServerDataWriter(private val db: () -> AssetaDatabase, private val json: J
         val database = db()
         database.inTransaction {
             applyData(database, tenantId, dto.data)
+            replaceOpenInvoices(database, tenantId, dto.capabilities, dto.data.openInvoices)
             applySnapshots(database, tenantId, dto.policySnapshots)
             val states = database.syncStateDao()
             val current = states.get(tenantId) ?: SyncStateEntity(tenantId)
@@ -133,6 +136,14 @@ class ServerDataWriter(private val db: () -> AssetaDatabase, private val json: J
         applyChangeoverLists(field, tenantId, data)
         applyFinance(database, tenantId, data)
         InboxWriter(json).apply(database, tenantId, data)
+    }
+
+    /** Open invoices are a full snapshot on every pull: replace the local set (nothing delivered -> none left). */
+    private suspend fun replaceOpenInvoices(database: AssetaDatabase, tenantId: String, capabilities: List<String>, invoices: List<SyncOpenInvoiceDto>) {
+        if (SyncCapabilities.SYNC_OPEN_INVOICES !in capabilities) return
+        val field = database.fieldDataDao()
+        keepOnly(field, tenantId, KIND_OPEN_INVOICE, invoices.map { it.id })
+        if (invoices.isNotEmpty()) field.upsertReferences(invoices.map { ref(KIND_OPEN_INVOICE, it.id, tenantId, it.invoiceNumber, json.encodeToString(it)) })
     }
 
     /** Deposit accounts upsert by sync revision (an older revision never replaces a newer one; deactivations kept). */
@@ -223,5 +234,6 @@ class ServerDataWriter(private val db: () -> AssetaDatabase, private val json: J
         const val KIND_DEPOSIT_ACCOUNT = "deposit_account"
         const val KIND_CHANGEOVER_JOB = "changeover_job"
         const val KIND_UNBILLABLE_REASON = "unbillable_reason"
+        const val KIND_OPEN_INVOICE = "open_invoice"
     }
 }

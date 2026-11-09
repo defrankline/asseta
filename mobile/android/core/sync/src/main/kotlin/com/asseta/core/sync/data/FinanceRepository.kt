@@ -10,6 +10,7 @@ import com.asseta.core.database.ClientOperationEntity
 import com.asseta.core.database.ExpenseCategoryEntity
 import com.asseta.core.database.MachineEntity
 import com.asseta.core.domain.accountability.DepositAccountOption
+import com.asseta.core.domain.accountability.LinkableInvoice
 import com.asseta.core.domain.accountability.UnsyncedPurchase
 import com.asseta.core.domain.finance.CustodyBalance
 import com.asseta.core.domain.finance.CustodyLine
@@ -25,6 +26,7 @@ import com.asseta.core.model.sync.ContractDto
 import com.asseta.core.model.sync.CustomerDto
 import com.asseta.core.model.sync.OpTypes
 import com.asseta.core.model.sync.SyncDepositAccountDto
+import com.asseta.core.model.sync.SyncOpenInvoiceDto
 import com.asseta.core.sync.SyncClock
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -108,6 +110,13 @@ class FinanceRepository(
                 val clientId = p.text("client_id") ?: return@mapNotNull null
                 UnsyncedPurchase(clientId, p.text("customer_id"), p.text("hours") ?: "0", op.id)
             }
+        }
+
+    /** Open invoices of the last pull (SYNC_OPEN_INVOICES), for the "Pays for" picker. */
+    fun observeOpenInvoices(tenantId: String): Flow<List<LinkableInvoice>> =
+        db().fieldDataDao().observeReferences(tenantId, ServerDataWriter.KIND_OPEN_INVOICE).map { rows ->
+            rows.mapNotNull { runCatching { json.decodeFromString(SyncOpenInvoiceDto.serializer(), it.json) }.getOrNull() }
+                .map { LinkableInvoice(it.id, it.invoiceNumber, it.customerId, it.currency, it.balance) }
         }
 
     suspend fun depositAccount(id: String): DepositAccountOption? =

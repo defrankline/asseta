@@ -151,6 +151,8 @@ data class OwnerFeatures(val permissions: Set<String>, val disabled: Set<String>
         OwnerDestination.UnbilledWork -> if (unbilledWork) d else OwnerDestination.Accountability
         OwnerDestination.IdleMachines -> if (idleMachines) d else OwnerDestination.Accountability
         OwnerDestination.SetupChecklist -> if (setupRead) d else OwnerDestination.More
+        is OwnerDestination.EmployeeAccountability -> if (employeeAccountability) d else OwnerDestination.Accountability
+        OwnerDestination.Lookup -> if (lookup) d else OwnerDestination.More
         // DEC-032 switches: a link to a hidden module opens the overview instead.
         OwnerDestination.Cases, is OwnerDestination.Case -> if (cases) d else OwnerDestination.Home
         is OwnerDestination.Alerts -> if (alerts) d else OwnerDestination.Home
@@ -158,6 +160,12 @@ data class OwnerFeatures(val permissions: Set<String>, val disabled: Set<String>
     }
     val custodyRead get() = finance || "tenant.collection.record" in permissions
     val accountability get() = "tenant.accountability.read" in permissions
+
+    /** One employee's accountability screen (DEC-032 Phase 4). */
+    val employeeAccountability get() = "tenant.accountability.employee.read" in permissions
+
+    /** Find a record by its reference (DEC-032 Phase 4). */
+    val lookup get() = "tenant.lookup.read" in permissions
 }
 
 /**

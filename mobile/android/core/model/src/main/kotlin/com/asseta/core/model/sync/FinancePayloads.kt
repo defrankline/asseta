@@ -41,7 +41,13 @@ data class CashCollectionPayload(
     @SerialName("staff_member_id") val staffMemberId: String? = null,
     /** CASH_DETAILS_V2 only: the hours purchase this cash pays for (server id or an offline client id). */
     @SerialName("purchase_id") val purchaseId: String? = null,
+    /** SYNC_OPEN_INVOICES: the invoice this cash pays (one line; null = not sent). */
+    val allocations: List<CollectionAllocationPayload>? = null,
 )
+
+/** `HireAllocationIn`: how much of a collection pays one invoice. */
+@Serializable
+data class CollectionAllocationPayload(@SerialName("invoice_id") val invoiceId: String, val amount: DecimalAmount)
 
 @Serializable
 data class CashHandoverPayload(
