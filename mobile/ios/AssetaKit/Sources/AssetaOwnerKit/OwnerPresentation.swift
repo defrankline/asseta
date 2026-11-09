@@ -199,7 +199,7 @@ extension OwnerFeatures {
         case .accountability: accountability
         case .exceptions, .meterReset, .exception: meterEvidence
         case .fieldSpend: expenses
-        case .cash, .handover: finance
+        case .cash, .handover, .customerPayment: finance
         // DEC-030 cash records: hidden when the tenant switched CASH_CUSTODY off.
         case .cashTransfer, .cashFloat, .overdueRemittances, .overdueRemittance: finance && cashCustody
         case .investigations, .investigation: cases

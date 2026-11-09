@@ -86,8 +86,11 @@ public struct OwnerFeatures: Equatable, Sendable {
         OwnerFeatures(permissions: permissions, disabledCapabilities: Array(disabledCapabilities.union(capabilities)))
     }
 
+    /// The "Payments to confirm" queue: the role can read customer payments and decide them.
+    public var confirmPayments: Bool { finance && verifyHandovers }
+
     /// The Approvals screen shows approval requests or at least one kind of accountability decision.
-    public var approvalsScreen: Bool { approvals || !decisionKinds.isEmpty || revenueRead }
+    public var approvalsScreen: Bool { approvals || !decisionKinds.isEmpty || revenueRead || confirmPayments }
 
     public func canDecide(_ kind: DecisionKind) -> Bool { kind.decidable(permissions: permissions) }
 
@@ -175,6 +178,8 @@ public enum DecisionErrorText {
             return MeterResetText.alreadyDecided
         case "HANDOVER_ALREADY_DECIDED":
             return HandoverText.alreadyDecided
+        case "PAYMENT_ALREADY_DECIDED":
+            return PaymentReviewText.alreadyDecided
         case "ALREADY_REVIEWED":
             return ExceptionReviewText.alreadyReviewed
         case "SUBSCRIPTION_READ_ONLY":

@@ -14,6 +14,7 @@ struct ApprovalsView: View {
     @State private var resets = Loader<[MeterResetDTO]>()
     @State private var pendingJobs = Loader<Page<JobDTO>>()
     @State private var handovers = Loader<Page<CashHandoverDTO>>()
+    @State private var payments = Loader<Page<CustomerPaymentRecordDTO>>()
     @State private var supervisorNames: [UUID: String] = [:]
     @State private var openExceptions = Loader<Page<MeterExceptionDTO>>()
     @State private var jobNumbers: [UUID: String] = [:]
@@ -85,6 +86,9 @@ struct ApprovalsView: View {
             if model.features.finance {
                 PendingHandoversSection(loader: handovers, names: supervisorNames)
             }
+            if model.features.confirmPayments {
+                PendingPaymentsSection(loader: payments)
+            }
             if model.features.meterEvidence {
                 Section(ExceptionReviewText.sectionTitle) {
                     let items = openExceptions.value?.items ?? []
@@ -120,7 +124,8 @@ struct ApprovalsView: View {
         async let c: Void = loadPendingJobs()
         async let d: Void = loadHandovers()
         async let e: Void = loadExceptions()
-        _ = await (a, b, c, d, e)
+        async let f: Void = loadPayments()
+        _ = await (a, b, c, d, e, f)
     }
 
     private func loadApprovals() async {
@@ -132,6 +137,11 @@ struct ApprovalsView: View {
         guard model.features.finance else { return }
         await handovers.loadClaimed(model)
         supervisorNames = await OwnerLookups.supervisorNames(model)
+    }
+
+    private func loadPayments() async {
+        guard model.features.confirmPayments else { return }
+        await payments.load(model, .paymentsToConfirm, OwnerAPI.paymentsToConfirm())
     }
 
     private func loadExceptions() async {

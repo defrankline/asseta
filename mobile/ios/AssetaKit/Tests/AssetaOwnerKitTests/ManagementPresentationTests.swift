@@ -43,7 +43,7 @@ struct ManagementPresentationTests {
         #expect(target("/tenant/finance/cash/remittances?partial_reason_pending=true") == .screen(.approvals))
         #expect(target("/tenant/exceptions") == .screen(.exceptions(jobID: nil)))
         #expect(target("/tenant/cases") == .screen(.investigations))
-        #expect(target("/tenant/customer-payments/\(u)") == .web("/tenant/customer-payments/\(u)"))
+        #expect(target("/tenant/customer-payments/\(u)") == .screen(.customerPayment(Self.id)))
         #expect(target("/tenant/staff/\(u)/accountability") == .screen(.employeeAccountability(Self.id, name: nil, from: nil, to: nil)))
     }
 
@@ -189,7 +189,7 @@ struct ManagementPresentationTests {
         let lists = EmployeePresentation.recordLists(d, features: Self.all, timeZone: TimeZone(identifier: "UTC")!)
         #expect(lists.map(\.title) == [T.employeeListCollections])
         #expect(lists[0].rows[0].caption == "1 Nov 2026 · Verified")
-        #expect(lists[0].rows[0].target == .web("/tenant/customer-payments/\(S.uuid)"))
+        #expect(lists[0].rows[0].target == .screen(.customerPayment(UUID(uuidString: S.uuid)!)))
         #expect(EmployeePresentation.figureRows(try Self.employee(scorecard: true)).count == 14)
     }
 

@@ -23,6 +23,8 @@ public enum OwnerRoute: Hashable, Sendable {
     case meterReset(UUID)
     /// One cash handover (confirm received / dispute).
     case handover(UUID)
+    /// One customer payment, with confirm / reject while it waits (CUSTOMER_PAYMENT_TO_VERIFY).
+    case customerPayment(UUID)
     /// One meter exception (review).
     case exception(UUID)
     /// Open by notification id; the app fetches it and follows its `target`.
@@ -132,6 +134,8 @@ public enum DeepLinkParser {
         case ("exception", _): return .exceptions(jobID: nil)
         case let ("job_exception", id?): return .exception(id)
         case let ("cash_handover", id?): return .handover(id)
+        case let ("customer_payment", id?): return .customerPayment(id)
+        case ("customer_payment", nil): return .approvals
         case ("cash_transfer", _), ("supervisor_cash_custody", _): return .cash
         case ("hours_purchase", nil): return .customerHours
         case let (entity, id?) where DecisionKind(entity: entity) != nil: return .decision(DecisionKind(entity: entity)!, id)
@@ -176,6 +180,8 @@ public enum DeepLinkParser {
         case ("approvals", nil): return .approvals
         case let ("meter-resets", id?): return .meterReset(id)
         case ("meter-resets", nil): return .approvals
+        case let ("customer-payments", id?): return .customerPayment(id)
+        case ("customer-payments", nil): return .approvals
         case ("exceptions", _): return .exceptions(jobID: nil)
         case let ("customer-discounts", id?): return .decision(.discount, id)
         case let ("credit-arrangements", id?): return .decision(.credit, id)
@@ -304,7 +310,7 @@ extension OwnerRoute {
     /// Whether the route opens one specific record (as opposed to a list).
     public var identifiesRecord: Bool {
         switch self {
-        case .machine, .alert, .approval, .investigation, .job, .meterReset, .handover, .exception, .notification, .decision,
+        case .machine, .alert, .approval, .investigation, .job, .meterReset, .handover, .customerPayment, .exception, .notification, .decision,
              .cashTransfer, .cashFloat, .overdueRemittance, .revenueDifference, .dailySheetDay, .hoursPurchase, .scorecardPerson, .dailyReport, .employeeAccountability: true
         case .overview, .fleet, .jobs, .investigations, .alerts, .approvals, .exceptions, .fieldSpend, .cash, .notifications,
              .accountability, .overdueRemittances, .dailySheet, .customerHours, .hoursStatement, .scorecard, .unbilledWork,

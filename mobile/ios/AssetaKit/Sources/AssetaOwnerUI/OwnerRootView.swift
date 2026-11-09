@@ -122,7 +122,7 @@ public struct OwnerRootView: View {
             target = .more; path.append(MoreItem.accountability)
         case .meterReset where model.features.meterEvidence:
             target = .more; path.append(MoreItem.approvals); path.append(route)
-        case .handover where model.features.finance:
+        case .handover where model.features.finance, .customerPayment where model.features.finance:
             target = .more; path.append(MoreItem.approvals); path.append(route)
         case .exception where model.features.meterEvidence:
             target = .more; path.append(MoreItem.exceptions); path.append(route)
@@ -197,6 +197,7 @@ struct RouteView: View {
         case .cash: CashView(model: model)
         case let .meterReset(id): MeterResetDetailView(model: model, resetID: id)
         case let .handover(id): HandoverDetailView(model: model, handoverID: id)
+        case let .customerPayment(id): PaymentReviewView(model: model, paymentID: id)
         case let .exception(id): ExceptionDetailView(model: model, exceptionID: id)
         case let .notification(id): NotificationResolverView(model: model, notificationID: id)
         case .notifications: NotificationsView(model: model)

@@ -47,6 +47,8 @@ public enum ManagementRoutes {
         switch rest[0] {
         case "staff":
             return DeepLinkParser.route(path: route)
+        case "customer-payments":
+            return rest.count == 1 && status == "CLAIMED" && features.confirmPayments ? .approvals : nil
         case "hours":
             if rest.count == 2, rest[1] == "balances" {
                 return query["customer_id"].flatMap(UUID.init(uuidString:)).map { .hoursStatement(customer: $0, name: nil) } ?? .customerHours
