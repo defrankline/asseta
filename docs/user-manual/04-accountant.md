@@ -17,6 +17,10 @@ You work in the **web console** at <https://asseta.co.tz> on a laptop or desktop
 - **Follow the cash chain** (when your company switches it on): transfers between custodians and their acknowledgement, cash differences (variances) and write-offs, requests to keep cash (retentions), custody adjustments, overdue remittances and the cash reason lists.
 - **Customer hours**: link payments to hours purchases, verify those payments (which activates the hours), and activate hours on approved credit. Follow hours **in use by running jobs**, **low-balance warnings** and the customer **hours statement**.
 - **Deposit accounts**: keep the list of company bank accounts, mobile-money wallets and cash offices that remittances are paid into, and check each remittance's account, reference and slip photos against the statement.
+- **Adjustments**: read the **Adjustments ledger**, propose and decide corrections, refunds, reversals (including bounced payments) and invoice voids (never your own).
+- **Variances**: assign, explain and close them, including customer-hour differences (never your own proposal).
+- **Partial remittance reasons**: decide them for other people.
+- **Find a reference** and **Employee accountability**: look up any record, or one person's cash and records.
 - **Revenue checks** (when your company switches them on): read the **Daily machine sheet**, and explain **revenue differences** and **non-revenue hours**. Someone else decides them.
 - **See the Accountability dashboard.**
 - **Unbilled work and idle machines** (when your company switches them on): invoice completed work that is still not on an issued invoice, and see machines without work. You can also read supervisors' **Site check-ins**.
@@ -30,7 +34,9 @@ What you cannot do as an accountant:
 
 - You cannot approve expenses. Expenses above the approval limit go to an owner or manager in **Expense approvals**.
 - You cannot create or approve jobs, change machines, or review meter exceptions.
-- You cannot verify a payment or handover that you recorded yourself, or decide a write-off, retention or adjustment you proposed (see [Segregation of duties](#segregation-of-duties)).
+- You cannot verify a payment or handover that you recorded yourself, or decide a write-off, retention, closure or adjustment you proposed (see [Segregation of duties](#segregation-of-duties)).
+- You cannot confirm a remittance of your own cash, even if someone else recorded it.
+- You cannot activate on credit a purchase you recorded.
 
 Approvals follow permissions, not job titles. In the example role set-up the accountant holds the cash approval permissions (write-offs, retentions, custody adjustments); your company may give them to others.
 
@@ -46,7 +52,7 @@ These are your side-menu groups in the web console. The exact menus depend on yo
 | Fleet | Machines, Idle machines | Looking up machines and machines without work (read-only) |
 | Customer hours | Hours purchases, Balances, Hours ledger, Prepaid hours used, and the other hours pages (read) | Linking payments to purchases and activating hours on credit |
 | Engine hours | Non-revenue hours, Daily machine sheet | Revenue checks: reading each machine's day and explaining non-revenue time |
-| Finance | Hire finance, Cash custody, Expenses & fuel, Deposit accounts, Revenue differences, Unbilled work, Profitability | Your main daily work |
+| Finance | Hire finance, Cash custody, Expenses & fuel, Deposit accounts, Adjustments ledger, Revenue differences, Unbilled work, Profitability | Your main daily work |
 | Risk & review | Investigations | Reading investigation cases (read-only) |
 | Administration | Subscription, Notifications, My access | Your company's Asseta subscription, your inbox, your sign-in settings |
 
@@ -73,7 +79,7 @@ The Customer payments tab explains this on screen: *"Claimed: recorded but not y
 The person who records or requests something cannot also decide it:
 
 - If you recorded a payment, someone else must verify or reject it. The button then reads **Verify / reject (not allowed: you recorded it)**.
-- If you recorded a cash handover, someone else must verify it.
+- If you recorded a cash handover, someone else must verify it. If the cash was yours, you can never confirm it, even when someone else recorded it.
 - If you submitted an expense, someone else must approve it.
 
 If you try anyway, Asseta shows: *"The person who recorded or requested this cannot decide it. Ask another authorised colleague."* On your own records the menu item reads, for example, **Confirm / reject (Someone else must decide your own request)** and is disabled. The attempt is recorded as a security event for oversight.
@@ -117,7 +123,7 @@ A job can be invoiced only when it is **Completed** and **billing-ready**. A com
 
 **Good to know**
 
-- An issued invoice is fixed. To correct it, **Void (reverse)** it and create a new one. Voiding cannot be undone. The voided invoice is kept unchanged for audit.
+- An issued invoice is fixed. To correct it, **Void (reverse)** it and create a new one. Voiding cannot be undone. The voided invoice is kept unchanged for audit. With **Voiding an issued invoice needs a second person** on (the default), your void becomes a request, the invoice stays issued, and someone else decides ([Task 27](#27-adjustments-ledger-and-requests)).
 - A draft you no longer want can be thrown away with **Discard draft (void)**. Its jobs are released so they can be invoiced again.
 - If a job's charges changed after you drafted the invoice, Asseta refuses to issue it: *"Job charges changed since drafting. Void this draft and create a new one from the current charges."*
 - **Print view** opens a printable invoice with **Bill to**, **Tax ID** and **Payment terms**. Use your browser's print or "Save as PDF".
@@ -131,11 +137,14 @@ Use this when a customer pays by bank transfer, mobile money or cash at the offi
 2. Click **Record payment**. The **Record customer payment** dialog opens.
 3. Fill in **Customer**, **Amount**, **Currency**, **Method** (Cash, Bank transfer or Mobile money) and **Received at**.
 4. For bank and mobile money, enter the **Transaction reference**. A method plus reference pair can only be used once, which prevents double entry.
+   When the payment is for prepaid hours, choose the **Hours purchase (optional)** ("Linked up to its open amount; the rest stays as customer credit."). If your company requires it, it reads **Hours purchase it pays for** and the payment must name a purchase or an invoice.
 5. Optionally fill in **Received by**, the staff member who received the money.
 6. Under **Allocations**, choose the issued invoice or invoices this payment pays, and how much goes to each. You can leave allocations empty. Unallocated money becomes customer credit (a deposit or advance) once verified, and can be allocated later.
 7. Click **Record payment**.
 
    *What you'll see:* "Payment recorded as CLAIMED; it counts once verified."
+
+Every customer payment gets a generated number: **COL-…** for cash, **PAY-…** for bank and mobile money.
 
 ### 3. Verify or reject a payment
 
@@ -220,7 +229,11 @@ When a custodian hands cash to the company, they (or a recorder on their behalf)
 
 "Enter the amount actually received; a difference from the declared amount opens a variance. A rejected remittance never reduces the custodian's outstanding cash." If your company expects the full balance to be remitted (**Remit the full balance**), a remittance that leaves cash not covered by an approved retention is flagged as a **Partial remittance**, and the people who confirm remittances are notified.
 
-Handovers can also be confirmed (verified) or disputed (rejected) in the Asseta Owner app by people with verify permission, often the owner when away from the office. The result is the same, and the same segregation-of-duties rule applies.
+**Evidence status.** Each remittance has a **Number** (RMT-…) and an **Evidence** status: **Declared** (only the field's word), **Supported** (a photo or message is attached) or **Confirmed** (someone else verified it). Only the confirmed amount reduces custody. A photo never confirms money by itself.
+
+**Partial remittance reason.** With **Remit the full balance** on, a remittance short of the balance needs a reason (**Why part of the balance stays**, and **Reason (from the tenant's list)** if your company keeps a **Partial remittance** list). The remittance stays recorded. Someone other than the proposer, holding the retention decide permission, clicks **Decide partial reason** on it, approves or rejects, and adds a note. "Partial reason approved." or "Partial reason rejected." Deciding the reason does not decide the money: a rejected reason does not reject the remittance, which you confirm separately.
+
+Handovers can also be confirmed (verified) or disputed (rejected) in the Asseta Owner app by people with verify permission, often the owner when away from the office. The result is the same, and the same segregation-of-duties rule applies. The custodian can never confirm their own, even when someone else recorded it ("A custodian cannot confirm their own remittance").
 
 You can also record a remittance on someone's behalf: **Record remittance** on the **Custody** tab, with **Handed over by (custodian)**, **How was it paid?**, **Company account**, **Transaction reference** and **Photo of the deposit slip or payment confirmation** (**Add photo**). This needs office cash permission (or your company's permission for recorders). Another person must then confirm it.
 
@@ -301,12 +314,19 @@ Go to **Administration → Subscription** to see your company's subscription wit
 
 ### 16. Cash differences (variances) and write-offs
 
-A **variance** opens automatically whenever the amount received differs from the amount declared on a transfer, remittance or float. It names the **Accountable custodian**. A variance is a fact to follow up, not an accusation. If your policy sets **Open a case for differences above**, larger differences also open an investigation, and the people with variance permission get a "Cash difference to review" notification.
+A **variance** opens automatically whenever the amount received differs from the amount declared on a transfer, remittance or float. It names the **Accountable custodian**. A variance is a fact to follow up, not an accusation. If your policy sets **Open a case for differences above**, larger differences also open an investigation, and the people with variance permission get a "Cash difference to review" notification. The same page holds **customer-hour** differences: see below.
 
-1. Go to **Finance → Cash custody → Variances** (shows **Open** by default). Filter by **From** (**Transfer**, **Remittance**, **Float**) or **Custodian**. The **Kind** column shows **Shortfall** (less received than declared) or **Surplus to explain** (more received than declared, for example when the bank statement shows more than the custodian declared).
-2. To close one, click **Resolve**. Choose the **Outcome**: **Recovered**, **Corrected error** (or **Written off**, only if your company does not require write-off approval and you hold the write-off permission). Choose a **Reason (from the tenant's list)** if your company keeps one, write the **Explanation**, and click **Resolve**.
-3. To write the difference off, click **Propose write-off**, choose the **Write-off reason (from the tenant's list)**, write the **Explanation**, and click **Propose write-off**. *What you'll see:* "Write-off proposed; someone else with the write-off permission decides."
-4. A colleague with the write-off permission clicks **Approve / reject write-off**, chooses **Approve** or **Reject** with a **Note / reason**, and clicks **Record decision**. "Approving resolves the variance as written off and lowers the custodian's expected balance by the difference. Rejecting returns it to open."
+1. Go to **Finance → Cash custody → Variances** (shows **Open** by default). Filter by **Status**, **From** (**Transfer**, **Remittance**, **Float**, **Customer hours**), **Custodian** or **Assigned to**. The **Kind** column shows **Shortfall** (less received than declared) or **Surplus to explain** (more received than declared, for example when the bank statement shows more than the custodian declared).
+2. **Assign** it (**Reassign** later) to someone holding the variance permission, under **Assigned to**. It can never be assigned to a party to it. *What you'll see:* "Variance assigned." The person gets "Variance assigned to you".
+3. **Explain** it: write **What happened**, add evidence and click **Save explanation**. *What you'll see:* "Explanation saved." Closing it is a separate step.
+4. To close it, click **Propose closure** (or **Resolve** when your company has **Variance closure needs a second person** off). Choose the **Outcome**: **Recovered** or **Corrected error** (and **Written off** only when neither a second approver for write-offs nor a second person for closures is required, and you hold the write-off permission). Choose a **Reason (from the tenant's list)** if your company keeps one, write the **Explanation**, add evidence if your company requires it, and confirm. *What you'll see:* "Closure proposed; someone else decides it."
+5. A colleague holding the closure permission clicks **Decide closure** and approves or rejects it: "Approving closes the variance with the proposed outcome. Rejecting returns it to open for more work." Whoever opened it, proposed the closure or is a party to it can never close it.
+6. To write the difference off, click **Propose write-off**, choose the **Write-off reason (from the tenant's list)**, write the **Explanation**, and click **Propose write-off**. *What you'll see:* "Write-off proposed; someone else with the write-off permission decides."
+7. A colleague with the write-off permission clicks **Approve / reject write-off**, chooses **Approve** or **Reject** with a **Note / reason**, and clicks **Record decision**. "Approving resolves the variance as written off and lowers the custodian's expected balance by the difference. Rejecting returns it to open."
+
+**History.** Open a variance to see every step: **Opened**, **Assigned**, **Explanation recorded**, **Closure proposed**, and each decision, with who and when.
+
+**Customer-hour differences.** With **Check customer-hour records for mismatches** on (the default), Asseta compares purchases, hours used and work allocations, and opens one variance per mismatch above **Ignore hour differences up to**. **From** shows **Customer hours**, the figures are in hours (**Expected**, **Found**, **Difference**) and **What was found** says what differs: **More hours activated than the purchase holds**, **Remaining hours below zero on a machine**, **Hours used differ from the job's record** or **Hours allocated differ from the job's record**. They are closed as **Explained** or **Corrected error**, in the same way. They cannot be written off. A difference already closed with the same figures is not reopened.
 
 ### 17. Requests to keep cash (retentions)
 
@@ -344,7 +364,7 @@ Go to **Finance → Cash custody → Overdue remittances** ("Custodians still ho
 
 ### 20. Cash reason lists
 
-**Finance → Cash custody → Reason lists** holds your company's reasons for **Variance**, **Write-off**, **Retention** and **Adjustment**. Click **New reason**, choose the **List**, enter a **Label** and **Description (optional)**, and click **Create**. Once a list has entries, people must choose from it; "Without a list, people explain variances, write-offs, retentions and adjustments in free text." A deactivated reason "can no longer be chosen; records that used it keep it."
+**Finance → Cash custody → Reason lists** holds your company's reasons for **Variance**, **Write-off**, **Retention**, **Adjustment** and **Partial remittance**. Click **New reason**, choose the **List**, enter a **Label** and **Description (optional)**, and click **Create**. Once a list has entries, people must choose from it; "Without a list, people explain variances, write-offs, retentions and adjustments in free text." A deactivated reason "can no longer be chosen; records that used it keep it."
 
 ### 21. Customer hours: payments and credit
 
@@ -355,6 +375,10 @@ When your company sells prepaid customer hours, finance makes the hours usable:
 - **Activate on credit.** For a customer with an approved credit arrangement, click **Activate on credit** on the purchase, enter the **Hours to activate** and the **Reason**. It is allowed only within the customer's available credit.
 
 You cannot verify a payment you recorded yourself, including one recorded with an hours sale.
+
+**Collections linked to a purchase or invoice.** A collection can name an **hours purchase** (up to what the purchase still owes; the rest stays as customer credit) or an **invoice**. With **Every collection names its purchase or invoice** on, one that names neither is refused. Supervisors choose under **Pays for** in the app. A collection linked to a purchase shows **Pays for** on its page.
+
+**Evidence.** An evidence photo never confirms money. A payment still needs verifying by someone else.
 
 ### 22. Accountability dashboard
 
@@ -403,6 +427,41 @@ Once per job you receive the notification "Work not yet invoiced: job J-…" ("�
 
 **Fleet → Idle machines** and **Operations → Site check-ins** are read-only for you; see the [Tenant Owner manual, Tasks 32 and 33](01-tenant-owner.md#32-idle-machines).
 
+### 27. Adjustments ledger and requests
+
+**Finance → Adjustments ledger** ("Every decided correction, refund, reversal and write-off. Entries are never edited.") is the single list of what was changed, from every flow. Each entry shows the **Number**, **Posted**, **Type**, **Original record**, **For**, **Original**, **New**, **Resulting balance**, **Reason** and **Status**. Use the filters, open an entry for the evidence and who decided it, and **Export CSV** for your records. **Requests** opens **Adjustment requests**, which shows **Awaiting decision** unless you change it.
+
+Start a proposal from the record itself: **Correct hours**, **Refund unused hours**, **Reverse purchase** or **Ask for approval to activate** on an hours purchase; **Reverse** on a verified payment; **Void (reverse)** on an issued invoice. Pick a **Reason from your list**, write the **Reason** and add **Evidence**. **If approved** shows the forecast. *What you'll see:* "Proposed; someone else decides it."
+
+To decide, click **Decide** on someone else's request, check **If approved (forecast)**, and approve or reject with a note. You can **Withdraw** your own while it waits. The full table is in [Task 37 of the owner's manual](01-tenant-owner.md#37-adjustments-ledger-and-requests).
+
+Reasons come from **Customer hours → Reason lists** (**Correction**, **Refund**, **Reversal**). An approved invoice void is recorded on the ledger as **Invoice void**.
+
+### 28. Reversals and bounced payments
+
+When a verified payment bounces or is returned, click **Reverse** on it in **Finance → Hire finance → Customer payments**. The dialog is **Reverse payment** (or **Reverse collection** for cash): "Hours this money paid for come off (unused first); hours already used become money owed as your company policy says. Someone else decides."
+
+Once approved:
+
+- The payment keeps its status and shows **Reversed**, and it no longer counts.
+- Its invoice allocations are released and a matching debit keeps the customer's balance right. Nothing is deleted.
+- Hours it paid for come off, unused first. Used hours become money owed: **Bill the customer** creates a **Recovery invoice**, and **Open an investigation case** opens a case and bills nothing.
+- For a cash collection, the custodian's cash falls by the amount. The balance may go negative, and the ledger shows that.
+- Hours activated on approved credit stay active.
+
+A payment already reversed cannot be reversed again, and only a verified payment can be reversed.
+
+### 29. Generated numbers
+
+Asseta numbers each record so you can find it from one reference: **COL-**/**PAY-** customer payments, **RMT-** remittances, **CTR-** cash transfers, **HTR-** hours transfers, **RET-** retentions, **CADJ-** custody adjustments, **ARQ-** adjustment requests and **ADJ-** ledger entries. A remittance's bank or mobile-money reference is kept separately (**Bank / mobile reference**).
+
+### 30. Find a reference and employee accountability
+
+- **Find a reference**, the box at the top of the page: type any number and press Enter ([owner's manual, Task 43](01-tenant-owner.md#43-find-a-reference)). Useful for a customer's query or an audit.
+- **Accountability** on a staff member's page: that person's cash and records for a period ([owner's manual, Task 42](01-tenant-owner.md#42-employee-accountability)).
+
+The **Accountability** dashboard also has a period and a **Cash accountability** group ([owner's manual, Task 14](01-tenant-owner.md#14-accountability-dashboard)).
+
 ---
 
 ## Statuses and what they mean
@@ -424,11 +483,15 @@ Once per job you receive the notification "Work not yet invoiced: job J-…" ("�
 | | Confirmed (Verified) | Counted; reduces custody by the amount received |
 | | Rejected | Not received; never reduces custody |
 | Cash transfer, float acknowledgement | Awaiting acknowledgement / Acknowledged / Disputed | Floats show **Not required** when your policy does not ask for acknowledgement |
-| Variance | Open → Write-off proposed → Resolved | Outcomes: Recovered, Corrected error, Written off. Kind: Shortfall or Surplus to explain |
+| Variance | Open → Write-off proposed / Closure awaiting decision → Resolved | Outcomes: Recovered, Corrected error, Explained (customer hours), Written off. Kind: Shortfall or Surplus to explain |
 | Overdue remittance | Not remitted by the cut-off / Held longer than allowed | The reason it was flagged |
 | Deposit account | Active / Inactive | An inactive account cannot be named on new remittances |
 | Revenue difference | To explain → Explanation awaiting decision → Explained; Confirmed (money to recover); Cleared (money arrived) | Someone other than the explainer decides |
 | Retention, custody adjustment | Awaiting decision → Approved / Rejected | Only approved ones count |
+| Remittance evidence | Declared / Supported / Confirmed | Only Confirmed counts as money received |
+| Partial remittance reason | Awaiting decision → Approved / Rejected | Separate from confirming the money |
+| Adjustment request | Awaiting decision → Approved / Rejected; Withdrawn | Nothing changes until approved |
+| Adjustments ledger entry | Approved / Rejected / Revoked | Never edited |
 
 ## Good practice
 
@@ -441,6 +504,8 @@ Once per job you receive the notification "Work not yet invoiced: job J-…" ("�
 - **Resolve variances with a clear explanation**, and keep at least two people with the write-off permission.
 - **Keep the deposit account list current.** Add a new account before supervisors need it, and deactivate closed ones.
 - **Check every remittance against the statement**: account, reference and slip photo, then the amount received.
+- **Give each variance an owner.** Assign it, and write the explanation with evidence before proposing to close it.
+- **Reverse rather than edit.** A bounced payment is reversed through a request; it is never deleted.
 - **Issue invoices promptly.** Uninvoiced work shows as a revenue difference until the money is attributed, and on **Unbilled work** after your company's days.
 
 ## Troubleshooting and FAQ
@@ -486,6 +551,18 @@ The account is inactive, holds another currency, or is of another type than the 
 
 **I can explain a revenue difference but not decide it.**
 Deciding needs the decide permission, and you can never decide your own explanation. Ask a colleague who holds it.
+
+**"A custodian cannot confirm their own remittance."**
+Ask someone else with verify permission.
+
+**A collection was refused for not naming a purchase or invoice.**
+Your company requires a link. Choose the purchase or invoice.
+
+**A variance cannot be closed by me.**
+You opened it, proposed its closure or are a party to it, or your company requires a second person. Ask a colleague holding the closure permission.
+
+**A remittance or collection appears in Sync conflicts.**
+The server held it for review because something changed while the phone was offline. Nothing was lost and nothing was applied.
 
 **The page says the company is read-only.**
 Your company's Asseta subscription is restricted. You can view everything but cannot make changes. Contact your account owner.

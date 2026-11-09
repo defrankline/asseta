@@ -12,7 +12,7 @@ In Asseta, an operator is mainly a **record**, not a daily user:
 - The office assigns you to machines with start and end dates (on the machine's **Staff assignments** tab).
 - Your name then appears on the fleet map and in the machine details as the machine's operator.
 
-You do **not** need to record readings, jobs, fuel or cash yourself. Your **supervisor** does that in the Asseta Supervisor app or the web console. There is no separate operator mobile app.
+You do **not** need to record readings, jobs, fuel or cash yourself. Your **supervisor** does that in the Asseta Supervisor app or the web console. There is no separate operator mobile app. If your company wants you to submit your own readings, the owner can add the group **Operator: submits own readings** to your login; see below.
 
 Your company may also give you an Asseta login with the **Operator** role. This manual explains what that login lets you do.
 
@@ -23,6 +23,7 @@ With an Operator login you can:
 - Sign in to the web console at <https://asseta.co.tz>.
 - Read your **notifications**.
 - Manage your own **sign-in and security**: change your password and see your access.
+- Submit your own **meter readings**, only if your company has added **Operator: submits own readings** to your login. You then work as a supervisor does for readings: see the [Supervisor manual](03-supervisor.md#a2-a-full-job-day-on-the-phone). By default the supervisor records readings for you.
 
 You cannot see jobs, machines, money or reports. If you need any of these, ask your supervisor or the owner.
 
@@ -40,6 +41,8 @@ You may collect cash from customers, or receive cash from a colleague, even with
 Ask for a receipt or check with your supervisor that every amount was recorded. A difference between what was declared and what was counted is reviewed by the office; it is a check, not an accusation.
 
 If your company uses the **people scorecard**, the office may see, per person, items to look at on the machines and cash they were responsible for, such as a missing daily report or a cash difference. It is a list of questions to check, not a verdict.
+
+If your company requires it, a collection must name **the purchase or invoice it pays**, and a remittance short of the full balance must say **why part of the cash stays**. Your supervisor or manager records these for you, so tell them. Every collection and remittance gets a number (for example COL-… or RMT-…): ask for it and keep it. A cash difference may be assigned to someone in the office to look into, and they may ask you what happened. Your answer is written on the record.
 
 ## Where you work
 
@@ -96,4 +99,4 @@ Ask the owner or manager to correct your staff record or your machine assignment
 Ask your company's administrator (normally the owner) to reset it.
 
 **I want to record work myself.**
-Field records are made by supervisors. If your company wants you to do this, the owner can give your login the Supervisor role.
+Field records are made by supervisors. If your company wants you to submit your own readings, the owner can add **Operator: submits own readings** to your login. For other field work, the owner can give your login the Supervisor role.

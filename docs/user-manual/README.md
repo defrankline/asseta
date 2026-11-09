@@ -16,6 +16,7 @@ Asseta helps your company:
 - Keep a **chain of accountability** for every customer hour, every engine hour and every amount of cash, with the controls your company switches on (see **Accountability controls** in [Common concepts](#common-concepts)).
 - Check that **every working hour turns into money** that reaches the company, and that machines and fuel are used only for work (see **Revenue checks** in [Common concepts](#common-concepts)).
 - See **who and what needs a look**: a per-person scorecard, finished work not yet invoiced, machines standing idle and, if your company wants it, supervisors' GPS check-ins at the site (see **People scorecard** in [Common concepts](#common-concepts)).
+- Account for **every engine hour, day by day**: customer work, authorized activity or unexplained, with daily operational reports and a permanent record of every correction (see **Work allocation** in [Common concepts](#common-concepts)).
 
 Asseta works in three places:
 
@@ -23,7 +24,7 @@ Asseta works in three places:
 |---|---|---|
 | **Web console**, <https://asseta.co.tz> | Everyone with a login | The full system, on a laptop or desktop. Needs an internet connection. |
 | **Asseta Supervisor** app (Android and iPhone) | Field supervisors | Works **offline** and syncs when a connection is available. |
-| **Asseta Owner** app (Android and iPhone) | Owners and managers | Dashboard, fleet map, jobs, alerts and approvals on the go. The boss can approve or create jobs, confirm cash handovers, review exceptions and issue cash floats from far away, decide accountability requests and revenue differences, follow the accountability summary, the daily machine sheet, customers' prepaid hours, the people scorecard, unbilled work and idle machines. Keeps read-only copies for offline viewing. |
+| **Asseta Owner** app (Android and iPhone) | Owners and managers | Dashboard, fleet map, jobs, alerts and approvals on the go. The boss can approve or create jobs, confirm cash handovers, review exceptions and issue cash floats from far away, decide accountability requests and revenue differences, follow the accountability summary, the daily machine sheet, customers' prepaid hours, the people scorecard, unbilled work and idle machines, review daily reports, decide corrections, adjustments, partial remittance reasons and variance closures, find any reference and open one person's accountability. Keeps read-only copies for offline viewing. |
 
 The Android and iPhone versions of each app look and work the same.
 
@@ -37,11 +38,12 @@ Each company using Asseta has its own private account, called a **tenant**. Nobo
 | **Manager / Dispatcher** | Operations manager, dispatcher | Web console (+ Owner app) | [02-manager-dispatcher.md](02-manager-dispatcher.md) |
 | **Supervisor** | Field supervisor on site | Supervisor app (+ web **Field work**) | [03-supervisor.md](03-supervisor.md) |
 | **Accountant / Finance** | Accountant, bookkeeper, cashier | Web console | [04-accountant.md](04-accountant.md) |
-| **Operator** | Machine operator | Web console (notifications only) | [05-operator.md](05-operator.md) |
+| **Administrator** | The person who configures the system and manages user access, with no business approvals | Web console | [01-tenant-owner.md](01-tenant-owner.md#9-users-and-roles) |
+| **Operator** | Machine operator | Web console (notifications; own readings only if your company adds them) | [05-operator.md](05-operator.md) |
 
 The two most important users are the **Supervisor**, who records the field work, and the **Tenant Owner**, who runs the company, often from far away (for example in Dar es Salaam while the machines work in Katavi).
 
-Roles are examples set up for each company. Your company can adjust them, so you may see slightly more or fewer menus than described here. If a menu is missing, your role does not include it.
+Roles are examples set up for each company. Your company can adjust them, so you may see slightly more or fewer menus than described here. If a menu is missing, your role does not include it. Only the company owner can give someone a role that approves things, or take one away.
 
 ### New company? Start with the go-live checklist
 
@@ -116,7 +118,7 @@ A company may show **Read only**. Its Asseta subscription is restricted, and you
 | **Reading status** | **Accepted**; **Provisional** (kept and counted, but needs review); **Rejected** (kept as evidence, not used; take it again); **Superseded** (replaced by an approved correction). |
 | **Meter reset** | A documented change of the hour meter (replaced or rolled over). It must be approved by someone other than the person who requested it. |
 | **Approval** | A decision by a second person. Examples: an expense above the auto-approval limit, or a job's price. |
-| **Segregation of duties** | Nobody decides their own request. The person who records a payment, handover or expense cannot verify or approve it. |
+| **Segregation of duties** | Nobody decides their own request. The person who records a payment, handover or expense cannot verify or approve it. A custodian can never confirm their own remittance, even when someone else recorded it, and the person who recorded an hours purchase can never activate it on credit. |
 | **Custody / cash in hand** | Cash a supervisor (or any cash custodian) is accountable for. **Opening + floats + collections − approved cash expenses − verified handovers = outstanding.** With the accountability controls on, acknowledged transfers in and out, approved adjustments and the amount actually received on remittances also count. |
 | **Claimed vs verified** | Money recorded by one person is **Claimed (unverified)** until a second person confirms it. Only **Verified** money changes balances. |
 | **Policy** | Your company's rules, for example reading mode (Automatic photo + on-device reading, or Manual), GPS strictness, expense limits and tracking thresholds. Policies are versioned; old records keep the version that applied. |
@@ -130,21 +132,30 @@ A company may show **Read only**. Its Asseta subscription is restricted, and you
 | **Customer hours (prepaid)** | Hours a customer buys in advance for **one specific machine**. A purchase gets a unique number (HP-…), uses the standard rate card and any approved discount, and is **separate from its payment**. Hours become usable (**activated**) only after the payment is **verified** by another person, or on **approved credit**. |
 | **Walk-in customer** | A customer served without full registration: a name and, optionally, a phone number. Asseta gives them a WALK-… code. |
 | **Hours ledger** | The permanent list of hour movements on each purchase: activated, consumed, moved between machines, expired, reversed. Balances are always worked out from it, never typed in. |
-| **Work allocation** | When a prepaid job is completed, its billable hours are taken from the customer's activated hours for that machine. Hours beyond what is available are not taken; they are flagged as **Hours beyond purchase** for review. |
+| **Work allocation** | One entry on the ledger of engine hours: a meter range of one machine on one work day, recorded as **Customer work**, **Authorized activity** or **Unexplained**, with its readings and, for prepaid hours, the purchases they came from. Entries are written from the readings and never edited: a correction adds new entries and keeps the original on record. |
+| **Prepaid hours used** | When a prepaid job is completed, its billable hours are taken from the customer's activated hours for that machine. Hours beyond what is available are not taken; they are flagged as **Hours beyond purchase** for review. |
 | **Meter baseline** | The approved starting hour-meter reading of a machine, proposed by one person and approved by another. Engine-hour reconciliation starts from it. |
 | **Daily reading** | A meter reading taken outside a job (for example at the end of the day), so every engine hour is accounted for. |
-| **Engine-hour reconciliation** | Every engine hour between two accepted readings is either **customer work** (inside a job) or **not yet explained**. Unexplained hours are later explained as approved non-customer work (maintenance, relocation and so on) or an identified difference. Time alone never changes how hours are classified; after a set number of days an investigation is opened instead. |
+| **Daily report** | The operational report of one machine for one day: opening and closing reading, total operating hours, billable hours, unbillable hours by reason, the day's allocations and evidence. One person submits it, and someone else marks it **Reviewed** or **Returned** for correction. |
+| **Changeover reading** | A reading taken when a machine moves to the next customer while the current job is still running. The hours from that reading on are allocated to the next customer. |
+| **Engine-hour reconciliation** | Every engine hour of a machine, day by day: **total engine hours = customer work + authorized activity + unexplained**. Anything not yet allocated shows as a **difference**, for example after a reading that went down with no approved reset. Unexplained hours are later explained as approved non-customer work (maintenance, relocation and so on) or an identified difference. Time alone never changes how hours are classified; after a set number of days, or above a set number of hours, an investigation is opened instead. |
 | **Cash custodian** | Any staff member who holds company cash, **with or without an Asseta login**. People who may record cash (recorders, such as supervisors and managers) can record collections, transfers and remittances on a custodian's behalf if your company allows it. |
 | **Cash transfer** | Cash handed from one custodian to another in the field. The receiver **acknowledges** the amount actually received. A transfer is never money received by the company. |
-| **Remittance** | Cash handed over to the company (shown in the apps as a **handover**). The office records the **amount actually received**. Only that confirmed amount reduces the custodian's balance. |
-| **Cash difference (variance)** | Opened automatically when the amount declared and the amount received differ. It is resolved with an outcome (recovered, corrected error or written off). A difference is a fact to review, **not an accusation**. |
+| **Remittance** | Cash handed over to the company (shown in the apps as a **handover**). The office records the **amount actually received**. Only that confirmed amount reduces the custodian's balance, and the custodian can never confirm it themselves. |
+| **Cash difference (variance)** | Opened automatically when the amount declared and the amount received differ. It can be assigned to someone to investigate and explained with evidence. It is closed with an outcome (recovered, corrected error, explained or written off); by default a second person decides the closure. A similar difference is opened when customer-hour records do not agree. A difference is a fact to review, **not an accusation**. |
 | **Retention** | An approved permission for a custodian to keep part of their cash instead of remitting everything. |
 | **Custody adjustment** | A correcting entry on a custodian's cash (a reversal or an adjustment), with a reason, approved by a second person. Records are never edited or deleted. |
+| **Adjustments ledger** | The permanent list of every decided change to money, hours and readings: what the record was, what it became, the reason, the evidence, who proposed and who decided, and the balance that resulted. Entries are never edited. |
+| **Adjustment request** | A correction of customer hours, a refund, a reversal or an invoice void, proposed by one person and decided by another. Until it is decided nothing changes. |
+| **Reversal** | The approved undoing of a verified payment, cash collection or hours purchase (for example a bounced payment) by **offsetting records**. Nothing is deleted. Unused hours come off, and hours already used become money owed, as your company's policy says. |
+| **Generated number** | The number Asseta gives a record so it can always be found: for example COL- for a cash collection, RMT- for a remittance, ADJ- for a ledger adjustment. A bank's or mobile network's own reference is kept separately. |
+| **Remittance evidence status** | What backs a remittance: **Declared** (the field says so), **Supported** (at least one slip or message is attached) or **Confirmed** (someone else verified it). Only the confirmed amount reduces custody; evidence never confirms money by itself. |
+| **Partial remittance reason** | Why part of a custodian's cash stayed with them, when your company expects the full balance to be remitted. The remittance stays recorded, and a second person decides the reason. |
 | **Security event** | A refused attempt: someone tried an action without the permission, or tried to decide their own request. Recorded for oversight, not as a verdict. |
 | **Revenue checks** | A control that matches each machine's engine hours with the money they brought in. It is **switched on or off by your company's policy** (**Revenue checks switched on**), like every other control. |
 | **Non-revenue time** | Time inside a job that is not customer work, such as moving the machine to or from the site. By default it **counts as revenue until one person explains it and a second person approves it**. |
-| **Unexplained hours expected as revenue** | Engine hours outside any job that nobody has explained. With revenue checks on, they are **expected to bring in money** (at the rate card price, unless your company chooses otherwise) until they are approved as non-customer activity. |
-| **Daily machine sheet** | One line per machine per day: readings, engine hours, customer work, non-revenue time, fuel, expected money, money received and flags. It is worked out from the records, never typed in. |
+| **Unexplained hours and value at risk** | Engine hours nobody has explained yet are **never treated as billable work and never treated as wasted**. Asseta shows them separately as **value at risk** (the hours × the rate) and keeps them **out of expected revenue and out of any shortfall** until they are explained. Your company can choose another treatment in its **Revenue checks** policy. |
+| **Daily machine sheet** | One line per machine per day: readings, engine hours, customer work, non-revenue time, fuel, expected money, money received, any value at risk and flags. It is worked out from the records, never typed in. |
 | **Revenue difference** | Opened when the money attributed to a machine's work in a period falls short of the expected revenue by more than your company's tolerance. It is **a difference to explain, not an accusation**. One person explains it with a reason; another decides. |
 | **Engine running without work** | A machine's engine ran on a day without a job. Tracker signals, unexplained meter hours and after-hours movement of that machine and day are reviewed together in **one investigation**. |
 | **Fuel norm per engine hour** | The most litres per engine hour your company expects. It can be set for the whole company, for a machine category or for one machine. Fuel above the norm opens a signal for review. |
@@ -154,13 +165,19 @@ A company may show **Read only**. Its Asseta subscription is restricted, and you
 | **Daily drawdown** | Prepaid hours taken from the customer's balance **every day** the machine works, instead of only when the job is completed. Until the job is completed these hours show as **In use by running jobs**. |
 | **Low-balance warning** | A notice to the office (and, if your company chooses, an SMS to the customer) when a customer's prepaid hours fall to a set level. |
 | **Hours statement** | A customer's prepaid hours for a period: opening balance, bought, activated, used per day and job, moved, expired and closing balance. It can be downloaded as a PDF. |
-| **Sync conflict** | A field record sent offline that the server could not apply (for example two people using the same remaining hours). It is kept with its evidence for the office to resolve. |
+| **Sync conflict** | A field record sent offline that the server could not apply (for example two people using the same remaining hours, or a rule that changed while the phone was offline). It is kept with its evidence and held for the office to review; it is never lost and never applied silently. Cash collected, cash handed over and hours sold in the field are held this way whenever the record is real and only something changed on the server. |
 | **People scorecard** | Per person, for a period, the **items to look at** on the machines and cash they were responsible for: missing or late daily reports, unexplained engine hours, alerts, cash held too long, cash and revenue differences, refused attempts and missed site check-ins. It counts items and links to each record. It is **a prompt to look, not a verdict** about anyone. Off until your company switches it on. |
 | **Repeated items** | When one person has the same kind of item several times within a set number of days (for example three cash differences in 30 days), Asseta raises the signal "Repeated items to look at for one person" and an investigation for review. Off until your company sets the number. |
 | **Unbilled work** | A completed, billing-ready job that is still not on an issued invoice a set number of days after it was completed. It is listed, shown on the dashboard and notified to the people who make invoices. A job on a draft invoice still counts until the invoice is issued. |
 | **Idle machine** | An active machine with no running job and no engine hours (no completed job, no meter increase and no tracker engine-on) for a set number of days. An approved job that has not started yet is shown as **planned**. |
 | **Site check-in** | A GPS check-in a supervisor makes at the site, at times of day your company sets, while running a job. It records the time, the position (never invented when there is no fix), the site and job, and the distance from the site. **Optional and off by default**: only your company can switch it on, and each person sees their own check-ins. A check-in time that passes without one is a **missed check-in**. |
 | **Managed service** | An arrangement, with your written consent, under which the Platform Owner operates your account for you. Everything they do is recorded and visible to you, and you can revoke it. |
+| **Find a reference** | A search of any number or outside reference (invoice, purchase, collection, remittance, job and so on) that shows what happened, when, who did it and what is left. |
+| **Employee accountability** | One person's page: who they are, the cash they hold now, and every record behind it over a period. |
+| **Optional modules** | **Tracking**, **Investigations**, **Insights**, **Deposit accounts** and the **Managed service page**. Each is on by default; a company that does not use one can switch it off. |
+| **Data export** | A download of every ledger and business record of your company, in one file, prepared in the background. |
+| **Balance verification** | A check that recomputes every balance from its records and lists any stored figure that differs. The records prevail; nothing is changed. |
+| **Live company** | A company the Platform Owner has marked as live. From then on the data reset tool refuses it, so live data cannot be wiped by accident. |
 
 ## Getting help
 

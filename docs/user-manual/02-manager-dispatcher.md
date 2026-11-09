@@ -22,6 +22,10 @@ You work mainly in the **web console** at <https://asseta.co.tz>.
 - **Monitoring**: watch the fleet map and history, and acknowledge and resolve tracking alerts.
 - **Expense approvals**: approve or reject expenses that are above the auto-approval limit.
 - **Investigations**: assign, annotate, resolve and reopen investigation cases.
+- **Meter approvals** (never your own proposal): review exceptions, decide meter resets, baselines, reading corrections and engine-hour explanations.
+- **Work allocations and daily reports** (if your company uses engine-hour controls): follow every engine hour, propose and decide allocation corrections, and review daily reports (never one you submitted).
+- **Adjustments**: read the ledger and propose corrections, refunds, reversals and invoice voids. Deciding them needs a role that holds that permission, which yours does not by default.
+- **Find a reference** and **Employee accountability**: look up any record, or one person's cash and records.
 - **Insights**: review machine utilisation, fuel efficiency and model observations.
 - **Customer hours** (if your company uses prepaid hours): record walk-in customers and hours purchases, link payments, propose and decide customer discounts, credit arrangements, hours transfers and cancellations (never your own), and keep the reason lists.
 - **Cash on behalf of staff**: record cash collections, transfers and remittances for custodians who have no login, such as operators (if your company allows it).
@@ -34,9 +38,9 @@ You work mainly in the **web console** at <https://asseta.co.tz>.
 
 What the Manager role does **not** include, by default:
 
-- Meter exception reviews and meter reset decisions (if your company adds them to your role, you also get **Risk & review → Meter resets**).
+- Meter readings in the field (supervisors take them).
 - Hire invoices, payments and cash.
-- Users and roles, policies changes, and the company's Asseta subscription.
+- Users and roles, policies changes, data export and balance verification, and the company's Asseta subscription.
 
 The **Tenant Owner** handles these. Your company may customise roles.
 
@@ -49,12 +53,12 @@ The **Tenant Owner** handles these. Your company may customise roles.
 | Operations | Jobs, Customers, Staff, Site check-ins |
 | Fleet | Machines, Trackers, Sites & geofences, Alerts, Idle machines |
 | Customer hours | Hours purchases, Balances, Hours ledger, Prepaid hours used, Transfers, Cancellations, Customer discounts, Credit arrangements, Walk-in customers, Reason lists |
-| Engine hours | Non-revenue hours, Daily machine sheet |
-| Risk & review | Investigations, Insights, Security events, Sync conflicts |
-| Finance | Expense approvals, Revenue differences, Revenue reasons, Unbilled work |
+| Engine hours | Reconciliation, Hours to explain, Hour explanations, Meter baselines, Reading corrections, Work allocations, Daily reports, Non-revenue hours, Daily machine sheet |
+| Risk & review | Exceptions, Meter resets, Investigations, Insights, Security events, Sync conflicts |
+| Finance | Expense approvals, Adjustments ledger, Revenue differences, Revenue reasons, Unbilled work |
 | Administration | Policies (read-only), Audit log, Notifications, My access |
 
-The **Customer hours** menus appear only when your company has switched customer hours on in its policies. The **Engine hours** menus and **Revenue differences** / **Revenue reasons** appear only when your company has switched revenue checks on (the Engine hours menus also need engine-hour controls). **People scorecard**, **Site check-ins**, **Idle machines** and **Unbilled work** appear only when your company switches them on in its **Oversight** policy. The decisions you see depend on the permissions your role holds; the role setup above is an example your company can change.
+The **Customer hours** menus appear only when your company has switched customer hours on in its policies. The **Engine hours** menus appear only with engine-hour controls on, and **Non-revenue hours**, **Daily machine sheet**, **Revenue differences** and **Revenue reasons** also need revenue checks. Your company can also switch off **Tracking**, **Investigations** and **Insights** ([Task 44 of the owner's manual](01-tenant-owner.md#44-five-per-company-switches)). **People scorecard**, **Site check-ins**, **Idle machines** and **Unbilled work** appear only when your company switches them on in its **Oversight** policy. The decisions you see depend on the permissions your role holds; the role setup above is an example your company can change.
 
 The **Asseta Owner** phone app can also be used by managers whose company gives them access. It covers the fleet map, jobs (including **New job** and approving or declining jobs), alerts and approvals on the go; see the [Tenant Owner manual](01-tenant-owner.md#the-asseta-owner-app). The buttons shown there depend on your role's permissions.
 
@@ -125,7 +129,7 @@ To create one:
       - **Included (billed at the hourly rate)**
       - **Separate standby rate**, with a **Standby rate (per hour)**
    4. Optionally enter **Mobilization fee**, **Discount (%)** and **Tax rate (%)**.
-   5. If your company uses customer hours, choose the **Billing**: **Invoice after the work**, or **Prepaid customer hours** ("Prepaid jobs draw on the customer's activated hours for this machine."). The first option, **Company default (…)**, follows your company policy. See [Task 18](#18-prepaid-jobs-and-work-allocations).
+   5. If your company uses customer hours, choose the **Billing**: **Invoice after the work**, or **Prepaid customer hours** ("Prepaid jobs draw on the customer's activated hours for this machine."). The first option, **Company default (…)**, follows your company policy. See [Task 18](#18-prepaid-jobs-and-hours-used).
 5. Review the summary and click **Create job**.
 
    *What you'll see:* "Job J-… created as draft."
@@ -164,7 +168,7 @@ A job that has already started cannot be cancelled. It must be completed.
 
 **Operations → Jobs** lists all jobs with status, machine, planned start and hourly rate. Filter by **Status** or machine. Open a job to see:
 
-- The summary: rate, minimum hours, standby terms, opening and closing readings, **Billing ready** or **Not billing ready**, and how many exceptions are open or blocking.
+- The summary: rate, minimum hours, standby terms, opening and closing readings, **Billing ready** or **Not billing ready**, and how many exceptions are open or blocking. A job owed hours by a changeover shows **Hours carried from a changeover**.
 - The tabs **Readings & evidence**, **Work log**, **Acknowledgement** and **Meter resets**.
 
 From **Field work → My jobs** you can do the supervisor's job steps from your laptop. Use the toggle **Assigned to me / All jobs**. On a job page you can:
@@ -335,7 +339,7 @@ The rules Asseta applies:
 - **The price is never typed.** It comes from the rate card, less any **approved** customer discount in effect.
 - **The purchase and its payment are separate records.** A receipt photo or mobile-money screenshot is kept as evidence only. The payment stays **Claimed (unverified)** until someone else verifies it.
 - **Hours activate only from verified money or approved credit.** Nobody can activate hours any other way.
-- **Hours are used through work allocations.** A completed prepaid job draws on the customer's activated hours for that machine. Hours beyond what is available are never used silently: they are flagged for review.
+- **Hours are used on jobs.** A completed prepaid job draws on the customer's activated hours for that machine. Hours beyond what is available are never used silently: they are flagged for review.
 - **Every change is a ledger entry.** Balances are always worked out from the [Hours ledger](#19-balances-and-the-hours-ledger), never typed in.
 - **Decisions go to whoever holds the permission**, and the person who proposed or requested something can never decide it ("Someone else must decide your own request").
 
@@ -385,7 +389,7 @@ All three start on the purchase page. The buttons appear only when the action is
 **Request a transfer** when the original machine cannot do the work:
 
 1. Click **Request transfer** (or **Customer hours → Transfers → Request transfer**).
-2. Check **From machine** (empty = the purchase's machine), choose the **To machine**, enter the **Hours**, pick a **Reason from your list** if your company requires one, and write the **Reason**.
+2. Check **From machine** (empty = the purchase's machine), choose the **To machine**, enter the **Hours**, pick a **Reason from your list** if your company requires one, and write the **Reason**. If your company has **Hours transfers need evidence** on, attach it.
 3. Click **Request transfer**. *What you'll see:* "Transfer requested; someone else decides it."
 
 Only hours not yet used can move. The purchase always keeps its original machine and shows the full transfer history.
@@ -394,7 +398,7 @@ Only hours not yet used can move. The purchase always keeps its original machine
 
 Depending on your company policy, transfers and cancellations either wait for a second person (**Transfers between machines need a second person**, **Cancellations need a second person**) or take effect at once.
 
-### 18. Prepaid jobs and work allocations
+### 18. Prepaid jobs and hours used
 
 A job with **Billing** set to **Prepaid customer hours** draws on the customer's activated hours **for that machine**.
 
@@ -443,7 +447,7 @@ On your own request the **Decide** button is disabled: "Someone else must decide
 
 ### 22. Hours reason lists
 
-**Customer hours → Reason lists** ("Your company's reasons for discounts, credit, transfers and cancellations") holds your own reasons. Click **New reason**, choose what it is **Used for** (**Discount**, **Credit**, **Transfer** or **Cancellation**), enter a **Code** and **Label**, and click **Create reason**. A deactivated reason "can no longer be chosen; records that cite it keep it." If your policy has **A reason from the tenant list is required** on, requests must pick one.
+**Customer hours → Reason lists** ("Your company's reasons for discounts, credit, transfers and cancellations") holds your own reasons. Click **New reason**, choose what it is **Used for** (**Discount**, **Credit**, **Transfer**, **Cancellation**, **Correction**, **Refund** or **Reversal**), enter a **Code** and **Label**, and click **Create reason**. A deactivated reason "can no longer be chosen; records that cite it keep it." If your policy has **A reason from the tenant list is required** on, requests must pick one.
 
 ### 23. Record cash for staff without a login
 
@@ -515,6 +519,38 @@ If your company switches them on in its **Oversight** policy, your role can read
 
 The **Unbilled work** and **Idle machines** tiles are also on the **Accountability** dashboard.
 
+### 28. Work allocations and corrections
+
+**Engine hours → Work allocations** shows every engine hour by day as **Customer work**, **Authorized activity** or **Unexplained**. Its **Per-day reconciliation** tab checks that total engine hours = customer + authorized + unexplained. Unexplained hours are never treated as billable work or as wasted: they are shown as **value at risk**, apart from expected revenue. Have someone explain them, or correct the entry. The full guide is in [Task 34 of the owner's manual](01-tenant-owner.md#34-work-allocations-and-reconciliation).
+
+To correct an entry, open it, click **Propose correction**, split it into parts that total its hours, and give a reason. Someone else decides, not you. Approved corrections replace the original, which stays on record.
+
+### 29. Daily reports
+
+**Engine hours → Daily reports** lists one report per machine and day. Open a **To review** report and click **Review**. Choose **Reviewed** or **Returned to the submitter**, write a **Note** (at least 5 characters) and click **Record review**. A returned report goes back to its submitter. You cannot review a report you submitted. See [Task 36 of the owner's manual](01-tenant-owner.md#36-daily-operational-reports).
+
+### 30. Two customers in one day
+
+A machine may work for two customers in one day. The normal way is to close the first job and open the next, once it is approved; the hours between the two readings are recorded as **Unexplained** until someone explains them. If a machine moves before the first job can close, the supervisor takes a **changeover reading**. Keep the next job waiting for approval until the first job is complete. If your company bills the hours after a changeover to the next job, that job must exist before the changeover is recorded. The dashboard shows **Changeover jobs awaiting approval**, and the hours stay unbilled until it is approved. See [Task 35 of the owner's manual](01-tenant-owner.md#35-changeover-between-two-customers-in-one-day).
+
+### 31. Propose a correction, refund or reversal
+
+Your role proposes; someone else decides. Start from the record:
+
+- **Customer hours → Hours purchases** → purchase: **Correct hours**, **Refund unused hours** (if your company allows refunds), **Reverse purchase** or **Ask for approval to activate** (a purchase with nothing to pay).
+- A verified payment: **Reverse**.
+
+*What you'll see:* "Proposed; someone else decides it." The form shows what approving would change (**If approved**). Follow it in **Finance → Adjustments ledger → Requests**, and **Withdraw** it if it was a mistake. See [Task 37 of the owner's manual](01-tenant-owner.md#37-adjustments-ledger-and-requests).
+
+### 32. Find a reference and employee accountability
+
+- **Find a reference**, the box at the top of the page: type any number (COL-…, RMT-…, HP-…, J-… and so on) and press Enter ([owner's manual, Task 43](01-tenant-owner.md#43-find-a-reference)).
+- **Accountability** on a staff member's page: that person's cash and records over a period ([owner's manual, Task 42](01-tenant-owner.md#42-employee-accountability)).
+
+### 33. Administrator and approving roles
+
+Your company may use an **Administrator** for configuration and user access. Only the owner can give someone a role that approves things, so ask the owner if a person needs one.
+
 ---
 
 ## Statuses and what they mean
@@ -536,6 +572,9 @@ The **Unbilled work** and **Idle machines** tiles are also on the **Accountabili
 | Hours transfer, cancellation | Awaiting decision → Approved / Rejected; Withdrawn |
 | Customer discount, credit arrangement | Awaiting decision → Approved / Rejected; Withdrawn; Revoked |
 | Site check-in (each set time) | Upcoming → Due now → Made / Missed |
+| Work allocation | Active; Awaiting decision; Superseded; Rejected |
+| Daily report | To review → Reviewed / Returned; Replaced |
+| Adjustment request | Awaiting decision → Approved / Rejected; Withdrawn |
 
 ## Good practice
 
@@ -551,6 +590,8 @@ The **Unbilled work** and **Idle machines** tiles are also on the **Accountabili
 - **Act on low-balance warnings** the same day: offer the customer a top-up before the work stops.
 - **Look at Idle machines when planning.** An idle machine may be the one to send to the next customer.
 - **Ask before you judge.** A scorecard item or a missed check-in is a question for the person, not an answer.
+- **Review daily reports promptly**, and always with a clear note if you return one.
+- **Explain unexplained hours the same week.** They are value at risk, not work and not waste.
 
 ## Troubleshooting and FAQ
 
@@ -593,5 +634,8 @@ The hours statement covers at most a year. Choose a shorter period.
 **A customer's remaining hours went down while the job is still running.**
 Your company takes prepaid hours every day. The hours show as **In use by running jobs** and become final when the job is completed.
 
-**I can't review exceptions or decide meter resets.**
-These belong to the owner by default. Ask the owner, or ask them to adjust your role.
+**I can't approve a meter reset, correction or allocation correction.**
+Your own proposals must be decided by someone else. If you have never been able to decide these, your company may have adjusted your role; ask the owner.
+
+**"Only the company owner can give someone a role that approves things."**
+Ask the owner.
