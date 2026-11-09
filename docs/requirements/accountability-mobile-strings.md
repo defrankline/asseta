@@ -1998,3 +1998,71 @@ Screens per app:
 | owner.lookup.type.hours_cancellation | Hours cancellation |
 | owner.lookup.type.approval_request | Expense approval |
 | owner.lookup.type.expense | Expense |
+
+## Go-live fixes — payments to confirm
+
+The boss confirms or rejects CLAIMED customer payments from the phone, as on the web (`GET /customer-payments?status=CLAIMED`,
+`GET /customer-payments/{id}`, `GET /customer-payments/{id}/evidence`, `POST /customer-payments/{id}/decision`). Online only.
+Android: `PaymentReviewText`; iOS: `PaymentReviewText`.
+
+Gating: the Approvals section needs `tenant.finance.read` and `tenant.finance.verify`; the screen needs `tenant.finance.read`;
+deciding needs `tenant.finance.verify` and is blocked offline or on saved data. The person who recorded the payment sees the
+payment and `owner.payments.own` instead of the buttons; the server refuses them too (`SEGREGATION_OF_DUTIES`).
+
+Deep links: the notification `CUSTOMER_PAYMENT_TO_VERIFY` (entity `customer_payment`, id = the payment) opens the payment;
+`/tenant/customer-payments/{id}` opens the payment; `/tenant/customer-payments` opens Approvals; dashboard route
+`/tenant/customer-payments?status=CLAIMED` opens Approvals.
+
+### Owner
+| Key | English |
+|---|---|
+| owner.payments.section | Payments to confirm |
+| owner.payments.empty | No customer payments waiting. |
+| owner.payments.screenTitle | Customer payment |
+| owner.payments.card | Payment |
+| owner.payments.notFound | Payment not found |
+| owner.payments.customerFallback | A customer |
+| owner.payments.headline | {customer} paid {amount} |
+| owner.payments.received | Received {date} |
+| owner.payments.recordedByLine | Recorded by {name} |
+| owner.payments.field.customer | Customer |
+| owner.payments.field.amount | Amount |
+| owner.payments.field.method | Method |
+| owner.payments.field.reference | Reference |
+| owner.payments.field.collectionNumber | Collection number |
+| owner.payments.field.receivedAt | Received |
+| owner.payments.field.receivedBy | Received by |
+| owner.payments.field.recordedBy | Recorded by |
+| owner.payments.field.recordedAt | Recorded |
+| owner.payments.field.note | Note |
+| owner.payments.field.status | Status |
+| owner.payments.field.decidedBy | Decided by |
+| owner.payments.field.decisionNote | Decision note |
+| owner.payments.field.reversed | Reversed |
+| owner.payments.method.CASH | Cash |
+| owner.payments.method.BANK | Bank transfer |
+| owner.payments.method.MOBILE_MONEY | Mobile money |
+| owner.payments.status.CLAIMED | Waiting to be confirmed |
+| owner.payments.status.VERIFIED | Confirmed |
+| owner.payments.status.REJECTED | Rejected |
+| owner.payments.links.purchases | Hours purchases |
+| owner.payments.links.invoices | Invoices |
+| owner.payments.link | {number} · {amount} |
+| owner.payments.evidence.title | Evidence |
+| owner.payments.evidence.photo | photo {n} |
+| owner.payments.evidence.none | No evidence photos attached. |
+| owner.payments.evidence.failed | Evidence photos could not be loaded. Pull to try again. |
+| owner.payments.decision | Decision |
+| owner.payments.explanation | Confirm only when the money has been received (bank statement, mobile money record or cash counted). Confirmed money reduces what the customer owes. Rejecting releases what it was linked to. |
+| owner.payments.confirm | Confirm |
+| owner.payments.reject | Reject |
+| owner.payments.cancel | Cancel |
+| owner.payments.confirmTitle | Confirm this payment? |
+| owner.payments.rejectTitle | Reject this payment? |
+| owner.payments.noteOptional | Note (optional) |
+| owner.payments.reasonRequired | Reason (required) |
+| owner.payments.errReasonShort | Write at least 3 characters. |
+| owner.payments.confirmed | Payment confirmed. |
+| owner.payments.rejected | Payment rejected. |
+| owner.payments.own | You recorded this payment, so someone else must confirm or reject it. |
+| owner.payments.alreadyDecided | Someone already decided this payment. Reload to see it. |
