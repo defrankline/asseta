@@ -399,3 +399,14 @@ Afterwards `scripts/seed-demo-tenant.sh seed` refuses this tenant (it carries th
 into a separate demo tenant. The demo accounts and demo staff that `seed` created remain (accounts are never touched);
 deactivate them in People and Keycloak if the company does not use them. Undo = restore the backup of step 1 (§6.2):
 that restores the whole database, i.e. every tenant, to that moment.
+
+## Apply a company's policy settings from a file
+
+For go-live, instead of entering each setting in Administration -> Policies. Copy `deploy/tenant-policies.example.json`
+to a file on the server, set the company's values, and run:
+```
+scripts/apply-tenant-policies.sh --registration-number <number> --file /home/asseta/<company>.json        # dry run
+scripts/apply-tenant-policies.sh --registration-number <number> --file /home/asseta/<company>.json --yes  # apply
+```
+It creates ordinary company policy versions (validated, all-or-nothing, with the reason and audit events). A second run
+changes nothing. Tenant values never go in a migration: migrations only set platform defaults.
