@@ -9,10 +9,11 @@ wording; offline never bypasses a control; **configurable multi-tenant SaaS** (e
 with a platform default, approvals by permission with proposer ≠ approver, business lists are tenant data; one
 client's answers are settings, not code).
 
-**Status: draft with recommended defaults.** Awaiting the owner's approval and Mzalendo's answers to Q1–Q4 (end of
-this document). An answer different from the default changes a setting, not the design.
+**Status: approved by the owner on 2026-11-10** ("Go with your recommendation ... It should be configurable"). The
+defaults below are the decisions; Mzalendo's own answers to Q1–Q4 become settings, not code. All three phases are
+built; advances (phase 3) ship switched off.
 
-## Decisions (recommended defaults)
+## Decisions (owner-approved)
 
 | # | Question | Recommended default |
 |---|---|---|
@@ -21,7 +22,7 @@ this document). An answer different from the default changes a setting, not the 
 | D3 | How a fund is refilled | **Imprest**: the fund is topped up by the amount of approved spending since the last top-up, never above its limit. Funding and top-ups are proposed by one person and approved by another holding the approving permission. |
 | D4 | Expense records | **One** expense record for all spending. A petty cash expense is an ordinary expense with "paid from: petty cash fund", so approvals, receipts, GPS, categories, machine/job links, reports and profitability keep working. |
 | D5 | Money moved into or out of a fund | Never a cost. Only approved expenses are costs; funding, top-ups and returns are transfers, so nothing is counted twice. |
-| D6 | Cash advances (money out before the purchase) | Phase 3, built only if Mzalendo uses them (Q4). |
+| D6 | Cash advances (money out before the purchase) | Built in phase 3 behind `advances_enabled`, off by default; Mzalendo switches it on if they use advances (Q4). |
 
 ## What exists today (code audit 2026-11-10)
 
@@ -112,13 +113,13 @@ Changed:
 |---|---|---|
 | `enabled` | false (menus hidden) | true |
 | `spend_from_collections_allowed` (in `CASH_CUSTODY`) | true | false |
-| `max_expense_amount` (null = no maximum) | null | **[amount]** |
+| `max_expense_amount` (null = no maximum) | null | null until Mzalendo names an amount |
 | `overspend_allowed_offline` | true (kept pending + flagged) | true |
 | `count_every_days` (null = no schedule) | null | 7 |
 | `count_witness_required` | false | true |
 | `return_evidence_required` | false | true |
 | `funding_evidence_required` | false | true |
-| `advances_enabled` (phase 3) | false | per Q4 |
+| `advances_enabled` (phase 3) | false | false until Mzalendo says they use advances |
 | `advance_clear_within_days` (phase 3) | 7 | 7 |
 
 Fund limits are per fund (tenant data), not policy. Receipts, GPS and auto-approve limits stay in `EXPENSE_CAPTURE`;
@@ -162,13 +163,13 @@ count. Holders record expenses with the existing `tenant.expense.write`.
 
 ## Phases
 
-Each phase is finished on backend, web, Android and iOS before the next starts.
+The backend for all three phases is built first, then web, Android and iOS together, so the clients are built once against the final API.
 
 1. **Funds and spending:** funds, funding (propose, approve, issue, acknowledge), expenses paid from a fund, the
    `spend_from_collections_allowed` switch, fund statement, policy and permissions.
 2. **Keeping it straight:** top-ups, returns, counts and variances, holder change, adjustments, notifications,
    reports, dashboard figure, export and balance verification.
-3. **Advances** (only if Q4 is yes): cash out before a purchase, cleared with receipts and change within N days.
+3. **Advances** (behind `advances_enabled`, off by default): cash out before a purchase, cleared with receipts and change within N days.
 
 ## Tests
 
