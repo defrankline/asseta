@@ -2,6 +2,8 @@
 
 from asseta.core import audit, idempotency, outbox  # noqa: F401
 from asseta.modules.accountability import models as accountability_models  # noqa: F401
+from asseta.modules.adjustments import models as adjustments_models  # noqa: F401
+from asseta.modules.dataprotection import models as dataprotection_models  # noqa: F401
 from asseta.modules.expenses import models as expenses_models  # noqa: F401
 from asseta.modules.finance import custody_models as finance_custody_models  # noqa: F401
 from asseta.modules.finance import deposit_models as finance_deposit_models  # noqa: F401
@@ -16,6 +18,7 @@ from asseta.modules.intelligence import ml_monitoring_models as intelligence_ml_
 from asseta.modules.intelligence import models as intelligence_models  # noqa: F401
 from asseta.modules.jobs import models as jobs_models  # noqa: F401
 from asseta.modules.managed_service import models as managed_service_models  # noqa: F401
+from asseta.modules.meter import allocation_models as meter_allocation_models  # noqa: F401
 from asseta.modules.meter import engine_models as meter_engine_models  # noqa: F401
 from asseta.modules.meter import models as meter_models  # noqa: F401
 from asseta.modules.notification import channel_models as notification_channel_models  # noqa: F401
