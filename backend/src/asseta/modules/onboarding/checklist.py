@@ -139,7 +139,12 @@ def _people(f: Facts, _off: frozenset[str], _c: bool) -> Evaluation:
 
 
 def _rates(f: Facts, _off: frozenset[str], _c: bool) -> Evaluation:
-    rated, n, total = _count_step(f["categories"], f["categories_rated"])
+    # A seeded list may hold machine types the company does not run yet: only types in use need a rate. Until a machine
+    # is registered, one rated type is enough.
+    if f["categories_in_use"] > 0:
+        rated, n, total = _count_step(f["categories_in_use"], f["categories_in_use_rated"])
+    else:
+        rated, n, total = _count_step(1, min(f["categories_rated"], 1))
     checks = (
         Check(
             "CATEGORIES",
@@ -152,7 +157,7 @@ def _rates(f: Facts, _off: frozenset[str], _c: bool) -> Evaluation:
         ),
         Check(
             "RATE_CARDS",
-            "Every active machine type has a current hourly rate",
+            "Every machine type in use has a current hourly rate",
             rated,
             "/tenant/customers?section=rate-cards",
             "tenant.customer.write",
@@ -474,6 +479,14 @@ SELECT
   (SELECT count(*) FROM machine_category c WHERE c.tenant_id = :tid AND c.is_active AND EXISTS (
       SELECT 1 FROM rental_rate_policy r WHERE r.tenant_id = :tid AND r.machine_category_id = c.id
          AND r.effective_from <= :now)) AS categories_rated,
+  (SELECT count(*) FROM machine_category c WHERE c.tenant_id = :tid AND c.is_active AND EXISTS (
+      SELECT 1 FROM machine m WHERE m.tenant_id = :tid AND m.status = 'ACTIVE' AND m.category_id = c.id
+      )) AS categories_in_use,
+  (SELECT count(*) FROM machine_category c WHERE c.tenant_id = :tid AND c.is_active AND EXISTS (
+      SELECT 1 FROM machine m WHERE m.tenant_id = :tid AND m.status = 'ACTIVE' AND m.category_id = c.id
+      ) AND EXISTS (
+      SELECT 1 FROM rental_rate_policy r WHERE r.tenant_id = :tid AND r.machine_category_id = c.id
+         AND r.effective_from <= :now)) AS categories_in_use_rated,
   (SELECT count(*) FROM active_machines) AS machines,
   (SELECT count(*) FROM active_machines m WHERE m.id IN (SELECT machine_id FROM tracked)) AS machines_tracked,
   (SELECT count(*) FROM active_machines m WHERE m.id IN (SELECT machine_id FROM enrolled)) AS machines_enrolled,

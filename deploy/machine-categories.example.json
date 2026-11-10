@@ -1,0 +1,122 @@
+{
+  "categories": [
+    {
+      "name": "Excavator - Crawler",
+      "description": "Tracked hydraulic excavator"
+    },
+    {
+      "name": "Excavator - Wheeled",
+      "description": "Wheeled hydraulic excavator"
+    },
+    {
+      "name": "Excavator - Mini",
+      "description": "Compact excavator"
+    },
+    {
+      "name": "Backhoe Loader"
+    },
+    {
+      "name": "Wheel Loader"
+    },
+    {
+      "name": "Skid Steer Loader"
+    },
+    {
+      "name": "Bulldozer"
+    },
+    {
+      "name": "Motor Grader"
+    },
+    {
+      "name": "Roller - Smooth Drum",
+      "description": "Vibratory smooth drum roller"
+    },
+    {
+      "name": "Roller - Padfoot",
+      "description": "Vibratory padfoot roller"
+    },
+    {
+      "name": "Compactor"
+    },
+    {
+      "name": "Paver",
+      "description": "Asphalt paver"
+    },
+    {
+      "name": "Asphalt Plant"
+    },
+    {
+      "name": "Tipper Truck"
+    },
+    {
+      "name": "Articulated Dump Truck"
+    },
+    {
+      "name": "Low-bed Trailer"
+    },
+    {
+      "name": "Flatbed Truck"
+    },
+    {
+      "name": "Water Bowser"
+    },
+    {
+      "name": "Fuel Bowser"
+    },
+    {
+      "name": "Mobile Crane"
+    },
+    {
+      "name": "Truck-mounted Crane",
+      "description": "HIAB-type crane on a truck"
+    },
+    {
+      "name": "Telehandler"
+    },
+    {
+      "name": "Forklift"
+    },
+    {
+      "name": "Concrete Mixer"
+    },
+    {
+      "name": "Transit Mixer"
+    },
+    {
+      "name": "Concrete Pump"
+    },
+    {
+      "name": "Batching Plant"
+    },
+    {
+      "name": "Rock Breaker"
+    },
+    {
+      "name": "Drill Rig"
+    },
+    {
+      "name": "Stone Crusher"
+    },
+    {
+      "name": "Screening Plant"
+    },
+    {
+      "name": "Tractor"
+    },
+    {
+      "name": "Combine Harvester"
+    },
+    {
+      "name": "Generator"
+    },
+    {
+      "name": "Air Compressor"
+    },
+    {
+      "name": "Dewatering Pump"
+    },
+    {
+      "name": "Light Tower"
+    }
+  ]
+}

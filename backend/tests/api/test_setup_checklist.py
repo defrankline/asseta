@@ -159,6 +159,25 @@ def test_fully_set_up_tenant_is_complete(api: Api) -> None:
     assert again["TRACKERS"]["link"] == "/tenant/machines?missing=tracker"
 
 
+def test_only_machine_types_in_use_need_a_rate(api: Api) -> None:
+    f = setup_finance(api)
+    key = "MACHINE_TYPES_AND_RATES"
+    assert _status(_ok(f.owner.get(S)))[key] == "DONE"
+    # A type nobody runs yet (a seeded list) does not reopen the step.
+    spare = _ok(f.owner.post(f"{T}/machine-categories", {"name": "Forklift"}), 201)["id"]
+    assert _status(_ok(f.owner.get(S)))[key] == "DONE"
+    # The moment a machine of that type is active, it needs its rate.
+    _ok(
+        f.owner.post(
+            f"{T}/machines", {"asset_code": "FL-1", "name": "Forklift 1", "category_id": spare, "status": "ACTIVE"}
+        ),
+        201,
+    )
+    step = _steps(_ok(f.owner.get(S)))[key]
+    assert step["status"] == "TODO"
+    assert (step["done_count"], step["total_count"]) == (1, 2)
+
+
 def test_capability_off_steps_not_applicable(api: Api) -> None:
     f = setup_finance(api)
     for ptype in ("CASH_CUSTODY", "ENGINE_HOURS", "CUSTOMER_HOURS"):

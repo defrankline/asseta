@@ -410,3 +410,13 @@ scripts/apply-tenant-policies.sh --registration-number <number> --file /home/ass
 ```
 It creates ordinary company policy versions (validated, all-or-nothing, with the reason and audit events). A second run
 changes nothing. Tenant values never go in a migration: migrations only set platform defaults.
+
+## Seed a company's machine types from a file
+
+Copy `deploy/machine-categories.example.json` to the server, trim it to what the company wants, and run:
+```
+scripts/seed-machine-categories.sh --registration-number <number> --file /home/asseta/<company>-categories.json        # dry run
+scripts/seed-machine-categories.sh --registration-number <number> --file /home/asseta/<company>-categories.json --yes  # add them
+```
+Names that already exist are skipped, so a second run adds nothing. Rates are not created; the go-live checklist asks for a
+rate only for machine types in use.
