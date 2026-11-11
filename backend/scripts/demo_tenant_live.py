@@ -844,12 +844,21 @@ def square(lat: float, lon: float, half: float) -> dict[str, Any]:
 
 def tracker_model(p: Api) -> str:
     needed = {"GNSS", "ACCURACY", "IGNITION", "ENGINE_HOURS"}
-    for m in p.get("/platform/tracker-models", {"q": "Simulated"}):
+    for m in p.get("/platform/tracker-models", {"q": "Simulated", "include_inactive": "true"}):
         caps = set(m.get("declared_capabilities") or [])
         simulated = m["manufacturer"] == "Simulated" and m["protocol"] == "osmand" and m["adapter"] == "TRACCAR"
-        if simulated and needed <= caps and m.get("approved", True):
+        if not (simulated and needed <= caps):
+            continue
+        if not m.get("approved", True):  # withdrawn when an earlier demo was retired: offer it again
+            m = p.post(
+                f"/platform/tracker-models/{m['id']}/reactivate",
+                {"reason": "Demo setup: simulated trackers for a demo company", "version": m["version"]},
+                "reactivate tracker model",
+            )
+            log(f"reactivated tracker model {m['manufacturer']} {m['model']}")
+        else:
             log(f"reusing tracker model {m['manufacturer']} {m['model']}")
-            return str(m["id"])
+        return str(m["id"])
     created = p.post(
         "/platform/tracker-models",
         {
