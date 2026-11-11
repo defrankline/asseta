@@ -175,6 +175,8 @@ class ApprovalsTileDto(BaseModel):
     daily_reports_to_review: int = 0
     case_closures: int = 0
     revenue_decisions: int = 0
+    petty_cash_movements: int = 0
+    petty_cash_adjustments: int = 0
     total: int
 
 

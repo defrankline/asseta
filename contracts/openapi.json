@@ -3064,6 +3064,16 @@
             "title": "Payments To Verify",
             "type": "integer"
           },
+          "petty_cash_adjustments": {
+            "default": 0,
+            "title": "Petty Cash Adjustments",
+            "type": "integer"
+          },
+          "petty_cash_movements": {
+            "default": 0,
+            "title": "Petty Cash Movements",
+            "type": "integer"
+          },
           "remittances_to_verify": {
             "title": "Remittances To Verify",
             "type": "integer"

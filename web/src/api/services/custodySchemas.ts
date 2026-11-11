@@ -417,6 +417,8 @@ export const accountabilitySummarySchema: Schema<AccountabilitySummaryDto> = obj
     daily_reports_to_review: int(),
     case_closures: int(),
     revenue_decisions: int(),
+    petty_cash_movements: int(),
+    petty_cash_adjustments: int(),
     total: int(),
   })
     .nullable()

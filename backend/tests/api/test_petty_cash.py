@@ -5,6 +5,7 @@ path (a write-off moves the fund, never the holder's collections custody), holde
 capability off (refusals, hidden menus), RLS isolation, idempotent sync, profitability counting petty expenses once
 and never fundings, and today's behaviour unchanged with the platform defaults."""
 
+import json
 import uuid
 from datetime import timedelta
 from decimal import Decimal
@@ -781,6 +782,16 @@ def test_witnessed_count_recorded_offline_from_the_downloaded_list(api: Api) -> 
         422,
         "PETTY_CASH_WITNESS_INVALID",
     )
+
+
+def test_accountability_summary_counts_petty_cash_waiting_for_a_decision(api: Api) -> None:
+    f, _ = _setup(api, "Summary Co", "PSU-1")
+    fid = _fund(f)["id"]
+    _ok(f.accountant.post(f"{P}/fundings", {"fund_id": fid, "kind": "FUNDING", "amount": "5000"}))
+    for who in (f.owner, f.accountant):
+        summary = _ok(who.get("/api/v1/tenant/accountability/summary"), 200)
+        text = json.dumps(summary)
+        assert '"petty_cash_movements"' in text and "/tenant/finance/petty-cash/movements" in text
 
 
 def test_sweep_reminds_counts_due_and_low_funds(api: Api) -> None:

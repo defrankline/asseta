@@ -79,6 +79,8 @@ function summary(o: Partial<AccountabilitySummaryDto> = {}): AccountabilitySumma
       daily_reports_to_review: 0,
       case_closures: 0,
       revenue_decisions: 0,
+      petty_cash_movements: 0,
+      petty_cash_adjustments: 0,
       total: 4,
     },
     ...o,

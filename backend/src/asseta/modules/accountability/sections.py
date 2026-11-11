@@ -103,6 +103,9 @@ KIND_ROUTES: dict[str, str] = {
     "daily_reports_to_review": list_route("/tenant/daily-reports", status="SUBMITTED"),
     "case_closures": list_route("/tenant/cases", closure_proposed="true"),
     "revenue_decisions": list_route("/tenant/revenue-differences", status="EXPLANATION_PROPOSED"),
+    # DEC-033: fundings and top-ups waiting for an approver or returns waiting for the office; fund adjustments.
+    "petty_cash_movements": list_route("/tenant/finance/petty-cash/movements"),
+    "petty_cash_adjustments": list_route("/tenant/finance/petty-cash/adjustments"),
 }
 
 

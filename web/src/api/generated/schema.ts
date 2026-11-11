@@ -9344,6 +9344,16 @@ export interface components {
             partial_reasons: number;
             /** Payments To Verify */
             payments_to_verify: number;
+            /**
+             * Petty Cash Adjustments
+             * @default 0
+             */
+            petty_cash_adjustments: number;
+            /**
+             * Petty Cash Movements
+             * @default 0
+             */
+            petty_cash_movements: number;
             /** Remittances To Verify */
             remittances_to_verify: number;
             /**
