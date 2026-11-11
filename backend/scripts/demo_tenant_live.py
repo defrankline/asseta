@@ -2312,7 +2312,9 @@ def upload_receipt(api: Api, amount: str, key: str) -> str:
     """A generated receipt image (placeholder of the amount, not a camera photo) as an expense receipt attachment."""
     h = {k: v for k, v in api._h().items() if k != "Content-Type"}
     files = {"file": (f"{key}.png", png_image(amount.replace(",", ""), key), "image/png")}
-    r = httpx.post(f"{API}/tenant/attachments", headers=h, files=files, data={"purpose": "RECEIPT"}, timeout=60.0)
+    r = httpx.post(
+        f"{API}/tenant/attachments", headers=h, files=files, data={"purpose": "EXPENSE_RECEIPT"}, timeout=60.0
+    )
     if r.status_code != 201:
         raise ApiError(f"upload receipt {key}", r)
     return str(r.json()["id"])
@@ -2342,9 +2344,7 @@ def extras(a: argparse.Namespace) -> int:
     state = load_state(path)
     if state.get("retired_at") or state.get("incomplete"):
         raise Refuse("the demo data is retired or incomplete; extras are not added")
-    done: dict[str, Any] = state.setdefault("extras", {})
-    if done.get("completed_at"):
-        raise Refuse(f"extras were already added ({done['completed_at']}); they are added only once")
+    done: dict[str, Any] = state.setdefault("extras", {})  # parts already added are skipped on a re-run
     kc = KeycloakAdmin()
     client = kc.create_client()
     now = utcnow()
@@ -2356,9 +2356,10 @@ def extras(a: argparse.Namespace) -> int:
             if tenant["id"] != state["tenant_id"]:
                 raise Refuse(f"state file belongs to tenant {state['tenant_id']}, not {tenant['id']}")
             with mandate(pf, tenant, a.consent_reference, "demo office workflows") as owner:
-                _extras(owner, acct, sup, state, now)
-        done["completed_at"] = utcnow().isoformat()
-        write_private(path, state)
+                try:
+                    _extras(owner, acct, sup, state, now, done)
+                finally:
+                    write_private(path, state)
     finally:
         try:
             kc.delete_client(client.uuid)
@@ -2368,7 +2369,7 @@ def extras(a: argparse.Namespace) -> int:
     return 0
 
 
-def _extras(owner: Api, acct: Api, sup: Api, state: dict[str, Any], now: datetime) -> None:
+def _extras(owner: Api, acct: Api, sup: Api, state: dict[str, Any], now: datetime, done: dict[str, Any]) -> None:
     def at(minutes_ago: int) -> str:
         return _iso(now - timedelta(minutes=minutes_ago))
 
@@ -2424,7 +2425,7 @@ def _extras(owner: Api, acct: Api, sup: Api, state: dict[str, Any], now: datetim
         cat = m.get("category_id")
         if cat and code in rate_of and cat not in by_category:
             by_category[cat] = rate_of[code]
-    for cat, hourly in by_category.items():
+    for cat, hourly in ({} if done.get("rates") else by_category).items():
         step(
             f"rate card {hourly}/h",
             lambda cat=cat, hourly=hourly: owner.post(
@@ -2434,15 +2435,18 @@ def _extras(owner: Api, acct: Api, sup: Api, state: dict[str, Any], now: datetim
                     "hourly_rate": hourly,
                     "minimum_hours": "4",
                     "reason": "Standard hire rate",
-                    "effective_from": at(600),
                 },
                 "rate card",
                 (201,),
             ),
         )
 
-    # The accountant's staff record (holds the office petty cash box).
-    acct_staff = step(
+    done["rates"] = True
+    # The accountant's staff record (holds the office petty cash box); kept if already there.
+    known_staff = {
+        x.get("employee_code"): str(x["id"]) for x in owner.rows("/tenant/staff", {"include_inactive": "true"})
+    }
+    acct_staff = known_staff.get("WS-ACC-01") or step(
         "accountant staff record",
         lambda: owner.post(
             "/tenant/staff",
@@ -2476,10 +2480,14 @@ def _extras(owner: Api, acct: Api, sup: Api, state: dict[str, Any], now: datetim
             )["id"]
         )
 
-    site_fund = step(
+    known_funds = {
+        f["code"]: str(f["id"]) for f in owner.rows("/tenant/petty-cash/funds", {"include_inactive": "true"})
+    }
+    new_site, new_office = "PC-SITE" not in known_funds, "PC-OFFICE" not in known_funds
+    site_fund = known_funds.get("PC-SITE") or step(
         "petty cash fund PC-SITE", lambda: fund("PC-SITE", "Site petty cash", sup_staff, "800000", "200000")
     )
-    office_fund = (
+    office_fund = known_funds.get("PC-OFFICE") or (
         step("petty cash fund PC-OFFICE", lambda: fund("PC-OFFICE", "Office petty cash", acct_staff, "300000", "75000"))
         if acct_staff
         else None
@@ -2514,12 +2522,12 @@ def _extras(owner: Api, acct: Api, sup: Api, state: dict[str, Any], now: datetim
             (200,),
         )
 
-    if site_fund:
+    if site_fund and new_site:
         step(
             "PC-SITE funded 800,000 (accountant proposes, owner approves, accountant hands over, supervisor confirms)",
             lambda: funded(site_fund, "800000", acct, owner, acct, sup),
         )
-    if office_fund:
+    if office_fund and new_office:
         step(
             "PC-OFFICE funded 300,000 (accountant proposes, owner approves and hands over, accountant confirms)",
             lambda: funded(office_fund, "300000", acct, owner, owner, acct),
@@ -2537,7 +2545,7 @@ def _extras(owner: Api, acct: Api, sup: Api, state: dict[str, Any], now: datetim
         ("TRANSPORT", "Boda boda to fetch filters", "Local rider", "15000", "WL-01", 90),
     ]
     expense_ids: list[str] = []
-    if site_fund:
+    if site_fund and not done.get("expenses"):
         for i, (cat, desc, supplier, amount, mcode, ago) in enumerate(spends):
 
             def spend(
@@ -2592,7 +2600,11 @@ def _extras(owner: Api, acct: Api, sup: Api, state: dict[str, Any], now: datetim
             ),
         )
 
+        done["expenses"] = bool(expense_ids)
+
     # Customer hours sold in the field: one verified by the accountant, one waiting for verification.
+    if done.get("hours"):
+        return
     customers = {c["code"]: c["id"] for c in owner.rows("/tenant/customers")}
 
     def sell(cust: str, mcode: str, hours: str, method: str, amount: str, ref: str | None, ago: int) -> dict[str, Any]:
@@ -2616,12 +2628,12 @@ def _extras(owner: Api, acct: Api, sup: Api, state: dict[str, Any], now: datetim
         )
 
     first = step(
-        "PRC buys 20 h on EX-01 (bank transfer)",
-        lambda: sell("PRC", "EX-01", "20", "BANK", "1900000", "CRDB-TRX-88213", 180),
+        "PRC buys 20 h on EX-01 (cash, verified by the accountant)",
+        lambda: sell("PRC", "EX-01", "20", "CASH", "1900000", None, 180),
     )
     step(
-        "MMH buys 10 h on GR-01 (mobile money, left unverified)",
-        lambda: sell("MMH", "GR-01", "10", "MOBILE_MONEY", "1100000", "MPESA-QK7H2LX9", 60),
+        "MMH buys 10 h on GR-01 (cash, left unverified)",
+        lambda: sell("MMH", "GR-01", "10", "CASH", "1100000", None, 60),
     )
     if first:
 
@@ -2630,12 +2642,13 @@ def _extras(owner: Api, acct: Api, sup: Api, state: dict[str, Any], now: datetim
             claimed = [p for p in pays if p.get("status") == "CLAIMED"]
             acct.post(
                 f"/tenant/customer-payments/{claimed[0]['id']}/decision",
-                {"verified": True, "note": "Seen on the CRDB statement"},
+                {"verified": True, "note": "Cash counted at the office"},
                 "verify payment",
                 (200,),
             )
 
         step("accountant verifies the PRC payment (hours become active)", verify)
+        done["hours"] = True
     _ = bank
 
 
