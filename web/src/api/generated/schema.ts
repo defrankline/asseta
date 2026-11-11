@@ -14120,6 +14120,11 @@ export interface components {
             /** Minimum Hours */
             minimum_hours: string;
             /**
+             * Minor Units
+             * @description Decimal places the total is rounded to (the server's currency setting)
+             */
+            minor_units: number;
+            /**
              * Rate Card Id
              * Format: uuid
              */

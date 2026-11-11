@@ -367,6 +367,7 @@ class HoursPriceDto(BaseModel):
     hourly_rate: Decimal
     minimum_hours: Decimal
     currency: str
+    minor_units: int = Field(description="Decimal places the total is rounded to (the server's currency setting)")
     effective_from: datetime
 
 

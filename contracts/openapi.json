@@ -16928,6 +16928,11 @@
             "title": "Minimum Hours",
             "type": "string"
           },
+          "minor_units": {
+            "description": "Decimal places the total is rounded to (the server's currency setting)",
+            "title": "Minor Units",
+            "type": "integer"
+          },
           "rate_card_id": {
             "format": "uuid",
             "title": "Rate Card Id",
@@ -16940,6 +16945,7 @@
           "hourly_rate",
           "minimum_hours",
           "currency",
+          "minor_units",
           "effective_from"
         ],
         "title": "HoursPriceDto",

@@ -503,6 +503,7 @@ class HoursService:
                     hourly_rate=card.hourly_rate,
                     minimum_hours=card.minimum_hours,
                     currency=card.currency,
+                    minor_units=minor_units(self._s, card.currency),
                     effective_from=card.effective_from,
                 )
             )
