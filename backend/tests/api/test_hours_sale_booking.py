@@ -341,7 +341,7 @@ def test_auto_approval_off_keeps_the_owner_approving(api: Api) -> None:
     assert _approve(f, p["job"]["id"]).status_code == 200
 
 
-def test_auto_approval_on_credit_completing_the_sale(api: Api) -> None:
+def test_credit_never_approves_the_booked_job(api: Api) -> None:
     f = _setup(api)
     _policy(f, prepaid_job_auto_approval=True)
     arr = f.manager.post(
@@ -358,7 +358,8 @@ def test_auto_approval_on_credit_completing_the_sale(api: Api) -> None:
     p = _ok(f.supervisor.post(f"{T}/hours-purchases", _sale(api, f, "3", payments=[], job=_booking(api))))
     r = f.accountant.post(f"{T}/hours-purchases/{p['id']}/credit-activations", {"hours": "3", "reason": "Pays Friday"})
     assert r.status_code == 200, r.text
-    assert _job(f, p["job"]["id"])["status"] == "APPROVED"
+    # The hours are usable on credit, but the job still goes to a person: only verified money approves it.
+    assert _job(f, p["job"]["id"])["status"] == "PENDING_APPROVAL"
 
 
 def test_busy_machine_keeps_the_paid_job_pending_and_tells_the_approvers(api: Api) -> None:

@@ -172,11 +172,15 @@ class HoursEngine:
         return new
 
     def _approval_follows_money(self, purchase: HoursPurchase) -> None:
-        """CUSTOMER_HOURS prepaid_job_auto_approval: once every hour of the sale is active, the job booked with it is
-        approved by policy (or left pending with the approvers told why). A partly active sale never qualifies."""
+        """CUSTOMER_HOURS prepaid_job_auto_approval: once every hour of the sale is active AND verified money covers its
+        whole amount, the job booked with it is approved by policy (or left pending with the approvers told why). A
+        partly paid sale never qualifies, and neither do hours activated on credit: credit goes to a person."""
         if not self.policy.prepaid_job_auto_approval or purchase.cancelled_at is not None:
             return
         if purchase_totals(self._s, purchase).activated < purchase.hours:
+            return
+        verified, _claimed = allocated_amounts(self._s, purchase.id)
+        if verified < purchase.amount:
             return
         from asseta.modules.jobs.booking import auto_approve_booked  # lazy: the jobs module builds on this engine
 
