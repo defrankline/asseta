@@ -36,6 +36,8 @@ final class FakeSyncServer: @unchecked Sendable {
     var cashCustody: [[String: Any]] = []
     var depositAccounts: [[String: Any]] = []
     var openInvoices: [[String: Any]] = []
+    /// Other `SyncData` lists sent as given (e.g. the DEC-033 `petty_cash_*` snapshots).
+    var extraData: [String: [[String: Any]]] = [:]
     var changeoverJobs: [[String: Any]] = []
     var unbillableReasons: [[String: Any]] = []
     /// Advertised protocol capabilities (nil: an older server that sends none).
@@ -198,7 +200,7 @@ final class FakeSyncServer: @unchecked Sendable {
             applyOrder.append(id)
             return ["id": id.uuidString.lowercased(), "status": "ACKED", "result": result, "error": NSNull()]
         }
-        if ["HOURS_PURCHASE", "CASH_HANDOVER", "DAILY_REPORT"].contains(op["op_type"] as? String) {
+        if ["HOURS_PURCHASE", "CASH_HANDOVER", "DAILY_REPORT", "PETTY_CASH_RETURN", "PETTY_CASH_COUNT"].contains(op["op_type"] as? String) {
             // Mirrors push.py `_hours_purchase` / `_handover`: incomplete evidence uploads defer; an unknown one is rejected.
             let uploads = (payload["evidence_upload_ids"] as? [String] ?? []).compactMap(UUID.init(uuidString:))
             if uploads.contains(where: { blobs[$0] != nil && blobs[$0]?.attachmentID == nil }) {
@@ -328,6 +330,7 @@ final class FakeSyncServer: @unchecked Sendable {
                                    "deposit_accounts": depositAccounts, "changeover_jobs": changeoverJobs,
                                    "unbillable_reasons": unbillableReasons, "open_invoices": openInvoices]
         for (key, rows) in inbox { data[key] = rows }
+        for (key, rows) in extraData { data[key] = rows }
         return data
     }
 

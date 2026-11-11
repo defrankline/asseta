@@ -20,6 +20,8 @@ public struct RecordRow: Equatable, Sendable {
     public var note: String?
     /// The job the record belongs to (the row opens it when the role can see jobs).
     public var jobID: UUID?
+    /// "To check: ..." (an expense's control flags, DEC-033), shown in the warning colour.
+    public var checks: String?
 }
 
 extension OwnerFormat {
@@ -99,7 +101,13 @@ public enum SpendText {
         RecordRow(title: e.description, detail: prefixed(e.supplier, OwnerFormat.date(e.incurredAt, timeZone: timeZone)),
                   trailing: money(e.amount, e.currency),
                   pills: [TextPill(text: OwnerFormat.humanize(e.status), tone: expenseTone(e.status))],
-                  note: e.decisionNote, jobID: e.jobID)
+                  note: e.decisionNote, jobID: e.jobID, checks: expenseChecks(e))
+    }
+
+    /// The expense's control flags in neutral words: "To check: <flag>; <flag>" (DEC-033), nil when none.
+    public static func expenseChecks(_ e: ExpenseDTO) -> String? {
+        let flags = ExpenseFlags.lines(e.controlFlags)
+        return flags.isEmpty ? nil : "\(ExpenseFlags.title): " + flags.joined(separator: "; ")
     }
 
     /// "Total approved: TZS 150,000.00", one line per currency (sorted); none when nothing is approved.

@@ -175,6 +175,11 @@ public enum AssetaSchema {
             name: "adjustment_evidence",
             statements: AdjustmentEvidenceV10.statements
         ),
+        Migration(
+            version: 11,
+            name: "petty_cash_evidence",
+            statements: PettyCashEvidenceV11.statements
+        ),
     ]
 }
 

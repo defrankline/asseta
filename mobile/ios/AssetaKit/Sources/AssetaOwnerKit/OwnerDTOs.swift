@@ -44,8 +44,12 @@ public struct ExpenseDTO: Codable, Hashable, Sendable, Identifiable {
     public let machineID: UUID?
     public let custodianStaffID: UUID?
     public let receiptRequired: Bool
+    /// DEC-033: why a human must look at it (OVERSPEND, SPENT_FROM_COLLECTIONS, ABOVE_PETTY_CASH_MAXIMUM; neutral).
+    public let controlFlags: [String]
+    public let pettyCashFundID: UUID?
 
     enum CodingKeys: String, CodingKey {
+        case controlFlags = "control_flags", pettyCashFundID = "petty_cash_fund_id"
         case id, amount, currency, description, status, supplier
         case incurredAt = "incurred_at", paidFrom = "paid_from", receiptAttachmentIDs = "receipt_attachment_ids"
         case decisionNote = "decision_note", jobID = "job_id", machineID = "machine_id"
@@ -68,6 +72,8 @@ public struct ExpenseDTO: Codable, Hashable, Sendable, Identifiable {
         machineID = try c.decodeIfPresent(UUID.self, forKey: .machineID)
         custodianStaffID = try c.decodeIfPresent(UUID.self, forKey: .custodianStaffID)
         receiptRequired = try c.decodeIfPresent(Bool.self, forKey: .receiptRequired) ?? false
+        controlFlags = try c.decodeIfPresent([String].self, forKey: .controlFlags) ?? []
+        pettyCashFundID = try c.decodeIfPresent(UUID.self, forKey: .pettyCashFundID)
     }
 }
 

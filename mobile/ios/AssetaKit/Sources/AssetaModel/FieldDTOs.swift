@@ -165,6 +165,12 @@ public enum OperationType: String, Codable, Sendable, CaseIterable {
     /// A machine's daily operational report (`DailyReportIn` + `evidence_upload_ids`; the operation id is the report
     /// id); needs ``SyncCapability/dailyReport``.
     case dailyReport = "DAILY_REPORT"
+    /// DEC-033 petty cash (``SyncCapability/pettyCash``): acknowledgements, top-up requests, returns, counts, holder
+    /// changes and advance clearances.
+    case pettyCashAcknowledgement = "PETTY_CASH_ACKNOWLEDGEMENT", pettyCashTopUpRequest = "PETTY_CASH_TOP_UP_REQUEST"
+    case pettyCashReturn = "PETTY_CASH_RETURN", pettyCashCount = "PETTY_CASH_COUNT"
+    case pettyCashHolderChangeAcknowledgement = "PETTY_CASH_HOLDER_CHANGE_ACKNOWLEDGEMENT"
+    case pettyCashAdvanceClearance = "PETTY_CASH_ADVANCE_CLEARANCE"
 }
 
 public enum GpsStatus: String, Codable, Sendable, CaseIterable {

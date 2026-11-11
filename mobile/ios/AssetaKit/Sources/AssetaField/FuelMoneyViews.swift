@@ -114,6 +114,7 @@ struct MoneyTabView: View {
                                        description: Text("Your cash custody appears here after a sync."))
             }
             CashToAcknowledgeSection(model: model, open: acknowledge)
+            PettyCashMoneySection(model: model)
             FilterChips(options: MoneySegment.allCases.filter { $0 != .transfers || model.access.transferCash || model.access.askToKeepCash }.map { ($0, $0.label) },
                         selection: $segment)
             switch segment {
@@ -128,7 +129,9 @@ struct MoneyTabView: View {
                             NavigationLink(value: FieldRoute.expense(e.id)) {
                                 InboxRow(e.description.isEmpty ? "Expense" : e.description, e.status,
                                          InboxTexts.money(e.amount, e.currency) + " · " + InboxTexts.paidFrom(e.paidFrom),
-                                         e.at.listText, e.decisionNote.map { "Office note: \($0)" })
+                                         e.at.listText, e.decisionNote.map { "Office note: \($0)" },
+                                         ExpenseFlags.lines(e.controlFlags).isEmpty ? nil
+                                             : "\(ExpenseFlags.title): " + ExpenseFlags.lines(e.controlFlags).joined(separator: "; "))
                             }
                         }
                     }
@@ -266,6 +269,7 @@ struct ExpenseDetailView: View {
                         LabeledContent("Machine", value: InboxTexts.machine(machine.assetCode, machine.name))
                     }
                 }
+                ExpenseFlagsSection(flags: e.controlFlags)
                 if e.status == .approved || e.status == .rejected {
                     Section("Office decision") {
                         LabeledContent("Decision") { Text(e.status.label).foregroundStyle(e.status.tone.color) }

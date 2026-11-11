@@ -96,6 +96,9 @@ public struct ExpenseDraft: Sendable, Equatable {
     /// The machine of the selected job (the server attributes a job's cost to its machine).
     public var jobMachineID: UUID?
     public var paidFrom: ExpensePaidFrom = .cashCustody
+    /// PETTY_CASH (DEC-033): the fund that paid and, optionally, the advance of that fund given to me.
+    public var pettyCashFundID: UUID?
+    public var pettyCashAdvanceID: UUID?
     public var receiptCount = 0
     /// nil while the GPS attempt is still running.
     public var gps: GpsPayload?

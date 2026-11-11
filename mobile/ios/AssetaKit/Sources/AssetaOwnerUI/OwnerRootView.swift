@@ -122,7 +122,8 @@ public struct OwnerRootView: View {
             target = .more; path.append(MoreItem.accountability)
         case .meterReset where model.features.meterEvidence:
             target = .more; path.append(MoreItem.approvals); path.append(route)
-        case .handover where model.features.finance, .customerPayment where model.features.finance:
+        case .handover where model.features.finance, .customerPayment where model.features.finance,
+             .pettyCashMovement where model.features.pettyCashRead, .pettyCashAdjustment where model.features.pettyCashRead:
             target = .more; path.append(MoreItem.approvals); path.append(route)
         case .exception where model.features.meterEvidence:
             target = .more; path.append(MoreItem.exceptions); path.append(route)
@@ -198,6 +199,8 @@ struct RouteView: View {
         case let .meterReset(id): MeterResetDetailView(model: model, resetID: id)
         case let .handover(id): HandoverDetailView(model: model, handoverID: id)
         case let .customerPayment(id): PaymentReviewView(model: model, paymentID: id)
+        case let .pettyCashMovement(id): PettyCashReviewView(model: model, id: id, adjustment: false)
+        case let .pettyCashAdjustment(id): PettyCashReviewView(model: model, id: id, adjustment: true)
         case let .exception(id): ExceptionDetailView(model: model, exceptionID: id)
         case let .notification(id): NotificationResolverView(model: model, notificationID: id)
         case .notifications: NotificationsView(model: model)

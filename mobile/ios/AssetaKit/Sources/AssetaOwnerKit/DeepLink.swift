@@ -25,6 +25,9 @@ public enum OwnerRoute: Hashable, Sendable {
     case handover(UUID)
     /// One customer payment, with confirm / reject while it waits (CUSTOMER_PAYMENT_TO_VERIFY).
     case customerPayment(UUID)
+    /// A petty cash funding / top-up or fund adjustment waiting for approval (DEC-033).
+    case pettyCashMovement(UUID)
+    case pettyCashAdjustment(UUID)
     /// One meter exception (review).
     case exception(UUID)
     /// Open by notification id; the app fetches it and follows its `target`.
@@ -136,6 +139,9 @@ public enum DeepLinkParser {
         case let ("cash_handover", id?): return .handover(id)
         case let ("customer_payment", id?): return .customerPayment(id)
         case ("customer_payment", nil): return .approvals
+        case let ("petty_cash_movement", id?): return .pettyCashMovement(id)
+        case let ("petty_cash_adjustment", id?): return .pettyCashAdjustment(id)
+        case (let entity, _) where entity.hasPrefix("petty_cash"): return .approvals
         case ("cash_transfer", _), ("supervisor_cash_custody", _): return .cash
         case ("hours_purchase", nil): return .customerHours
         case let (entity, id?) where DecisionKind(entity: entity) != nil: return .decision(DecisionKind(entity: entity)!, id)
@@ -207,6 +213,15 @@ public enum DeepLinkParser {
             if parts.count >= 3, parts[2] == "purchases" { return .customerHours }
             return .accountability
         case ("finance", _):
+            // DEC-033: /tenant/finance/petty-cash/<movements|adjustments>/<id>; any other petty cash link opens Approvals.
+            if parts.count >= 3, parts[2] == "petty-cash" {
+                let record = parts.count >= 5 ? UUID(uuidString: parts[4]) : nil
+                switch (parts.count >= 4 ? parts[3] : "", record) {
+                case let ("movements", id?): return .pettyCashMovement(id)
+                case let ("adjustments", id?): return .pettyCashAdjustment(id)
+                default: return .approvals
+                }
+            }
             // DEC-032 Phase 2: /tenant/finance/adjustments/requests/<id>; the ledger itself is on the web only.
             if parts.count >= 3, parts[2] == "adjustments" {
                 if parts.count >= 5, parts[3] == "requests", let request = UUID(uuidString: parts[4]) {
@@ -310,7 +325,7 @@ extension OwnerRoute {
     /// Whether the route opens one specific record (as opposed to a list).
     public var identifiesRecord: Bool {
         switch self {
-        case .machine, .alert, .approval, .investigation, .job, .meterReset, .handover, .customerPayment, .exception, .notification, .decision,
+        case .machine, .alert, .approval, .investigation, .job, .meterReset, .handover, .customerPayment, .pettyCashMovement, .pettyCashAdjustment, .exception, .notification, .decision,
              .cashTransfer, .cashFloat, .overdueRemittance, .revenueDifference, .dailySheetDay, .hoursPurchase, .scorecardPerson, .dailyReport, .employeeAccountability: true
         case .overview, .fleet, .jobs, .investigations, .alerts, .approvals, .exceptions, .fieldSpend, .cash, .notifications,
              .accountability, .overdueRemittances, .dailySheet, .customerHours, .hoursStatement, .scorecard, .unbilledWork,

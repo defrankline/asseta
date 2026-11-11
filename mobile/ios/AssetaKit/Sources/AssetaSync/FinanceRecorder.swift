@@ -25,6 +25,17 @@ extension FieldRecorder {
         guard let categoryID = draft.categoryID, let amount = assessment.amount, let gps = draft.gps else {
             throw FieldRecorderError.invalid("The expense is incomplete")
         }
+        let petty = draft.paidFrom == .pettyCash
+        var pettyAdvanceID: UUID?
+        if petty {
+            // DEC-033: a fund that is on this phone (mine, or the fund of an advance given to me), in its currency.
+            try requireCapability(SyncCapability.pettyCash)
+            let view = FieldDirectory(store: store, tenantID: tenantID, owner: owner).pettyCash()
+            let issues = PettyCashRules.expenseIssues(fundID: draft.pettyCashFundID, advanceID: draft.pettyCashAdvanceID,
+                                                      currency: draft.currency, view: view)
+            if let issue = issues.first { throw FieldRecorderError.invalid(issue) }
+            pettyAdvanceID = draft.pettyCashAdvanceID.flatMap { id in view.advances(of: draft.pettyCashFundID).first { $0.id == id }?.id }
+        }
         return try store.database.transaction {
             let locals = try receipts.map { try addAttachment($0, purpose: .expenseReceipt) }
             let payload = ExpensePayload(
@@ -32,7 +43,8 @@ extension FieldRecorder {
                 description: FinanceRules.clean(draft.description, max: 2000) ?? "",
                 amount: amount, currency: assessment.currency, incurredAt: incurredAt, paidFrom: draft.paidFrom,
                 supplier: FinanceRules.clean(draft.supplier, max: 200), machineID: draft.jobID == nil ? draft.machineID : nil,
-                jobID: draft.jobID, gps: gps, deviceID: deviceID)
+                jobID: draft.jobID, gps: gps, deviceID: deviceID,
+                pettyCashFundID: petty ? draft.pettyCashFundID : nil, pettyCashAdvanceID: pettyAdvanceID)
             return try enqueue(.expense, entityType: "expense", entityID: clientID, payload: payload, dependsOn: [],
                                attachments: locals.map { ($0, .receiptUploads) }, createdAt: incurredAt)
         }

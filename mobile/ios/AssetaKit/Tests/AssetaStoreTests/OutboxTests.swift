@@ -23,7 +23,7 @@ struct OutboxTests {
         let applied = try store.database.query("SELECT version, name FROM schema_migration") { $0.string(1) }
         #expect(applied == ["create_client_operation_outbox", "outbox_sync_protocol", "sync_state_entities_policies",
                            "finance_receipts_cash_custody", "per_user_field_data", "supervisor_inbox", "accountability_evidence",
-                           "remittance_evidence", "daily_report_evidence", "adjustment_evidence"])
+                           "remittance_evidence", "daily_report_evidence", "adjustment_evidence", "petty_cash_evidence"])
     }
 
     @Test func refusesDatabaseNewerThanApp() throws {

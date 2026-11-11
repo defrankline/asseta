@@ -141,6 +141,7 @@ public enum InboxTexts {
         switch code {
         case "CASH_CUSTODY": "My cash"
         case "COMPANY": "Company"
+        case "PETTY_CASH": ExpenseFlags.paidFromPettyCash
         default: sentence(code)
         }
     }

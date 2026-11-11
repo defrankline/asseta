@@ -200,6 +200,7 @@ extension OwnerFeatures {
         case .exceptions, .meterReset, .exception: meterEvidence
         case .fieldSpend: expenses
         case .cash, .handover, .customerPayment: finance
+        case .pettyCashMovement, .pettyCashAdjustment: pettyCashRead
         // DEC-030 cash records: hidden when the tenant switched CASH_CUSTODY off.
         case .cashTransfer, .cashFloat, .overdueRemittances, .overdueRemittance: finance && cashCustody
         case .investigations, .investigation: cases

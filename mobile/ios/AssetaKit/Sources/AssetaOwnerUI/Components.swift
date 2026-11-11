@@ -219,6 +219,7 @@ struct RecordRowView: View {
                 ForEach(row.pills, id: \.text) { Pill(text: $0.text, color: $0.tone.color) }
             }
             if let note = row.note { Text(note).font(.caption).foregroundStyle(.secondary) }
+            if let checks = row.checks { Text(checks).font(.caption).foregroundStyle(Palette.warning) }
         }
         .accessibilityElement(children: .combine)
     }

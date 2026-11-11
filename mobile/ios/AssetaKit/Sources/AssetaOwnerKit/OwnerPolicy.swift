@@ -90,7 +90,7 @@ public struct OwnerFeatures: Equatable, Sendable {
     public var confirmPayments: Bool { finance && verifyHandovers }
 
     /// The Approvals screen shows approval requests or at least one kind of accountability decision.
-    public var approvalsScreen: Bool { approvals || !decisionKinds.isEmpty || revenueRead || confirmPayments }
+    public var approvalsScreen: Bool { approvals || !decisionKinds.isEmpty || revenueRead || confirmPayments || pettyCashApprove }
 
     public func canDecide(_ kind: DecisionKind) -> Bool { kind.decidable(permissions: permissions) }
 

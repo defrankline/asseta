@@ -203,8 +203,13 @@ public struct SyncExpenseDTO: Codable, Hashable, Sendable, Identifiable {
     public let receiptAttachmentIDs: [UUID]
     public let approvalRequestID: UUID?
     public let syncRevision: Int64
+    /// DEC-033: the petty cash fund (and advance) that paid, and why a human must look at it (neutral flags).
+    public let pettyCashFundID: UUID?
+    public let pettyCashAdvanceID: UUID?
+    public let controlFlags: [String]
 
     enum CodingKeys: String, CodingKey {
+        case pettyCashFundID = "petty_cash_fund_id", pettyCashAdvanceID = "petty_cash_advance_id", controlFlags = "control_flags"
         case id, description, supplier, amount, currency, status, latitude, longitude, source
         case clientID = "client_id", categoryID = "category_id", paidFrom = "paid_from", decisionNote = "decision_note"
         case decidedAt = "decided_at", decidedBy = "decided_by", incurredAt = "incurred_at", submittedAt = "submitted_at"
@@ -244,6 +249,9 @@ public struct SyncExpenseDTO: Codable, Hashable, Sendable, Identifiable {
         receiptAttachmentIDs = try c.decodeIfPresent([UUID].self, forKey: .receiptAttachmentIDs) ?? []
         approvalRequestID = try c.decodeIfPresent(UUID.self, forKey: .approvalRequestID)
         syncRevision = try c.decode(Int64.self, forKey: .syncRevision)
+        pettyCashFundID = try c.decodeIfPresent(UUID.self, forKey: .pettyCashFundID)
+        pettyCashAdvanceID = try c.decodeIfPresent(UUID.self, forKey: .pettyCashAdvanceID)
+        controlFlags = try c.decodeIfPresent([String].self, forKey: .controlFlags) ?? []
     }
 }
 

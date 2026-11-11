@@ -195,6 +195,9 @@ public enum InboxLink: Sendable, Equatable {
     case dailyReport(UUID)
     /// One of my remittances (DEC-032 Phase 3: its partial reason was decided): its detail once on the phone, else Money.
     case handover(UUID)
+    /// DEC-033: a funding / top-up to acknowledge or a fund being handed to me (the form while it still waits), else
+    /// My petty cash.
+    case pettyCashMovement(UUID), pettyCashHolderChange(UUID), pettyCash
 
     /// The exact record when the notification names one (`data.kind` + `record_id`), else its target.
     public static func from(_ notification: NotificationDTO) -> InboxLink {
@@ -230,6 +233,9 @@ public enum InboxLink: Sendable, Equatable {
         // Cash transfers and floats to acknowledge are answered on the Money tab.
         case "cash_transfer", "supervisor_cash_custody", "cash_remittance_overdue": return .money
         case "machine": return uuid.map(InboxLink.machine) ?? .none
+        case "petty_cash_movement": return uuid.map(InboxLink.pettyCashMovement) ?? .pettyCash
+        case "petty_cash_holder_change": return uuid.map(InboxLink.pettyCashHolderChange) ?? .pettyCash
+        case let entity? where entity.hasPrefix("petty_cash"): return .pettyCash
         default: return .none
         }
     }

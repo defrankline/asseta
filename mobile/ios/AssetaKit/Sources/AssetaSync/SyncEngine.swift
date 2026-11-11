@@ -189,6 +189,7 @@ public actor SyncEngine {
             if let zone = response.tenantTimezone { try setValue(zone, SyncKey.tenantTimezone) }
             try saveCustody(response.data.cashCustody, asOf: response.serverTime)
             try saveOpenInvoices(response.data, capabilities: response.capabilities, revision: response.cursor)
+            try savePettyCash(response.data, capabilities: response.capabilities, revision: response.cursor)
             try saveSnapshots(response.policySnapshots, receivedAt: response.serverTime)
             try setValue(String(response.cursor), SyncKey.cursor)
             try setDate(response.deviceSession.offlineGrantUntil, SyncKey.grantUntil)
@@ -212,6 +213,7 @@ public actor SyncEngine {
                 if let zone = page.tenantTimezone { try setValue(zone, SyncKey.tenantTimezone) }
                 try saveCustody(page.data.cashCustody, asOf: page.serverTime)
                 try saveOpenInvoices(page.data, capabilities: page.capabilities, revision: page.cursor)
+                try savePettyCash(page.data, capabilities: page.capabilities, revision: page.cursor)
                 try saveSnapshots(page.policySnapshots, receivedAt: page.serverTime)
                 try setValue(String(max(page.cursor, cursor)), SyncKey.cursor)
             }
@@ -315,6 +317,23 @@ public actor SyncEngine {
             return StoredEntity(entityType: OpenInvoices.entityType, id: id, revision: revision, version: nil, json: try object.jsonString())
         }
         try store.syncState.replaceEntities(type: OpenInvoices.entityType, with: invoices, tenantID: tenantID)
+    }
+
+    /// Petty cash (DEC-033) arrives as full snapshots on every pull: each list replaces the local set. Without
+    /// OP_PETTY_CASH the feature is off, so the local sets are cleared.
+    private func savePettyCash(_ data: SyncData, capabilities: [String]?, revision: Int64) throws {
+        let on = capabilities?.contains(SyncCapability.pettyCash) == true
+        let lists: [(String, [JSONValue])] = [
+            (PettyCash.fundType, data.pettyCashFunds), (PettyCash.awaitingType, data.pettyCashAwaiting),
+            (PettyCash.holderChangeType, data.pettyCashHolderChanges), (PettyCash.advanceType, data.pettyCashAdvances),
+        ]
+        for (type, objects) in lists {
+            let rows = on ? try objects.compactMap { object -> StoredEntity? in
+                guard let id = object["id"]?.stringValue.flatMap(UUID.init(uuidString:)) else { return nil }
+                return StoredEntity(entityType: type, id: id, revision: revision, version: nil, json: try object.jsonString())
+            } : []
+            try store.syncState.replaceEntities(type: type, with: rows, tenantID: tenantID)
+        }
     }
 
     private func saveSnapshots(_ snapshots: [PolicySnapshotDTO], receivedAt: Date) throws {

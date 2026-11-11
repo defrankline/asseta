@@ -70,6 +70,8 @@ public struct ExpenseCapturePolicy: Codable, Hashable, Sendable {
 
 public enum ExpensePaidFrom: String, Codable, Sendable, CaseIterable {
     case cashCustody = "CASH_CUSTODY", company = "COMPANY"
+    /// Paid from a petty cash fund (DEC-033, OP_PETTY_CASH): needs `petty_cash_fund_id`.
+    case pettyCash = "PETTY_CASH"
 }
 
 public enum FuelEventType: String, Codable, Sendable, CaseIterable {
@@ -92,10 +94,16 @@ public struct ExpensePayload: Codable, Hashable, Sendable {
     public let gps: GpsPayload
     public let deviceID: String
     public let receiptUploadIDs: [UUID]
+    /// PETTY_CASH only: the fund that paid and, optionally, the advance of that fund given to me.
+    public let pettyCashFundID: UUID?
+    public let pettyCashAdvanceID: UUID?
 
     public init(clientID: UUID, categoryID: UUID, description: String, amount: Decimal, currency: String?,
                 incurredAt: Date, paidFrom: ExpensePaidFrom, supplier: String?, machineID: UUID?, jobID: UUID?,
-                gps: GpsPayload, deviceID: String, receiptUploadIDs: [UUID] = []) {
+                gps: GpsPayload, deviceID: String, receiptUploadIDs: [UUID] = [], pettyCashFundID: UUID? = nil,
+                pettyCashAdvanceID: UUID? = nil) {
+        self.pettyCashFundID = pettyCashFundID
+        self.pettyCashAdvanceID = pettyCashAdvanceID
         self.clientID = clientID
         self.categoryID = categoryID
         self.description = description
@@ -115,6 +123,7 @@ public struct ExpensePayload: Codable, Hashable, Sendable {
         case description, amount, currency, supplier, gps
         case clientID = "client_id", categoryID = "category_id", incurredAt = "incurred_at", paidFrom = "paid_from"
         case machineID = "machine_id", jobID = "job_id", deviceID = "device_id", receiptUploadIDs = "receipt_upload_ids"
+        case pettyCashFundID = "petty_cash_fund_id", pettyCashAdvanceID = "petty_cash_advance_id"
     }
 }
 

@@ -38,6 +38,44 @@ final class ExpenseFormModel {
 
     var approvalNote: String? { ExpenseRules.approvalNote(assessment, policy: policy, baseCurrency: baseCurrency) }
 
+    // MARK: Petty cash (DEC-033)
+
+    var paidFromPettyCash: Bool { draft.paidFrom == .pettyCash }
+
+    /// Fund and advance problems while "Petty cash" is chosen.
+    func pettyIssues(_ view: PettyCashView) -> [String] {
+        guard paidFromPettyCash else { return [] }
+        return PettyCashRules.expenseIssues(fundID: draft.pettyCashFundID, advanceID: draft.pettyCashAdvanceID,
+                                            currency: draft.currency, view: view)
+    }
+
+    /// Overspend / above-maximum notes (the expense is still saved and kept for approval).
+    func pettyNotes(_ view: PettyCashView) -> [String] {
+        guard paidFromPettyCash else { return [] }
+        return PettyCashRules.expenseNotes(amount: assessment.amount, fundID: draft.pettyCashFundID,
+                                           advanceID: draft.pettyCashAdvanceID, view: view, baseCurrency: baseCurrency)
+    }
+
+    func canSave(_ view: PettyCashView) -> Bool { assessment.canSave && pettyIssues(view).isEmpty }
+
+    /// Choosing a fund sets the currency to the fund's and clears an advance of another fund.
+    func selectFund(_ id: UUID?, view: PettyCashView) {
+        draft.pettyCashFundID = id
+        if let option = view.expenseFunds.first(where: { $0.id == id }) { draft.currency = option.currency }
+        if !view.advances(of: id).contains(where: { $0.id == draft.pettyCashAdvanceID }) { draft.pettyCashAdvanceID = nil }
+    }
+
+    func selectPaidFrom(_ paidFrom: ExpensePaidFrom, view: PettyCashView) {
+        draft.paidFrom = paidFrom
+        if paidFrom == .pettyCash {
+            if draft.pettyCashFundID == nil, view.expenseFunds.count == 1 { selectFund(view.expenseFunds[0].id, view: view) }
+        } else {
+            draft.pettyCashFundID = nil
+            draft.pettyCashAdvanceID = nil
+            if draft.currency.isEmpty { draft.currency = baseCurrency ?? "" }
+        }
+    }
+
     /// Plain-language summary of the owner's rules, shown on the form.
     var rulesSummary: String {
         let currency = baseCurrency.map { " \($0)" } ?? ""
@@ -87,7 +125,7 @@ final class ExpenseFormModel {
     }
 
     func save(model: FieldModel) -> Bool {
-        guard assessment.canSave else { return false }
+        guard canSave(model.pettyCash) else { return false }
         if case let .blocked(reason) = model.expenseGate() { // the rules may have expired meanwhile
             errorMessage = reason.expenseMessage
             return false

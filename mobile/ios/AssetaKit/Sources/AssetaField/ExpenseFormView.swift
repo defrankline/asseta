@@ -35,17 +35,21 @@ struct ExpenseFormView: View {
                         .accessibilityIdentifier("expense.amount")
                     TextField("Currency", text: $form.draft.currency)
                         .textInputAutocapitalization(.characters).autocorrectionDisabled()
+                        .disabled(form.paidFromPettyCash)
                     TextField("What was it for?", text: $form.draft.description, axis: .vertical)
                         .accessibilityIdentifier("expense.description")
                     TextField("Supplier (optional)", text: $form.draft.supplier)
                 } footer: { Text(form.rulesSummary) }
                 Section("Paid from") {
-                    Picker("Paid from", selection: $form.draft.paidFrom) {
+                    Picker("Paid from", selection: Binding(get: { form.draft.paidFrom },
+                                                           set: { form.selectPaidFrom($0, view: petty) })) {
                         Text("My cash").tag(ExpensePaidFrom.cashCustody)
                         Text("Company").tag(ExpensePaidFrom.company)
+                        if petty.offersExpense { Text(ExpenseFlags.paidFromPettyCash).tag(ExpensePaidFrom.pettyCash) }
                     }
                     .pickerStyle(.segmented)
                 }
+                if form.paidFromPettyCash { pettyCashSection }
                 Section {
                     SearchablePickerField(label: "Job", options: model.jobOptions,
                                           selection: Binding(get: { form.draft.jobID },
@@ -67,7 +71,7 @@ struct ExpenseFormView: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { form.cancel(model: model); dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") { if form.save(model: model) { dismiss() } }
-                        .disabled(!form.assessment.canSave)
+                        .disabled(!form.canSave(petty))
                         .accessibilityIdentifier("expense.save")
                 }
             }
@@ -90,6 +94,38 @@ struct ExpenseFormView: View {
             } message: { Text(form.errorMessage ?? "") }
         }
         .interactiveDismissDisabled()
+    }
+
+    private var petty: PettyCashView { model.pettyCash }
+
+    /// Fund and advance pickers while "Petty cash" is chosen (DEC-033).
+    @ViewBuilder private var pettyCashSection: some View {
+        let view = petty
+        let options = view.expenseFunds.map { option in
+            PickerOption(id: option.id, title: option.title,
+                         subtitle: option.available.map { PettyCashTexts.expenseFundOption(InboxTexts.money(DecimalString($0).description, option.currency)) })
+        }
+        let chosen = view.expenseFunds.first { $0.id == form.draft.pettyCashFundID }
+        let advances = view.advances(of: form.draft.pettyCashFundID)
+        Section {
+            SearchablePickerField(label: PettyCashTexts.expenseFund, options: options,
+                                  selection: Binding(get: { form.draft.pettyCashFundID }, set: { form.selectFund($0, view: view) }),
+                                  emptyMessage: PettyCashTexts.expenseFundEmpty, identifier: "expense.pettyCash.fund")
+            if !advances.isEmpty {
+                let held = chosen?.held ?? true
+                SearchablePickerField(label: held ? PettyCashTexts.expenseAdvance : PettyCashTexts.expenseAdvanceRequiredLabel,
+                                      options: advances.map {
+                                          PickerOption(id: $0.id, title: PettyCashTexts.advanceRow(number: $0.number, amount: PettyCashTexts.money($0.amount, $0.currency)),
+                                                       subtitle: PettyCashTexts.expenseAdvanceOption(PettyCashTexts.money($0.remaining, $0.currency)))
+                                      },
+                                      selection: $form.draft.pettyCashAdvanceID, noneTitle: held ? PettyCashTexts.expenseNoAdvance : nil,
+                                      identifier: "expense.pettyCash.advance")
+            }
+        } header: { Text(PettyCashTexts.expenseSection) } footer: {
+            if let chosen, let available = chosen.available {
+                Text(PettyCashTexts.expenseFooter(InboxTexts.money(DecimalString(available).description, chosen.currency)))
+            }
+        }
     }
 
     @ViewBuilder private var receiptSection: some View {
@@ -143,12 +179,21 @@ struct ExpenseFormView: View {
             default: true
             }
         }
-        if !visible.isEmpty {
-            Section { ForEach(visible, id: \.description) { Text($0.description).foregroundStyle(Palette.warning) } }
+        let pettyIssues = form.pettyIssues(petty)
+        if !visible.isEmpty || !pettyIssues.isEmpty {
+            Section {
+                ForEach(visible, id: \.description) { Text($0.description).foregroundStyle(Palette.warning) }
+                ForEach(pettyIssues, id: \.self) { Text($0).foregroundStyle(Palette.warning) }
+            }
         }
         if assessment.amount != nil {
             Section {
-                if let note = form.approvalNote {
+                let pettyNotes = form.pettyNotes(petty)
+                if !pettyNotes.isEmpty {
+                    ForEach(pettyNotes, id: \.self) {
+                        Label($0, systemImage: "person.badge.clock").font(.footnote).foregroundStyle(Palette.warning)
+                    }
+                } else if let note = form.approvalNote {
                     Label(note, systemImage: "person.badge.clock").font(.footnote)
                         .accessibilityIdentifier("expense.approvalNote")
                 } else {

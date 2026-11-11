@@ -16,6 +16,8 @@ enum FieldRoute: Hashable {
     case siteCheckins
     /// My daily reports and one of them (DEC-032).
     case dailyReports, dailyReport(UUID)
+    /// My petty cash funds and what waits for me (DEC-033).
+    case pettyCash
 }
 
 /// Forms presented as sheets (Cancel / Save), as before.
@@ -27,6 +29,8 @@ enum FieldSheet: Identifiable {
     case capture(CaptureTarget, MeterPolicySnapshot)
     /// A new daily report (machine preset when opened from a machine), or the correction of one sent back.
     case dailyReport(machineID: UUID, resubmitting: DailyReportDTO?)
+    /// A petty cash form (DEC-033).
+    case pettyCash(PettyCashSheet)
 
     var id: String {
         switch self {
@@ -43,6 +47,7 @@ enum FieldSheet: Identifiable {
         case let .cashAck(id, _): "cash-ack-\(id)"
         case let .capture(target, _): "capture-\(target.title)-\(target.machineID?.uuidString ?? "")"
         case let .dailyReport(machine, report): "daily-report-\(machine)-\(report?.id.uuidString ?? "")"
+        case let .pettyCash(form): form.id
         }
     }
 }
@@ -110,6 +115,7 @@ public struct FieldRootView: View {
             case let .cashAck(id, isFloat): CashAckFormView(model: model, targetID: id, isFloat: isFloat)
             case let .capture(target, snapshot): MeterCaptureView(model: model, target: target, snapshot: snapshot)
             case let .dailyReport(machine, report): DailyReportFormView(model: model, machineID: machine, resubmitting: report)
+            case let .pettyCash(form): form.view(model)
             }
         }
         .alert("Can't record now", isPresented: Binding(get: { blockedCapture != nil },
@@ -184,6 +190,7 @@ public struct FieldRootView: View {
         case .dailyReports: DailyReportListView(model: model)
         case let .dailyReport(id):
             DailyReportDetailView(model: model, id: id) { sheet = .dailyReport(machineID: $0.machineID, resubmitting: $0) }
+        case .pettyCash: MyPettyCashView(model: model, sheet: pettyCashSheet)
         }
     }
 
@@ -246,6 +253,12 @@ public struct FieldRootView: View {
         }
     }
 
+    /// The petty cash forms share the root's sheet.
+    private var pettyCashSheet: Binding<PettyCashSheet?> {
+        Binding(get: { if case let .pettyCash(form)? = sheet { form } else { nil } },
+                set: { sheet = $0.map(FieldSheet.pettyCash) })
+    }
+
     private func recordExpense() {
         switch model.expenseGate() {
         case let .allowed(snapshot): sheet = .expense(snapshot)
@@ -300,6 +313,17 @@ public struct FieldRootView: View {
         case let .dailyReport(id):
             // Switched off: as any other notification.
             if model.access.engineHoursOn { open(.dailyReport(id)) } else { fallback() }
+        // DEC-033: the form while the item still waits for me on this phone, else My petty cash.
+        case let .pettyCashMovement(id):
+            guard model.access.pettyCash else { fallback(); return }
+            openOnMoney(.pettyCash)
+            if model.pettyCash.waiting.contains(where: { $0.id == id }) { sheet = .pettyCash(.ack(id)) }
+        case let .pettyCashHolderChange(id):
+            guard model.access.pettyCash else { fallback(); return }
+            openOnMoney(.pettyCash)
+            if model.pettyCash.waiting.contains(where: { $0.id == id }) { sheet = .pettyCash(.holderChange(id)) }
+        case .pettyCash:
+            if model.access.pettyCash { openOnMoney(.pettyCash) } else { fallback() }
         case .none: fallback()
         }
     }

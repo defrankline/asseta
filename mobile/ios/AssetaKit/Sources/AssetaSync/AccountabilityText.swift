@@ -303,6 +303,7 @@ public enum FieldAccountabilityTexts {
         case "PURCHASE_CANCELLED": "The purchase you chose is cancelled. Record it again and choose another."
         case "OVER_ALLOCATION": "This is more than the purchase or invoice still owes. Record it again with the right amount."
         case "ALLOCATION_MISMATCH": allocationMismatch
+        case let code? where code.hasPrefix("PETTY_CASH_"): PettyCashTexts.conflict(code)
         case "INVOICE_NOT_OPEN": "This invoice is no longer open. Record it again and choose another."
         case "DEPOSIT_ACCOUNT_CURRENCY_MISMATCH":
             "The account you chose holds a different currency. Record the handover again with another account."
@@ -359,6 +360,12 @@ public enum FieldAccountabilityTexts {
         case .cashRetentionRequest: outboxRetention
         case .siteCheckin: SiteCheckinTexts.outbox
         case .dailyReport: DailyReportTexts.outbox
+        case .pettyCashAcknowledgement: PettyCashTexts.outboxAck
+        case .pettyCashTopUpRequest: PettyCashTexts.outboxTopUp
+        case .pettyCashReturn: PettyCashTexts.outboxReturn
+        case .pettyCashCount: PettyCashTexts.outboxCount
+        case .pettyCashHolderChangeAcknowledgement: PettyCashTexts.outboxHolderChange
+        case .pettyCashAdvanceClearance: PettyCashTexts.outboxAdvance
         case .meterCapture where payload?["changeover_to_customer_id"]?.stringValue != nil: DailyReportTexts.changeoverOutbox
         case .meterCapture where payload?["kind"]?.stringValue == ReadingKind.daily.rawValue: outboxDailyReading
         default: nil

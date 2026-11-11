@@ -267,7 +267,9 @@ struct OperationRow: View {
         case .meterResetRequest: return "Meter reset request"
         case .jobRequest: return JobRequestText.operation
         case .hoursPurchase, .hoursTransferRequest, .cashTransfer, .cashTransferAcknowledgement, .cashFloatAcknowledgement,
-             .meterBaseline, .meterCorrection, .cashRetentionRequest, .siteCheckin, .dailyReport, nil: return operation.opType
+             .meterBaseline, .meterCorrection, .cashRetentionRequest, .siteCheckin, .dailyReport,
+             .pettyCashAcknowledgement, .pettyCashTopUpRequest, .pettyCashReturn, .pettyCashCount,
+             .pettyCashHolderChangeAcknowledgement, .pettyCashAdvanceClearance, nil: return operation.opType
         }
     }
 }

@@ -131,6 +131,8 @@ public enum TenantCapability {
     public static let tracking = "TRACKING"
     public static let depositAccounts = "DEPOSIT_ACCOUNTS"
     public static let managedService = "MANAGED_SERVICE"
+    /// DEC-033 petty cash funds (platform default off).
+    public static let pettyCash = "PETTY_CASH"
 }
 
 /// Server-computed access level for a tenant membership (subscription/entitlement driven).

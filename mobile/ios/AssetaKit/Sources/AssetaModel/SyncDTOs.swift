@@ -91,6 +91,12 @@ public struct SyncData: Codable, Hashable, Sendable {
     /// Open invoices of the recorder's customers (SYNC_OPEN_INVOICES). A full snapshot on every pull, like `cashCustody`:
     /// it replaces the local set (entities of type `open_invoice`) instead of being merged.
     public var openInvoices: [JSONValue]
+    /// DEC-033 petty cash (OP_PETTY_CASH): the funds I hold, money waiting for my acknowledgement, funds being handed to
+    /// me and outstanding advances. Full snapshots on every pull: they replace the local sets.
+    public var pettyCashFunds: [JSONValue] = []
+    public var pettyCashAwaiting: [JSONValue] = []
+    public var pettyCashHolderChanges: [JSONValue] = []
+    public var pettyCashAdvances: [JSONValue] = []
     /// Supervisor inbox lists (SUPERVISOR_INBOX_V1), raw as sent; `nil` when the server did not send
     /// the field (an older server): the stored inbox is then left untouched.
     public var inbox: [InboxList: [JSONValue]] = [:]
@@ -118,6 +124,8 @@ public struct SyncData: Codable, Hashable, Sendable {
         case expenseCategories = "expense_categories", cashCustody = "cash_custody"
         case depositAccounts = "deposit_accounts", changeoverJobs = "changeover_jobs", unbillableReasons = "unbillable_reasons"
         case openInvoices = "open_invoices"
+        case pettyCashFunds = "petty_cash_funds", pettyCashAwaiting = "petty_cash_awaiting"
+        case pettyCashHolderChanges = "petty_cash_holder_changes", pettyCashAdvances = "petty_cash_advances"
     }
 
     /// The `my_*` inbox lists of `SyncData`.
@@ -142,6 +150,10 @@ public struct SyncData: Codable, Hashable, Sendable {
         try c.encode(changeoverJobs, forKey: .changeoverJobs)
         try c.encode(unbillableReasons, forKey: .unbillableReasons)
         try c.encode(openInvoices, forKey: .openInvoices)
+        try c.encode(pettyCashFunds, forKey: .pettyCashFunds)
+        try c.encode(pettyCashAwaiting, forKey: .pettyCashAwaiting)
+        try c.encode(pettyCashHolderChanges, forKey: .pettyCashHolderChanges)
+        try c.encode(pettyCashAdvances, forKey: .pettyCashAdvances)
         var lists = encoder.container(keyedBy: InboxList.self)
         for (key, rows) in inbox { try lists.encode(rows, forKey: key) }
     }
@@ -163,6 +175,10 @@ public struct SyncData: Codable, Hashable, Sendable {
         changeoverJobs = try c.decodeIfPresent([JSONValue].self, forKey: .changeoverJobs) ?? []
         unbillableReasons = try c.decodeIfPresent([JSONValue].self, forKey: .unbillableReasons) ?? []
         openInvoices = try c.decodeIfPresent([JSONValue].self, forKey: .openInvoices) ?? []
+        pettyCashFunds = try c.decodeIfPresent([JSONValue].self, forKey: .pettyCashFunds) ?? []
+        pettyCashAwaiting = try c.decodeIfPresent([JSONValue].self, forKey: .pettyCashAwaiting) ?? []
+        pettyCashHolderChanges = try c.decodeIfPresent([JSONValue].self, forKey: .pettyCashHolderChanges) ?? []
+        pettyCashAdvances = try c.decodeIfPresent([JSONValue].self, forKey: .pettyCashAdvances) ?? []
         let lists = try decoder.container(keyedBy: InboxList.self)
         for key in InboxList.allCases {
             if let rows = try lists.decodeIfPresent([JSONValue].self, forKey: key) { inbox[key] = rows }
@@ -326,6 +342,8 @@ public enum BlobPurpose: String, Codable, Sendable, CaseIterable {
     case dailyReportEvidence = "DAILY_REPORT_EVIDENCE"
     /// Evidence of an adjustment raised in the field (HOURS_TRANSFER_REQUEST, CASH_DETAILS_V2).
     case adjustmentEvidence = "ADJUSTMENT_EVIDENCE"
+    /// Photos of a petty cash return or count (PETTY_CASH_RETURN / PETTY_CASH_COUNT, OP_PETTY_CASH, DEC-033).
+    case pettyCashEvidence = "PETTY_CASH_EVIDENCE"
 }
 
 public struct BlobStartIn: Codable, Hashable, Sendable {

@@ -15,6 +15,8 @@ struct ApprovalsView: View {
     @State private var pendingJobs = Loader<Page<JobDTO>>()
     @State private var handovers = Loader<Page<CashHandoverDTO>>()
     @State private var payments = Loader<Page<CustomerPaymentRecordDTO>>()
+    @State private var pettyMovements = Loader<Page<PettyCashMovementDTO>>()
+    @State private var pettyAdjustments = Loader<Page<PettyCashAdjustmentDTO>>()
     @State private var supervisorNames: [UUID: String] = [:]
     @State private var openExceptions = Loader<Page<MeterExceptionDTO>>()
     @State private var jobNumbers: [UUID: String] = [:]
@@ -89,6 +91,9 @@ struct ApprovalsView: View {
             if model.features.confirmPayments {
                 PendingPaymentsSection(loader: payments)
             }
+            if model.features.pettyCashApprove {
+                PendingPettyCashSection(movements: pettyMovements, adjustments: pettyAdjustments)
+            }
             if model.features.meterEvidence {
                 Section(ExceptionReviewText.sectionTitle) {
                     let items = openExceptions.value?.items ?? []
@@ -125,7 +130,8 @@ struct ApprovalsView: View {
         async let d: Void = loadHandovers()
         async let e: Void = loadExceptions()
         async let f: Void = loadPayments()
-        _ = await (a, b, c, d, e, f)
+        async let g: Void = loadPettyCash()
+        _ = await (a, b, c, d, e, f, g)
     }
 
     private func loadApprovals() async {
@@ -142,6 +148,13 @@ struct ApprovalsView: View {
     private func loadPayments() async {
         guard model.features.confirmPayments else { return }
         await payments.load(model, .paymentsToConfirm, OwnerAPI.paymentsToConfirm())
+    }
+
+    private func loadPettyCash() async {
+        guard model.features.pettyCashApprove else { return }
+        async let a: Void = pettyMovements.load(model, .pettyCashMovementsToApprove, OwnerAPI.pettyCashMovementsToApprove())
+        async let b: Void = pettyAdjustments.load(model, .pettyCashAdjustmentsToApprove, OwnerAPI.pettyCashAdjustmentsToApprove())
+        _ = await (a, b)
     }
 
     private func loadExceptions() async {
@@ -443,6 +456,12 @@ struct ExpenseSection: View {
                 if let supplier = expense.supplier { LabeledContent("Supplier", value: supplier) }
                 LabeledContent("Paid from", value: OwnerFormat.humanize(expense.paidFrom))
                 LabeledContent("Incurred", value: expense.incurredAt.shortStamp)
+                let flags = ExpenseFlags.lines(expense.controlFlags)
+                if !flags.isEmpty {
+                    LabeledContent(ExpenseFlags.title) {
+                        VStack(alignment: .trailing) { ForEach(flags, id: \.self) { Text($0).foregroundStyle(Palette.warning) } }
+                    }
+                }
                 ForEach(expense.receiptAttachmentIDs, id: \.self) { id in
                     PhotoButton(label: "receipt", isOnline: isOnline) { receipt = Receipt(id: id) }
                 }

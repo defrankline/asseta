@@ -58,6 +58,8 @@ public struct ExpenseItem: Sendable, Identifiable, Equatable {
     public let decidedAt: Date?
     public let receiptAttachmentIDs: [UUID]
     public let op: ClientOperation?
+    /// DEC-033: why the office checks it (neutral flags, from the server copy).
+    public var controlFlags: [String] = []
 }
 
 public struct FuelItem: Sendable, Identifiable, Equatable {
@@ -301,7 +303,7 @@ public struct InboxDirectory: Sendable {
                 at: s?.incurredAt ?? date(p, "incurred_at") ?? m.local?.createdAtDevice ?? .distantPast,
                 status: InboxStatusRules.combined(local: m.local?.status, server: s.map { InboxStatusRules.expense($0.status) }),
                 decisionNote: s?.decisionNote, decidedAt: s?.decidedAt, receiptAttachmentIDs: s?.receiptAttachmentIDs ?? [],
-                op: m.local)
+                op: m.local, controlFlags: s?.controlFlags ?? [])
         }.sorted { $0.at > $1.at }
 
         snapshot.fuel = InboxMerge.merge(
