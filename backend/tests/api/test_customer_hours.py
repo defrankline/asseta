@@ -3,6 +3,8 @@ approved discount, claimed vs verified payments, activation only from verified m
 append-only ledger with derived balances, work execution allocation with overrun handling, transfers,
 cancellations, expiry and the tenant policy switches. Every rule is tenant configuration."""
 
+import hashlib
+import uuid
 from datetime import timedelta
 from decimal import Decimal
 from typing import Any
@@ -495,6 +497,54 @@ def test_split_payment_cash_bank_and_mobile_money(api: Api) -> None:
     for part in (p["payments"][0], p["payments"][2]):
         verify(f.accountant, part["id"])
     assert get_purchase(f.owner, p["id"])["status"] == "ACTIVE"
+
+
+def test_offline_split_payment_parts_carry_their_own_evidence(api: Api) -> None:
+    f = _setup(api)
+    hours_policy(f, field_noncash_payments=True)
+    device = "android-hours-split"
+    h = {**f.supervisor.headers(True, None), "X-Device-Id": device}
+    reg = api.client.post(
+        "/api/v1/sync/devices", headers=h, json={"device_id": device, "platform": "ANDROID", "app_version": "1.2.0"}
+    )
+    assert reg.status_code == 201, reg.text
+    slip = unique_jpeg()
+    up = api.client.post(
+        "/api/v1/sync/blobs",
+        headers=h,
+        json={"sha256": hashlib.sha256(slip).hexdigest(), "size_bytes": len(slip), "purpose": "PAYMENT_EVIDENCE"},
+    ).json()
+    api.client.put(f"/api/v1/sync/blobs/{up['id']}/chunks/0", headers=h, content=slip)
+    done = api.client.post(f"/api/v1/sync/blobs/{up['id']}/complete", headers=h).json()
+    now = api.clock.now.isoformat()
+    op = {
+        "id": str(uuid.uuid4()),
+        "op_type": "HOURS_PURCHASE",
+        "created_at_device": now,
+        "payload": {
+            "walk_in": {"name": "Split payer"},
+            "machine_id": f.c.t.machine_id,
+            "hours": "2",
+            "payments": [
+                {"method": "CASH", "amount": str(RATE), "received_at": now},
+                {
+                    "method": "BANK",
+                    "amount": str(RATE),
+                    "reference": "CRDB-77",
+                    "received_at": now,
+                    "evidence_upload_ids": [up["id"]],
+                },
+            ],
+        },
+    }
+    for expected in ("ACKED", "DUPLICATE"):
+        r = api.client.post("/api/v1/sync/push", headers=h, json={"device_now": now, "operations": [op]})
+        assert r.status_code == 200 and r.json()["results"][0]["status"] == expected, r.text
+    pays = f.accountant.get("/api/v1/tenant/customer-payments").json()["items"]
+    bank = next(p for p in pays if p["method"] == "BANK")
+    ev = f.accountant.get(f"/api/v1/tenant/customer-payments/{bank['id']}/evidence")
+    assert ev.status_code == 200 and [e["attachment_id"] for e in ev.json()] == [done["attachment_id"]], ev.text
+    assert sorted(p["method"] for p in pays) == ["BANK", "CASH"]  # exactly one of each, even after the retry
 
 
 def test_offline_walk_in_purchase_is_applied_exactly_once(api: Api) -> None:

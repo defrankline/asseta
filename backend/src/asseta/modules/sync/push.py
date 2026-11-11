@@ -27,7 +27,7 @@ from asseta.modules.finance.custody_dto import CashAcknowledgementIn, CashRetent
 from asseta.modules.finance.custody_service import CashCustodyControls
 from asseta.modules.finance.dto import CashCollectionIn, CashHandoverIn
 from asseta.modules.hours.approvals import HoursApprovals
-from asseta.modules.hours.dto import HoursPurchaseIn, TransferIn
+from asseta.modules.hours.dto import HoursPurchaseIn, PurchasePaymentIn, TransferIn
 from asseta.modules.hours.service import HoursService
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.jobs.dto import AcknowledgementIn, ActivityIn, JobRequestIn
@@ -150,11 +150,19 @@ class DailyReportOp(DailyReportIn):
     evidence_upload_ids: list[uuid.UUID] = Field(default_factory=list, max_length=10)
 
 
-class HoursPurchaseOp(HoursPurchaseIn):
-    """Offline hours purchase (walk-in allowed). The operation id is the purchase's client id; payment evidence
-    references resumable blob uploads (purpose PAYMENT_EVIDENCE) and the op waits until they complete."""
+class PurchasePaymentOp(PurchasePaymentIn):
+    """One part of an offline hours sale's payment, with its own evidence uploads (e.g. the bank slip)."""
 
     evidence_upload_ids: list[uuid.UUID] = Field(default_factory=list, max_length=10)
+
+
+class HoursPurchaseOp(HoursPurchaseIn):
+    """Offline hours purchase (walk-in allowed). The operation id is the purchase's client id; payment evidence
+    references resumable blob uploads (purpose PAYMENT_EVIDENCE) and the op waits until they complete. A split bill's
+    parts carry their own evidence_upload_ids; the op-level list goes to the single payment (or the first part)."""
+
+    evidence_upload_ids: list[uuid.UUID] = Field(default_factory=list, max_length=10)
+    payments: list[PurchasePaymentOp] = Field(default_factory=list, max_length=10)  # type: ignore[assignment]
 
 
 class CashTransferOp(CashTransferIn):
@@ -479,18 +487,28 @@ class PushService:
         )
         return ExpenseService(self._s, self._ctx, self._now).submit(expense, "SYNC")
 
-    def _hours_purchase(self, body: HoursPurchaseOp) -> BaseModel:
-        evidence = []
-        for upload_id in body.evidence_upload_ids:
+    def _uploaded(self, upload_ids: list[uuid.UUID]) -> list[uuid.UUID]:
+        out = []
+        for upload_id in upload_ids:
             upload = self._s.get(BlobUploadSession, upload_id)
             if upload is None or upload.attachment_id is None:
                 raise NotFound("Evidence upload not found", code="ATTACHMENT_NOT_FOUND")
-            evidence.append(upload.attachment_id)
-        purchase = HoursPurchaseIn.model_validate(body.model_dump(exclude={"evidence_upload_ids"}))
+            out.append(upload.attachment_id)
+        return out
+
+    def _hours_purchase(self, body: HoursPurchaseOp) -> BaseModel:
+        evidence = self._uploaded(body.evidence_upload_ids)
+        part_evidence = [self._uploaded(p.evidence_upload_ids) for p in body.payments]
+        purchase = HoursPurchaseIn.model_validate(
+            body.model_dump(exclude={"evidence_upload_ids": True, "payments": {"__all__": {"evidence_upload_ids"}}})
+        )
+        for part, extra in zip(purchase.payments, part_evidence, strict=True):
+            part.evidence_attachment_ids = [*part.evidence_attachment_ids, *extra]
         if evidence:
-            if purchase.payment is None:
+            target = purchase.payment or (purchase.payments[0] if purchase.payments else None)
+            if target is None:
                 raise ValueError("evidence_upload_ids need a payment")
-            purchase.payment.evidence_attachment_ids = [*purchase.payment.evidence_attachment_ids, *evidence]
+            target.evidence_attachment_ids = [*target.evidence_attachment_ids, *evidence]
         return HoursService(self._s, self._ctx, self._now).create_purchase(purchase, "SYNC")
 
     def _hours_transfer(self, body: HoursTransferOp) -> BaseModel:
