@@ -129,8 +129,7 @@ export const JOB_ERROR_HINTS: Readonly<Record<string, string>> = {
   OPENING_REQUIRED: 'Record the opening meter reading (Readings & evidence) before starting.',
   CLOSING_REQUIRED: 'Record the closing meter reading (Readings & evidence) before completing.',
   ACK_REQUIRED: 'Record the customer acknowledgement before completing.',
-  MACHINE_BUSY:
-    'This machine already has an approved or running job; complete or cancel that job first.',
+  MACHINE_BUSY: 'Another job is booked on this machine in that period.',
   INVALID_JOB_TRANSITION: 'The job status has changed; reload to see what is allowed now.',
   REASON_REQUIRED: 'Enter a reason.',
   CONTRACT_NOT_ACTIVE: 'Choose an active contract.',

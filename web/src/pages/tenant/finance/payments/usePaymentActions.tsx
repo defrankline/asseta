@@ -14,6 +14,7 @@ import { PAYMENT_METHOD_LABELS } from '../../shared/financeDisplay';
 import { useMyUserId } from '../../shared/useFinanceLabels';
 import { ReversePaymentDialog } from '../adjustments/RecordReversalDialogs';
 import { AllocatePaymentDialog } from './AllocatePaymentDialog';
+import { waitsForHandover } from './paymentVerification';
 
 /** Shown instead of Verify for the person who recorded the payment (segregation of duties). */
 export const SOD_RECORDER_NOTE =
@@ -51,7 +52,8 @@ export function usePaymentActions({ onChanged, onView }: Options) {
     {
       key: 'decide',
       label: isMine(p) ? 'Verify / reject (not allowed: you recorded it)' : 'Verify / reject',
-      hidden: !canVerify || p.status !== 'CLAIMED',
+      // Cash verified by its handover: no one verifies it by hand.
+      hidden: !canVerify || p.status !== 'CLAIMED' || waitsForHandover(p),
       disabled: isMine(p),
       onClick: () => {
         setOpen({ kind: 'decide', payment: p });

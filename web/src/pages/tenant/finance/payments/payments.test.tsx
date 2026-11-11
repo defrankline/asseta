@@ -196,3 +196,65 @@ describe('PaymentsTab', () => {
     });
   });
 });
+
+describe('automatic cash verification', () => {
+  it('waits for the handover: no Verify / reject, and says when it is verified', async () => {
+    const user = userEvent.setup();
+    mocks.list.mockResolvedValue(page([makePayment({ verifies_on_handover: true })]));
+    renderWithProviders(<PaymentsTab timeZone="UTC" />, { tenantPermissions: VERIFY });
+    await user.click(await screen.findByRole('button', { name: MENU }));
+    expect(screen.queryByRole('menuitem', { name: /Verify/ })).not.toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    await user.click(screen.getByText('TRX-1'));
+    expect(
+      await screen.findByText('Verified when the cash handover is confirmed.'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Verified when the cash handover is confirmed')).toBeInTheDocument();
+  });
+
+  it('links the handover that verified the cash; no person is shown', async () => {
+    const user = userEvent.setup();
+    mocks.list.mockResolvedValue(
+      page([
+        makePayment({
+          status: 'VERIFIED',
+          verified_by: null,
+          verified_at: '2026-11-10T10:00:00Z',
+          verified_automatically: 'ON_HANDOVER',
+          verified_by_handover_id: 'h1',
+          verified_by_remittance_number: 'RMT-2026-00003',
+          decision_note: 'Verified by confirmed handover RMT-2026-00003',
+        }),
+      ]),
+    );
+    renderWithProviders(<PaymentsTab timeZone="UTC" />, { tenantPermissions: VERIFY });
+    await user.click(await screen.findByText('TRX-1'));
+    expect(await screen.findByRole('link', { name: 'RMT-2026-00003' })).toHaveAttribute(
+      'href',
+      '/tenant/finance/cash/remittances/h1',
+    );
+    expect(screen.getByText(/^Verified by handover/)).toBeInTheDocument();
+    expect(screen.getByText('Verified automatically')).toBeInTheDocument();
+  });
+
+  it('shows the note of cash accepted on recording', async () => {
+    const user = userEvent.setup();
+    mocks.list.mockResolvedValue(
+      page([
+        makePayment({
+          status: 'VERIFIED',
+          verified_by: null,
+          verified_at: '2026-11-10T10:00:00Z',
+          verified_automatically: 'ON_RECORDING',
+          decision_note: 'Cash accepted on recording (company policy)',
+        }),
+      ]),
+    );
+    renderWithProviders(<PaymentsTab timeZone="UTC" />, { tenantPermissions: VERIFY });
+    await user.click(await screen.findByText('TRX-1'));
+    expect(
+      (await screen.findAllByText('Cash accepted on recording (company policy)')).length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByText('Verified automatically')).toBeInTheDocument();
+  });
+});

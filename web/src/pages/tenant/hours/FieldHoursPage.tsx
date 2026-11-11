@@ -21,6 +21,7 @@ import { machineText, nameOr } from '../shared/names';
 import { HoursOffNotice } from './HoursDialogs';
 import { hoursText, PURCHASE_STATUS_LABELS, PURCHASE_STATUS_TONES } from './hoursDisplay';
 import { RequestTransferDialog } from './PurchaseActionDialogs';
+import { purchaseRecordedText } from './purchaseForm';
 import { RecordPurchaseDialog } from './RecordPurchaseDialog';
 import { useHoursPolicy } from './useHoursPolicy';
 
@@ -137,7 +138,7 @@ export function FieldHoursPage() {
           fieldNoncashPayments={hours.policy?.fieldNoncashPayments ?? false}
           onClose={close}
           onRecorded={(p) => {
-            notify.success(`Hours purchase ${p.purchase_number} recorded.`);
+            notify.success(purchaseRecordedText(p));
             setReloadKey((k) => k + 1);
           }}
         />

@@ -21,6 +21,7 @@ import { useNotify } from '../../../notifications/useNotify';
 import { formatInstantIn } from '../../../utils/time';
 import { CustomerFilter, MachineFilter } from '../shared/financePickers';
 import { machineText, nameOr } from '../shared/names';
+import { BookedJobCell } from './BookedJob';
 import { HoursOffNotice } from './HoursDialogs';
 import {
   CANCELLED_OPTIONS,
@@ -28,6 +29,7 @@ import {
   PURCHASE_STATUS_LABELS,
   PURCHASE_STATUS_TONES,
 } from './hoursDisplay';
+import { purchaseRecordedText } from './purchaseForm';
 import { RecordPurchaseDialog } from './RecordPurchaseDialog';
 import { useHoursPolicy } from './useHoursPolicy';
 import { urlPeriod } from '../shared/urlPeriod';
@@ -102,6 +104,7 @@ export function HoursPurchasesPage() {
         </>
       ),
     },
+    { id: 'job', header: 'Booked job', render: (p) => <BookedJobCell job={p.job} /> },
     {
       id: 'created',
       header: 'Recorded',
@@ -186,7 +189,7 @@ export function HoursPurchasesPage() {
             setRecording(false);
           }}
           onRecorded={(p) => {
-            notify.success(`Hours purchase ${p.purchase_number} recorded.`);
+            notify.success(purchaseRecordedText(p));
             setReloadKey((k) => k + 1);
             void navigate(hoursPurchasePath(p.id));
           }}

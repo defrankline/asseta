@@ -12,9 +12,9 @@ import { PersonName } from '../../shared/PersonName';
 import { RecordDetail } from '../../shared/RecordDetail';
 import { useCustomerLabels, useStaffLabels } from '../../shared/useFinanceLabels';
 import { useRecordById } from '../../shared/useRecordById';
-import { PaymentAllocations, ReversedChip } from './PaymentParts';
+import { PaymentAllocations, PaymentVerifyNotice, ReversedChip } from './PaymentParts';
 import { paymentItems } from './paymentRecord';
-import { SOD_RECORDER_NOTE, usePaymentActions } from './usePaymentActions';
+import { usePaymentActions } from './usePaymentActions';
 
 /** One customer payment or collection, by its own link. */
 export function CustomerPaymentDetailPage() {
@@ -63,7 +63,13 @@ export function CustomerPaymentDetailPage() {
             key: 'decided',
             at: p.verified_at,
             label: p.status === 'REJECTED' ? 'Rejected' : 'Verified',
-            by: <PersonName userId={p.verified_by} name={p.verified_by_name} />,
+            by: (
+              <PersonName
+                userId={p.verified_by ?? null}
+                name={p.verified_by_name}
+                empty={p.verified_automatically == null ? '—' : 'Verified automatically'}
+              />
+            ),
             note: p.decision_note,
           },
           { key: 'reversed', at: p.reversed_at, label: 'Reversed' },
@@ -71,9 +77,7 @@ export function CustomerPaymentDetailPage() {
       >
         {(p) => (
           <>
-            {isMine(p) && p.status === 'CLAIMED' && (
-              <Alert severity="info">{SOD_RECORDER_NOTE}</Alert>
-            )}
+            <PaymentVerifyNotice payment={p} mine={isMine(p)} />
             {p.reversed_at != null && p.reversal_id != null && (
               <Alert severity="warning">
                 This money no longer counts for the customer.{' '}

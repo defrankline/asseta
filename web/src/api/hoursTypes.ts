@@ -9,6 +9,9 @@ type Schemas = components['schemas'];
 export type HoursPurchaseDto = Schemas['HoursPurchaseDto'];
 export type HoursPurchaseIn = Schemas['HoursPurchaseIn'];
 export type HoursQuoteDto = Schemas['HoursQuoteDto'];
+/** The job booked together with an hours sale (`HoursPurchaseIn.job` / `HoursPurchaseDto.job`). */
+export type SaleJobIn = Schemas['SaleJobIn'];
+export type BookedJobDto = Schemas['BookedJobDto'];
 export type HoursPurchaseStatus = HoursPurchaseDto['status'];
 export type PurchasePaymentIn = Schemas['PurchasePaymentIn'];
 export type PurchaseAllocationDto = Schemas['PurchaseAllocationDto'];

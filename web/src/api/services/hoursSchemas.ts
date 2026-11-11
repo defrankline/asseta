@@ -7,6 +7,7 @@ import { array, mixed, object, string, type ObjectSchema, type Schema } from 'yu
 import type {
   ActivationSource,
   AllocationLineDto,
+  BookedJobDto,
   CancellationDto,
   CreditArrangementDto,
   CreditExposureDto,
@@ -137,6 +138,18 @@ export const hoursQuoteSchema: Schema<HoursQuoteDto> = object({
   minimum_hours: text(),
 });
 
+/** The job booked with the sale (null when none was booked). */
+const bookedJobSchema: Schema<BookedJobDto> = object({
+  id: id(),
+  job_number: text(),
+  status: text(),
+  contract_id: id(),
+  contract_number: nullableText().default(null),
+  planned_start: text(),
+  planned_end: nullableText(),
+  approved_at: nullableText(),
+});
+
 export const hoursPurchaseSchema: Schema<HoursPurchaseDto> = object({
   id: id(),
   purchase_number: text(),
@@ -171,6 +184,10 @@ export const hoursPurchaseSchema: Schema<HoursPurchaseDto> = object({
     .nullable()
     .default(null)
     .test('payment', 'invalid payment', (v) => v == null || customerPaymentSchema.isValidSync(v)),
+  job: mixed<BookedJobDto>()
+    .nullable()
+    .default(null)
+    .test('job', 'invalid booked job', (v) => v == null || bookedJobSchema.isValidSync(v)),
 });
 
 export const hoursBalanceSchema: Schema<HoursBalanceDto> = object({

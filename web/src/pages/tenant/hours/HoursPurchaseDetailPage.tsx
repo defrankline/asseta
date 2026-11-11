@@ -27,6 +27,7 @@ import { shortId } from '../shared/financeDisplay';
 import { PersonName } from '../shared/PersonName';
 import { machineText, nameOr } from '../shared/names';
 import { recordedOnPhone } from '../shared/recordedOnPhone';
+import { BookedJobDetails } from './BookedJob';
 import { HoursOffNotice, ReasonDialog } from './HoursDialogs';
 import {
   hoursText,
@@ -267,6 +268,11 @@ export function HoursPurchaseDetailPage() {
                 ]}
               />
             </Section>
+            {d.job != null && (
+              <Section title="Booked job">
+                <BookedJobDetails job={d.job} timeZone={timeZone} />
+              </Section>
+            )}
             <Section title="Hours">
               <KeyValueGrid
                 columns={4}

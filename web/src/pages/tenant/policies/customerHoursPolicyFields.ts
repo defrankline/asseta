@@ -6,6 +6,12 @@ const BILLING_MODE_OPTIONS: readonly FieldOption[] = [
   { value: 'PREPAID_HOURS', label: 'Prepaid customer hours' },
 ];
 
+const CASH_ACTIVATION_OPTIONS: readonly FieldOption[] = [
+  { value: 'VERIFY', label: 'By the office (Verify)' },
+  { value: 'ON_HANDOVER', label: 'When the handover is confirmed' },
+  { value: 'ON_RECORDING', label: 'When recorded' },
+];
+
 export const CUSTOMER_HOURS_FIELDS: readonly PolicyFieldDef[] = [
   {
     key: 'enabled',
@@ -145,5 +151,22 @@ export const CUSTOMER_HOURS_FIELDS: readonly PolicyFieldDef[] = [
     key: 'low_balance_notify_customer',
     label: 'Also send the customer an SMS (uses SMS credits)',
     kind: 'bool',
+  },
+  {
+    key: 'walk_in_standard_contract',
+    label: 'Walk-in customers get a standard rate-card contract with their first sale',
+    kind: 'bool',
+  },
+  {
+    key: 'prepaid_job_auto_approval',
+    label:
+      'Prepaid jobs booked with a sale are approved automatically once the sale is fully paid and verified',
+    kind: 'bool',
+  },
+  {
+    key: 'cash_activation',
+    label: 'When cash on an hours sale counts as verified',
+    kind: 'enum',
+    options: CASH_ACTIVATION_OPTIONS,
   },
 ];

@@ -15,7 +15,7 @@ import { PERMISSIONS } from '../../../access/permissionCodes';
 import type { HoursPurchaseDto, HoursQuoteDto } from '../../../api/hoursTypes';
 import { newIdempotencyKey, newUuid } from '../../../api/ids';
 import { hoursService } from '../../../api/services/hoursService';
-import type { CustomerDto, MachineDto } from '../../../api/types';
+import type { CustomerDto, FieldContractDto, MachineDto } from '../../../api/types';
 import { KeyValueGrid } from '../../../components/display/KeyValueGrid';
 import { FormikDateTimeField } from '../../../components/forms/FormikDateTimeField';
 import { FormikSelectField } from '../../../components/forms/FormikSelectField';
@@ -34,6 +34,7 @@ import {
   FormikStaffIdPicker,
 } from '../shared/financePickers';
 import { FormikJobSitePicker } from '../shared/lookupPickers';
+import { BookJobSection } from './BookJobSection';
 import { HOURS_ERROR_HINTS } from './hoursDisplay';
 import { money, paidSummary, remainingBalance } from './hoursQuote';
 import { HoursQuoteLine } from './HoursQuoteLine';
@@ -49,10 +50,14 @@ import {
   paidSoFar,
   PAYMENT_FIELDS,
   paymentFieldsFor,
+  bookingReviewItems,
   purchaseSchema,
+  SALE_JOB_ERROR_HINTS,
   toPurchasePayload,
   type PurchaseValues,
 } from './purchaseForm';
+
+const SALE_ERROR_HINTS = { ...HOURS_ERROR_HINTS, ...SALE_JOB_ERROR_HINTS };
 
 const CASH_ONLY_OPTIONS = PAYMENT_METHOD_OPTIONS.filter((o) => o.value === 'CASH');
 const decimal = { htmlInput: { inputMode: 'decimal' as const } };
@@ -346,6 +351,9 @@ export function RecordPurchaseDialog({
   const [initial] = useState(emptyPurchaseValues);
   const [customer, setCustomer] = useState<CustomerDto | null>(null);
   const [machine, setMachine] = useState<MachineDto | null>(null);
+  const [contract, setContract] = useState<FieldContractDto | null>(null);
+  const canBook = hasPermission(PERMISSIONS.tenantJobRequest);
+  const siteVisible = hasPermission(PERMISSIONS.tenantGeofenceRead);
   const nonCashAllowed =
     hasPermission(PERMISSIONS.tenantFinancePayment) ||
     (fieldNoncashPayments && hasPermission(PERMISSIONS.tenantCollectionRecord));
@@ -376,13 +384,20 @@ export function RecordPurchaseDialog({
               />
               <FormikTextField name="hours" label="Hours bought" required slotProps={decimal} />
               <HoursStepQuote />
-              {hasPermission(PERMISSIONS.tenantGeofenceRead) && (
+              {siteVisible && (
                 <FormikJobSitePicker name="job_site_id" label="Job site (optional)" />
               )}
               <FormikTextField name="note" label="Note (optional)" multiline minRows={2} />
               <Typography variant="body2" color="text.secondary">
                 The price comes from your rate card and any approved discount for this customer.
               </Typography>
+              {canBook && (
+                <BookJobSection
+                  timeZone={timeZone}
+                  siteVisible={siteVisible}
+                  onContract={setContract}
+                />
+              )}
             </>
           ),
         },
@@ -430,6 +445,7 @@ export function RecordPurchaseDialog({
                       .filter((x) => x !== null)
                       .join(' · '),
                   }))),
+              ...(canBook ? bookingReviewItems(v, timeZone, contract) : []),
             ]}
           />
           <HoursQuoteLine
@@ -444,11 +460,13 @@ export function RecordPurchaseDialog({
         </>
       )}
       onSubmit={async (v) => {
-        const body = toPurchasePayload(v, clientId, { field });
+        const body = toPurchasePayload(canBook ? v : { ...v, book_job: false }, clientId, {
+          field,
+        });
         try {
           onRecorded(await hoursService.recordPurchase(body, keyFor(body)));
         } catch (err) {
-          throw withErrorCode(err, HOURS_ERROR_HINTS);
+          throw withErrorCode(err, SALE_ERROR_HINTS);
         }
       }}
     />

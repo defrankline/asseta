@@ -8,6 +8,8 @@ import { formatInstantIn } from '../../../../utils/time';
 import { PAYMENT_METHOD_LABELS } from '../../shared/financeDisplay';
 import { PersonName } from '../../shared/PersonName';
 import { unallocatedOf } from './paymentForm';
+import { VerificationText } from './PaymentParts';
+import { waitsForHandover } from './paymentVerification';
 
 /** The hours purchases a collection pays for (linked up to their open amounts). */
 function purchaseLinkItems(p: CustomerPaymentDto) {
@@ -27,6 +29,11 @@ function purchaseLinkItems(p: CustomerPaymentDto) {
       ),
     },
   ];
+}
+
+function verificationItems(p: CustomerPaymentDto): KeyValueItem[] {
+  if (p.verified_automatically == null && !waitsForHandover(p)) return [];
+  return [{ label: 'Verification', value: <VerificationText payment={p} /> }];
 }
 
 /** The fields of one payment, shared by its drawer and its own page. */
@@ -55,10 +62,20 @@ export function paymentItems(
       value: <PersonName userId={p.recorded_by} name={p.recorded_by_name} />,
     },
     { label: 'Recorded at', value: formatInstantIn(p.recorded_at, timeZone) },
-    { label: 'Decided by', value: <PersonName userId={p.verified_by} name={p.verified_by_name} /> },
+    ...verificationItems(p),
+    {
+      label: 'Decided by',
+      value: (
+        <PersonName
+          userId={p.verified_by ?? null}
+          name={p.verified_by_name}
+          empty={p.verified_automatically == null ? '—' : 'Verified automatically'}
+        />
+      ),
+    },
     {
       label: 'Decided at',
-      value: p.verified_at === null ? '—' : formatInstantIn(p.verified_at, timeZone),
+      value: p.verified_at == null ? '—' : formatInstantIn(p.verified_at, timeZone),
     },
     { label: 'Decision note', value: p.decision_note ?? '—' },
     { label: 'Note', value: p.note ?? '—' },

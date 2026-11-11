@@ -55,7 +55,7 @@ describe('JobActions', () => {
       'PENDING_APPROVAL',
       'Approve',
       'MACHINE_BUSY',
-      /already has an approved or running/,
+      /Another job is booked on this machine in that period/,
     ],
     ['SUBMIT', 'DRAFT', 'Submit for approval', 'INVALID_JOB_TRANSITION', /reload/],
   ] as const)(

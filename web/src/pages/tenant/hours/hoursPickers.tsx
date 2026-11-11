@@ -5,7 +5,8 @@
 import type { HoursPurchaseDto, ReasonCodeDto, ReasonKind } from '../../../api/hoursTypes';
 import { customerPaymentService } from '../../../api/services/financeService';
 import { hoursReasonService, hoursService } from '../../../api/services/hoursService';
-import type { CustomerPaymentDto } from '../../../api/types';
+import { jobService } from '../../../api/services/jobService';
+import type { CustomerPaymentDto, FieldContractDto } from '../../../api/types';
 import { AsyncAutocomplete, LOOKUP_PAGE_SIZE } from '../../../components/data/AsyncAutocomplete';
 import { FormikAsyncIdAutocomplete } from '../../../components/forms/FormikAsyncIdAutocomplete';
 import { optionId } from '../shared/lookups';
@@ -106,6 +107,34 @@ export function PurchaseFilter({
       fetchOptions={async (q, signal) => (await hoursService.listPurchases(one(q), signal)).items}
       getOptionLabel={purchaseLabel}
       isOptionEqualToValue={(a, b) => a.id === b.id}
+    />
+  );
+}
+
+const contractOptionLabel = (c: FieldContractDto): string =>
+  [c.contract_number, c.reference, c.job_site_name]
+    .filter((x): x is string => x != null && x !== '')
+    .join(' · ');
+
+/** Active contract of one customer to book a job on (contract-number search). */
+export function FormikCustomerContractPicker({
+  customerId,
+  onOptionChange,
+  ...props
+}: PickerProps & {
+  customerId: string;
+  onOptionChange?: (c: FieldContractDto | null) => void;
+}) {
+  return (
+    <FormikAsyncIdAutocomplete<FieldContractDto>
+      {...props}
+      {...(onOptionChange !== undefined ? { onOptionChange } : {})}
+      fetchOptions={(q, signal) =>
+        jobService.fieldContracts(q.trim() === '' ? undefined : q, signal, customerId)
+      }
+      getOptionId={optionId}
+      getOptionLabel={contractOptionLabel}
+      noOptionsText="No active contract for this customer"
     />
   );
 }

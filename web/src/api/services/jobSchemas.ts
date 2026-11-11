@@ -121,6 +121,7 @@ const jobFields = {
   requested_by_staff_id: nullableId().default(null),
   requested_by_name: nullableText().default(null),
   request_note: nullableText().default(null),
+  hours_purchase_id: nullableId().default(null),
 };
 
 export const jobSchema: Schema<JobDto> = object(jobFields);

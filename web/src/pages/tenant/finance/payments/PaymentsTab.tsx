@@ -31,7 +31,7 @@ import {
 } from '../../shared/financeDisplay';
 import { CustomerFilter, StaffFilter } from '../../shared/financePickers';
 import { useCustomerLabels, useStaffLabels } from '../../shared/useFinanceLabels';
-import { PaymentAllocations, ReversedChip } from './PaymentParts';
+import { PaymentAllocations, PaymentVerifyNotice, ReversedChip } from './PaymentParts';
 import { paymentItems } from './paymentRecord';
 import { StaticSelectFilter } from '../../../../components/forms/StaticSelectFilter';
 import { initialFilter } from '../../../../navigation/urlFilters';
@@ -39,7 +39,7 @@ import { urlPeriod } from '../../shared/urlPeriod';
 import { UrlPeriodChip } from '../../shared/UrlPeriodChip';
 import { PAYMENT_METHOD_OPTIONS } from '../../shared/financeDisplay';
 import { RecordPaymentDialog } from './RecordPaymentDialog';
-import { SOD_RECORDER_NOTE, usePaymentActions } from './usePaymentActions';
+import { usePaymentActions } from './usePaymentActions';
 import { ENTITY } from '../../../../realtime/entities';
 import { useLiveRefresh } from '../../../../realtime/hooks';
 
@@ -88,7 +88,7 @@ function PaymentDrawer({
       }
       onClose={onClose}
     >
-      {mine && p.status === 'CLAIMED' && <Alert severity="info">{SOD_RECORDER_NOTE}</Alert>}
+      <PaymentVerifyNotice payment={p} mine={mine} />
       {p.reversed_at != null && (
         <Alert severity="warning">
           Reversed {formatInstantIn(p.reversed_at, timeZone)}. This money no longer counts for the
