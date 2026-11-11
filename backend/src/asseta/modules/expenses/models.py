@@ -19,7 +19,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from asseta.core.db import Base, SyncRevisioned, Timestamps, UuidPk, utcnow
@@ -41,6 +41,15 @@ class ExpenseStatus(StrEnum):
 class ExpensePaidFrom(StrEnum):
     CASH_CUSTODY = "CASH_CUSTODY"  # paid from a supervisor's cash in hand (reduces custody once approved)
     COMPANY = "COMPANY"  # paid by the office (bank, card, credit account)
+    PETTY_CASH = "PETTY_CASH"  # paid from a petty cash fund (DEC-033; reduces the fund once approved)
+
+
+class ExpenseFlag(StrEnum):
+    """Why a human must look at an expense (DEC-033). Neutral: something to check, never a verdict."""
+
+    OVERSPEND = "OVERSPEND"  # recorded offline above what the fund (or advance) had available
+    SPENT_FROM_COLLECTIONS = "SPENT_FROM_COLLECTIONS"  # paid from cash in hand where the tenant does not allow it
+    ABOVE_PETTY_CASH_MAXIMUM = "ABOVE_PETTY_CASH_MAXIMUM"  # above the per-expense maximum of a fund
 
 
 class FuelEventType(StrEnum):
@@ -73,6 +82,15 @@ class Expense(UuidPk, SyncRevisioned, Base):
         UniqueConstraint("tenant_id", "client_id", name="uq_expense_client"),
         CheckConstraint("amount > 0", name="ck_expense_amount"),
         CheckConstraint("paid_from <> 'CASH_CUSTODY' OR custodian_staff_id IS NOT NULL", name="ck_expense_custodian"),
+        CheckConstraint(
+            "(paid_from = 'PETTY_CASH') = (petty_cash_fund_id IS NOT NULL)", name="ck_expense_petty_cash_fund"
+        ),
+        CheckConstraint(
+            "paid_from <> 'PETTY_CASH' OR custodian_staff_id IS NULL", name="ck_expense_petty_cash_custodian"
+        ),
+        CheckConstraint(
+            "petty_cash_advance_id IS NULL OR paid_from = 'PETTY_CASH'", name="ck_expense_petty_cash_advance"
+        ),
     )
 
     tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenant.id"), nullable=False, index=True)
@@ -101,6 +119,9 @@ class Expense(UuidPk, SyncRevisioned, Base):
     decided_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     decision_note: Mapped[str | None] = mapped_column(Text)
+    petty_cash_fund_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("petty_cash_fund.id"), index=True)
+    petty_cash_advance_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("petty_cash_advance.id"), index=True)
+    control_flags: Mapped[list[str]] = mapped_column(ARRAY(String(40)), nullable=False, default=list)
 
 
 class ExpenseAttachment(UuidPk, Base):

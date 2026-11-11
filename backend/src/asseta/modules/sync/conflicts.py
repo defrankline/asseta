@@ -59,6 +59,21 @@ CONFLICT_CODES = {
     "OVER_ALLOCATION",
     "ALLOCATION_MISMATCH",
     "INVOICE_NOT_OPEN",  # the invoice a collection names was voided or paid off before the upload
+    # DEC-033 petty cash: switched off, the fund changed hands or was deactivated, the offline expense went above what
+    # was available (with overspend offline not allowed), the office decided first, or evidence became required
+    # after the device queued the operation (kept for review, never applied)
+    "PETTY_CASH_DISABLED",
+    "PETTY_CASH_INSUFFICIENT",
+    "PETTY_CASH_FUND_INACTIVE",
+    "PETTY_CASH_CURRENCY_MISMATCH",
+    "PETTY_CASH_ADVANCES_DISABLED",
+    "PETTY_CASH_ADVANCE_CLEARED",
+    "PETTY_CASH_ADVANCE_EXPENSES_PENDING",
+    "PETTY_CASH_ALREADY_ACKNOWLEDGED",
+    "PETTY_CASH_ALREADY_DECIDED",
+    "PETTY_CASH_NOTHING_TO_TOP_UP",
+    "PETTY_CASH_ABOVE_CAP_REASON_REQUIRED",
+    "NOT_FUND_HOLDER",
 }
 
 # Money already changed hands in the field when these three were queued, so a refusal caused by anything that changed

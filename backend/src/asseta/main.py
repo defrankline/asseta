@@ -52,6 +52,7 @@ from asseta.modules.notification.realtime import RealtimeBroker, RedisBroker
 from asseta.modules.onboarding import router as onboarding_router
 from asseta.modules.oversight import router as oversight_router
 from asseta.modules.overview import router as overview_router
+from asseta.modules.pettycash import router as pettycash_router
 from asseta.modules.platform_billing import commerce_router
 from asseta.modules.platform_billing import router as platform_router
 from asseta.modules.platform_billing import tenant_router as tenant_billing_router
@@ -161,6 +162,7 @@ def create_app(
         finance_router.router,
         finance_cash_router.router,
         finance_custody_router.router,
+        pettycash_router.router,
         adjustments_router.router,
         dataprotection_router.router,
         dataprotection_router.platform_router,

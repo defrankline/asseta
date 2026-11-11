@@ -72,6 +72,11 @@ TENANT_TEMPLATES = (
             # only when a role grants `tenant.adjustment.decide` (never their own: segregation of duties).
             "tenant.adjustment.read",
             "tenant.adjustment.propose",
+            # DEC-033 petty cash: managers run the funds (create, edit, change holder) and count them; fundings and
+            # top-ups are proposed and approved by others.
+            "tenant.pettycash.read",
+            "tenant.pettycash.manage",
+            "tenant.pettycash.count",
         ),
         later_additions=frozenset(MANAGER_METER),
     ),
@@ -98,6 +103,8 @@ TENANT_TEMPLATES = (
             "tenant.notification.read",
             "tenant.directory.read",
             "tenant.site_checkin.record",  # GPS site check-in at the tenant's times (DEC-031 M3; only when switched on)
+            "tenant.pettycash.read",  # DEC-033: the funds they hold (never anyone else's), and counting them
+            "tenant.pettycash.count",
         ),
         retired=("tenant.hours.transfer_approve",),
     ),
@@ -130,6 +137,9 @@ TENANT_TEMPLATES = (
             "tenant.revenue.explain",
             "tenant.oversight.read",  # unbilled work and idle machines (DEC-031 M2); not the people scorecard
             "tenant.adjustment.",  # adjustments ledger: read, propose, decide (never your own proposal)
+            "tenant.pettycash.read",  # DEC-033: propose fundings/top-ups/adjustments, issue money, confirm returns
+            "tenant.pettycash.propose",
+            "tenant.pettycash.count",
         ),
     ),
     RoleTemplate(
@@ -209,6 +219,7 @@ DECISION_PERMISSIONS = frozenset(
         "tenant.job.approve",
         "tenant.meter.approve",
         "tenant.meter.classify",
+        "tenant.pettycash.approve",
         "tenant.revenue.decide",
         "tenant.sync_conflict.resolve",
     }

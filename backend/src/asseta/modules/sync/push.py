@@ -41,7 +41,16 @@ from asseta.modules.meter.engine_service import EngineHoursService
 from asseta.modules.meter.service import MeterService
 from asseta.modules.oversight.checkins import SiteCheckinService
 from asseta.modules.oversight.dto import SiteCheckinIn
-from asseta.modules.policy.capabilities import CASH_CUSTODY, ENGINE_HOURS, SITE_CHECKIN, require_capability
+from asseta.modules.pettycash.dto import (
+    PettyCashAcknowledgementIn,
+    PettyCashAdvanceClearIn,
+    PettyCashCountIn,
+    PettyCashHolderChangeDecisionIn,
+    PettyCashReturnIn,
+    TopUpRequestIn,
+)
+from asseta.modules.pettycash.service import PettyCashService
+from asseta.modules.policy.capabilities import CASH_CUSTODY, ENGINE_HOURS, PETTY_CASH, SITE_CHECKIN, require_capability
 from asseta.modules.policy.service import PolicyService
 from asseta.modules.sync.conflicts import is_conflict
 from asseta.modules.sync.dto import OperationIn, OperationResultDto, PushIn, PushResultDto
@@ -59,6 +68,12 @@ OP_CAPABILITY = {
     "CASH_RETENTION_REQUEST": CASH_CUSTODY,
     "SITE_CHECKIN": SITE_CHECKIN,
     "DAILY_REPORT": ENGINE_HOURS,
+    "PETTY_CASH_ACKNOWLEDGEMENT": PETTY_CASH,
+    "PETTY_CASH_TOP_UP_REQUEST": PETTY_CASH,
+    "PETTY_CASH_RETURN": PETTY_CASH,
+    "PETTY_CASH_COUNT": PETTY_CASH,
+    "PETTY_CASH_ADVANCE_CLEARANCE": PETTY_CASH,
+    "PETTY_CASH_HOLDER_CHANGE_ACKNOWLEDGEMENT": PETTY_CASH,
 }
 REQUIRED_PERMISSION = {
     "METER_CAPTURE": "tenant.meter.capture",
@@ -81,6 +96,12 @@ REQUIRED_PERMISSION = {
     "CASH_RETENTION_REQUEST": "tenant.collection.record",
     "SITE_CHECKIN": "tenant.site_checkin.record",
     "DAILY_REPORT": "tenant.meter.capture",
+    "PETTY_CASH_ACKNOWLEDGEMENT": "tenant.pettycash.read",
+    "PETTY_CASH_TOP_UP_REQUEST": "tenant.pettycash.read",
+    "PETTY_CASH_RETURN": "tenant.pettycash.read",
+    "PETTY_CASH_COUNT": "tenant.pettycash.count",
+    "PETTY_CASH_ADVANCE_CLEARANCE": "tenant.pettycash.read",
+    "PETTY_CASH_HOLDER_CHANGE_ACKNOWLEDGEMENT": "tenant.pettycash.read",
 }
 # Ops whose payload names resumable blob uploads: the op is DEFERRED (not rejected) until they complete.
 UPLOAD_FIELDS = {
@@ -90,6 +111,8 @@ UPLOAD_FIELDS = {
     "CASH_HANDOVER": "evidence_upload_ids",
     "DAILY_REPORT": "evidence_upload_ids",
     "HOURS_TRANSFER_REQUEST": "evidence_upload_ids",
+    "PETTY_CASH_RETURN": "evidence_upload_ids",
+    "PETTY_CASH_COUNT": "evidence_upload_ids",
 }
 
 
@@ -152,6 +175,32 @@ class CashTransferAckOp(CashAcknowledgementIn):
 
 class CashFloatAckOp(CashAcknowledgementIn):
     entry_id: uuid.UUID
+
+
+class PettyCashAckOp(PettyCashAcknowledgementIn):
+    movement_id: uuid.UUID
+
+
+class PettyCashTopUpOp(TopUpRequestIn):
+    fund_id: uuid.UUID
+
+
+class PettyCashReturnOp(PettyCashReturnIn):
+    """Offline return: evidence by resumable blob uploads (purpose PETTY_CASH_EVIDENCE) or attachment ids."""
+
+    evidence_upload_ids: list[uuid.UUID] = Field(default_factory=list, max_length=20)
+
+
+class PettyCashCountOp(PettyCashCountIn):
+    evidence_upload_ids: list[uuid.UUID] = Field(default_factory=list, max_length=20)
+
+
+class PettyCashAdvanceClearOp(PettyCashAdvanceClearIn):
+    advance_id: uuid.UUID
+
+
+class PettyCashHolderChangeOp(PettyCashHolderChangeDecisionIn):
+    holder_change_id: uuid.UUID
 
 
 class FuelEventOp(FuelEventIn):
@@ -352,6 +401,28 @@ class PushService:
             "HOURS_TRANSFER_REQUEST": lambda: self._hours_transfer(
                 HoursTransferOp.model_validate({"client_id": op.id, **op.payload})
             ),
+            "PETTY_CASH_ACKNOWLEDGEMENT": lambda: self._petty_ack(op.id, PettyCashAckOp.model_validate(op.payload)),
+            "PETTY_CASH_TOP_UP_REQUEST": lambda: self._petty_top_up(
+                PettyCashTopUpOp.model_validate(
+                    {"client_id": op.id, **op.payload, "client_created_at": op.created_at_device}
+                )
+            ),
+            "PETTY_CASH_RETURN": lambda: self._petty_return(
+                PettyCashReturnOp.model_validate(
+                    {"client_id": op.id, **op.payload, "client_created_at": op.created_at_device}
+                )
+            ),
+            "PETTY_CASH_COUNT": lambda: self._petty_count(
+                PettyCashCountOp.model_validate(
+                    {"client_id": op.id, **op.payload, "client_created_at": op.created_at_device}
+                )
+            ),
+            "PETTY_CASH_ADVANCE_CLEARANCE": lambda: self._petty_clear(
+                op.id, PettyCashAdvanceClearOp.model_validate(op.payload)
+            ),
+            "PETTY_CASH_HOLDER_CHANGE_ACKNOWLEDGEMENT": lambda: self._petty_holder(
+                PettyCashHolderChangeOp.model_validate(op.payload)
+            ),
         }
         try:
             with self._s.begin_nested():
@@ -460,6 +531,48 @@ class PushService:
             {**body.model_dump(exclude={"evidence_upload_id"}), "evidence_attachment_id": evidence}
         )
         return MeterService(self._s, self._ctx, self._now).request_reset(reset)
+
+    def _uploads(self, upload_ids: list[uuid.UUID]) -> list[uuid.UUID]:
+        out = []
+        for upload_id in upload_ids:
+            upload = self._s.get(BlobUploadSession, upload_id)
+            if upload is None or upload.attachment_id is None:
+                raise NotFound("Evidence upload not found", code="ATTACHMENT_NOT_FOUND")
+            out.append(upload.attachment_id)
+        return out
+
+    def _petty(self) -> PettyCashService:
+        return PettyCashService(self._s, self._ctx, self._now)
+
+    def _petty_ack(self, op_id: uuid.UUID, body: PettyCashAckOp) -> BaseModel:
+        ack = PettyCashAcknowledgementIn.model_validate(body.model_dump(exclude={"movement_id"}))
+        return self._petty().acknowledge_movement(body.movement_id, ack, op_id, "SYNC")
+
+    def _petty_top_up(self, body: PettyCashTopUpOp) -> BaseModel:
+        req = TopUpRequestIn.model_validate(body.model_dump(exclude={"fund_id"}))
+        return self._petty().request_top_up(body.fund_id, req, "SYNC")
+
+    def _petty_return(self, body: PettyCashReturnOp) -> BaseModel:
+        evidence = [*body.evidence_attachment_ids, *self._uploads(body.evidence_upload_ids)]
+        claim = PettyCashReturnIn.model_validate(
+            {**body.model_dump(exclude={"evidence_upload_ids"}), "evidence_attachment_ids": evidence}
+        )
+        return self._petty().claim_return(claim, "SYNC")
+
+    def _petty_count(self, body: PettyCashCountOp) -> BaseModel:
+        evidence = [*body.evidence_attachment_ids, *self._uploads(body.evidence_upload_ids)]
+        count = PettyCashCountIn.model_validate(
+            {**body.model_dump(exclude={"evidence_upload_ids"}), "evidence_attachment_ids": evidence}
+        )
+        return self._petty().record_count(count, "SYNC")
+
+    def _petty_clear(self, op_id: uuid.UUID, body: PettyCashAdvanceClearOp) -> BaseModel:
+        clear = PettyCashAdvanceClearIn.model_validate(body.model_dump(exclude={"advance_id"}))
+        return self._petty().clear_advance(body.advance_id, clear, op_id, "SYNC")
+
+    def _petty_holder(self, body: PettyCashHolderChangeOp) -> BaseModel:
+        decision = PettyCashHolderChangeDecisionIn.model_validate(body.model_dump(exclude={"holder_change_id"}))
+        return self._petty().decide_holder_change(body.holder_change_id, decision, "SYNC")
 
     def _transfer_ack(self, body: CashTransferAckOp) -> BaseModel:
         ack = CashAcknowledgementIn.model_validate(body.model_dump(exclude={"transfer_id"}))

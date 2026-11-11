@@ -33,12 +33,14 @@ from asseta.modules.expenses.models import (
     Expense,
     ExpenseAttachment,
     ExpenseCategory,
+    ExpenseFlag,
     ExpensePaidFrom,
     ExpenseStatus,
     FuelEvent,
     FuelEventType,
 )
 from asseta.modules.finance.common import currency_or_default, insert, resolve_custodian, tenant_settings
+from asseta.modules.finance.custody_rules import cash_policy, own_staff
 from asseta.modules.fleet.models import Machine, StaffMember
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.jobs.models import Job
@@ -80,6 +82,8 @@ def expense_list_query(
     machine_id: uuid.UUID | None = None,
     job_id: uuid.UUID | None = None,
     custodian_staff_id: uuid.UUID | None = None,
+    paid_from: ExpensePaidFrom | None = None,
+    petty_cash_fund_id: uuid.UUID | None = None,
 ) -> Select[Expense]:
     """The expense list (latest incurred first) shared by the expenses endpoint and the expenses report."""
     stmt = select(Expense).order_by(Expense.incurred_at.desc(), Expense.id)
@@ -88,6 +92,8 @@ def expense_list_query(
         (Expense.machine_id, machine_id),
         (Expense.job_id, job_id),
         (Expense.custodian_staff_id, custodian_staff_id),
+        (Expense.paid_from, paid_from),
+        (Expense.petty_cash_fund_id, petty_cash_fund_id),
     ):
         if val is not None:
             stmt = stmt.where(col == val)
@@ -189,15 +195,53 @@ class ExpenseService:
         category = self._s.get(ExpenseCategory, body.category_id)
         if category is None or not category.is_active:
             raise NotFound("Expense category not found or inactive")
-        currency = currency_or_default(self._s, self._tid, body.currency)
+        base_currency = tenant_settings(self._s, self._tid).currency
+        flags: list[str] = []
+        reasons: list[str] = []  # why a human must approve whatever the auto-approve limit (DEC-033)
+        fund_id = advance_id = None
+        if body.paid_from is ExpensePaidFrom.PETTY_CASH:
+            from asseta.modules.pettycash.expense_rules import check_fund_expense  # lazy: petty cash builds on this
+
+            if body.custodian_staff_id is not None:
+                raise BusinessRuleViolation(
+                    "custodian_staff_id applies to CASH_CUSTODY only", code="CUSTODIAN_NOT_ALLOWED"
+                )
+            checked = check_fund_expense(
+                self._s,
+                self._ctx,
+                self._now,
+                fund_id=body.petty_cash_fund_id,
+                advance_id=body.petty_cash_advance_id,
+                amount=body.amount,
+                currency=body.currency,
+                base_currency=base_currency,
+                source=source,
+            )
+            fund_id, advance_id, currency = checked.fund_id, checked.advance_id, checked.currency
+            flags, reasons = checked.flags, checked.reasons
+        else:
+            if body.petty_cash_fund_id is not None or body.petty_cash_advance_id is not None:
+                raise BusinessRuleViolation(
+                    "petty_cash_fund_id applies to PETTY_CASH only", code="PETTY_CASH_FUND_NOT_ALLOWED"
+                )
+            currency = currency_or_default(self._s, self._tid, body.currency)
         machine_id = self._attribution(body.machine_id, body.job_id)
         custodian = None
         if body.paid_from is ExpensePaidFrom.CASH_CUSTODY:
             custodian = resolve_custodian(self._s, self._ctx, body.custodian_staff_id).id
+            if not cash_policy(self._s, self._tid, self._now).policy.spend_from_collections_allowed:
+                if source != "SYNC":  # offline never bypasses a control: kept for a human, never auto-approved
+                    raise BusinessRuleViolation(
+                        "This company does not allow spending from cash collected from customers; pay from a petty "
+                        "cash fund or by the office",
+                        code="SPENDING_FROM_COLLECTIONS_NOT_ALLOWED",
+                    )
+                flags.append(ExpenseFlag.SPENT_FROM_COLLECTIONS.value)
+                reasons.append("Paid from cash collected from customers, which this company does not allow")
         elif body.custodian_staff_id is not None:
             raise BusinessRuleViolation("custodian_staff_id applies to CASH_CUSTODY only", code="CUSTODIAN_NOT_ALLOWED")
         eff = PolicyService(self._s).expense_capture(self._tid, at=body.incurred_at)
-        policy, in_base = eff.policy, currency == tenant_settings(self._s, self._tid).currency
+        policy, in_base = eff.policy, currency == base_currency
         receipt_required = not in_base or body.amount > policy.receipt_required_above
         receipts = list(dict.fromkeys(body.receipt_attachment_ids))
         for att in receipts:
@@ -216,7 +260,7 @@ class ExpenseService:
             raise BusinessRuleViolation(
                 f"A GPS fix with accuracy <= {policy.gps_max_accuracy_m} m is required", code="GPS_REQUIRED"
             )
-        auto = in_base and body.amount <= policy.auto_approve_limit
+        auto = in_base and body.amount <= policy.auto_approve_limit and not reasons
         row = Expense(
             id=uuid.uuid4(),
             tenant_id=self._tid,
@@ -240,6 +284,9 @@ class ExpenseService:
             gps_accuracy_m=gps.accuracy_m if gps else None,
             source=source,
             device_id=body.device_id,
+            petty_cash_fund_id=fund_id,
+            petty_cash_advance_id=advance_id,
+            control_flags=flags,
             submitted_by=self._ctx.user_id,
             submitted_at=self._now,
             decided_at=self._now if auto else None,
@@ -264,7 +311,10 @@ class ExpenseService:
         if not auto:
             limit = self._money(policy.auto_approve_limit, currency) if in_base else "foreign currency"
             approval_id = uuid.uuid4()
-            reason = f"Amount {self._money(row.amount, currency)} exceeds the auto-approval limit ({limit})"
+            if reasons:
+                reason = "; ".join(reasons)
+            else:
+                reason = f"Amount {self._money(row.amount, currency)} exceeds the auto-approval limit ({limit})"
             OutboxWriter(self._s).emit(
                 topic=TOPIC,
                 event_type="ApprovalRequested",
@@ -301,9 +351,30 @@ class ExpenseService:
             entity_type="expense",
             entity_id=row.id,
             tenant_id=self._tid,
-            after={"amount": str(row.amount), "currency": currency, "status": row.status.value},
+            after={
+                "amount": str(row.amount),
+                "currency": currency,
+                "status": row.status.value,
+                "paid_from": row.paid_from.value,
+                "petty_cash_fund_id": str(fund_id) if fund_id else None,
+                "control_flags": flags,
+            },
             policy_version=eff.version_stamp,
         )
+        if flags:
+            OutboxWriter(self._s).emit(
+                topic=TOPIC,
+                event_type="ExpenseFlagged",
+                key=str(row.id),
+                payload={
+                    "expense_id": str(row.id),
+                    "flags": flags,
+                    "amount": str(row.amount),
+                    "currency": currency,
+                    "petty_cash_fund_id": str(fund_id) if fund_id else None,
+                },
+                tenant_id=self._tid,
+            )
         if auto:
             self._approved_event(row)
         return expense_dto(self._s, row)
@@ -337,6 +408,16 @@ class ExpenseService:
             sod_violation(self._tid, self._ctx.user_id, "approve", "expense", req.subject_id)
             raise BusinessRuleViolation("Submitters cannot approve their own expenses", code="SEGREGATION_OF_DUTIES")
         expense = self._s.execute(select(Expense).where(Expense.id == req.subject_id).with_for_update()).scalar_one()
+        if expense.petty_cash_fund_id is not None:  # DEC-033: the fund's holder never approves spending from it
+            from asseta.modules.pettycash.models import PettyCashFund  # lazy: petty cash builds on this module
+
+            fund = self._s.get(PettyCashFund, expense.petty_cash_fund_id)
+            own = own_staff(self._s, self._ctx)
+            if fund is not None and own is not None and own.id == fund.holder_staff_id:
+                sod_violation(self._tid, self._ctx.user_id, "approve", "expense", req.subject_id)
+                raise BusinessRuleViolation(
+                    "The fund's holder cannot approve spending from it", code="SEGREGATION_OF_DUTIES"
+                )
         req.status = ApprovalStatus.APPROVED if body.approve else ApprovalStatus.REJECTED
         req.decided_by, req.decided_at, req.decision_note = self._ctx.user_id, self._now, body.note
         expense.status = ExpenseStatus.APPROVED if body.approve else ExpenseStatus.REJECTED

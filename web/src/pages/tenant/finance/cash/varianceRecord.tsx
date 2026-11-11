@@ -57,7 +57,10 @@ export const varianceAssignee = (v: CashVarianceDto) => (
 );
 
 const SOURCE_KIND: Readonly<
-  Record<Exclude<CashVarianceDto['source_type'], 'CUSTOMER_HOUR'>, RecordKind>
+  Record<
+    Exclude<CashVarianceDto['source_type'], 'CUSTOMER_HOUR' | `PETTY_CASH_${string}`>,
+    RecordKind
+  >
 > = {
   TRANSFER: 'CASH_TRANSFER',
   REMITTANCE: 'CASH_REMITTANCE',
@@ -66,7 +69,11 @@ const SOURCE_KIND: Readonly<
 
 /** The record that opened the variance; customer-hour checks point at the purchase or the job. */
 export function varianceSourcePath(v: CashVarianceDto): string | null {
-  if (v.source_type !== 'CUSTOMER_HOUR') return recordPath(SOURCE_KIND[v.source_type], v.source_id);
+  if (v.source_type !== 'CUSTOMER_HOUR') {
+    // petty cash sources have no record kind here yet (DEC-033 web pass)
+    const kind = (SOURCE_KIND as Partial<Record<string, RecordKind>>)[v.source_type];
+    return kind ? recordPath(kind, v.source_id) : null;
+  }
   if (v.purchase_id != null) return hoursPurchasePath(v.purchase_id);
   return v.job_id == null ? null : jobDetailPath(v.job_id);
 }

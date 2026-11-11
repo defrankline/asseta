@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from asseta.modules.policy.data_protection import DATA_PROTECTION_SEED, DataProtectionPolicy
 from asseta.modules.policy.engine_hours import ENGINE_HOURS_SEED, EngineHoursPolicy
+from asseta.modules.policy.petty_cash import PETTY_CASH_SEED, PettyCashPolicy
 from asseta.modules.policy.revenue import REVENUE_RECONCILIATION_SEED, RevenueReconciliationPolicy
 
 
@@ -25,6 +26,7 @@ class PolicyType(StrEnum):
     CUSTOMER_HOURS = "CUSTOMER_HOURS"
     REVENUE_RECONCILIATION = "REVENUE_RECONCILIATION"
     DATA_PROTECTION = "DATA_PROTECTION"
+    PETTY_CASH = "PETTY_CASH"
 
 
 class PolicyScope(StrEnum):
@@ -299,6 +301,9 @@ class CashCustodyPolicy(BaseModel):
     # A variance (cash or customer-hour) is closed by a second person after someone proposes the closure. Off: a
     # variance-permission holder closes it directly. Accountable people, the counterparty and the opener never close.
     variance_closure_requires_second_person: bool = True
+    # DEC-033 D2: an expense paid from cash in hand (customer collections) is allowed. Off: refused online; from offline
+    # sync it is kept PENDING_APPROVAL (never auto-approved) and flagged SPENT_FROM_COLLECTIONS.
+    spend_from_collections_allowed: bool = True
 
     def in_force(self) -> "CashCustodyPolicy":
         """The rules actually enforced: as configured when enabled; switched off as a whole otherwise (the cash
@@ -325,6 +330,7 @@ class CashCustodyPolicy(BaseModel):
                 "custody_adjustment_evidence_required": False,
                 "collection_link_required": False,
                 "variance_closure_requires_second_person": False,
+                "spend_from_collections_allowed": True,
             }
         )
 
@@ -413,6 +419,7 @@ SCHEMAS: dict[PolicyType, type[BaseModel]] = {
     PolicyType.CUSTOMER_HOURS: CustomerHoursPolicy,
     PolicyType.REVENUE_RECONCILIATION: RevenueReconciliationPolicy,
     PolicyType.DATA_PROTECTION: DataProtectionPolicy,
+    PolicyType.PETTY_CASH: PettyCashPolicy,
 }
 
 # Fields a lower scope may override (platform/tenant may override any field). A type without a STAFF or
@@ -476,12 +483,14 @@ OVERRIDABLE: dict[PolicyType, dict[PolicyScope, frozenset[str]]] = {
     PolicyType.CUSTOMER_HOURS: {PolicyScope.MACHINE: frozenset(), PolicyScope.SITE: frozenset()},
     PolicyType.REVENUE_RECONCILIATION: {PolicyScope.MACHINE: frozenset(), PolicyScope.SITE: frozenset()},
     PolicyType.DATA_PROTECTION: {PolicyScope.MACHINE: frozenset(), PolicyScope.SITE: frozenset()},
+    PolicyType.PETTY_CASH: {PolicyScope.MACHINE: frozenset(), PolicyScope.SITE: frozenset()},
 }
 
 SEED_DEFAULTS: dict[PolicyType, dict[str, object]] = {
     PolicyType.ENGINE_HOURS: ENGINE_HOURS_SEED,
     PolicyType.REVENUE_RECONCILIATION: REVENUE_RECONCILIATION_SEED,
     PolicyType.DATA_PROTECTION: DATA_PROTECTION_SEED,
+    PolicyType.PETTY_CASH: PETTY_CASH_SEED,
     PolicyType.TRACKING: {
         "enabled": True,
         "live_max_age_seconds": 300,
@@ -566,6 +575,7 @@ SEED_DEFAULTS: dict[PolicyType, dict[str, object]] = {
         "custody_adjustment_evidence_required": False,
         "collection_link_required": False,
         "variance_closure_requires_second_person": True,
+        "spend_from_collections_allowed": True,
     },
     PolicyType.OVERSIGHT: {
         "hidden_dashboard_tiles": [],

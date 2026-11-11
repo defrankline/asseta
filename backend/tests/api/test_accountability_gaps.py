@@ -56,6 +56,7 @@ def test_menus_follow_the_tenant_capability_policy(api: Api) -> None:
     assert {"tenant.hours.purchases", "tenant.field.hours"} <= {m["key"] for m in nav["menus"]}
     assert nav["disabled_capabilities"] == [
         "IDLE_MACHINES",
+        "PETTY_CASH",
         "REVENUE_RECONCILIATION",
         "SCORECARD",
         "SITE_CHECKIN",
@@ -67,6 +68,7 @@ def test_menus_follow_the_tenant_capability_policy(api: Api) -> None:
     assert nav["disabled_capabilities"] == [
         "CUSTOMER_HOURS",
         "IDLE_MACHINES",
+        "PETTY_CASH",
         "REVENUE_RECONCILIATION",
         "SCORECARD",
         "SITE_CHECKIN",

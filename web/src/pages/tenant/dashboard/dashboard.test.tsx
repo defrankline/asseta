@@ -45,6 +45,7 @@ function overview(overrides: Partial<TenantOverviewDto> = {}): TenantOverviewDto
           verified_receipts_mtd: '400000.0000',
           approved_expenses_mtd: '120000.0000',
           cash_with_supervisors: '80000.0000',
+          petty_cash_held: '0.0000',
         },
       ],
       latest_source_at: minutesAgo(60),

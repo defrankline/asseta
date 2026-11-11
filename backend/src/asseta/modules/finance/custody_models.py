@@ -53,6 +53,23 @@ class VarianceSource(StrEnum):
     REMITTANCE = "REMITTANCE"
     FLOAT = "FLOAT"
     CUSTOMER_HOUR = "CUSTOMER_HOUR"  # purchase vs consumption vs allocation mismatch found by the sweep (DEC-032)
+    # DEC-033 petty cash funds: the holder is the counterparty, nobody's collections custody is touched.
+    PETTY_CASH_COUNT = "PETTY_CASH_COUNT"  # counted != expected (a write-off moves the fund balance)
+    PETTY_CASH_FUNDING = "PETTY_CASH_FUNDING"  # issued != acknowledged (sits with the office, like a float)
+    PETTY_CASH_RETURN = "PETTY_CASH_RETURN"  # claimed != confirmed (a write-off moves the fund balance)
+    PETTY_CASH_ADVANCE = "PETTY_CASH_ADVANCE"  # advance - approved spending != change returned (with the recipient)
+
+
+# Fund variances, and those whose write-off reduces the fund balance (the money was still counted in the fund).
+PETTY_CASH_SOURCES = frozenset(
+    {
+        VarianceSource.PETTY_CASH_COUNT,
+        VarianceSource.PETTY_CASH_FUNDING,
+        VarianceSource.PETTY_CASH_RETURN,
+        VarianceSource.PETTY_CASH_ADVANCE,
+    }
+)
+FUND_WRITE_OFF_SOURCES = frozenset({VarianceSource.PETTY_CASH_COUNT, VarianceSource.PETTY_CASH_RETURN})
 
 
 class VarianceUnit(StrEnum):
@@ -243,6 +260,8 @@ class CashVariance(UuidPk, Base):
     machine_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("machine.id"))
     purchase_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("hours_purchase.id"), index=True)
     job_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("job.id"))
+    # DEC-033: the petty cash fund a PETTY_CASH_* variance belongs to (staff_member_id is null on them).
+    petty_cash_fund_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("petty_cash_fund.id"), index=True)
 
 
 class CashVarianceEvent(UuidPk, Base):

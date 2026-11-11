@@ -178,6 +178,7 @@ function employee(over: Partial<EmployeeAccountabilityDto> = {}): EmployeeAccoun
       roles: ['supervisor'],
     },
     cash_held: [],
+    petty_cash_funds: [],
     collections: [record()],
     floats: [],
     transfers_in: [],

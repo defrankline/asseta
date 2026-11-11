@@ -15,6 +15,7 @@ from asseta.core.errors import ERROR_RESPONSES, BusinessRuleViolation, NotFound,
 from asseta.modules.identity.catalog import CATALOG, MenuDef, PermissionScope
 from asseta.modules.identity.dependencies import requires, requires_any
 from asseta.modules.identity.principal import RequestContext
+from asseta.modules.pettycash import permissions as _petty_permissions  # noqa: F401 (registers the codes)
 from asseta.modules.policy.managed_switch import guard_managed_service_switch
 from asseta.modules.policy.models import PolicyVersion
 from asseta.modules.policy.schemas import PolicyScope, PolicyType
@@ -43,7 +44,12 @@ CAPTURE_POLICY_READERS = {
     PolicyType.EXPENSE_CAPTURE: "tenant.expense.write",
     PolicyType.CASH_CUSTODY: "tenant.collection.record",
     PolicyType.CUSTOMER_HOURS: "tenant.hours.purchase",
+    PolicyType.PETTY_CASH: "tenant.pettycash.read",  # fund holders follow the petty cash rules on their phone
 }
+# Policy types a module's own manage permission may version besides `tenant.policy.manage` (DEC-033: whoever manages
+# the petty cash funds sets the petty cash rules). Every other type needs `tenant.policy.manage`.
+MODULE_POLICY_EDITORS = {PolicyType.PETTY_CASH: "tenant.pettycash.manage"}
+VERSION_WRITE = requires_any(("tenant.policy.manage", *set(MODULE_POLICY_EDITORS.values())), PermissionScope.TENANT)
 EFFECTIVE_READ = requires_any(("tenant.policy.read", *set(CAPTURE_POLICY_READERS.values())), PermissionScope.TENANT)
 
 router = APIRouter(prefix="/api/v1", tags=["policy"], responses=ERROR_RESPONSES)
@@ -129,8 +135,11 @@ def create_tenant_version(
     body: PolicyVersionIn,
     request: Request,
     session: DbSession,
-    ctx: Annotated[RequestContext, Depends(POLICY_MANAGE)],
+    ctx: Annotated[RequestContext, Depends(VERSION_WRITE)],
 ) -> PolicyVersionDto:
+    """Needs `tenant.policy.manage`; a module's own manage permission versions that module's policy type only."""
+    if "tenant.policy.manage" not in ctx.permissions and MODULE_POLICY_EDITORS.get(ptype) not in ctx.permissions:
+        raise PermissionDenied("Missing permission tenant.policy.manage")
     if body.scope is PolicyScope.PLATFORM:
         raise BusinessRuleViolation("Tenants cannot change platform policies", code="POLICY_SCOPE")
     ref_sql = {

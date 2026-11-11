@@ -21,6 +21,7 @@ from asseta.modules.meter.allocation_writer import run_work_allocations
 from asseta.modules.notification.realtime import RedisBroker, SafePublisher
 from asseta.modules.notification.reminders import run_reminders
 from asseta.modules.notification.settings import get_notification_settings
+from asseta.modules.pettycash.sweep import run_petty_cash_sweep
 from asseta.modules.revenue.reconciliation import run_revenue_reconciliation
 
 log = structlog.get_logger()
@@ -77,6 +78,10 @@ def run() -> None:
             run_revenue_reconciliation(get_sessionmaker(), system_clock())
         except Exception:
             log.exception("revenue_reconciliation_cycle_failed")
+        try:  # petty cash: counts due, funds running low, advances not cleared (tenant policy PETTY_CASH; default off)
+            run_petty_cash_sweep(get_sessionmaker(), system_clock())
+        except Exception:
+            log.exception("petty_cash_cycle_failed")
         try:  # balance verification (tenant policy DATA_PROTECTION; default off; reports only)
             run_balance_verification_sweep(get_sessionmaker(), system_clock())
         except Exception:

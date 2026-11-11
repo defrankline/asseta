@@ -30,6 +30,7 @@ INVESTIGATIONS = "INVESTIGATIONS"
 TRACKING = "TRACKING"
 DEPOSIT_ACCOUNTS = "DEPOSIT_ACCOUNTS"
 MANAGED_SERVICE = "MANAGED_SERVICE"
+PETTY_CASH = "PETTY_CASH"
 
 CAPABILITIES: dict[str, Check] = {
     # Customer prepaid hours (CUSTOMER_HOURS.enabled): purchases, balances, approvals, reason lists.
@@ -67,10 +68,13 @@ CAPABILITIES: dict[str, Check] = {
     MANAGED_SERVICE: lambda svc, tid, at: (
         svc.oversight(tid, at=at).policy.managed_service_enabled or has_open_mandate(svc.session, tid, at)
     ),
+    # DEC-033 petty cash funds (PETTY_CASH.enabled; platform default OFF): funds, fundings and top-ups, returns,
+    # counts, holder changes, fund adjustments, advances, fund expenses and their variances, menus and sweeps.
+    PETTY_CASH: lambda svc, tid, at: svc.petty_cash(tid, at=at).policy.enabled,
 }
 
 # Capabilities whose safe platform default is OFF (a tenant opts in): an unconfigured policy counts as off for them.
-OFF_BY_DEFAULT = frozenset({REVENUE_RECONCILIATION, SCORECARD, UNBILLED_WORK, IDLE_MACHINES, SITE_CHECKIN})
+OFF_BY_DEFAULT = frozenset({REVENUE_RECONCILIATION, SCORECARD, UNBILLED_WORK, IDLE_MACHINES, SITE_CHECKIN, PETTY_CASH})
 
 # How a request needing a switched-off capability is refused: 422 BUSINESS_RULE_VIOLATION envelope with this code
 # (CUSTOMER_HOURS keeps the code its services already used). Offline sync operations get the same code as CONFLICT.
@@ -91,6 +95,7 @@ REFUSALS: dict[str, tuple[str, str]] = {
     TRACKING: ("TRACKING_DISABLED", "Tracking is switched off for this tenant"),
     DEPOSIT_ACCOUNTS: ("DEPOSIT_ACCOUNTS_DISABLED", "Deposit accounts are switched off for this tenant"),
     MANAGED_SERVICE: ("MANAGED_SERVICE_DISABLED", "The managed service page is switched off for this tenant"),
+    PETTY_CASH: ("PETTY_CASH_DISABLED", "Petty cash funds are switched off for this tenant"),
 }
 
 

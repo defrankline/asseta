@@ -25,7 +25,10 @@ from asseta.modules.identity.models import AppUser, Role, TenantMembership
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.meter.allocation_models import DailyOperationalReport
 from asseta.modules.oversight.service import ScorecardService
-from asseta.modules.policy.capabilities import SCORECARD, capability_on
+from asseta.modules.pettycash.dto import PettyCashBalanceDto
+from asseta.modules.pettycash.ledger import FundLedger
+from asseta.modules.pettycash.models import PettyCashFund
+from asseta.modules.policy.capabilities import PETTY_CASH, SCORECARD, capability_on
 
 LIMIT = 200  # records per list; `truncated` names the lists that had more
 DEFAULT_DAYS = 30
@@ -80,6 +83,8 @@ class EmployeeAccountabilityDto(BaseModel):
     date_from: date
     date_to: date
     cash_held: list[CashCustodyBalanceDto]
+    # DEC-033: petty cash funds this person holds now (kept apart from the collections custody above)
+    petty_cash_funds: list[PettyCashBalanceDto] = []
     collections: list[EmployeeRecordDto]
     floats: list[EmployeeRecordDto]
     transfers_in: list[EmployeeRecordDto]
@@ -186,6 +191,7 @@ class EmployeeAccountability:
             date_from=first,
             date_to=last,
             cash_held=held,
+            petty_cash_funds=self._funds(staff.id),
             collections=lists["collections"],
             floats=lists["floats"],
             transfers_in=lists["transfers_in"],
@@ -200,6 +206,17 @@ class EmployeeAccountability:
             truncated=sorted(truncated),
             **people,
         )
+
+    def _funds(self, staff_id: uuid.UUID) -> list[PettyCashBalanceDto]:
+        if not capability_on(self._s, self._tid, PETTY_CASH, self._now):
+            return []
+        ledger = FundLedger(self._s, self._now)
+        rows = self._s.execute(
+            select(PettyCashFund)
+            .where(PettyCashFund.holder_staff_id == staff_id, PettyCashFund.is_active.is_(True))
+            .order_by(PettyCashFund.code)
+        ).scalars()
+        return [ledger.balance(f) for f in rows]
 
     def _roles(self, user_id: uuid.UUID) -> list[str]:
         return sorted(

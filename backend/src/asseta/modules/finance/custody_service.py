@@ -40,6 +40,7 @@ from asseta.modules.finance.custody_dto import (
     WriteOffProposalIn,
 )
 from asseta.modules.finance.custody_models import (
+    PETTY_CASH_SOURCES,
     AcknowledgementMethod,
     CashDecisionStatus,
     CashFloatAcknowledgement,
@@ -77,7 +78,7 @@ from asseta.modules.finance.references import CASH_TRANSFER, CUSTODY_ADJUSTMENT,
 from asseta.modules.fleet.models import StaffMember
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.meter.evidence_check import check_attachments, require_evidence
-from asseta.modules.policy.capabilities import CASH_CUSTODY, CUSTOMER_HOURS, require_capability
+from asseta.modules.policy.capabilities import CASH_CUSTODY, CUSTOMER_HOURS, PETTY_CASH, require_capability
 from asseta.modules.policy.schemas import CashCustodyPolicy
 from asseta.modules.policy.service import EffectivePolicy
 
@@ -92,6 +93,15 @@ REVERSIBLE: dict[str, Any] = {
     "expense": Expense,
     "custody_adjustment": CustodyAdjustment,
 }
+
+
+def variance_capability(source_type: VarianceSource | None) -> str:
+    """The tenant capability a variance (or a variance list by source) belongs to."""
+    if source_type is VarianceSource.CUSTOMER_HOUR:
+        return CUSTOMER_HOURS
+    if source_type in PETTY_CASH_SOURCES:
+        return PETTY_CASH
+    return CASH_CUSTODY
 
 
 def custodian_dto(s: StaffMember) -> CustodianDto:
@@ -475,12 +485,7 @@ class CashCustodyControls:
         source_type: VarianceSource | None,
         assignee_user_id: uuid.UUID | None = None,
     ) -> Select[CashVariance]:
-        require_capability(
-            self._s,
-            self._tid,
-            CUSTOMER_HOURS if source_type is VarianceSource.CUSTOMER_HOUR else CASH_CUSTODY,
-            self._now,
-        )
+        require_capability(self._s, self._tid, variance_capability(source_type), self._now)
         stmt = select(CashVariance).order_by(CashVariance.opened_at.desc(), CashVariance.id)
         if assignee_user_id:
             stmt = stmt.where(CashVariance.assignee_user_id == assignee_user_id)
@@ -503,15 +508,23 @@ class CashCustodyControls:
         return row
 
     def gate(self, v: CashVariance) -> None:
-        """A customer-hour variance belongs to the customer-hours capability; a cash one to the cash custody chain."""
-        code = CUSTOMER_HOURS if v.source_type is VarianceSource.CUSTOMER_HOUR else CASH_CUSTODY
-        require_capability(self._s, self._tid, code, self._now)
+        """A customer-hour variance belongs to the customer-hours capability, a petty cash one to petty cash; a cash
+        one to the cash custody chain."""
+        require_capability(self._s, self._tid, variance_capability(v.source_type), self._now)
 
     def _reason_label(self, reason_id: uuid.UUID | None) -> str | None:
         row = self._s.get(CashReason, reason_id) if reason_id else None
         return row.label if row else None
 
-    def _custody_after(self, staff_id: uuid.UUID | None, currency: str) -> Decimal | None:
+    def _custody_after(
+        self, staff_id: uuid.UUID | None, currency: str, fund_id: uuid.UUID | None = None
+    ) -> Decimal | None:
+        if fund_id is not None:  # a petty cash difference: the fund's balance (never the holder's custody)
+            from asseta.modules.pettycash.ledger import FundLedger  # lazy: petty cash builds on this module
+            from asseta.modules.pettycash.models import PettyCashFund
+
+            fund = self._s.get(PettyCashFund, fund_id)
+            return FundLedger(self._s, self._now).figures(fund).balance if fund is not None else None
         if staff_id is None:
             return None
         from asseta.modules.finance.cash_service import CashCustodyService  # lazy: same module group, heavy import
@@ -544,7 +557,9 @@ class CashCustodyControls:
                 new_value=v.received_amount,
                 amount=v.amount,
                 currency=None if hours else v.currency,
-                resulting_balance=None if hours else self._custody_after(v.staff_member_id, v.currency),
+                resulting_balance=None
+                if hours
+                else self._custody_after(v.staff_member_id, v.currency, v.petty_cash_fund_id),
                 evidence_attachment_ids=list(v.evidence_attachment_ids),
                 customer_id=v.customer_id,
                 machine_id=v.machine_id,

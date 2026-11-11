@@ -67,6 +67,7 @@ def staff(staff_id: object) -> Audience:
 # Every notification about one of them carries `data.kind` + `data.record_id` (and the push payload carries them
 # too), and its link is the record's own detail route `<route>/<id>`.
 CASH = "/tenant/finance/cash"
+PETTY = "/tenant/finance/petty-cash"
 RECORDS: dict[str, tuple[str, str]] = {
     "cash_transfer": ("CASH_TRANSFER", f"{CASH}/transfers"),
     "supervisor_cash_custody": ("CASH_FLOAT", f"{CASH}/floats"),
@@ -88,6 +89,12 @@ RECORDS: dict[str, tuple[str, str]] = {
     "correction_group": ("WORK_ALLOCATION_CORRECTION", "/tenant/work-allocations/corrections"),
     "adjustment_request": ("ADJUSTMENT_REQUEST", "/tenant/finance/adjustments/requests"),
     "daily_report": ("DAILY_REPORT", "/tenant/daily-reports"),
+    "petty_cash_fund": ("PETTY_CASH_FUND", f"{PETTY}/funds"),
+    "petty_cash_movement": ("PETTY_CASH_MOVEMENT", f"{PETTY}/movements"),
+    "petty_cash_holder_change": ("PETTY_CASH_HOLDER_CHANGE", f"{PETTY}/holder-changes"),
+    "petty_cash_adjustment": ("PETTY_CASH_ADJUSTMENT", f"{PETTY}/adjustments"),
+    "petty_cash_advance": ("PETTY_CASH_ADVANCE", f"{PETTY}/advances"),
+    "petty_cash_count": ("PETTY_CASH_COUNT", f"{PETTY}/counts"),
 }
 
 
@@ -1093,3 +1100,101 @@ def entity_change(e: DomainEvent) -> dict[str, Any] | None:
     entity, key, action = spec
     value = e.payload.get(key)
     return {"entity": entity, "id": str(value) if value else None, "action": action}
+
+
+# --- petty cash funds (DEC-033) -----------------------------------------------------------------------------------
+_PETTY_KIND = {"FUNDING": "funding", "TOP_UP": "top-up", "ADJUSTMENT": "fund adjustment"}
+
+
+@rule("PettyCashApprovalRequested")
+def _petty_approval(_: Session, e: DomainEvent) -> list[Intent]:
+    p = e.payload
+    what = _PETTY_KIND.get(p.get("kind", ""), "petty cash request")
+    return [
+        Intent(
+            "PETTY_CASH_APPROVAL_REQUESTED",
+            (perm("tenant.pettycash.approve"),),
+            f"Approve petty cash {what} — {p['number']}",
+            f"A {what} of {p['currency']} {p['amount']} for {p.get('fund_name') or 'a fund'} awaits approval by "
+            "someone other than the proposer and the holder.",
+            _key(e),
+            record_link(p["entity_type"], p["entity_id"], PETTY),
+            p["entity_type"],
+            p["entity_id"],
+        )
+    ]
+
+
+@rule("PettyCashApproved")
+def _petty_to_issue(_: Session, e: DomainEvent) -> list[Intent]:
+    p = e.payload
+    return [
+        Intent(
+            "PETTY_CASH_TO_ISSUE",
+            (perm("tenant.pettycash.propose"),),
+            f"Hand over petty cash — {p['number']}",
+            f"{p['currency']} {p['amount']} was approved; record it when it is handed to the holder.",
+            _key(e),
+            record_link("petty_cash_movement", p["entity_id"], PETTY),
+            "petty_cash_movement",
+            p["entity_id"],
+        )
+    ]
+
+
+@rule("PettyCashToAcknowledge")
+def _petty_to_acknowledge(_: Session, e: DomainEvent) -> list[Intent]:
+    p = e.payload
+    change = p["entity_type"] == "petty_cash_holder_change"
+    return [
+        Intent(
+            "PETTY_CASH_TO_ACKNOWLEDGE",
+            (staff(p["staff_member_id"]),),
+            "Take over a petty cash fund" if change else "Petty cash to acknowledge",
+            f"Fund {p['number']} ({p['currency']} {p['amount']} counted) is being handed to you; accept it."
+            if change
+            else f"{p['currency']} {p['amount']} was handed to you for your fund ({p['number']}); confirm the amount "
+            "you received.",
+            _key(e),
+            record_link(p["entity_type"], p["entity_id"], PETTY),
+            p["entity_type"],
+            p["entity_id"],
+        )
+    ]
+
+
+@rule("PettyCashReturnClaimed")
+def _petty_return(_: Session, e: DomainEvent) -> list[Intent]:
+    p = e.payload
+    return [
+        Intent(
+            "PETTY_CASH_RETURN_TO_CONFIRM",
+            (perm("tenant.pettycash.propose"),),
+            f"Petty cash return to confirm — {p['number']}",
+            f"{p['currency']} {p['amount']} was returned from {p.get('fund_name') or 'a fund'}; count it and confirm "
+            "the amount received.",
+            _key(e),
+            record_link("petty_cash_movement", p["entity_id"], PETTY),
+            "petty_cash_movement",
+            p["entity_id"],
+        )
+    ]
+
+
+@rule("ExpenseFlagged")
+def _expense_flagged(_: Session, e: DomainEvent) -> list[Intent]:
+    p = e.payload
+    flags = ", ".join(str(f).replace("_", " ").lower() for f in p.get("flags", []))
+    return [
+        Intent(
+            "EXPENSE_FLAGGED",
+            (perm("tenant.approval.expense"),),
+            "Expense flagged for review",
+            f"An expense of {p['currency']} {p['amount']} needs a closer look ({flags}). It waits for approval.",
+            _key(e),
+            f"/tenant/expenses/{p['expense_id']}",
+            "expense",
+            p["expense_id"],
+            data={"flags": p.get("flags", [])},
+        )
+    ]

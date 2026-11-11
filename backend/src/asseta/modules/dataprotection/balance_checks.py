@@ -21,6 +21,7 @@ from asseta.modules.adjustments.models import (
     AdjustmentUnit,
 )
 from asseta.modules.dataprotection.balance_money import check_cash, check_invoices, check_receivables
+from asseta.modules.dataprotection.balance_petty import check_petty_cash
 from asseta.modules.dataprotection.balance_report import ZERO, CheckKind, Finding, Report, differs
 from asseta.modules.fleet.models import Machine
 from asseta.modules.hours.ledger import purchase_totals
@@ -199,4 +200,5 @@ def verify_tenant(s: Session, tenant_id: uuid.UUID, now: datetime) -> Report:
     check_cash(s, report, now)
     check_receivables(s, report)
     check_invoices(s, report)
+    check_petty_cash(s, report, now)
     return report

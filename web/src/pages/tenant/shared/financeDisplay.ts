@@ -71,9 +71,11 @@ export const PAID_FROM_OPTIONS: readonly Option<ExpensePaidFrom>[] = [
   { value: 'CASH_CUSTODY', label: 'Supervisor cash custody' },
   { value: 'COMPANY', label: 'Company (office / bank)' },
 ];
+// PETTY_CASH needs a fund; it is chosen on the petty cash screens, not in this generic picker.
 export const PAID_FROM_LABELS: Readonly<Record<ExpensePaidFrom, string>> = {
   CASH_CUSTODY: 'Supervisor cash custody',
   COMPANY: 'Company (office / bank)',
+  PETTY_CASH: 'Petty cash fund',
 };
 export const FUEL_EVENT_OPTIONS: readonly Option<FuelEventType>[] = [
   { value: 'PURCHASE', label: 'Purchase' },

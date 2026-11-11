@@ -41,6 +41,16 @@ from asseta.modules.jobs.models import Job, RentalContract
 from asseta.modules.meter.allocation_models import DailyOperationalReport
 from asseta.modules.meter.engine_models import EngineHourClassification, MeterCorrection
 from asseta.modules.meter.models import MeterResetEvent
+from asseta.modules.pettycash.models import (
+    INBOUND,
+    AdvanceStatus,
+    MovementStatus,
+    PettyCashAdjustment,
+    PettyCashAdvance,
+    PettyCashCount,
+    PettyCashFund,
+    PettyCashMovement,
+)
 from asseta.modules.revenue.models import NonRevenueApproval, RevenueDifference, RevenueDifferenceStatus
 
 ZERO = Decimal(0)
@@ -350,6 +360,83 @@ def _expense(_: Session, e: Expense) -> dict[str, Any]:
     }
 
 
+def _petty_movement(_: Session, m: PettyCashMovement) -> dict[str, Any]:
+    done = m.status in (MovementStatus.ACKNOWLEDGED, MovementStatus.CONFIRMED)
+    waiting = m.status in (
+        MovementStatus.PROPOSED,
+        MovementStatus.APPROVED,
+        MovementStatus.ISSUED,
+        MovementStatus.CLAIMED,
+    )
+    return {
+        "recorded_by": m.created_by,
+        "recorded_at": m.created_at,
+        "decided_by": m.decided_by if m.kind in INBOUND else m.received_by,
+        "decided_at": m.decided_at if m.kind in INBOUND else m.received_at,
+        "staff_member_id": m.holder_staff_id,
+        "amount": m.amount,
+        "currency": m.currency,
+        "balance_outstanding": m.amount - (m.amount_received or ZERO) if done else (m.amount if waiting else ZERO),
+        "balance_unit": MONEY,
+    }
+
+
+def _petty_count(_: Session, c: PettyCashCount) -> dict[str, Any]:
+    return {
+        "status": "SELF_COUNT" if c.self_count else "COUNTED",
+        "recorded_by": c.counted_by,
+        "recorded_at": c.counted_at,
+        "staff_member_id": c.holder_staff_id,
+        "amount": c.counted_amount,
+        "currency": c.currency,
+        "balance_outstanding": c.difference,
+        "balance_unit": MONEY,
+    }
+
+
+def _petty_adjustment(_: Session, a: PettyCashAdjustment) -> dict[str, Any]:
+    return {
+        "recorded_by": a.created_by,
+        "recorded_at": a.created_at,
+        "decided_by": a.decided_by,
+        "decided_at": a.decided_at,
+        "amount": a.amount,
+        "currency": a.currency,
+        "balance_outstanding": a.amount if a.status is CashDecisionStatus.PENDING else ZERO,
+        "balance_unit": MONEY,
+    }
+
+
+def _petty_advance(_: Session, a: PettyCashAdvance) -> dict[str, Any]:
+    return {
+        "recorded_by": a.issued_by,
+        "recorded_at": a.issued_at,
+        "decided_by": a.cleared_by,
+        "decided_at": a.cleared_at,
+        "staff_member_id": a.recipient_staff_id,
+        "amount": a.amount,
+        "currency": a.currency,
+        "balance_outstanding": a.amount if a.status is AdvanceStatus.OUTSTANDING else ZERO,
+        "balance_unit": MONEY,
+    }
+
+
+def _petty_fund(s: Session, f: PettyCashFund) -> dict[str, Any]:
+    from asseta.core.db import utcnow
+    from asseta.modules.pettycash.ledger import FundLedger  # local: the ledger reads expenses and variances
+
+    return {
+        "status": "ACTIVE" if f.is_active else "INACTIVE",
+        "recorded_by": f.created_by,
+        "recorded_at": f.created_at,
+        "staff_member_id": f.holder_staff_id,
+        "amount": f.approved_limit,
+        "currency": f.currency,
+        "balance_outstanding": FundLedger(s, utcnow()).figures(f).balance,
+        "balance_unit": MONEY,
+    }
+
+
 @dataclass(frozen=True)
 class Target:
     record_type: str
@@ -372,6 +459,14 @@ TARGETS = (
     Target("adjustment_request", AdjustmentRequest, _request, AdjustmentRequest.request_number),
     Target("adjustment_entry", AdjustmentLedgerEntry, _entry, AdjustmentLedgerEntry.entry_number),
     Target("anomaly_case", AnomalyCase, _case, AnomalyCase.case_number),
+    # DEC-033 petty cash: PC- numbers (movements, counts, adjustments, advances) and the fund's own code.
+    Target(
+        "petty_cash_movement", PettyCashMovement, _petty_movement, PettyCashMovement.number, PettyCashMovement.reference
+    ),
+    Target("petty_cash_count", PettyCashCount, _petty_count, PettyCashCount.number),
+    Target("petty_cash_adjustment", PettyCashAdjustment, _petty_adjustment, PettyCashAdjustment.number),
+    Target("petty_cash_advance", PettyCashAdvance, _petty_advance, PettyCashAdvance.number),
+    Target("petty_cash_fund", PettyCashFund, _petty_fund, PettyCashFund.code),
     # Reachable by record id only: they have no number of their own.
     Target("cash_variance", CashVariance, _variance),
     Target("daily_report", DailyOperationalReport, _report),

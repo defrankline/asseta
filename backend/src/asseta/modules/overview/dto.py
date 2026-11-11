@@ -4,6 +4,7 @@ of a cached snapshot honestly (it is NOT the time the numbers were computed — 
 
 import uuid
 from datetime import date, datetime
+from decimal import Decimal
 
 from pydantic import BaseModel, Field
 
@@ -58,6 +59,9 @@ class OverviewCurrencyMoneyDto(BaseModel):
     verified_receipts_mtd: Money = Field(description="Verified customer payments received this tenant-local month")
     approved_expenses_mtd: Money = Field(description="Approved expenses incurred this tenant-local month")
     cash_with_supervisors: Money = Field(description="Cash custody outstanding across all custodians now")
+    petty_cash_held: Money = Field(
+        default=Decimal(0), description="Balance of all active petty cash funds now (0 while petty cash is off)"
+    )
 
 
 class OverviewMoneySectionDto(BaseModel):

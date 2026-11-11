@@ -60,6 +60,7 @@ const currencySchema = object({
   verified_receipts_mtd: text(),
   approved_expenses_mtd: text(),
   cash_with_supervisors: text(),
+  petty_cash_held: text(),
 });
 
 const moneySchema = object({

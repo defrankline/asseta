@@ -47,11 +47,13 @@ from asseta.modules.meter.engine_models import (
     MeterProposalStatus,
 )
 from asseta.modules.meter.models import MeterResetEvent
+from asseta.modules.pettycash.models import MovementStatus, PettyCashAdjustment, PettyCashMovement
 from asseta.modules.policy.capabilities import (
     CASH_CUSTODY,
     CUSTOMER_HOURS,
     ENGINE_HOURS,
     INVESTIGATIONS,
+    PETTY_CASH,
     REVENUE_RECONCILIATION,
 )
 from asseta.modules.revenue.models import (
@@ -126,6 +128,8 @@ _ap, _p, _h, _j, _dr, _ac, _rd = (
     RevenueDifference,
 )
 
+_pm, _pa = PettyCashMovement, PettyCashAdjustment
+
 FLOWS: tuple[Flow, ...] = (
     # --- adjustments: the proposals that post to the adjustments ledger once decided ---------------------------------
     Flow(
@@ -196,7 +200,23 @@ FLOWS: tuple[Flow, ...] = (
         amount=_v.amount, unit="MONEY", currency=_v.currency, staff_member_id=_v.staff_member_id,
         adjustment=True, capability=CASH_CUSTODY,
     ),
+    Flow(
+        "petty_cash_adjustments", "petty_cash_adjustment", _pa.id, _pa.status, _pa.status == CashDecisionStatus.PENDING,
+        _pa.created_by, _pa.created_at, _pa.decided_by, _pa.decided_at,
+        reference=_pa.number, amount=_pa.amount, unit="MONEY", currency=_pa.currency,
+        adjustment=True, capability=PETTY_CASH,
+    ),
     # --- approvals that are not adjustments ---------------------------------------------------------------------------
+    # DEC-033: fundings and top-ups waiting for an approver, returns waiting for the office's count (one flow: the
+    # approver decides a funding, the office confirms a return).
+    Flow(
+        "petty_cash_movements", "petty_cash_movement", _pm.id, _pm.status,
+        _pm.status.in_((MovementStatus.PROPOSED, MovementStatus.CLAIMED)),
+        _pm.created_by, _pm.created_at,
+        func.coalesce(_pm.decided_by, _pm.received_by), func.coalesce(_pm.decided_at, _pm.received_at),
+        reference=_pm.number, amount=_pm.amount, unit="MONEY", currency=_pm.currency,
+        staff_member_id=_pm.holder_staff_id, capability=PETTY_CASH,
+    ),
     Flow(
         "discounts", "customer_discount", _d.id, _d.status, _d.status == ProposalStatus.PROPOSED,
         _d.proposed_by, _d.proposed_at, _d.decided_by, _d.decided_at,

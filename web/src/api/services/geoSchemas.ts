@@ -96,6 +96,7 @@ const POLICY_TYPE_SET: Readonly<Record<PolicyType, true>> = {
   EXPENSE_CAPTURE: true,
   FRAUD_CONTROLS: true,
   CASH_CUSTODY: true,
+  PETTY_CASH: true,
   OVERSIGHT: true,
   CUSTOMER_HOURS: true,
   ENGINE_HOURS: true,

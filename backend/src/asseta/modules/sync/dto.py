@@ -13,6 +13,12 @@ from asseta.modules.fleet.dto import MachineDto, StaffDto
 from asseta.modules.geospatial.dto import JobSiteDto
 from asseta.modules.jobs.dto import AcknowledgementDto, ActivityDto, ContractDto, CustomerDto, JobDto
 from asseta.modules.meter.dto import ExceptionDto, MeterCaptureDto, ResetDto
+from asseta.modules.pettycash.dto import (
+    PettyCashAdvanceDto,
+    PettyCashFundDto,
+    PettyCashHolderChangeDto,
+    PettyCashMovementDto,
+)
 from asseta.modules.platform_billing.dto import Money
 
 PROTOCOL_VERSION = 1
@@ -48,6 +54,12 @@ CAPABILITIES = [
     # HOURS_TRANSFER_REQUEST accepts
     # evidence_attachment_ids and evidence_upload_ids (purpose ADJUSTMENT_EVIDENCE; EVIDENCE_REQUIRED when required).
     "CASH_DETAILS_V2",
+    # DEC-033 petty cash: SyncData.petty_cash_* (the caller's funds with balance and available to spend, money waiting
+    # for their acknowledgement, holder changes and advances; full snapshots like cash_custody); EXPENSE accepts
+    # paid_from PETTY_CASH + petty_cash_fund_id (+ petty_cash_advance_id); PETTY_CASH_ACKNOWLEDGEMENT,
+    # PETTY_CASH_TOP_UP_REQUEST, PETTY_CASH_RETURN, PETTY_CASH_COUNT, PETTY_CASH_ADVANCE_CLEARANCE and
+    # PETTY_CASH_HOLDER_CHANGE_ACKNOWLEDGEMENT (evidence_upload_ids: purpose PETTY_CASH_EVIDENCE).
+    "OP_PETTY_CASH",
 ]
 # Protocol capabilities that belong to a tenant capability (`asseta.modules.policy.capabilities`): not announced
 # while the tenant has it switched off, and their operations are then refused (CONFLICT, the capability's code).
@@ -64,6 +76,7 @@ TENANT_CAPABILITY_OF = {
     "METER_CHANGEOVER": "ENGINE_HOURS",
     "SYNC_CHANGEOVER_JOBS": "ENGINE_HOURS",
     "SYNC_UNBILLABLE_REASONS": "ENGINE_HOURS",
+    "OP_PETTY_CASH": "PETTY_CASH",
 }
 
 
@@ -232,6 +245,13 @@ class SyncData(BaseModel):
     my_fuel_events: list[SyncFuelEventDto] = []
     my_cash_collections: list[SyncCashCollectionDto] = []
     my_cash_handovers: list[SyncCashHandoverDto] = []
+    # OP_PETTY_CASH (full snapshots on every bootstrap and delta; replace the local set): the active funds the caller
+    # holds with their ledger figures, fundings/top-ups waiting for the caller's acknowledgement, holder changes
+    # handing the caller a fund, and advances the caller holds or hands out that are not cleared yet.
+    petty_cash_funds: list[PettyCashFundDto] = []
+    petty_cash_awaiting: list[PettyCashMovementDto] = []
+    petty_cash_holder_changes: list[PettyCashHolderChangeDto] = []
+    petty_cash_advances: list[PettyCashAdvanceDto] = []
 
 
 class BootstrapDto(BaseModel):
@@ -277,6 +297,12 @@ OpType = Literal[
     "CASH_RETENTION_REQUEST",  # payload CashRetentionIn, client_id required (tenant policy cash.retention_allowed)
     "SITE_CHECKIN",  # payload SiteCheckinIn {client_id, captured_at, gps, job_site_id?} (OVERSIGHT site check-ins)
     "DAILY_REPORT",  # payload DailyReportIn (op id = report id) + evidence_upload_ids (DEC-032 A4)
+    "PETTY_CASH_ACKNOWLEDGEMENT",  # {movement_id, acknowledged, amount_received?, note?} (DEC-033)
+    "PETTY_CASH_TOP_UP_REQUEST",  # {fund_id, amount?, note?, above_cap_reason?} (op id = client id)
+    "PETTY_CASH_RETURN",  # PettyCashReturnIn (op id = client id) + evidence_upload_ids
+    "PETTY_CASH_COUNT",  # PettyCashCountIn (op id = client id) + evidence_upload_ids
+    "PETTY_CASH_ADVANCE_CLEARANCE",  # {advance_id, change_returned, note?}
+    "PETTY_CASH_HOLDER_CHANGE_ACKNOWLEDGEMENT",  # {holder_change_id, accept, note?}
 ]
 
 
@@ -320,6 +346,7 @@ class BlobStartIn(BaseModel):
         "REMITTANCE_EVIDENCE",
         "DAILY_REPORT_EVIDENCE",
         "ADJUSTMENT_EVIDENCE",
+        "PETTY_CASH_EVIDENCE",
     ]
 
 

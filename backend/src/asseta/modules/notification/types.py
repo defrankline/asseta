@@ -119,6 +119,19 @@ _TYPES = (
         True,
     ),
     NotificationType("REMITTANCE_OVERDUE", "Remittance overdue", Category.REMINDER, Severity.WARNING, T, True),
+    # Petty cash funds (DEC-033)
+    NotificationType(
+        "PETTY_CASH_APPROVAL_REQUESTED", "Petty cash approval requested", Category.ACTION, Severity.INFO, T
+    ),
+    NotificationType("PETTY_CASH_TO_ISSUE", "Petty cash approved, to hand over", Category.ACTION, Severity.INFO, T),
+    NotificationType("PETTY_CASH_TO_ACKNOWLEDGE", "Petty cash to acknowledge", Category.ACTION, Severity.INFO, T),
+    NotificationType("PETTY_CASH_RETURN_TO_CONFIRM", "Petty cash return to confirm", Category.ACTION, Severity.INFO, T),
+    NotificationType("PETTY_CASH_COUNT_OVERDUE", "Petty cash count due", Category.REMINDER, Severity.WARNING, T),
+    NotificationType("PETTY_CASH_FUND_LOW", "Petty cash fund running low", Category.REMINDER, Severity.INFO, T),
+    NotificationType(
+        "PETTY_CASH_ADVANCE_OVERDUE", "Cash advance not cleared", Category.REMINDER, Severity.WARNING, T, True
+    ),
+    NotificationType("EXPENSE_FLAGGED", "Expense flagged for review", Category.ANOMALY, Severity.WARNING, T),
     # Revenue reconciliation (DEC-031 R3): engine hours not matched by money, or an explanation awaiting a decision
     NotificationType(
         "REVENUE_DIFFERENCE", "Revenue difference to explain", Category.ANOMALY, Severity.WARNING, T, True

@@ -23,6 +23,7 @@ from asseta.modules.fleet.models import Machine
 from asseta.modules.policy.data_protection import DataProtectionPolicy
 from asseta.modules.policy.engine_hours import EngineHoursPolicy
 from asseta.modules.policy.models import PolicyVersion
+from asseta.modules.policy.petty_cash import PettyCashPolicy
 from asseta.modules.policy.revenue import RevenueReconciliationPolicy
 from asseta.modules.policy.schemas import (
     OVERRIDABLE,
@@ -238,6 +239,9 @@ class PolicyService:
         self, tenant_id: uuid.UUID, at: datetime | None = None
     ) -> EffectivePolicy[DataProtectionPolicy]:
         return cast(EffectivePolicy[DataProtectionPolicy], self.resolve(PolicyType.DATA_PROTECTION, tenant_id, at=at))
+
+    def petty_cash(self, tenant_id: uuid.UUID, at: datetime | None = None) -> EffectivePolicy[PettyCashPolicy]:
+        return cast(EffectivePolicy[PettyCashPolicy], self.resolve(PolicyType.PETTY_CASH, tenant_id, at=at))
 
     def engine_hours(
         self, tenant_id: uuid.UUID, machine_id: uuid.UUID | None = None, at: datetime | None = None

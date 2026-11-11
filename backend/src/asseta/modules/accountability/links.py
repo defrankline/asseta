@@ -6,6 +6,7 @@ from typing import Any
 from urllib.parse import urlencode
 
 CASH = "/tenant/finance/cash"
+PETTY = "/tenant/finance/petty-cash"
 # Record type -> console detail route prefix; `<prefix>/<id>` opens the record.
 RECORD_ROUTES: dict[str, str] = {
     "hours_purchase": "/tenant/hours/purchases",
@@ -47,6 +48,12 @@ RECORD_ROUTES: dict[str, str] = {
     "customer": "/tenant/customers",
     "machine": "/tenant/machines",
     "staff_member": "/tenant/staff",
+    "petty_cash_fund": f"{PETTY}/funds",
+    "petty_cash_movement": f"{PETTY}/movements",
+    "petty_cash_count": f"{PETTY}/counts",
+    "petty_cash_holder_change": f"{PETTY}/holder-changes",
+    "petty_cash_adjustment": f"{PETTY}/adjustments",
+    "petty_cash_advance": f"{PETTY}/advances",
 }
 
 

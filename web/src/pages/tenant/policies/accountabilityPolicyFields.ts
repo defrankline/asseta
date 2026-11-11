@@ -49,6 +49,12 @@ export const CASH_CUSTODY_FIELDS: readonly PolicyFieldDef[] = [
     kind: 'bool',
   },
   {
+    key: 'spend_from_collections_allowed',
+    label: 'Staff may spend from cash collected from customers',
+    kind: 'bool',
+    help: 'Off: refused online; from a phone offline it waits for approval and is flagged.',
+  },
+  {
     key: 'collection_link_required',
     label: 'Every collection names its purchase or invoice',
     kind: 'bool',

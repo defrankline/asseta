@@ -12,6 +12,7 @@ A DTO opts in by declaring nullable name fields next to its id fields; the conve
 - `<x>job_id`                     -> `<x>job_number`
 - `<x>purchase_id`                -> `<x>purchase_number` (customer hours purchase) and `customer_name`
 - `<x>deposit_account_id`         -> `<x>deposit_account_name` (company deposit account)
+- `fund_id` / `petty_cash_fund_id` -> `petty_cash_fund_name` (petty cash fund, DEC-033)
 
 Only empty (None) name fields are filled, so a DTO that already carries a name keeps it."""
 
@@ -73,6 +74,12 @@ def _purchases(s: Session, ids: set[uuid.UUID]) -> dict[uuid.UUID, dict[str, str
     return {i: {"number": n, "customer": c} for i, n, c in rows}
 
 
+def _funds(s: Session, ids: set[uuid.UUID]) -> dict[uuid.UUID, dict[str, str]]:
+    from asseta.modules.pettycash.models import PettyCashFund  # local: petty cash builds on modules imported here
+
+    return {i: {"name": n} for i, n in _pairs(s, (PettyCashFund.name,), PettyCashFund.id, ids)}
+
+
 def _deposit_accounts(s: Session, ids: set[uuid.UUID]) -> dict[uuid.UUID, dict[str, str]]:
     return {i: {"name": n} for i, n in _pairs(s, (CompanyDepositAccount.name,), CompanyDepositAccount.id, ids)}
 
@@ -86,6 +93,7 @@ LOADERS: dict[str, _Loader] = {
     "job": _jobs,
     "purchase": _purchases,
     "deposit_account": _deposit_accounts,
+    "petty_cash_fund": _funds,
 }
 
 
@@ -110,6 +118,8 @@ def _rule(field: str) -> tuple[str, dict[str, str]] | None:
         return "job", {"number": f"{stem}_number"}
     if stem.endswith("deposit_account"):
         return "deposit_account", {"name": f"{stem}_name"}
+    if stem in ("fund", "petty_cash_fund"):
+        return "petty_cash_fund", {"name": "petty_cash_fund_name"}
     if stem.endswith("purchase"):
         return "purchase", {"number": f"{stem}_number", "customer": "customer_name"}
     return None

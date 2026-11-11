@@ -46,6 +46,7 @@ export const ADJUSTMENT_TYPE_LABELS: Readonly<Record<AdjustmentType, string>> = 
   PURCHASE_REVERSAL: 'Purchase reversal',
   ZERO_AMOUNT_ACTIVATION: 'Zero-amount purchase approved',
   HOURS_VARIANCE_RESOLUTION: 'Customer hours difference resolved',
+  PETTY_CASH_ADJUSTMENT: 'Petty cash adjustment',
 };
 export const ADJUSTMENT_TYPE_OPTIONS: readonly Option<AdjustmentType>[] = ADJUSTMENT_TYPES.map(
   (t) => ({ value: t, label: ADJUSTMENT_TYPE_LABELS[t] }),

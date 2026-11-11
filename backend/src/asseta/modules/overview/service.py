@@ -38,7 +38,9 @@ from asseta.modules.overview.dto import (
     OverviewWorkSectionDto,
     TenantOverviewDto,
 )
-from asseta.modules.policy.capabilities import INVESTIGATIONS, TRACKING, capability_on
+from asseta.modules.pettycash.ledger import FundLedger
+from asseta.modules.pettycash.models import PettyCashFund
+from asseta.modules.policy.capabilities import INVESTIGATIONS, PETTY_CASH, TRACKING, capability_on
 
 FLEET, JOBS, FINANCE = "tenant.fleet.read", "tenant.job.read", "tenant.finance.read"
 CASES, SIGNALS, APPROVALS, METER = "tenant.case.read", "tenant.signal.read", "tenant.approval.read", "tenant.meter.read"
@@ -171,7 +173,11 @@ class OverviewService:
         )
         cash = CashCustodyService(self._s, self._ctx, self._now).outstanding_by_currency()
         cash = {c: v for c, v in cash.items() if v != 0}  # custody reports zero in the base currency by default
-        currencies = sorted({*receivables, *receipts, *expenses, *cash})
+        petty: dict[str, Decimal] = {}
+        if self._ctx.tenant_id is not None and capability_on(self._s, self._ctx.tenant_id, PETTY_CASH, self._now):
+            funds = self._s.execute(select(PettyCashFund).where(PettyCashFund.is_active.is_(True))).scalars()
+            petty = {c: v for c, v in FundLedger(self._s, self._now).held_by_currency(funds).items() if v != 0}
+        currencies = sorted({*receivables, *receipts, *expenses, *cash, *petty})
         rows = []
         for c in currencies:
             r = receivables.get(c)
@@ -184,6 +190,7 @@ class OverviewService:
                     verified_receipts_mtd=receipts.get(c, ZERO),
                     approved_expenses_mtd=expenses.get(c, ZERO),
                     cash_with_supervisors=cash.get(c, ZERO),
+                    petty_cash_held=petty.get(c, ZERO),
                 )
             )
         latest = _latest(

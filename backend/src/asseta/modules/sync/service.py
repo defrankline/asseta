@@ -32,7 +32,27 @@ from asseta.modules.jobs.lifecycle import job_dtos
 from asseta.modules.jobs.models import Customer, Job, JobStatus, RentalContract
 from asseta.modules.jobs.scope import job_filter, own_staff
 from asseta.modules.meter.engine_models import EngineHourReason, EngineHourReasonKind
-from asseta.modules.policy.capabilities import DEPOSIT_ACCOUNTS, ENGINE_HOURS, capability_on, disabled_capabilities
+from asseta.modules.pettycash.dto import (
+    PettyCashHolderChangeDto,
+)
+from asseta.modules.pettycash.models import (
+    INBOUND,
+    AdvanceStatus,
+    HolderChangeStatus,
+    MovementStatus,
+    PettyCashAdvance,
+    PettyCashFund,
+    PettyCashHolderChange,
+    PettyCashMovement,
+)
+from asseta.modules.pettycash.service import PettyCashService
+from asseta.modules.policy.capabilities import (
+    DEPOSIT_ACCOUNTS,
+    ENGINE_HOURS,
+    PETTY_CASH,
+    capability_on,
+    disabled_capabilities,
+)
 from asseta.modules.policy.schemas import PolicyType
 from asseta.modules.policy.service import PolicyService
 from asseta.modules.sync.dto import (
@@ -249,6 +269,7 @@ class SyncService:
             my_fuel_events=inbox.fuel_events.items,
             my_cash_collections=inbox.cash_collections.items,
             my_cash_handovers=inbox.cash_handovers.items,
+            **self._petty_cash(staff),
         )
         # Every stream is ordered by revision: a truncated stream holds back the cursor to its last delivered row;
         # complete streams were delivered up to the watermark (re-delivery above the cursor is a harmless upsert).
@@ -265,6 +286,56 @@ class SyncService:
         if staff is None or "tenant.collection.record" not in self._ctx.permissions:
             return []
         return CashCustodyService(self._s, self._ctx, self._now).balances(staff.id)
+
+    def _petty_on(self) -> bool:
+        return "tenant.pettycash.read" in self._ctx.permissions and capability_on(
+            self._s, self._tid, PETTY_CASH, self._now
+        )
+
+    def _petty_cash(self, staff: StaffMember | None) -> dict[str, Any]:
+        """The caller's petty cash (DEC-033): server-owned full snapshots, never deltas."""
+        if staff is None or not self._petty_on():
+            return {}
+        svc = PettyCashService(self._s, self._ctx, self._now)
+        funds = list(
+            self._s.execute(
+                select(PettyCashFund)
+                .where(PettyCashFund.holder_staff_id == staff.id, PettyCashFund.is_active.is_(True))
+                .order_by(PettyCashFund.code)
+            ).scalars()
+        )
+        fund_ids = [f.id for f in funds]
+        awaiting = self._s.execute(
+            select(PettyCashMovement)
+            .where(
+                PettyCashMovement.fund_id.in_(fund_ids),
+                PettyCashMovement.kind.in_(INBOUND),
+                PettyCashMovement.status == MovementStatus.ISSUED,
+            )
+            .order_by(PettyCashMovement.issued_at)
+        ).scalars()
+        changes = self._s.execute(
+            select(PettyCashHolderChange)
+            .where(
+                PettyCashHolderChange.to_staff_id == staff.id,
+                PettyCashHolderChange.status == HolderChangeStatus.PENDING,
+            )
+            .order_by(PettyCashHolderChange.requested_at)
+        ).scalars()
+        advances = self._s.execute(
+            select(PettyCashAdvance)
+            .where(
+                PettyCashAdvance.status == AdvanceStatus.OUTSTANDING,
+                or_(PettyCashAdvance.recipient_staff_id == staff.id, PettyCashAdvance.fund_id.in_(fund_ids)),
+            )
+            .order_by(PettyCashAdvance.issued_at)
+        ).scalars()
+        return {
+            "petty_cash_funds": [svc.fund_dto(f) for f in funds],
+            "petty_cash_awaiting": [svc.movement_dto(m) for m in awaiting],
+            "petty_cash_holder_changes": [PettyCashHolderChangeDto.model_validate(c) for c in changes],
+            "petty_cash_advances": [svc.advance_dto(a) for a in advances],
+        }
 
     def _open_invoices(self, contract_ids: set[uuid.UUID]) -> list[SyncOpenInvoiceDto]:
         """Issued invoices with a balance for the customers on the caller's jobs (cash recorders only)."""
@@ -377,6 +448,8 @@ class SyncService:
             (PolicyType.METER_CAPTURE, "tenant", None),
             *[(PolicyType.METER_CAPTURE, f"machine:{m}", m) for m in machine_ids],
         ]
+        if self._petty_on():
+            targets.append((PolicyType.PETTY_CASH, "tenant", None))
         for ptype, scope_key, machine_id in targets:
             eff = self._policies.resolve(ptype, self._tid, machine_id=machine_id, at=self._now)
             values = eff.policy.model_dump(mode="json")

@@ -56,6 +56,12 @@ class ExpenseIn(BaseModel):
     receipt_attachment_ids: list[uuid.UUID] = Field(default_factory=list, max_length=10)
     gps: GpsIn | None = None
     device_id: str | None = Field(default=None, max_length=128)
+    petty_cash_fund_id: uuid.UUID | None = Field(
+        default=None, description="The petty cash fund that paid (PETTY_CASH; required then, DEC-033)"
+    )
+    petty_cash_advance_id: uuid.UUID | None = Field(
+        default=None, description="PETTY_CASH: the advance this was paid from (phase 3), within the same fund"
+    )
 
 
 class ExpenseDto(Dto):
@@ -86,6 +92,12 @@ class ExpenseDto(Dto):
     decision_note: str | None
     receipt_attachment_ids: list[uuid.UUID] = []
     approval_request_id: uuid.UUID | None = None
+    petty_cash_fund_id: uuid.UUID | None = None
+    petty_cash_advance_id: uuid.UUID | None = None
+    control_flags: list[str] = Field(
+        default_factory=list,
+        description="Why a human must look at it: OVERSPEND, SPENT_FROM_COLLECTIONS, ABOVE_PETTY_CASH_MAXIMUM",
+    )
 
 
 class FuelEventIn(BaseModel):

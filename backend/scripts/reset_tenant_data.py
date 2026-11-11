@@ -122,6 +122,9 @@ DELETE: frozenset[str] = frozenset(
         "supervisor_cash_custody", "cash_handover", "cash_transfer", "cash_variance", "cash_retention",
         "custody_adjustment", "cash_remittance_overdue", "cash_float_acknowledgement", "cash_reason",
         "remittance_evidence", "company_deposit_account", "partial_remittance_approval", "cash_variance_event",
+        # petty cash funds (DEC-033)
+        "petty_cash_fund", "petty_cash_movement", "petty_cash_count", "petty_cash_holder_change",
+        "petty_cash_adjustment", "petty_cash_advance",
         # hire invoices, payments, allocations
         "tenant_hire_invoice", "hire_invoice_job", "hire_invoice_line", "hire_invoice_counter", "customer_payment",
         "hire_payment_allocation", "payment_evidence", "financial_adjustment",

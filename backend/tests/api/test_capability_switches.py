@@ -22,7 +22,7 @@ T1 = "2026-11-01T07:00:00+00:00"
 AFTER_CUTOFF = datetime(2026, 11, 1, 16, 0, tzinfo=UTC)  # 19:00 local
 DEVICE = "android-switch-0001"
 # Capabilities a tenant opts into (platform default off, DEC-031), in the sorted order /me lists them.
-DEFAULT_OFF = ("IDLE_MACHINES", "REVENUE_RECONCILIATION", "SCORECARD", "SITE_CHECKIN", "UNBILLED_WORK")
+DEFAULT_OFF = ("IDLE_MACHINES", "PETTY_CASH", "REVENUE_RECONCILIATION", "SCORECARD", "SITE_CHECKIN", "UNBILLED_WORK")
 
 
 def _ok(r: Any, status: int = 200) -> Any:

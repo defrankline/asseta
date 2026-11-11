@@ -23,6 +23,7 @@ class CheckKind(StrEnum):
     CASH_CUSTODY = "CASH_CUSTODY"
     CUSTOMER_RECEIVABLE = "CUSTOMER_RECEIVABLE"
     INVOICE_TOTAL = "INVOICE_TOTAL"
+    PETTY_CASH_FUND = "PETTY_CASH_FUND"  # DEC-033: fund balances vs counts and adjustment snapshots
 
 
 @dataclass(frozen=True)

@@ -16,6 +16,7 @@ from asseta.core.outbox import OutboxWriter
 from asseta.core.signals import sod_violation
 from asseta.modules.finance.common import OFFICE_CASH_PERMISSION, resolve_staff, tenant_settings
 from asseta.modules.finance.custody_models import (
+    PETTY_CASH_SOURCES,
     CashReason,
     CashReasonKind,
     CashVariance,
@@ -29,6 +30,7 @@ from asseta.modules.fleet.models import StaffMember
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.intelligence.linking import CaseItem, CaseLinker
 from asseta.modules.intelligence.models import CaseSourceType, SignalSeverity, SubjectType
+from asseta.modules.policy.capabilities import PETTY_CASH, capability_on
 from asseta.modules.policy.schemas import CashCustodyPolicy
 from asseta.modules.policy.service import EffectivePolicy, PolicyService
 
@@ -162,16 +164,21 @@ def open_variance(
     currency: str,
     declared: Decimal,
     received: Decimal,
+    petty_cash_fund_id: uuid.UUID | None = None,
 ) -> CashVariance | None:
     """Record declared != received (none when equal). Above the tenant's case threshold the variance also opens or
-    joins an investigation case about the accountable custodian — for review, never a verdict."""
+    joins an investigation case about the accountable custodian — for review, never a verdict. Petty cash differences
+    (DEC-033) belong to the PETTY_CASH capability and name their fund."""
     amount = declared - received
     if amount == 0:
         return None
     assert ctx.tenant_id is not None
     tid = ctx.tenant_id
     eff = cash_policy(session, tid, now)
-    if not eff.policy.enabled:
+    if source_type in PETTY_CASH_SOURCES:
+        if not capability_on(session, tid, PETTY_CASH, now):
+            return None
+    elif not eff.policy.enabled:
         return None  # cash custody controls switched off: no variance records (the behaviour before them)
     variance_id = uuid.uuid4()
     case_id = None
@@ -221,6 +228,7 @@ def open_variance(
         opened_at=now,
         opened_by=ctx.user_id,
         status=VarianceStatus.OPEN,
+        petty_cash_fund_id=petty_cash_fund_id,
     )
     session.add(row)
     session.flush()
@@ -249,6 +257,8 @@ def open_variance(
             "variance_id": str(row.id),
             "source_type": source_type.value,
             "staff_member_id": str(accountable_staff_id) if accountable_staff_id else None,
+            "counterparty_staff_id": str(counterparty_staff_id) if counterparty_staff_id else None,
+            "petty_cash_fund_id": str(petty_cash_fund_id) if petty_cash_fund_id else None,
             "amount": str(amount),
             "currency": currency,
         },

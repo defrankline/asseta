@@ -120,6 +120,10 @@ export const VARIANCE_SOURCE_LABELS: Readonly<Record<VarianceSource, string>> = 
   REMITTANCE: 'Remittance',
   FLOAT: 'Float',
   CUSTOMER_HOUR: 'Customer hours',
+  PETTY_CASH_COUNT: 'Petty cash count',
+  PETTY_CASH_FUNDING: 'Petty cash funding',
+  PETTY_CASH_RETURN: 'Petty cash return',
+  PETTY_CASH_ADVANCE: 'Petty cash advance',
 };
 export const VARIANCE_SOURCE_OPTIONS = options(VARIANCE_SOURCE_LABELS);
 

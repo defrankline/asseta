@@ -116,6 +116,7 @@ def _populate_b(api: Api) -> tuple[FinCtx, dict[tuple[str, str], str]]:
     ids.update(_cash_chain_b(api, f))
     ids.update(_revenue_b(api, f))
     ids.update(_oversight_b(api, f))
+    ids.update(_petty_cash_b(f))
     ids.update(_data_protection_b(api, f, ids[("/attachments/", "attachment_id")]))
     optional = {
         ("/notifications/", "notification_id"): f"{T}/notifications",
@@ -401,6 +402,52 @@ def _oversight_policy(owner: Actor) -> None:
     assert r.status_code == 201, r.text
 
 
+def _petty_policy(owner: Actor) -> None:
+    r = owner.post(
+        f"{T}/policies/PETTY_CASH/versions",
+        {"scope": "TENANT", "values": {"enabled": True, "advances_enabled": True}, "reason": "Petty cash on"},
+    )
+    assert r.status_code == 201, r.text
+
+
+def _petty_cash_b(f: FinCtx) -> dict[tuple[str, str], str]:
+    """B's petty cash records (DEC-033): a fund, a funding, a count, an adjustment, an advance, a holder change."""
+    _petty_policy(f.owner)
+    P = f"{T}/petty-cash"  # noqa: N806
+
+    def ok(r: Any) -> Any:
+        assert r.status_code in (200, 201), r.text
+        return r.json()
+
+    fund = ok(
+        f.manager.post(
+            f"{P}/funds",
+            {"code": "B-BOX", "name": "B box", "holder_staff_id": f.sup_staff_id, "approved_limit": "100000"},
+        )
+    )["id"]
+    m = ok(f.accountant.post(f"{P}/fundings", {"fund_id": fund, "kind": "FUNDING", "amount": "1000"}))["id"]
+    ok(f.owner.post(f"{P}/movements/{m}/decision", {"approve": True}))
+    ok(f.accountant.post(f"{P}/movements/{m}/issue", {}))
+    ok(f.supervisor.post(f"{P}/movements/{m}/acknowledgement", {"acknowledged": True}))
+    count = ok(f.supervisor.post(f"{P}/counts", {"fund_id": fund, "counted_amount": "1000"}))["id"]
+    adj = ok(f.accountant.post(f"{P}/adjustments", {"fund_id": fund, "amount": "-1", "reason": "B coins"}))["id"]
+    other = ok(f.owner.post(f"{T}/staff", {"full_name": "B Driver", "kind": "OPERATOR"}))["id"]
+    adv = ok(
+        f.supervisor.post(
+            f"{P}/advances", {"fund_id": fund, "recipient_staff_id": other, "amount": "100", "purpose": "B diesel"}
+        )
+    )["id"]
+    change = ok(f.manager.post(f"{P}/funds/{fund}/holder-changes", {"to_staff_id": other, "counted_amount": "900"}))
+    return {
+        ("/petty-cash/funds/", "fund_id"): fund,
+        ("/petty-cash/movements/", "movement_id"): m,
+        ("/petty-cash/counts/", "count_id"): count,
+        ("/petty-cash/adjustments/", "adjustment_id"): adj,
+        ("/petty-cash/advances/", "advance_id"): adv,
+        ("/petty-cash/holder-changes/", "change_id"): change["id"],
+    }
+
+
 def _oversight_b(api: Api, f: FinCtx) -> dict[tuple[str, str], str]:
     """B's oversight records (DEC-031 Phase 5): a person's scorecard and a site check-in."""
     _oversight_policy(f.owner)
@@ -542,6 +589,7 @@ def world(api: Api) -> tuple[Actor, FinCtx, dict[tuple[str, str], str]]:
     api.activate(a)
     _revenue_policy(a["owner"])  # A has the capability too: B's revenue records are still not found
     _oversight_policy(a["owner"])
+    _petty_policy(a["owner"])  # A has petty cash too: B's petty cash records are still not found
     return a["owner"], f, ids
 
 

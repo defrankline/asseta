@@ -27,7 +27,9 @@ from asseta.modules.identity.principal import RequestContext
 from asseta.modules.jobs.router import JOB_READ
 from asseta.modules.meter.router import METER_READ
 from asseta.modules.notification.settings import get_notification_settings
+from asseta.modules.pettycash.permissions import PETTY_READ
 from asseta.modules.platform_billing.permissions import INVOICE_READ, TENANT_BILLING_READ
+from asseta.modules.policy.capabilities import PETTY_CASH, disabled_capabilities
 from asseta.modules.reports.definitions import (
     CSV_ROW_CAP,
     PDF_ROW_CAP,
@@ -38,6 +40,7 @@ from asseta.modules.reports.definitions import (
 from asseta.modules.reports.render import csv_chunks, pdf_bytes
 from asseta.modules.reports.sources_money import CASH, EXPENSES, PLATFORM_SUBSCRIPTION, SUBSCRIPTION
 from asseta.modules.reports.sources_ops import ALERTS, FLEET, JOBS, READINGS, UTILISATION
+from asseta.modules.reports.sources_petty import PETTY_CASH_EXPENSES, PETTY_CASH_STATEMENT
 from asseta.modules.tenancy.models import Tenant
 
 TENANT_REPORTS: tuple[ReportDefinition, ...] = (
@@ -49,6 +52,8 @@ TENANT_REPORTS: tuple[ReportDefinition, ...] = (
     ALERTS,
     SUBSCRIPTION,
     UTILISATION,
+    PETTY_CASH_STATEMENT,
+    PETTY_CASH_EXPENSES,
 )
 PLATFORM_REPORTS: tuple[ReportDefinition, ...] = (PLATFORM_SUBSCRIPTION,)
 # Each report reuses its list endpoint's permission dependency (declared by the owning module).
@@ -59,6 +64,7 @@ PERMISSIONS: dict[str, Callable[..., RequestContext]] = {
     "tenant.finance.read": FINANCE_READ,
     "tenant.expense.read": EXPENSE_READ,
     "tenant.billing.read": TENANT_BILLING_READ,
+    "tenant.pettycash.read": PETTY_READ,  # also needs the PETTY_CASH capability
     "platform.invoice.read": INVOICE_READ,
 }
 FORMATS = {"csv": ("text/csv; charset=utf-8", CSV_ROW_CAP), "pdf": ("application/pdf", PDF_ROW_CAP)}
@@ -170,6 +176,10 @@ def _register(router: APIRouter, d: ReportDefinition, permission: Callable[..., 
         )
 
 
+# Reports that belong to a tenant capability: listed (and exportable) only while it is on.
+REPORT_CAPABILITY = {"petty_cash_statement": PETTY_CASH, "petty_cash_expenses": PETTY_CASH}
+
+
 def build_router(base: str, tag: str, prefix: str, reports: tuple[ReportDefinition, ...]) -> APIRouter:
     scope = reports[0].scope
     router = APIRouter(prefix=base, tags=[tag], responses=ERROR_RESPONSES)
@@ -177,9 +187,16 @@ def build_router(base: str, tag: str, prefix: str, reports: tuple[ReportDefiniti
     any_report = requires_any(tuple(perms), scope)
 
     @router.get("", response_model=list[ReportDefinitionDto], operation_id=f"list{prefix}ReportDefinitions")
-    def list_reports(ctx: Annotated[RequestContext, Depends(any_report)]) -> list[ReportDefinitionDto]:
-        """Reports the caller may export (each gated by its list endpoint's permission)."""
-        return [_definition_dto(base, d) for d in reports if d.permission in ctx.permissions]
+    def list_reports(
+        session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(any_report)]
+    ) -> list[ReportDefinitionDto]:
+        """Reports the caller may export (each gated by its list endpoint's permission and capability)."""
+        off = disabled_capabilities(session, ctx.tenant_id, now) if ctx.tenant_id is not None else frozenset()
+        return [
+            _definition_dto(base, d)
+            for d in reports
+            if d.permission in ctx.permissions and REPORT_CAPABILITY.get(d.code) not in off
+        ]
 
     for d in reports:
         _register(router, d, perms[d.permission], prefix)

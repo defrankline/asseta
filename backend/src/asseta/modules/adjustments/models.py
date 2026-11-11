@@ -47,6 +47,7 @@ class AdjustmentType(StrEnum):
     PURCHASE_REVERSAL = "PURCHASE_REVERSAL"
     ZERO_AMOUNT_ACTIVATION = "ZERO_AMOUNT_ACTIVATION"
     HOURS_VARIANCE_RESOLUTION = "HOURS_VARIANCE_RESOLUTION"
+    PETTY_CASH_ADJUSTMENT = "PETTY_CASH_ADJUSTMENT"  # DEC-033: a fund's balance corrected (proposer != approver)
 
 
 class AdjustmentRequestType(StrEnum):
