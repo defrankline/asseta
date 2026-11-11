@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from asseta.modules.expenses.models import ExpenseCategory, ExpenseStatus
+from asseta.modules.expenses.models import ExpenseCategory, ExpenseFlag, ExpensePaidFrom, ExpenseStatus
 from asseta.modules.expenses.service import expense_list_query
 from asseta.modules.finance.cash_service import CashCustodyService
 from asseta.modules.finance.common import tenant_settings
@@ -93,11 +93,16 @@ class ExpensesReportFilters(_Filters):
     machine_id: uuid.UUID | None = None
     job_id: uuid.UUID | None = None
     custodian_staff_id: uuid.UUID | None = None
+    paid_from: ExpensePaidFrom | None = None
+    petty_cash_fund_id: uuid.UUID | None = None
+    control_flag: ExpenseFlag | None = None
 
 
 def _expenses(session: Session, ctx: RequestContext, now: datetime, f: BaseModel, limit: int) -> list[dict[str, Any]]:
     assert isinstance(f, ExpensesReportFilters)
-    stmt = expense_list_query(f.status, f.machine_id, f.job_id, f.custodian_staff_id)
+    stmt = expense_list_query(
+        f.status, f.machine_id, f.job_id, f.custodian_staff_id, f.paid_from, f.petty_cash_fund_id, f.control_flag
+    )
     expenses = list(session.execute(stmt.limit(limit + 1)).scalars())
     categories = dict(
         session.execute(
@@ -132,6 +137,7 @@ def _expenses(session: Session, ctx: RequestContext, now: datetime, f: BaseModel
             "machine": machines.get(e.machine_id) if e.machine_id else None,
             "job": jobs.get(e.job_id) if e.job_id else None,
             "status": e.status,
+            "flags": ", ".join(e.control_flags) or None,
             "decided_at": e.decided_at,
         }
         for e in expenses
@@ -156,6 +162,7 @@ EXPENSES = ReportDefinition(
         C("machine", "Machine"),
         C("job", "Job"),
         C("status", "Status", width=1.2),
+        C("flags", "Flags", width=1.2),
         C("decided_at", "Decided", "instant", 1.2),
     ),
     source=_expenses,

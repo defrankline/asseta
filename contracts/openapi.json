@@ -119386,6 +119386,55 @@
             }
           },
           {
+            "in": "query",
+            "name": "paid_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ExpensePaidFrom"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Paid From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "petty_cash_fund_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Petty Cash Fund Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "control_flag",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ExpenseFlag"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Control Flag"
+            }
+          },
+          {
             "in": "header",
             "name": "x-tenant-id",
             "required": false,
@@ -119572,6 +119621,55 @@
                 }
               ],
               "title": "Custodian Staff Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "paid_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ExpensePaidFrom"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Paid From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "petty_cash_fund_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Petty Cash Fund Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "control_flag",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ExpenseFlag"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Control Flag"
             }
           },
           {
@@ -120458,6 +120556,22 @@
             }
           },
           {
+            "in": "query",
+            "name": "control_flag",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ExpenseFlag"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Control Flag"
+            }
+          },
+          {
             "in": "header",
             "name": "x-tenant-id",
             "required": false,
@@ -120644,6 +120758,22 @@
                 }
               ],
               "title": "Job Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "control_flag",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ExpenseFlag"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Control Flag"
             }
           },
           {

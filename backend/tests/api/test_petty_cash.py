@@ -313,6 +313,7 @@ def test_count_variance_write_off_moves_the_fund_not_the_holders_custody(api: Ap
     by_fund = _ok(f.accountant.get(f"{C}/variances", petty_cash_fund_id=fid), 200)
     assert [x["id"] for x in by_fund["items"]] == [v["id"]]
     assert _ok(f.accountant.get(f"{C}/variances/{v['id']}"), 200)["id"] == v["id"]
+    _ok(f.accountant.get(f"{C}/reasons"), 200)  # reason lists serve petty cash too
     _err(
         f.accountant.get(f"{C}/variances", petty_cash_only="true", source_type="REMITTANCE"),
         422,
@@ -412,6 +413,11 @@ def test_overspend_and_collections_switch_online_and_offline(api: Api) -> None:
     assert tenant_sql(f.tid, "SELECT count(*) FROM expense")[0][0] == 1
     flagged = _ok(f.accountant.get("/api/v1/tenant/expenses", control_flag="OVERSPEND"), 200)
     assert [e["id"] for e in flagged["items"]] == [entity["id"]]
+    for report in ("petty_cash_expenses", "expenses"):
+        csv = f.accountant.get(f"/api/v1/tenant/reports/{report}.csv", control_flag="OVERSPEND")
+        assert csv.status_code == 200 and "OVERSPEND" in csv.text, (report, csv.text)
+        empty = f.accountant.get(f"/api/v1/tenant/reports/{report}.csv", control_flag="SPENT_FROM_COLLECTIONS")
+        assert empty.status_code == 200 and "OVERSPEND" not in empty.text, (report, empty.text)
     assert _ok(f.accountant.get("/api/v1/tenant/expenses", control_flag="SPENT_FROM_COLLECTIONS"), 200)["total"] == 0
     # online the same is refused; with overspend offline switched off, the offline one is held for review
     _err(

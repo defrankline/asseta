@@ -66861,6 +66861,9 @@ export interface operations {
                 machine_id?: string | null;
                 job_id?: string | null;
                 custodian_staff_id?: string | null;
+                paid_from?: components["schemas"]["ExpensePaidFrom"] | null;
+                petty_cash_fund_id?: string | null;
+                control_flag?: components["schemas"]["ExpenseFlag"] | null;
             };
             header?: {
                 "x-tenant-id"?: string | null;
@@ -66952,6 +66955,9 @@ export interface operations {
                 machine_id?: string | null;
                 job_id?: string | null;
                 custodian_staff_id?: string | null;
+                paid_from?: components["schemas"]["ExpensePaidFrom"] | null;
+                petty_cash_fund_id?: string | null;
+                control_flag?: components["schemas"]["ExpenseFlag"] | null;
             };
             header?: {
                 "x-tenant-id"?: string | null;
@@ -67407,6 +67413,7 @@ export interface operations {
                 status?: components["schemas"]["ExpenseStatus"] | null;
                 machine_id?: string | null;
                 job_id?: string | null;
+                control_flag?: components["schemas"]["ExpenseFlag"] | null;
             };
             header?: {
                 "x-tenant-id"?: string | null;
@@ -67498,6 +67505,7 @@ export interface operations {
                 status?: components["schemas"]["ExpenseStatus"] | null;
                 machine_id?: string | null;
                 job_id?: string | null;
+                control_flag?: components["schemas"]["ExpenseFlag"] | null;
             };
             header?: {
                 "x-tenant-id"?: string | null;

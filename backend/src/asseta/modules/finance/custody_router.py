@@ -8,7 +8,7 @@ from datetime import date, datetime
 from functools import cache
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, File, Header, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Header, Query, Request, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -88,7 +88,7 @@ from asseta.modules.identity.principal import RequestContext
 from asseta.modules.meter.dto import AttachmentDto
 from asseta.modules.meter.models import CaptureAttachment
 from asseta.modules.meter.router import save_attachment
-from asseta.modules.policy.capabilities import CASH_CUSTODY
+from asseta.modules.policy.capabilities import CASH_CUSTODY, PETTY_CASH, capability_on, require_capability
 
 router = APIRouter(prefix="/api/v1/tenant/cash", tags=["finance"], responses=ERROR_RESPONSES)
 DbSession = Annotated[Session, Depends(get_session)]
@@ -110,6 +110,25 @@ def _cash(permission: Callable[..., RequestContext]) -> Callable[..., RequestCon
     CASH_CUSTODY_DISABLED when it is off. The cash basics here (custodians, remittance and float records, the
     reconciliation drill-down) do not."""
     return gated(permission, CASH_CUSTODY)
+
+
+def _cash_or_petty(permission: Callable[..., RequestContext]) -> Callable[..., RequestContext]:
+    """Reading the cash reason lists also serves petty cash (variance explanations, write-offs, fund adjustments): it
+    needs CASH_CUSTODY or PETTY_CASH on, refused with CASH_CUSTODY_DISABLED when both are off."""
+
+    def dependency(
+        request: Request,
+        ctx: Annotated[RequestContext, Depends(permission)],
+        session: Annotated[Session, Depends(get_session)],
+    ) -> RequestContext:
+        if ctx.tenant_id is not None:
+            now = get_now(request)
+            if not capability_on(session, ctx.tenant_id, PETTY_CASH, now):
+                require_capability(session, ctx.tenant_id, CASH_CUSTODY, now)
+        return ctx
+
+    dependency.__name__ = "capability_gate_cash_custody_or_petty_cash"  # not a permission guard (route inventory)
+    return dependency
 
 
 def _page[T](items: list[T], total: int, paging: PageParams) -> Page[T]:
@@ -671,7 +690,7 @@ def decide_adjustment(
 def list_reasons(
     session: DbSession,
     now: Now,
-    ctx: Annotated[RequestContext, Depends(_cash(CUSTODY_READ))],
+    ctx: Annotated[RequestContext, Depends(_cash_or_petty(CUSTODY_READ))],
     paging: Paging,
     kind: CashReasonKind | None = None,
     include_inactive: IncludeInactive = False,
@@ -692,7 +711,10 @@ def create_reason(
 @router.get("/reasons/{reason_id}", response_model=CashReasonDto, operation_id="getCashReason")
 @named
 def get_reason(
-    reason_id: uuid.UUID, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(_cash(CUSTODY_READ))]
+    reason_id: uuid.UUID,
+    session: DbSession,
+    now: Now,
+    ctx: Annotated[RequestContext, Depends(_cash_or_petty(CUSTODY_READ))],
 ) -> CashReasonDto:
     return CashReasonDto.model_validate(CashCustodyControls(session, ctx, now).reason(reason_id))
 

@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from asseta.modules.expenses.models import Expense, ExpenseCategory, ExpensePaidFrom, ExpenseStatus
+from asseta.modules.expenses.models import Expense, ExpenseCategory, ExpenseFlag, ExpensePaidFrom, ExpenseStatus
 from asseta.modules.expenses.service import expense_list_query
 from asseta.modules.finance.common import local_date, tenant_settings
 from asseta.modules.identity.catalog import PermissionScope as S
@@ -98,13 +98,14 @@ class PettyCashExpensesFilters(BaseModel):
     status: ExpenseStatus | None = None
     machine_id: uuid.UUID | None = None
     job_id: uuid.UUID | None = None
+    control_flag: ExpenseFlag | None = None
 
 
 def _expenses(session: Session, ctx: RequestContext, now: datetime, f: BaseModel, limit: int) -> list[dict[str, Any]]:
     assert isinstance(f, PettyCashExpensesFilters)
     svc = PettyCashService(session, ctx, now)
     stmt = expense_list_query(
-        f.status, f.machine_id, f.job_id, None, ExpensePaidFrom.PETTY_CASH, f.petty_cash_fund_id
+        f.status, f.machine_id, f.job_id, None, ExpensePaidFrom.PETTY_CASH, f.petty_cash_fund_id, f.control_flag
     ).where(Expense.petty_cash_fund_id.in_(svc.visible_funds().with_only_columns(PettyCashFund.id)))
     expenses = list(session.execute(stmt.limit(limit + 1)).scalars())
     categories = dict(
