@@ -43,6 +43,7 @@ The Platform Owner creates the test company. The Owner completes this list and c
 | Policy | Setting | Value |
 |---|---|---|
 | Customer hours | **Default billing of new jobs** | Prepaid customer hours |
+| Customer hours | **Field staff may record bank and mobile-money parts of an hours sale** | On |
 | Engine hours | **Approved meter baseline before a job starts** | On |
 | Engine hours | **Daily report required** | On |
 | Cash custody | **Remit the full balance** | On |
@@ -70,7 +71,7 @@ The Platform Owner creates the test company. The Owner completes this list and c
 
 | # | Who | Device | Do | Should see | ✓ |
 |---|---|---|---|---|---|
-| 1 | Supervisor | PHONE | **Money → + → Sell customer hours**. Customer A, machine EX-01, **Hours** 10. **Paid now**, **Cash**, **Amount received** 1,000,000. Save and sync | "Hours become available only after someone else verifies this payment." | ☐ |
+| 1 | Supervisor | PHONE | **Money → + → Sell customer hours**. Customer A, machine EX-01, **Hours** 10. **Add payment**, **Cash**, **Amount received** 1,000,000. Save and sync | "Hours become available only after someone else verifies this payment." | ☐ |
 | 2 | Manager | WEB | **Customer hours → Hours purchases**. Open the new purchase | A purchase number HP-… Status **Awaiting payment**. Rate from the rate card. **Activated** 0 | ☐ |
 | 3 | Accountant | WEB | **Finance → Hire finance → Customer payments**, filter **Claimed (unverified)**. **Verify / reject** this payment, choose verify | "Payment verified." | ☐ |
 | 4 | Manager | WEB | Reopen the purchase | Status **Active**. **Activated** 10. The payment shows who recorded it and who verified it | ☐ |
@@ -80,7 +81,7 @@ The Platform Owner creates the test company. The Owner completes this list and c
 
 | # | Who | Device | Do | Should see | ✓ |
 |---|---|---|---|---|---|
-| 1 | Supervisor | PHONE | **Sell customer hours**. Customer B, EX-02, 5 hours, **Paid now**, **Mobile money**, amount 500,000, a reference. Save and sync | Saved | ☐ |
+| 1 | Supervisor | PHONE | **Sell customer hours**. Customer B, EX-02, 5 hours, **Add payment**, **Mobile money**, amount 500,000, a reference. Save and sync | Saved | ☐ |
 | 2 | Manager | WEB | Open the purchase | Status **Awaiting payment**. **Activated** 0. Awaiting activation 5 | ☐ |
 | 3 | Owner | WEB | **Overview → Accountability** | The purchase counts under **Hours awaiting activation** and **Unconfirmed purchases** | ☐ |
 | 4 | Manager | WEB | **Operations → Jobs → New job** for Customer B on EX-02. **Billing**: Prepaid customer hours. **Minimum hours** 0. Create, **Submit for approval** | Job created | ☐ |

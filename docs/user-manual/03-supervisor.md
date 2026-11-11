@@ -550,11 +550,10 @@ These buttons appear when your company sells prepaid hours. A customer buys hour
 
 1. **Money** tab → **+** → **Sell customer hours**.
 2. **Customer**: choose **Registered** and pick the **Customer**, or **Walk-in** and enter the **Customer name** and **Phone (optional)**. "The office gives a walk-in customer a code. A phone number helps find them again."
-3. **Hours**: choose the **Machine** and enter the **Hours**. "The price comes from your company's rate card and any approved discount." You never type a price.
-4. **Payment**: choose **Paid now** or **Not paid yet**.
-   - **Paid now**: choose **Cash**, **Bank** or **Mobile money**, and enter the **Amount received**, the **Reference (required for bank and mobile money)** and **Received**. If you record for a colleague, choose them under **Cash held by**. "Hours become available only after someone else verifies this payment."
-   - **Not paid yet**: "The hours stay inactive until a payment is verified or credit is approved by the office."
-5. Optionally add **Payment evidence (optional)**: tap **Photograph evidence** to photograph a receipt or mobile-money screenshot. It is evidence only; it is not proof that the company has the money.
+3. **Hours**: choose the **Machine** and enter the **Hours**. "The price comes from your company's rate card and any approved discount." You never type a price. The total shows as you type, for example "Total: TZS 570,000 (6 h × 95,000/h)"; it works offline from the prices of your last sync.
+4. **Payment**: tap **Add payment** for each way the customer paid, for example 200,000 cash, 300,000 bank and 70,000 M-Pesa. For each line choose the method, enter the **Amount received** and, for bank and mobile money, the **Reference**, and add a photo of the slip or the M-Pesa message if you have one. A new line starts at what is still owed. Under the lines you see "Paid … of … · Balance …" and **Fully paid**, **Part paid** or **Not paid yet**; payments above the total cannot be saved. With no payment line the sale is **Not paid yet**: "The hours stay inactive until a payment is verified or credit is approved by the office." If you record for a colleague, choose them under **Cash held by**.
+   - Bank and mobile-money lines are offered only when your company allows field staff to record them; otherwise you see "Bank and mobile-money payments are recorded by the office."
+   - "Hours become available only after someone else verifies this payment." The office checks each line on its own: the cash when you hand it over, the bank and M-Pesa lines against the statements. Hours unlock as each part is verified.
 6. Tap **Save**.
 
 This works offline. The sale is sent at the next sync and the office gives it a purchase number (HP-…). Cash you take is in your custody as claimed money until the office verifies it.
