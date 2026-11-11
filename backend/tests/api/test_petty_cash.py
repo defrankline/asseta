@@ -625,6 +625,31 @@ def test_advances_switched_off_by_default_then_cleared_with_change(api: Api) -> 
     assert D(next(c for c in money if c["currency"] == "TZS")["approved_expenses_mtd"]) == D(30000)
 
 
+def test_advance_handed_out_offline_is_recorded_once(api: Api) -> None:
+    f, _cat = _setup(api, "Offline Advance Co", "POA-1")
+    fid = _fund(f)["id"]
+    _fund_and_fill(f, fid, "50000")
+    staff2 = _ok(f.owner.post("/api/v1/tenant/staff", {"full_name": "Driver", "kind": "SUPERVISOR"}))
+    petty_policy(f, advances_enabled=True)
+    _register(api, f.supervisor)
+    boot = api.client.get("/api/v1/sync/bootstrap", headers=_h(f.supervisor)).json()
+    assert "OP_PETTY_CASH_ADVANCE" in boot["capabilities"]
+    body = {"fund_id": fid, "recipient_staff_id": staff2["id"], "amount": "20000", "purpose": "Diesel"}
+    op = _op("PETTY_CASH_ADVANCE", body)
+    first = _push(api, f.supervisor, [op])[0]
+    assert first["status"] == "ACKED", first
+    assert _push(api, f.supervisor, [op])[0]["status"] == "DUPLICATE"
+    assert tenant_sql(f.tid, "SELECT count(*) FROM petty_cash_advance")[0][0] == 1
+    # Cash already handed out offline above what the fund had: recorded at sync, the fund shows it; refused online.
+    big = {**body, "amount": "40000"}
+    assert _push(api, f.supervisor, [_op("PETTY_CASH_ADVANCE", big)])[0]["status"] == "ACKED"
+    assert _bal(f.accountant, fid)["available_to_spend"] < 0
+    _err(f.supervisor.post(f"{P}/advances", big), 422, "PETTY_CASH_INSUFFICIENT")
+    petty_policy(f, advances_enabled=False)
+    off = _push(api, f.supervisor, [_op("PETTY_CASH_ADVANCE", body)])[0]
+    assert (off["status"], off["error"]["code"]) == ("CONFLICT", "PETTY_CASH_ADVANCES_DISABLED")
+
+
 # --- capability off, permissions, isolation, sweep -----------------------------------------------------------------
 def test_capability_off_hides_menus_and_refuses_everything(api: Api) -> None:
     f = setup_finance(api, "Off Co", "POF-1")

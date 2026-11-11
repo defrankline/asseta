@@ -1112,7 +1112,7 @@ class PettyCashService:
                 code="PETTY_CASH_ADVANCE_TO_HOLDER",
             )
         available = self.ledger.figures(fund).available
-        if body.amount > available:
+        if body.amount > available and not (source == "SYNC" and policy.overspend_allowed_offline):
             raise BusinessRuleViolation(
                 f"The fund has {fund.currency} {available} available", code="PETTY_CASH_INSUFFICIENT"
             )

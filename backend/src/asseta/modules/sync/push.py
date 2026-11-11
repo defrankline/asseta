@@ -44,6 +44,7 @@ from asseta.modules.oversight.dto import SiteCheckinIn
 from asseta.modules.pettycash.dto import (
     PettyCashAcknowledgementIn,
     PettyCashAdvanceClearIn,
+    PettyCashAdvanceIn,
     PettyCashCountIn,
     PettyCashHolderChangeDecisionIn,
     PettyCashReturnIn,
@@ -74,6 +75,7 @@ OP_CAPABILITY = {
     "PETTY_CASH_COUNT": PETTY_CASH,
     "PETTY_CASH_ADVANCE_CLEARANCE": PETTY_CASH,
     "PETTY_CASH_HOLDER_CHANGE_ACKNOWLEDGEMENT": PETTY_CASH,
+    "PETTY_CASH_ADVANCE": PETTY_CASH,
 }
 REQUIRED_PERMISSION = {
     "METER_CAPTURE": "tenant.meter.capture",
@@ -102,6 +104,7 @@ REQUIRED_PERMISSION = {
     "PETTY_CASH_COUNT": "tenant.pettycash.count",
     "PETTY_CASH_ADVANCE_CLEARANCE": "tenant.pettycash.read",
     "PETTY_CASH_HOLDER_CHANGE_ACKNOWLEDGEMENT": "tenant.pettycash.read",
+    "PETTY_CASH_ADVANCE": "tenant.pettycash.read",
 }
 # Ops whose payload names resumable blob uploads: the op is DEFERRED (not rejected) until they complete.
 UPLOAD_FIELDS = {
@@ -422,6 +425,12 @@ class PushService:
             ),
             "PETTY_CASH_HOLDER_CHANGE_ACKNOWLEDGEMENT": lambda: self._petty_holder(
                 PettyCashHolderChangeOp.model_validate(op.payload)
+            ),
+            "PETTY_CASH_ADVANCE": lambda: self._petty().issue_advance(
+                PettyCashAdvanceIn.model_validate(
+                    {"client_id": op.id, **op.payload, "client_created_at": op.created_at_device}
+                ),
+                "SYNC",
             ),
         }
         try:

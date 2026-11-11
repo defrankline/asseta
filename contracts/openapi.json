@@ -25653,7 +25653,8 @@
               "PETTY_CASH_RETURN",
               "PETTY_CASH_COUNT",
               "PETTY_CASH_ADVANCE_CLEARANCE",
-              "PETTY_CASH_HOLDER_CHANGE_ACKNOWLEDGEMENT"
+              "PETTY_CASH_HOLDER_CHANGE_ACKNOWLEDGEMENT",
+              "PETTY_CASH_ADVANCE"
             ],
             "title": "Op Type",
             "type": "string"

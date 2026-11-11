@@ -65,6 +65,9 @@ CAPABILITIES = [
     # so a witnessed count can be recorded offline; PETTY_CASH_COUNT keeps the count without the witness when the
     # witness lost the permission before the phone synced.
     "SYNC_PETTY_CASH_WITNESSES",
+    # PETTY_CASH_ADVANCE: the holder hands out an advance offline (tenant policy advances_enabled); above what the fund
+    # has available it is still recorded at sync when the tenant allows overspending offline (the fund shows it).
+    "OP_PETTY_CASH_ADVANCE",
 ]
 # Protocol capabilities that belong to a tenant capability (`asseta.modules.policy.capabilities`): not announced
 # while the tenant has it switched off, and their operations are then refused (CONFLICT, the capability's code).
@@ -82,6 +85,8 @@ TENANT_CAPABILITY_OF = {
     "SYNC_CHANGEOVER_JOBS": "ENGINE_HOURS",
     "SYNC_UNBILLABLE_REASONS": "ENGINE_HOURS",
     "OP_PETTY_CASH": "PETTY_CASH",
+    "OP_PETTY_CASH_ADVANCE": "PETTY_CASH",
+    "SYNC_PETTY_CASH_WITNESSES": "PETTY_CASH",
 }
 
 
@@ -310,6 +315,7 @@ OpType = Literal[
     "PETTY_CASH_COUNT",  # PettyCashCountIn (op id = client id) + evidence_upload_ids
     "PETTY_CASH_ADVANCE_CLEARANCE",  # {advance_id, change_returned, note?}
     "PETTY_CASH_HOLDER_CHANGE_ACKNOWLEDGEMENT",  # {holder_change_id, accept, note?}
+    "PETTY_CASH_ADVANCE",  # PettyCashAdvanceIn {fund_id, recipient_staff_id, amount, purpose} (op id = client id)
 ]
 
 
