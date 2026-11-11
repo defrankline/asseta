@@ -93,6 +93,43 @@ class AccountabilityPresentationTest {
     }
 
     @Test
+    fun `hours sale payment wording`() {
+        val book = com.asseta.core.domain.accountability.HoursPriceBook(
+            prices = mapOf("ex01" to com.asseta.core.domain.accountability.HoursPrice("ex01", java.math.BigDecimal("95000"), java.math.BigDecimal.ZERO, "TZS", 2)),
+        )
+        val price = com.asseta.core.domain.accountability.HoursPricing.price(book, "ex01", null, false, "6")
+        fun lines(vararg amounts: String, p: com.asseta.core.domain.accountability.HoursSalePrice = price) = FieldAccountabilityTexts.paymentSummary(
+            com.asseta.core.domain.accountability.HoursPayments.summary(amounts.map { com.asseta.core.domain.accountability.PaymentLine(amountText = it) }, p),
+        )
+        assertEquals(listOf("Paid TZS 0 of TZS 570,000 · Balance TZS 570,000", "Not paid yet"), lines())
+        assertEquals(listOf("Paid TZS 300,000 of TZS 570,000 · Balance TZS 270,000", "Part paid (balance TZS 270,000)"), lines("300000"))
+        assertEquals(listOf("Paid TZS 570,000 of TZS 570,000 · Balance TZS 0", "Fully paid"), lines("300000", "270000"))
+        assertEquals(
+            listOf("Paid TZS 570,000.50 of TZS 570,000 · Balance TZS 0", "The payments add up to more than the total of TZS 570,000."),
+            lines("300000", "270000.50"),
+        )
+        assertEquals(listOf("Paid 300,000"), lines("300000", p = com.asseta.core.domain.accountability.HoursSalePrice.Unpriced))
+        assertEquals(listOf("Not paid yet"), lines(p = com.asseta.core.domain.accountability.HoursSalePrice.Unpriced))
+        assertEquals("Bank and mobile-money payments are recorded by the office.", FieldAccountabilityTexts.NONCASH_BY_OFFICE)
+        assertEquals("Add payment", FieldAccountabilityTexts.ADD_PAYMENT)
+        assertEquals("Payment 2", FieldAccountabilityTexts.paymentNumber(2))
+    }
+
+    @Test
+    fun `hours sale on the sync screen lists its payments`() {
+        fun title(json: String?) = com.asseta.supervisor.ui.FieldTexts.outboxTitle(
+            AccountabilityOps.HOURS_PURCHASE, json?.let { kotlinx.serialization.json.Json.parseToJsonElement(it) as kotlinx.serialization.json.JsonObject },
+        )
+        assertEquals("Hours sale", title(null))
+        assertEquals("Hours sale · Not paid yet", title("""{"hours":"6"}"""))
+        assertEquals("Hours sale · Cash 570,000", title("""{"payment":{"method":"CASH","amount":"570000"}}"""))
+        assertEquals(
+            "Hours sale · Cash 300,000 + Bank 200,000 + Mobile money 70,000.5",
+            title("""{"payments":[{"method":"CASH","amount":"300000"},{"method":"BANK","amount":"200000"},{"method":"MOBILE_MONEY","amount":"70000.50"}]}"""),
+        )
+    }
+
+    @Test
     fun `routes are titled and presented as forms`() {
         assertEquals("Sell customer hours", Route.HoursSale.title("Acme"))
         assertEquals("Daily reading", Route.DailyReading("m1").title("Acme"))

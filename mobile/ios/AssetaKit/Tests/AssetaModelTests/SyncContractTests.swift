@@ -174,7 +174,8 @@ struct SyncContractTests {
 
     @Test func hoursPricesMatchTheContract() throws {
         let price: [String: Any] = ["machine_id": Self.ids[2], "rate_card_id": Self.ids[1], "hourly_rate": "95000.0000",
-                                    "minimum_hours": "0.0000", "currency": "TZS", "effective_from": "2026-01-01T00:00:00Z"]
+                                    "minimum_hours": "0.0000", "currency": "TZS", "minor_units": 2,
+                                    "effective_from": "2026-01-01T00:00:00Z"]
         try Self.check("HoursPriceDto", encoded: Self.roundTrip(HoursPriceDTO.self, price), sample: price)
         let discount: [String: Any] = ["customer_id": Self.ids[4], "percent": "10.00"]
         try Self.check("CustomerDiscountRateDto", encoded: Self.roundTrip(CustomerDiscountRateDTO.self, discount), sample: discount)
@@ -242,6 +243,9 @@ struct SyncContractTests {
         try Self.checkPayload(payment, schema: "PurchasePaymentIn")
         try Self.checkPayload(HoursPurchasePayload(clientID: id, machineID: id, hours: 5, customerID: nil, walkIn: walkIn, jobSiteID: nil,
                                                    note: "n", payment: payment),
+                              schema: "HoursPurchaseIn", opOnly: ["evidence_upload_ids"])
+        try Self.checkPayload(HoursPurchasePayload(clientID: id, machineID: id, hours: 5, customerID: id, walkIn: nil, jobSiteID: nil,
+                                                   note: nil, payment: nil, payments: [payment, payment]),
                               schema: "HoursPurchaseIn", opOnly: ["evidence_upload_ids"])
         try Self.checkPayload(HoursTransferPayload(clientID: id, purchaseID: id, fromMachineID: id, toMachineID: UUID(), hours: 2,
                                                    reason: "Moved site", reasonCodeID: id), schema: "TransferIn")

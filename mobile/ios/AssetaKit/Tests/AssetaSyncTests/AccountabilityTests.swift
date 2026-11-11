@@ -73,6 +73,7 @@ struct AccountabilityTests {
 
     @Test func hoursSaleRules() {
         var d = HoursSaleDraft()
+        d.payments = [PaymentLine()]
         guard case let .failure(p) = AccountabilityRules.hoursSale(d, walkInAllowed: true) else { Issue.record("valid"); return }
         #expect(p.messages == [FieldAccountabilityTexts.hoursErrCustomer, FieldAccountabilityTexts.hoursErrMachine,
                                FieldAccountabilityTexts.hoursErrHours, FieldAccountabilityTexts.hoursErrAmount])
@@ -80,22 +81,28 @@ struct AccountabilityTests {
         d.walkInPhone = "12"
         d.machineID = UUID()
         d.hoursText = "5.555"
-        d.method = "MOBILE_MONEY"
-        d.amountText = "100"
-        guard case let .failure(p2) = AccountabilityRules.hoursSale(d, walkInAllowed: false) else { Issue.record("valid"); return }
+        d.payments = [PaymentLine(method: "MOBILE_MONEY", amountText: "100")]
+        guard case let .failure(p2) = AccountabilityRules.hoursSale(d, walkInAllowed: false, noncashAllowed: true) else {
+            Issue.record("valid"); return
+        }
         #expect(p2.messages == [FieldAccountabilityTexts.hoursErrWalkInOff, FieldAccountabilityTexts.hoursErrWalkInName,
                                 FieldAccountabilityTexts.hoursErrPhone, FieldAccountabilityTexts.hoursErrHours,
                                 FieldAccountabilityTexts.hoursErrReference])
         d.walkInName = "  Asha  "
         d.walkInPhone = "0712 000 111"
         d.hoursText = "5.5"
-        d.reference = " MM-778 "
-        guard case let .success(v) = AccountabilityRules.hoursSale(d, walkInAllowed: true) else { Issue.record("invalid"); return }
-        #expect(v.hours == Decimal(string: "5.5")! && v.amount == 100 && v.reference == "MM-778" && v.walkInName == "Asha")
-        d.paidNow = false
-        d.amountText = ""
+        d.payments[0].reference = " MM-778 "
+        guard case let .success(v) = AccountabilityRules.hoursSale(d, walkInAllowed: true, noncashAllowed: true) else {
+            Issue.record("invalid"); return
+        }
+        #expect(v.hours == Decimal(string: "5.5")! && v.walkInName == "Asha")
+        #expect(v.payments == [PaymentPart(method: "MOBILE_MONEY", amount: 100, reference: "MM-778")])
+        // Bank and mobile money only when the tenant lets field staff record them.
+        guard case let .failure(off) = AccountabilityRules.hoursSale(d, walkInAllowed: true) else { Issue.record("valid"); return }
+        #expect(off.messages == [FieldAccountabilityTexts.hoursErrNoncashOff])
+        d.payments = []
         guard case let .success(unpaid) = AccountabilityRules.hoursSale(d, walkInAllowed: true) else { Issue.record("invalid"); return }
-        #expect(unpaid.amount == nil && unpaid.reference == nil)
+        #expect(unpaid.payments.isEmpty)
     }
 
     @Test func transferCashAckAndRetentionRules() {
@@ -160,7 +167,7 @@ struct AccountabilityTests {
         draft.walkInName = "Asha Mussa"
         draft.machineID = SyncFixtures.machineID
         draft.hoursText = "10"
-        draft.amountText = "250000"
+        draft.payments = [PaymentLine(amountText: "250000")]
         let holder = UUID(), clientID = UUID()
         let op = try h.recorder.recordHoursSale(draft, walkInAllowed: true, cashHolderID: holder, evidence: [receipt],
                                                 receivedAt: h.clock.wallNow, clientID: clientID)

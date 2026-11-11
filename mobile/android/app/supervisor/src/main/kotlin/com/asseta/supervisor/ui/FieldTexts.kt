@@ -79,7 +79,7 @@ object FieldTexts {
             else -> "Meter reading"
         }
         AccountabilityOps.DAILY_REPORT -> com.asseta.supervisor.ui.accountability.DailyReportTexts.OUTBOX
-        AccountabilityOps.HOURS_PURCHASE -> FieldAccountabilityTexts.OUTBOX_HOURS_SALE
+        AccountabilityOps.HOURS_PURCHASE -> FieldAccountabilityTexts.outboxHoursSale(payload)
         AccountabilityOps.HOURS_TRANSFER_REQUEST -> FieldAccountabilityTexts.OUTBOX_HOURS_TRANSFER
         AccountabilityOps.CASH_TRANSFER -> FieldAccountabilityTexts.OUTBOX_CASH_TRANSFER
         AccountabilityOps.CASH_TRANSFER_ACKNOWLEDGEMENT -> FieldAccountabilityTexts.OUTBOX_TRANSFER_ACK

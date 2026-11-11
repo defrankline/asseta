@@ -141,7 +141,185 @@ struct HoursPricingTests {
         #expect(HoursPricing.figure(Self.d("12.50")) == "12.5")
     }
 
+    @Test func theServersMinorUnitsWinOverTheISOTable() async throws {
+        // A tenant whose TZS has no cents: 2.5 h x 33,333.3333 = 83,333.33325 -> 83,333.
+        let noCents = HoursPriceBook(prices: [Self.ex01: HoursPrice(machineID: Self.ex01, hourlyRate: Self.d("33333.3333"), minimumHours: 0,
+                                                                    currency: "TZS", minorUnits: 0)])
+        guard case let .priced(q) = HoursPricing.price(noCents, machineID: Self.ex01, customerID: nil, walkIn: false, hoursText: "2.5") else {
+            Issue.record("not priced"); return
+        }
+        #expect(q.amount == 83333 && q.minorUnits == 0)
+        // Without the field (an older server) the ISO table applies: 83,333.33.
+        let iso = HoursPriceBook(prices: [Self.ex01: HoursPrice(machineID: Self.ex01, hourlyRate: Self.d("33333.3333"), minimumHours: 0,
+                                                                currency: "TZS")])
+        #expect(HoursPricing.price(iso, machineID: Self.ex01, customerID: nil, walkIn: false, hoursText: "2.5").quote?.amount
+                == Self.d("83333.33"))
+        #expect(HoursPricing.money(Self.d("1234.567"), currency: "TZS", minorUnits: 3) == "TZS 1,234.567")
+        // Stored from sync: the server's value, else the table.
+        let h = try SyncHarness().withFinanceData()
+        h.server.mutate {
+            $0.capabilities = Self.on
+            var withUnits = Self.price(Self.ex01, "33333.3333")
+            withUnits["minor_units"] = 0
+            $0.extraData = ["hours_prices": [withUnits, Self.price(Self.ex02, "33333.3333", currency: "UGX")]]
+        }
+        _ = try await h.engine().sync()
+        let book = h.directoryView.hoursPrices()
+        #expect(book.prices[Self.ex01]?.minorUnits == 0 && book.prices[Self.ex02]?.minorUnits == 0)
+    }
+
+    // MARK: - Payment lines
+
+    static func lines(_ amounts: String...) -> [PaymentLine] { amounts.map { PaymentLine(amountText: $0) } }
+
+    @Test func paymentLinesAgainstTheTotal() {
+        let price = HoursPricing.price(Self.book, machineID: Self.ex01, customerID: nil, walkIn: false, hoursText: "6") // 570,000
+        func s(_ amounts: String...) -> PaymentSummary { HoursPayments.summary(amounts.map { PaymentLine(amountText: $0) }, price: price) }
+        #expect(s().status == .notPaid && s().balance == 570_000)
+        #expect(s("300000", "270000").status == .fullyPaid)
+        #expect(s("300000").status == .partPaid(balance: 270_000))
+        #expect(s("300000", "270000.01").status == .overTotal)
+        #expect(s("600000").balance == 0)
+        #expect(s("300000", "abc", "").paid == 300_000) // a line without a valid amount counts as nothing yet
+        #expect(HoursPayments.summary(Self.lines("5"), price: .unpriced).status == .noTotal)
+        // A new line takes what is still owed, once; without a total it starts empty.
+        #expect(HoursPayments.newLine([], price: price) == PaymentLine(method: "CASH", amountText: "570000"))
+        #expect(HoursPayments.newLine(Self.lines("300000"), price: price).amountText == "270000")
+        #expect(HoursPayments.newLine(Self.lines("570000"), price: price).amountText == "")
+        #expect(HoursPayments.newLine([], price: .unpriced).amountText == "")
+    }
+
+    @Test func splitRules() {
+        let price = HoursPricing.price(Self.book, machineID: Self.ex01, customerID: nil, walkIn: false, hoursText: "6")
+        func draft(_ lines: [PaymentLine]) -> HoursSaleDraft {
+            var d = HoursSaleDraft()
+            d.customerID = Self.acme
+            d.machineID = Self.ex01
+            d.hoursText = "6"
+            d.payments = lines
+            return d
+        }
+        func problems(_ d: HoursSaleDraft, noncash: Bool = true, price p: HoursSalePrice = .hidden, photos: Int = 0) -> [String] {
+            if case let .failure(found) = AccountabilityRules.hoursSale(d, walkInAllowed: false, noncashAllowed: noncash, price: p, photos: photos) {
+                return found.messages
+            }
+            return []
+        }
+        let cash = PaymentLine(method: "CASH", amountText: "300000")
+        let bank = PaymentLine(method: "BANK", amountText: "270000")
+        #expect(problems(draft([cash, bank]), price: price) == [FieldAccountabilityTexts.hoursErrReference])
+        #expect(problems(draft([cash, bank]), noncash: false, price: price)
+                == [FieldAccountabilityTexts.hoursErrNoncashOff, FieldAccountabilityTexts.hoursErrReference])
+        var withRef = bank
+        withRef.reference = "CRDB"
+        guard case let .success(ok) = AccountabilityRules.hoursSale(draft([cash, withRef]), walkInAllowed: false, noncashAllowed: true,
+                                                                    price: price) else { Issue.record("invalid"); return }
+        #expect(ok.payments.map(\.method) == ["CASH", "BANK"])
+        #expect(problems(draft([cash, cash]), price: price) == [FieldAccountabilityTexts.hoursErrPaymentsExceed("TZS 570,000")])
+        #expect(problems(draft([cash, cash]), price: .unpriced).isEmpty) // without a known total the server checks it
+        #expect(problems(draft(Array(repeating: PaymentLine(amountText: "1"), count: 11))) == [FieldAccountabilityTexts.hoursErrTooManyPayments])
+        #expect(problems(draft([cash, cash]), photos: 1) == [FieldAccountabilityTexts.hoursErrPhotosSplit])
+        #expect(problems(draft([]), photos: 1) == [FieldAccountabilityTexts.hoursErrPhotosSplit])
+        #expect(problems(draft([cash]), photos: 1).isEmpty)
+    }
+
+    @Test func methodsFollowTheTenantPolicy() throws {
+        func access(_ extra: String) throws -> FieldAccess {
+            let json = #"{"enabled":true,"walk_in_allowed":false,"transfer_requires_approval":true,"reason_code_required":false"# + extra + "}"
+            let hours = try AssetaJSON.decoder().decode(CustomerHoursPolicyValues.self, from: Data(json.utf8))
+            return FieldAccess(capabilities: [SyncCapability.hoursPurchase], permissions: ["tenant.hours.purchase"], hours: hours)
+        }
+        #expect(try access("").saleMethods == ["CASH"])
+        #expect(try access(#","field_noncash_payments":true"#).saleMethods == ["CASH", "BANK", "MOBILE_MONEY"])
+        #expect(try access(#","field_noncash_payments":false"#).saleMethods == ["CASH"])
+    }
+
+    @Test func splitSaleIsQueuedWithItsPartsInOrderAndRetriesStayExactlyOnce() async throws {
+        let h = try SyncHarness().withFinanceData()
+        h.server.mutate {
+            $0.capabilities = AccountabilityTests.all + [SyncCapability.hoursPrices]
+            $0.extraData = ["hours_prices": [Self.price(SyncFixtures.machineID, "95000.0000")]]
+        }
+        let engine = h.engine()
+        _ = try await engine.sync()
+        var draft = HoursSaleDraft()
+        draft.customerID = FinanceFixtures.customerID
+        draft.machineID = SyncFixtures.machineID
+        draft.hoursText = "6"
+        draft.payments = [PaymentLine(method: "CASH", amountText: "300000", reference: "ignored for cash"),
+                          PaymentLine(method: "BANK", amountText: "200000", reference: " CRDB-77 "),
+                          PaymentLine(method: "MOBILE_MONEY", amountText: "70000", reference: "MP-1")]
+        let holder = UUID(), clientID = UUID()
+        let op = try h.recorder.recordHoursSale(draft, walkInAllowed: false, cashHolderID: holder, evidence: [], receivedAt: h.clock.wallNow,
+                                                clientID: clientID, noncashAllowed: true)
+        let p = try JSONValue.parse(op.payloadJSON)
+        #expect(p["client_id"]?.stringValue == clientID.lowercased && p["payment"] == nil)
+        guard case let .array(parts)? = p["payments"] else { Issue.record("no payments"); return }
+        #expect(parts.map { $0["method"]?.stringValue } == ["CASH", "BANK", "MOBILE_MONEY"])
+        #expect(parts.map { $0["amount"]?.stringValue } == ["300000", "200000", "70000"])
+        #expect(parts.map { $0["reference"]?.stringValue } == [nil, "CRDB-77", "MP-1"])
+        // Cash goes to the named holder's custody; bank and mobile money name no holder.
+        #expect(parts.map { $0["staff_member_id"]?.stringValue } == [holder.lowercased, nil, nil])
+        // The same form saved again is the same sale (the server keys the parts uuid5(client_id, "payment"/"payment-n")).
+        #expect(throws: FieldRecorderError.notAllowed(FieldAccountabilityTexts.alreadySaved)) {
+            try h.recorder.recordHoursSale(draft, walkInAllowed: false, cashHolderID: holder, evidence: [], receivedAt: h.clock.wallNow,
+                                           clientID: clientID, noncashAllowed: true)
+        }
+        _ = try await engine.sync(force: true)
+        #expect(try h.status(op.id) == .acked)
+        #expect((h.server.read { $0.appliedPayloads[op.id] }?["payments"] as? [Any])?.count == 3)
+
+        // One part travels as `payment`; none as not paid yet.
+        draft.payments = [PaymentLine(amountText: "570000")]
+        let one = try JSONValue.parse(try h.recorder.recordHoursSale(draft, walkInAllowed: false, cashHolderID: nil, evidence: [],
+                                                                    receivedAt: h.clock.wallNow).payloadJSON)
+        #expect(one["payment"]?["amount"]?.stringValue == "570000" && one["payments"] == nil)
+        draft.payments = []
+        let none = try JSONValue.parse(try h.recorder.recordHoursSale(draft, walkInAllowed: false, cashHolderID: nil, evidence: [],
+                                                                     receivedAt: h.clock.wallNow).payloadJSON)
+        #expect(none["payment"] == nil && none["payments"] == nil)
+
+        // Above the total (6 h x 95,000 = 570,000) and bank without the policy are refused.
+        draft.payments = [PaymentLine(amountText: "300000"), PaymentLine(amountText: "270000.01")]
+        #expect(throws: FieldRecorderError.invalid(FieldAccountabilityTexts.hoursErrPaymentsExceed("TZS 570,000"))) {
+            try h.recorder.recordHoursSale(draft, walkInAllowed: false, cashHolderID: nil, evidence: [], receivedAt: h.clock.wallNow)
+        }
+        draft.payments = [PaymentLine(method: "BANK", amountText: "100", reference: "REF")]
+        #expect(throws: FieldRecorderError.invalid(FieldAccountabilityTexts.hoursErrNoncashOff)) {
+            try h.recorder.recordHoursSale(draft, walkInAllowed: false, cashHolderID: nil, evidence: [], receivedAt: h.clock.wallNow)
+        }
+    }
+
     // MARK: - Wording
+
+    @Test func hoursSalePaymentWording() {
+        let b = HoursPriceBook(prices: [Self.ex01: HoursPrice(machineID: Self.ex01, hourlyRate: 95000, minimumHours: 0, currency: "TZS", minorUnits: 2)])
+        let price = HoursPricing.price(b, machineID: Self.ex01, customerID: nil, walkIn: false, hoursText: "6")
+        func lines(_ amounts: String..., p: HoursSalePrice? = nil) -> [String] {
+            FieldAccountabilityTexts.hoursPaymentSummary(HoursPayments.summary(amounts.map { PaymentLine(amountText: $0) }, price: p ?? price))
+        }
+        #expect(lines() == ["Paid TZS 0 of TZS 570,000 · Balance TZS 570,000", "Not paid yet"])
+        #expect(lines("300000") == ["Paid TZS 300,000 of TZS 570,000 · Balance TZS 270,000", "Part paid (balance TZS 270,000)"])
+        #expect(lines("300000", "270000") == ["Paid TZS 570,000 of TZS 570,000 · Balance TZS 0", "Fully paid"])
+        #expect(lines("300000", "270000.50")
+                == ["Paid TZS 570,000.50 of TZS 570,000 · Balance TZS 0", "The payments add up to more than the total of TZS 570,000."])
+        #expect(lines("300000", p: .unpriced) == ["Paid 300,000"])
+        #expect(lines(p: .unpriced) == ["Not paid yet"])
+        #expect(FieldAccountabilityTexts.hoursNoncashByOffice == "Bank and mobile-money payments are recorded by the office.")
+        #expect(FieldAccountabilityTexts.hoursAddPayment == "Add payment")
+        #expect(FieldAccountabilityTexts.hoursPaymentNumber(2) == "Payment 2")
+    }
+
+    @Test func hoursSaleOnTheSyncScreenListsItsPayments() throws {
+        func title(_ json: String?) throws -> String? {
+            FieldAccountabilityTexts.operationTitle(.hoursPurchase, payload: try json.map { try JSONValue.parse($0) })
+        }
+        #expect(try title(nil) == "Hours sale")
+        #expect(try title(#"{"hours":"6"}"#) == "Hours sale · Not paid yet")
+        #expect(try title(#"{"payment":{"method":"CASH","amount":"570000"}}"#) == "Hours sale · Cash 570,000")
+        #expect(try title(#"{"payments":[{"method":"CASH","amount":"300000"},{"method":"BANK","amount":"200000"},{"method":"MOBILE_MONEY","amount":"70000.50"}]}"#)
+                == "Hours sale · Cash 300,000 + Bank 200,000 + Mobile money 70,000.5")
+    }
 
     @Test func hoursSaleTotalWording() {
         let b = HoursPriceBook(prices: [Self.ex01: HoursPrice(machineID: Self.ex01, hourlyRate: Self.d("95000.0000"), minimumHours: 0, currency: "TZS")],

@@ -16,11 +16,13 @@ public struct HoursPriceDTO: Codable, Hashable, Sendable {
     public let hourlyRate: DecimalString
     public let minimumHours: DecimalString
     public let currency: String
+    /// Decimal places the server rounds the total to; nil from a server before it was sent (ISO fallback).
+    public let minorUnits: Int?
     public let effectiveFrom: Date
 
     enum CodingKeys: String, CodingKey {
         case machineID = "machine_id", rateCardID = "rate_card_id", hourlyRate = "hourly_rate", minimumHours = "minimum_hours"
-        case currency, effectiveFrom = "effective_from"
+        case currency, minorUnits = "minor_units", effectiveFrom = "effective_from"
     }
 }
 

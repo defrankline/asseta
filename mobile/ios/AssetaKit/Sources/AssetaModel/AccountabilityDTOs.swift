@@ -71,10 +71,14 @@ public struct HoursPurchasePayload: Codable, Hashable, Sendable {
     public let jobSiteID: UUID?
     public let note: String?
     public let payment: PurchasePaymentPayload?
+    /// A bill split across methods (two or more parts, each with its amount; at most 10). Sent instead of `payment`,
+    /// never with it; nil (key omitted) otherwise. The server keys part n's payment uuid5(client_id, "payment-n"), the
+    /// first "payment", so a replay stays exactly-once.
+    public let payments: [PurchasePaymentPayload]?
     public let evidenceUploadIDs: [UUID]
 
     public init(clientID: UUID, machineID: UUID, hours: Decimal, customerID: UUID?, walkIn: WalkInCustomerPayload?,
-                jobSiteID: UUID?, note: String?, payment: PurchasePaymentPayload?) {
+                jobSiteID: UUID?, note: String?, payment: PurchasePaymentPayload?, payments: [PurchasePaymentPayload]? = nil) {
         self.clientID = clientID
         self.machineID = machineID
         self.hours = DecimalString(hours)
@@ -83,11 +87,12 @@ public struct HoursPurchasePayload: Codable, Hashable, Sendable {
         self.jobSiteID = jobSiteID
         self.note = note
         self.payment = payment
+        self.payments = payments
         evidenceUploadIDs = []
     }
 
     enum CodingKeys: String, CodingKey {
-        case hours, note, payment, clientID = "client_id", machineID = "machine_id", customerID = "customer_id", walkIn = "walk_in"
+        case hours, note, payment, payments, clientID = "client_id", machineID = "machine_id", customerID = "customer_id", walkIn = "walk_in"
         case jobSiteID = "job_site_id", evidenceUploadIDs = "evidence_upload_ids"
     }
 }
@@ -582,14 +587,17 @@ public struct CustomerHoursPolicyValues: Codable, Hashable, Sendable {
     public let reasonCodeRequired: Bool
     /// DEC-032 Phase 3 (off when absent): an hours transfer request needs at least one photo.
     public let transferEvidenceRequired: Bool
+    /// Field staff may record bank and mobile-money parts of a sale (off when absent: cash only).
+    public let fieldNoncashPayments: Bool
 
     public init(enabled: Bool, walkInAllowed: Bool, transferRequiresApproval: Bool, reasonCodeRequired: Bool = false,
-                transferEvidenceRequired: Bool = false) {
+                transferEvidenceRequired: Bool = false, fieldNoncashPayments: Bool = false) {
         self.enabled = enabled
         self.walkInAllowed = walkInAllowed
         self.transferRequiresApproval = transferRequiresApproval
         self.reasonCodeRequired = reasonCodeRequired
         self.transferEvidenceRequired = transferEvidenceRequired
+        self.fieldNoncashPayments = fieldNoncashPayments
     }
 
     /// The older switches stay strict; the DEC-032 key defaults to off.
@@ -600,11 +608,13 @@ public struct CustomerHoursPolicyValues: Codable, Hashable, Sendable {
         transferRequiresApproval = try c.decode(Bool.self, forKey: .transferRequiresApproval)
         reasonCodeRequired = try c.decode(Bool.self, forKey: .reasonCodeRequired)
         transferEvidenceRequired = try c.decodeIfPresent(Bool.self, forKey: .transferEvidenceRequired) ?? false
+        fieldNoncashPayments = (try? c.decodeIfPresent(Bool.self, forKey: .fieldNoncashPayments)) ?? false
     }
 
     enum CodingKeys: String, CodingKey {
         case enabled, walkInAllowed = "walk_in_allowed", transferRequiresApproval = "transfer_requires_approval"
         case reasonCodeRequired = "reason_code_required", transferEvidenceRequired = "transfer_evidence_required"
+        case fieldNoncashPayments = "field_noncash_payments"
     }
 }
 

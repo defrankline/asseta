@@ -1,6 +1,9 @@
 package com.asseta.core.domain.accountability
 
+import com.asseta.core.domain.finance.FormCheck
+import kotlinx.serialization.json.jsonObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.math.BigDecimal
 
@@ -66,6 +69,77 @@ class HoursPricingTest {
         assertEquals(HoursSalePrice.Hidden, HoursPricing.price(book, "ex01", "acme", false, "abc"))
         assertEquals(HoursSalePrice.Unpriced, HoursPricing.price(book, "none", "acme", false, "6"))
         assertEquals(HoursSalePrice.Unpriced, HoursPricing.price(HoursPriceBook(), "ex01", null, true, "6"))
+    }
+
+    @Test
+    fun `the server's minor units win over the ISO table`() {
+        // A tenant whose TZS has no cents: 2.5 h x 33,333.3333 = 83,333.33325 -> 83,333.
+        val noCents = HoursPriceBook(prices = mapOf("m" to HoursPrice("m", d("33333.3333"), d("0"), "TZS", minorUnits = 0)))
+        val q = (HoursPricing.price(noCents, "m", null, false, "2.5") as HoursSalePrice.Priced).quote
+        assertEquals(d("83333"), q.amount)
+        assertEquals(0, q.minorUnits)
+        // Without the field (an older server) the ISO table applies: 83,333.33.
+        val iso = HoursPriceBook(prices = mapOf("m" to HoursPrice("m", d("33333.3333"), d("0"), "TZS")))
+        assertEquals(d("83333.33"), (HoursPricing.price(iso, "m", null, false, "2.5") as HoursSalePrice.Priced).quote.amount)
+        assertEquals("TZS 1,234.567", HoursPricing.money(d("1234.567"), "TZS", 3))
+    }
+
+    @Test
+    fun `payment lines against the total`() {
+        val price = HoursPricing.price(book, "ex01", null, false, "6") // 570,000
+        fun s(vararg amounts: String) = HoursPayments.summary(amounts.map { PaymentLine(PaymentMethod.CASH, it, "") }, price)
+        assertEquals(PaymentStatus.NotPaid, s().status)
+        assertEquals(d("570000.00"), s().balance)
+        assertEquals(PaymentStatus.FullyPaid, s("300000", "270000").status)
+        assertEquals(PaymentStatus.PartPaid(d("270000.00")), s("300000").status)
+        assertEquals(PaymentStatus.OverTotal, s("300000", "270000.01").status)
+        assertEquals(d("0"), s("600000").balance!!.stripTrailingZeros())
+        assertEquals(d("300000"), s("300000", "abc", "").paid) // a line without a valid amount counts as nothing yet
+        assertEquals(PaymentStatus.NoTotal, HoursPayments.summary(listOf(PaymentLine(amountText = "5")), HoursSalePrice.Unpriced).status)
+        // A new line takes what is still owed, once; without a total it starts empty.
+        assertEquals(PaymentLine(PaymentMethod.CASH, "570000", ""), HoursPayments.newLine(emptyList(), price))
+        assertEquals("270000", HoursPayments.newLine(listOf(PaymentLine(amountText = "300000")), price).amountText)
+        assertEquals("", HoursPayments.newLine(listOf(PaymentLine(amountText = "570000")), price).amountText)
+        assertEquals("", HoursPayments.newLine(emptyList(), HoursSalePrice.Unpriced).amountText)
+    }
+
+    @Test
+    fun `split rules`() {
+        val price = HoursPricing.price(book, "ex01", null, false, "6")
+        fun draft(vararg lines: PaymentLine) = HoursSaleDraft(false, "acme", "", "", "ex01", "6", lines.toList(), "")
+        val cash = PaymentLine(PaymentMethod.CASH, "300000", "")
+        val bank = PaymentLine(PaymentMethod.BANK, "270000", "")
+        assertEquals(listOf(AccountabilityMessages.REFERENCE), (AccountabilityRules.hoursSale(draft(cash, bank), false, true, price) as FormCheck.Invalid).messages)
+        assertEquals(
+            listOf(AccountabilityMessages.NONCASH_OFF, AccountabilityMessages.REFERENCE),
+            (AccountabilityRules.hoursSale(draft(cash, bank), false, false, price) as FormCheck.Invalid).messages,
+        )
+        val ok = AccountabilityRules.hoursSale(draft(cash, bank.copy(reference = "CRDB")), false, true, price) as FormCheck.Valid
+        assertEquals(listOf(PaymentMethod.CASH, PaymentMethod.BANK), ok.value.payments.map { it.method })
+        assertEquals(
+            listOf(AccountabilityMessages.paymentsExceed("TZS 570,000")),
+            (AccountabilityRules.hoursSale(draft(cash, cash), false, true, price) as FormCheck.Invalid).messages,
+        )
+        // Without a known total the server checks it.
+        assertTrue(AccountabilityRules.hoursSale(draft(cash, cash), false, true, HoursSalePrice.Unpriced) is FormCheck.Valid)
+        val eleven = draft(*Array(11) { PaymentLine(PaymentMethod.CASH, "1", "") })
+        assertEquals(listOf(AccountabilityMessages.TOO_MANY_PAYMENTS), (AccountabilityRules.hoursSale(eleven, false) as FormCheck.Invalid).messages)
+        assertEquals(listOf(AccountabilityMessages.PHOTOS_SPLIT), (AccountabilityRules.hoursSale(draft(cash, cash), false, photos = 1) as FormCheck.Invalid).messages)
+        assertEquals(listOf(AccountabilityMessages.PHOTOS_SPLIT), (AccountabilityRules.hoursSale(draft(), false, photos = 1) as FormCheck.Invalid).messages)
+        assertTrue(AccountabilityRules.hoursSale(draft(cash), false, photos = 1) is FormCheck.Valid)
+    }
+
+    @Test
+    fun `methods follow the tenant policy`() {
+        val values = { noncash: String -> kotlinx.serialization.json.Json.parseToJsonElement(
+            """{"enabled":true,"walk_in_allowed":false,"transfer_requires_approval":true,"reason_code_required":false$noncash}""",
+        ).jsonObject }
+        val access = { policy: CustomerHoursPolicy? -> FieldAccess(setOf(com.asseta.core.model.sync.SyncCapabilities.OP_HOURS_PURCHASE), setOf("tenant.hours.purchase"), hours = policy) }
+        val off = CustomerHoursPolicy.fromValues(values(""))
+        val on = CustomerHoursPolicy.fromValues(values(""","field_noncash_payments":true"""))
+        assertEquals(listOf(PaymentMethod.CASH), access(off).saleMethods)
+        assertEquals(PaymentMethod.entries, access(on).saleMethods)
+        assertEquals(listOf(PaymentMethod.CASH), access(CustomerHoursPolicy.fromValues(values(""","field_noncash_payments":false"""))).saleMethods)
     }
 
     @Test

@@ -84,8 +84,18 @@ encrypted on the phone) enables it. Unknown policy (never loaded) = hidden, so t
 | field.hours.totalDiscount | Total: {amount} ({hours} h × {rate}/h less {percent}% discount) |
 | field.hours.priceLater | The price is set when the sale reaches the office. |
 | field.hours.sectionPayment | Payment |
-| field.hours.paidNow | Paid now |
 | field.hours.notPaid | Not paid yet |
+| field.hours.addPayment | Add payment |
+| field.hours.removePayment | Remove payment |
+| field.hours.paymentNumber | Payment {n} |
+| field.hours.method | Method |
+| field.hours.paidOf | Paid {paid} of {total} · Balance {balance} |
+| field.hours.paidNoTotal | Paid {paid} |
+| field.hours.fullyPaid | Fully paid |
+| field.hours.partPaid | Part paid (balance {balance}) |
+| field.hours.noncashByOffice | Bank and mobile-money payments are recorded by the office. |
+| field.hours.photosOnePayment | Payment photos go with a single payment. |
+| field.hours.outbox | Hours sale · {method} {amount}[ + {method} {amount}…] (no payment: "Hours sale · Not paid yet") |
 | field.hours.methodCash | Cash |
 | field.hours.methodBank | Bank |
 | field.hours.methodMobileMoney | Mobile money |
@@ -106,18 +116,41 @@ encrypted on the phone) enables it. Unknown policy (never loaded) = hidden, so t
 | field.hours.errAmount | Enter the amount received (more than 0). |
 | field.hours.errReference | Enter the reference for bank and mobile-money payments. |
 | field.hours.errWalkInOff | Walk-in customers are turned off for your company. |
+| field.hours.errNoncashOff | Bank and mobile-money payments are recorded by the office. |
+| field.hours.errTooManyPayments | At most 10 payments per sale. |
+| field.hours.errPaymentsExceed | The payments add up to more than the total of {total}. |
+| field.hours.errPhotosSplit | Payment photos go with a single payment. Remove the photos or keep one payment. |
 | field.hours.off | Customer hours are turned off for your company. |
 
 The total line shows under Hours once a machine is chosen and the hours are more than 0. It is computed on the phone from
 the last pull's `SyncData.hours_prices` and `customer_discounts` (`SYNC_HOURS_PRICES`, full snapshots that replace the
 local sets; cleared when the capability goes away), so it works offline, with the server's rule: effective rate = hourly
 rate × (100 − percent) / 100, rounded to 4 decimals (half-even); total = hours × effective rate, rounded half-up to the
-currency's minor units (ISO 4217: TZS 2, UGX 0, KWD 3; 2 for an unlisted code). A walk-in sale has no discount.
+price's `minor_units` (the server's currency setting; a server that does not send it falls back to ISO 4217: TZS 2,
+UGX 0, KWD 3, 2 for an unlisted code). A walk-in sale has no discount.
 `{amount}` is the currency code then the grouped amount, with decimals only when it has cents ("TZS 570,000",
 "USD 1,234.50"); `{rate}` is the hourly rate before the discount, grouped, up to 4 decimals ("95,000"); `{hours}` and
 `{percent}` are grouped, up to 2 decimals ("6", "12.5"). A machine without a stored price shows `field.hours.priceLater`;
-saving still works and the server prices the sale on arrival. The line is information only: the amount received is never
-filled in from it.
+saving still works and the server prices the sale on arrival.
+
+**Payment lines (split bill, backend 2cb541c).** The Payment section lists payment lines: **Add payment** adds one
+(`field.hours.paymentNumber`, then Method, `field.hours.amountReceived`, and `field.hours.reference` for bank and mobile
+money); each line has `field.hours.removePayment`; no lines means not paid yet. At most 10 lines. A new line's amount is
+filled once with what is still owed (total − the other lines) when the total is known; typed values are never changed.
+The methods follow CUSTOMER_HOURS `field_noncash_payments` (missing = off): off, only Cash is offered (no method picker)
+and the section footer adds `field.hours.noncashByOffice`; on, Cash, Bank and Mobile money, a reference required for the
+last two. Under the lines: `field.hours.paidOf` (`{paid}`, `{total}`, `{balance}` formatted like `{amount}`, balance never
+below 0) when the total is known, else `field.hours.paidNoTotal` (grouped amount without a currency) once something is
+paid; then the status: `field.hours.notPaid`, `field.hours.fullyPaid`, `field.hours.partPaid`, or
+`field.hours.errPaymentsExceed` when the lines add up to more than the total (Save stays off). Received date and, for cash
+lines, the cash holder are shared by all lines. One line is sent as `payment` (unchanged, so its photos and older servers
+keep working); two or more as `payments` in the order typed, never both; cash parts carry the cash holder
+(`staff_member_id`) when recording for another custodian. The server keys part n's payment uuid5(client_id, "payment-n")
+(the first "payment"), and a second save of the same form is refused on the phone, so retries stay exactly-once.
+Evidence photos go with a single payment: with two or more lines the photo section only lets existing photos be removed
+(footer `field.hours.photosOnePayment`) and Save stays off with `field.hours.errPhotosSplit` while any are left (the
+server attaches `evidence_upload_ids` to `payment` only). On the sync status screen the sale reads `field.hours.outbox`,
+e.g. "Hours sale · Cash 300,000 + Bank 270,000".
 
 ### Request hours transfer (offline, `HOURS_TRANSFER_REQUEST`)
 | Key | English |

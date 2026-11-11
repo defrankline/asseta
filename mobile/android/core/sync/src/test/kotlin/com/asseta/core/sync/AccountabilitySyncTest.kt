@@ -1,6 +1,8 @@
 package com.asseta.core.sync
 
 import com.asseta.core.domain.accountability.HoursSaleDraft
+import com.asseta.core.domain.accountability.AccountabilityMessages
+import com.asseta.core.domain.accountability.PaymentLine
 import com.asseta.core.domain.accountability.PaymentMethod
 import com.asseta.core.domain.capture.GpsOutcome
 import com.asseta.core.domain.policy.CaptureMode
@@ -70,8 +72,8 @@ class AccountabilitySyncTest : SyncTestBase() {
     private fun sale(walkIn: Boolean = true, evidence: List<ByteArray> = listOf(photo), method: PaymentMethod = PaymentMethod.CASH, reference: String = "") =
         HoursSaleRequest(
             tenant, UUID.randomUUID().toString(),
-            HoursSaleDraft(walkIn, if (walkIn) null else fake.customerId, "Walk-in Joe", "0712", fake.machineId, "12.50", true, method, "300000",
-                reference, ""),
+            HoursSaleDraft(walkIn, if (walkIn) null else fake.customerId, "Walk-in Joe", "0712", fake.machineId, "12.50",
+                listOf(PaymentLine(method, "300000", reference)), ""),
             walkInAllowed = true, cashHolderId = null, receivedAtMs = clock.now, evidenceJpegs = evidence,
         )
 
@@ -90,6 +92,78 @@ class AccountabilitySyncTest : SyncTestBase() {
         assertEquals(1, sent["evidence_upload_ids"]!!.jsonArray.size)
         val attachment = db.clientOperationDao().attachmentsOf(opId).single()
         assertEquals(AccountabilityOps.PAYMENT_EVIDENCE, db.evidenceDao().attachment(attachment)!!.purpose)
+    }
+
+    private fun split(lines: List<PaymentLine>, clientId: String = UUID.randomUUID().toString(), noncash: Boolean = true, holder: String? = null) =
+        HoursSaleRequest(
+            tenant, clientId, HoursSaleDraft(false, fake.customerId, "", "", fake.machineId, "6", lines, ""),
+            walkInAllowed = false, cashHolderId = holder, receivedAtMs = clock.now, evidenceJpegs = emptyList(), noncashAllowed = noncash,
+        )
+
+    private fun priced(rate: String = "95000.0000", minorUnits: Int? = 2) {
+        fake.capabilities = fake.capabilities.orEmpty() + SyncCapabilities.SYNC_HOURS_PRICES
+        fake.inbox = mapOf(
+            "hours_prices" to listOf(buildJsonObject {
+                put("machine_id", fake.machineId); put("rate_card_id", "e0000000-0000-4000-8000-000000000001"); put("hourly_rate", rate)
+                put("minimum_hours", "0"); put("currency", "TZS"); minorUnits?.let { put("minor_units", it) }; put("effective_from", "2026-01-01T00:00:00Z")
+            }),
+        )
+    }
+
+    @Test
+    fun splitSaleIsQueuedWithItsPartsInOrderAndRetriesStayExactlyOnce() = runBlocking {
+        priced()
+        synced()
+        val holder = "5f000000-0000-4000-8000-000000000009"
+        val clientId = UUID.randomUUID().toString()
+        val lines = listOf(
+            PaymentLine(PaymentMethod.CASH, "300000", "ignored for cash"),
+            PaymentLine(PaymentMethod.BANK, "200000", " CRDB-77 "),
+            PaymentLine(PaymentMethod.MOBILE_MONEY, "70000", "MP-1"),
+        )
+        val opId = saved(accountability.hoursSale(split(lines, clientId, holder = holder))).operationId
+        val p = payload(opId)
+        assertEquals(clientId, p["client_id"]!!.jsonPrimitive.content)
+        assertNull(p["payment"])
+        val parts = p["payments"]!!.jsonArray.map { it.jsonObject }
+        assertEquals(listOf("CASH", "BANK", "MOBILE_MONEY"), parts.map { it["method"]!!.jsonPrimitive.content })
+        assertEquals(listOf("300000", "200000", "70000"), parts.map { it["amount"]!!.jsonPrimitive.content })
+        assertEquals(listOf(null, "CRDB-77", "MP-1"), parts.map { it["reference"]?.jsonPrimitive?.content })
+        // Cash goes to the named holder's custody; bank and mobile money name no holder.
+        assertEquals(listOf(holder, null, null), parts.map { it["staff_member_id"]?.jsonPrimitive?.content })
+        assertTrue(parts.all { it["received_at"]!!.jsonPrimitive.content == com.asseta.core.sync.data.IsoTime.format(clock.now) })
+        // The same form saved again is the same sale (the server keys the parts uuid5(client_id, "payment"/"payment-n")).
+        assertEquals(FinanceResult.AlreadySaved, accountability.hoursSale(split(lines, clientId, holder = holder)))
+        synced()
+        assertEquals(ACKED, status(opId))
+        assertEquals(3, fake.stored[opId]!!.payload["payments"]!!.jsonArray.size)
+    }
+
+    @Test
+    fun onePaymentTravelsAsPaymentAndNoneAsNotPaid() = runBlocking {
+        synced()
+        val one = payload(saved(accountability.hoursSale(split(listOf(PaymentLine(PaymentMethod.CASH, "570000", ""))))).operationId)
+        assertEquals("570000", one["payment"]!!.jsonObject["amount"]!!.jsonPrimitive.content)
+        assertNull(one["payments"])
+        val none = payload(saved(accountability.hoursSale(split(emptyList()))).operationId)
+        assertNull(none["payment"])
+        assertNull(none["payments"])
+    }
+
+    @Test
+    fun partsAboveTheTotalNonCashWithoutThePolicyAndPhotosOnASplitAreRefused() = runBlocking {
+        priced()
+        synced()
+        // 6 h x 95,000 = 570,000.
+        val over = accountability.hoursSale(split(listOf(PaymentLine(PaymentMethod.CASH, "300000", ""), PaymentLine(PaymentMethod.CASH, "270000.01", ""))))
+        assertEquals(listOf(AccountabilityMessages.paymentsExceed("TZS 570,000")), (over as FinanceResult.Invalid).messages)
+        saved(accountability.hoursSale(split(listOf(PaymentLine(PaymentMethod.CASH, "300000", ""), PaymentLine(PaymentMethod.CASH, "270000", "")))))
+        val bank = accountability.hoursSale(split(listOf(PaymentLine(PaymentMethod.BANK, "100", "REF")), noncash = false))
+        assertEquals(listOf(AccountabilityMessages.NONCASH_OFF), (bank as FinanceResult.Invalid).messages)
+        val photos = accountability.hoursSale(
+            split(listOf(PaymentLine(PaymentMethod.CASH, "100", ""), PaymentLine(PaymentMethod.CASH, "100", ""))).copy(evidenceJpegs = listOf(photo)),
+        )
+        assertEquals(listOf(AccountabilityMessages.PHOTOS_SPLIT), (photos as FinanceResult.Invalid).messages)
     }
 
     @Test

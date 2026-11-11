@@ -4,6 +4,8 @@ import com.asseta.core.domain.accountability.HoursPricing
 import com.asseta.core.domain.accountability.HoursSalePrice
 import com.asseta.core.domain.accountability.HoursSaleQuote
 import com.asseta.core.domain.accountability.PaymentMethod
+import com.asseta.core.domain.accountability.PaymentStatus
+import com.asseta.core.domain.accountability.PaymentSummary
 import com.asseta.core.model.sync.CashTransferDto
 
 /**
@@ -60,7 +62,50 @@ object FieldAccountabilityTexts {
     /** "Total: TZS 570,000 (6 h × 95,000/h)", with " less 10% discount" inside the brackets when the customer has one. */
     fun hoursTotal(q: HoursSaleQuote): String {
         val discount = if (q.discountPercent.signum() > 0) " less ${HoursPricing.figure(q.discountPercent)}% discount" else ""
-        return "Total: ${HoursPricing.money(q.amount, q.currency)} (${HoursPricing.figure(q.hours)} h × ${HoursPricing.rate(q.hourlyRate)}/h$discount)"
+        return "Total: ${money(q.amount, q)} (${HoursPricing.figure(q.hours)} h × ${HoursPricing.rate(q.hourlyRate)}/h$discount)"
+    }
+
+    private fun money(amount: java.math.BigDecimal, q: HoursSaleQuote) = HoursPricing.money(amount, q.currency, q.minorUnits)
+
+    // Payment lines
+    const val ADD_PAYMENT = "Add payment"
+    const val REMOVE_PAYMENT = "Remove payment"
+    const val METHOD = "Method"
+    const val NONCASH_BY_OFFICE = "Bank and mobile-money payments are recorded by the office."
+    const val PHOTOS_ONE_PAYMENT = "Payment photos go with a single payment."
+    const val FULLY_PAID = "Fully paid"
+    fun paymentNumber(n: Int) = "Payment $n"
+    fun partPaid(balance: String) = "Part paid (balance $balance)"
+
+    /** The lines under the payments: "Paid TZS 300,000 of TZS 570,000 · Balance TZS 270,000", then the status. */
+    fun paymentSummary(s: PaymentSummary): List<String> {
+        val q = s.quote
+        val amounts = when {
+            q != null -> "Paid ${money(s.paid, q)} of ${money(q.amount, q)} · Balance ${money(s.balance!!, q)}"
+            s.paid.signum() > 0 -> "Paid ${HoursPricing.rate(s.paid)}"
+            else -> null
+        }
+        val status = when (val st = s.status) {
+            PaymentStatus.NotPaid -> NOT_PAID
+            PaymentStatus.FullyPaid -> FULLY_PAID
+            is PaymentStatus.PartPaid -> partPaid(money(st.balance, q!!))
+            PaymentStatus.OverTotal -> com.asseta.core.domain.accountability.AccountabilityMessages.paymentsExceed(money(q!!.amount, q))
+            PaymentStatus.NoTotal -> null
+        }
+        return listOfNotNull(amounts, status)
+    }
+
+    /** The sale on the sync status screen: "Hours sale · Cash 300,000 + Bank 270,000" (or "· Not paid yet"). */
+    fun outboxHoursSale(payload: kotlinx.serialization.json.JsonObject?): String {
+        if (payload == null) return OUTBOX_HOURS_SALE
+        val parts = (payload["payments"] as? kotlinx.serialization.json.JsonArray)?.mapNotNull { it as? kotlinx.serialization.json.JsonObject }
+            ?: listOfNotNull(payload["payment"] as? kotlinx.serialization.json.JsonObject)
+        if (parts.isEmpty()) return "$OUTBOX_HOURS_SALE · $NOT_PAID"
+        return "$OUTBOX_HOURS_SALE · " + parts.joinToString(" + ") { p ->
+            fun text(key: String) = (p[key] as? kotlinx.serialization.json.JsonPrimitive)?.content
+            val method = PaymentMethod.entries.firstOrNull { it.wire == text("method") }?.let(::method) ?: text("method").orEmpty()
+            method + (text("amount")?.toBigDecimalOrNull()?.let { " " + HoursPricing.rate(it) } ?: "")
+        }
     }
 
     /** The line under Hours: the total, the "priced at the office" notice, or nothing yet. */
@@ -70,7 +115,6 @@ object FieldAccountabilityTexts {
         is HoursSalePrice.Priced -> hoursTotal(price.quote)
     }
     const val SECTION_PAYMENT = "Payment"
-    const val PAID_NOW = "Paid now"
     const val NOT_PAID = "Not paid yet"
     const val AMOUNT_RECEIVED = "Amount received"
     const val REFERENCE = "Reference (required for bank and mobile money)"

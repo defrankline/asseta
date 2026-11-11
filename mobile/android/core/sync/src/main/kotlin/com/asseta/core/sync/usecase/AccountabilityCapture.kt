@@ -5,7 +5,9 @@ import com.asseta.core.database.AttachmentEntity
 import com.asseta.core.database.inTransaction
 import com.asseta.core.domain.accountability.AccountabilityMessages
 import com.asseta.core.domain.accountability.AccountabilityRules
+import com.asseta.core.domain.accountability.HoursPricing
 import com.asseta.core.domain.accountability.HoursSaleDraft
+import kotlinx.coroutines.flow.first
 import com.asseta.core.domain.accountability.PaymentMethod
 import com.asseta.core.domain.finance.FormCheck
 import com.asseta.core.model.DecimalAmount
@@ -41,8 +43,10 @@ data class HoursSaleRequest(
     /** The cash holder when the recorder records for another custodian; null = the recorder. */
     val cashHolderId: String?,
     val receivedAtMs: Long,
-    /** Original evidence JPEGs (receipt, mobile-money screenshot), at most ten. */
+    /** Original evidence JPEGs (receipt, mobile-money screenshot), at most ten; they go with a single payment. */
     val evidenceJpegs: List<ByteArray>,
+    /** The tenant lets field staff record bank and mobile-money parts (CUSTOMER_HOURS `field_noncash_payments`). */
+    val noncashAllowed: Boolean = false,
 )
 
 data class HoursTransferRequest(
@@ -128,28 +132,32 @@ class AccountabilityCapture(
 
     suspend fun hoursSale(r: HoursSaleRequest): FinanceResult {
         unavailable(r.tenantId, SyncCapabilities.OP_HOURS_PURCHASE)?.let { return FinanceResult.Blocked(it) }
-        val values = when (val check = AccountabilityRules.hoursSale(r.draft, r.walkInAllowed)) {
+        val d = r.draft
+        val evidence = r.evidenceJpegs.filter { it.isNotEmpty() }
+        // The parts may not exceed the total this phone knows (the server checks again with its own price).
+        val price = HoursPricing.price(finance.observeHoursPrices(r.tenantId).first(), d.machineId, d.customerId, d.walkIn, d.hoursText)
+        val values = when (val check = AccountabilityRules.hoursSale(d, r.walkInAllowed, r.noncashAllowed, price, evidence.size)) {
             is FormCheck.Invalid -> return FinanceResult.Invalid(check.messages)
             is FormCheck.Valid -> check.value
         }
-        val d = r.draft
         if (!d.walkIn) finance.activeCustomer(d.customerId!!) ?: return FinanceResult.Blocked(CUSTOMER_GONE)
         field.machine(d.machineId!!) ?: return FinanceResult.Blocked(CaptureMeterReading.MACHINE_MISSING)
-        val evidence = r.evidenceJpegs.filter { it.isNotEmpty() }
         if (evidence.size > MAX_EVIDENCE) return FinanceResult.Invalid(listOf("At most $MAX_EVIDENCE evidence photos per sale."))
         if (alreadySaved(r.tenantId, FieldOps.HOURS_PURCHASE, r.clientId)) return FinanceResult.AlreadySaved
-        val method = d.method ?: PaymentMethod.CASH
-        val payment = if (!d.paidNow) {
-            null
-        } else {
+        val parts = values.payments.map { part ->
             PurchasePaymentPayload(
-                method = method.wire,
-                amount = values.amount?.let(DecimalAmount::of),
+                method = part.method.wire,
+                amount = DecimalAmount.of(part.amount),
                 receivedAt = IsoTime.format(r.receivedAtMs),
-                reference = values.reference,
-                staffMemberId = r.cashHolderId.takeIf { method == PaymentMethod.CASH },
+                reference = part.reference,
+                // Cash parts go to the holder's custody (the recorder's unless recording for another holder).
+                staffMemberId = r.cashHolderId.takeIf { part.method == PaymentMethod.CASH },
             )
         }
+        // One part travels as `payment` (as before, so its photos and an older server still work); a split bill as
+        // `payments`, in the order typed (the server keys part n "payment-n").
+        val payment = parts.singleOrNull()
+        val split = parts.takeIf { it.size > 1 }
         val payload = HoursPurchasePayload(
             clientId = r.clientId,
             customerId = d.customerId.takeIf { !d.walkIn },
@@ -159,6 +167,7 @@ class AccountabilityCapture(
             hours = AccountabilityRules.plain(values.hours),
             note = values.note,
             payment = payment,
+            payments = split,
         )
         val stored = evidence.map { bytes -> Triple(UUID.randomUUID().toString(), files.write(bytes), bytes) }
         val database = db()

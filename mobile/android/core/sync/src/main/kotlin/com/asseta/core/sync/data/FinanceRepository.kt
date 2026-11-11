@@ -12,6 +12,7 @@ import com.asseta.core.database.MachineEntity
 import com.asseta.core.domain.accountability.DepositAccountOption
 import com.asseta.core.domain.accountability.HoursPrice
 import com.asseta.core.domain.accountability.HoursPriceBook
+import com.asseta.core.domain.accountability.HoursPricing
 import com.asseta.core.model.sync.CustomerDiscountRateDto
 import com.asseta.core.model.sync.HoursPriceDto
 import com.asseta.core.domain.accountability.LinkableInvoice
@@ -167,7 +168,8 @@ class FinanceRepository(
                 prices = prices.mapNotNull { runCatching { json.decodeFromString(HoursPriceDto.serializer(), it.json) }.getOrNull() }
                     .mapNotNull { p ->
                         val rate = p.hourlyRate.toBigDecimalOrNull() ?: return@mapNotNull null
-                        HoursPrice(p.machineId, rate, p.minimumHours.toBigDecimalOrNull() ?: BigDecimal.ZERO, p.currency)
+                        HoursPrice(p.machineId, rate, p.minimumHours.toBigDecimalOrNull() ?: BigDecimal.ZERO, p.currency,
+                            p.minorUnits ?: HoursPricing.minorUnits(p.currency))
                     }.associateBy { it.machineId },
                 discounts = discounts.mapNotNull { runCatching { json.decodeFromString(CustomerDiscountRateDto.serializer(), it.json) }.getOrNull() }
                     .mapNotNull { d -> d.percent.toBigDecimalOrNull()?.let { d.customerId to it } }.toMap(),

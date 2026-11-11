@@ -62,6 +62,8 @@ data class CustomerHoursPolicy(
     val reasonCodeRequired: Boolean,
     /** DEC-032: hours transfers need evidence (missing from older servers = not required). */
     val transferEvidenceRequired: Boolean = false,
+    /** Field staff may record bank and mobile-money parts of a sale (missing from older servers = cash only). */
+    val fieldNoncashPayments: Boolean = false,
 ) {
     companion object {
         const val TYPE = "CUSTOMER_HOURS"
@@ -73,6 +75,7 @@ data class CustomerHoursPolicy(
                 transferRequiresApproval = values.flag("transfer_requires_approval"),
                 reasonCodeRequired = values.flag("reason_code_required"),
                 transferEvidenceRequired = values.optionalFlag("transfer_evidence_required"),
+                fieldNoncashPayments = values.optionalFlag("field_noncash_payments"),
             )
         }.getOrNull()
     }
@@ -105,6 +108,10 @@ data class FieldAccess(
 
     val sellHours: Boolean get() = supports(SyncCapabilities.OP_HOURS_PURCHASE) && can(HOURS_PURCHASE) && customerHours
     val walkIn: Boolean get() = sellHours && hours?.walkInAllowed == true
+    /** Bank and mobile-money parts may be recorded on a sale (CUSTOMER_HOURS `field_noncash_payments`); else cash only. */
+    val noncashPayments: Boolean get() = sellHours && hours?.fieldNoncashPayments == true
+    /** The payment methods the sale form offers. */
+    val saleMethods: List<PaymentMethod> get() = if (noncashPayments) PaymentMethod.entries else listOf(PaymentMethod.CASH)
     val requestHoursTransfer: Boolean
         get() = supports(SyncCapabilities.OP_HOURS_TRANSFER_REQUEST) && can(HOURS_TRANSFER) && customerHours
     /** The tenant uses the DEC-030 cash custody additions (CASH_CUSTODY not switched off in `/me`). */
@@ -219,7 +226,10 @@ data class FieldAccess(
 
 enum class PaymentMethod(val wire: String) { CASH("CASH"), BANK("BANK"), MOBILE_MONEY("MOBILE_MONEY") }
 
-/** The hours-sale form as typed (validated by [AccountabilityRules.hoursSale]). */
+/** One payment line of the hours sale as typed (the reference only for bank and mobile money). */
+data class PaymentLine(val method: PaymentMethod = PaymentMethod.CASH, val amountText: String = "", val reference: String = "")
+
+/** The hours-sale form as typed (validated by [AccountabilityRules.hoursSale]); no payment lines = not paid yet. */
 data class HoursSaleDraft(
     val walkIn: Boolean,
     val customerId: String?,
@@ -227,17 +237,16 @@ data class HoursSaleDraft(
     val walkInPhone: String,
     val machineId: String?,
     val hoursText: String,
-    val paidNow: Boolean,
-    val method: PaymentMethod?,
-    val amountText: String,
-    val reference: String,
+    val payments: List<PaymentLine>,
     val note: String,
 )
 
+/** A checked payment part (`PurchasePaymentIn`). */
+data class PaymentPart(val method: PaymentMethod, val amount: BigDecimal, val reference: String?)
+
 data class HoursSaleValues(
     val hours: BigDecimal,
-    val amount: BigDecimal?,
-    val reference: String?,
+    val payments: List<PaymentPart>,
     val walkInName: String?,
     val walkInPhone: String?,
     val note: String?,
@@ -265,7 +274,18 @@ object AccountabilityRules {
     /** The hours of a sale as typed (more than 0, at most 2 decimals), or null while they are not a valid number. */
     fun saleHours(text: String): BigDecimal? = AmountParser.valueOrNull(text, HOURS)
 
-    fun hoursSale(d: HoursSaleDraft, walkInAllowed: Boolean): FormCheck<HoursSaleValues> {
+    /**
+     * [noncashAllowed]: the tenant lets field staff record bank and mobile-money parts (CUSTOMER_HOURS
+     * `field_noncash_payments`); [price]: the offline total, which the parts may not exceed; [photos]: evidence photos
+     * taken (they go with a single payment).
+     */
+    fun hoursSale(
+        d: HoursSaleDraft,
+        walkInAllowed: Boolean,
+        noncashAllowed: Boolean = false,
+        price: HoursSalePrice = HoursSalePrice.Hidden,
+        photos: Int = 0,
+    ): FormCheck<HoursSaleValues> {
         val m = mutableListOf<String>()
         var name: String? = null
         var phone: String? = null
@@ -281,16 +301,25 @@ object AccountabilityRules {
         if (d.machineId.isNullOrBlank()) m += AccountabilityMessages.MACHINE
         val hours = AmountParser.valueOrNull(d.hoursText, HOURS)
         if (hours == null) m += AccountabilityMessages.HOURS
-        var amount: BigDecimal? = null
-        var reference: String? = null
-        if (d.paidNow) {
-            amount = AmountParser.valueOrNull(d.amountText, DecimalLimit.MONEY)
-            if (amount == null) m += AccountabilityMessages.AMOUNT_RECEIVED
-            reference = d.reference.trim().take(MAX_REFERENCE).ifEmpty { null }
-            if (d.method != PaymentMethod.CASH && reference == null) m += AccountabilityMessages.REFERENCE
+        if (d.payments.size > HoursPayments.MAX) m += AccountabilityMessages.TOO_MANY_PAYMENTS
+        val lineProblems = linkedSetOf<String>()
+        val parts = d.payments.mapNotNull { line ->
+            val amount = AmountParser.valueOrNull(line.amountText, DecimalLimit.MONEY)
+            if (amount == null) lineProblems += AccountabilityMessages.AMOUNT_RECEIVED
+            val reference = line.reference.trim().take(MAX_REFERENCE).ifEmpty { null }
+            if (line.method != PaymentMethod.CASH) {
+                if (!noncashAllowed) lineProblems += AccountabilityMessages.NONCASH_OFF
+                if (reference == null) lineProblems += AccountabilityMessages.REFERENCE
+            }
+            amount?.let { PaymentPart(line.method, it, reference.takeIf { line.method != PaymentMethod.CASH }) }
         }
+        m += lineProblems
+        if (price is HoursSalePrice.Priced && parts.fold(BigDecimal.ZERO) { s, p -> s + p.amount } > price.quote.amount) {
+            m += AccountabilityMessages.paymentsExceed(HoursPricing.money(price.quote.amount, price.quote.currency, price.quote.minorUnits))
+        }
+        if (photos > 0 && d.payments.size != 1) m += AccountabilityMessages.PHOTOS_SPLIT
         val note = d.note.trim().take(MAX_NOTE).ifEmpty { null }
-        return if (m.isEmpty()) FormCheck.Valid(HoursSaleValues(hours!!, amount, reference, name, phone, note)) else FormCheck.Invalid(m)
+        return if (m.isEmpty()) FormCheck.Valid(HoursSaleValues(hours!!, parts, name, phone, note)) else FormCheck.Invalid(m)
     }
 
     /** [remaining]: hours left on the purchase (null when unknown); [fromMachineId]: the machine the hours are on. */
@@ -385,6 +414,10 @@ object AccountabilityMessages {
     const val HOURS = "Enter the hours (more than 0, at most 2 decimal places)."
     const val AMOUNT_RECEIVED = "Enter the amount received (more than 0)."
     const val REFERENCE = "Enter the reference for bank and mobile-money payments."
+    const val NONCASH_OFF = "Bank and mobile-money payments are recorded by the office."
+    const val TOO_MANY_PAYMENTS = "At most 10 payments per sale."
+    const val PHOTOS_SPLIT = "Payment photos go with a single payment. Remove the photos or keep one payment."
+    fun paymentsExceed(total: String) = "The payments add up to more than the total of $total."
     const val WALK_IN_OFF = "Walk-in customers are turned off for your company."
     const val PURCHASE = "Choose the purchase."
     const val TARGET_MACHINE = "Choose the machine to move the hours to."

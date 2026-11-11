@@ -58,19 +58,22 @@ class FieldAccountabilityTest {
 
     @Test
     fun `hours sale checks`() {
-        val draft = HoursSaleDraft(true, null, " ", "", "m1", "1.234", true, PaymentMethod.MOBILE_MONEY, "", "", "")
-        val issues = (AccountabilityRules.hoursSale(draft, walkInAllowed = false) as FormCheck.Invalid).messages
+        val mobile = PaymentLine(PaymentMethod.MOBILE_MONEY, "", "")
+        val draft = HoursSaleDraft(true, null, " ", "", "m1", "1.234", listOf(mobile), "")
+        val issues = (AccountabilityRules.hoursSale(draft, walkInAllowed = false, noncashAllowed = true) as FormCheck.Invalid).messages
         assertTrue(AccountabilityMessages.WALK_IN_OFF in issues)
         assertTrue(AccountabilityMessages.WALK_IN_NAME in issues)
         assertTrue(AccountabilityMessages.HOURS in issues)
         assertTrue(AccountabilityMessages.AMOUNT_RECEIVED in issues)
         assertTrue(AccountabilityMessages.REFERENCE in issues)
-        val ok = AccountabilityRules.hoursSale(draft.copy(walkInName = "Joe", hoursText = "10,5", amountText = "100", reference = "MP123"), true)
-        val v = (ok as FormCheck.Valid).value
+        val paid = draft.copy(walkInName = "Joe", hoursText = "10,5", payments = listOf(mobile.copy(amountText = "100", reference = " MP123 ")))
+        val v = (AccountabilityRules.hoursSale(paid, true, noncashAllowed = true) as FormCheck.Valid).value
         assertEquals("10.5", AccountabilityRules.plain(v.hours))
-        assertEquals("MP123", v.reference)
-        val unpaid = AccountabilityRules.hoursSale(draft.copy(walkIn = false, customerId = "c1", hoursText = "2", paidNow = false), true)
-        assertNull((unpaid as FormCheck.Valid).value.amount)
+        assertEquals(listOf(PaymentPart(PaymentMethod.MOBILE_MONEY, "100".toBigDecimal(), "MP123")), v.payments)
+        // Bank and mobile money only when the tenant lets field staff record them.
+        assertEquals(listOf(AccountabilityMessages.NONCASH_OFF), (AccountabilityRules.hoursSale(paid, true) as FormCheck.Invalid).messages)
+        val unpaid = AccountabilityRules.hoursSale(draft.copy(walkIn = false, customerId = "c1", hoursText = "2", payments = emptyList()), true)
+        assertTrue((unpaid as FormCheck.Valid).value.payments.isEmpty())
     }
 
     @Test

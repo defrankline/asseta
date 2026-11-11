@@ -24,9 +24,22 @@ class HoursPricesSyncTest : SyncTestBase() {
     private val other = "c0000000-0000-4000-8000-000000000002"
     private val on = listOf(SyncCapabilities.SUPERVISOR_INBOX_V1, SyncCapabilities.SYNC_HOURS_PRICES)
 
-    private fun price(machine: String, rate: String, currency: String = "TZS") = buildJsonObject {
+    private fun price(machine: String, rate: String, currency: String = "TZS", minorUnits: Int? = 2) = buildJsonObject {
         put("machine_id", machine); put("rate_card_id", "e0000000-0000-4000-8000-000000000001"); put("hourly_rate", rate)
-        put("minimum_hours", "0.0000"); put("currency", currency); put("effective_from", "2026-01-01T00:00:00Z")
+        put("minimum_hours", "0.0000"); put("currency", currency); minorUnits?.let { put("minor_units", it) }
+        put("effective_from", "2026-01-01T00:00:00Z")
+    }
+
+    @Test
+    fun theServersMinorUnitsAreKeptAndAnOlderServerFallsBackToIso() {
+        fake.capabilities = on
+        fake.inbox = mapOf("hours_prices" to listOf(price(ex01, "33333.3333", minorUnits = 0), price(ex02, "33333.3333", "UGX", minorUnits = null)))
+        synced()
+        val book = book()
+        assertEquals(0, book.prices.getValue(ex01).minorUnits)
+        assertEquals(0, book.prices.getValue(ex02).minorUnits) // UGX from the ISO table
+        val q = (HoursPricing.price(book, ex01, null, walkIn = false, hoursText = "2.5") as HoursSalePrice.Priced).quote
+        assertEquals(BigDecimal("83333"), q.amount)
     }
 
     private fun discount(customer: String, percent: String) = buildJsonObject { put("customer_id", customer); put("percent", percent) }

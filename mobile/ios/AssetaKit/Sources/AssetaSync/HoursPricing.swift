@@ -2,18 +2,21 @@ import AssetaModel
 import AssetaStore
 import Foundation
 
-/// A machine's current hourly rate as the last pull delivered it (SYNC_HOURS_PRICES).
+/// A machine's current hourly rate as the last pull delivered it (SYNC_HOURS_PRICES). `minorUnits`: the decimal places the
+/// server rounds the currency to (`HoursPriceDto.minor_units`; the ISO table when an older server leaves it out).
 public struct HoursPrice: Sendable, Equatable {
     public let machineID: UUID
     public let hourlyRate: Decimal
     public let minimumHours: Decimal
     public let currency: String
+    public let minorUnits: Int
 
-    public init(machineID: UUID, hourlyRate: Decimal, minimumHours: Decimal, currency: String) {
+    public init(machineID: UUID, hourlyRate: Decimal, minimumHours: Decimal, currency: String, minorUnits: Int? = nil) {
         self.machineID = machineID
         self.hourlyRate = hourlyRate
         self.minimumHours = minimumHours
         self.currency = currency
+        self.minorUnits = minorUnits ?? HoursPricing.minorUnits(currency)
     }
 }
 
@@ -36,6 +39,7 @@ public struct HoursSaleQuote: Sendable, Equatable {
     public let effectiveRate: Decimal
     public let amount: Decimal
     public let currency: String
+    public let minorUnits: Int
 }
 
 /// What the hours sale form shows under Hours.
@@ -45,11 +49,14 @@ public enum HoursSalePrice: Sendable, Equatable {
     /// The machine has no price on this phone: the office prices the sale when it arrives.
     case unpriced
     case priced(HoursSaleQuote)
+
+    var quote: HoursSaleQuote? { if case let .priced(q) = self { q } else { nil } }
 }
 
 /// The server's price rule for an hours sale, applied on the phone so the total shows offline (same rules as Android
 /// `HoursPricing`): effective rate = hourly rate x (100 - discount) / 100, rounded to 4 decimals (half-even); total =
-/// hours x effective rate, rounded half-up to the currency's minor units. A walk-in has no discount.
+/// hours x effective rate, rounded half-up to the currency's minor units (the server's, sent with the price). A walk-in
+/// has no discount.
 public enum HoursPricing {
     /// `sync_entity.entity_type` of the two snapshots.
     public static let priceType = "hours_price"
@@ -59,7 +66,7 @@ public enum HoursPricing {
                                             "VUV", "XAF", "XOF", "XPF"]
     static let threeDecimals: Set<String> = ["BHD", "IQD", "JOD", "KWD", "LYD", "OMR", "TND"]
 
-    /// ISO 4217 minor units (TZS 2, UGX 0, KWD 3); 2 for a code not listed, as the server's default.
+    /// Fallback when the server did not send `minor_units`: ISO 4217 (TZS 2, UGX 0, KWD 3); 2 for a code not listed.
     public static func minorUnits(_ currency: String) -> Int {
         let code = currency.trimmingCharacters(in: .whitespaces).uppercased()
         if zeroDecimals.contains(code) { return 0 }
@@ -78,11 +85,13 @@ public enum HoursPricing {
         rounded(hourlyRate * (100 - discountPercent) / 100, 4, .bankers)
     }
 
-    public static func quote(hours: Decimal, hourlyRate: Decimal, discountPercent: Decimal, currency: String) -> HoursSaleQuote {
+    public static func quote(hours: Decimal, hourlyRate: Decimal, discountPercent: Decimal, currency: String,
+                             minorUnits: Int? = nil) -> HoursSaleQuote {
+        let units = min(max(minorUnits ?? Self.minorUnits(currency), 0), 6)
         let effective = effectiveRate(hourlyRate, discountPercent: discountPercent)
-        let amount = rounded(hours * effective, minorUnits(currency), .plain)
+        let amount = rounded(hours * effective, units, .plain)
         return HoursSaleQuote(hours: hours, hourlyRate: hourlyRate, discountPercent: discountPercent, effectiveRate: effective,
-                              amount: amount, currency: currency)
+                              amount: amount, currency: currency, minorUnits: units)
     }
 
     /// The form's price line: hidden until a machine and hours are entered; `walkIn` sales get no discount.
@@ -91,16 +100,17 @@ public enum HoursPricing {
         guard let hours = AccountabilityRules.saleHours(hoursText), hours > 0 else { return .hidden }
         guard let price = book.prices[machineID] else { return .unpriced }
         let discount = walkIn ? 0 : customerID.flatMap { book.discounts[$0] } ?? 0
-        return .priced(quote(hours: hours, hourlyRate: price.hourlyRate, discountPercent: max(discount, 0), currency: price.currency))
+        return .priced(quote(hours: hours, hourlyRate: price.hourlyRate, discountPercent: max(discount, 0), currency: price.currency,
+                             minorUnits: price.minorUnits))
     }
 
-    /// "TZS 570,000"; "USD 12.50" when there are cents (the currency's minor units).
-    public static func money(_ amount: Decimal, currency: String) -> String {
-        let digits = rounded(amount, 0, .plain) == amount ? 0 : minorUnits(currency)
+    /// "TZS 570,000"; "USD 12.50" when there are cents (`minorUnits` decimals).
+    public static func money(_ amount: Decimal, currency: String, minorUnits: Int? = nil) -> String {
+        let digits = rounded(amount, 0, .plain) == amount ? 0 : (minorUnits ?? Self.minorUnits(currency))
         return "\(currency) \(number(rounded(amount, digits, .plain), digits...digits))"
     }
 
-    /// An hourly rate: grouping, up to 4 decimals ("95,000", "85,500.5").
+    /// An hourly rate or an amount without its currency: grouping, up to 4 decimals ("95,000", "85,500.5").
     public static func rate(_ value: Decimal) -> String { number(value, 0...4) }
 
     /// Hours or a percent: grouping, up to 2 decimals ("6", "12.5").
@@ -119,7 +129,7 @@ public enum HoursPricing {
         var book = HoursPriceBook()
         for p in rows(priceType, HoursPriceDTO.self) {
             book.prices[p.machineID] = HoursPrice(machineID: p.machineID, hourlyRate: p.hourlyRate.value,
-                                                  minimumHours: p.minimumHours.value, currency: p.currency)
+                                                  minimumHours: p.minimumHours.value, currency: p.currency, minorUnits: p.minorUnits)
         }
         for d in rows(discountType, CustomerDiscountRateDTO.self) { book.discounts[d.customerID] = d.percent.value }
         return book
@@ -129,4 +139,57 @@ public enum HoursPricing {
 extension FieldDirectory {
     /// Machine rates and customer discounts of the last pull (SYNC_HOURS_PRICES), for the hours sale total offline.
     public func hoursPrices() -> HoursPriceBook { HoursPricing.load(store: store, tenantID: tenantID) }
+}
+
+// MARK: - Payment lines
+
+/// Where the payment lines of a sale stand against its offline total.
+public enum PaymentStatus: Sendable, Equatable {
+    case notPaid
+    case fullyPaid
+    case partPaid(balance: Decimal)
+    /// The parts add up to more than the total: saving is blocked.
+    case overTotal
+    /// Paid something, but the total is not known on this phone (the office prices the sale).
+    case noTotal
+}
+
+/// What is paid so far, the total when known, and the status.
+public struct PaymentSummary: Sendable, Equatable {
+    public let paid: Decimal
+    public let quote: HoursSaleQuote?
+    public let status: PaymentStatus
+    public var balance: Decimal? { quote.map { max($0.amount - paid, 0) } }
+}
+
+/// Payment lines of an hours sale (same rules as Android `HoursPayments`).
+public enum HoursPayments {
+    /// `HoursPurchaseIn.payments` takes at most 10 parts.
+    public static let max = 10
+
+    /// The lines' valid amounts added up (a line without a valid amount counts as nothing yet).
+    public static func paid(_ lines: [PaymentLine]) -> Decimal {
+        lines.reduce(0) { $0 + (AccountabilityRules.value($1.amountText, decimals: AccountabilityRules.moneyDecimals) ?? 0) }
+    }
+
+    public static func summary(_ lines: [PaymentLine], price: HoursSalePrice) -> PaymentSummary {
+        let paid = paid(lines)
+        let quote = price.quote
+        let status: PaymentStatus
+        if paid == 0 {
+            status = .notPaid
+        } else if let quote {
+            status = paid > quote.amount ? .overTotal : paid == quote.amount ? .fullyPaid : .partPaid(balance: quote.amount - paid)
+        } else {
+            status = .noTotal
+        }
+        return PaymentSummary(paid: paid, quote: quote, status: status)
+    }
+
+    /// A new line: `method`, with its amount set to what is still owed when the total is known (empty otherwise). The
+    /// amount is filled once, when the line is added; typed values are never changed afterwards.
+    public static func newLine(_ lines: [PaymentLine], price: HoursSalePrice, method: String = "CASH") -> PaymentLine {
+        let balance = summary(lines, price: price).balance.flatMap { $0 > 0 ? $0 : nil }
+        return PaymentLine(method: method, amountText: balance.map(AccountabilityRules.plain) ?? "", reference: "")
+    }
 }

@@ -58,7 +58,63 @@ public enum FieldAccountabilityTexts {
     /// (field.hours.total, field.hours.totalDiscount).
     public static func hoursTotal(_ q: HoursSaleQuote) -> String {
         let discount = q.discountPercent > 0 ? " less \(HoursPricing.figure(q.discountPercent))% discount" : ""
-        return "Total: \(HoursPricing.money(q.amount, currency: q.currency)) (\(HoursPricing.figure(q.hours)) h × \(HoursPricing.rate(q.hourlyRate))/h\(discount))"
+        return "Total: \(money(q.amount, q)) (\(HoursPricing.figure(q.hours)) h × \(HoursPricing.rate(q.hourlyRate))/h\(discount))"
+    }
+
+    private static func money(_ amount: Decimal, _ q: HoursSaleQuote) -> String {
+        HoursPricing.money(amount, currency: q.currency, minorUnits: q.minorUnits)
+    }
+
+    // Payment lines
+    public static let hoursAddPayment = "Add payment" // field.hours.addPayment
+    public static let hoursRemovePayment = "Remove payment" // field.hours.removePayment
+    public static let hoursMethod = "Method" // field.hours.method
+    public static let hoursNoncashByOffice = "Bank and mobile-money payments are recorded by the office." // field.hours.noncashByOffice
+    public static let hoursPhotosOnePayment = "Payment photos go with a single payment." // field.hours.photosOnePayment
+    public static let hoursFullyPaid = "Fully paid" // field.hours.fullyPaid
+    public static func hoursPaymentNumber(_ n: Int) -> String { "Payment \(n)" } // field.hours.paymentNumber
+    public static func hoursPartPaid(_ balance: String) -> String { "Part paid (balance \(balance))" } // field.hours.partPaid
+    public static let hoursErrNoncashOff = "Bank and mobile-money payments are recorded by the office." // field.hours.errNoncashOff
+    public static let hoursErrTooManyPayments = "At most 10 payments per sale." // field.hours.errTooManyPayments
+    public static let hoursErrPhotosSplit = "Payment photos go with a single payment. Remove the photos or keep one payment." // field.hours.errPhotosSplit
+    public static func hoursErrPaymentsExceed(_ total: String) -> String { "The payments add up to more than the total of \(total)." } // field.hours.errPaymentsExceed
+
+    /// The lines under the payments: "Paid TZS 300,000 of TZS 570,000 · Balance TZS 270,000", then the status.
+    public static func hoursPaymentSummary(_ s: PaymentSummary) -> [String] {
+        var out: [String] = []
+        if let q = s.quote, let balance = s.balance {
+            out.append("Paid \(money(s.paid, q)) of \(money(q.amount, q)) · Balance \(money(balance, q))")
+        } else if s.paid > 0 {
+            out.append("Paid \(HoursPricing.rate(s.paid))")
+        }
+        switch s.status {
+        case .notPaid: out.append(hoursNotPaid)
+        case .fullyPaid: out.append(hoursFullyPaid)
+        case let .partPaid(balance): if let q = s.quote { out.append(hoursPartPaid(money(balance, q))) }
+        case .overTotal: if let q = s.quote { out.append(hoursErrPaymentsExceed(money(q.amount, q))) }
+        case .noTotal: break
+        }
+        return out
+    }
+
+    /// The sale on the sync status screen: "Hours sale · Cash 300,000 + Bank 270,000" (or "· Not paid yet").
+    public static func hoursSaleOutbox(_ payload: JSONValue?) -> String {
+        guard let payload else { return outboxHoursSale }
+        let parts: [JSONValue]
+        if case let .array(list)? = payload["payments"] {
+            parts = list
+        } else if let one = payload["payment"], one != .null {
+            parts = [one]
+        } else {
+            parts = []
+        }
+        if parts.isEmpty { return "\(outboxHoursSale) · \(hoursNotPaid)" }
+        return "\(outboxHoursSale) · " + parts.map { p in
+            let wire = p["method"]?.stringValue ?? ""
+            let method = paymentMethods.first { $0.wire == wire }?.label ?? wire
+            let amount = p["amount"]?.stringValue.flatMap { DecimalString(string: $0)?.value }.map { " " + HoursPricing.rate($0) } ?? ""
+            return method + amount
+        }.joined(separator: " + ")
     }
 
     /// The line under Hours: the total, the "priced at the office" notice, or nothing yet.
@@ -70,7 +126,6 @@ public enum FieldAccountabilityTexts {
         }
     }
     public static let hoursSectionPayment = "Payment"
-    public static let hoursPaidNow = "Paid now"
     public static let hoursNotPaid = "Not paid yet"
     public static let hoursMethodCash = "Cash"
     public static let hoursMethodBank = "Bank"
@@ -367,7 +422,7 @@ public enum FieldAccountabilityTexts {
     /// Outbox title of an accountability operation (nil for other operations).
     public static func operationTitle(_ type: OperationType, payload: JSONValue?) -> String? {
         switch type {
-        case .hoursPurchase: outboxHoursSale
+        case .hoursPurchase: hoursSaleOutbox(payload)
         case .hoursTransferRequest: outboxHoursTransfer
         case .cashTransfer: outboxCashTransfer
         case .cashTransferAcknowledgement: outboxTransferAck

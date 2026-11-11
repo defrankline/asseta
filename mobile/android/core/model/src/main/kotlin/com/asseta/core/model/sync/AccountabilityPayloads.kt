@@ -73,6 +73,12 @@ data class HoursPurchasePayload(
     @SerialName("job_site_id") val jobSiteId: String? = null,
     val note: String? = null,
     val payment: PurchasePaymentPayload? = null,
+    /**
+     * A bill split across methods (two or more parts, each with its amount; at most 10). Sent instead of [payment], never
+     * with it; null (omitted) otherwise. The server keys part n's payment uuid5(client_id, "payment-n"), the first
+     * "payment", so a replay stays exactly-once.
+     */
+    val payments: List<PurchasePaymentPayload>? = null,
     /** Completed blob upload ids (purpose PAYMENT_EVIDENCE), appended as each evidence photo finishes uploading. */
     @SerialName("evidence_upload_ids") val evidenceUploadIds: List<String> = emptyList(),
 )

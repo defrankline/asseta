@@ -45,8 +45,11 @@ struct HoursSaleFormView: View {
 
     var body: some View {
         let a = model.access
-        let check = AccountabilityRules.hoursSale(draft, walkInAllowed: a.walkIn)
         let prices = model.hoursPrices
+        let price = HoursPricing.price(prices, machineID: draft.machineID, customerID: draft.customerID, walkIn: draft.walkIn,
+                                       hoursText: draft.hoursText)
+        let check = AccountabilityRules.hoursSale(draft, walkInAllowed: a.walkIn, noncashAllowed: a.noncashPayments, price: price,
+                                                  photos: photos.count)
         NavigationStack {
             Form {
                 if !a.sellHours {
@@ -72,36 +75,55 @@ struct HoursSaleFormView: View {
                                               identifier: "hours.machine")
                         TextField(T.hoursHours, text: $draft.hoursText).keyboardType(.decimalPad)
                             .font(.title3.monospacedDigit()).accessibilityIdentifier("hours.hours")
-                        if let line = T.hoursPrice(HoursPricing.price(prices, machineID: draft.machineID, customerID: draft.customerID,
-                                                                      walkIn: draft.walkIn, hoursText: draft.hoursText)) {
+                        if let line = T.hoursPrice(price) {
                             Text(line).font(.body).accessibilityIdentifier("hours.total")
                         }
                         TextField(T.noteOptional, text: $draft.note, axis: .vertical)
                     } header: { Text(T.hoursSectionHours) } footer: { Text(T.hoursHoursFooter) }
                     Section {
-                        Picker(T.hoursSectionPayment, selection: $draft.paidNow) {
-                            Text(T.hoursPaidNow).tag(true)
-                            Text(T.hoursNotPaid).tag(false)
-                        }.pickerStyle(.segmented)
-                        if draft.paidNow {
-                            Picker(T.hoursSectionPayment, selection: $draft.method) {
-                                ForEach(T.paymentMethods, id: \.wire) { Text($0.label).tag($0.wire) }
-                            }.pickerStyle(.segmented)
-                            TextField(T.hoursAmountReceived, text: $draft.amountText).keyboardType(.decimalPad)
-                                .font(.title3.monospacedDigit()).accessibilityIdentifier("hours.amount")
-                            if draft.method != "CASH" { TextField(T.hoursReference, text: $draft.reference) }
+                        ForEach(Array(draft.payments.enumerated()), id: \.element.id) { index, _ in
+                            Text(T.hoursPaymentNumber(index + 1)).font(.subheadline.weight(.semibold))
+                            if a.saleMethods.count > 1 {
+                                Picker(T.hoursMethod, selection: $draft.payments[index].method) {
+                                    ForEach(T.paymentMethods.filter { a.saleMethods.contains($0.wire) }, id: \.wire) { Text($0.label).tag($0.wire) }
+                                }.pickerStyle(.segmented)
+                            }
+                            TextField(T.hoursAmountReceived, text: $draft.payments[index].amountText).keyboardType(.decimalPad)
+                                .font(.title3.monospacedDigit()).accessibilityIdentifier("hours.amount.\(index)")
+                            if draft.payments[index].method != "CASH" {
+                                TextField(T.hoursReference, text: $draft.payments[index].reference)
+                            }
+                            Button(T.hoursRemovePayment, role: .destructive) { draft.payments.remove(at: index) }
+                        }
+                        if draft.payments.count < HoursPayments.max {
+                            Button(T.hoursAddPayment, systemImage: "plus") {
+                                // The amount is filled once, with what is still owed; typed values are never changed.
+                                draft.payments.append(HoursPayments.newLine(draft.payments, price: price))
+                            }.accessibilityIdentifier("hours.addPayment")
+                        }
+                        ForEach(T.hoursPaymentSummary(HoursPayments.summary(draft.payments, price: price)), id: \.self) { line in
+                            Text(line).font(.body).accessibilityIdentifier("hours.paid")
+                        }
+                        if !draft.payments.isEmpty {
                             DatePicker(T.hoursReceived, selection: $receivedAt, in: ...Date())
-                            if draft.method == "CASH" && a.recordForOthers {
+                            if draft.payments.contains(where: { $0.method == "CASH" }) && a.recordForOthers {
                                 SearchablePickerField(label: T.cashHolder, options: model.custodianOptions(),
                                                       selection: Binding(get: { holderID ?? model.myStaffID }, set: { holderID = $0 }),
                                                       emptyMessage: T.cashTransferCustodiansEmpty, identifier: "hours.holder")
                             }
                         }
                     } header: { Text(T.hoursSectionPayment) } footer: {
-                        Text(draft.paidNow ? T.hoursPaymentFooter : T.hoursNotPaidFooter)
+                        Text([draft.payments.isEmpty ? T.hoursNotPaidFooter : T.hoursPaymentFooter,
+                              a.noncashPayments ? nil : T.hoursNoncashByOffice].compactMap { $0 }.joined(separator: " "))
                     }
-                    if draft.paidNow {
-                        EvidencePhotosSection(model: model, photos: $photos, error: $error)
+                    // Photos go with a single payment (the server attaches them to it); with a split bill they can only be removed.
+                    if draft.payments.count == 1 || !photos.isEmpty {
+                        EvidencePhotosSection(model: model, photos: $photos, error: $error,
+                                              footer: draft.payments.count == 1 ? T.hoursEvidenceFooter : T.hoursPhotosOnePayment,
+                                              canAdd: draft.payments.count == 1)
+                    }
+                    if case let .failure(problems) = check, problems.messages.contains(T.hoursErrPhotosSplit) {
+                        Text(T.hoursErrPhotosSplit).foregroundStyle(.red)
                     }
                 }
             }
@@ -131,10 +153,9 @@ struct HoursSaleFormView: View {
         do {
             try model.perform {
                 try $0.recordHoursSale(draft, walkInAllowed: a.walkIn, cashHolderID: holder,
-                                       evidence: draft.paidNow ? photos.map(\.evidence) : [], receivedAt: min(receivedAt, Date()),
-                                       clientID: clientID)
+                                       evidence: photos.map(\.evidence), receivedAt: min(receivedAt, Date()),
+                                       clientID: clientID, noncashAllowed: a.noncashPayments)
             }
-            if !draft.paidNow { discardPhotos() }
             photos = [] // now owned by the queued sale
             dismiss()
         } catch {
@@ -154,6 +175,8 @@ struct EvidencePhotosSection: View {
     var photograph = T.hoursPhotograph
     var addPhoto = T.hoursAddPhoto
     var removeLabel = "Remove"
+    /// False: the photos can only be removed (an hours sale split across payments takes none).
+    var canAdd = true
     @State private var showCamera = false
     @State private var cameraDenied = false
     @Environment(\.openURL) private var openURL
@@ -170,7 +193,7 @@ struct EvidencePhotosSection: View {
                     Button(removeLabel, role: .destructive) { remove(index) }.buttonStyle(.borderless)
                 }
             }
-            if photos.count < AccountabilityRules.maxEvidence {
+            if canAdd && photos.count < AccountabilityRules.maxEvidence {
                 Button(photos.isEmpty ? photograph : addPhoto, systemImage: "camera") {
                     Task { if await CameraAccess.request() { showCamera = true } else { cameraDenied = true } }
                 }

@@ -30,9 +30,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.asseta.core.domain.accountability.AccountabilityRules
 import com.asseta.core.domain.accountability.FieldAccess
+import com.asseta.core.domain.accountability.AccountabilityMessages
+import com.asseta.core.domain.accountability.HoursPayments
 import com.asseta.core.domain.accountability.HoursPriceBook
 import com.asseta.core.domain.accountability.HoursPricing
 import com.asseta.core.domain.accountability.HoursSaleDraft
+import com.asseta.core.domain.accountability.PaymentLine
 import com.asseta.core.domain.accountability.PaymentMethod
 import com.asseta.core.domain.finance.FormCheck
 import com.asseta.core.model.sync.CustodianDto
@@ -133,16 +136,16 @@ data class HoursSaleForm(
     val walkInPhone: String = "",
     val machineId: String? = null,
     val hours: String = "",
-    val paidNow: Boolean = true,
-    val method: PaymentMethod = PaymentMethod.CASH,
-    val amount: String = "",
-    val reference: String = "",
+    /** Payment lines as typed; none = not paid yet. */
+    val payments: List<PaymentLine> = emptyList(),
     val note: String = "",
     val holderId: String? = null,
     val atMs: Long = 0,
     val photos: List<CapturedPhoto> = emptyList(),
 ) {
-    fun draft() = HoursSaleDraft(walkIn, customerId, walkInName, walkInPhone, machineId, hours, paidNow, method, amount, reference, note)
+    fun draft() = HoursSaleDraft(walkIn, customerId, walkInName, walkInPhone, machineId, hours, payments, note)
+
+    fun line(index: Int, change: (PaymentLine) -> PaymentLine) = copy(payments = payments.mapIndexed { i, l -> if (i == index) change(l) else l })
 }
 
 class HoursSaleViewModel(field: FieldGraph, tenantId: String, permissions: Set<String>) : AccountabilityFormViewModel(field, tenantId, permissions) {
@@ -164,6 +167,15 @@ class HoursSaleViewModel(field: FieldGraph, tenantId: String, permissions: Set<S
 
     fun onPhotoError(message: String) = _save.update { it.copy(messages = listOf("The photo could not be saved: $message")) }
 
+    /** A new payment line: cash, its amount set once to what is still owed (when the total is known). */
+    fun addPayment() = edit { f ->
+        if (f.payments.size >= HoursPayments.MAX) return@edit f
+        val price = HoursPricing.price(prices.value, f.machineId, f.customerId, f.walkIn, f.hours)
+        f.copy(payments = f.payments + HoursPayments.newLine(f.payments, price))
+    }
+
+    fun removePayment(index: Int) = edit { f -> f.copy(payments = f.payments.filterIndexed { i, _ -> i != index }) }
+
     fun save() {
         if (saving()) return
         val f = form.value
@@ -174,6 +186,7 @@ class HoursSaleViewModel(field: FieldGraph, tenantId: String, permissions: Set<S
                     tenantId, clientId, f.draft(), walkInAllowed = a?.walkIn == true,
                     cashHolderId = f.holderId?.takeIf { a?.recordForOthers == true && it != me.value },
                     receivedAtMs = f.atMs.coerceAtMost(field.clock.nowMs()), evidenceJpegs = f.photos.map { it.jpeg },
+                    noncashAllowed = a?.noncashPayments == true,
                 ),
             )
             _save.update { it.after(result) }
@@ -194,7 +207,8 @@ fun HoursSaleScreen(vm: HoursSaleViewModel, onDone: () -> Unit) {
     val a = access ?: return
     val editable = !save.saving && !save.saved
     val now = System.currentTimeMillis()
-    val priceLine = T.hoursPrice(HoursPricing.price(prices, form.machineId, form.customerId, form.walkIn, form.hours))
+    val price = HoursPricing.price(prices, form.machineId, form.customerId, form.walkIn, form.hours)
+    val priceLine = T.hoursPrice(price)
     FormColumn {
         if (!a.sellHours) {
             NoticeCard(T.TITLE_HOURS_SALE, if (a.hours == null) T.NEEDS_RULES else T.HOURS_OFF, isError = true)
@@ -215,24 +229,43 @@ fun HoursSaleScreen(vm: HoursSaleViewModel, onDone: () -> Unit) {
             priceLine?.let { Text(it, style = MaterialTheme.typography.bodyLarge) }
             TextInput(T.NOTE_OPTIONAL, form.note, { v -> vm.edit { it.copy(note = v) } }, editable, singleLine = false)
         }
-        Section(T.SECTION_PAYMENT, footer = if (form.paidNow) T.PAYMENT_FOOTER else T.NOT_PAID_FOOTER) {
-            SegmentedChoice(listOf(true, false), form.paidNow, { if (it) T.PAID_NOW else T.NOT_PAID }, { p -> vm.edit { it.copy(paidNow = p) } }, editable)
-            if (form.paidNow) {
-                SegmentedChoice(PaymentMethod.entries, form.method, T::method, { m -> vm.edit { it.copy(method = m) } }, editable)
-                DecimalField(T.AMOUNT_RECEIVED, form.amount, { v -> vm.edit { it.copy(amount = v) } }, editable)
-                if (form.method != PaymentMethod.CASH) TextInput(T.REFERENCE, form.reference, { v -> vm.edit { it.copy(reference = v) } }, editable)
+        val paymentFooter = listOfNotNull(
+            if (form.payments.isEmpty()) T.NOT_PAID_FOOTER else T.PAYMENT_FOOTER,
+            T.NONCASH_BY_OFFICE.takeIf { !a.noncashPayments },
+        ).joinToString(" ")
+        Section(T.SECTION_PAYMENT, footer = paymentFooter) {
+            form.payments.forEachIndexed { index, line ->
+                Text(T.paymentNumber(index + 1), style = MaterialTheme.typography.titleSmall)
+                if (a.saleMethods.size > 1) {
+                    SegmentedChoice(a.saleMethods, line.method, T::method, { m -> vm.edit { it.line(index) { l -> l.copy(method = m) } } }, editable)
+                }
+                DecimalField(T.AMOUNT_RECEIVED, line.amountText, { v -> vm.edit { it.line(index) { l -> l.copy(amountText = v) } } }, editable)
+                if (line.method != PaymentMethod.CASH) {
+                    TextInput(T.REFERENCE, line.reference, { v -> vm.edit { it.line(index) { l -> l.copy(reference = v) } } }, editable)
+                }
+                if (editable) TextButton(onClick = { vm.removePayment(index) }) { Text(T.REMOVE_PAYMENT, color = palette.offline) }
+            }
+            if (editable && form.payments.size < HoursPayments.MAX) OutlinedButton(onClick = vm::addPayment) { Text(T.ADD_PAYMENT) }
+            T.paymentSummary(HoursPayments.summary(form.payments, price)).forEach { line ->
+                Text(line, style = MaterialTheme.typography.bodyLarge)
+            }
+            if (form.payments.isNotEmpty()) {
                 DateTimeField(T.RECEIVED, form.atMs, { v -> vm.edit { it.copy(atMs = v) } }, editable, notAfter = now)
-                if (form.method == PaymentMethod.CASH && a.recordForOthers) {
+                if (form.payments.any { it.method == PaymentMethod.CASH } && a.recordForOthers) {
                     SearchablePickerField(T.CASH_HOLDER, custodianOptions(cache.custodians, me), form.holderId ?: me, { id -> vm.edit { it.copy(holderId = id) } },
                         emptyText = T.CUSTODIANS_EMPTY, enabled = editable)
                 }
             }
         }
-        if (form.paidNow) {
+        // Photos go with a single payment (the server attaches them to it); with a split bill they can only be removed.
+        if (form.payments.size == 1 || form.photos.isNotEmpty()) {
             EvidencePhotos(form.photos, { p -> vm.edit { it.copy(photos = it.photos + p) } }, { i -> vm.edit { it.copy(photos = it.photos.filterIndexed { j, _ -> j != i }) } },
-                vm::onPhotoError, editable)
+                vm::onPhotoError, editable, canAdd = form.payments.size == 1,
+                footer = if (form.payments.size == 1) T.EVIDENCE_FOOTER else T.PHOTOS_ONE_PAYMENT)
         }
-        val check = AccountabilityRules.hoursSale(form.draft(), a.walkIn)
+        val check = AccountabilityRules.hoursSale(form.draft(), a.walkIn, a.noncashPayments, price, form.photos.size)
+        // Why Save stays off when it is not obvious from the form (the over-total status shows under the payments).
+        (check as? FormCheck.Invalid)?.messages?.filter { it == AccountabilityMessages.PHOTOS_SPLIT }?.forEach { Text(it, color = palette.offline) }
         SaveSection(save, vm::save, onDone, enabled = check is FormCheck.Valid)
     }
 }
@@ -245,6 +278,7 @@ fun EvidencePhotos(
     onRemove: (Int) -> Unit,
     onError: (String) -> Unit,
     enabled: Boolean,
+    canAdd: Boolean = true,
     title: String = T.EVIDENCE,
     footer: String = T.EVIDENCE_FOOTER,
     photograph: String = T.PHOTOGRAPH,
@@ -263,7 +297,7 @@ fun EvidencePhotos(
             }
         }
         when {
-            !enabled -> Unit
+            !enabled || !canAdd -> Unit
             open && !granted -> PermissionRationale(
                 title = "Camera",
                 rationale = footer,

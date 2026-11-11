@@ -11,6 +11,8 @@ data class HoursPriceDto(
     @SerialName("hourly_rate") val hourlyRate: String,
     @SerialName("minimum_hours") val minimumHours: String,
     val currency: String,
+    /** Decimal places the server rounds the total to; null from a server before it was sent (ISO fallback). */
+    @SerialName("minor_units") val minorUnits: Int? = null,
     @SerialName("effective_from") val effectiveFrom: String,
 )
 
