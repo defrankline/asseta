@@ -169,6 +169,11 @@ sealed interface Route {
     data class PettyCashHolderChange(val changeId: String) : Route
     data class PettyCashAdvance(val advanceId: String) : Route
     data class PettyCashGiveAdvance(val fundId: String) : Route
+
+    /** Customers (online): list, one customer, add ([customerId] null) or edit its details. */
+    data object Customers : Route
+    data class CustomerDetail(val customerId: String) : Route
+    data class CustomerForm(val customerId: String?) : Route
 }
 
 val SupervisorTab.root: Route
@@ -231,6 +236,9 @@ fun Route.title(companyName: String): String = when (this) {
     is Route.PettyCashHolderChange -> com.asseta.supervisor.ui.pettycash.PettyCashTexts.TITLE_HOLDER_CHANGE
     is Route.PettyCashAdvance -> com.asseta.supervisor.ui.pettycash.PettyCashTexts.TITLE_ADVANCE
     is Route.PettyCashGiveAdvance -> com.asseta.supervisor.ui.pettycash.PettyCashTexts.TITLE_GIVE_ADVANCE
+    Route.Customers -> com.asseta.supervisor.ui.customers.CustomerTexts.TITLE
+    is Route.CustomerDetail -> com.asseta.supervisor.ui.customers.CustomerTexts.TITLE_DETAIL
+    is Route.CustomerForm -> if (customerId == null) com.asseta.supervisor.ui.customers.CustomerTexts.TITLE_ADD else com.asseta.supervisor.ui.customers.CustomerTexts.TITLE_EDIT
 }
 
 /** Routes the iOS app presents as sheets (Cancel / Save in the navigation bar, no tab bar). */
@@ -241,7 +249,7 @@ val Route.isForm: Boolean
         this is Route.DailyReading || this is Route.Baseline || this is Route.Correction || this is Route.ExplainNonRevenue ||
         this is Route.DailyReportForm || this is Route.Changeover || this is Route.PettyCashAck || this is Route.PettyCashTopUp ||
         this is Route.PettyCashReturn || this is Route.PettyCashCount || this is Route.PettyCashHolderChange || this is Route.PettyCashAdvance ||
-        this is Route.PettyCashGiveAdvance
+        this is Route.PettyCashGiveAdvance || this is Route.CustomerForm
 
 /** Back stacks of the five tabs; selecting the current tab again returns to its first screen (as on iOS). */
 data class TabStacks(val tab: SupervisorTab = SupervisorTab.JOBS, val stacks: Map<SupervisorTab, List<Route>> = SupervisorTab.entries.associateWith { listOf(it.root) }) {
@@ -736,6 +744,21 @@ private fun RouteContent(
             com.asseta.supervisor.ui.pettycash.PettyCashGiveAdvanceScreen(
                 viewModel(key = "petty-give-advance-$visit") { com.asseta.supervisor.ui.pettycash.PettyCashGiveAdvanceViewModel(field, tenantId, route.fundId, permissions) },
                 access, onDone = pop,
+            )
+        }
+        Route.Customers -> com.asseta.supervisor.ui.customers.CustomersScreen(
+            viewModel(key = "customers-$scope") { com.asseta.supervisor.ui.customers.CustomersViewModel(field, tenantId) },
+            canEdit = com.asseta.core.domain.customers.CustomerRules.canEdit(permissions), onRoute = push,
+        )
+        is Route.CustomerDetail -> com.asseta.supervisor.ui.customers.CustomerDetailScreen(
+            viewModel(key = "customer-$scope-${route.customerId}") { com.asseta.supervisor.ui.customers.CustomerDetailViewModel(field, tenantId, route.customerId) },
+            permissions, onRoute = push,
+        )
+        is Route.CustomerForm -> {
+            val visit = remember(route) { System.nanoTime() }
+            com.asseta.supervisor.ui.customers.CustomerFormScreen(
+                viewModel(key = "customer-form-$visit") { com.asseta.supervisor.ui.customers.CustomerFormViewModel(field, tenantId, route.customerId, permissions) },
+                onDone = pop,
             )
         }
         is Route.NotificationDetail -> {

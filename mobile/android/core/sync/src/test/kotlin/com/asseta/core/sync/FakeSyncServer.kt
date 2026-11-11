@@ -112,9 +112,14 @@ class FakeSyncServer(private val now: () -> Instant) : Dispatcher() {
             request.method == "POST" && path == "/api/v1/sync/blobs" -> startBlob(Json.parseToJsonElement(body.decodeToString()).jsonObject)
             request.method == "PUT" && path.contains("/chunks/") -> putChunk(path, body)
             request.method == "POST" && path.endsWith("/complete") -> complete(path)
-            else -> error(404, "NOT_FOUND", "no route $path")
+            else -> tenantRoute(request.method ?: "GET", path, request.url.query, body.decodeToString()) ?: error(404, "NOT_FOUND", "no route $path")
         }
     }
+
+    /** Tenant API routes a test answers itself (method, path, query, body); null = 404. */
+    var tenantRoute: (method: String, path: String, query: String?, body: String) -> MockResponse? = { _, _, _, _ -> null }
+
+    fun json(body: String, code: Int = 200) = MockResponse(code = code, body = body)
 
     private fun ok(json: JsonElement, code: Int = 200) = MockResponse(code = code, body = json.toString())
 

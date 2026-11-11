@@ -849,4 +849,25 @@ interface TenantApi {
     /** decidePettyCashAdjustment (tenant.pettycash.approve; never the proposer or the fund's holder). */
     @POST("api/v1/tenant/petty-cash/adjustments/{id}/decision")
     suspend fun decidePettyCashAdjustment(@Path("id") id: String, @Body body: com.asseta.core.model.owner.PettyCashDecisionIn): com.asseta.core.model.owner.PettyCashAdjustmentReviewDto
+
+    // --- Supervisor customers (tenant.customer.details / tenant.customer.write) ---------------------------------------
+
+    /** listCustomers: active customers, searchable by name or code. */
+    @GET("api/v1/tenant/customers")
+    suspend fun fieldCustomers(
+        @Query("q") q: String? = null,
+        @Query("page") page: Int = 1,
+        @Query("page_size") pageSize: Int = 50,
+    ): PageDto<com.asseta.core.model.sync.FieldCustomerDto>
+
+    @GET("api/v1/tenant/customers/{id}")
+    suspend fun fieldCustomer(@Path("id") id: String): com.asseta.core.model.sync.FieldCustomerDto
+
+    /** createCustomer (payment terms stay at their default without tenant.customer.write). */
+    @POST("api/v1/tenant/customers")
+    suspend fun createCustomer(@Body body: com.asseta.core.model.sync.CustomerWriteIn): com.asseta.core.model.sync.FieldCustomerDto
+
+    /** updateCustomer with the version last read (STALE_VERSION when someone else changed it). */
+    @PUT("api/v1/tenant/customers/{id}")
+    suspend fun updateCustomer(@Path("id") id: String, @Body body: com.asseta.core.model.sync.CustomerWriteIn): com.asseta.core.model.sync.FieldCustomerDto
 }

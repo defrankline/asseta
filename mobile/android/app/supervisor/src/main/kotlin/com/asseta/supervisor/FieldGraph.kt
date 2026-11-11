@@ -124,6 +124,9 @@ class FieldGraph(context: Context, val container: AssetaAppContainer) {
     val pettyCash = com.asseta.core.sync.data.PettyCashRepository(db, repository, json)
     val pettyCashCapture = com.asseta.core.sync.usecase.PettyCashCapture(db, outbox, evidence, json) { scheduler.syncNow() }
 
+    /** Customers the supervisor adds or edits (online only); what it reads or saves also reaches the pickers. */
+    val customers = com.asseta.core.sync.data.FieldCustomers({ tenantApi }, db, json)
+
     /** Daily operational reports (DEC-032 A4): queued offline, read online and saved encrypted. */
     val dailyReportCapture = DailyReportCapture(db, repository, outbox, evidence, json) { scheduler.syncNow() }
     val dailyReports = DailyReportData({ tenantApi }, db, json, account)

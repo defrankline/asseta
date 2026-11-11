@@ -2362,3 +2362,63 @@ Screens per app:
 | owner.pettyCash.rejected | Request rejected. |
 | owner.pettyCash.own | You proposed this, so someone else must approve or reject it. |
 | owner.pettyCash.alreadyDecided | Someone already decided this. Reload to see it. |
+
+## Supervisor — customers (add and edit details)
+
+Supervisors add customers and keep their details current from the phone (`tenant.customer.details`; `tenant.customer.write`
+also allows payment terms). Online only, like the Owner approvals: nothing is queued. Android: `CustomerTexts`; iOS:
+`CustomerTexts`.
+
+Rules shared by both apps:
+- **Entry:** the Money tab gets a section `field.customers.section` with the row `field.customers.row`, shown only to a user
+  holding `tenant.customer.details` or `tenant.customer.write`.
+- **List:** `GET /tenant/customers?q=&page_size=50` (active only), searchable by name or code; a row is the name with
+  "{code} · {contact}" below. Offline: `field.customers.offline` (no saved copy is shown). A row opens the customer
+  (`GET /tenant/customers/{id}`) with Edit details.
+- **Add / edit:** code (required, at most 32), name (required, at most 200), tax ID (at most 64), contact name (at most 200),
+  phone (at most 40), email (at most 320; when given it needs one "@" with text on both sides). Blank optional fields are sent
+  as null. Payment terms: with `tenant.customer.write` an editable whole number 0–365 days (30 for a new customer); without it
+  read-only "{n} days · Set by the office", sent unchanged (30 for a new customer). Edit sends the `version` last read.
+- **Refusals** show the server's message as it is. `STALE_VERSION` shows `field.customers.stale` and reloads the customer.
+  Offline (no connection) shows `field.customers.offline` and keeps the form.
+- **Pickers:** sync delivers only the customers on my jobs' contracts, so a new customer would not reach the hours sale and
+  cash collection pickers through sync. After a save, and whenever the Customers list loads, the active customers read are
+  saved into the phone's synced customer list (the same records the pickers read). Job requests pick a contract, so a new
+  customer appears there only once the office gives it a contract.
+
+### Supervisor
+| Key | English |
+|---|---|
+| field.customers.section | Customers |
+| field.customers.row | Customers |
+| field.customers.title | Customers |
+| field.customers.search | Search by name or code |
+| field.customers.empty | No customers found. |
+| field.customers.offline | Customers need a connection. Connect to see, add or edit them. |
+| field.customers.loadFailed | The customers could not be loaded. Pull to try again. |
+| field.customers.add | Add a customer |
+| field.customers.titleAdd | Add a customer |
+| field.customers.titleEdit | Edit customer |
+| field.customers.titleDetail | Customer |
+| field.customers.edit | Edit details |
+| field.customers.code | Code |
+| field.customers.name | Name |
+| field.customers.taxId | Tax ID (optional) |
+| field.customers.contactName | Contact name (optional) |
+| field.customers.phone | Phone (optional) |
+| field.customers.email | Email (optional) |
+| field.customers.label.taxId | Tax ID |
+| field.customers.label.contact | Contact |
+| field.customers.label.phone | Phone |
+| field.customers.label.email | Email |
+| field.customers.terms | Payment terms |
+| field.customers.termsDays | {n} days |
+| field.customers.termsByOffice | {n} days · Set by the office |
+| field.customers.footer | Contracts, rates and payment terms stay with the office. Once saved, the customer is on this phone for hours sales and cash collections. |
+| field.customers.saved | Customer saved. |
+| field.customers.stale | Someone else changed this customer. Reload to see it. |
+| field.customers.errCode | Enter a code (at most 32 characters). |
+| field.customers.errName | Enter the name (at most 200 characters). |
+| field.customers.errEmail | Enter a valid email address. |
+| field.customers.errTerms | Enter payment terms between 0 and 365 days. |
+| field.customers.errLong | Shorten the tax ID, contact name or phone. |

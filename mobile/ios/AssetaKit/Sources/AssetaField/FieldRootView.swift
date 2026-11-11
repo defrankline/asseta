@@ -18,6 +18,8 @@ enum FieldRoute: Hashable {
     case dailyReports, dailyReport(UUID)
     /// My petty cash funds and what waits for me (DEC-033).
     case pettyCash
+    /// Customers (online) and one customer (add / edit its details).
+    case customers, customer(UUID)
 }
 
 /// Forms presented as sheets (Cancel / Save), as before.
@@ -191,6 +193,8 @@ public struct FieldRootView: View {
         case let .dailyReport(id):
             DailyReportDetailView(model: model, id: id) { sheet = .dailyReport(machineID: $0.machineID, resubmitting: $0) }
         case .pettyCash: MyPettyCashView(model: model, sheet: pettyCashSheet)
+        case .customers: CustomersListView(model: model)
+        case let .customer(id): CustomerDetailView(model: model, customerID: id)
         }
     }
 

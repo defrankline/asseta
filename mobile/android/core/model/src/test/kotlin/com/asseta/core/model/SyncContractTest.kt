@@ -65,6 +65,8 @@ class SyncContractTest {
         ContractCheck.check("PettyCashDecisionIn", com.asseta.core.model.owner.PettyCashDecisionIn.serializer().descriptor, request = true)
         ContractCheck.check("PersonDto", com.asseta.core.model.sync.PersonDto.serializer().descriptor)
         ContractCheck.check("PettyCashAdvanceIn", com.asseta.core.model.sync.PettyCashAdvancePayload.serializer().descriptor, request = true, subset = true)
+        ContractCheck.check("CustomerDto", com.asseta.core.model.sync.FieldCustomerDto.serializer().descriptor, subset = true)
+        ContractCheck.check("CustomerUpdateIn", com.asseta.core.model.sync.CustomerWriteIn.serializer().descriptor, request = true)
         ContractCheck.check("PettyCashWitnessDto", com.asseta.core.model.sync.PettyCashWitnessDto.serializer().descriptor)
         ContractCheck.check("PettyCashAcknowledgementIn", com.asseta.core.model.sync.PettyCashAckPayload.serializer().descriptor, extra = setOf("movement_id"), request = true)
         ContractCheck.check("TopUpRequestIn", com.asseta.core.model.sync.PettyCashTopUpPayload.serializer().descriptor, extra = setOf("fund_id"), request = true)

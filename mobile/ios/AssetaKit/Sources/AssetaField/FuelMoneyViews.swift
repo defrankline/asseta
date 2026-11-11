@@ -115,6 +115,7 @@ struct MoneyTabView: View {
             }
             CashToAcknowledgeSection(model: model, open: acknowledge)
             PettyCashMoneySection(model: model)
+            CustomersMoneySection(model: model)
             FilterChips(options: MoneySegment.allCases.filter { $0 != .transfers || model.access.transferCash || model.access.askToKeepCash }.map { ($0, $0.label) },
                         selection: $segment)
             switch segment {

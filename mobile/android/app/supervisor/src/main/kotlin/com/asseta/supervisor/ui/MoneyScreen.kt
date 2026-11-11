@@ -31,6 +31,7 @@ import com.asseta.supervisor.ui.accountability.cashToAcknowledgeSection
 import com.asseta.supervisor.ui.accountability.retentionsSection
 import com.asseta.supervisor.ui.accountability.transfersSection
 import com.asseta.supervisor.ui.pettycash.pettyCashSection
+import com.asseta.supervisor.ui.customers.customersSection
 import com.asseta.core.domain.inbox.InboxStatus
 import com.asseta.core.model.sync.CashReconciliationDayDto
 import com.asseta.core.sync.data.CashItem
@@ -94,6 +95,8 @@ fun MoneyScreen(
     PullToRefreshBox(isRefreshing = syncing, onRefresh = onRefresh, modifier = Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp)) {
             if (pettyOn) pettyCashSection(petty.waitingCount, onRoute)
+            // Customers (online): shown to whoever may add customers or edit their details.
+            if (com.asseta.core.domain.customers.CustomerRules.canEdit(permissions)) customersSection(onRoute)
             if (view.lines.isEmpty()) {
                 item(key = "no-custody") { EmptyState("No cash balance yet", "Your cash custody appears here after a sync.") }
             }
