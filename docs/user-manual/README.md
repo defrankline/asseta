@@ -75,6 +75,17 @@ The top bar shows:
 
 You stay signed in between uses, even offline. Signing out of the Supervisor app with unsent work keeps that work safely on the phone until you sign in again.
 
+#### App versions
+
+| App | Android | iPhone |
+|---|---|---|
+| Asseta Supervisor | 0.5.0 | 0.2.0 (not yet available on iPhones) |
+| Asseta Owner | 0.8.0 | 0.2.0 (not yet available on iPhones) |
+
+These versions add petty cash: **My petty cash** in the Supervisor app and **Petty cash to approve** in the Owner app. The Platform Owner gives you the Android app files. iPhone apps follow once the App Store account is ready.
+
+**Updating from an earlier Android version.** The first time, Android does not install the new version over the old one. Open the old app and sync until **Sync status** shows nothing waiting, then uninstall it and install the new version. Uninstalling removes anything not yet synced, so sync first. Later updates install over this version.
+
 ### Change your password
 
 - **Web:** open **My access** (in the Administration menu group). Under **Sign-in & security**, click **Change password**. You may be asked for your current password first.
