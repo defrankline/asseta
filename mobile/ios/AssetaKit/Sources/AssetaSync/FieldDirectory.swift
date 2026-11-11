@@ -47,7 +47,7 @@ public struct OutboxItem: Sendable, Equatable, Identifiable {
         case .hoursPurchase, .hoursTransferRequest, .cashTransfer, .cashTransferAcknowledgement, .cashFloatAcknowledgement,
              .meterBaseline, .meterCorrection, .cashRetentionRequest, .siteCheckin, .dailyReport,
              .pettyCashAcknowledgement, .pettyCashTopUpRequest, .pettyCashReturn, .pettyCashCount,
-             .pettyCashHolderChangeAcknowledgement, .pettyCashAdvanceClearance, nil: operation.opType
+             .pettyCashHolderChangeAcknowledgement, .pettyCashAdvanceClearance, .pettyCashAdvance, nil: operation.opType
         }
     }
 }

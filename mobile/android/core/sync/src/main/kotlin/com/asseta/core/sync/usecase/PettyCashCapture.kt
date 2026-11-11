@@ -33,6 +33,7 @@ object PettyCashEntities {
     const val COUNT = "petty_cash_count"
     const val HOLDER_CHANGE = "petty_cash_holder_change"
     const val ADVANCE = "petty_cash_advance_clear"
+    const val GIVE_ADVANCE = "petty_cash_advance"
 }
 
 data class PettyCashTopUpRequest(val tenantId: String, val clientId: String, val fundId: String, val amountText: String, val note: String,
@@ -51,6 +52,21 @@ data class PettyCashReturnRequest(
     val evidenceJpegs: List<ByteArray>,
     val evidenceRequired: Boolean,
     val createdAtMs: Long,
+)
+
+/** An advance out of my fund; [clientId] is generated once per form visit (the advance's idempotency key). */
+data class PettyCashGiveAdvanceRequest(
+    val tenantId: String,
+    val clientId: String,
+    val fundId: String,
+    val holderStaffId: String,
+    val recipientStaffId: String?,
+    val amountText: String,
+    val purpose: String,
+    /** The fund's available to spend as last synced (null when unknown). */
+    val available: BigDecimal?,
+    val currency: String,
+    val policy: com.asseta.core.domain.finance.PettyCashPolicy,
 )
 
 data class PettyCashCountRequest(
@@ -149,6 +165,21 @@ class PettyCashCapture(
         }
         return queue(tenantId, PettyCashOps.ADVANCE_CLEARANCE, PettyCashEntities.ADVANCE, advanceId,
             PettyCashAdvanceClearPayload.serializer(), PettyCashAdvanceClearPayload(advanceId, DecimalAmount.of(change), PettyCashRules.note(note)))
+    }
+
+    /** `PETTY_CASH_ADVANCE` (capability OP_PETTY_CASH_ADVANCE): checked offline, queued once per form visit. */
+    suspend fun giveAdvance(r: PettyCashGiveAdvanceRequest): FinanceResult {
+        unavailable(r.tenantId)?.let { return FinanceResult.Blocked(it) }
+        if (db().syncStateDao().get(r.tenantId)?.supports(SyncCapabilities.OP_PETTY_CASH_ADVANCE) != true) {
+            return FinanceResult.Blocked(CaptureMeterReading.SERVER_TOO_OLD)
+        }
+        val values = when (val c = PettyCashRules.giveAdvance(r.recipientStaffId, r.holderStaffId, r.amountText, r.purpose, r.available, r.currency, r.policy)) {
+            is FormCheck.Invalid -> return FinanceResult.Invalid(c.messages)
+            is FormCheck.Valid -> c.value
+        }
+        val payload = com.asseta.core.model.sync.PettyCashAdvancePayload(r.clientId, r.fundId, values.recipientId, DecimalAmount.of(values.amount), values.purpose)
+        return queue(r.tenantId, PettyCashOps.ADVANCE, PettyCashEntities.GIVE_ADVANCE, r.clientId,
+            com.asseta.core.model.sync.PettyCashAdvancePayload.serializer(), payload)
     }
 
     /** This phone already queued an answer for [entityId] (movement, holder change or advance). */

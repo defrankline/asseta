@@ -2109,6 +2109,15 @@ Rules shared by both apps:
   `field.pettyCash.count.witnessDropped` when a witness was chosen but the server recorded none (the witness lost the
   permission before the phone synced), else `field.pettyCash.count.recordedSelf` when the server marked it a self-count. Holder change: accept, or decline with a reason.
   Clear advance (fund holder, advances given to someone else): change handed back 0 or more, prefilled with `remaining`.
+- **Give an advance (fund holder, offline):** each fund on My petty cash gets `field.pettyCash.action.giveAdvance` when the
+  server announces `OP_PETTY_CASH_ADVANCE` and the `PETTY_CASH` policy has `advances_enabled`. The form (`PETTY_CASH_ADVANCE`
+  `{client_id, fund_id, recipient_staff_id, amount, purpose}`, entity = the form's client id) names the recipient from the cash
+  holders list the phone saves for cash transfers (`GET /cash/custodians`, read online and kept encrypted; needs
+  `tenant.collection.record`; now also read while petty cash is on and CASH_CUSTODY is off), never the fund's holder and never
+  me; the amount (more than 0) and the purpose (at least 3 characters). Above the fund's available to spend:
+  `field.pettyCash.give.overspend` when the policy's `overspend_allowed_offline` is on (missing = on, the platform default),
+  else `field.pettyCash.give.overspendBlocked` and saving is blocked. It shows under "Recorded on this phone"
+  (`field.pettyCash.outbox.giveAdvance`) and, after the next pull, in Advances as "Given to {name}".
 - **Expense flags (`control_flags`)**, shown neutrally wherever an expense is shown (Supervisor Money rows and expense detail;
   Owner field spend rows and the expense card of an approval): header `expense.flags.title`, one line per flag; unknown flags
   are humanized.
@@ -2285,6 +2294,21 @@ Screens per app:
 | field.pettyCash.conflict.PETTY_CASH_ABOVE_CAP_REASON_REQUIRED | The amount is above the fund's limit; send the request again with a reason. |
 | field.pettyCash.conflict.PETTY_CASH_ADVANCE_EXPENSES_PENDING | Expenses of this advance are still waiting for approval. |
 | field.pettyCash.conflict.PETTY_CASH_ADVANCE_CLEARED | This advance is already cleared. |
+| field.pettyCash.conflict.PETTY_CASH_ADVANCES_DISABLED | Advances are switched off for your company. |
+| field.pettyCash.conflict.PETTY_CASH_ADVANCE_TO_HOLDER | An advance goes to someone other than the fund's holder. |
+| field.pettyCash.action.giveAdvance | Give an advance |
+| field.pettyCash.title.giveAdvance | Give an advance |
+| field.pettyCash.give.recipient | Given to |
+| field.pettyCash.give.recipientEmpty | No colleague is saved on this phone yet. Connect, then open this form again. |
+| field.pettyCash.give.amount | Amount |
+| field.pettyCash.give.purpose | Purpose |
+| field.pettyCash.give.footer | The advance leaves the fund now. The colleague clears it with receipts and the change. |
+| field.pettyCash.give.overspend | Above what the fund has available ({amount}): it is recorded when the phone syncs and marked for the office to check. |
+| field.pettyCash.give.overspendBlocked | Above what the fund has available ({amount}). Your company does not allow this offline. |
+| field.pettyCash.give.save | Give advance |
+| field.pettyCash.outbox.giveAdvance | Petty cash advance given |
+| field.pettyCash.err.recipient | Choose who receives the advance. |
+| field.pettyCash.err.purpose | Enter the purpose (at least 3 characters). |
 
 ### Owner
 | Key | English |

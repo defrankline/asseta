@@ -35,7 +35,7 @@ extension FieldModel {
 
 /// Forms of the petty cash screen (sheets, as the other field forms).
 enum PettyCashSheet: Identifiable {
-    case ack(UUID), topUp(UUID), returnFund(UUID), count(UUID), holderChange(UUID), advance(UUID)
+    case ack(UUID), topUp(UUID), returnFund(UUID), count(UUID), holderChange(UUID), advance(UUID), giveAdvance(UUID)
 
     var id: String {
         switch self {
@@ -45,6 +45,7 @@ enum PettyCashSheet: Identifiable {
         case let .count(id): "pc-count-\(id)"
         case let .holderChange(id): "pc-holder-\(id)"
         case let .advance(id): "pc-advance-\(id)"
+        case let .giveAdvance(id): "pc-give-advance-\(id)"
         }
     }
 
@@ -56,6 +57,7 @@ enum PettyCashSheet: Identifiable {
         case let .count(id): PettyCashCountFormView(model: model, fundID: id)
         case let .holderChange(id): PettyCashHolderChangeFormView(model: model, changeID: id)
         case let .advance(id): PettyCashAdvanceFormView(model: model, advanceID: id)
+        case let .giveAdvance(id): PettyCashGiveAdvanceFormView(model: model, fundID: id)
         }
     }
 }
@@ -175,6 +177,9 @@ struct MyPettyCashView: View {
             Button(P.actionReturn, systemImage: "arrow.up.forward.circle") { sheet = .returnFund(fund.id) }
             if model.access.pettyCashCount {
                 Button(P.actionCount, systemImage: "checklist") { sheet = .count(fund.id) }
+            }
+            if model.access.pettyCashGiveAdvance && model.pettyCash.policy.advancesEnabled {
+                Button(P.actionGiveAdvance, systemImage: "person.badge.plus") { sheet = .giveAdvance(fund.id) }
             }
         } header: { Text(P.fundHeader(code: fund.code, name: fund.name)) } footer: {
             if let asOf = b?.asOf { Text(P.asOf(asOf.listText)) }
@@ -506,6 +511,61 @@ struct PettyCashCountFormView: View {
                                       evidence: photos.map(\.evidence), clientID: clientID)
             }
             photos = []
+            dismiss()
+        } catch { self.error = JobDetailView.describe(error) }
+    }
+}
+
+/// Hand out an advance from a fund I hold to a colleague (recipients: the cash holders saved on the phone).
+struct PettyCashGiveAdvanceFormView: View {
+    let model: FieldModel
+    let fundID: UUID
+    @Environment(\.dismiss) private var dismiss
+    @State private var clientID = UUID()
+    @State private var recipientID: UUID?
+    @State private var amount = ""
+    @State private var purpose = ""
+    @State private var error: String?
+
+    var body: some View {
+        let f = fund(model, fundID)
+        let policy = model.pettyCash.policy
+        let on = model.access.pettyCashGiveAdvance && policy.advancesEnabled
+        let available = f?.balance?.availableToSpend.value
+        let check = f.map { PettyCashRules.giveAdvance(recipientID: recipientID, holderID: $0.holderStaffID, amountText: amount, purpose: purpose,
+                                                       available: available, currency: $0.currency, policy: policy) }
+        PettyCashForm(title: P.titleGiveAdvance, saveLabel: P.giveSave, canSave: on && check?.isValid == true,
+                      onCancel: { dismiss() }, onSave: save, error: $error) {
+            if !on {
+                Unavailable(title: P.titleGiveAdvance, message: P.unavailable)
+            } else if let f {
+                FundSummarySection(fund: f)
+                Section {
+                    let recipients = PettyCashRules.advanceRecipients(model.services?.accountability.custodians ?? [], holderID: f.holderStaffID,
+                                                                      me: model.myStaffID)
+                        .map { PickerOption(id: $0.staffMemberID, title: $0.fullName, subtitle: $0.employeeCode) }
+                    SearchablePickerField(label: P.giveRecipient, options: recipients, selection: $recipientID,
+                                          emptyMessage: P.giveRecipientEmpty, identifier: "pettyCash.give.recipient")
+                    TextField(P.giveAmount, text: $amount).keyboardType(.decimalPad).font(.title3.monospacedDigit())
+                    TextField(P.givePurpose, text: $purpose, axis: .vertical)
+                } footer: { Text(P.giveFooter) }
+                if let note = PettyCashRules.giveNote(amount: PettyCashRules.amount(amount),
+                                                      available: available, currency: f.currency, policy: policy) {
+                    Section { Text(note).foregroundStyle(Palette.warning) }
+                }
+            } else {
+                Unavailable(title: P.titleGiveAdvance, message: P.notFound)
+            }
+        }
+        .task { await model.refreshAccountability() }
+    }
+
+    private func save() {
+        do {
+            try model.perform {
+                try $0.givePettyCashAdvance(fundID: fundID, recipientID: recipientID, amountText: amount, purpose: purpose,
+                                            policy: model.pettyCash.policy, clientID: clientID)
+            }
             dismiss()
         } catch { self.error = JobDetailView.describe(error) }
     }

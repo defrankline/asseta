@@ -162,6 +162,13 @@ extension SupervisorOnline {
         // CASH_CUSTODY off: the DEC-030 cash additions (policy, holders, transfers, floats to acknowledge, reasons,
         // retentions) are not read.
         let record = has.contains(FieldAccess.collectionRecord) && !disabled.contains(TenantCapability.cashCustody)
+        // The cash holders are also the recipients of a petty cash advance (DEC-033), with CASH_CUSTODY off too.
+        let pettyRecipients = has.contains(FieldAccess.collectionRecord) && has.contains(FieldAccess.pettyCashRead)
+            && !disabled.contains(TenantCapability.pettyCash)
+        if pettyRecipients && !record {
+            await save(AccountabilityKey.custodians,
+                       APIRequest<Page<CustodianDTO>>.get("\(Self.tenant)/cash/custodians", query: Self.page(200))) { $0.items }
+        }
         if record {
             await save(AccountabilityKey.cashPolicy,
                        APIRequest<EffectivePolicyDTO<CashCustodyPolicyValues>>.get("\(Self.tenant)/policies/CASH_CUSTODY/effective")) { $0.values }

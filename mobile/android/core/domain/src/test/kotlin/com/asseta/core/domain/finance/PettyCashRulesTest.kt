@@ -90,6 +90,27 @@ class PettyCashRulesTest {
     }
 
     @Test
+    fun `giving an advance needs a colleague, an amount and a purpose, and follows the offline overspend rule`() {
+        val allowed = PettyCashPolicy(advancesEnabled = true)
+        val strict = PettyCashPolicy(advancesEnabled = true, overspendAllowedOffline = false)
+        val ok = PettyCashRules.giveAdvance("s2", "s1", "300", " Spare parts ", BigDecimal("500"), "TZS", allowed) as FormCheck.Valid
+        assertEquals(AdvanceValues("s2", BigDecimal("300"), "Spare parts"), ok.value)
+        assertEquals(listOf(PettyCashMessages.RECIPIENT, PettyCashMessages.AMOUNT, PettyCashMessages.PURPOSE),
+            (PettyCashRules.giveAdvance("s1", "s1", "0", "ok", null, "TZS", allowed) as FormCheck.Invalid).messages)
+        assertTrue(PettyCashRules.giveAdvance(null, "s1", "300", "Spare parts", null, "TZS", allowed) is FormCheck.Invalid)
+        // Above available: allowed offline with a note, else blocked with the reason.
+        assertTrue(PettyCashRules.giveAdvance("s2", "s1", "600", "Spare parts", BigDecimal("500"), "TZS", allowed) is FormCheck.Valid)
+        assertEquals(PettyCashMessages.giveOverspend("500 TZS"), PettyCashRules.giveNote(BigDecimal("600"), BigDecimal("500"), "TZS", allowed))
+        assertEquals(listOf(PettyCashMessages.giveOverspendBlocked("500 TZS")),
+            (PettyCashRules.giveAdvance("s2", "s1", "600", "Spare parts", BigDecimal("500"), "TZS", strict) as FormCheck.Invalid).messages)
+        assertNull(PettyCashRules.giveNote(BigDecimal("400"), BigDecimal("500"), "TZS", strict))
+        assertTrue(PettyCashPolicy.fromValues(Json.parseToJsonElement("{}").jsonObject).overspendAllowedOffline)
+        assertFalse(PettyCashPolicy.fromValues(Json.parseToJsonElement("""{"overspend_allowed_offline":false}""").jsonObject).overspendAllowedOffline)
+        assertTrue(FieldAccess(setOf(SyncCapabilities.OP_PETTY_CASH, SyncCapabilities.OP_PETTY_CASH_ADVANCE), read).pettyCashGiveAdvance)
+        assertFalse(FieldAccess(setOf(SyncCapabilities.OP_PETTY_CASH), read).pettyCashGiveAdvance)
+    }
+
+    @Test
     fun `flags are worded neutrally`() {
         assertEquals(
             listOf("Recorded above what the fund had available", "Paid from collected cash", "Above the petty cash maximum per expense", "New flag"),

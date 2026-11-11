@@ -35,6 +35,7 @@ object PettyCashTexts {
     const val ACTION_TOP_UP = "Request a top-up"
     const val ACTION_RETURN = "Return money to the office"
     const val ACTION_COUNT = "Record a count"
+    const val ACTION_GIVE_ADVANCE = "Give an advance"
     const val WAITING = "Waiting for you"
     const val SOMEONE = "someone"
     const val ADVANCES = "Advances"
@@ -49,6 +50,7 @@ object PettyCashTexts {
     const val OUTBOX_COUNT = "Petty cash count"
     const val OUTBOX_HOLDER_CHANGE = "Petty cash fund take-over"
     const val OUTBOX_ADVANCE = "Petty cash advance cleared"
+    const val OUTBOX_GIVE_ADVANCE = "Petty cash advance given"
 
     const val TITLE_ACK = "Acknowledge petty cash"
     const val TITLE_TOP_UP = "Request a top-up"
@@ -56,6 +58,13 @@ object PettyCashTexts {
     const val TITLE_COUNT = "Record a count"
     const val TITLE_HOLDER_CHANGE = "Take over a fund"
     const val TITLE_ADVANCE = "Clear an advance"
+    const val TITLE_GIVE_ADVANCE = "Give an advance"
+    const val GIVE_RECIPIENT = "Given to"
+    const val GIVE_RECIPIENT_EMPTY = "No colleague is saved on this phone yet. Connect, then open this form again."
+    const val GIVE_AMOUNT = "Amount"
+    const val GIVE_PURPOSE = "Purpose"
+    const val GIVE_FOOTER = "The advance leaves the fund now. The colleague clears it with receipts and the change."
+    const val GIVE_SAVE = "Give advance"
     const val NOT_FOUND = "This is no longer waiting on this phone. Pull to sync."
     const val UNAVAILABLE = "Petty cash is not available on this phone. Sync, or ask your office."
     const val FUND = "Fund"
@@ -167,6 +176,7 @@ object PettyCashTexts {
         PettyCashOps.COUNT -> OUTBOX_COUNT
         PettyCashOps.HOLDER_CHANGE_ACKNOWLEDGEMENT -> OUTBOX_HOLDER_CHANGE
         PettyCashOps.ADVANCE_CLEARANCE -> OUTBOX_ADVANCE
+        PettyCashOps.ADVANCE -> OUTBOX_GIVE_ADVANCE
         else -> null
     }
 
@@ -185,6 +195,8 @@ object PettyCashTexts {
         "PETTY_CASH_ABOVE_CAP_REASON_REQUIRED" -> "The amount is above the fund's limit; send the request again with a reason."
         "PETTY_CASH_ADVANCE_EXPENSES_PENDING" -> "Expenses of this advance are still waiting for approval."
         "PETTY_CASH_ADVANCE_CLEARED" -> "This advance is already cleared."
+        "PETTY_CASH_ADVANCES_DISABLED" -> "Advances are switched off for your company."
+        "PETTY_CASH_ADVANCE_TO_HOLDER" -> "An advance goes to someone other than the fund's holder."
         else -> null
     }
 

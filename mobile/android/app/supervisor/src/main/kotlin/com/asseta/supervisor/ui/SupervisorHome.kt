@@ -168,6 +168,7 @@ sealed interface Route {
     data class PettyCashCount(val fundId: String) : Route
     data class PettyCashHolderChange(val changeId: String) : Route
     data class PettyCashAdvance(val advanceId: String) : Route
+    data class PettyCashGiveAdvance(val fundId: String) : Route
 }
 
 val SupervisorTab.root: Route
@@ -229,6 +230,7 @@ fun Route.title(companyName: String): String = when (this) {
     is Route.PettyCashCount -> com.asseta.supervisor.ui.pettycash.PettyCashTexts.TITLE_COUNT
     is Route.PettyCashHolderChange -> com.asseta.supervisor.ui.pettycash.PettyCashTexts.TITLE_HOLDER_CHANGE
     is Route.PettyCashAdvance -> com.asseta.supervisor.ui.pettycash.PettyCashTexts.TITLE_ADVANCE
+    is Route.PettyCashGiveAdvance -> com.asseta.supervisor.ui.pettycash.PettyCashTexts.TITLE_GIVE_ADVANCE
 }
 
 /** Routes the iOS app presents as sheets (Cancel / Save in the navigation bar, no tab bar). */
@@ -238,7 +240,8 @@ val Route.isForm: Boolean
         this == Route.HoursTransfer || this == Route.CashTransfer || this is Route.CashAck || this == Route.Retention ||
         this is Route.DailyReading || this is Route.Baseline || this is Route.Correction || this is Route.ExplainNonRevenue ||
         this is Route.DailyReportForm || this is Route.Changeover || this is Route.PettyCashAck || this is Route.PettyCashTopUp ||
-        this is Route.PettyCashReturn || this is Route.PettyCashCount || this is Route.PettyCashHolderChange || this is Route.PettyCashAdvance
+        this is Route.PettyCashReturn || this is Route.PettyCashCount || this is Route.PettyCashHolderChange || this is Route.PettyCashAdvance ||
+        this is Route.PettyCashGiveAdvance
 
 /** Back stacks of the five tabs; selecting the current tab again returns to its first screen (as on iOS). */
 data class TabStacks(val tab: SupervisorTab = SupervisorTab.JOBS, val stacks: Map<SupervisorTab, List<Route>> = SupervisorTab.entries.associateWith { listOf(it.root) }) {
@@ -727,6 +730,13 @@ private fun RouteContent(
         is Route.PettyCashAdvance -> {
             val visit = remember(route) { System.nanoTime() }
             com.asseta.supervisor.ui.pettycash.PettyCashAdvanceScreen(viewModel(key = "petty-advance-$visit") { com.asseta.supervisor.ui.pettycash.PettyCashAdvanceViewModel(field, tenantId, route.advanceId) }, access, onDone = pop)
+        }
+        is Route.PettyCashGiveAdvance -> {
+            val visit = remember(route) { System.nanoTime() }
+            com.asseta.supervisor.ui.pettycash.PettyCashGiveAdvanceScreen(
+                viewModel(key = "petty-give-advance-$visit") { com.asseta.supervisor.ui.pettycash.PettyCashGiveAdvanceViewModel(field, tenantId, route.fundId, permissions) },
+                access, onDone = pop,
+            )
         }
         is Route.NotificationDetail -> {
             val notifications by inbox.notifications.collectAsStateWithLifecycle()

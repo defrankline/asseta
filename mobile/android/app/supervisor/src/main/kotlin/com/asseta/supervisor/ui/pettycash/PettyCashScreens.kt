@@ -165,6 +165,7 @@ fun MyPettyCashScreen(vm: PettyCashViewModel, access: FieldAccess?, syncing: Boo
                             ActionRow(T.ACTION_TOP_UP) { onRoute(Route.PettyCashTopUp(f.id)) }
                             ActionRow(T.ACTION_RETURN) { onRoute(Route.PettyCashReturn(f.id)) }
                             if (access.pettyCashCount) ActionRow(T.ACTION_COUNT) { onRoute(Route.PettyCashCount(f.id)) }
+                            if (access.pettyCashGiveAdvance && policy.advancesEnabled) ActionRow(T.ACTION_GIVE_ADVANCE) { onRoute(Route.PettyCashGiveAdvance(f.id)) }
                         }
                     }
                 }
@@ -509,6 +510,80 @@ fun PettyCashCountScreen(vm: PettyCashCountViewModel, access: FieldAccess?, onli
         SaveSection(save, vm::save, onDone, enabled = PettyCashRules.count(form.counted) is FormCheck.Valid)
     }
 }
+
+// --- Give an advance ------------------------------------------------------------------------------------------------
+
+data class GiveAdvanceForm(val recipientId: String? = null, val amount: String = "", val purpose: String = "")
+
+/** The holder hands out an advance from a fund; recipients are the cash holders saved on the phone (never the holder). */
+class PettyCashGiveAdvanceViewModel(field: FieldGraph, tenantId: String, val fundId: String, private val permissions: Set<String>) :
+    PettyCashViewModel(field, tenantId) {
+    val form = MutableStateFlow(GiveAdvanceForm())
+    val custodians: StateFlow<com.asseta.core.sync.data.FieldAccountabilityCache> = field.accountability.cache
+
+    init {
+        // Fresh holders when online; the saved copy keeps the form usable offline.
+        viewModelScope.launch { field.accountability.refresh(tenantId, permissions) }
+    }
+
+    fun edit(change: (GiveAdvanceForm) -> GiveAdvanceForm) { form.update(change); clearMessages() }
+
+    fun save() {
+        val fund = view.value.fund(fundId) ?: return
+        if (saving()) return
+        val f = form.value
+        viewModelScope.launch {
+            finish(
+                field.pettyCashCapture.giveAdvance(
+                    com.asseta.core.sync.usecase.PettyCashGiveAdvanceRequest(
+                        tenantId, clientId, fundId, fund.holderStaffId, f.recipientId, f.amount, f.purpose,
+                        fund.balance?.availableToSpend?.toBigDecimalOrNull(), fund.currency, policy.value,
+                    ),
+                ),
+            )
+        }
+    }
+}
+
+/** Recipients of an advance: the saved cash holders, active, without the fund's holder and me (sorted by name). */
+fun advanceRecipients(custodians: List<com.asseta.core.model.sync.CustodianDto>, holderId: String, me: String?): List<PickerOption> =
+    custodians.filter { it.isActive && it.staffMemberId != holderId && it.staffMemberId != me }
+        .sortedBy { it.fullName.lowercase() }
+        .map { PickerOption(it.staffMemberId, it.fullName, it.employeeCode) }
+
+@Composable
+fun PettyCashGiveAdvanceScreen(vm: PettyCashGiveAdvanceViewModel, access: FieldAccess?, onDone: () -> Unit) {
+    val view by vm.view.collectAsStateWithLifecycle()
+    val save by vm.save.collectAsStateWithLifecycle()
+    val form by vm.form.collectAsStateWithLifecycle()
+    val policy by vm.policy.collectAsStateWithLifecycle()
+    val cache by vm.custodians.collectAsStateWithLifecycle()
+    val me by vm.me.collectAsStateWithLifecycle()
+    val fund = view.fund(vm.fundId)
+    val editable = !save.saving && !save.saved
+    FormColumn {
+        if (access?.pettyCashGiveAdvance != true || !policy.advancesEnabled) return@FormColumn NoticeCard(T.TITLE_GIVE_ADVANCE, T.UNAVAILABLE, isError = true)
+        if (fund == null) {
+            if (view.loaded && !save.saved) EmptyState(T.TITLE_GIVE_ADVANCE, T.NOT_FOUND)
+            SaveSection(save, {}, onDone, enabled = false, label = T.GIVE_SAVE)
+            return@FormColumn
+        }
+        val available = fund.balance?.availableToSpend?.toBigDecimalOrNull()
+        FundSummary(fund)
+        Section(null, footer = T.GIVE_FOOTER) {
+            SearchablePickerField(T.GIVE_RECIPIENT, advanceRecipients(cache.custodians, fund.holderStaffId, me), form.recipientId,
+                { id -> vm.edit { it.copy(recipientId = id) } }, emptyText = T.GIVE_RECIPIENT_EMPTY, enabled = editable)
+            DecimalField(T.GIVE_AMOUNT, form.amount, { v -> vm.edit { it.copy(amount = v) } }, editable)
+            TextInput(T.GIVE_PURPOSE, form.purpose, { v -> vm.edit { it.copy(purpose = v) } }, editable, singleLine = false)
+        }
+        PettyCashRules.giveNote(AmountParserValue(form.amount), available, fund.currency, policy)?.let { Section(null) { Text(it, color = WarningColor) } }
+        val check = PettyCashRules.giveAdvance(form.recipientId, fund.holderStaffId, form.amount, form.purpose, available, fund.currency, policy)
+        SaveSection(save, vm::save, onDone, enabled = check is FormCheck.Valid, label = T.GIVE_SAVE)
+    }
+}
+
+private fun AmountParserValue(text: String) =
+    com.asseta.core.domain.finance.AmountParser.valueOrNull(text, com.asseta.core.domain.finance.DecimalLimit.MONEY)
 
 // --- Take over a fund ----------------------------------------------------------------------------------------------
 

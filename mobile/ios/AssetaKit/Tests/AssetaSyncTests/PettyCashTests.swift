@@ -141,6 +141,64 @@ struct PettyCashTests {
         #expect(!both.selfCount && !both.witnessDropped)
     }
 
+    @Test func theHolderGivesAnAdvanceOfflineOnce() async throws {
+        let h = try await Self.synced()
+        let policy = h.directoryView.pettyCash().policy
+        // Without OP_PETTY_CASH_ADVANCE the server would not take it.
+        #expect(throws: (any Error).self) {
+            try h.recorder.givePettyCashAdvance(fundID: Self.fundID, recipientID: Self.colleague, amountText: "100", purpose: "Parts", policy: policy)
+        }
+        h.server.mutate { $0.capabilities = Self.caps + [SyncCapability.pettyCashAdvance] }
+        _ = try await h.engine().sync(force: true)
+        #expect(throws: FieldRecorderError.invalid(PettyCashTexts.errRecipient)) {
+            try h.recorder.givePettyCashAdvance(fundID: Self.fundID, recipientID: Self.me, amountText: "100", purpose: "Parts", policy: policy)
+        }
+        let clientID = UUID()
+        // 300 is above the 250 available: recorded offline (the policy allows it), noted for the office.
+        let op = try h.recorder.givePettyCashAdvance(fundID: Self.fundID, recipientID: Self.colleague, amountText: "300",
+                                                     purpose: " Spare parts ", policy: policy, clientID: clientID)
+        let body = try payload(op)
+        #expect(op.opType == "PETTY_CASH_ADVANCE" && op.entityID == clientID)
+        #expect(body["client_id"] as? String == clientID.lowercased && body["fund_id"] as? String == Self.fundID.lowercased)
+        #expect(body["recipient_staff_id"] as? String == Self.colleague.lowercased)
+        #expect(body["amount"] as? String == "300" && body["purpose"] as? String == "Spare parts")
+        #expect(throws: FieldRecorderError.notAllowed(FieldAccountabilityTexts.alreadySaved)) {
+            try h.recorder.givePettyCashAdvance(fundID: Self.fundID, recipientID: Self.colleague, amountText: "300",
+                                                purpose: "Spare parts", policy: policy, clientID: clientID)
+        }
+        let record = try #require(h.directoryView.pettyCash().onPhone.first)
+        #expect(PettyCashTexts.recordTitle(record, currency: "TZS") == "Petty cash advance given · 300 TZS")
+        var strict = policy
+        strict.overspendAllowedOffline = false
+        #expect(throws: FieldRecorderError.invalid(PettyCashTexts.giveOverspendBlocked("250 TZS"))) {
+            try h.recorder.givePettyCashAdvance(fundID: Self.fundID, recipientID: Self.colleague, amountText: "300", purpose: "Parts", policy: strict)
+        }
+    }
+
+    @Test func advanceRulesAndRecipients() {
+        let policy = PettyCashPolicyValues(advancesEnabled: true)
+        if case let .failure(problems) = PettyCashRules.giveAdvance(recipientID: Self.colleague, holderID: Self.me, amountText: "0", purpose: "ok",
+                                                                    available: nil, currency: "TZS", policy: policy) {
+            #expect(problems.messages == [PettyCashTexts.errAmount, PettyCashTexts.errPurpose])
+        } else {
+            Issue.record("expected problems")
+        }
+        #expect(PettyCashRules.giveNote(amount: 300, available: 250, currency: "TZS", policy: policy) == PettyCashTexts.giveOverspend("250 TZS"))
+        #expect(PettyCashRules.giveNote(amount: 200, available: 250, currency: "TZS", policy: policy) == nil)
+        #expect(PettyCashPolicyValues(values: .object([:])).overspendAllowedOffline)
+        #expect(!PettyCashPolicyValues(values: .object(["overspend_allowed_offline": .bool(false)])).overspendAllowedOffline)
+        let c = { (id: UUID, name: String, active: Bool) in
+            CustodianDTO(staffMemberID: id, fullName: name, kind: "SUPERVISOR", employeeCode: nil, isActive: active, hasLogin: true)
+        }
+        let a = UUID(), b = UUID()
+        let names = PettyCashRules.advanceRecipients([c(Self.me, "Holder", true), c(b, "bakari", true), c(a, "Asha", true), c(UUID(), "Gone", false)],
+                                                     holderID: Self.me, me: nil).map(\.fullName)
+        #expect(names == ["Asha", "bakari"])
+        #expect(FieldAccess(capabilities: Set(Self.caps + [SyncCapability.pettyCashAdvance]), permissions: Self.permissions).pettyCashGiveAdvance)
+        #expect(!FieldAccess(capabilities: Set(Self.caps), permissions: Self.permissions).pettyCashGiveAdvance)
+        #expect(PettyCashTexts.conflict("PETTY_CASH_ADVANCES_DISABLED") == "Advances are switched off for your company.")
+    }
+
     @Test func advancesAreHiddenWhileTheTenantDoesNotUseThem() async throws {
         let h = try await Self.synced(advances: false)
         let view = h.directoryView.pettyCash()

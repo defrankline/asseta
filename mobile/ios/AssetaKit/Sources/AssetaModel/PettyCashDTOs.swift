@@ -9,6 +9,8 @@ extension SyncCapability {
     public static let pettyCash = "OP_PETTY_CASH"
     /// `SyncData.petty_cash_witnesses`: who may witness a count (never me), so a witnessed count is recorded offline.
     public static let pettyCashWitnesses = "SYNC_PETTY_CASH_WITNESSES"
+    /// `PETTY_CASH_ADVANCE`: the fund's holder hands out an advance offline (policy advances_enabled).
+    public static let pettyCashAdvance = "OP_PETTY_CASH_ADVANCE"
 }
 
 /// `PettyCashWitnessDto`: a login that may witness a count (active, holding the count permission, never the caller).
@@ -305,6 +307,27 @@ public struct PettyCashHolderChangePayload: Codable, Hashable, Sendable {
 }
 
 /// `PETTY_CASH_ADVANCE_CLEARANCE` (`PettyCashAdvanceClearIn` + the advance id).
+/// `PETTY_CASH_ADVANCE` (`PettyCashAdvanceIn`): an advance out of my fund to someone else.
+public struct PettyCashAdvancePayload: Codable, Hashable, Sendable {
+    public let clientID: UUID
+    public let fundID: UUID
+    public let recipientStaffID: UUID
+    public let amount: DecimalString
+    public let purpose: String
+
+    public init(clientID: UUID, fundID: UUID, recipientStaffID: UUID, amount: Decimal, purpose: String) {
+        self.clientID = clientID
+        self.fundID = fundID
+        self.recipientStaffID = recipientStaffID
+        self.amount = DecimalString(amount)
+        self.purpose = purpose
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case amount, purpose, clientID = "client_id", fundID = "fund_id", recipientStaffID = "recipient_staff_id"
+    }
+}
+
 public struct PettyCashAdvanceClearPayload: Codable, Hashable, Sendable {
     public let advanceID: UUID
     public let changeReturned: DecimalString

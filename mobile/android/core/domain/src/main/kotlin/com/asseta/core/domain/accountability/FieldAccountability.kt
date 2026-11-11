@@ -195,6 +195,9 @@ data class FieldAccess(
     /** Record a physical count of a fund I hold. */
     val pettyCashCount: Boolean get() = pettyCash && can(PETTY_CASH_COUNT)
 
+    /** Give an advance from a fund I hold (the screen also needs the policy's advances_enabled). */
+    val pettyCashGiveAdvance: Boolean get() = pettyCash && supports(SyncCapabilities.OP_PETTY_CASH_ADVANCE)
+
     /** Pay an expense from a fund (the form also needs a fund or an advance on the phone). */
     val pettyCashExpense: Boolean get() = pettyCash && can(EXPENSE_WRITE)
 

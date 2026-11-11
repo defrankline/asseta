@@ -83,6 +83,16 @@ class PettyCashPresentationTest {
     }
 
     @Test
+    fun `an advance goes to a saved colleague, never the holder or me`() {
+        val c = { id: String, name: String, active: Boolean -> com.asseta.core.model.sync.CustodianDto(id, name, null, true, active, "SUPERVISOR") }
+        val options = advanceRecipients(listOf(c("s-holder", "Holder", true), c(me, "Me", true), c("s-b", "bakari", true), c("s-a", "Asha", true), c("s-x", "Gone", false)), "s-holder", me)
+        assertEquals(listOf("Asha", "bakari"), options.map { it.title })
+        assertEquals("Petty cash advance given", FieldTexts.outboxTitle(PettyCashOps.ADVANCE, null))
+        assertEquals("Advances are switched off for your company.", PettyCashTexts.conflict("PETTY_CASH_ADVANCES_DISABLED"))
+        assertEquals("An advance goes to someone other than the fund's holder.", PettyCashTexts.conflict("PETTY_CASH_ADVANCE_TO_HOLDER"))
+    }
+
+    @Test
     fun `petty cash is offered as paid-from only when there is a fund`() {
         assertEquals(listOf(PaidFrom.CASH_CUSTODY, PaidFrom.COMPANY), ExpenseTexts.paidFromOptions(false))
         assertEquals(PaidFrom.entries, ExpenseTexts.paidFromOptions(true))

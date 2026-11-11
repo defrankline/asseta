@@ -253,6 +253,51 @@ class PettyCashSyncTest : SyncTestBase() {
     }
 
     @Test
+    fun theHolderGivesAnAdvanceOfflineOnceAndItShowsAfterThePull() = runBlocking {
+        fake.capabilities = listOf(SyncCapabilities.SUPERVISOR_INBOX_V1, SyncCapabilities.OP_PETTY_CASH, SyncCapabilities.OP_PETTY_CASH_ADVANCE)
+        synced()
+        val colleague = UUID.randomUUID().toString()
+        val policy = com.asseta.core.domain.finance.PettyCashPolicy(advancesEnabled = true)
+        fun request(clientId: String, recipient: String? = colleague, amount: String = "45000") =
+            com.asseta.core.sync.usecase.PettyCashGiveAdvanceRequest(tenant, clientId, fundId, fake.staffId, recipient, amount, " Spare parts ",
+                BigDecimal("40000"), "TZS", policy)
+        assertTrue(engine(online = false).sync(tenant) is SyncReport.Retry) // offline from here
+        assertEquals(listOf(PettyCashMessages.RECIPIENT), (petty.giveAdvance(request(UUID.randomUUID().toString(), recipient = fake.staffId)) as FinanceResult.Invalid).messages)
+        val clientId = UUID.randomUUID().toString()
+        val s = saved(petty.giveAdvance(request(clientId))) // above available: allowed offline by the policy
+        assertEquals(FinanceResult.AlreadySaved, petty.giveAdvance(request(clientId)))
+        val p = payload(s.operationId)
+        assertEquals(PettyCashOps.ADVANCE, op(s.operationId).opType)
+        assertEquals(clientId, p["client_id"]!!.jsonPrimitive.content)
+        assertEquals(colleague, p["recipient_staff_id"]!!.jsonPrimitive.content)
+        assertEquals("45000", p["amount"]!!.jsonPrimitive.content)
+        assertEquals("Spare parts", p["purpose"]!!.jsonPrimitive.content)
+        assertEquals(PettyCashOps.ADVANCE, pettyRepo.observe(tenant).first().records.single().opType)
+        val strict = request(UUID.randomUUID().toString()).copy(policy = policy.copy(overspendAllowedOffline = false))
+        assertTrue(petty.giveAdvance(strict) is FinanceResult.Invalid)
+
+        val advanceId = UUID.randomUUID().toString()
+        fake.handler = { o -> if (o["op_type"]!!.jsonPrimitive.content == PettyCashOps.ADVANCE) "ACKED" to buildJsonObject {} else null }
+        fake.inbox = snapshot() + ("petty_cash_advances" to listOf(buildJsonObject {
+            put("id", advanceId); put("number", "PC-0009"); put("fund_id", fundId); put("recipient_staff_id", colleague); put("recipient_staff_name", "Juma")
+            put("amount", "45000"); put("currency", "TZS"); put("purpose", "Spare parts"); put("status", "OUTSTANDING")
+            put("issued_at", "2026-10-21T08:00:00Z"); put("due_at", "2026-10-28T08:00:00Z"); put("remaining", "45000")
+        }))
+        synced()
+        assertEquals(ACKED, status(s.operationId))
+        val view = pettyRepo.observe(tenant, fake.staffId).first()
+        assertEquals(listOf(advanceId), PettyCashRepository.clearable(view, fake.staffId).map { it.id })
+    }
+
+    @Test
+    fun givingAnAdvanceNeedsItsCapability() = runBlocking {
+        synced() // OP_PETTY_CASH without OP_PETTY_CASH_ADVANCE
+        val r = com.asseta.core.sync.usecase.PettyCashGiveAdvanceRequest(tenant, UUID.randomUUID().toString(), fundId, fake.staffId,
+            UUID.randomUUID().toString(), "100", "Spare parts", BigDecimal("40000"), "TZS", com.asseta.core.domain.finance.PettyCashPolicy(advancesEnabled = true))
+        assertTrue(petty.giveAdvance(r) is FinanceResult.Blocked)
+    }
+
+    @Test
     fun operationsNeedTheCapability() = runBlocking {
         fake.capabilities = listOf(SyncCapabilities.SUPERVISOR_INBOX_V1)
         synced()

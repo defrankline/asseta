@@ -17,6 +17,8 @@ data class PettyCashPolicy(
     val advancesEnabled: Boolean = false,
     /** An expense above this (in the tenant's base currency) always needs a human approval; null = no maximum. */
     val maxExpenseAmount: BigDecimal? = null,
+    /** An advance or expense above what the fund has is still recorded at sync (missing = on, the platform default). */
+    val overspendAllowedOffline: Boolean = true,
 ) {
     companion object {
         const val TYPE = "PETTY_CASH"
@@ -25,7 +27,8 @@ data class PettyCashPolicy(
             if (values == null) return PettyCashPolicy()
             fun flag(key: String) = (values[key] as? JsonPrimitive)?.booleanOrNull ?: false
             val max = (values["max_expense_amount"] as? JsonPrimitive)?.contentOrNull?.toBigDecimalOrNull()?.takeIf { it.signum() > 0 }
-            return PettyCashPolicy(flag("count_witness_required"), flag("return_evidence_required"), flag("advances_enabled"), max)
+            val overspend = (values["overspend_allowed_offline"] as? JsonPrimitive)?.booleanOrNull ?: true
+            return PettyCashPolicy(flag("count_witness_required"), flag("return_evidence_required"), flag("advances_enabled"), max, overspend)
         }
     }
 }
@@ -63,10 +66,17 @@ object PettyCashMessages {
     const val FUND_REQUIRED = "Choose the petty cash fund."
     const val ADVANCE_REQUIRED = "Choose the advance this was paid from."
 
+    const val RECIPIENT = "Choose who receives the advance."
+    const val PURPOSE = "Enter the purpose (at least 3 characters)."
+
     fun currency(currency: String) = "The fund holds $currency."
+    fun giveOverspend(available: String) = "Above what the fund has available ($available): it is recorded when the phone syncs and marked for the office to check."
+    fun giveOverspendBlocked(available: String) = "Above what the fund has available ($available). Your company does not allow this offline."
     fun overspend(available: String) = "Above what the fund has available ($available): it is kept for approval and marked for the approver to check."
     fun aboveMaximum(maximum: String) = "Above the petty cash maximum per expense ($maximum): a manager must approve it."
 }
+
+data class AdvanceValues(val recipientId: String, val amount: BigDecimal, val purpose: String)
 
 data class TopUpValues(val amount: BigDecimal?, val note: String?, val aboveCapReason: String?)
 data class ReturnValues(val amount: BigDecimal, val reference: String?, val note: String?)
@@ -140,6 +150,31 @@ object PettyCashRules {
     fun advanceClear(changeText: String): FormCheck<BigDecimal> =
         AmountParser.valueOrNull(changeText, DecimalLimit.MONEY, allowZero = true)?.let { FormCheck.Valid(it) }
             ?: FormCheck.Invalid(listOf(PettyCashMessages.CHANGE))
+
+    /**
+     * Giving an advance: a recipient other than the holder, an amount, a purpose (3+ characters). Above [available] it is
+     * refused when the tenant does not allow overspending offline ([currency] names the fund's money in the message).
+     */
+    fun giveAdvance(
+        recipientId: String?, holderId: String, amountText: String, purpose: String, available: BigDecimal?, currency: String,
+        policy: PettyCashPolicy,
+    ): FormCheck<AdvanceValues> {
+        val m = mutableListOf<String>()
+        if (recipientId.isNullOrBlank() || recipientId == holderId) m += PettyCashMessages.RECIPIENT
+        val amount = AmountParser.valueOrNull(amountText, DecimalLimit.MONEY)
+        if (amount == null) m += PettyCashMessages.AMOUNT
+        val text = purpose.trim().take(MAX_NOTE)
+        if (text.length < MIN_REASON) m += PettyCashMessages.PURPOSE
+        giveNote(amount, available, currency, policy)?.takeIf { !policy.overspendAllowedOffline }?.let { m += it }
+        return if (m.isEmpty()) FormCheck.Valid(AdvanceValues(recipientId!!, amount!!, text)) else FormCheck.Invalid(m)
+    }
+
+    /** The note when the advance is above what the fund has available (allowed offline, or the reason it is blocked). */
+    fun giveNote(amount: BigDecimal?, available: BigDecimal?, currency: String, policy: PettyCashPolicy): String? {
+        if (amount == null || available == null || amount <= available) return null
+        val text = money(available.max(BigDecimal.ZERO), currency)
+        return if (policy.overspendAllowedOffline) PettyCashMessages.giveOverspend(text) else PettyCashMessages.giveOverspendBlocked(text)
+    }
 
     /** Taking over a fund: accept (note optional) or decline with a reason. */
     fun holderDecision(accept: Boolean, note: String): FormCheck<String?> {

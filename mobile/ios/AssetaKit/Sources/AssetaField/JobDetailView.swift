@@ -269,7 +269,7 @@ struct OperationRow: View {
         case .hoursPurchase, .hoursTransferRequest, .cashTransfer, .cashTransferAcknowledgement, .cashFloatAcknowledgement,
              .meterBaseline, .meterCorrection, .cashRetentionRequest, .siteCheckin, .dailyReport,
              .pettyCashAcknowledgement, .pettyCashTopUpRequest, .pettyCashReturn, .pettyCashCount,
-             .pettyCashHolderChangeAcknowledgement, .pettyCashAdvanceClearance, nil: return operation.opType
+             .pettyCashHolderChangeAcknowledgement, .pettyCashAdvanceClearance, .pettyCashAdvance, nil: return operation.opType
         }
     }
 }

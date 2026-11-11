@@ -67,6 +67,9 @@ object SyncCapabilities {
 
     /** SyncData.petty_cash_witnesses: who may witness a count (never me), so a witnessed count is recorded offline. */
     const val SYNC_PETTY_CASH_WITNESSES = "SYNC_PETTY_CASH_WITNESSES"
+
+    /** PETTY_CASH_ADVANCE: the fund's holder hands out an advance offline (policy advances_enabled). */
+    const val OP_PETTY_CASH_ADVANCE = "OP_PETTY_CASH_ADVANCE"
 }
 
 /** `ExceptionDto`: a server finding on a reading (type, severity, blocking) and its review. */

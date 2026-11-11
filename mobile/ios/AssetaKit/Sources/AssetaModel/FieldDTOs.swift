@@ -171,6 +171,8 @@ public enum OperationType: String, Codable, Sendable, CaseIterable {
     case pettyCashReturn = "PETTY_CASH_RETURN", pettyCashCount = "PETTY_CASH_COUNT"
     case pettyCashHolderChangeAcknowledgement = "PETTY_CASH_HOLDER_CHANGE_ACKNOWLEDGEMENT"
     case pettyCashAdvanceClearance = "PETTY_CASH_ADVANCE_CLEARANCE"
+    /// The holder hands out an advance (``SyncCapability/pettyCashAdvance``).
+    case pettyCashAdvance = "PETTY_CASH_ADVANCE"
 }
 
 public enum GpsStatus: String, Codable, Sendable, CaseIterable {

@@ -19,7 +19,10 @@ object PettyCashOps {
     const val ADVANCE_CLEARANCE = "PETTY_CASH_ADVANCE_CLEARANCE"
     const val HOLDER_CHANGE_ACKNOWLEDGEMENT = "PETTY_CASH_HOLDER_CHANGE_ACKNOWLEDGEMENT"
 
-    val ALL = listOf(ACKNOWLEDGEMENT, TOP_UP_REQUEST, RETURN, COUNT, ADVANCE_CLEARANCE, HOLDER_CHANGE_ACKNOWLEDGEMENT)
+    /** The holder hands out an advance (capability OP_PETTY_CASH_ADVANCE). */
+    const val ADVANCE = "PETTY_CASH_ADVANCE"
+
+    val ALL = listOf(ACKNOWLEDGEMENT, TOP_UP_REQUEST, RETURN, COUNT, ADVANCE_CLEARANCE, HOLDER_CHANGE_ACKNOWLEDGEMENT, ADVANCE)
 
     /** `EXPENSE.paid_from` of an expense paid from a fund. */
     const val PAID_FROM = "PETTY_CASH"
@@ -166,6 +169,16 @@ data class PettyCashHolderChangePayload(
     @SerialName("holder_change_id") val holderChangeId: String,
     val accept: Boolean,
     val note: String? = null,
+)
+
+/** `PETTY_CASH_ADVANCE` (`PettyCashAdvanceIn`): an advance out of my fund to someone else. */
+@Serializable
+data class PettyCashAdvancePayload(
+    @SerialName("client_id") val clientId: String,
+    @SerialName("fund_id") val fundId: String,
+    @SerialName("recipient_staff_id") val recipientStaffId: String,
+    val amount: DecimalAmount,
+    val purpose: String,
 )
 
 /** `PETTY_CASH_ADVANCE_CLEARANCE`: the fund's holder takes the change back. */

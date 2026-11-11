@@ -20,6 +20,9 @@ extension FieldAccess {
         supports(SyncCapability.pettyCash) && can(Self.pettyCashRead) && !disabledCapabilities.contains(TenantCapability.pettyCash)
     }
 
+    /// Give an advance from a fund I hold (the screen also needs the policy's advances_enabled).
+    public var pettyCashGiveAdvance: Bool { pettyCash && supports(SyncCapability.pettyCashAdvance) }
+
     /// Record a count of a fund I hold.
     public var pettyCashCount: Bool { pettyCash && can(Self.pettyCashCountPermission) }
 }
@@ -31,13 +34,16 @@ public struct PettyCashPolicyValues: Sendable, Equatable {
     public var returnEvidenceRequired = false
     public var advancesEnabled = false
     public var maxExpenseAmount: Decimal?
+    /// An advance or expense above what the fund has is still recorded at sync (missing = on, the platform default).
+    public var overspendAllowedOffline = true
 
     public init(countWitnessRequired: Bool = false, returnEvidenceRequired: Bool = false, advancesEnabled: Bool = false,
-                maxExpenseAmount: Decimal? = nil) {
+                maxExpenseAmount: Decimal? = nil, overspendAllowedOffline: Bool = true) {
         self.countWitnessRequired = countWitnessRequired
         self.returnEvidenceRequired = returnEvidenceRequired
         self.advancesEnabled = advancesEnabled
         self.maxExpenseAmount = maxExpenseAmount
+        self.overspendAllowedOffline = overspendAllowedOffline
     }
 
     public init(values: JSONValue) {
@@ -45,6 +51,7 @@ public struct PettyCashPolicyValues: Sendable, Equatable {
         returnEvidenceRequired = values["return_evidence_required"]?.boolValue ?? false
         advancesEnabled = values["advances_enabled"]?.boolValue ?? false
         maxExpenseAmount = values["max_expense_amount"]?.stringValue.flatMap(DecimalString.init(string:))?.value
+        overspendAllowedOffline = values["overspend_allowed_offline"]?.boolValue ?? true
     }
 }
 
@@ -73,6 +80,7 @@ public enum PettyCashTexts {
     public static let actionTopUp = "Request a top-up"
     public static let actionReturn = "Return money to the office"
     public static let actionCount = "Record a count"
+    public static let actionGiveAdvance = "Give an advance"
     public static let waiting = "Waiting for you"
     public static func waitingFunding(number: String, amount: String) -> String { "Funding \(number) · \(amount)" }
     public static func waitingTopUp(number: String, amount: String) -> String { "Top-up \(number) · \(amount)" }
@@ -91,12 +99,28 @@ public enum PettyCashTexts {
     public static let outboxCount = "Petty cash count"
     public static let outboxHolderChange = "Petty cash fund take-over"
     public static let outboxAdvance = "Petty cash advance cleared"
+    public static let outboxGiveAdvance = "Petty cash advance given"
     public static let titleAck = "Acknowledge petty cash"
     public static let titleTopUp = "Request a top-up"
     public static let titleReturn = "Return money"
     public static let titleCount = "Record a count"
     public static let titleHolderChange = "Take over a fund"
     public static let titleAdvance = "Clear an advance"
+    public static let titleGiveAdvance = "Give an advance"
+    public static let giveRecipient = "Given to"
+    public static let giveRecipientEmpty = "No colleague is saved on this phone yet. Connect, then open this form again."
+    public static let giveAmount = "Amount"
+    public static let givePurpose = "Purpose"
+    public static let giveFooter = "The advance leaves the fund now. The colleague clears it with receipts and the change."
+    public static let giveSave = "Give advance"
+    public static let errRecipient = "Choose who receives the advance."
+    public static let errPurpose = "Enter the purpose (at least 3 characters)."
+    public static func giveOverspend(_ amount: String) -> String {
+        "Above what the fund has available (\(amount)): it is recorded when the phone syncs and marked for the office to check."
+    }
+    public static func giveOverspendBlocked(_ amount: String) -> String {
+        "Above what the fund has available (\(amount)). Your company does not allow this offline."
+    }
     public static let notFound = "This is no longer waiting on this phone. Pull to sync."
     public static let unavailable = "Petty cash is not available on this phone. Sync, or ask your office."
     public static let fund = "Fund"
@@ -223,6 +247,8 @@ public enum PettyCashTexts {
         case "PETTY_CASH_ABOVE_CAP_REASON_REQUIRED": "The amount is above the fund's limit; send the request again with a reason."
         case "PETTY_CASH_ADVANCE_EXPENSES_PENDING": "Expenses of this advance are still waiting for approval."
         case "PETTY_CASH_ADVANCE_CLEARED": "This advance is already cleared."
+        case "PETTY_CASH_ADVANCES_DISABLED": "Advances are switched off for your company."
+        case "PETTY_CASH_ADVANCE_TO_HOLDER": "An advance goes to someone other than the fund's holder."
         default: nil
         }
     }
@@ -329,6 +355,40 @@ public enum PettyCashRules {
             return .failure(Problems(messages: [PettyCashTexts.errChange]))
         }
         return .success(value)
+    }
+
+    /// Give an advance: a recipient other than the holder, an amount, a purpose (3+ characters); above what the fund has
+    /// available it is refused when the tenant does not allow overspending offline.
+    public static func giveAdvance(recipientID: UUID?, holderID: UUID, amountText: String, purpose: String, available: Decimal?,
+                                   currency: String, policy: PettyCashPolicyValues)
+        -> Result<(recipient: UUID, amount: Decimal, purpose: String), Problems> {
+        var m: [String] = []
+        if recipientID == nil || recipientID == holderID { m.append(PettyCashTexts.errRecipient) }
+        let amount = AccountabilityRules.value(amountText, decimals: money)
+        if amount == nil { m.append(PettyCashTexts.errAmount) }
+        let text = trimmed(purpose) ?? ""
+        if text.count < minReason { m.append(PettyCashTexts.errPurpose) }
+        if !policy.overspendAllowedOffline, let note = giveNote(amount: amount, available: available, currency: currency, policy: policy) {
+            m.append(note)
+        }
+        guard m.isEmpty, let recipientID, let amount else { return .failure(Problems(messages: m)) }
+        return .success((recipientID, amount, text))
+    }
+
+    /// A typed money amount (more than 0), nil when not valid.
+    public static func amount(_ text: String) -> Decimal? { AccountabilityRules.value(text, decimals: money) }
+
+    /// The note when an advance is above what the fund has available (allowed offline, or why it is blocked).
+    public static func giveNote(amount: Decimal?, available: Decimal?, currency: String, policy: PettyCashPolicyValues) -> String? {
+        guard let amount, let available, amount > available else { return nil }
+        let text = InboxTexts.money(DecimalString(max(available, 0)).description, currency)
+        return policy.overspendAllowedOffline ? PettyCashTexts.giveOverspend(text) : PettyCashTexts.giveOverspendBlocked(text)
+    }
+
+    /// Recipients of an advance: the saved cash holders, active, without the fund's holder and me (by name).
+    public static func advanceRecipients(_ custodians: [CustodianDTO], holderID: UUID, me: UUID?) -> [CustodianDTO] {
+        custodians.filter { $0.isActive && $0.staffMemberID != holderID && $0.staffMemberID != me }
+            .sorted { $0.fullName.lowercased() < $1.fullName.lowercased() }
     }
 
     /// Take over a fund: accept, or decline with a reason of 3+ characters.
@@ -470,6 +530,7 @@ public enum PettyCash {
         OperationType.pettyCashAcknowledgement.rawValue, OperationType.pettyCashTopUpRequest.rawValue,
         OperationType.pettyCashReturn.rawValue, OperationType.pettyCashCount.rawValue,
         OperationType.pettyCashHolderChangeAcknowledgement.rawValue, OperationType.pettyCashAdvanceClearance.rawValue,
+        OperationType.pettyCashAdvance.rawValue,
     ]
 
     /// Builds the view: answered items (an op on this phone that was not refused) leave "Waiting for you" / "Advances";
@@ -638,6 +699,26 @@ extension FieldRecorder {
         try once(.pettyCashHolderChangeAcknowledgement, changeID)
         return try enqueue(.pettyCashHolderChangeAcknowledgement, entityType: "petty_cash_holder_change", entityID: changeID,
                            payload: PettyCashHolderChangePayload(holderChangeID: changeID, accept: accept, note: text),
+                           dependsOn: [], createdAt: date)
+    }
+
+    /// `PETTY_CASH_ADVANCE` from a fund I hold to someone else (OP_PETTY_CASH_ADVANCE); queued once per form visit.
+    @discardableResult
+    public func givePettyCashAdvance(fundID: UUID, recipientID: UUID?, amountText: String, purpose: String,
+                                     policy: PettyCashPolicyValues, at date: Date = Date(), clientID: UUID = UUID()) throws -> ClientOperation {
+        try requireCapability(SyncCapability.pettyCash)
+        try requireCapability(SyncCapability.pettyCashAdvance)
+        let fund = try pettyFund(fundID)
+        let values: (recipient: UUID, amount: Decimal, purpose: String)
+        switch PettyCashRules.giveAdvance(recipientID: recipientID, holderID: fund.holderStaffID, amountText: amountText, purpose: purpose,
+                                          available: fund.balance?.availableToSpend.value, currency: fund.currency, policy: policy) {
+        case let .failure(problems): throw Self.invalid(problems)
+        case let .success(checked): values = checked
+        }
+        try once(.pettyCashAdvance, clientID)
+        return try enqueue(.pettyCashAdvance, entityType: "petty_cash_advance_give", entityID: clientID,
+                           payload: PettyCashAdvancePayload(clientID: clientID, fundID: fundID, recipientStaffID: values.recipient,
+                                                            amount: values.amount, purpose: values.purpose),
                            dependsOn: [], createdAt: date)
     }
 

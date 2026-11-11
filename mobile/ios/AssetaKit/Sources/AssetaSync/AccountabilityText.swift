@@ -366,6 +366,7 @@ public enum FieldAccountabilityTexts {
         case .pettyCashCount: PettyCashTexts.outboxCount
         case .pettyCashHolderChangeAcknowledgement: PettyCashTexts.outboxHolderChange
         case .pettyCashAdvanceClearance: PettyCashTexts.outboxAdvance
+        case .pettyCashAdvance: PettyCashTexts.outboxGiveAdvance
         case .meterCapture where payload?["changeover_to_customer_id"]?.stringValue != nil: DailyReportTexts.changeoverOutbox
         case .meterCapture where payload?["kind"]?.stringValue == ReadingKind.daily.rawValue: outboxDailyReading
         default: nil

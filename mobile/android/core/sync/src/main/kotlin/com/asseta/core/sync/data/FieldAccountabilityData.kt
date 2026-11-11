@@ -172,6 +172,9 @@ class FieldAccountabilityData(
         }
         // CASH_CUSTODY off: the DEC-030 cash additions (policy, holders, transfers, floats to acknowledge, reasons) are not read.
         val record = FieldAccess.COLLECTION_RECORD in permissions && TenantAccess.CASH_CUSTODY !in disabledFor(tenantId)
+        // The cash holders are also the recipients of a petty cash advance (DEC-033), with CASH_CUSTODY off too.
+        val pettyRecipients = FieldAccess.COLLECTION_RECORD in permissions && FieldAccess.PETTY_CASH_READ in permissions &&
+            TenantAccess.PETTY_CASH !in disabledFor(tenantId)
         // A capability the tenant switched off is not read at all (its entry points are hidden).
         val hoursOn = TenantAccess.CUSTOMER_HOURS !in disabledFor(tenantId)
         val hoursRead = hoursOn && FieldAccess.HOURS_READ in permissions
@@ -180,7 +183,7 @@ class FieldAccountabilityData(
             fetchedAtMs = old.fetchedAtMs,
             cashPolicy = part(record, old.cashPolicy, null) { effectivePolicy(CashCustodyPolicy.TYPE) },
             hoursPolicy = part(hoursOn && FieldAccess.HOURS_PURCHASE in permissions, old.hoursPolicy, null) { effectivePolicy(CustomerHoursPolicy.TYPE) },
-            custodians = part(record, old.custodians, emptyList()) { cashCustodians(pageSize = PAGE).items.filter { it.isActive } },
+            custodians = part(record || pettyRecipients, old.custodians, emptyList()) { cashCustodians(pageSize = PAGE).items.filter { it.isActive } },
             transfers = part(record && me != null, old.transfers, emptyList()) { cashTransfers(staffMemberId = me, pageSize = PAGE).items },
             floats = part(record && me != null, old.floats, emptyList()) {
                 cashFloats(staffMemberId = me, awaitingAcknowledgement = true, pageSize = PAGE).items
