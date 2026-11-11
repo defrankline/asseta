@@ -1,0 +1,321 @@
+{
+  "_comment": "Starter reason lists for a company (scripts/seed-reason-lists.sh). Every list is the company's own data: rename, add or deactivate entries in the app afterwards. Codes are matched case-insensitively; cash reasons have no code in the app and are matched by label.",
+  "customer_hours": {
+    "DISCOUNT": [
+      {
+        "code": "LOYAL_CUSTOMER",
+        "label": "Long-standing customer"
+      },
+      {
+        "code": "LARGE_PURCHASE",
+        "label": "Large hours purchase"
+      },
+      {
+        "code": "BREAKDOWN_COMPENSATION",
+        "label": "Compensation for a machine breakdown"
+      },
+      {
+        "code": "OWNER_PROMOTION",
+        "label": "Owner-approved promotion"
+      }
+    ],
+    "CREDIT": [
+      {
+        "code": "INSTITUTIONAL",
+        "label": "Government or institutional customer, pays on invoice"
+      },
+      {
+        "code": "TRUSTED_CUSTOMER",
+        "label": "Trusted customer, owner-approved"
+      },
+      {
+        "code": "PAY_ON_COMPLETION",
+        "label": "Pays when the work is finished"
+      }
+    ],
+    "TRANSFER": [
+      {
+        "code": "MACHINE_BREAKDOWN",
+        "label": "Original machine broke down"
+      },
+      {
+        "code": "SITE_CHANGED",
+        "label": "Work moved to another site"
+      },
+      {
+        "code": "DIFFERENT_MACHINE_NEEDED",
+        "label": "The work needs a different machine"
+      },
+      {
+        "code": "MACHINE_UNAVAILABLE",
+        "label": "Original machine not available"
+      }
+    ],
+    "CANCELLATION": [
+      {
+        "code": "CUSTOMER_CANCELLED",
+        "label": "Customer cancelled the work"
+      },
+      {
+        "code": "SITE_NOT_READY",
+        "label": "Site not ready or access blocked"
+      },
+      {
+        "code": "WEATHER",
+        "label": "Weather stopped the work"
+      },
+      {
+        "code": "PAYMENT_NOT_RECEIVED",
+        "label": "Payment not received"
+      }
+    ],
+    "CORRECTION": [
+      {
+        "code": "ENTRY_ERROR",
+        "label": "Hours entered wrongly"
+      },
+      {
+        "code": "WRONG_MACHINE",
+        "label": "Recorded on the wrong machine"
+      },
+      {
+        "code": "WRONG_CUSTOMER",
+        "label": "Recorded for the wrong customer"
+      }
+    ],
+    "REFUND": [
+      {
+        "code": "WORK_ENDED_EARLY",
+        "label": "Customer ended the work with hours left"
+      },
+      {
+        "code": "MACHINE_NOT_PROVIDED",
+        "label": "The company could not provide the machine"
+      }
+    ],
+    "REVERSAL": [
+      {
+        "code": "DUPLICATE",
+        "label": "Recorded twice"
+      },
+      {
+        "code": "PAYMENT_REVERSED",
+        "label": "Payment bounced or reversed by the bank"
+      },
+      {
+        "code": "WRONG_AMOUNT",
+        "label": "Wrong amount recorded"
+      }
+    ]
+  },
+  "engine_hours": {
+    "NON_CUSTOMER_CATEGORY": [
+      {
+        "code": "MAINTENANCE",
+        "label": "Maintenance and servicing"
+      },
+      {
+        "code": "REPAIR",
+        "label": "Repair after a breakdown"
+      },
+      {
+        "code": "RELOCATION",
+        "label": "Moving between sites"
+      },
+      {
+        "code": "LOADING",
+        "label": "Loading or offloading for transport"
+      },
+      {
+        "code": "TESTING",
+        "label": "Testing after repair"
+      },
+      {
+        "code": "COMPANY_WORK",
+        "label": "Company's own work (yard, own projects)"
+      },
+      {
+        "code": "OPERATOR_TRAINING",
+        "label": "Operator training"
+      }
+    ],
+    "VARIANCE_REASON": [
+      {
+        "code": "METER_FAULT",
+        "label": "Hour meter faulty"
+      },
+      {
+        "code": "METER_REPLACED",
+        "label": "Hour meter replaced"
+      },
+      {
+        "code": "READING_ERROR",
+        "label": "Reading misread or mistyped"
+      },
+      {
+        "code": "PHOTO_UNCLEAR",
+        "label": "Meter photo unclear"
+      },
+      {
+        "code": "READING_MISSED",
+        "label": "Reading not taken at the time"
+      }
+    ],
+    "UNBILLABLE_REASON": [
+      {
+        "code": "BREAKDOWN_ON_SITE",
+        "label": "Breakdown on site"
+      },
+      {
+        "code": "WAITING_FOR_CUSTOMER",
+        "label": "Waiting for the customer (materials, instructions)"
+      },
+      {
+        "code": "WEATHER",
+        "label": "Weather stopped the work"
+      },
+      {
+        "code": "NO_FUEL",
+        "label": "No fuel on site"
+      },
+      {
+        "code": "NO_OPERATOR",
+        "label": "Operator absent"
+      },
+      {
+        "code": "SITE_ACCESS_BLOCKED",
+        "label": "Site access blocked"
+      }
+    ]
+  },
+  "cash": {
+    "VARIANCE": [
+      {
+        "code": "COUNTING_ERROR",
+        "label": "Counting error"
+      },
+      {
+        "code": "CHANGE_NOT_RECORDED",
+        "label": "Change given to the customer not recorded"
+      },
+      {
+        "code": "EXPENSE_NOT_RECORDED",
+        "label": "Field expense not recorded"
+      },
+      {
+        "code": "TRANSFER_CHARGES",
+        "label": "Bank or mobile-money charges"
+      },
+      {
+        "code": "NOTE_REJECTED",
+        "label": "Note rejected by the bank"
+      },
+      {
+        "code": "CASH_LOST_REPORTED",
+        "label": "Cash lost or stolen (reported)"
+      }
+    ],
+    "WRITE_OFF": [
+      {
+        "code": "SMALL_DIFFERENCE",
+        "label": "Small difference, not worth recovering"
+      },
+      {
+        "code": "THEFT_REPORTED",
+        "label": "Theft reported to the police"
+      },
+      {
+        "code": "CHARGES",
+        "label": "Bank or mobile-money charges"
+      },
+      {
+        "code": "NOT_RECOVERABLE",
+        "label": "Not recovered after follow-up"
+      }
+    ],
+    "RETENTION": [
+      {
+        "code": "FUEL",
+        "label": "Fuel bought on site"
+      },
+      {
+        "code": "URGENT_PARTS",
+        "label": "Urgent repair parts"
+      },
+      {
+        "code": "OPERATOR_ALLOWANCE",
+        "label": "Operator allowance"
+      },
+      {
+        "code": "TRANSPORT",
+        "label": "Transport of a machine or staff"
+      }
+    ],
+    "ADJUSTMENT": [
+      {
+        "code": "ENTRY_ERROR",
+        "label": "Wrong amount entered"
+      },
+      {
+        "code": "DUPLICATE",
+        "label": "Recorded twice"
+      },
+      {
+        "code": "WRONG_PERSON",
+        "label": "Recorded against the wrong person"
+      }
+    ],
+    "PARTIAL_REMITTANCE": [
+      {
+        "code": "BANK_CLOSED",
+        "label": "Bank or agent closed"
+      },
+      {
+        "code": "MOBILE_LIMIT",
+        "label": "Mobile-money limit reached"
+      },
+      {
+        "code": "KEPT_FOR_EXPENSES",
+        "label": "Kept for approved site expenses"
+      },
+      {
+        "code": "NO_BANK_NEAR_SITE",
+        "label": "No bank near the site"
+      }
+    ]
+  },
+  "revenue": [
+    {
+      "code": "MINIMUM_HOURS",
+      "label": "Minimum hours charged or waived"
+    },
+    {
+      "code": "APPROVED_DISCOUNT",
+      "label": "Approved discount"
+    },
+    {
+      "code": "RATE_CHANGED",
+      "label": "Rate changed during the period"
+    },
+    {
+      "code": "ON_CREDIT",
+      "label": "On credit, not yet paid"
+    },
+    {
+      "code": "WRONG_RATE",
+      "label": "Wrong rate applied"
+    },
+    {
+      "code": "CUSTOMER_DISPUTE",
+      "label": "Customer disputes the hours"
+    },
+    {
+      "code": "INVOICE_PENDING",
+      "label": "Invoice not yet issued"
+    },
+    {
+      "code": "COMPANY_WORK",
+      "label": "Company work, not billable"
+    }
+  ]
+}

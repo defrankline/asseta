@@ -428,3 +428,14 @@ scripts/seed-machine-categories.sh --registration-number <number> --file /home/a
 ```
 Names that already exist are skipped, so a second run adds nothing. Rates are not created; the go-live checklist asks for a
 rate only for machine types in use.
+
+## Seed a company's starter reason lists from a file
+
+`deploy/reason-lists.example.json` holds starter customer-hours, engine-hour, cash and revenue reasons. Copy it to the
+server, trim or reword it with the company, and run:
+```
+scripts/seed-reason-lists.sh --registration-number <number> --file /home/asseta/<company>-reasons.json        # dry run
+scripts/seed-reason-lists.sh --registration-number <number> --file /home/asseta/<company>-reasons.json --yes  # add them
+```
+Entries already there are skipped (by list and code; cash reasons by list and label), so a second run adds nothing, and
+nothing existing is changed. Each new entry gets an audit event. The company renames or deactivates entries in the app.
