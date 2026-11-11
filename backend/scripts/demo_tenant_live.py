@@ -2088,11 +2088,16 @@ def plan_ops(device: FieldDevice, boot: dict[str, Any], state: dict[str, Any], r
     which the server answers as duplicates)."""
     data = boot["data"]
     jobs = {j["job_number"]: j for j in data["jobs"]}
-    wanted = (*FIELD_STARTS, FIELD_READY)
+    # Only the jobs the history plays must be untouched. FIELD_READY is left for the live demo, so a demo that has
+    # already used or cancelled it is fine; other office or field records (petty cash, sales) do not interfere.
+    wanted = FIELD_STARTS
     problems = [f"{n} is {jobs[n]['status']}" for n in wanted if n in jobs and jobs[n]["status"] != "APPROVED"]
     problems += [f"{n} is not one of the supervisor's jobs" for n in wanted if n not in jobs]
-    mine = ("meter_captures", "job_activities", "expenses", "fuel_events", "cash_collections", "cash_handovers")
-    problems += [f"{len(data[f'my_{k}'])} {k.replace('_', ' ')}" for k in mine if data.get(f"my_{k}")]
+    played = {str(jobs[n]["id"]) for n in wanted if n in jobs}
+    for k in ("meter_captures", "job_activities", "fuel_events"):
+        on_played = [r for r in data.get(f"my_{k}") or [] if str(r.get("job_id")) in played]
+        if on_played:
+            problems.append(f"{len(on_played)} {k.replace('_', ' ')} on the demo jobs")
     if problems:
         raise Refuse("Field activity already exists (only played on untouched demo jobs):", *problems)
     approved = max(datetime.fromisoformat(jobs[n]["approved_at"]) for n in wanted)
