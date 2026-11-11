@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -23,12 +25,21 @@ val mapAttribution = prop("asseta.mapAttribution", "© OpenStreetMap contributor
 // Shared contract (openapi.json) is read in place by DTO tests; never copied.
 val contractsDir = rootProject.layout.projectDirectory.dir("../../contracts").asFile
 
+// Release signing: a properties file kept outside the repo (storeFile, storePassword, keyAlias, keyPassword), default
+// ~/.asseta/release-signing.properties, override with -Passeta.release.signingProperties=<path>. Without it the release
+// build is unsigned. The key is never committed.
+val releaseSigningFile = file(
+    (findProperty("asseta.release.signingProperties") as String?)
+        ?: "${System.getProperty("user.home")}/.asseta/release-signing.properties"
+)
+val releaseSigning = Properties().apply { if (releaseSigningFile.exists()) releaseSigningFile.inputStream().use { load(it) } }
+
 android {
     namespace = "com.asseta.owner"
     defaultConfig {
         applicationId = "com.asseta.owner"
-        versionCode = 2
-        versionName = "0.7.0"
+        versionCode = 3
+        versionName = "0.8.0"
         manifestPlaceholders["appAuthRedirectScheme"] = oidcRedirectScheme
         buildConfigField("String", "OIDC_REDIRECT_SCHEME", "\"$oidcRedirectScheme\"")
         buildConfigField("boolean", "FCM_ENABLED", fcmEnabled.toString())
@@ -39,8 +50,19 @@ android {
         compose = true
         buildConfig = true
     }
+    signingConfigs {
+        if (releaseSigning.isNotEmpty()) {
+            create("release") {
+                storeFile = file(releaseSigning.getProperty("storeFile"))
+                storePassword = releaseSigning.getProperty("storePassword")
+                keyAlias = releaseSigning.getProperty("keyAlias")
+                keyPassword = releaseSigning.getProperty("keyPassword")
+            }
+        }
+    }
     buildTypes {
         getByName("release") {
+            if (releaseSigning.isNotEmpty()) signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
