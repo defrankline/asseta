@@ -35,10 +35,13 @@ from asseta.modules.geospatial.models import JobSite
 from asseta.modules.hours.dto import (
     AllocationLineDto,
     CreditActivationIn,
+    CustomerDiscountRateDto,
     CustomerRegistrationIn,
     HoursBalanceDto,
+    HoursPriceDto,
     HoursPurchaseDto,
     HoursPurchaseIn,
+    HoursQuoteDto,
     LedgerEntryDto,
     MachineHoursDto,
     PaymentEvidenceDto,
@@ -448,6 +451,74 @@ class HoursService:
             )
         return card
 
+    def _price(
+        self, machine: Machine, customer_id: uuid.UUID | None, hours: Decimal
+    ) -> tuple[RentalRatePolicy, CustomerDiscount | None, Decimal, Decimal, Decimal]:
+        """The one price rule for an hours sale (the sale and the quote both use it): the machine type's current
+        rate card, less the customer's approved discount, times the hours, rounded to the currency."""
+        card = self._rate_card(machine)
+        discount = self._discount(customer_id) if customer_id is not None else None
+        pct = discount.percent if discount else Decimal(0)
+        if pct > self.engine.policy.max_discount_percent:
+            raise BusinessRuleViolation(
+                f"The customer's discount exceeds the tenant maximum of {self.engine.policy.max_discount_percent}%",
+                code="DISCOUNT_ABOVE_MAXIMUM",
+            )
+        effective_rate = (card.hourly_rate * (Decimal(100) - pct) / Decimal(100)).quantize(Decimal("0.0001"))
+        amount = quantize(hours * effective_rate, minor_units(self._s, card.currency))
+        return card, discount, pct, effective_rate, amount
+
+    def quote(self, machine_id: uuid.UUID, customer_id: uuid.UUID | None, hours: Decimal) -> HoursQuoteDto:
+        """What a sale of `hours` on this machine would cost now (a walk-in or no customer: no discount)."""
+        self._require_enabled()
+        machine = self._s.get(Machine, machine_id)
+        if machine is None:
+            raise NotFound("Machine not found")
+        card, _discount, pct, effective_rate, amount = self._price(machine, customer_id, hours)
+        return HoursQuoteDto(
+            machine_id=machine.id,
+            customer_id=customer_id,
+            hours=hours,
+            hourly_rate=card.hourly_rate,
+            discount_percent=pct,
+            effective_rate=effective_rate,
+            amount=amount,
+            currency=card.currency,
+            minimum_hours=card.minimum_hours,
+        )
+
+    def current_prices(self, machine_ids: set[uuid.UUID]) -> list[HoursPriceDto]:
+        """Each machine's current hourly rate (its type's rate card), for pricing a sale on a phone offline."""
+        out = []
+        for machine in self._s.execute(select(Machine).where(Machine.id.in_(machine_ids))).scalars():
+            try:
+                card = self._rate_card(machine)
+            except BusinessRuleViolation:
+                continue  # no rate for this type: the phone shows the price only once the sale is saved
+            out.append(
+                HoursPriceDto(
+                    machine_id=machine.id,
+                    rate_card_id=card.id,
+                    hourly_rate=card.hourly_rate,
+                    minimum_hours=card.minimum_hours,
+                    currency=card.currency,
+                    effective_from=card.effective_from,
+                )
+            )
+        return out
+
+    def current_discounts(self) -> list[CustomerDiscountRateDto]:
+        """Customers' approved discounts in force today (percent off the hourly rate), for offline pricing."""
+        rows = self._s.execute(
+            select(CustomerDiscount.customer_id).where(CustomerDiscount.status == ProposalStatus.APPROVED).distinct()
+        ).scalars()
+        out = []
+        for customer_id in rows:
+            d = self._discount(customer_id)
+            if d is not None and d.percent > 0:
+                out.append(CustomerDiscountRateDto(customer_id=customer_id, percent=d.percent))
+        return out
+
     def _check_payment_permission(self, method: HirePaymentMethod) -> None:
         needed = {PAYMENT_RECORDERS.get(method, OFFICE_PAYMENT), OFFICE_PAYMENT}
         if not needed & self._ctx.permissions:
@@ -489,16 +560,7 @@ class HoursService:
                 raise NotFound("Job site not found")
             if not site.is_active:
                 raise BusinessRuleViolation("Job site is deactivated", code="SITE_INACTIVE")
-        card = self._rate_card(machine)
-        discount = self._discount(customer.id)
-        pct = discount.percent if discount else Decimal(0)
-        if pct > self.engine.policy.max_discount_percent:
-            raise BusinessRuleViolation(
-                f"The customer's discount exceeds the tenant maximum of {self.engine.policy.max_discount_percent}%",
-                code="DISCOUNT_ABOVE_MAXIMUM",
-            )
-        effective_rate = (card.hourly_rate * (Decimal(100) - pct) / Decimal(100)).quantize(Decimal("0.0001"))
-        amount = quantize(body.hours * effective_rate, minor_units(self._s, card.currency))
+        card, discount, pct, effective_rate, amount = self._price(machine, customer.id, body.hours)
         year = self._local_year()
         purchase = HoursPurchase(
             id=uuid.uuid4(),

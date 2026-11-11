@@ -332,6 +332,38 @@ class PurchaseTotalsDto(BaseModel):
     amount_outstanding: Money
 
 
+class HoursQuoteDto(BaseModel):
+    """What an hours sale would cost now: the rate card, less the customer's approved discount, times the hours."""
+
+    machine_id: uuid.UUID
+    customer_id: uuid.UUID | None
+    hours: Decimal
+    hourly_rate: Decimal
+    discount_percent: Decimal
+    effective_rate: Decimal
+    amount: Decimal
+    currency: str
+    minimum_hours: Decimal
+
+
+class HoursPriceDto(BaseModel):
+    """A machine's current hourly rate (its type's rate card), in the sync snapshot for offline pricing."""
+
+    machine_id: uuid.UUID
+    rate_card_id: uuid.UUID
+    hourly_rate: Decimal
+    minimum_hours: Decimal
+    currency: str
+    effective_from: datetime
+
+
+class CustomerDiscountRateDto(BaseModel):
+    """A customer's approved discount in force today: percent off the hourly rate."""
+
+    customer_id: uuid.UUID
+    percent: Decimal
+
+
 class HoursPurchaseDto(BaseModel):
     id: uuid.UUID
     purchase_number: str

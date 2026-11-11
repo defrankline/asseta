@@ -26,6 +26,7 @@ from asseta.modules.fleet.machine_view import machine_dtos
 from asseta.modules.fleet.models import Machine, MachineAssignment, StaffMember
 from asseta.modules.geospatial.models import JobSite
 from asseta.modules.geospatial.sites_service import SiteService
+from asseta.modules.hours.service import HoursService
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.jobs.dto import ContractDto, CustomerDto
 from asseta.modules.jobs.lifecycle import job_dtos
@@ -47,6 +48,7 @@ from asseta.modules.pettycash.models import (
 )
 from asseta.modules.pettycash.service import PettyCashService
 from asseta.modules.policy.capabilities import (
+    CUSTOMER_HOURS,
     DEPOSIT_ACCOUNTS,
     ENGINE_HOURS,
     PETTY_CASH,
@@ -270,6 +272,7 @@ class SyncService:
             my_cash_collections=inbox.cash_collections.items,
             my_cash_handovers=inbox.cash_handovers.items,
             **self._petty_cash(staff),
+            **self._hours_prices(scope_machines),
         )
         # Every stream is ordered by revision: a truncated stream holds back the cursor to its last delivered row;
         # complete streams were delivered up to the watermark (re-delivery above the cursor is a harmless upsert).
@@ -286,6 +289,15 @@ class SyncService:
         if staff is None or "tenant.collection.record" not in self._ctx.permissions:
             return []
         return CashCustodyService(self._s, self._ctx, self._now).balances(staff.id)
+
+    def _hours_prices(self, machine_ids: set[uuid.UUID]) -> dict[str, Any]:
+        """Prices for selling customer hours offline (full snapshot every pull)."""
+        if "tenant.hours.purchase" not in self._ctx.permissions or not capability_on(
+            self._s, self._tid, CUSTOMER_HOURS, self._now
+        ):
+            return {}
+        svc = HoursService(self._s, self._ctx, self._now)
+        return {"hours_prices": svc.current_prices(machine_ids), "customer_discounts": svc.current_discounts()}
 
     def _petty_on(self) -> bool:
         return "tenant.pettycash.read" in self._ctx.permissions and capability_on(

@@ -4945,6 +4945,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenant/hours-purchases/quote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Quote Purchase
+         * @description What selling `hours` on this machine costs now (rate card less the customer's approved discount), so the
+         *     seller sees the total before saving. The sale itself prices with the same rule.
+         */
+        get: operations["quoteHoursPurchase"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenant/hours-purchases/{purchase_id}": {
         parameters: {
             query?: never;
@@ -11848,6 +11869,19 @@ export interface components {
             /** Verified Payments */
             verified_payments: string;
         };
+        /**
+         * CustomerDiscountRateDto
+         * @description A customer's approved discount in force today: percent off the hourly rate.
+         */
+        CustomerDiscountRateDto: {
+            /**
+             * Customer Id
+             * Format: uuid
+             */
+            customer_id: string;
+            /** Percent */
+            percent: string;
+        };
         /** CustomerDto */
         CustomerDto: {
             /** Code */
@@ -14064,6 +14098,33 @@ export interface components {
             /** Route */
             route: string;
         };
+        /**
+         * HoursPriceDto
+         * @description A machine's current hourly rate (its type's rate card), in the sync snapshot for offline pricing.
+         */
+        HoursPriceDto: {
+            /** Currency */
+            currency: string;
+            /**
+             * Effective From
+             * Format: date-time
+             */
+            effective_from: string;
+            /** Hourly Rate */
+            hourly_rate: string;
+            /**
+             * Machine Id
+             * Format: uuid
+             */
+            machine_id: string;
+            /** Minimum Hours */
+            minimum_hours: string;
+            /**
+             * Rate Card Id
+             * Format: uuid
+             */
+            rate_card_id: string;
+        };
         /** HoursPurchaseDto */
         HoursPurchaseDto: {
             /**
@@ -14188,6 +14249,33 @@ export interface components {
             note?: string | null;
             payment?: components["schemas"]["PurchasePaymentIn"] | null;
             walk_in?: components["schemas"]["WalkInCustomerIn"] | null;
+        };
+        /**
+         * HoursQuoteDto
+         * @description What an hours sale would cost now: the rate card, less the customer's approved discount, times the hours.
+         */
+        HoursQuoteDto: {
+            /** Amount */
+            amount: string;
+            /** Currency */
+            currency: string;
+            /** Customer Id */
+            customer_id: string | null;
+            /** Discount Percent */
+            discount_percent: string;
+            /** Effective Rate */
+            effective_rate: string;
+            /** Hourly Rate */
+            hourly_rate: string;
+            /** Hours */
+            hours: string;
+            /**
+             * Machine Id
+             * Format: uuid
+             */
+            machine_id: string;
+            /** Minimum Hours */
+            minimum_hours: string;
         };
         /** HoursStatementDto */
         HoursStatementDto: {
@@ -22132,6 +22220,11 @@ export interface components {
              */
             contracts: components["schemas"]["ContractDto"][];
             /**
+             * Customer Discounts
+             * @default []
+             */
+            customer_discounts: components["schemas"]["CustomerDiscountRateDto"][];
+            /**
              * Customers
              * @default []
              */
@@ -22146,6 +22239,11 @@ export interface components {
              * @default []
              */
             expense_categories: components["schemas"]["ExpenseCategoryDto"][];
+            /**
+             * Hours Prices
+             * @default []
+             */
+            hours_prices: components["schemas"]["HoursPriceDto"][];
             /**
              * Jobs
              * @default []
@@ -53188,6 +53286,96 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HoursPurchaseDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    quoteHoursPurchase: {
+        parameters: {
+            query: {
+                machine_id: string;
+                hours: number | string;
+                customer_id?: string | null;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HoursQuoteDto"];
                 };
             };
             /** @description Bad Request */

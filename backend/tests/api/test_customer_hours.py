@@ -131,9 +131,15 @@ def test_discount_needs_a_second_person_and_applies_automatically(api: Api) -> N
     assert own.status_code == 422 and _code(own) == "SEGREGATION_OF_DUTIES"
     ok = f.owner.post(f"/api/v1/tenant/customer-discounts/{did}/decision", {"approve": True, "note": "Agreed"})
     assert ok.status_code == 200 and ok.json()["status"] == "APPROVED", ok.text
+    q = f.supervisor.get(
+        "/api/v1/tenant/hours-purchases/quote", machine_id=f.c.t.machine_id, customer_id=f.customer_id, hours="10"
+    )
+    assert q.status_code == 200, q.text
     p = purchase(api, f.manager, f, "10")
     assert Decimal(p["discount_percent"]) == 10 and p["discount_id"] == did
     assert Decimal(p["amount"]) == Decimal(10 * RATE) * Decimal("0.9")
+    # The quote the seller saw before saving is exactly what the sale charged.
+    assert Decimal(q.json()["amount"]) == Decimal(p["amount"]) and Decimal(q.json()["discount_percent"]) == 10
     # Approved terms are frozen: editing is refused; revocation stops it applying.
     frozen = f.manager.put(
         f"/api/v1/tenant/customer-discounts/{did}", {**body, "percent": "50", "version": ok.json()["version"]}
@@ -429,6 +435,28 @@ def test_ledger_and_purchases_are_immutable_in_the_database(api: Api) -> None:
         with pytest.raises(DBAPIError):
             tenant_sql(f.tid, stmt)
     assert Decimal(get_purchase(f.owner, p["id"])["totals"]["remaining"]) == 2
+
+
+def test_hours_quote_and_offline_prices_match_the_sale(api: Api) -> None:
+    f = _setup(api)
+    walk = f.supervisor.get("/api/v1/tenant/hours-purchases/quote", machine_id=f.c.t.machine_id, hours="6")
+    assert walk.status_code == 200, walk.text
+    assert Decimal(walk.json()["amount"]) == Decimal(6 * RATE) and Decimal(walk.json()["discount_percent"]) == 0
+    sold = purchase(api, f.supervisor, f, "6", walk_in={"name": "Roadside customer"}, pay=str(6 * RATE), method="CASH")
+    assert Decimal(sold["amount"]) == Decimal(walk.json()["amount"])
+    bad = f.supervisor.get("/api/v1/tenant/hours-purchases/quote", machine_id=f.c.t.machine_id, hours="0")
+    assert bad.status_code == 422
+    # The phone's download carries the machine's current rate, so it can show the total offline.
+    device = "android-hours-price"
+    h = {**f.supervisor.headers(True, None), "X-Device-Id": device}
+    reg = api.client.post(
+        "/api/v1/sync/devices", headers=h, json={"device_id": device, "platform": "ANDROID", "app_version": "1.2.0"}
+    )
+    assert reg.status_code == 201, reg.text
+    boot = api.client.get("/api/v1/sync/bootstrap", headers=h).json()
+    assert "SYNC_HOURS_PRICES" in boot["capabilities"]
+    prices = {p["machine_id"]: Decimal(p["hourly_rate"]) for p in boot["data"]["hours_prices"]}
+    assert prices.get(f.c.t.machine_id) == Decimal(RATE)
 
 
 def test_offline_walk_in_purchase_is_applied_exactly_once(api: Api) -> None:

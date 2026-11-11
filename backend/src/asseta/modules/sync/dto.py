@@ -11,6 +11,7 @@ from asseta.modules.finance.deposit_accounts import SyncDepositAccountDto
 from asseta.modules.finance.dto import CashCustodyBalanceDto, CashHandoverDto, CustomerPaymentDto
 from asseta.modules.fleet.dto import MachineDto, StaffDto
 from asseta.modules.geospatial.dto import JobSiteDto
+from asseta.modules.hours.dto import CustomerDiscountRateDto, HoursPriceDto
 from asseta.modules.jobs.dto import AcknowledgementDto, ActivityDto, ContractDto, CustomerDto, JobDto
 from asseta.modules.meter.dto import ExceptionDto, MeterCaptureDto, ResetDto
 from asseta.modules.pettycash.dto import (
@@ -65,6 +66,10 @@ CAPABILITIES = [
     # so a witnessed count can be recorded offline; PETTY_CASH_COUNT keeps the count without the witness when the
     # witness lost the permission before the phone synced.
     "SYNC_PETTY_CASH_WITNESSES",
+    # SyncData.hours_prices (each synced machine's current hourly rate) and customer_discounts (approved discounts in
+    # force today): a phone shows the total of an hours sale as the hours are typed, offline. Total = hours x rate x
+    # (100 - discount) / 100, rounded to the currency; the server prices the sale with the same rule when it arrives.
+    "SYNC_HOURS_PRICES",
     # PETTY_CASH_ADVANCE: the holder hands out an advance offline (tenant policy advances_enabled); above what the fund
     # has available it is still recorded at sync when the tenant allows overspending offline (the fund shows it).
     "OP_PETTY_CASH_ADVANCE",
@@ -87,6 +92,7 @@ TENANT_CAPABILITY_OF = {
     "OP_PETTY_CASH": "PETTY_CASH",
     "OP_PETTY_CASH_ADVANCE": "PETTY_CASH",
     "SYNC_PETTY_CASH_WITNESSES": "PETTY_CASH",
+    "SYNC_HOURS_PRICES": "CUSTOMER_HOURS",
 }
 
 
@@ -264,6 +270,9 @@ class SyncData(BaseModel):
     petty_cash_advances: list[PettyCashAdvanceDto] = []
     # Sent with the funds while the caller holds one and may count (full snapshot; replace the local set).
     petty_cash_witnesses: list[PettyCashWitnessDto] = []
+    # SYNC_HOURS_PRICES (full snapshots; replace the local sets): sent to people who sell customer hours.
+    hours_prices: list[HoursPriceDto] = []
+    customer_discounts: list[CustomerDiscountRateDto] = []
 
 
 class BootstrapDto(BaseModel):

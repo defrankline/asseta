@@ -10267,6 +10267,26 @@
         "title": "CustomerBalanceDto",
         "type": "object"
       },
+      "CustomerDiscountRateDto": {
+        "description": "A customer's approved discount in force today: percent off the hourly rate.",
+        "properties": {
+          "customer_id": {
+            "format": "uuid",
+            "title": "Customer Id",
+            "type": "string"
+          },
+          "percent": {
+            "title": "Percent",
+            "type": "string"
+          }
+        },
+        "required": [
+          "customer_id",
+          "percent"
+        ],
+        "title": "CustomerDiscountRateDto",
+        "type": "object"
+      },
       "CustomerDto": {
         "properties": {
           "code": {
@@ -16883,6 +16903,48 @@
         "title": "HoursFigureDto",
         "type": "object"
       },
+      "HoursPriceDto": {
+        "description": "A machine's current hourly rate (its type's rate card), in the sync snapshot for offline pricing.",
+        "properties": {
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "effective_from": {
+            "format": "date-time",
+            "title": "Effective From",
+            "type": "string"
+          },
+          "hourly_rate": {
+            "title": "Hourly Rate",
+            "type": "string"
+          },
+          "machine_id": {
+            "format": "uuid",
+            "title": "Machine Id",
+            "type": "string"
+          },
+          "minimum_hours": {
+            "title": "Minimum Hours",
+            "type": "string"
+          },
+          "rate_card_id": {
+            "format": "uuid",
+            "title": "Rate Card Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "machine_id",
+          "rate_card_id",
+          "hourly_rate",
+          "minimum_hours",
+          "currency",
+          "effective_from"
+        ],
+        "title": "HoursPriceDto",
+        "type": "object"
+      },
       "HoursPurchaseDto": {
         "properties": {
           "allocations": {
@@ -17298,6 +17360,69 @@
           "hours"
         ],
         "title": "HoursPurchaseIn",
+        "type": "object"
+      },
+      "HoursQuoteDto": {
+        "description": "What an hours sale would cost now: the rate card, less the customer's approved discount, times the hours.",
+        "properties": {
+          "amount": {
+            "title": "Amount",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "customer_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Id"
+          },
+          "discount_percent": {
+            "title": "Discount Percent",
+            "type": "string"
+          },
+          "effective_rate": {
+            "title": "Effective Rate",
+            "type": "string"
+          },
+          "hourly_rate": {
+            "title": "Hourly Rate",
+            "type": "string"
+          },
+          "hours": {
+            "title": "Hours",
+            "type": "string"
+          },
+          "machine_id": {
+            "format": "uuid",
+            "title": "Machine Id",
+            "type": "string"
+          },
+          "minimum_hours": {
+            "title": "Minimum Hours",
+            "type": "string"
+          }
+        },
+        "required": [
+          "machine_id",
+          "customer_id",
+          "hours",
+          "hourly_rate",
+          "discount_percent",
+          "effective_rate",
+          "amount",
+          "currency",
+          "minimum_hours"
+        ],
+        "title": "HoursQuoteDto",
         "type": "object"
       },
       "HoursStatementDto": {
@@ -39038,6 +39163,14 @@
             "title": "Contracts",
             "type": "array"
           },
+          "customer_discounts": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/CustomerDiscountRateDto"
+            },
+            "title": "Customer Discounts",
+            "type": "array"
+          },
           "customers": {
             "default": [],
             "items": {
@@ -39060,6 +39193,14 @@
               "$ref": "#/components/schemas/ExpenseCategoryDto"
             },
             "title": "Expense Categories",
+            "type": "array"
+          },
+          "hours_prices": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/HoursPriceDto"
+            },
+            "title": "Hours Prices",
             "type": "array"
           },
           "jobs": {
@@ -95987,6 +96128,177 @@
           }
         },
         "summary": "Record Purchase",
+        "tags": [
+          "hours"
+        ]
+      }
+    },
+    "/api/v1/tenant/hours-purchases/quote": {
+      "get": {
+        "description": "What selling `hours` on this machine costs now (rate card less the customer's approved discount), so the\nseller sees the total before saving. The sale itself prices with the same rule.",
+        "operationId": "quoteHoursPurchase",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "machine_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Machine Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hours",
+            "required": true,
+            "schema": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0.0,
+                  "maximum": 100000.0,
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "title": "Hours"
+            }
+          },
+          {
+            "in": "query",
+            "name": "customer_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Customer Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HoursQuoteDto"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Quote Purchase",
         "tags": [
           "hours"
         ]

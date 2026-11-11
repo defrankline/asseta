@@ -3,11 +3,12 @@ evidence, the hours ledger, balances, work execution allocations, transfers and 
 
 import uuid
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Annotated
 from urllib.parse import urlencode
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, File, Header, UploadFile
+from fastapi import APIRouter, Depends, File, Header, Query, UploadFile
 from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -45,6 +46,7 @@ from asseta.modules.hours.dto import (
     HoursBalanceDto,
     HoursPurchaseDto,
     HoursPurchaseIn,
+    HoursQuoteDto,
     HoursStatementDto,
     LedgerEntryDto,
     LowBalanceAlertDto,
@@ -464,6 +466,20 @@ def list_purchases(
     return Page(
         items=[purchase_dto(session, p) for p in rows], total=total, page=paging.page, page_size=paging.page_size
     )
+
+
+@router.get("/hours-purchases/quote", response_model=HoursQuoteDto, operation_id="quoteHoursPurchase")
+def quote_purchase(
+    session: DbSession,
+    now: Now,
+    ctx: Annotated[RequestContext, Depends(HOURS_PURCHASE)],
+    machine_id: uuid.UUID,
+    hours: Annotated[Decimal, Query(gt=0, le=100000)],
+    customer_id: uuid.UUID | None = None,
+) -> HoursQuoteDto:
+    """What selling `hours` on this machine costs now (rate card less the customer's approved discount), so the
+    seller sees the total before saving. The sale itself prices with the same rule."""
+    return HoursService(session, ctx, now).quote(machine_id, customer_id, hours)
 
 
 @router.post("/hours-purchases", response_model=HoursPurchaseDto, status_code=201, operation_id="recordHoursPurchase")
