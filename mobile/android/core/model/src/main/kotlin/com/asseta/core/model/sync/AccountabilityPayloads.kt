@@ -87,6 +87,22 @@ data class HoursPurchasePayload(
     val payments: List<PurchasePaymentPayload>? = null,
     /** Completed blob upload ids (purpose PAYMENT_EVIDENCE), appended as each evidence photo finishes uploading. */
     @SerialName("evidence_upload_ids") val evidenceUploadIds: List<String> = emptyList(),
+    /** Book the job with the sale (OP_HOURS_SALE_BOOKING); null (omitted) = no booking. */
+    val job: SaleJobPayload? = null,
+)
+
+/**
+ * `SaleJobIn`: the job booked with an hours sale, for the sale's customer and machine, billed from these prepaid hours.
+ * [contractId] null lets the server use the customer's only active contract (or a standard walk-in contract when the
+ * company allows it); [plannedEnd] null = open-ended, else after [plannedStart].
+ */
+@Serializable
+data class SaleJobPayload(
+    @SerialName("planned_start") val plannedStart: String,
+    @SerialName("planned_end") val plannedEnd: String? = null,
+    @SerialName("job_site_id") val jobSiteId: String? = null,
+    @SerialName("contract_id") val contractId: String? = null,
+    val note: String? = null,
 )
 
 /** `HOURS_TRANSFER_REQUEST` (`TransferIn`): move remaining hours of a purchase to another machine. */

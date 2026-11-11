@@ -16,6 +16,9 @@ extension SyncCapability {
     public static let meterCorrection = "OP_METER_CORRECTION"
     /// `CASH_RETENTION_REQUEST` (ask to keep cash, queued offline; decided by another person).
     public static let cashRetentionRequest = "OP_CASH_RETENTION_REQUEST"
+    /// `HOURS_PURCHASE` accepts `job` (``SaleJobPayload``): the sale books its prepaid job in the same transaction (needs
+    /// tenant.job.request; job id uuid5(op client id, "job")); the acked entity carries `job` {id, job_number, status, …}.
+    public static let hoursSaleBooking = "OP_HOURS_SALE_BOOKING"
 }
 
 // MARK: - Operation payloads
@@ -83,9 +86,13 @@ public struct HoursPurchasePayload: Codable, Hashable, Sendable {
     /// first "payment", so a replay stays exactly-once.
     public let payments: [PurchasePaymentPayload]?
     public let evidenceUploadIDs: [UUID]
+    /// Book the job with the sale (OP_HOURS_SALE_BOOKING); nil (key omitted) = no booking.
+    public let job: SaleJobPayload?
 
     public init(clientID: UUID, machineID: UUID, hours: Decimal, customerID: UUID?, walkIn: WalkInCustomerPayload?,
-                jobSiteID: UUID?, note: String?, payment: PurchasePaymentPayload?, payments: [PurchasePaymentPayload]? = nil) {
+                jobSiteID: UUID?, note: String?, payment: PurchasePaymentPayload?, payments: [PurchasePaymentPayload]? = nil,
+                job: SaleJobPayload? = nil) {
+        self.job = job
         self.clientID = clientID
         self.machineID = machineID
         self.hours = DecimalString(hours)
@@ -99,8 +106,31 @@ public struct HoursPurchasePayload: Codable, Hashable, Sendable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case hours, note, payment, payments, clientID = "client_id", machineID = "machine_id", customerID = "customer_id", walkIn = "walk_in"
+        case hours, note, payment, payments, job, clientID = "client_id", machineID = "machine_id", customerID = "customer_id", walkIn = "walk_in"
         case jobSiteID = "job_site_id", evidenceUploadIDs = "evidence_upload_ids"
+    }
+}
+
+/// `SaleJobIn`: the job booked with an hours sale, for the sale's customer and machine, billed from these prepaid hours.
+/// `contractID` nil lets the server use the customer's only active contract (or a standard walk-in contract when the
+/// company allows it); `plannedEnd` nil = open-ended, else after `plannedStart`.
+public struct SaleJobPayload: Codable, Hashable, Sendable {
+    public let plannedStart: Date
+    public let plannedEnd: Date?
+    public let jobSiteID: UUID?
+    public let contractID: UUID?
+    public let note: String?
+
+    public init(plannedStart: Date, plannedEnd: Date?, jobSiteID: UUID?, contractID: UUID?, note: String?) {
+        self.plannedStart = plannedStart
+        self.plannedEnd = plannedEnd
+        self.jobSiteID = jobSiteID
+        self.contractID = contractID
+        self.note = note
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case note, plannedStart = "planned_start", plannedEnd = "planned_end", jobSiteID = "job_site_id", contractID = "contract_id"
     }
 }
 

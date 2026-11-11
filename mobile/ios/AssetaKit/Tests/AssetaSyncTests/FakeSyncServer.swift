@@ -155,6 +155,11 @@ final class FakeSyncServer: @unchecked Sendable {
                 let result: [String: Any] = ["error": error, "server_state": ["job_status": "CANCELLED", "job_version": 7]]
                 stored[id] = StoredOp(status: "CONFLICT", result: result, error: error)
                 return ["id": id.uuidString.lowercased(), "status": "CONFLICT", "result": result, "error": error]
+            case let refusal where refusal.hasPrefix("CONFLICT:"):
+                // A business refusal kept for review, with its code (e.g. "CONFLICT:CONTRACT_REQUIRED").
+                let error: [String: Any] = ["code": String(refusal.dropFirst("CONFLICT:".count)), "message": "refused"]
+                stored[id] = StoredOp(status: "CONFLICT", result: ["error": error], error: error)
+                return ["id": id.uuidString.lowercased(), "status": "CONFLICT", "result": ["error": error], "error": error]
             default:
                 let error: [String: Any] = ["code": "VALIDATION_FAILED", "message": "reading: invalid"]
                 stored[id] = StoredOp(status: "REJECTED", result: ["error": error], error: error)

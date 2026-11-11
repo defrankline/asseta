@@ -87,6 +87,8 @@ public enum FieldAccountabilityTexts {
     public static func hoursTodoReference(_ n: [Int]) -> String { "enter the reference for \(hoursPayments(n))" }
     public static func hoursTodoLower(_ total: String) -> String { "lower the payments to the total of \(total)" }
     /// "To save: a, b and c."; nil when there is nothing to do.
+    public static let hoursTodoJobEnd = "set the job's end after its start" // field.hours.toSaveJobEnd
+    public static let hoursTodoJobContract = "choose the job's contract" // field.hours.toSaveJobContract
     public static func hoursToSave(_ todo: [String]) -> String? { todo.isEmpty ? nil : "To save: \(and(todo))." }
     /// "payment 2", "payments 2 and 3", "payments 1, 2 and 3".
     public static func hoursPayments(_ n: [Int]) -> String {
@@ -100,6 +102,8 @@ public enum FieldAccountabilityTexts {
     public static func hoursPartPaid(_ balance: String) -> String { "Part paid (balance \(balance))" } // field.hours.partPaid
     public static let hoursErrNoncashOff = "Bank and mobile-money payments are recorded by the office." // field.hours.errNoncashOff
     public static let hoursErrTooManyPayments = "At most 10 payments per sale." // field.hours.errTooManyPayments
+    public static let hoursErrJobEnd = "The job's end must be after its start." // field.hours.errJobEnd
+    public static let hoursErrJobContract = "Choose the contract for the job." // field.hours.errJobContract
     public static func hoursErrPaymentsExceed(_ total: String) -> String { "The payments add up to more than the total of \(total)." } // field.hours.errPaymentsExceed
 
     /// The lines under the payments: "Paid TZS 300,000 of TZS 570,000 · Balance TZS 270,000", then the status.
@@ -120,9 +124,12 @@ public enum FieldAccountabilityTexts {
         return out
     }
 
-    /// The sale on the sync status screen: "Hours sale · Cash 300,000 + Bank 270,000" (or "· Not paid yet").
+    /// The sale on the sync status screen: "Hours sale · Cash 300,000 + Bank 270,000" (or "· Not paid yet"); a sale that
+    /// books its job reads "Hours sale + job booking · …".
     public static func hoursSaleOutbox(_ payload: JSONValue?) -> String {
         guard let payload else { return outboxHoursSale }
+        var title = outboxHoursSale
+        if case .object? = payload["job"] { title = outboxHoursSaleBooking }
         let parts: [JSONValue]
         if case let .array(list)? = payload["payments"] {
             parts = list
@@ -131,8 +138,8 @@ public enum FieldAccountabilityTexts {
         } else {
             parts = []
         }
-        if parts.isEmpty { return "\(outboxHoursSale) · \(hoursNotPaid)" }
-        return "\(outboxHoursSale) · " + parts.map { p in
+        if parts.isEmpty { return "\(title) · \(hoursNotPaid)" }
+        return "\(title) · " + parts.map { p in
             let wire = p["method"]?.stringValue ?? ""
             let method = paymentMethods.first { $0.wire == wire }?.label ?? wire
             let amount = p["amount"]?.stringValue.flatMap { DecimalString(string: $0)?.value }.map { " " + HoursPricing.rate($0) } ?? ""
@@ -188,6 +195,47 @@ public enum FieldAccountabilityTexts {
     public static let hoursErrReference = "Enter the reference for bank and mobile-money payments."
     public static let hoursErrWalkInOff = "Walk-in customers are turned off for your company."
     public static let hoursOff = "Customer hours are turned off for your company."
+
+    // Book the job with the sale (OP_HOURS_SALE_BOOKING)
+    public static let jobSection = "Job" // field.hours.job.section
+    public static let jobBook = "Book the job" // field.hours.job.book
+    public static let jobStart = "Start" // field.hours.job.start
+    public static let jobEnd = "End (optional)" // field.hours.job.end
+    public static let jobEndNotSet = "Not set" // field.hours.job.endNotSet
+    public static let jobClearEnd = "Clear end" // field.hours.job.clearEnd
+    public static let jobSite = "Site (optional)" // field.hours.job.site
+    public static let jobSiteNone = "Not set" // field.hours.job.siteNone
+    public static let jobSitesEmpty = "Sites appear here after a sync." // field.hours.job.sitesEmpty
+    public static let jobContract = "Contract" // field.hours.job.contract
+    public static let jobNote = "What the customer asked for (optional)" // field.hours.job.note
+    public static let jobFooterOff = "Turn on to book the job for this customer and machine, billed from these hours." // field.hours.job.footerOff
+    public static let jobFooter = "The job is billed from these hours. It is approved once the sale is paid and verified, or by the office; then it appears under Ready to start." // field.hours.job.footer
+    public static let jobContractFooter = "This customer has more than one contract: choose the one for this job." // field.hours.job.contractFooter
+
+    /// The default end offered: "End after the sale hours (6 h)" (field.hours.job.endFromHours).
+    public static func jobEndFromHours(_ hours: Decimal) -> String { "End after the sale hours (\(AccountabilityRules.hoursNumber(hours)) h)" }
+
+    /// The booked job once the sale synced: "Job JB-2026-00042 · Approved" (field.hours.job.synced); nil when the acked
+    /// sale has no job.
+    public static func hoursSaleJob(_ result: JSONValue?) -> String? {
+        guard let result else { return nil }
+        let body = result["result"] ?? result
+        let job = body["entity"]?["job"] ?? body["job"]
+        guard let number = job?["job_number"]?.stringValue else { return nil }
+        return "Job \(number)" + (job?["status"]?.stringValue.map { " · " + bookedJobStatus($0) } ?? "")
+    }
+
+    public static func bookedJobStatus(_ status: String) -> String {
+        switch status {
+        case "PENDING_APPROVAL": "Waiting for approval"
+        case "APPROVED": "Approved"
+        case "IN_PROGRESS": "In progress"
+        case "COMPLETED": "Completed"
+        case "CANCELLED": "Cancelled"
+        default:
+            { (t: String) in t.prefix(1).uppercased() + t.dropFirst() }(status.lowercased().replacingOccurrences(of: "_", with: " "))
+        }
+    }
 
     // Request hours transfer
     public static let transferPurchase = "Purchase"
@@ -419,6 +467,16 @@ public enum FieldAccountabilityTexts {
         case "INVOICE_NOT_OPEN": "This invoice is no longer open. Record it again and choose another."
         case "DEPOSIT_ACCOUNT_CURRENCY_MISMATCH":
             "The account you chose holds a different currency. Record the handover again with another account."
+        // The job booked with an hours sale: a refused booking refuses the whole sale, kept for the office to review.
+        case "CONTRACT_REQUIRED": "This customer has no contract yet; the office creates one. The sale and its booking are kept for review."
+        case "CONTRACT_CHOICE_REQUIRED":
+            "This customer has several contracts, so the job needs one chosen. The sale and its booking are kept for review; book it again online and choose the contract."
+        case "CONTRACT_CUSTOMER_MISMATCH": "The contract you chose belongs to another customer. The sale and its booking are kept for review."
+        case "CONTRACT_NOT_ACTIVE": "The contract you chose is no longer active. The sale and its booking are kept for review."
+        case "JOB_REQUEST_NOT_PERMITTED": "You are not allowed to book jobs. The sale and its booking are kept for review."
+        case "NO_STAFF_RECORD":
+            "Your account has no staff record, so the job could not be booked. The sale and its booking are kept for review; ask your administrator."
+        case "MACHINE_BUSY": "Another job is running on this machine; finish it first."
         default: DailyReportTexts.conflict(code)
         }
     }
@@ -444,6 +502,7 @@ public enum FieldAccountabilityTexts {
 
     // Sync status titles (outbox)
     public static let outboxHoursSale = "Hours sale"
+    public static let outboxHoursSaleBooking = "Hours sale + job booking" // field.hours.outboxBooking
     public static let outboxHoursTransfer = "Hours transfer request"
     public static let outboxCashTransfer = "Cash transfer"
     public static let outboxTransferAck = "Transfer acknowledgement"

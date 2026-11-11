@@ -49,6 +49,9 @@ public struct FieldAccess: Sendable, Equatable {
     public var cashActivation: HoursCashActivation { hours?.cashActivation ?? .verify }
     /// The payment methods (wire values) the sale form offers.
     public var saleMethods: [String] { noncashPayments ? ["CASH", "BANK", "MOBILE_MONEY"] : ["CASH"] }
+    /// "Book the job" on the sale: the server takes `job` on HOURS_PURCHASE (OP_HOURS_SALE_BOOKING) and the user may
+    /// request jobs (tenant.job.request).
+    public var bookSaleJob: Bool { sellHours && supports(SyncCapability.hoursSaleBooking) && can(Self.jobRequest) }
     public var requestHoursTransfer: Bool {
         supports(SyncCapability.hoursTransferRequest) && can(Self.hoursTransfer) && customerHoursOn
     }
@@ -92,6 +95,7 @@ public struct FieldAccess: Sendable, Equatable {
     public var proposeCorrection: Bool { supports(SyncCapability.meterCorrection) && can(Self.meterCapture) && engineHoursOn }
 
     public static let hoursPurchase = "tenant.hours.purchase"
+    public static let jobRequest = "tenant.job.request"
     public static let hoursTransfer = "tenant.hours.transfer"
     public static let hoursRead = "tenant.hours.read"
     public static let collectionRecord = "tenant.collection.record"
@@ -141,6 +145,8 @@ public struct HoursSaleDraft: Sendable, Equatable {
     public var hoursText = ""
     public var payments: [PaymentLine] = []
     public var note = ""
+    /// "Book the job" as typed; nil = no booking.
+    public var job: SaleJobDraft?
 
     public init() {}
 
@@ -165,6 +171,77 @@ public struct HoursSaleValues: Sendable, Equatable {
     public let walkInName: String?
     public let walkInPhone: String?
     public let note: String?
+    public var job: SaleJobValues? = nil
+}
+
+/// The job booked with the sale as typed. `contractRequired`: the customer has more than one contract and the form
+/// offers the picker (online), so one must be chosen; otherwise `contractID` stays nil and the server picks it.
+public struct SaleJobDraft: Sendable, Equatable {
+    public var start: Date
+    public var end: Date?
+    public var siteID: UUID?
+    public var contractID: UUID?
+    public var note: String
+    public var contractRequired: Bool
+
+    public init(start: Date, end: Date? = nil, siteID: UUID? = nil, contractID: UUID? = nil, note: String = "",
+                contractRequired: Bool = false) {
+        self.start = start
+        self.end = end
+        self.siteID = siteID
+        self.contractID = contractID
+        self.note = note
+        self.contractRequired = contractRequired
+    }
+}
+
+/// A checked booking (`SaleJobIn`).
+public struct SaleJobValues: Sendable, Equatable {
+    public let start: Date
+    public let end: Date?
+    public let siteID: UUID?
+    public let contractID: UUID?
+    public let note: String?
+}
+
+/// Defaults of "Book the job" (same as Android `SaleBooking`).
+public enum SaleBooking {
+    /// The start the form opens with: tomorrow at 08:00, local time.
+    public static func defaultStart(now: Date = Date(), calendar: Calendar = .current) -> Date {
+        let today = calendar.startOfDay(for: now)
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: today) ?? today
+        return calendar.date(bySettingHour: 8, minute: 0, second: 0, of: tomorrow) ?? tomorrow
+    }
+
+    /// The end offered by default: the sale's hours after the start (whole minutes); nil while the hours are not valid.
+    public static func endAfterHours(start: Date, hoursText: String) -> Date? {
+        guard let hours = AccountabilityRules.saleHours(hoursText), hours > 0 else { return nil }
+        var minutes = hours * 60, rounded = Decimal()
+        NSDecimalRound(&rounded, &minutes, 0, .plain)
+        return start.addingTimeInterval(NSDecimalNumber(decimal: rounded).doubleValue * 60)
+    }
+
+    /// The end must come after the start (an end is optional).
+    public static func endValid(_ job: SaleJobDraft) -> Bool { job.end.map { $0 > job.start } ?? true }
+
+    /// The customer's contracts to choose from for the job: only those read from the server during this visit, and only
+    /// when the customer has more than one (offline, or with one contract, the server picks it). Android
+    /// `HoursSaleForm.contractChoices`.
+    public static func contractChoices(_ contracts: [FieldContractDTO], customerID: UUID?, walkIn: Bool) -> [FieldContractDTO] {
+        guard !walkIn, let customerID else { return [] }
+        let mine = contracts.filter { $0.customerID == customerID }
+        return mine.count > 1 ? mine : []
+    }
+
+    /// The booking to check and save (nil when "Book the job" is off or not offered); a contract that is not one of
+    /// `choices` (another customer's) is dropped. Android `HoursSaleForm.draft`.
+    public static func job(on: Bool, start: Date, end: Date?, siteID: UUID?, contractID: UUID?, note: String,
+                           choices: [FieldContractDTO]) -> SaleJobDraft? {
+        guard on else { return nil }
+        return SaleJobDraft(start: start, end: end, siteID: siteID,
+                            contractID: contractID.flatMap { id in choices.contains { $0.id == id } ? id : nil }, note: note,
+                            contractRequired: !choices.isEmpty)
+    }
 }
 
 /// Offline checks of the accountability forms (wording in ``FieldAccountabilityTexts``; the server re-validates).
@@ -237,9 +314,15 @@ public enum AccountabilityRules {
             m.append(FieldAccountabilityTexts.hoursErrPaymentsExceed(
                 HoursPricing.money(quote.amount, currency: quote.currency, minorUnits: quote.minorUnits)))
         }
+        var job: SaleJobValues?
+        if let j = d.job {
+            if !SaleBooking.endValid(j) { m.append(FieldAccountabilityTexts.hoursErrJobEnd) }
+            if j.contractRequired && j.contractID == nil { m.append(FieldAccountabilityTexts.hoursErrJobContract) }
+            job = SaleJobValues(start: j.start, end: j.end, siteID: j.siteID, contractID: j.contractID, note: trimmed(j.note, max: maxNote))
+        }
         guard m.isEmpty, let hours else { return .failure(Problems(messages: m)) }
         return .success(HoursSaleValues(hours: hours, payments: parts, walkInName: name,
-                                        walkInPhone: phone, note: trimmed(d.note, max: maxNote)))
+                                        walkInPhone: phone, note: trimmed(d.note, max: maxNote), job: job))
     }
 
     /// True when a bank or mobile-money line has no reference yet (shown under that line's Reference field).
@@ -277,6 +360,10 @@ public enum AccountabilityRules {
         if !noReference.isEmpty { todo.append(T.hoursTodoReference(noReference)) }
         if let quote = price.quote, HoursPayments.paid(d.payments) > quote.amount {
             todo.append(T.hoursTodoLower(HoursPricing.money(quote.amount, currency: quote.currency, minorUnits: quote.minorUnits)))
+        }
+        if let j = d.job {
+            if !SaleBooking.endValid(j) { todo.append(T.hoursTodoJobEnd) }
+            if j.contractRequired && j.contractID == nil { todo.append(T.hoursTodoJobContract) }
         }
         return T.hoursToSave(todo)
     }
@@ -423,6 +510,8 @@ extension FieldRecorder {
     public func recordHoursSale(_ draft: HoursSaleDraft, walkInAllowed: Bool, cashHolderID: UUID?, evidence: [[StoredEvidence]],
                                 receivedAt: Date, clientID: UUID = UUID(), noncashAllowed: Bool = false) throws -> ClientOperation {
         try requireCapability(SyncCapability.hoursPurchase)
+        // Booking the job needs a server that takes `job` on the sale (else it would be dropped without a word).
+        if draft.job != nil { try requireCapability(SyncCapability.hoursSaleBooking) }
         let values: HoursSaleValues
         // The parts may not exceed the total this phone knows (the server checks again with its own price).
         let price = HoursPricing.price(HoursPricing.load(store: store, tenantID: tenantID), machineID: draft.machineID,
@@ -463,7 +552,12 @@ extension FieldRecorder {
             let payment = parts.count == 1 ? parts[0] : nil
             let payload = HoursPurchasePayload(clientID: clientID, machineID: machineID, hours: values.hours,
                                                customerID: draft.walkIn ? nil : draft.customerID, walkIn: walkIn,
-                                               jobSiteID: nil, note: values.note, payment: payment, payments: split ? parts : nil)
+                                               jobSiteID: nil, note: values.note, payment: payment, payments: split ? parts : nil,
+                                               // The server books the job with the sale (job id uuid5(client_id, "job")).
+                                               job: values.job.map {
+                                                   SaleJobPayload(plannedStart: $0.start, plannedEnd: $0.end, jobSiteID: $0.siteID,
+                                                                  contractID: $0.contractID, note: $0.note)
+                                               })
             return try enqueue(.hoursPurchase, entityType: "hours_purchase", entityID: clientID, payload: payload,
                                dependsOn: [], attachments: locals.flatMap { $0 }.map { ($0, .evidenceUploads) }, createdAt: receivedAt)
         }

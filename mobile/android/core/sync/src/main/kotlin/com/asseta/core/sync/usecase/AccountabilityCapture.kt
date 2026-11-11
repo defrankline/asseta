@@ -20,6 +20,7 @@ import com.asseta.core.model.sync.CashTransferPayload
 import com.asseta.core.model.sync.HoursPurchasePayload
 import com.asseta.core.model.sync.HoursTransferPayload
 import com.asseta.core.model.sync.PurchasePaymentPayload
+import com.asseta.core.model.sync.SaleJobPayload
 import com.asseta.core.model.sync.SyncCapabilities
 import com.asseta.core.model.sync.WalkInCustomerPayload
 import com.asseta.core.sync.data.FieldOps
@@ -133,6 +134,8 @@ class AccountabilityCapture(
     suspend fun hoursSale(r: HoursSaleRequest): FinanceResult {
         unavailable(r.tenantId, SyncCapabilities.OP_HOURS_PURCHASE)?.let { return FinanceResult.Blocked(it) }
         val d = r.draft
+        // Booking the job needs a server that takes `job` on the sale (else it would be dropped without a word).
+        if (d.job != null) unavailable(r.tenantId, SyncCapabilities.OP_HOURS_SALE_BOOKING)?.let { return FinanceResult.Blocked(it) }
         // Each payment line's photos (the bank slip, the mobile-money receipt); lines without photos have none.
         val evidence = d.payments.indices.map { i -> r.paymentEvidence.getOrNull(i).orEmpty().filter { it.isNotEmpty() } }
         // The parts may not exceed the total this phone knows (the server checks again with its own price).
@@ -174,6 +177,10 @@ class AccountabilityCapture(
             note = values.note,
             payment = payment,
             payments = splitParts,
+            // The server books the job with the sale (job id uuid5(client_id, "job"), so a replay books it once).
+            job = values.job?.let { j ->
+                SaleJobPayload(IsoTime.format(j.startMs), j.endMs?.let(IsoTime::format), j.siteId, j.contractId, j.note)
+            },
         )
         val all = stored.flatten()
         val database = db()

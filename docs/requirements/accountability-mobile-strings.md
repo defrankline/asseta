@@ -110,6 +110,7 @@ encrypted on the phone) enables it. Unknown policy (never loaded) = hidden, so t
 | field.hours.toSaveLower | lower the payments to the total of {total} |
 | field.hours.toSavePayments | payment {n} / payments {n} and {m} / payments {n}, {m} and {k} |
 | field.hours.outbox | Hours sale · {method} {amount}[ + {method} {amount}…] (no payment: "Hours sale · Not paid yet") |
+| field.hours.outboxBooking | Hours sale + job booking (replaces "Hours sale" in `field.hours.outbox` when the sale books its job) |
 | field.hours.methodCash | Cash |
 | field.hours.methodBank | Bank |
 | field.hours.methodMobileMoney | Mobile money |
@@ -137,6 +138,38 @@ encrypted on the phone) enables it. Unknown policy (never loaded) = hidden, so t
 | field.hours.errTooManyPayments | At most 10 payments per sale. |
 | field.hours.errPaymentsExceed | The payments add up to more than the total of {total}. |
 | field.hours.off | Customer hours are turned off for your company. |
+| field.hours.job.section | Job |
+| field.hours.job.book | Book the job |
+| field.hours.job.start | Start |
+| field.hours.job.end | End (optional) |
+| field.hours.job.endNotSet | Not set |
+| field.hours.job.endFromHours | End after the sale hours ({hours} h) |
+| field.hours.job.clearEnd | Clear end |
+| field.hours.job.contract | Contract |
+| field.hours.job.contractFooter | This customer has more than one contract: choose the one for this job. |
+| field.hours.job.site | Site (optional) |
+| field.hours.job.siteNone | Not set |
+| field.hours.job.sitesEmpty | Sites appear here after a sync. |
+| field.hours.job.note | What the customer asked for (optional) |
+| field.hours.job.footerOff | Turn on to book the job for this customer and machine, billed from these hours. |
+| field.hours.job.footer | The job is billed from these hours. It is approved once the sale is paid and verified, or by the office; then it appears under Ready to start. |
+| field.hours.job.synced | Job {number} · {status} |
+| field.hours.job.statusPendingApproval | Waiting for approval |
+| field.hours.job.statusApproved | Approved |
+| field.hours.job.statusInProgress | In progress |
+| field.hours.job.statusCompleted | Completed |
+| field.hours.job.statusCancelled | Cancelled |
+| field.hours.errJobEnd | The job's end must be after its start. |
+| field.hours.errJobContract | Choose the contract for the job. |
+| field.hours.toSaveJobEnd | set the job's end after its start |
+| field.hours.toSaveJobContract | choose the job's contract |
+| field.conflict.CONTRACT_REQUIRED | This customer has no contract yet; the office creates one. The sale and its booking are kept for review. |
+| field.conflict.CONTRACT_CHOICE_REQUIRED | This customer has several contracts, so the job needs one chosen. The sale and its booking are kept for review; book it again online and choose the contract. |
+| field.conflict.CONTRACT_CUSTOMER_MISMATCH | The contract you chose belongs to another customer. The sale and its booking are kept for review. |
+| field.conflict.CONTRACT_NOT_ACTIVE | The contract you chose is no longer active. The sale and its booking are kept for review. |
+| field.conflict.JOB_REQUEST_NOT_PERMITTED | You are not allowed to book jobs. The sale and its booking are kept for review. |
+| field.conflict.NO_STAFF_RECORD | Your account has no staff record, so the job could not be booked. The sale and its booking are kept for review; ask your administrator. |
+| field.conflict.MACHINE_BUSY | Another job is running on this machine; finish it first. |
 
 The total line shows under Hours once a machine is chosen and the hours are more than 0. It is computed on the phone from
 the last pull's `SyncData.hours_prices` and `customer_discounts` (`SYNC_HOURS_PRICES`, full snapshots that replace the
@@ -192,6 +225,30 @@ lines each part of `payments` carries its own `evidence_upload_ids` (omitted whe
 attachment ids, each replaced by its upload id as the photo finishes uploading; the op is sent only after every photo of
 every part has uploaded (sync fix 13595b6, `PurchasePaymentOp`). On the sync status screen the sale reads `field.hours.outbox`,
 e.g. "Hours sale · Cash 300,000 + Bank 270,000".
+
+**Book the job (backend 2ddc0b9, `OP_HOURS_SALE_BOOKING`).** The section `field.hours.job.section` (after Hours) shows
+only when the server announces `OP_HOURS_SALE_BOOKING`, the user holds `tenant.job.request` and the sale form itself is
+offered. It holds the toggle `field.hours.job.book` (off by default; footer `field.hours.job.footerOff`, on:
+`field.hours.job.footer`). On: `field.hours.job.start` (required, opens at tomorrow 08:00 local time),
+`field.hours.job.end` (optional; shows `field.hours.job.endNotSet` until set, `field.hours.job.clearEnd` removes it), the
+button `field.hours.job.endFromHours` once the hours are valid, which sets the end to the sale's hours after the start
+(whole minutes), `field.hours.job.site` (synced sites and the saved contracts' sites; `field.hours.job.siteNone`) and
+`field.hours.job.note`. The end must be after the start (`field.hours.errJobEnd`, under the end and in the "To save"
+line as `field.hours.toSaveJobEnd`, after the sale's own rules). Contract: offline `contract_id` is left empty and the
+server uses the customer's only active contract (or a standard walk-in contract when the company allows it). When the
+form read `GET /tenant/field/contracts` from the server during this visit and the registered customer has more than one
+contract, `field.hours.job.contract` (contract number, site below) appears with `field.hours.job.contractFooter` and is
+required (`field.hours.errJobContract`, `field.hours.toSaveJobContract`). The op payload carries `job`
+{`planned_start`, `planned_end`?, `job_site_id`?, `contract_id`?, `note`?}; the job id is uuid5(client id, "job"), so a
+retry books it once. A sale with a booking is not saved on a phone whose server lacks the capability. On the sync status
+screen the sale reads `field.hours.outboxBooking`, e.g. "Hours sale + job booking · Cash 520,000"; when the server's
+answer carries the booked job (`entity.job`), the row adds `field.hours.job.synced` ("Job JB-2026-00042 · Approved",
+status words `field.hours.job.status*`). After sync the job also arrives like any job: under Ready to start once
+approved (the supervisor's JOB_REQUEST_APPROVED notification says when it was approved automatically). A refused booking
+refuses the whole sale (CONFLICT, kept for review) and shows `field.conflict.CONTRACT_REQUIRED`,
+`CONTRACT_CHOICE_REQUIRED`, `CONTRACT_CUSTOMER_MISMATCH`, `CONTRACT_NOT_ACTIVE`, `JOB_REQUEST_NOT_PERMITTED` or
+`NO_STAFF_RECORD`. An opening or daily reading for a later booking while another job runs on the machine comes back
+MACHINE_BUSY: `field.conflict.MACHINE_BUSY`.
 
 ### Request hours transfer (offline, `HOURS_TRANSFER_REQUEST`)
 | Key | English |

@@ -247,6 +247,11 @@ struct SyncContractTests {
         try Self.checkPayload(HoursPurchasePayload(clientID: id, machineID: id, hours: 5, customerID: id, walkIn: nil, jobSiteID: nil,
                                                    note: nil, payment: nil, payments: [payment, payment]),
                               schema: "HoursPurchaseIn", opOnly: ["evidence_upload_ids"])
+        let booking = SaleJobPayload(plannedStart: at, plannedEnd: at.addingTimeInterval(3600), jobSiteID: id, contractID: id, note: "n")
+        try Self.checkPayload(booking, schema: "SaleJobIn")
+        try Self.checkPayload(HoursPurchasePayload(clientID: id, machineID: id, hours: 5, customerID: id, walkIn: nil, jobSiteID: nil,
+                                                   note: nil, payment: payment, job: booking),
+                              schema: "HoursPurchaseIn", opOnly: ["evidence_upload_ids"])
         try Self.checkPayload(HoursTransferPayload(clientID: id, purchaseID: id, fromMachineID: id, toMachineID: UUID(), hours: 2,
                                                    reason: "Moved site", reasonCodeID: id), schema: "TransferIn")
         try Self.checkPayload(CashTransferPayload(clientID: id, fromStaffID: id, toStaffID: UUID(), amount: 5, amountReceived: 4,

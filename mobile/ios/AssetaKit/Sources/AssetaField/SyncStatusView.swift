@@ -1,5 +1,6 @@
 #if os(iOS)
 import AssetaAppShell
+import AssetaModel
 import AssetaStore
 import AssetaSync
 import SwiftUI
@@ -90,6 +91,11 @@ struct SyncStatusView: View {
                             SyncStateLabel(status: item.operation.status)
                         }
                         if let job = item.jobID.flatMap(model.job) { Text(job.job.jobNumber).font(.caption) }
+                        // An hours sale that booked its job: the job's number and status once the server has them.
+                        if item.operation.opType == OperationType.hoursPurchase.rawValue,
+                           let line = FieldAccountabilityTexts.hoursSaleJob(item.operation.serverResultJSON.flatMap { try? JSONValue.parse($0) }) {
+                            Text(line).font(.caption)
+                        }
                         Text(item.operation.createdAtDevice.formatted(date: .abbreviated, time: .standard))
                             .font(.caption).foregroundStyle(.secondary)
                         if let code = item.operation.errorCode, status != .pending {

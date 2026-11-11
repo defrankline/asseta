@@ -136,6 +136,11 @@ data class FieldAccess(
     /** When the cash parts of a sale count as verified (VERIFY while the policy is unknown). */
     val cashActivation: HoursCashActivation get() = hours?.cashActivation ?: HoursCashActivation.VERIFY
     val saleMethods: List<PaymentMethod> get() = if (noncashPayments) PaymentMethod.entries else listOf(PaymentMethod.CASH)
+    /**
+     * "Book the job" on the sale: the server takes `job` on HOURS_PURCHASE (OP_HOURS_SALE_BOOKING) and the user may
+     * request jobs (tenant.job.request).
+     */
+    val bookSaleJob: Boolean get() = sellHours && supports(SyncCapabilities.OP_HOURS_SALE_BOOKING) && can(JOB_REQUEST)
     val requestHoursTransfer: Boolean
         get() = supports(SyncCapabilities.OP_HOURS_TRANSFER_REQUEST) && can(HOURS_TRANSFER) && customerHours
     /** The tenant uses the DEC-030 cash custody additions (CASH_CUSTODY not switched off in `/me`). */
@@ -237,6 +242,7 @@ data class FieldAccess(
         const val PETTY_CASH_COUNT = "tenant.pettycash.count"
         const val EXPENSE_WRITE = "tenant.expense.write"
         const val HOURS_PURCHASE = "tenant.hours.purchase"
+        const val JOB_REQUEST = "tenant.job.request"
         const val HOURS_TRANSFER = "tenant.hours.transfer"
         const val HOURS_READ = "tenant.hours.read"
         const val COLLECTION_RECORD = "tenant.collection.record"
@@ -274,7 +280,42 @@ data class HoursSaleDraft(
     val hoursText: String,
     val payments: List<PaymentLine>,
     val note: String,
+    /** "Book the job" as typed; null = no booking. */
+    val job: SaleJobDraft? = null,
 )
+
+/**
+ * The job booked with the sale as typed. [contractRequired]: the customer has more than one contract and the form offers
+ * the picker (online), so one must be chosen; otherwise [contractId] stays null and the server picks the contract.
+ */
+data class SaleJobDraft(
+    val startMs: Long,
+    val endMs: Long? = null,
+    val siteId: String? = null,
+    val contractId: String? = null,
+    val note: String = "",
+    val contractRequired: Boolean = false,
+)
+
+/** A checked booking (`SaleJobIn`). */
+data class SaleJobValues(val startMs: Long, val endMs: Long?, val siteId: String?, val contractId: String?, val note: String?)
+
+/** Defaults of "Book the job" (same as iOS `SaleBooking`). */
+object SaleBooking {
+    /** The start the form opens with: tomorrow at 08:00, local time. */
+    fun defaultStartMs(nowMs: Long, zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): Long =
+        java.time.Instant.ofEpochMilli(nowMs).atZone(zone).toLocalDate().plusDays(1).atTime(8, 0).atZone(zone).toInstant().toEpochMilli()
+
+    /** The end offered by default: the sale's hours after the start (whole minutes); null while the hours are not valid. */
+    fun endAfterHoursMs(startMs: Long, hoursText: String): Long? {
+        val hours = AccountabilityRules.saleHours(hoursText)?.takeIf { it.signum() > 0 } ?: return null
+        val minutes = hours.multiply(BigDecimal(60)).setScale(0, java.math.RoundingMode.HALF_UP).toLong()
+        return startMs + minutes * 60_000L
+    }
+
+    /** The end must come after the start (an end is optional). */
+    fun endValid(job: SaleJobDraft): Boolean = job.endMs == null || job.endMs > job.startMs
+}
 
 /** A checked payment part (`PurchasePaymentIn`). */
 data class PaymentPart(val method: PaymentMethod, val amount: BigDecimal, val reference: String?)
@@ -285,6 +326,7 @@ data class HoursSaleValues(
     val walkInName: String?,
     val walkInPhone: String?,
     val note: String?,
+    val job: SaleJobValues? = null,
 )
 
 data class HoursTransferValues(val hours: BigDecimal, val reason: String)
@@ -350,8 +392,13 @@ object AccountabilityRules {
         if (price is HoursSalePrice.Priced && parts.fold(BigDecimal.ZERO) { s, p -> s + p.amount } > price.quote.amount) {
             m += AccountabilityMessages.paymentsExceed(HoursPricing.money(price.quote.amount, price.quote.currency, price.quote.minorUnits))
         }
+        val job = d.job?.let { j ->
+            if (!SaleBooking.endValid(j)) m += AccountabilityMessages.JOB_END
+            if (j.contractRequired && j.contractId.isNullOrBlank()) m += AccountabilityMessages.JOB_CONTRACT
+            SaleJobValues(j.startMs, j.endMs, j.siteId?.ifBlank { null }, j.contractId?.ifBlank { null }, j.note.trim().take(MAX_NOTE).ifEmpty { null })
+        }
         val note = d.note.trim().take(MAX_NOTE).ifEmpty { null }
-        return if (m.isEmpty()) FormCheck.Valid(HoursSaleValues(hours!!, parts, name, phone, note)) else FormCheck.Invalid(m)
+        return if (m.isEmpty()) FormCheck.Valid(HoursSaleValues(hours!!, parts, name, phone, note, job)) else FormCheck.Invalid(m)
     }
 
     /** True when a bank or mobile-money line has no reference yet (shown under that line's Reference field). */
@@ -389,6 +436,10 @@ object AccountabilityRules {
         numbers(::referenceMissing).takeIf { it.isNotEmpty() }?.let { todo += AccountabilityMessages.todoReference(it) }
         if (price is HoursSalePrice.Priced && HoursPayments.paid(d.payments) > price.quote.amount) {
             todo += AccountabilityMessages.todoLower(HoursPricing.money(price.quote.amount, price.quote.currency, price.quote.minorUnits))
+        }
+        d.job?.let { j ->
+            if (!SaleBooking.endValid(j)) todo += AccountabilityMessages.TODO_JOB_END
+            if (j.contractRequired && j.contractId.isNullOrBlank()) todo += AccountabilityMessages.TODO_JOB_CONTRACT
         }
         return AccountabilityMessages.toSave(todo)
     }
@@ -488,6 +539,8 @@ object AccountabilityMessages {
     const val NONCASH_OFF = "Bank and mobile-money payments are recorded by the office."
     const val TOO_MANY_PAYMENTS = "At most 10 payments per sale."
     fun paymentsExceed(total: String) = "The payments add up to more than the total of $total."
+    const val JOB_END = "The job's end must be after its start."
+    const val JOB_CONTRACT = "Choose the contract for the job."
 
     /** Under a bank or mobile-money line's Reference field while it is empty. */
     const val REFERENCE_LINE = "Enter the reference for this payment"
@@ -504,6 +557,8 @@ object AccountabilityMessages {
     fun todoCash(n: List<Int>) = "change ${payments(n)} to cash"
     fun todoReference(n: List<Int>) = "enter the reference for ${payments(n)}"
     fun todoLower(total: String) = "lower the payments to the total of $total"
+    const val TODO_JOB_END = "set the job's end after its start"
+    const val TODO_JOB_CONTRACT = "choose the job's contract"
 
     /** "To save: a, b and c."; null when there is nothing to do. */
     fun toSave(todo: List<String>): String? = if (todo.isEmpty()) null else "To save: ${and(todo)}."

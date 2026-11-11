@@ -76,6 +76,12 @@ object SyncCapabilities {
 
     /** PETTY_CASH_ADVANCE: the fund's holder hands out an advance offline (policy advances_enabled). */
     const val OP_PETTY_CASH_ADVANCE = "OP_PETTY_CASH_ADVANCE"
+
+    /**
+     * HOURS_PURCHASE accepts `job` ([SaleJobPayload]): the sale books its prepaid job in the same transaction (needs
+     * tenant.job.request; job id uuid5(op client id, "job")); the acked entity carries `job` {id, job_number, status, …}.
+     */
+    const val OP_HOURS_SALE_BOOKING = "OP_HOURS_SALE_BOOKING"
 }
 
 /** `ExceptionDto`: a server finding on a reading (type, severity, blocking) and its review. */

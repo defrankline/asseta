@@ -97,13 +97,17 @@ object FieldAccountabilityTexts {
         return listOfNotNull(amounts, status)
     }
 
-    /** The sale on the sync status screen: "Hours sale · Cash 300,000 + Bank 270,000" (or "· Not paid yet"). */
+    /**
+     * The sale on the sync status screen: "Hours sale · Cash 300,000 + Bank 270,000" (or "· Not paid yet"); a sale that
+     * books its job reads "Hours sale + job booking · …".
+     */
     fun outboxHoursSale(payload: kotlinx.serialization.json.JsonObject?): String {
         if (payload == null) return OUTBOX_HOURS_SALE
+        val title = if (payload["job"] is kotlinx.serialization.json.JsonObject) OUTBOX_HOURS_SALE_BOOKING else OUTBOX_HOURS_SALE
         val parts = (payload["payments"] as? kotlinx.serialization.json.JsonArray)?.mapNotNull { it as? kotlinx.serialization.json.JsonObject }
             ?: listOfNotNull(payload["payment"] as? kotlinx.serialization.json.JsonObject)
-        if (parts.isEmpty()) return "$OUTBOX_HOURS_SALE · $NOT_PAID"
-        return "$OUTBOX_HOURS_SALE · " + parts.joinToString(" + ") { p ->
+        if (parts.isEmpty()) return "$title · $NOT_PAID"
+        return "$title · " + parts.joinToString(" + ") { p ->
             fun text(key: String) = (p[key] as? kotlinx.serialization.json.JsonPrimitive)?.content
             val method = PaymentMethod.entries.firstOrNull { it.wire == text("method") }?.let(::method) ?: text("method").orEmpty()
             method + (text("amount")?.toBigDecimalOrNull()?.let { " " + HoursPricing.rate(it) } ?: "")
@@ -146,6 +150,45 @@ object FieldAccountabilityTexts {
     const val PHOTOGRAPH = "Photograph evidence"
     const val ADD_PHOTO = "Add another photo"
     const val HOURS_OFF = "Customer hours are turned off for your company."
+
+    // Book the job with the sale (OP_HOURS_SALE_BOOKING)
+    const val SECTION_JOB = "Job"
+    const val BOOK_JOB = "Book the job"
+    const val JOB_START = "Start"
+    const val JOB_END = "End (optional)"
+    const val JOB_END_NOT_SET = "Not set"
+    const val JOB_CLEAR_END = "Clear end"
+    const val JOB_SITE = "Site (optional)"
+    const val JOB_SITE_NONE = "Not set"
+    const val JOB_SITES_EMPTY = "Sites appear here after a sync."
+    const val JOB_CONTRACT = "Contract"
+    const val JOB_NOTE = "What the customer asked for (optional)"
+    const val JOB_FOOTER_OFF = "Turn on to book the job for this customer and machine, billed from these hours."
+    const val JOB_FOOTER = "The job is billed from these hours. It is approved once the sale is paid and verified, or by the office; then it appears under Ready to start."
+    const val JOB_CONTRACT_FOOTER = "This customer has more than one contract: choose the one for this job."
+
+    /** The default end offered: "End after the sale hours (6 h)". */
+    fun jobEndFromHours(hours: String) = "End after the sale hours (${hoursNumber(hours)} h)"
+
+    /** The booked job once the sale synced: "Job JB-2026-00042 · Approved"; null when the acked sale has no job. */
+    fun hoursSaleJob(resultJson: String?): String? {
+        val result = resultJson?.let { runCatching { kotlinx.serialization.json.Json.parseToJsonElement(it) as? kotlinx.serialization.json.JsonObject }.getOrNull() } ?: return null
+        fun obj(o: kotlinx.serialization.json.JsonObject?, key: String) = o?.get(key) as? kotlinx.serialization.json.JsonObject
+        fun text(o: kotlinx.serialization.json.JsonObject?, key: String) = (o?.get(key) as? kotlinx.serialization.json.JsonPrimitive)?.takeIf { it.isString }?.content
+        val body = obj(result, "result") ?: result
+        val job = obj(obj(body, "entity"), "job") ?: obj(body, "job") ?: return null
+        val number = text(job, "job_number") ?: return null
+        return "Job $number" + (text(job, "status")?.let { " · " + bookedJobStatus(it) } ?: "")
+    }
+
+    fun bookedJobStatus(status: String): String = when (status) {
+        "PENDING_APPROVAL" -> "Waiting for approval"
+        "APPROVED" -> "Approved"
+        "IN_PROGRESS" -> "In progress"
+        "COMPLETED" -> "Completed"
+        "CANCELLED" -> "Cancelled"
+        else -> status.lowercase().replace('_', ' ').replaceFirstChar { it.uppercase() }
+    }
 
     fun method(m: PaymentMethod): String = when (m) {
         PaymentMethod.CASH -> "Cash"
@@ -235,6 +278,7 @@ object FieldAccountabilityTexts {
 
     // Sync status titles
     const val OUTBOX_HOURS_SALE = "Hours sale"
+    const val OUTBOX_HOURS_SALE_BOOKING = "Hours sale + job booking"
     const val OUTBOX_HOURS_TRANSFER = "Hours transfer request"
     const val OUTBOX_CASH_TRANSFER = "Cash transfer"
     const val OUTBOX_TRANSFER_ACK = "Transfer acknowledgement"
@@ -364,6 +408,15 @@ object FieldAccountabilityTexts {
         "DEPOSIT_ACCOUNT_INACTIVE" -> "The account you chose is no longer in use. Record the handover again with another account."
         "REMITTANCE_ACCOUNT_MISMATCH" -> "The account you chose does not match how the money was handed over. Record the handover again."
         "DEPOSIT_ACCOUNT_CURRENCY_MISMATCH" -> "The account you chose holds a different currency. Record the handover again with another account."
+        // The job booked with an hours sale: a refused booking refuses the whole sale, kept for the office to review.
+        "CONTRACT_REQUIRED" -> "This customer has no contract yet; the office creates one. The sale and its booking are kept for review."
+        "CONTRACT_CHOICE_REQUIRED" ->
+            "This customer has several contracts, so the job needs one chosen. The sale and its booking are kept for review; book it again online and choose the contract."
+        "CONTRACT_CUSTOMER_MISMATCH" -> "The contract you chose belongs to another customer. The sale and its booking are kept for review."
+        "CONTRACT_NOT_ACTIVE" -> "The contract you chose is no longer active. The sale and its booking are kept for review."
+        "JOB_REQUEST_NOT_PERMITTED" -> "You are not allowed to book jobs. The sale and its booking are kept for review."
+        "NO_STAFF_RECORD" -> "Your account has no staff record, so the job could not be booked. The sale and its booking are kept for review; ask your administrator."
+        "MACHINE_BUSY" -> "Another job is running on this machine; finish it first."
         else -> DailyReportTexts.conflict(code) ?: SiteCheckinTexts.conflict(code)
     }
 

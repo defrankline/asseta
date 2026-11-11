@@ -33,6 +33,18 @@ private func purchaseOptions(_ purchases: [HoursPurchaseDTO]) -> [PickerOption] 
 
 // MARK: - Sell customer hours (`HOURS_PURCHASE`, offline)
 
+extension FieldModel {
+    /// The field contracts read from the server now, for the job booked with a sale (empty offline or when the read
+    /// fails: the server then picks the customer's contract).
+    func saleJobContracts() async -> [FieldContractDTO] {
+        guard let services, isOnline, access.bookSaleJob else { return [] }
+        let before = services.directory.cachedFieldContracts()?.fetchedAt
+        await services.online.refreshRequestLookups()
+        guard let fresh = services.directory.cachedFieldContracts(), fresh.fetchedAt != before else { return [] }
+        return fresh.items
+    }
+}
+
 struct HoursSaleFormView: View {
     let model: FieldModel
     @Environment(\.dismiss) private var dismiss
@@ -44,13 +56,35 @@ struct HoursSaleFormView: View {
     /// Photos per payment line (by the line's id).
     @State private var photos: [UUID: [(evidence: StoredEvidence, data: Data)]] = [:]
     @State private var error: String?
+    /// "Book the job" (offered with OP_HOURS_SALE_BOOKING and tenant.job.request).
+    @State private var bookJob = false
+    @State private var jobStart = SaleBooking.defaultStart()
+    @State private var jobEnd: Date?
+    @State private var jobSiteID: UUID?
+    @State private var jobContractID: UUID?
+    @State private var jobNote = ""
+    /// Contracts read from the server during this visit (empty offline: the server picks the contract then).
+    @State private var onlineContracts: [FieldContractDTO] = []
+
+    private var contractChoices: [FieldContractDTO] {
+        SaleBooking.contractChoices(onlineContracts, customerID: draft.customerID, walkIn: draft.walkIn)
+    }
+
+    /// The draft to check and save: the booking only while the user may book jobs here.
+    private func saleDraft(_ a: FieldAccess) -> HoursSaleDraft {
+        var d = draft
+        d.job = SaleBooking.job(on: a.bookSaleJob && bookJob, start: jobStart, end: jobEnd, siteID: jobSiteID,
+                                contractID: jobContractID, note: jobNote, choices: contractChoices)
+        return d
+    }
 
     var body: some View {
         let a = model.access
         let prices = model.hoursPrices
         let price = HoursPricing.price(prices, machineID: draft.machineID, customerID: draft.customerID, walkIn: draft.walkIn,
                                        hoursText: draft.hoursText)
-        let check = AccountabilityRules.hoursSale(draft, walkInAllowed: a.walkIn, noncashAllowed: a.noncashPayments, price: price)
+        let sale = saleDraft(a)
+        let check = AccountabilityRules.hoursSale(sale, walkInAllowed: a.walkIn, noncashAllowed: a.noncashPayments, price: price)
         NavigationStack {
             Form {
                 if !a.sellHours {
@@ -81,6 +115,7 @@ struct HoursSaleFormView: View {
                         }
                         TextField(T.noteOptional, text: $draft.note, axis: .vertical)
                     } header: { Text(T.hoursSectionHours) } footer: { Text(T.hoursHoursFooter) }
+                    if a.bookSaleJob { jobSection }
                     Section {
                         ForEach(Array(draft.payments.enumerated()), id: \.element.id) { index, _ in
                             Text(T.hoursPaymentNumber(index + 1)).font(.subheadline.weight(.semibold))
@@ -121,7 +156,7 @@ struct HoursSaleFormView: View {
                             Text(line).font(.body).accessibilityIdentifier("hours.paid")
                         }
                         // Why Save is off, in one line (Save is disabled, so no save attempt would show it).
-                        if let blockers = AccountabilityRules.hoursSaleBlockers(draft, walkInAllowed: a.walkIn,
+                        if let blockers = AccountabilityRules.hoursSaleBlockers(sale, walkInAllowed: a.walkIn,
                                                                                 noncashAllowed: a.noncashPayments, price: price) {
                             Text(blockers).font(.callout).foregroundStyle(.red).accessibilityIdentifier("hours.toSave")
                         }
@@ -142,6 +177,7 @@ struct HoursSaleFormView: View {
             }
             // The opening Cash line follows the total (hours, machine, customer, prices) until the user types into it.
             .onChange(of: price, initial: true) { _, p in draft.payments = HoursPayments.follow(draft.payments, price: p) }
+            .task { onlineContracts = await model.saleJobContracts() }
             .navigationTitle(T.titleHoursSale)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -157,6 +193,42 @@ struct HoursSaleFormView: View {
         .interactiveDismissDisabled()
     }
 
+    /// "Book the job" with the sale: start (tomorrow 08:00 by default), optional end (the sale's hours after the start is
+    /// offered), the contract when the customer has more than one (online), optional site and note (Android `SaleJobSection`).
+    @ViewBuilder private var jobSection: some View {
+        Section {
+            Toggle(T.jobBook, isOn: $bookJob).accessibilityIdentifier("hours.bookJob")
+            if bookJob {
+                DatePicker(T.jobStart, selection: $jobStart)
+                if let end = jobEnd {
+                    DatePicker(T.jobEnd, selection: Binding(get: { end }, set: { jobEnd = $0 }), in: jobStart...)
+                    if end <= jobStart { Text(T.hoursErrJobEnd).font(.footnote).foregroundStyle(.red) }
+                    Button(T.jobClearEnd, role: .destructive) { jobEnd = nil }
+                } else {
+                    LabeledContent(T.jobEnd) { Text(T.jobEndNotSet).foregroundStyle(.secondary) }
+                }
+                if let suggested = SaleBooking.endAfterHours(start: jobStart, hoursText: draft.hoursText), suggested != jobEnd,
+                   let hours = AccountabilityRules.saleHours(draft.hoursText) {
+                    Button(T.jobEndFromHours(hours)) { jobEnd = suggested }.accessibilityIdentifier("hours.jobEndFromHours")
+                }
+                if !contractChoices.isEmpty {
+                    SearchablePickerField(label: T.jobContract,
+                                          options: contractChoices.map { PickerOption(id: $0.id, title: $0.contractNumber, subtitle: $0.siteName) },
+                                          selection: Binding(get: { contractChoices.contains { $0.id == jobContractID } ? jobContractID : nil },
+                                                             set: { jobContractID = $0 }),
+                                          identifier: "hours.jobContract")
+                    Text(T.jobContractFooter).font(.footnote).foregroundStyle(.secondary)
+                }
+                SearchablePickerField(label: T.jobSite, options: model.requestSiteOptions, selection: $jobSiteID,
+                                      noneTitle: T.jobSiteNone, emptyMessage: T.jobSitesEmpty, identifier: "hours.jobSite")
+                TextField(T.jobNote, text: $jobNote, axis: .vertical).lineLimit(2...5)
+                    .onChange(of: jobNote) { _, text in
+                        if text.count > AccountabilityRules.maxNote { jobNote = String(text.prefix(AccountabilityRules.maxNote)) }
+                    }
+            }
+        } header: { Text(T.jobSection) } footer: { Text(bookJob ? T.jobFooter : T.jobFooterOff) }
+    }
+
     private func discardPhotos() {
         photos.values.joined().forEach { model.discardEvidence($0.evidence) }
         photos = [:]
@@ -165,10 +237,11 @@ struct HoursSaleFormView: View {
     private func save() {
         let a = model.access
         let holder = holderID.flatMap { a.recordForOthers && $0 != model.myStaffID ? $0 : nil }
+        let sale = saleDraft(a)
         do {
             try model.perform {
-                try $0.recordHoursSale(draft, walkInAllowed: a.walkIn, cashHolderID: holder,
-                                       evidence: draft.payments.map { (photos[$0.id] ?? []).map(\.evidence) },
+                try $0.recordHoursSale(sale, walkInAllowed: a.walkIn, cashHolderID: holder,
+                                       evidence: sale.payments.map { (photos[$0.id] ?? []).map(\.evidence) },
                                        receivedAt: min(receivedAt, Date()), clientID: clientID, noncashAllowed: a.noncashPayments)
             }
             photos = [:] // now owned by the queued sale

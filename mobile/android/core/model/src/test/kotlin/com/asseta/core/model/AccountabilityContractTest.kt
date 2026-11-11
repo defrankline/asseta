@@ -142,6 +142,7 @@ class AccountabilityContractTest {
     @Test
     fun `sync payloads match the contract input schemas`() {
         ContractCheck.check("HoursPurchaseIn", HoursPurchasePayload.serializer().descriptor, extra = setOf("evidence_upload_ids"), request = true)
+        ContractCheck.check("SaleJobIn", com.asseta.core.model.sync.SaleJobPayload.serializer().descriptor, request = true)
         ContractCheck.check("PurchasePaymentIn", PurchasePaymentPayload.serializer().descriptor, extra = setOf("evidence_upload_ids"), request = true)
         ContractCheck.check("WalkInCustomerIn", WalkInCustomerPayload.serializer().descriptor, request = true)
         ContractCheck.check("TransferIn", HoursTransferPayload.serializer().descriptor, extra = setOf("evidence_upload_ids"), request = true)

@@ -6,12 +6,14 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -38,6 +40,10 @@ import com.asseta.core.domain.accountability.HoursSaleDraft
 import com.asseta.core.domain.accountability.HoursSalePrice
 import com.asseta.core.domain.accountability.PaymentLine
 import com.asseta.core.domain.accountability.PaymentMethod
+import com.asseta.core.domain.accountability.SaleBooking
+import com.asseta.core.domain.accountability.SaleJobDraft
+import com.asseta.core.model.sync.FieldContractDto
+import com.asseta.core.sync.usecase.SiteChoice
 import com.asseta.core.domain.finance.FormCheck
 import com.asseta.core.model.sync.CustodianDto
 import com.asseta.core.model.sync.FieldHoursPurchaseDto
@@ -102,7 +108,7 @@ fun inUseOn(p: FieldHoursPurchaseDto, machineId: String?): String? {
 }
 
 /** Base for the accountability forms: the user's access (capabilities + permissions + saved policies) and saved data. */
-abstract class AccountabilityFormViewModel(protected val field: FieldGraph, protected val tenantId: String, private val permissions: Set<String>) : ViewModel() {
+abstract class AccountabilityFormViewModel(protected val field: FieldGraph, protected val tenantId: String, protected val permissions: Set<String>) : ViewModel() {
     protected val clientId: String = UUID.randomUUID().toString()
     private val _access = MutableStateFlow<FieldAccess?>(null)
     val access: StateFlow<FieldAccess?> = _access.asStateFlow()
@@ -144,8 +150,32 @@ data class HoursSaleForm(
     val atMs: Long = 0,
     /** Photos per payment line, by line index (a line without photos may have no entry yet). */
     val photos: List<List<CapturedPhoto>> = emptyList(),
+    /** "Book the job" (offered with OP_HOURS_SALE_BOOKING and tenant.job.request). */
+    val bookJob: Boolean = false,
+    val jobStartMs: Long = 0,
+    val jobEndMs: Long? = null,
+    val jobSiteId: String? = null,
+    val jobContractId: String? = null,
+    val jobNote: String = "",
 ) {
-    fun draft() = HoursSaleDraft(walkIn, customerId, walkInName, walkInPhone, machineId, hours, payments, note)
+    /**
+     * The customer's contracts to choose from for the job: only when this visit read them from the server and the
+     * customer has more than one (offline, or with one contract, the server picks it).
+     */
+    fun contractChoices(contracts: List<FieldContractDto>): List<FieldContractDto> =
+        if (walkIn || customerId == null) emptyList() else contracts.filter { it.customerId == customerId }.takeIf { it.size > 1 }.orEmpty()
+
+    /** The sale as typed; [contracts] are the contracts read online this visit (for the job's contract choice). */
+    fun draft(contracts: List<FieldContractDto> = emptyList()): HoursSaleDraft {
+        val choices = contractChoices(contracts)
+        val job = if (bookJob) {
+            SaleJobDraft(jobStartMs, jobEndMs, jobSiteId, jobContractId?.takeIf { id -> choices.any { it.id == id } }, jobNote,
+                contractRequired = choices.isNotEmpty())
+        } else {
+            null
+        }
+        return HoursSaleDraft(walkIn, customerId, walkInName, walkInPhone, machineId, hours, payments, note, job)
+    }
 
     fun line(index: Int, change: (PaymentLine) -> PaymentLine) = copy(payments = payments.mapIndexed { i, l -> if (i == index) change(l) else l })
 
@@ -162,7 +192,13 @@ data class HoursSaleForm(
 }
 
 class HoursSaleViewModel(field: FieldGraph, tenantId: String, permissions: Set<String>) : AccountabilityFormViewModel(field, tenantId, permissions) {
-    val form = MutableStateFlow(HoursSaleForm(atMs = field.clock.nowMs()))
+    val form = MutableStateFlow(HoursSaleForm(atMs = field.clock.nowMs(), jobStartMs = SaleBooking.defaultStartMs(field.clock.nowMs())))
+    private val _jobContracts = MutableStateFlow<List<FieldContractDto>>(emptyList())
+    /** Contracts read from the server during this visit (empty offline: the server picks the contract then). */
+    val jobContracts: StateFlow<List<FieldContractDto>> = _jobContracts.asStateFlow()
+    private val _jobSites = MutableStateFlow<List<SiteChoice>>(emptyList())
+    /** Sites the job can name (synced sites and the contracts' sites). */
+    val jobSites: StateFlow<List<SiteChoice>> = _jobSites.asStateFlow()
     val customers: StateFlow<List<PickerOption>> = field.financeRepository.observeCustomers(tenantId)
         .map { list -> list.map { PickerOption(it.id, it.name, it.code, it.contactName) } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -176,7 +212,22 @@ class HoursSaleViewModel(field: FieldGraph, tenantId: String, permissions: Set<S
     init {
         // The opening Cash line follows the total as the prices arrive or change.
         viewModelScope.launch { prices.collect { book -> form.update { it.following(book) } } }
+        // "Book the job": the sites on this phone, then (online) the contracts, for a customer with more than one.
+        if (FieldAccess.JOB_REQUEST in permissions) {
+            viewModelScope.launch {
+                val saved = field.jobRequests.savedLookups(tenantId)
+                _jobSites.value = saved.sites
+                val fresh = field.jobRequests.refreshLookups(tenantId)
+                _jobSites.value = fresh.sites
+                // Only a list read from the server now (a new fetch time): offline the server picks the contract.
+                if (fresh.fetchedAtMs != null && fresh.fetchedAtMs != saved.fetchedAtMs) _jobContracts.value = fresh.contracts
+            }
+        }
     }
+
+    /** The draft to check and save: the booking only while the user may book jobs here. */
+    fun draft(f: HoursSaleForm = form.value, a: FieldAccess? = access.value): HoursSaleDraft =
+        f.draft(jobContracts.value).let { if (a?.bookSaleJob == true) it else it.copy(job = null) }
 
     fun edit(change: (HoursSaleForm) -> HoursSaleForm) {
         form.update { change(it).following(prices.value) }
@@ -203,7 +254,7 @@ class HoursSaleViewModel(field: FieldGraph, tenantId: String, permissions: Set<S
         viewModelScope.launch {
             val result = field.accountabilityCapture.hoursSale(
                 HoursSaleRequest(
-                    tenantId, clientId, f.draft(), walkInAllowed = a?.walkIn == true,
+                    tenantId, clientId, draft(f, a), walkInAllowed = a?.walkIn == true,
                     cashHolderId = f.holderId?.takeIf { a?.recordForOthers == true && it != me.value },
                     receivedAtMs = f.atMs.coerceAtMost(field.clock.nowMs()),
                     paymentEvidence = f.payments.indices.map { i -> f.photosOf(i).map { it.jpeg } },
@@ -225,7 +276,10 @@ fun HoursSaleScreen(vm: HoursSaleViewModel, onDone: () -> Unit) {
     val customers by vm.customers.collectAsStateWithLifecycle()
     val machines by vm.machines.collectAsStateWithLifecycle()
     val prices by vm.prices.collectAsStateWithLifecycle()
+    val jobContracts by vm.jobContracts.collectAsStateWithLifecycle()
+    val jobSites by vm.jobSites.collectAsStateWithLifecycle()
     val a = access ?: return
+    val draft = vm.draft(form, a)
     val editable = !save.saving && !save.saved
     val now = System.currentTimeMillis()
     val price = HoursPricing.price(prices, form.machineId, form.customerId, form.walkIn, form.hours)
@@ -250,6 +304,7 @@ fun HoursSaleScreen(vm: HoursSaleViewModel, onDone: () -> Unit) {
             priceLine?.let { Text(it, style = MaterialTheme.typography.bodyLarge) }
             TextInput(T.NOTE_OPTIONAL, form.note, { v -> vm.edit { it.copy(note = v) } }, editable, singleLine = false)
         }
+        if (a.bookSaleJob) SaleJobSection(vm, form, form.contractChoices(jobContracts), jobSites, editable)
         val paymentFooter = listOfNotNull(
             if (form.payments.isEmpty()) T.NOT_PAID_FOOTER else T.paymentFooter(form.payments.map { it.method }, a.cashActivation),
             T.NONCASH_BY_OFFICE.takeIf { !a.noncashPayments },
@@ -276,7 +331,7 @@ fun HoursSaleScreen(vm: HoursSaleViewModel, onDone: () -> Unit) {
                 Text(line, style = MaterialTheme.typography.bodyLarge)
             }
             // Why Save is off, in one line (Save is disabled, so no save attempt would show it).
-            AccountabilityRules.hoursSaleBlockers(form.draft(), a.walkIn, a.noncashPayments, price)?.let {
+            AccountabilityRules.hoursSaleBlockers(draft, a.walkIn, a.noncashPayments, price)?.let {
                 Text(it, color = palette.offline, style = MaterialTheme.typography.bodyMedium)
             }
             if (form.payments.isNotEmpty()) {
@@ -287,8 +342,45 @@ fun HoursSaleScreen(vm: HoursSaleViewModel, onDone: () -> Unit) {
                 }
             }
         }
-        val check = AccountabilityRules.hoursSale(form.draft(), a.walkIn, a.noncashPayments, price)
+        val check = AccountabilityRules.hoursSale(draft, a.walkIn, a.noncashPayments, price)
         SaveSection(save, vm::save, onDone, enabled = check is FormCheck.Valid)
+    }
+}
+
+/**
+ * "Book the job" with the sale: start (tomorrow 08:00 by default), optional end (the sale's hours after the start is
+ * offered), the contract when the customer has more than one (online), optional site and note.
+ */
+@Composable
+private fun SaleJobSection(vm: HoursSaleViewModel, form: HoursSaleForm, contracts: List<FieldContractDto>, sites: List<SiteChoice>, editable: Boolean) {
+    Section(T.SECTION_JOB, footer = if (form.bookJob) T.JOB_FOOTER else T.JOB_FOOTER_OFF) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(T.BOOK_JOB, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+            Switch(form.bookJob, { on -> vm.edit { it.copy(bookJob = on) } }, enabled = editable)
+        }
+        if (!form.bookJob) return@Section
+        DateTimeField(T.JOB_START, form.jobStartMs, { v -> vm.edit { it.copy(jobStartMs = v) } }, editable)
+        val end = form.jobEndMs
+        if (end != null) {
+            DateTimeField(T.JOB_END, end, { v -> vm.edit { it.copy(jobEndMs = v) } }, editable, notBefore = form.jobStartMs)
+            if (end <= form.jobStartMs) Text(AccountabilityMessages.JOB_END, color = palette.offline, style = MaterialTheme.typography.bodyMedium)
+            if (editable) TextButton(onClick = { vm.edit { it.copy(jobEndMs = null) } }) { Text(T.JOB_CLEAR_END, color = palette.offline) }
+        } else {
+            LabeledRow(T.JOB_END, T.JOB_END_NOT_SET)
+        }
+        val suggested = SaleBooking.endAfterHoursMs(form.jobStartMs, form.hours)
+        if (editable && suggested != null && suggested != end) {
+            OutlinedButton(onClick = { vm.edit { it.copy(jobEndMs = suggested) } }) { Text(T.jobEndFromHours(form.hours)) }
+        }
+        if (contracts.isNotEmpty()) {
+            SearchablePickerField(T.JOB_CONTRACT, contracts.map { PickerOption(it.id, it.contractNumber, it.jobSiteName, it.reference) },
+                form.jobContractId?.takeIf { id -> contracts.any { it.id == id } },
+                { id -> vm.edit { it.copy(jobContractId = id) } }, enabled = editable)
+            Text(T.JOB_CONTRACT_FOOTER, style = MaterialTheme.typography.bodySmall, color = palette.secondaryText)
+        }
+        SearchablePickerField(T.JOB_SITE, sites.map { PickerOption(it.id, it.name) }, form.jobSiteId, { id -> vm.edit { it.copy(jobSiteId = id) } },
+            noneLabel = T.JOB_SITE_NONE, emptyText = T.JOB_SITES_EMPTY, enabled = editable)
+        TextInput(T.JOB_NOTE, form.jobNote, { v -> vm.edit { it.copy(jobNote = v) } }, editable, singleLine = false)
     }
 }
 
