@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
 import { Route } from 'react-router';
-import { CAPABILITY_FEATURE, RECORD_KIND_CAPABILITY } from '../access/capabilities';
+import { CAPABILITY, CAPABILITY_FEATURE, RECORD_KIND_CAPABILITY } from '../access/capabilities';
 import { PERMISSIONS } from '../access/permissionCodes';
-import { RequireCapability } from '../access/RequireCapability';
+import { RequireAnyCapability, RequireCapability } from '../access/RequireCapability';
 import {
   RECORD_LIST_ROUTES,
   recordRoutePattern,
@@ -40,7 +40,19 @@ const CASH_RECORDS: readonly [RecordKind, CashTabKey, ReactNode, boolean][] = [
 ];
 
 /** Records of the cash custody controls (DEC-030) show the "not enabled" state when switched off. */
-function gated(kind: RecordKind, page: ReactNode): ReactNode {
+function gated(kind: RecordKind, page: ReactNode, detail = false): ReactNode {
+  if (detail && kind === 'CASH_VARIANCE') {
+    // Petty cash differences are variances too: their page stays open while petty cash is on,
+    // even with the cash custody controls off (the server gates each variance by its source).
+    return (
+      <RequireAnyCapability
+        capabilities={[CAPABILITY.cashCustody, CAPABILITY.pettyCash]}
+        feature={CAPABILITY_FEATURE[CAPABILITY.cashCustody]}
+      >
+        {page}
+      </RequireAnyCapability>
+    );
+  }
   const capability = RECORD_KIND_CAPABILITY[kind];
   return capability === undefined ? (
     page
@@ -71,6 +83,7 @@ export function cashRecordRouteElements(guard: Guard, guardAny: GuardAny): React
           fieldToo
             ? guardAny(CUSTODY_READERS, detail)
             : guard(PERMISSIONS.tenantFinanceRead, detail),
+          true,
         )}
       />,
     ]),

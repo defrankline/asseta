@@ -48,7 +48,14 @@ export const pettyCashFundPath = (fundId: string): string => pettyCashPath('fund
 
 /** Tabs of the petty cash page. */
 export type PettyCashTab =
-  'funds' | 'fundings' | 'returns' | 'counts' | 'holder-changes' | 'adjustments' | 'advances';
+  | 'funds'
+  | 'fundings'
+  | 'returns'
+  | 'counts'
+  | 'differences'
+  | 'holder-changes'
+  | 'adjustments'
+  | 'advances';
 
 /** The petty cash page on a tab, with optional list filters (e.g. `fund_id`, `status`). */
 export function pettyCashTabPath(

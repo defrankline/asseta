@@ -11,13 +11,9 @@ import { StepperFormDialog, type FormStep } from '../../../components/forms/Step
 import { useIdempotencyKey } from '../../../hooks/useIdempotencyKey';
 import { formatEnteredMoney } from '../../../utils/money';
 import { formatInstantIn } from '../../../utils/time';
-import { withErrorCode } from '../shared/errorHints';
-import {
-  CURRENCY_OPTIONS,
-  FINANCE_ERROR_HINTS,
-  PAID_FROM_CHOICES,
-  PAID_FROM_LABELS,
-} from '../shared/financeDisplay';
+import { withPlainHint } from '../../../api/lifecycle';
+import { PETTY_CASH_ERROR_HINTS } from '../finance/pettyCash/pettyCashDisplay';
+import { CURRENCY_OPTIONS, PAID_FROM_CHOICES, PAID_FROM_LABELS } from '../shared/financeDisplay';
 import { FormikAdvanceIdPicker, FormikFundIdPicker } from '../finance/pettyCash/pettyCashPickers';
 import { usePettyCashOn, usePettyCashPolicy } from '../finance/pettyCash/pettyCashState';
 import { expenseCategoryOptionLabel } from '../shared/financeLookups';
@@ -202,7 +198,8 @@ export function RecordExpenseDialog({
         try {
           onRecorded(await expenseService.submit(body, keyFor(body)));
         } catch (err) {
-          throw withErrorCode(err, FINANCE_ERROR_HINTS);
+          // Petty cash refusals (and the finance ones it includes) read as the same plain hints.
+          throw withPlainHint(err, PETTY_CASH_ERROR_HINTS);
         }
       }}
     />

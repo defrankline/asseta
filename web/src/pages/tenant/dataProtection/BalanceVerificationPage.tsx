@@ -27,6 +27,8 @@ const CHECK_LABELS: Readonly<Record<string, string>> = {
   CASH_CUSTODY: 'Cash per custodian',
   CUSTOMER_RECEIVABLE: 'Customer receivables',
   INVOICE_TOTAL: 'Invoice totals',
+  // DEC-033: each fund's balance recomputed and compared with its last count and adjustment.
+  PETTY_CASH_FUND: 'Petty cash per fund',
 };
 
 const FINDING_COLUMNS: DataColumn<VerificationFindingDto>[] = [
@@ -72,7 +74,7 @@ function RunFindings({ runId }: { runId: string }) {
 
 /**
  * Recomputes every balance (customer hours per lot, engine hours per machine, cash per custodian,
- * customer receivables) from its records and lists any stored figure that differs.
+ * customer receivables, petty cash per fund) from its records and lists any stored figure that differs.
  * The records prevail: nothing is changed here.
  */
 export function BalanceVerificationPage() {

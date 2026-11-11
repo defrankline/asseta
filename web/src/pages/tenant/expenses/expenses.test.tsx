@@ -8,6 +8,9 @@ import type { ExpenseCategoryDto } from '../../../api/types';
 import { makeExpense, page } from '../../../test/financeFixtures';
 import { renderWithProviders } from '../../../test/renderWithProviders';
 import { ExpensesPage } from './ExpensesPage';
+import { ApiError } from '../../../api/ApiError';
+import { withPlainHint } from '../../../api/lifecycle';
+import { PETTY_CASH_ERROR_HINTS } from '../finance/pettyCash/pettyCashDisplay';
 
 const mocks = vi.hoisted(() => ({
   list: vi.fn<typeof expenseService.list>(),
@@ -185,6 +188,69 @@ describe('expenses paid from petty cash (DEC-033)', () => {
       expect(mocks.list.mock.lastCall?.[0].filters).toMatchObject({ paid_from: 'PETTY_CASH' });
     });
     expect(screen.getByRole('combobox', { name: 'Petty cash fund' })).toBeInTheDocument();
+  });
+
+  it('filters by what to look at, in neutral words', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ExpensesPage />, {
+      tenantPermissions: [...READ, P.tenantPettyCashRead],
+    });
+    await user.click(await screen.findByRole('combobox', { name: 'To look at' }));
+    expect(
+      await screen.findByRole('option', { name: 'Paid from collected cash' }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('option', { name: 'More than the fund had available' }));
+    await waitFor(() => {
+      expect(mocks.list.mock.lastCall?.[0].filters).toMatchObject({ control_flag: 'OVERSPEND' });
+    });
+  });
+
+  it('shows the plain hint instead of the raw server text when an expense is refused', async () => {
+    const user = userEvent.setup();
+    mocks.submit.mockRejectedValue(
+      new ApiError({
+        status: 422,
+        code: 'SPENDING_FROM_COLLECTIONS_NOT_ALLOWED',
+        message: 'paid_from CASH_CUSTODY refused by policy CASH_CUSTODY v3',
+        correlationId: null,
+      }),
+    );
+    renderWithProviders(<ExpensesPage />, { tenantPermissions: WRITE });
+    await user.click(await screen.findByRole('button', { name: 'Record expense' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.type(within(dialog).getByRole('combobox', { name: /Category/ }), 'fu');
+    await user.click(await screen.findByRole('option', { name: 'FUEL · Fuel' }));
+    await user.type(within(dialog).getByRole('textbox', { name: /Description/ }), 'Tyre repair');
+    await user.type(within(dialog).getByRole('textbox', { name: /^Amount/ }), '45000');
+    await user.click(within(dialog).getByRole('button', { name: 'Next' }));
+    await user.click(await within(dialog).findByRole('button', { name: 'Next' }));
+    await user.click(await within(dialog).findByRole('button', { name: 'Next' }));
+    await user.click(await within(dialog).findByRole('button', { name: 'Submit expense' }));
+    expect(
+      await within(dialog).findByText(/does not allow paying expenses from collected cash/),
+    ).toBeInTheDocument();
+    expect(within(dialog).queryByText(/refused by policy/)).not.toBeInTheDocument();
+  });
+
+  it.each([
+    'PETTY_CASH_INSUFFICIENT',
+    'SPENDING_FROM_COLLECTIONS_NOT_ALLOWED',
+    'PETTY_CASH_FUND_INACTIVE',
+    'PETTY_CASH_CURRENCY_MISMATCH',
+    'NOT_FUND_HOLDER',
+    'PETTY_CASH_ADVANCE_CLEARED',
+    'PETTY_CASH_ADVANCE_NOT_FOUND',
+    'PETTY_CASH_FUND_NOT_FOUND',
+    'PETTY_CASH_FUND_REQUIRED',
+    'PETTY_CASH_FUND_NOT_ALLOWED',
+    'PETTY_CASH_DISABLED',
+  ])('%s reads as a plain hint', (code) => {
+    const e = withPlainHint(
+      new ApiError({ status: 422, code, message: 'server text', correlationId: null }),
+      PETTY_CASH_ERROR_HINTS,
+    );
+    expect(e.message).toBe(PETTY_CASH_ERROR_HINTS[code]);
+    expect(e.code).toBe(code);
   });
 
   it('offers no petty cash choice while the capability is off', async () => {

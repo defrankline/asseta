@@ -55,3 +55,20 @@ export function withErrorCode(error: unknown, hints: Readonly<Record<string, str
     details: e.details,
   });
 }
+
+/**
+ * Like `withErrorCode`, but when a plain hint exists for the code it replaces the server text: the
+ * user reads what to do, not the technical refusal (the code stays on the error for support).
+ */
+export function withPlainHint(error: unknown, hints: Readonly<Record<string, string>>): ApiError {
+  const e = toApiError(error);
+  const hint = e.status === null ? undefined : hints[e.code];
+  if (hint === undefined) return withErrorCode(error, hints);
+  return new ApiError({
+    status: e.status,
+    code: e.code,
+    message: hint,
+    correlationId: e.correlationId,
+    details: e.details,
+  });
+}

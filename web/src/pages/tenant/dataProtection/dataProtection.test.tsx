@@ -144,6 +144,30 @@ describe('Balance verification', () => {
     });
   });
 
+  it('names the petty cash fund check in plain words', async () => {
+    m.getRun.mockResolvedValue({
+      ...detail,
+      findings: [
+        {
+          check: 'PETTY_CASH_FUND',
+          subject_type: 'petty_cash_fund',
+          subject_id: 'f1',
+          label: 'PC-01 Office box',
+          currency: 'TZS',
+          ledger_value: '300000.0000',
+          stored_value: '290000.0000',
+          difference: '10000.0000',
+          source: 'count PC-000004 expected cash',
+          details: {},
+        },
+      ],
+    });
+    renderWithProviders(<BalanceVerificationPage />, me([P.tenantBalanceRead]));
+    await userEvent.click(await screen.findByRole('button', { name: 'Show findings' }));
+    expect(await screen.findByText('Petty cash per fund')).toBeInTheDocument();
+    expect(screen.queryByText('PETTY_CASH_FUND')).toBeNull();
+  });
+
   it('hides the action without the permission and shows recorded results', async () => {
     renderWithProviders(<BalanceVerificationPage />, me([P.tenantBalanceRead]));
     expect(await screen.findByText('Mismatches')).toBeInTheDocument();

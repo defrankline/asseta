@@ -17,6 +17,7 @@ import { LookupResultsPage } from '../../lookup/LookupResultsPage';
 import { AccountabilityPage } from '../AccountabilityPage';
 import { EmployeeAccountabilityPage } from '../EmployeeAccountabilityPage';
 import { PendingAdjustmentsPage } from '../PendingAdjustmentsPage';
+import { makeBalance } from '../../finance/pettyCash/pettyCashFixtures';
 
 const m = vi.hoisted(() => ({
   summary: vi.fn<typeof accountabilityService.summary>(),
@@ -278,6 +279,22 @@ describe('employee accountability', () => {
       'href',
       '/tenant/finance/cash/remittances/h1',
     );
+  });
+
+  it('shows the petty cash funds the person holds, apart from the cash they collect', async () => {
+    m.employee.mockResolvedValue(employee({ petty_cash_funds: [makeBalance()] }));
+    open();
+    const table = await screen.findByRole('table', { name: 'Petty cash held' });
+    expect(within(table).getByText('PC-01 · Office box')).toBeInTheDocument();
+    expect(within(table).getByText('TZS 320,000.00')).toBeInTheDocument();
+    expect(within(table).getByText('TZS 300,000.00')).toBeInTheDocument();
+  });
+
+  it('leaves the petty cash section out for someone who holds no fund', async () => {
+    m.employee.mockResolvedValue(employee());
+    open();
+    await screen.findByRole('tab', { name: 'Collections (1)' });
+    expect(screen.queryByText('Petty cash held now')).not.toBeInTheDocument();
   });
 
   it('hides the scorecard tab unless the viewer may see it', async () => {

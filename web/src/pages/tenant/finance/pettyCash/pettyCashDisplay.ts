@@ -146,6 +146,13 @@ export const CONTROL_FLAG_LABELS: Readonly<Record<string, string>> = {
   ABOVE_PETTY_CASH_MAXIMUM: 'Above the per-expense maximum',
 };
 
+/** The expense list's "To look at" filter (listExpenses `control_flag`). */
+export const CONTROL_FLAG_OPTIONS: readonly { value: string; label: string }[] = [
+  { value: 'OVERSPEND', label: 'More than the fund had available' },
+  { value: 'SPENT_FROM_COLLECTIONS', label: 'Paid from collected cash' },
+  { value: 'ABOVE_PETTY_CASH_MAXIMUM', label: 'Above the per-expense maximum' },
+];
+
 export const controlFlagLabel = (flag: string): string => CONTROL_FLAG_LABELS[flag] ?? flag;
 
 /** Stable server codes of petty cash requests → what the user can do (shown with the message). */

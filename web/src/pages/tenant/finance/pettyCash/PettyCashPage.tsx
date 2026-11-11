@@ -16,6 +16,7 @@ import { FundDialog } from './FundDialog';
 import { useMyFunds, usePettyCashPolicy } from './pettyCashState';
 import { FundsTab, MovementsTab } from './PettyCashTabs';
 import { AdjustmentsTab, AdvancesTab, CountsTab, HolderChangesTab } from './RecordTabs';
+import { DifferencesTab } from './DifferencesTab';
 
 const TABS: readonly { key: PettyCashTab; label: string }[] = [
   { key: 'funds', label: 'Funds' },
@@ -23,6 +24,7 @@ const TABS: readonly { key: PettyCashTab; label: string }[] = [
   { key: 'returns', label: 'Returns' },
   { key: 'counts', label: 'Counts' },
   { key: 'holder-changes', label: 'Holder changes' },
+  { key: 'differences', label: 'Differences' },
   { key: 'adjustments', label: 'Adjustments' },
   { key: 'advances', label: 'Advances' },
 ];
@@ -100,6 +102,9 @@ export function PettyCashPage({ tab: fixedTab }: { tab?: PettyCashTab } = {}) {
           {tab === 'returns' && <MovementsTab {...common} group="returns" />}
           {tab === 'counts' && <CountsTab {...common} />}
           {tab === 'holder-changes' && <HolderChangesTab {...common} />}
+          {tab === 'differences' && (
+            <DifferencesTab timeZone={timeZone} reloadKey={reloadKey} initialStatus={status} />
+          )}
           {tab === 'adjustments' && <AdjustmentsTab {...common} />}
           {tab === 'advances' && <AdvancesTab {...common} />}
         </Box>

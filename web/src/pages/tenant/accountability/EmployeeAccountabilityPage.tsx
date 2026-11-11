@@ -21,6 +21,7 @@ import { humanize } from '../../../utils/text';
 import { formatInstantIn } from '../../../utils/time';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import { scorecardPersonPath } from '../../../navigation/oversightRoutes';
+import { pettyCashFundPath } from '../../../navigation/pettyCashRoutes';
 import { hoursText } from '../hours/hoursDisplay';
 import { PeriodFields } from '../oversight/oversightParts';
 import { nameOr } from '../shared/names';
@@ -157,6 +158,52 @@ function CashHeld({ d }: { d: EmployeeAccountabilityDto }) {
   );
 }
 
+/** Petty cash funds the person holds now (DEC-033), kept apart from the collections custody above. */
+function PettyCashHeld({ d, canOpen }: { d: EmployeeAccountabilityDto; canOpen: boolean }) {
+  type Fund = (typeof d.petty_cash_funds)[number];
+  const money = (
+    key: 'balance' | 'available_to_spend' | 'approved_limit' | 'pending_spending',
+    header: string,
+    strong = false,
+  ): DataColumn<Fund> => ({
+    id: key,
+    header,
+    align: 'right',
+    render: (f) => <MoneyText amount={f[key]} currency={f.currency} strong={strong} />,
+  });
+  return (
+    <StaticTable
+      ariaLabel="Petty cash held"
+      rows={d.petty_cash_funds}
+      getRowId={(f) => f.fund_id}
+      columns={[
+        {
+          id: 'fund',
+          header: 'Fund',
+          render: (f) =>
+            canOpen ? (
+              <Link component={RouterLink} to={pettyCashFundPath(f.fund_id)}>
+                {`${f.fund_code} · ${f.fund_name}`}
+              </Link>
+            ) : (
+              `${f.fund_code} · ${f.fund_name}`
+            ),
+        },
+        money('balance', 'Balance', true),
+        money('available_to_spend', 'Available to spend', true),
+        money('pending_spending', 'Spending waiting for approval'),
+        money('approved_limit', 'Approved limit'),
+        {
+          id: 'state',
+          header: 'State',
+          render: (f) =>
+            !f.is_active ? 'Inactive' : f.below_low_balance ? 'Running low' : 'Active',
+        },
+      ]}
+    />
+  );
+}
+
 /** One person: identity, cash held now, and every record behind it over the period (guideline section 10). */
 export function EmployeeAccountabilityPage() {
   const { staffId = '' } = useParams();
@@ -234,6 +281,11 @@ export function EmployeeAccountabilityPage() {
             <DetailSection title="Cash held now">
               <CashHeld d={d} />
             </DetailSection>
+            {d.petty_cash_funds.length > 0 && (
+              <DetailSection title="Petty cash held now">
+                <PettyCashHeld d={d} canOpen={hasPermission(PERMISSIONS.tenantPettyCashRead)} />
+              </DetailSection>
+            )}
             <Paper variant="outlined">
               <Tabs
                 value={active}

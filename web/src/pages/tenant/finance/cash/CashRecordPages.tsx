@@ -14,6 +14,7 @@ import { custodyService } from '../../../../api/services/custodyService';
 import { useDisplayTimeZone } from '../../../../hooks/useDisplayTimeZone';
 import { RECORD_LIST_ROUTES, type RecordKind } from '../../../../navigation/recordRoutes';
 import { cashTabPath, ROUTES } from '../../../../navigation/routes';
+import { pettyCashTabPath } from '../../../../navigation/pettyCashRoutes';
 import { useSession } from '../../../../session/useSession';
 import { formatDate } from '../../../../utils/dates';
 import { DetailSection } from '../../../../components/lifecycle/EntityDetailsLayout';
@@ -97,6 +98,13 @@ function useBack(kind: RecordKind) {
     ? { label: LIST_LABELS[kind] ?? 'Cash custody', to: RECORD_LIST_ROUTES[kind] }
     : { label: 'My cash', to: ROUTES.fieldCash };
 }
+
+const varianceTitle = (v: CashVarianceDto): string =>
+  v.source_type === 'CUSTOMER_HOUR'
+    ? 'Customer hours variance'
+    : v.source_type.startsWith('PETTY_CASH_')
+      ? 'Petty cash difference'
+      : 'Cash variance';
 
 /** /tenant/finance/cash/transfers/:id */
 export function CashTransferDetailPage() {
@@ -185,6 +193,12 @@ export function CashVarianceDetailPage() {
   const { hasPermission } = useSession();
   const res = useRecordById(load.variance, id);
   const timeline = useVarianceTimeline(id);
+  const cashBack = useBack('CASH_VARIANCE');
+  /** A petty cash difference goes back to petty cash (it may be reached with cash custody off). */
+  const petty = res.data?.source_type.startsWith('PETTY_CASH_') === true;
+  const back = petty
+    ? { label: 'Petty cash differences', to: pettyCashTabPath('differences') }
+    : cashBack;
   const { actionsFor, dialog } = useVarianceActions(() => {
     res.reload();
     timeline.reload();
@@ -194,11 +208,9 @@ export function CashVarianceDetailPage() {
       <RecordDetail<CashVarianceDto>
         resource={res}
         what="cash variance"
-        back={useBack('CASH_VARIANCE')}
+        back={back}
         timeZone={timeZone}
-        title={(v) =>
-          `${v.source_type === 'CUSTOMER_HOUR' ? 'Customer hours variance' : 'Cash variance'} · ${varianceCustodian(v)}`
-        }
+        title={(v) => `${varianceTitle(v)} · ${varianceCustodian(v)}`}
         subtitle={(v) => VARIANCE_KIND_LABELS[v.kind]}
         status={varianceChip}
         actions={actionsFor}

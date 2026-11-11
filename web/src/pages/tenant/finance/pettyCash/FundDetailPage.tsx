@@ -32,6 +32,7 @@ import { FIGURE_LABELS } from './pettyCashDisplay';
 import { useMyFunds, usePettyCashPolicy } from './pettyCashState';
 import { MovementsTab } from './PettyCashTabs';
 import { AdjustmentsTab, AdvancesTab, CountsTab, HolderChangesTab } from './RecordTabs';
+import { DifferencesTab } from './DifferencesTab';
 
 const money = (amount: string, currency: string, strong = false) => (
   <MoneyText amount={amount} currency={currency} strong={strong} />
@@ -203,7 +204,8 @@ export function FundStatement({
   );
 }
 
-type Related = 'fundings' | 'returns' | 'counts' | 'adjustments' | 'holder-changes' | 'advances';
+type Related =
+  'fundings' | 'returns' | 'counts' | 'differences' | 'adjustments' | 'holder-changes' | 'advances';
 
 /** /tenant/finance/petty-cash/funds/:id — the fund, its ledger, statement and records. */
 export function FundDetailPage() {
@@ -347,6 +349,7 @@ export function FundDetailPage() {
                   <Tab value="adjustments" label="Adjustments" />
                   <Tab value="holder-changes" label="Holder changes" />
                   {advances && <Tab value="advances" label="Advances" />}
+                  <Tab value="differences" label="Differences" />
                 </Tabs>
                 <Box className="pt-3">
                   {related === 'fundings' && <MovementsTab {...common} group="fundings" />}
@@ -355,6 +358,9 @@ export function FundDetailPage() {
                   {related === 'adjustments' && <AdjustmentsTab {...common} />}
                   {related === 'holder-changes' && <HolderChangesTab {...common} />}
                   {related === 'advances' && <AdvancesTab {...common} />}
+                  {related === 'differences' && (
+                    <DifferencesTab timeZone={timeZone} fundId={id} reloadKey={reloadKey} />
+                  )}
                 </Box>
                 <Box className="pt-2">
                   <Link

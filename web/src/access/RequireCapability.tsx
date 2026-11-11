@@ -3,7 +3,7 @@ import { Button } from '@mui/material';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router';
 import { EmptyState } from '../components/feedback/EmptyState';
-import { useCapabilityEnabled, type CapabilityCode } from './capabilities';
+import { useCapabilityEnabled, useDisabledCapabilities, type CapabilityCode } from './capabilities';
 
 /** The plain state shown instead of a page whose capability the tenant has switched off. */
 export function CapabilityOffState({ feature }: { feature: string }) {
@@ -31,6 +31,27 @@ interface RequireCapabilityProps {
 /** Renders `children` only while the capability is on (direct URLs included). */
 export function RequireCapability({ capability, feature, children }: RequireCapabilityProps) {
   return useCapabilityEnabled(capability) ? (
+    <>{children}</>
+  ) : (
+    <CapabilityOffState feature={feature} />
+  );
+}
+
+/**
+ * Renders `children` while at least one of the capabilities is on, e.g. a variance page that serves
+ * both the cash custody controls and petty cash (the server then gates each record by its own one).
+ */
+export function RequireAnyCapability({
+  capabilities,
+  feature,
+  children,
+}: {
+  capabilities: readonly CapabilityCode[];
+  feature: string;
+  children: ReactNode;
+}) {
+  const disabled = useDisabledCapabilities();
+  return capabilities.some((c) => !disabled.has(c)) ? (
     <>{children}</>
   ) : (
     <CapabilityOffState feature={feature} />

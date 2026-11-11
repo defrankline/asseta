@@ -26,7 +26,7 @@ import {
   PAID_FROM_LABELS,
   PAID_FROM_WITH_PETTY_OPTIONS,
 } from '../shared/financeDisplay';
-import { controlFlagLabel } from '../finance/pettyCash/pettyCashDisplay';
+import { CONTROL_FLAG_OPTIONS, controlFlagLabel } from '../finance/pettyCash/pettyCashDisplay';
 import { FundFilter } from '../finance/pettyCash/pettyCashPickers';
 import { usePettyCashOn } from '../finance/pettyCash/pettyCashState';
 import { MachineFilter, StaffFilter } from '../shared/financePickers';
@@ -53,6 +53,9 @@ export function ExpensesTab({ timeZone }: { timeZone: string }) {
     initialFilter(params, 'paid_from', PAID_FROM_WITH_PETTY_OPTIONS, ''),
   );
   const [fund, setFund] = useState<PettyCashFundDto | null>(null);
+  const [controlFlag, setControlFlag] = useState(() =>
+    initialFilter(params, 'control_flag', CONTROL_FLAG_OPTIONS, ''),
+  );
   const fundParam = params.get('petty_cash_fund_id');
   useEffect(() => {
     if (!pettyOn || fundParam === null || fundParam === '') return undefined;
@@ -157,6 +160,7 @@ export function ExpensesTab({ timeZone }: { timeZone: string }) {
           custodian_staff_id: custodian?.id,
           paid_from: paidFrom || undefined,
           petty_cash_fund_id: pettyOn ? fund?.id : undefined,
+          control_flag: controlFlag || undefined,
         }}
         emptyTitle="No expenses"
         isRowMuted={(e) => e.status === 'REJECTED'}
@@ -186,6 +190,13 @@ export function ExpensesTab({ timeZone }: { timeZone: string }) {
               options={PAID_FROM_CHOICES[pettyOn ? 'petty' : 'basic']}
               onChange={setPaidFrom}
             />
+            <StaticSelectFilter
+              label="To look at"
+              value={controlFlag}
+              options={CONTROL_FLAG_OPTIONS}
+              onChange={setControlFlag}
+              allLabel="Everything"
+            />
             {pettyOn && (
               <Box sx={{ minWidth: 220 }}>
                 <FundFilter label="Petty cash fund" value={fund} onChange={setFund} />
@@ -201,13 +212,19 @@ export function ExpensesTab({ timeZone }: { timeZone: string }) {
                     machine_id: machine?.id,
                     custodian_staff_id: custodian?.id,
                     paid_from: paidFrom,
+                    control_flag: controlFlag,
                   },
                 },
                 ...(pettyOn
                   ? [
                       {
                         code: 'petty_cash_expenses',
-                        filters: { status, machine_id: machine?.id, petty_cash_fund_id: fund?.id },
+                        filters: {
+                          status,
+                          machine_id: machine?.id,
+                          petty_cash_fund_id: fund?.id,
+                          control_flag: controlFlag,
+                        },
                       },
                     ]
                   : []),
