@@ -67,6 +67,7 @@ from asseta.modules.pettycash.dto import (
     PettyCashMovementDto,
     PettyCashReturnConfirmIn,
     PettyCashReturnIn,
+    PettyCashWitnessDto,
     TopUpRequestIn,
 )
 from asseta.modules.pettycash.ledger import FundLedger
@@ -198,6 +199,24 @@ class PettyCashService:
             ).first()
             is not None
         )
+
+    def witnesses(self) -> list[PettyCashWitnessDto]:
+        """Everyone but the caller who may witness a count (the offline picker in the sync snapshot)."""
+        rows = self._s.execute(
+            select(AppUser.id, AppUser.display_name)
+            .join(TenantMembership, TenantMembership.user_id == AppUser.id)
+            .join(RolePermission, RolePermission.role_id == TenantMembership.role_id)
+            .where(
+                AppUser.is_active.is_(True),
+                AppUser.id != self._ctx.user_id,
+                TenantMembership.tenant_id == self._tid,
+                TenantMembership.effective_to.is_(None),
+                RolePermission.permission_code == COUNT_CODE,
+            )
+            .distinct()
+            .order_by(AppUser.display_name, AppUser.id)
+        ).all()
+        return [PettyCashWitnessDto(user_id=r.id, name=r.display_name) for r in rows]
 
     # --- funds -----------------------------------------------------------------------------------------------
     def _site(self, site_id: uuid.UUID | None) -> uuid.UUID | None:
@@ -746,9 +765,13 @@ class PettyCashService:
             if body.witness_user_id == self._ctx.user_id:
                 raise BusinessRuleViolation("The witness is someone else", code="PETTY_CASH_WITNESS_INVALID")
             if not self.holds_permission(body.witness_user_id, COUNT_CODE):
-                raise BusinessRuleViolation(
-                    "The witness must hold the petty cash count permission", code="PETTY_CASH_WITNESS_INVALID"
-                )
+                if source != "SYNC":
+                    raise BusinessRuleViolation(
+                        "The witness must hold the petty cash count permission", code="PETTY_CASH_WITNESS_INVALID"
+                    )
+                # Picked offline from the downloaded list, the witness lost the permission before the phone synced:
+                # the count is a fact and is kept, recorded without a witness (a self-count when the holder counted).
+                body = body.model_copy(update={"witness_user_id": None})
         evidence = require_evidence(self._s, False, body.evidence_attachment_ids)
         expected = self.ledger.figures(fund).available
         row = PettyCashCount(

@@ -14,6 +14,7 @@ from asseta.core.db import get_sessionmaker
 from asseta.modules.pettycash.sweep import run_petty_cash_sweep
 from tests.support.api import Actor, Api
 from tests.support.finance import FinCtx, cash_policy, category, expense_policy, role, setup_finance, tenant_sql
+from tests.support.notify import member, sync_mirror, user_id
 
 P = "/api/v1/tenant/petty-cash"
 C = "/api/v1/tenant/cash"
@@ -692,6 +693,47 @@ def _system_sql(sql: str) -> list[Any]:
     with get_sessionmaker().begin() as s:
         apply_scope(s, DbScope.SYSTEM, None, None)
         return list(s.execute(text(sql)).scalars())
+
+
+def test_witnessed_count_recorded_offline_from_the_downloaded_list(api: Api) -> None:
+    f, _ = _setup(api, "Offline Witness Co", "POW-1")
+    petty_policy(f, count_witness_required=True)
+    fid = _fund(f)["id"]
+    me = _ok(f.supervisor.get("/api/v1/me"), 200)["user_id"]
+    owner = _ok(f.owner.get("/api/v1/me"), 200)["user_id"]
+    # Witnesses come from the identity mirror: users in a role group holding tenant.pettycash.count.
+    mgr = member(api, f.tid, "manager", "pw-manager")
+    manager = _ok(mgr.get("/api/v1/me"), 200)["user_id"]
+    member(api, f.tid, "operator", "pw-operator")  # no count permission: never offered
+    operator = str(user_id("pw-operator"))
+    _register(api, f.supervisor)
+    boot = api.client.get("/api/v1/sync/bootstrap", headers=_h(f.supervisor)).json()
+    assert "SYNC_PETTY_CASH_WITNESSES" in boot["capabilities"]
+    witnesses = {w["user_id"] for w in boot["data"]["petty_cash_witnesses"]}
+    assert {owner, manager} <= witnesses and me not in witnesses and operator not in witnesses
+    assert all(w["name"] for w in boot["data"]["petty_cash_witnesses"])
+
+    # Picked offline, synced later: the witness is kept, so it is not a self-count.
+    witnessed = _op("PETTY_CASH_COUNT", {"fund_id": fid, "counted_amount": "0", "witness_user_id": owner})
+    assert _push(api, f.supervisor, [witnessed])[0]["status"] == "ACKED"
+    row = tenant_sql(f.tid, "SELECT witness_user_id::text, self_count FROM petty_cash_count")
+    assert [tuple(r) for r in row] == [(owner, False)]
+
+    # The witness lost the permission before the phone synced: the count is kept without the witness.
+    api.idp.memberships["pw-manager"].discard(f"/tenants/{f.tid}/manager")
+    sync_mirror(api)
+    stale = _op("PETTY_CASH_COUNT", {"fund_id": fid, "counted_amount": "0", "witness_user_id": manager})
+    assert _push(api, f.supervisor, [stale])[0]["status"] == "ACKED"
+    rows = tenant_sql(
+        f.tid, "SELECT witness_user_id::text, self_count FROM petty_cash_count ORDER BY counted_at, number"
+    )
+    assert (None, True) in [tuple(r) for r in rows]
+    # Online the same witness is refused, as before.
+    _err(
+        f.supervisor.post(f"{P}/counts", {"fund_id": fid, "counted_amount": "0", "witness_user_id": manager}),
+        422,
+        "PETTY_CASH_WITNESS_INVALID",
+    )
 
 
 def test_sweep_reminds_counts_due_and_low_funds(api: Api) -> None:

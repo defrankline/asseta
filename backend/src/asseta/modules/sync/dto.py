@@ -18,6 +18,7 @@ from asseta.modules.pettycash.dto import (
     PettyCashFundDto,
     PettyCashHolderChangeDto,
     PettyCashMovementDto,
+    PettyCashWitnessDto,
 )
 from asseta.modules.platform_billing.dto import Money
 
@@ -60,6 +61,10 @@ CAPABILITIES = [
     # PETTY_CASH_TOP_UP_REQUEST, PETTY_CASH_RETURN, PETTY_CASH_COUNT, PETTY_CASH_ADVANCE_CLEARANCE and
     # PETTY_CASH_HOLDER_CHANGE_ACKNOWLEDGEMENT (evidence_upload_ids: purpose PETTY_CASH_EVIDENCE).
     "OP_PETTY_CASH",
+    # SyncData.petty_cash_witnesses: who may witness a count (active, holding tenant.pettycash.count, not the caller),
+    # so a witnessed count can be recorded offline; PETTY_CASH_COUNT keeps the count without the witness when the
+    # witness lost the permission before the phone synced.
+    "SYNC_PETTY_CASH_WITNESSES",
 ]
 # Protocol capabilities that belong to a tenant capability (`asseta.modules.policy.capabilities`): not announced
 # while the tenant has it switched off, and their operations are then refused (CONFLICT, the capability's code).
@@ -252,6 +257,8 @@ class SyncData(BaseModel):
     petty_cash_awaiting: list[PettyCashMovementDto] = []
     petty_cash_holder_changes: list[PettyCashHolderChangeDto] = []
     petty_cash_advances: list[PettyCashAdvanceDto] = []
+    # Sent with the funds while the caller holds one and may count (full snapshot; replace the local set).
+    petty_cash_witnesses: list[PettyCashWitnessDto] = []
 
 
 class BootstrapDto(BaseModel):

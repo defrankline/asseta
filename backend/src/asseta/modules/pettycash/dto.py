@@ -314,6 +314,13 @@ class PettyCashMovementDto(Dto):
 
 
 # --- counts ------------------------------------------------------------------------------------------------------
+class PettyCashWitnessDto(BaseModel):
+    """A login that may witness a count: active in the tenant and holding the petty cash count permission."""
+
+    user_id: uuid.UUID
+    name: str
+
+
 class PettyCashCountIn(BaseModel):
     client_id: uuid.UUID | None = None
     fund_id: uuid.UUID

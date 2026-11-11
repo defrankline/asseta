@@ -19517,6 +19517,19 @@ export interface components {
             /** Status */
             status: string;
         };
+        /**
+         * PettyCashWitnessDto
+         * @description A login that may witness a count: active in the tenant and holding the petty cash count permission.
+         */
+        PettyCashWitnessDto: {
+            /** Name */
+            name: string;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
         /** PhotoUrlDto */
         PhotoUrlDto: {
             /** Expires In Seconds */
@@ -22192,6 +22205,11 @@ export interface components {
              * @default []
              */
             petty_cash_holder_changes: components["schemas"]["PettyCashHolderChangeDto"][];
+            /**
+             * Petty Cash Witnesses
+             * @default []
+             */
+            petty_cash_witnesses: components["schemas"]["PettyCashWitnessDto"][];
             /**
              * Sites
              * @default []

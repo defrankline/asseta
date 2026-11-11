@@ -335,6 +335,9 @@ class SyncService:
             "petty_cash_awaiting": [svc.movement_dto(m) for m in awaiting],
             "petty_cash_holder_changes": [PettyCashHolderChangeDto.model_validate(c) for c in changes],
             "petty_cash_advances": [svc.advance_dto(a) for a in advances],
+            "petty_cash_witnesses": svc.witnesses()
+            if funds and "tenant.pettycash.count" in self._ctx.permissions
+            else [],
         }
 
     def _open_invoices(self, contract_ids: set[uuid.UUID]) -> list[SyncOpenInvoiceDto]:

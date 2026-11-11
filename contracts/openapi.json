@@ -32360,6 +32360,26 @@
         "title": "PettyCashTransactionDto",
         "type": "object"
       },
+      "PettyCashWitnessDto": {
+        "description": "A login that may witness a count: active in the tenant and holding the petty cash count permission.",
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "name"
+        ],
+        "title": "PettyCashWitnessDto",
+        "type": "object"
+      },
       "PhotoUrlDto": {
         "properties": {
           "expires_in_seconds": {
@@ -39139,6 +39159,14 @@
               "$ref": "#/components/schemas/PettyCashHolderChangeDto"
             },
             "title": "Petty Cash Holder Changes",
+            "type": "array"
+          },
+          "petty_cash_witnesses": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/PettyCashWitnessDto"
+            },
+            "title": "Petty Cash Witnesses",
             "type": "array"
           },
           "sites": {
