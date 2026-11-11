@@ -72,7 +72,8 @@ object FieldAccountabilityTexts {
     const val REMOVE_PAYMENT = "Remove payment"
     const val METHOD = "Method"
     const val NONCASH_BY_OFFICE = "Bank and mobile-money payments are recorded by the office."
-    fun evidenceFor(n: Int) = "Payment $n evidence (optional)"
+    /** A payment line's photos when the sale has two or more lines (one line keeps [EVIDENCE]). */
+    const val LINE_PHOTO = "Photo of the slip or message (optional)"
     const val FULLY_PAID = "Fully paid"
     fun paymentNumber(n: Int) = "Payment $n"
     fun partPaid(balance: String) = "Part paid (balance $balance)"

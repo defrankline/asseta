@@ -96,22 +96,35 @@ public struct FieldAccess: Sendable, Equatable {
     public static let meterCapture = "tenant.meter.capture"
 }
 
-/// One payment line of the hours sale as typed (the reference only for bank and mobile money).
+/// One payment line of the hours sale as typed (the reference only for bank and mobile money). `followsTotal`: the
+/// opening Cash line, whose amount tracks the sale total until the user types into it (``HoursPayments/follow(_:price:)``);
+/// never sent.
 public struct PaymentLine: Sendable, Equatable, Identifiable {
     public var id = UUID()
     public var method: String
     public var amountText: String
     public var reference: String
+    public var followsTotal: Bool
 
-    public init(method: String = "CASH", amountText: String = "", reference: String = "") {
+    public init(method: String = "CASH", amountText: String = "", reference: String = "", followsTotal: Bool = false) {
         self.method = method
         self.amountText = amountText
         self.reference = reference
+        self.followsTotal = followsTotal
+    }
+
+    /// The amount as typed by the user: setting it stops the line following the total.
+    public var typedAmount: String {
+        get { amountText }
+        set {
+            amountText = newValue
+            followsTotal = false
+        }
     }
 
     /// Lines compare by what was typed (the id only keeps SwiftUI rows apart).
     public static func == (a: PaymentLine, b: PaymentLine) -> Bool {
-        a.method == b.method && a.amountText == b.amountText && a.reference == b.reference
+        a.method == b.method && a.amountText == b.amountText && a.reference == b.reference && a.followsTotal == b.followsTotal
     }
 }
 
@@ -128,6 +141,13 @@ public struct HoursSaleDraft: Sendable, Equatable {
     public var note = ""
 
     public init() {}
+
+    /// A new sale as the form opens: one Cash line that follows the total (``HoursPayments/opening()``).
+    public static func newSale() -> HoursSaleDraft {
+        var d = HoursSaleDraft()
+        d.payments = HoursPayments.opening()
+        return d
+    }
 }
 
 /// A checked payment part (`PurchasePaymentIn`).
@@ -218,6 +238,45 @@ public enum AccountabilityRules {
         guard m.isEmpty, let hours else { return .failure(Problems(messages: m)) }
         return .success(HoursSaleValues(hours: hours, payments: parts, walkInName: name,
                                         walkInPhone: phone, note: trimmed(d.note, max: maxNote)))
+    }
+
+    /// True when a bank or mobile-money line has no reference yet (shown under that line's Reference field).
+    public static func referenceMissing(_ line: PaymentLine) -> Bool {
+        line.method != "CASH" && line.reference.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// Every rule of ``hoursSale(_:walkInAllowed:noncashAllowed:price:)`` that keeps Save off, as one plain line
+    /// ("To save: enter the reference for payments 2 and 3."); nil when the sale can be saved (same as Android).
+    public static func hoursSaleBlockers(_ d: HoursSaleDraft, walkInAllowed: Bool, noncashAllowed: Bool = false,
+                                         price: HoursSalePrice = .hidden) -> String? {
+        if case .success = hoursSale(d, walkInAllowed: walkInAllowed, noncashAllowed: noncashAllowed, price: price) { return nil }
+        typealias T = FieldAccountabilityTexts
+        var todo: [String] = []
+        if d.walkIn {
+            if !walkInAllowed { todo.append(T.hoursTodoRegistered) }
+            if trimmed(d.walkInName, max: maxName) == nil { todo.append(T.hoursTodoName) }
+            if let p = trimmed(d.walkInPhone, max: Int.max), p.count < minPhone || p.count > maxPhone { todo.append(T.hoursTodoPhone) }
+        } else if d.customerID == nil {
+            todo.append(T.hoursTodoCustomer)
+        }
+        if d.machineID == nil { todo.append(T.hoursTodoMachine) }
+        if value(d.hoursText, decimals: hoursDecimals) == nil { todo.append(T.hoursTodoHours) }
+        if d.payments.count > HoursPayments.max { todo.append(T.hoursTodoTooMany) }
+        func numbers(_ test: (PaymentLine) -> Bool) -> [Int] {
+            d.payments.enumerated().filter { test($0.element) }.map { $0.offset + 1 }
+        }
+        let noAmount = numbers { value($0.amountText, decimals: moneyDecimals) == nil }
+        if !noAmount.isEmpty { todo.append(T.hoursTodoAmount(noAmount)) }
+        if !noncashAllowed {
+            let noncash = numbers { $0.method != "CASH" }
+            if !noncash.isEmpty { todo.append(T.hoursTodoCash(noncash)) }
+        }
+        let noReference = numbers(referenceMissing)
+        if !noReference.isEmpty { todo.append(T.hoursTodoReference(noReference)) }
+        if let quote = price.quote, HoursPayments.paid(d.payments) > quote.amount {
+            todo.append(T.hoursTodoLower(HoursPricing.money(quote.amount, currency: quote.currency, minorUnits: quote.minorUnits)))
+        }
+        return T.hoursToSave(todo)
     }
 
     /// `remaining`: hours left on the purchase (on `fromMachineID`), nil when unknown.

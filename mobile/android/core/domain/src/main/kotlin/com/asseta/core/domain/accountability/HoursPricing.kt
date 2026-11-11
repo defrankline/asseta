@@ -156,4 +156,17 @@ object HoursPayments {
         val balance = summary(lines, price).balance?.takeIf { it.signum() > 0 }
         return PaymentLine(method, balance?.let(AccountabilityRules::plain).orEmpty(), "")
     }
+
+    /** The form opens with one Cash line that follows the total (see [follow]); removing it gives "Not paid yet". */
+    fun opening(): List<PaymentLine> = listOf(PaymentLine(PaymentMethod.CASH, "", "", followsTotal = true))
+
+    /**
+     * Lines still following the total get the total's amount (empty while the total is unknown); typed lines are left
+     * alone. Called whenever the form or the prices change.
+     */
+    fun follow(lines: List<PaymentLine>, price: HoursSalePrice): List<PaymentLine> {
+        if (lines.none { it.followsTotal }) return lines
+        val total = (price as? HoursSalePrice.Priced)?.quote?.amount?.let(AccountabilityRules::plain).orEmpty()
+        return lines.map { if (it.followsTotal && it.amountText != total) it.copy(amountText = total) else it }
+    }
 }

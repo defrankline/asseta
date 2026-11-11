@@ -22,6 +22,7 @@ import { paidSummary } from './hoursQuote';
 import {
   emptyPaymentLine,
   emptyPurchaseValues,
+  followTotal,
   OVER_TOTAL_TEXT,
   paymentsExceedTotal,
   purchaseSchema,
@@ -247,12 +248,39 @@ describe('toPurchasePayload', () => {
     );
   });
 
-  it('sends no payments when nothing was paid yet', () => {
+  it('sends no payments when the opening line was removed (not paid yet)', () => {
     expect(
-      toPurchasePayload({ ...emptyPurchaseValues(), machine_id: 'm1', hours: '1' }, 'c', {
-        field: true,
-      }).payments,
+      toPurchasePayload(
+        { ...emptyPurchaseValues(), machine_id: 'm1', hours: '1', payments: [] },
+        'c',
+        {
+          field: true,
+        },
+      ).payments,
     ).toEqual([]);
+  });
+
+  it('opens with one Cash line that follows the total until typed into', () => {
+    const v = emptyPurchaseValues();
+    expect(v.payments).toHaveLength(1);
+    expect(v.payments[0]).toMatchObject({ method: 'CASH', amount: '', follows_total: true });
+    const followed = followTotal(v.payments, '570000.0000');
+    expect(followed?.[0]?.amount).toBe('570000');
+    expect(followTotal(followed ?? [], '570000.0000')).toBeNull();
+    expect(followTotal(followed ?? [], '380000.0000')?.[0]?.amount).toBe('380000');
+    expect(followTotal(followed ?? [], '')?.[0]?.amount).toBe('');
+    const typed = (followed ?? []).map((l) => ({ ...l, amount: '100000', follows_total: false }));
+    expect(followTotal(typed, '380000.0000')).toBeNull();
+    // The followed line travels as one cash payment; follows_total is never sent.
+    const body = toPurchasePayload(
+      { ...v, customer_id: 'c1', machine_id: 'm1', hours: '6', payments: followed ?? [] },
+      'c',
+      { field: true },
+    );
+    expect(body.payments).toEqual([
+      expect.objectContaining({ method: 'CASH', amount: '570000', reference: null }),
+    ]);
+    expect(body.payments?.[0]).not.toHaveProperty('follows_total');
   });
 });
 

@@ -94,7 +94,21 @@ encrypted on the phone) enables it. Unknown policy (never loaded) = hidden, so t
 | field.hours.fullyPaid | Fully paid |
 | field.hours.partPaid | Part paid (balance {balance}) |
 | field.hours.noncashByOffice | Bank and mobile-money payments are recorded by the office. |
-| field.hours.evidenceForPayment | Payment {n} evidence (optional) |
+| field.hours.linePhoto | Photo of the slip or message (optional) |
+| field.hours.referenceLine | Enter the reference for this payment |
+| field.hours.toSave | To save: {todo}[, {todo}…] and {todo}. |
+| field.hours.toSaveRegistered | choose a registered customer |
+| field.hours.toSaveName | enter the customer's name |
+| field.hours.toSavePhone | fix the phone number (at least 3 characters) |
+| field.hours.toSaveCustomer | choose the customer |
+| field.hours.toSaveMachine | choose the machine |
+| field.hours.toSaveHours | enter the hours (more than 0) |
+| field.hours.toSaveTooMany | remove payments (at most 10) |
+| field.hours.toSaveAmount | enter the amount for {payments} |
+| field.hours.toSaveCash | change {payments} to cash |
+| field.hours.toSaveReference | enter the reference for {payments} |
+| field.hours.toSaveLower | lower the payments to the total of {total} |
+| field.hours.toSavePayments | payment {n} / payments {n} and {m} / payments {n}, {m} and {k} |
 | field.hours.outbox | Hours sale · {method} {amount}[ + {method} {amount}…] (no payment: "Hours sale · Not paid yet") |
 | field.hours.methodCash | Cash |
 | field.hours.methodBank | Bank |
@@ -134,8 +148,16 @@ saving still works and the server prices the sale on arrival.
 
 **Payment lines (split bill, backend 2cb541c).** The Payment section lists payment lines: **Add payment** adds one
 (`field.hours.paymentNumber`, then Method, `field.hours.amountReceived`, and `field.hours.reference` for bank and mobile
-money); each line has `field.hours.removePayment`; no lines means not paid yet. At most 10 lines. A new line's amount is
-filled once with what is still owed (total − the other lines) when the total is known; typed values are never changed.
+money); each line has `field.hours.removePayment`; no lines means not paid yet. At most 10 lines. The form opens with
+one Cash line whose amount follows the total: set once the total is known (offline price on the phones, the quote on the
+web), updated when hours, machine or customer change the total, empty while the total is unknown (it still needs an
+amount to save); once the user types into that amount it is never changed again. Removing it gives not paid yet. A line
+added later has its amount filled once with what is still owed (total − the other lines) when the total is known;
+typed values are never changed. A bank or mobile-money line with an empty reference shows `field.hours.referenceLine`
+under its Reference field as soon as the line exists. Save stays disabled while the sale is invalid, so under the paid
+summary one line says why: `field.hours.toSave` listing, in order, every rule that blocks it (`toSaveRegistered`,
+`toSaveName`, `toSavePhone`, `toSaveCustomer`, `toSaveMachine`, `toSaveHours`, `toSaveTooMany`, `toSaveAmount`,
+`toSaveCash`, `toSaveReference`, `toSaveLower`), e.g. "To save: enter the reference for payments 2 and 3."
 The methods follow CUSTOMER_HOURS `field_noncash_payments` (missing = off): off, only Cash is offered (no method picker)
 and the section footer adds `field.hours.noncashByOffice`; on, Cash, Bank and Mobile money, a reference required for the
 last two. Under the lines: `field.hours.paidOf` (`{paid}`, `{total}`, `{balance}` formatted like `{amount}`, balance never
@@ -146,9 +168,9 @@ lines, the cash holder are shared by all lines. One line is sent as `payment` (u
 keep working); two or more as `payments` in the order typed, never both; cash parts carry the cash holder
 (`staff_member_id`) when recording for another custodian. The server keys part n's payment uuid5(client_id, "payment-n")
 (the first "payment"), and a second save of the same form is refused on the phone, so retries stay exactly-once.
-Each payment line has its own evidence photos (bank slip, mobile-money receipt; at most 10 per line): titled
-`field.hours.evidence` when there is one line, `field.hours.evidenceForPayment` per line when there are more; removing a
-line drops its photos. A single line's photos go in the op-level `evidence_upload_ids` (as before). With two or more
+Each payment line has its own evidence photos (bank slip, mobile-money receipt; at most 10 per line), inside the line
+under Reference (under Amount for cash): titled `field.hours.evidence` when there is one line, `field.hours.linePhoto`
+in each line when there are more; removing a line drops its photos. A single line's photos go in the op-level `evidence_upload_ids` (as before). With two or more
 lines each part of `payments` carries its own `evidence_upload_ids` (omitted when it has none): queued with the local
 attachment ids, each replaced by its upload id as the photo finishes uploading; the op is sent only after every photo of
 every part has uploaded (sync fix 13595b6, `PurchasePaymentOp`). On the sync status screen the sale reads `field.hours.outbox`,

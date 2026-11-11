@@ -70,7 +70,31 @@ public enum FieldAccountabilityTexts {
     public static let hoursRemovePayment = "Remove payment" // field.hours.removePayment
     public static let hoursMethod = "Method" // field.hours.method
     public static let hoursNoncashByOffice = "Bank and mobile-money payments are recorded by the office." // field.hours.noncashByOffice
-    public static func hoursEvidenceFor(_ n: Int) -> String { "Payment \(n) evidence (optional)" } // field.hours.evidenceForPayment
+    /// A payment line's photos when the sale has two or more lines (one line keeps ``hoursEvidence``).
+    public static let hoursLinePhoto = "Photo of the slip or message (optional)" // field.hours.linePhoto
+    /// Under a bank or mobile-money line's Reference field while it is empty.
+    public static let hoursReferenceLine = "Enter the reference for this payment" // field.hours.referenceLine
+    // "To save: …" line under the payment summary: what keeps Save off (field.hours.toSave*).
+    public static let hoursTodoRegistered = "choose a registered customer"
+    public static let hoursTodoName = "enter the customer's name"
+    public static let hoursTodoPhone = "fix the phone number (at least 3 characters)"
+    public static let hoursTodoCustomer = "choose the customer"
+    public static let hoursTodoMachine = "choose the machine"
+    public static let hoursTodoHours = "enter the hours (more than 0)"
+    public static let hoursTodoTooMany = "remove payments (at most 10)"
+    public static func hoursTodoAmount(_ n: [Int]) -> String { "enter the amount for \(hoursPayments(n))" }
+    public static func hoursTodoCash(_ n: [Int]) -> String { "change \(hoursPayments(n)) to cash" }
+    public static func hoursTodoReference(_ n: [Int]) -> String { "enter the reference for \(hoursPayments(n))" }
+    public static func hoursTodoLower(_ total: String) -> String { "lower the payments to the total of \(total)" }
+    /// "To save: a, b and c."; nil when there is nothing to do.
+    public static func hoursToSave(_ todo: [String]) -> String? { todo.isEmpty ? nil : "To save: \(and(todo))." }
+    /// "payment 2", "payments 2 and 3", "payments 1, 2 and 3".
+    public static func hoursPayments(_ n: [Int]) -> String {
+        n.count == 1 ? "payment \(n[0])" : "payments \(and(n.map(String.init)))"
+    }
+    private static func and(_ items: [String]) -> String {
+        items.count == 1 ? items[0] : items.dropLast().joined(separator: ", ") + " and " + items[items.count - 1]
+    }
     public static let hoursFullyPaid = "Fully paid" // field.hours.fullyPaid
     public static func hoursPaymentNumber(_ n: Int) -> String { "Payment \(n)" } // field.hours.paymentNumber
     public static func hoursPartPaid(_ balance: String) -> String { "Part paid (balance \(balance))" } // field.hours.partPaid

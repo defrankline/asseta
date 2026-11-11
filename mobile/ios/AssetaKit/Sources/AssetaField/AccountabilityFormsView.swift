@@ -37,7 +37,8 @@ struct HoursSaleFormView: View {
     let model: FieldModel
     @Environment(\.dismiss) private var dismiss
     @State private var clientID = UUID()
-    @State private var draft = HoursSaleDraft()
+    /// Opens with one Cash line that follows the total until typed into.
+    @State private var draft = HoursSaleDraft.newSale()
     @State private var receivedAt = Date()
     @State private var holderID: UUID?
     /// Photos per payment line (by the line's id).
@@ -88,11 +89,22 @@ struct HoursSaleFormView: View {
                                     ForEach(T.paymentMethods.filter { a.saleMethods.contains($0.wire) }, id: \.wire) { Text($0.label).tag($0.wire) }
                                 }.pickerStyle(.segmented)
                             }
-                            TextField(T.hoursAmountReceived, text: $draft.payments[index].amountText).keyboardType(.decimalPad)
+                            TextField(T.hoursAmountReceived, text: $draft.payments[index].typedAmount).keyboardType(.decimalPad)
                                 .font(.title3.monospacedDigit()).accessibilityIdentifier("hours.amount.\(index)")
                             if draft.payments[index].method != "CASH" {
                                 TextField(T.hoursReference, text: $draft.payments[index].reference)
+                                if AccountabilityRules.referenceMissing(draft.payments[index]) {
+                                    Text(T.hoursReferenceLine).font(.footnote).foregroundStyle(.red)
+                                        .accessibilityIdentifier("hours.referenceMissing.\(index)")
+                                }
                             }
+                            // The line's own photos (the bank slip, the mobile-money message), sent with that payment.
+                            let lineID = draft.payments[index].id
+                            EvidencePhotosSection(model: model,
+                                                  photos: Binding(get: { photos[lineID] ?? [] }, set: { photos[lineID] = $0 }),
+                                                  error: $error,
+                                                  title: draft.payments.count == 1 ? T.hoursEvidence : T.hoursLinePhoto,
+                                                  inline: true)
                             Button(T.hoursRemovePayment, role: .destructive) {
                                 // The line's photos go with it.
                                 let removed = draft.payments.remove(at: index)
@@ -108,6 +120,11 @@ struct HoursSaleFormView: View {
                         ForEach(T.hoursPaymentSummary(HoursPayments.summary(draft.payments, price: price)), id: \.self) { line in
                             Text(line).font(.body).accessibilityIdentifier("hours.paid")
                         }
+                        // Why Save is off, in one line (Save is disabled, so no save attempt would show it).
+                        if let blockers = AccountabilityRules.hoursSaleBlockers(draft, walkInAllowed: a.walkIn,
+                                                                                noncashAllowed: a.noncashPayments, price: price) {
+                            Text(blockers).font(.callout).foregroundStyle(.red).accessibilityIdentifier("hours.toSave")
+                        }
                         if !draft.payments.isEmpty {
                             DatePicker(T.hoursReceived, selection: $receivedAt, in: ...Date())
                             if draft.payments.contains(where: { $0.method == "CASH" }) && a.recordForOthers {
@@ -120,15 +137,10 @@ struct HoursSaleFormView: View {
                         Text([draft.payments.isEmpty ? T.hoursNotPaidFooter : T.hoursPaymentFooter,
                               a.noncashPayments ? nil : T.hoursNoncashByOffice].compactMap { $0 }.joined(separator: " "))
                     }
-                    // Each payment line has its own photos (the bank slip, the mobile-money receipt), sent with that payment.
-                    ForEach(Array(draft.payments.enumerated()), id: \.element.id) { index, line in
-                        EvidencePhotosSection(model: model,
-                                              photos: Binding(get: { photos[line.id] ?? [] }, set: { photos[line.id] = $0 }),
-                                              error: $error,
-                                              title: draft.payments.count == 1 ? T.hoursEvidence : T.hoursEvidenceFor(index + 1))
-                    }
                 }
             }
+            // The opening Cash line follows the total (hours, machine, customer, prices) until the user types into it.
+            .onChange(of: price, initial: true) { _, p in draft.payments = HoursPayments.follow(draft.payments, price: p) }
             .navigationTitle(T.titleHoursSale)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -179,12 +191,38 @@ struct EvidencePhotosSection: View {
     var removeLabel = "Remove"
     /// False: the photos can only be removed (an hours sale split across payments takes none).
     var canAdd = true
+    /// True: rows inside another section (a payment line), titled and footed in place instead of a section of its own.
+    var inline = false
     @State private var showCamera = false
     @State private var cameraDenied = false
     @Environment(\.openURL) private var openURL
 
     var body: some View {
-        Section {
+        container
+            .fullScreenCover(isPresented: $showCamera) {
+                CameraCaptureView { data in
+                    showCamera = false
+                    if let data { add(data) }
+                }
+                .ignoresSafeArea()
+            }
+            .alert("Camera access needed", isPresented: $cameraDenied) {
+                Button("Open Settings") { if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) } }
+                Button("Cancel", role: .cancel) {}
+            } message: { Text(footer) }
+    }
+
+    @ViewBuilder private var container: some View {
+        if inline {
+            Text(title).font(.subheadline)
+            rows
+            Text(footer).font(.footnote).foregroundStyle(.secondary)
+        } else {
+            Section { rows } header: { Text(title) } footer: { Text(footer) }
+        }
+    }
+
+    @ViewBuilder private var rows: some View {
             ForEach(Array(photos.enumerated()), id: \.offset) { index, photo in
                 HStack {
                     if let image = UIImage(data: photo.data) {
@@ -200,18 +238,6 @@ struct EvidencePhotosSection: View {
                     Task { if await CameraAccess.request() { showCamera = true } else { cameraDenied = true } }
                 }
             }
-        } header: { Text(title) } footer: { Text(footer) }
-            .fullScreenCover(isPresented: $showCamera) {
-                CameraCaptureView { data in
-                    showCamera = false
-                    if let data { add(data) }
-                }
-                .ignoresSafeArea()
-            }
-            .alert("Camera access needed", isPresented: $cameraDenied) {
-                Button("Open Settings") { if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) } }
-                Button("Cancel", role: .cancel) {}
-            } message: { Text(footer) }
     }
 
     private func add(_ data: Data) {

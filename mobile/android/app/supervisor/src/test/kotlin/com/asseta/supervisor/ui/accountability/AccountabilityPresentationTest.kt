@@ -113,7 +113,27 @@ class AccountabilityPresentationTest {
         assertEquals("Bank and mobile-money payments are recorded by the office.", FieldAccountabilityTexts.NONCASH_BY_OFFICE)
         assertEquals("Add payment", FieldAccountabilityTexts.ADD_PAYMENT)
         assertEquals("Payment 2", FieldAccountabilityTexts.paymentNumber(2))
-        assertEquals("Payment 2 evidence (optional)", FieldAccountabilityTexts.evidenceFor(2))
+        assertEquals("Photo of the slip or message (optional)", FieldAccountabilityTexts.LINE_PHOTO)
+    }
+
+    @Test
+    fun `hours sale form opens with one cash line that follows the total until typed`() {
+        val book = com.asseta.core.domain.accountability.HoursPriceBook(
+            prices = mapOf("ex01" to com.asseta.core.domain.accountability.HoursPrice("ex01", java.math.BigDecimal("95000"), java.math.BigDecimal.ZERO, "TZS", 2)),
+        )
+        val opened = HoursSaleForm()
+        val line = opened.payments.single()
+        assertEquals(com.asseta.core.domain.accountability.PaymentMethod.CASH, line.method)
+        assertEquals("", line.amountText)
+        val six = opened.copy(machineId = "ex01", hours = "6").following(book)
+        assertEquals("570000", six.payments.single().amountText)
+        assertEquals(listOf("Paid TZS 570,000 of TZS 570,000 · Balance TZS 0", "Fully paid"),
+            FieldAccountabilityTexts.paymentSummary(com.asseta.core.domain.accountability.HoursPayments.summary(six.payments, six.price(book))))
+        assertEquals("380000", six.copy(hours = "4").following(book).payments.single().amountText)
+        val typed = six.line(0) { it.typed("500000") }.copy(hours = "4").following(book)
+        assertEquals("500000", typed.payments.single().amountText)
+        assertEquals(listOf("Not paid yet"), FieldAccountabilityTexts.paymentSummary(
+            com.asseta.core.domain.accountability.HoursPayments.summary(emptyList(), com.asseta.core.domain.accountability.HoursSalePrice.Hidden)))
     }
 
     @Test

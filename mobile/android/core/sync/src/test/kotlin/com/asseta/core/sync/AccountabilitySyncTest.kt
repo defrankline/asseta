@@ -2,6 +2,9 @@ package com.asseta.core.sync
 
 import com.asseta.core.domain.accountability.HoursSaleDraft
 import com.asseta.core.domain.accountability.AccountabilityMessages
+import com.asseta.core.domain.accountability.HoursPayments
+import com.asseta.core.domain.accountability.HoursPricing
+import com.asseta.core.domain.accountability.HoursSalePrice
 import com.asseta.core.domain.accountability.PaymentLine
 import com.asseta.core.domain.accountability.PaymentMethod
 import com.asseta.core.domain.capture.GpsOutcome
@@ -39,6 +42,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import java.math.BigDecimal
 import java.time.Instant
 import java.util.UUID
 
@@ -148,6 +152,18 @@ class AccountabilitySyncTest : SyncTestBase() {
         val none = payload(saved(accountability.hoursSale(split(emptyList()))).operationId)
         assertNull(none["payment"])
         assertNull(none["payments"])
+    }
+
+    @Test
+    fun theOpeningCashLineFollowedToTheTotalTravelsAsOneCashPayment() = runBlocking {
+        priced()
+        synced()
+        val price = HoursSalePrice.Priced(HoursPricing.quote(BigDecimal("6"), BigDecimal("95000"), BigDecimal.ZERO, "TZS", 2))
+        val lines = HoursPayments.follow(HoursPayments.opening(), price)
+        val p = payload(saved(accountability.hoursSale(split(lines))).operationId)
+        assertEquals("CASH", p["payment"]!!.jsonObject["method"]!!.jsonPrimitive.content)
+        assertEquals("570000", p["payment"]!!.jsonObject["amount"]!!.jsonPrimitive.content)
+        assertNull(p["payments"])
     }
 
     @Test

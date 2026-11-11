@@ -192,4 +192,22 @@ public enum HoursPayments {
         let balance = summary(lines, price: price).balance.flatMap { $0 > 0 ? $0 : nil }
         return PaymentLine(method: method, amountText: balance.map(AccountabilityRules.plain) ?? "", reference: "")
     }
+
+    /// The form opens with one Cash line that follows the total (see ``follow(_:price:)``); removing it gives "Not paid yet".
+    public static func opening() -> [PaymentLine] {
+        [PaymentLine(method: "CASH", followsTotal: true)]
+    }
+
+    /// Lines still following the total get the total's amount (empty while the total is unknown); typed lines are left
+    /// alone. Called whenever the form or the prices change.
+    public static func follow(_ lines: [PaymentLine], price: HoursSalePrice) -> [PaymentLine] {
+        guard lines.contains(where: { $0.followsTotal }) else { return lines }
+        let total = price.quote.map { AccountabilityRules.plain($0.amount) } ?? ""
+        return lines.map { line in
+            guard line.followsTotal, line.amountText != total else { return line }
+            var l = line
+            l.amountText = total
+            return l
+        }
+    }
 }

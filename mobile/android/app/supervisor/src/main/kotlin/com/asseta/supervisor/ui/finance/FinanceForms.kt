@@ -82,8 +82,11 @@ fun DecimalField(label: String, value: String, onChange: (String) -> Unit, enabl
 }
 
 @Composable
-fun TextInput(label: String, value: String, onChange: (String) -> Unit, enabled: Boolean, singleLine: Boolean = true) {
-    OutlinedTextField(value, onChange, label = { Text(label) }, singleLine = singleLine, enabled = enabled, modifier = Modifier.fillMaxWidth())
+fun TextInput(label: String, value: String, onChange: (String) -> Unit, enabled: Boolean, singleLine: Boolean = true, error: String? = null) {
+    OutlinedTextField(
+        value, onChange, label = { Text(label) }, singleLine = singleLine, enabled = enabled, modifier = Modifier.fillMaxWidth(),
+        isError = error != null, supportingText = error?.let { { Text(it) } },
+    )
 }
 
 /** Exclusive choice among a few fixed (non-backend) values. */

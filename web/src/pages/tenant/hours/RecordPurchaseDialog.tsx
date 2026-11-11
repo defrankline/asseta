@@ -10,7 +10,7 @@ import {
   Typography,
 } from '@mui/material';
 import { useFormikContext } from 'formik';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import type { HoursPurchaseDto, HoursQuoteDto } from '../../../api/hoursTypes';
 import { newIdempotencyKey, newUuid } from '../../../api/ids';
@@ -40,6 +40,7 @@ import { HoursQuoteLine } from './HoursQuoteLine';
 import {
   CUSTOMER_FIELDS,
   emptyPaymentLine,
+  followTotal,
   emptyPurchaseValues,
   HOURS_FIELDS,
   MAX_PAYMENT_LINES,
@@ -106,13 +107,22 @@ function quoteCustomerId(v: PurchaseValues): string {
   return v.customer_mode === 'EXISTING' ? v.customer_id : '';
 }
 
-/** Keeps the quote total in the form so the payments can be checked against it. */
+/**
+ * Keeps the quote total in the form so the payments can be checked against it, and sets the
+ * opening Cash line to the total until the user types into its amount.
+ */
 function useQuoteSync(): (q: HoursQuoteDto | null) => void {
-  const { setFieldValue } = useFormikContext<PurchaseValues>();
+  const { values, setFieldValue } = useFormikContext<PurchaseValues>();
+  const payments = useRef(values.payments);
+  useEffect(() => {
+    payments.current = values.payments;
+  });
   return useCallback(
     (q: HoursQuoteDto | null) => {
       void setFieldValue('quote_amount', q?.amount ?? '', false);
       void setFieldValue('quote_currency', q?.currency ?? '', false);
+      const followed = followTotal(payments.current, q?.amount ?? '');
+      if (followed !== null) void setFieldValue('payments', followed, false);
     },
     [setFieldValue],
   );
@@ -181,7 +191,16 @@ function PaymentLineFields({
           required
         />
       )}
-      <FormikTextField name={at('amount')} label="Amount" required slotProps={decimal} />
+      <FormikTextField
+        name={at('amount')}
+        label="Amount"
+        required
+        slotProps={decimal}
+        onInput={() => {
+          // Typed into: the amount no longer follows the total.
+          if (line.follows_total) void setFieldValue(at('follows_total'), false, false);
+        }}
+      />
       {NEEDS_REFERENCE.has(line.method) && (
         <FormikTextField
           name={at('reference')}

@@ -226,8 +226,19 @@ data class FieldAccess(
 
 enum class PaymentMethod(val wire: String) { CASH("CASH"), BANK("BANK"), MOBILE_MONEY("MOBILE_MONEY") }
 
-/** One payment line of the hours sale as typed (the reference only for bank and mobile money). */
-data class PaymentLine(val method: PaymentMethod = PaymentMethod.CASH, val amountText: String = "", val reference: String = "")
+/**
+ * One payment line of the hours sale as typed (the reference only for bank and mobile money). [followsTotal]: the opening
+ * Cash line, whose amount tracks the sale total until the user types into it ([HoursPayments.follow]); never sent.
+ */
+data class PaymentLine(
+    val method: PaymentMethod = PaymentMethod.CASH,
+    val amountText: String = "",
+    val reference: String = "",
+    val followsTotal: Boolean = false,
+) {
+    /** The user typed the amount: it no longer follows the total. */
+    fun typed(amount: String) = copy(amountText = amount, followsTotal = false)
+}
 
 /** The hours-sale form as typed (validated by [AccountabilityRules.hoursSale]); no payment lines = not paid yet. */
 data class HoursSaleDraft(
@@ -317,6 +328,45 @@ object AccountabilityRules {
         }
         val note = d.note.trim().take(MAX_NOTE).ifEmpty { null }
         return if (m.isEmpty()) FormCheck.Valid(HoursSaleValues(hours!!, parts, name, phone, note)) else FormCheck.Invalid(m)
+    }
+
+    /** True when a bank or mobile-money line has no reference yet (shown under that line's Reference field). */
+    fun referenceMissing(line: PaymentLine): Boolean = line.method != PaymentMethod.CASH && line.reference.isBlank()
+
+    /**
+     * Every rule of [hoursSale] that keeps Save off, as one plain line ("To save: enter the reference for payments 2 and
+     * 3."); null when the sale can be saved. Same rules, same order as [hoursSale].
+     */
+    fun hoursSaleBlockers(
+        d: HoursSaleDraft,
+        walkInAllowed: Boolean,
+        noncashAllowed: Boolean = false,
+        price: HoursSalePrice = HoursSalePrice.Hidden,
+    ): String? {
+        if (hoursSale(d, walkInAllowed, noncashAllowed, price) is FormCheck.Valid) return null
+        val todo = mutableListOf<String>()
+        if (d.walkIn) {
+            if (!walkInAllowed) todo += AccountabilityMessages.TODO_REGISTERED
+            if (d.walkInName.isBlank()) todo += AccountabilityMessages.TODO_NAME
+            val phone = d.walkInPhone.trim()
+            if (phone.isNotEmpty() && (phone.length < MIN_PHONE || phone.length > MAX_PHONE)) todo += AccountabilityMessages.TODO_PHONE
+        } else if (d.customerId.isNullOrBlank()) {
+            todo += AccountabilityMessages.TODO_CUSTOMER
+        }
+        if (d.machineId.isNullOrBlank()) todo += AccountabilityMessages.TODO_MACHINE
+        if (AmountParser.valueOrNull(d.hoursText, HOURS) == null) todo += AccountabilityMessages.TODO_HOURS
+        if (d.payments.size > HoursPayments.MAX) todo += AccountabilityMessages.TODO_TOO_MANY
+        fun numbers(test: (PaymentLine) -> Boolean) = d.payments.withIndex().filter { test(it.value) }.map { it.index + 1 }
+        numbers { AmountParser.valueOrNull(it.amountText, DecimalLimit.MONEY) == null }
+            .takeIf { it.isNotEmpty() }?.let { todo += AccountabilityMessages.todoAmount(it) }
+        if (!noncashAllowed) {
+            numbers { it.method != PaymentMethod.CASH }.takeIf { it.isNotEmpty() }?.let { todo += AccountabilityMessages.todoCash(it) }
+        }
+        numbers(::referenceMissing).takeIf { it.isNotEmpty() }?.let { todo += AccountabilityMessages.todoReference(it) }
+        if (price is HoursSalePrice.Priced && HoursPayments.paid(d.payments) > price.quote.amount) {
+            todo += AccountabilityMessages.todoLower(HoursPricing.money(price.quote.amount, price.quote.currency, price.quote.minorUnits))
+        }
+        return AccountabilityMessages.toSave(todo)
     }
 
     /** [remaining]: hours left on the purchase (null when unknown); [fromMachineId]: the machine the hours are on. */
@@ -414,6 +464,30 @@ object AccountabilityMessages {
     const val NONCASH_OFF = "Bank and mobile-money payments are recorded by the office."
     const val TOO_MANY_PAYMENTS = "At most 10 payments per sale."
     fun paymentsExceed(total: String) = "The payments add up to more than the total of $total."
+
+    /** Under a bank or mobile-money line's Reference field while it is empty. */
+    const val REFERENCE_LINE = "Enter the reference for this payment"
+
+    // "To save: …" line under the payment summary: what keeps Save off (field.hours.toSave*).
+    const val TODO_REGISTERED = "choose a registered customer"
+    const val TODO_NAME = "enter the customer's name"
+    const val TODO_PHONE = "fix the phone number (at least 3 characters)"
+    const val TODO_CUSTOMER = "choose the customer"
+    const val TODO_MACHINE = "choose the machine"
+    const val TODO_HOURS = "enter the hours (more than 0)"
+    const val TODO_TOO_MANY = "remove payments (at most 10)"
+    fun todoAmount(n: List<Int>) = "enter the amount for ${payments(n)}"
+    fun todoCash(n: List<Int>) = "change ${payments(n)} to cash"
+    fun todoReference(n: List<Int>) = "enter the reference for ${payments(n)}"
+    fun todoLower(total: String) = "lower the payments to the total of $total"
+
+    /** "To save: a, b and c."; null when there is nothing to do. */
+    fun toSave(todo: List<String>): String? = if (todo.isEmpty()) null else "To save: ${and(todo)}."
+
+    /** "payment 2", "payments 2 and 3", "payments 1, 2 and 3". */
+    fun payments(n: List<Int>) = if (n.size == 1) "payment ${n[0]}" else "payments ${and(n.map(Int::toString))}"
+
+    private fun and(items: List<String>) = if (items.size == 1) items[0] else items.dropLast(1).joinToString(", ") + " and " + items.last()
     const val WALK_IN_OFF = "Walk-in customers are turned off for your company."
     const val PURCHASE = "Choose the purchase."
     const val TARGET_MACHINE = "Choose the machine to move the hours to."

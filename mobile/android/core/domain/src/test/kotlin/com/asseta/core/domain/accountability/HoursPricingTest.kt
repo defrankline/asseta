@@ -104,6 +104,34 @@ class HoursPricingTest {
     }
 
     @Test
+    fun `the opening cash line follows the total until typed into`() {
+        val opening = HoursPayments.opening()
+        assertEquals(listOf(PaymentLine(PaymentMethod.CASH, "", "", followsTotal = true)), opening)
+        // Total unknown: stays empty (and still needs an amount to save).
+        assertEquals("", HoursPayments.follow(opening, HoursSalePrice.Hidden).single().amountText)
+        assertEquals("", HoursPayments.follow(opening, HoursSalePrice.Unpriced).single().amountText)
+        val six = HoursPayments.follow(opening, HoursPricing.price(book, "ex01", null, false, "6"))
+        assertEquals("570000", six.single().amountText)
+        assertEquals(PaymentStatus.FullyPaid, HoursPayments.summary(six, HoursPricing.price(book, "ex01", null, false, "6")).status)
+        // Hours, customer (discount) and machine change the total: the line follows.
+        val four = HoursPayments.follow(six, HoursPricing.price(book, "ex01", null, false, "4"))
+        assertEquals("380000", four.single().amountText)
+        assertEquals("342000", HoursPayments.follow(four, HoursPricing.price(book, "ex01", "acme", false, "4")).single().amountText)
+        assertEquals("", HoursPayments.follow(four, HoursPricing.price(book, "zz", null, false, "4")).single().amountText)
+        // Typed: never changed again.
+        val typed = listOf(four.single().typed("100000"))
+        assertEquals(PaymentLine(PaymentMethod.CASH, "100000", ""), typed.single())
+        assertEquals(typed, HoursPayments.follow(typed, HoursPricing.price(book, "ex01", null, false, "6")))
+        // Method changes keep it following; a later line is filled once and never follows.
+        val bank = HoursPayments.follow(listOf(six.single().copy(method = PaymentMethod.BANK)), HoursPricing.price(book, "ex01", null, false, "4"))
+        assertEquals(PaymentLine(PaymentMethod.BANK, "380000", "", followsTotal = true), bank.single())
+        val added = HoursPayments.newLine(listOf(PaymentLine(amountText = "300000")), HoursPricing.price(book, "ex01", null, false, "6"))
+        assertEquals(false, added.followsTotal)
+        // Removed: no lines, not paid yet.
+        assertEquals(PaymentStatus.NotPaid, HoursPayments.summary(emptyList(), HoursPricing.price(book, "ex01", null, false, "6")).status)
+    }
+
+    @Test
     fun `split rules`() {
         val price = HoursPricing.price(book, "ex01", null, false, "6")
         fun draft(vararg lines: PaymentLine) = HoursSaleDraft(false, "acme", "", "", "ex01", "6", lines.toList(), "")
@@ -125,6 +153,37 @@ class HoursPricingTest {
         val eleven = draft(*Array(11) { PaymentLine(PaymentMethod.CASH, "1", "") })
         assertEquals(listOf(AccountabilityMessages.TOO_MANY_PAYMENTS), (AccountabilityRules.hoursSale(eleven, false) as FormCheck.Invalid).messages)
         assertTrue(AccountabilityRules.hoursSale(draft(cash), false) is FormCheck.Valid)
+    }
+
+    @Test
+    fun `save blockers say why save is off`() {
+        val price = HoursPricing.price(book, "ex01", null, false, "6")
+        fun draft(vararg lines: PaymentLine, machine: String? = "ex01", hours: String = "6", customer: String? = "acme") =
+            HoursSaleDraft(false, customer, "", "", machine, hours, lines.toList(), "")
+        fun blockers(d: HoursSaleDraft, noncash: Boolean = true, p: HoursSalePrice = price) = AccountabilityRules.hoursSaleBlockers(d, false, noncash, p)
+        val cash = PaymentLine(PaymentMethod.CASH, "300000", "")
+        val bank = PaymentLine(PaymentMethod.BANK, "100000", "")
+        val mobile = PaymentLine(PaymentMethod.MOBILE_MONEY, "170000", "")
+        // Fully paid but the references are missing: Save is off and the line says why.
+        assertEquals("To save: enter the reference for payments 2 and 3.", blockers(draft(cash, bank, mobile)))
+        assertTrue(AccountabilityRules.referenceMissing(bank))
+        assertEquals(false, AccountabilityRules.referenceMissing(cash))
+        assertEquals(false, AccountabilityRules.referenceMissing(bank.copy(reference = "CRDB")))
+        assertEquals("Enter the reference for this payment", AccountabilityMessages.REFERENCE_LINE)
+        assertEquals(null, blockers(draft(cash, bank.copy(reference = "R1"), mobile.copy(reference = "R2"))))
+        assertEquals("To save: enter the amount for payment 1.", blockers(draft(PaymentLine(PaymentMethod.CASH, "", ""))))
+        assertEquals("To save: enter the amount for payments 1 and 2.", blockers(draft(PaymentLine(amountText = "abc"), PaymentLine(amountText = "0"))))
+        assertEquals("To save: lower the payments to the total of TZS 570,000.", blockers(draft(cash, cash)))
+        assertEquals(
+            "To save: choose the machine and enter the hours (more than 0).",
+            blockers(draft(PaymentLine(amountText = "5"), machine = null, hours = ""), p = HoursSalePrice.Hidden),
+        )
+        assertEquals("To save: choose the customer.", blockers(draft(customer = null)))
+        assertEquals("To save: change payment 2 to cash and enter the reference for payment 2.", blockers(draft(cash, bank), noncash = false))
+        assertEquals(null, blockers(draft())) // not paid yet
+        assertEquals("To save: choose a registered customer.", AccountabilityRules.hoursSaleBlockers(
+            HoursSaleDraft(true, null, "Juma", "", "ex01", "6", emptyList(), ""), walkInAllowed = false))
+        assertEquals("payments 1, 2 and 3", AccountabilityMessages.payments(listOf(1, 2, 3)))
     }
 
     @Test

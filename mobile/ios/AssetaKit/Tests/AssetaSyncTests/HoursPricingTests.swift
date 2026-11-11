@@ -190,6 +190,78 @@ struct HoursPricingTests {
         #expect(HoursPayments.newLine([], price: .unpriced).amountText == "")
     }
 
+    @Test func theOpeningCashLineFollowsTheTotalUntilTypedInto() {
+        func p(_ hours: String, _ customer: UUID? = nil, machine: UUID? = nil) -> HoursSalePrice {
+            HoursPricing.price(Self.book, machineID: machine ?? Self.ex01, customerID: customer, walkIn: false, hoursText: hours)
+        }
+        let opened = HoursSaleDraft.newSale()
+        #expect(opened.payments == [PaymentLine(method: "CASH", amountText: "", followsTotal: true)])
+        #expect(HoursSaleDraft().payments.isEmpty)
+        // Total unknown: stays empty (and still needs an amount to save).
+        #expect(HoursPayments.follow(opened.payments, price: .hidden).first?.amountText == "")
+        #expect(HoursPayments.follow(opened.payments, price: .unpriced).first?.amountText == "")
+        let six = HoursPayments.follow(opened.payments, price: p("6"))
+        #expect(six.first?.amountText == "570000")
+        #expect(HoursPayments.summary(six, price: p("6")).status == .fullyPaid)
+        // Hours, customer (discount) and machine change the total: the line follows.
+        let four = HoursPayments.follow(six, price: p("4"))
+        #expect(four.first?.amountText == "380000")
+        #expect(HoursPayments.follow(four, price: p("4", Self.acme)).first?.amountText == "342000")
+        #expect(HoursPayments.follow(four, price: p("4", machine: UUID())).first?.amountText == "")
+        // Typed: never changed again.
+        var typed = four
+        typed[0].typedAmount = "100000"
+        #expect(typed == [PaymentLine(method: "CASH", amountText: "100000")])
+        #expect(HoursPayments.follow(typed, price: p("6")) == typed)
+        // A method change keeps it following; a later line is filled once and never follows.
+        var bank = six
+        bank[0].method = "BANK"
+        #expect(HoursPayments.follow(bank, price: p("4")) == [PaymentLine(method: "BANK", amountText: "380000", followsTotal: true)])
+        #expect(!HoursPayments.newLine(Self.lines("300000"), price: p("6")).followsTotal)
+        // Removed: no lines, not paid yet.
+        #expect(HoursPayments.summary([], price: p("6")).status == .notPaid)
+    }
+
+    @Test func saveBlockersSayWhySaveIsOff() {
+        let price = HoursPricing.price(Self.book, machineID: Self.ex01, customerID: nil, walkIn: false, hoursText: "6")
+        func draft(_ lines: [PaymentLine], machine: Bool = true, hours: String = "6", customer: Bool = true) -> HoursSaleDraft {
+            var d = HoursSaleDraft()
+            d.customerID = customer ? Self.acme : nil
+            d.machineID = machine ? Self.ex01 : nil
+            d.hoursText = hours
+            d.payments = lines
+            return d
+        }
+        func blockers(_ d: HoursSaleDraft, noncash: Bool = true, p: HoursSalePrice? = nil) -> String? {
+            AccountabilityRules.hoursSaleBlockers(d, walkInAllowed: false, noncashAllowed: noncash, price: p ?? price)
+        }
+        let cash = PaymentLine(method: "CASH", amountText: "300000")
+        let bank = PaymentLine(method: "BANK", amountText: "100000")
+        let mobile = PaymentLine(method: "MOBILE_MONEY", amountText: "170000")
+        // Fully paid but the references are missing: Save is off and the line says why.
+        #expect(blockers(draft([cash, bank, mobile])) == "To save: enter the reference for payments 2 and 3.")
+        #expect(AccountabilityRules.referenceMissing(bank) && !AccountabilityRules.referenceMissing(cash))
+        #expect(!AccountabilityRules.referenceMissing(PaymentLine(method: "BANK", amountText: "1", reference: "CRDB")))
+        #expect(FieldAccountabilityTexts.hoursReferenceLine == "Enter the reference for this payment")
+        var withRefs = [cash, bank, mobile]
+        withRefs[1].reference = "R1"
+        withRefs[2].reference = "R2"
+        #expect(blockers(draft(withRefs)) == nil)
+        #expect(blockers(draft([PaymentLine(method: "CASH")])) == "To save: enter the amount for payment 1.")
+        #expect(blockers(draft([PaymentLine(amountText: "abc"), PaymentLine(amountText: "0")])) == "To save: enter the amount for payments 1 and 2.")
+        #expect(blockers(draft([cash, cash])) == "To save: lower the payments to the total of TZS 570,000.")
+        #expect(blockers(draft([PaymentLine(amountText: "5")], machine: false, hours: ""), p: .hidden)
+                == "To save: choose the machine and enter the hours (more than 0).")
+        #expect(blockers(draft([], customer: false)) == "To save: choose the customer.")
+        #expect(blockers(draft([cash, bank]), noncash: false) == "To save: change payment 2 to cash and enter the reference for payment 2.")
+        #expect(blockers(draft([])) == nil) // not paid yet
+        var walkIn = draft([])
+        walkIn.walkIn = true
+        walkIn.walkInName = "Juma"
+        #expect(AccountabilityRules.hoursSaleBlockers(walkIn, walkInAllowed: false) == "To save: choose a registered customer.")
+        #expect(FieldAccountabilityTexts.hoursPayments([1, 2, 3]) == "payments 1, 2 and 3")
+    }
+
     @Test func splitRules() {
         let price = HoursPricing.price(Self.book, machineID: Self.ex01, customerID: nil, walkIn: false, hoursText: "6")
         func draft(_ lines: [PaymentLine]) -> HoursSaleDraft {
@@ -277,6 +349,13 @@ struct HoursPricingTests {
         let none = try JSONValue.parse(try h.recorder.recordHoursSale(draft, walkInAllowed: false, cashHolderID: nil, evidence: [],
                                                                      receivedAt: h.clock.wallNow).payloadJSON)
         #expect(none["payment"] == nil && none["payments"] == nil)
+        // The opening Cash line, followed to the total, travels as one cash `payment`.
+        let quote = HoursPricing.quote(hours: 6, hourlyRate: 95000, discountPercent: 0, currency: "TZS", minorUnits: 2)
+        draft.payments = HoursPayments.follow(HoursSaleDraft.newSale().payments, price: .priced(quote))
+        let opening = try JSONValue.parse(try h.recorder.recordHoursSale(draft, walkInAllowed: false, cashHolderID: nil, evidence: [],
+                                                                        receivedAt: h.clock.wallNow).payloadJSON)
+        #expect(opening["payment"]?["method"]?.stringValue == "CASH" && opening["payment"]?["amount"]?.stringValue == "570000")
+        #expect(opening["payments"] == nil)
 
         // Above the total (6 h x 95,000 = 570,000) and bank without the policy are refused.
         draft.payments = [PaymentLine(amountText: "300000"), PaymentLine(amountText: "270000.01")]
@@ -348,6 +427,7 @@ struct HoursPricingTests {
         #expect(FieldAccountabilityTexts.hoursNoncashByOffice == "Bank and mobile-money payments are recorded by the office.")
         #expect(FieldAccountabilityTexts.hoursAddPayment == "Add payment")
         #expect(FieldAccountabilityTexts.hoursPaymentNumber(2) == "Payment 2")
+        #expect(FieldAccountabilityTexts.hoursLinePhoto == "Photo of the slip or message (optional)")
     }
 
     @Test func hoursSaleOnTheSyncScreenListsItsPayments() throws {

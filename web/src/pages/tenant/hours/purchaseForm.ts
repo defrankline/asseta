@@ -1,10 +1,11 @@
-import { array, mixed, object, string, type ObjectSchema } from 'yup';
+import { array, boolean, mixed, object, string, type ObjectSchema } from 'yup';
 import type { HoursPurchaseIn } from '../../../api/hoursTypes';
 import type { AttachmentDto, HirePaymentMethod } from '../../../api/types';
 import { PAYMENT_METHODS } from '../../../api/services/financeSchemas';
 import { positiveDecimalField } from '../../platform/shared/validators';
 import { compareDecimal, isDecimalString, sumDecimals } from '../../../utils/money';
 import { optionalText, orNull } from '../shared/formRules';
+import { remainingBalance } from './hoursQuote';
 
 export type CustomerMode = 'EXISTING' | 'WALK_IN';
 
@@ -19,6 +20,8 @@ export interface PaymentLine {
   /** Office only: the staff member holding the cash ('' = me). */
   staff_member_id: string;
   evidence: AttachmentDto | null;
+  /** The opening Cash line: its amount follows the quote total until the user types into it. Never sent. */
+  follows_total: boolean;
 }
 
 export const NEEDS_REFERENCE: ReadonlySet<HirePaymentMethod> = new Set(['BANK', 'MOBILE_MONEY']);
@@ -34,7 +37,7 @@ export interface PurchaseValues {
   hours: string;
   job_site_id: string;
   note: string;
-  /** Empty = not paid yet. */
+  /** Opens with one Cash line that follows the total; empty = not paid yet. */
   payments: PaymentLine[];
   /** The live quote total ('' while unknown); only used to stop over-payment. Never sent. */
   quote_amount: string;
@@ -88,6 +91,7 @@ export function emptyPaymentLine(
   method: HirePaymentMethod,
   amount: string,
   now: string,
+  followsTotal = false,
 ): PaymentLine {
   return {
     key: Math.random().toString(36).slice(2),
@@ -97,7 +101,18 @@ export function emptyPaymentLine(
     received_at: now,
     staff_member_id: '',
     evidence: null,
+    follows_total: followsTotal,
   };
+}
+
+/**
+ * Lines still following the total take the quote total ('' while unknown); typed lines are left alone.
+ * Null when nothing changes.
+ */
+export function followTotal(lines: readonly PaymentLine[], total: string): PaymentLine[] | null {
+  const amount = remainingBalance('0', total);
+  if (!lines.some((l) => l.follows_total && l.amount !== amount)) return null;
+  return lines.map((l) => (l.follows_total && l.amount !== amount ? { ...l, amount } : l));
 }
 
 export function emptyPurchaseValues(): PurchaseValues {
@@ -110,7 +125,7 @@ export function emptyPurchaseValues(): PurchaseValues {
     hours: '',
     job_site_id: '',
     note: '',
-    payments: [],
+    payments: [emptyPaymentLine('CASH', '', new Date().toISOString(), true)],
     quote_amount: '',
     quote_currency: '',
   };
@@ -164,6 +179,7 @@ export const purchaseSchema: ObjectSchema<PurchaseValues> = object({
         .test('instant', 'Enter a valid date and time', (v) => !Number.isNaN(Date.parse(v))),
       staff_member_id: string().ensure(),
       evidence: mixed<AttachmentDto>().nullable().defined(),
+      follows_total: boolean().defined(),
     }),
   )
     .max(MAX_PAYMENT_LINES, `At most ${MAX_PAYMENT_LINES} payments`)

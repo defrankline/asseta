@@ -70,6 +70,8 @@ async function toPaymentStep(user: ReturnType<typeof userEvent.setup>) {
   await screen.findByRole('button', { name: 'Add payment' });
 }
 
+const amounts = () => screen.getAllByRole('textbox', { name: /^Amount/ });
+
 async function methodOptions(user: ReturnType<typeof userEvent.setup>, index: number) {
   await user.click(screen.getAllByRole('combobox', { name: /Method/ }).at(index) as HTMLElement);
   const names = within(screen.getByRole('listbox'))
@@ -97,9 +99,8 @@ describe('RecordPurchaseDialog payments', () => {
     await toPaymentStep(user);
     expect(screen.queryByText(/recorded by the office/)).not.toBeInTheDocument();
 
-    // The first line defaults to the whole balance.
-    await user.click(screen.getByRole('button', { name: 'Add payment' }));
-    const amounts = () => screen.getAllByRole('textbox', { name: /^Amount/ });
+    // The form opens with one Cash line at the whole total.
+    expect(amounts()).toHaveLength(1);
     expect(amounts()[0]).toHaveValue('570000');
     expect(screen.getByText('Paid TZS 570,000 of TZS 570,000 · Balance TZS 0')).toBeInTheDocument();
     expect(screen.getByText('Fully paid')).toBeInTheDocument();
@@ -136,7 +137,6 @@ describe('RecordPurchaseDialog payments', () => {
     open([RECORD]);
     await toPaymentStep(user);
     await user.click(screen.getByRole('button', { name: 'Add payment' }));
-    await user.click(screen.getByRole('button', { name: 'Add payment' }));
     const second = screen.getAllByRole('textbox', { name: /^Amount/ }).at(1) as HTMLElement;
     expect(second).toHaveValue('');
     await user.type(second, '1000');
@@ -156,7 +156,6 @@ describe('RecordPurchaseDialog payments', () => {
     expect(
       screen.getByText('Bank and mobile-money payments are recorded by the office.'),
     ).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Add payment' }));
     expect(await methodOptions(user, 0)).toEqual(['Cash']);
   });
 
@@ -165,14 +164,54 @@ describe('RecordPurchaseDialog payments', () => {
     open([RECORD], true);
     await toPaymentStep(user);
     expect(screen.queryByText(/recorded by the office/)).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Add payment' }));
     expect(await methodOptions(user, 0)).toEqual(['Cash', 'Bank transfer', 'Mobile money']);
   });
 
-  it('records not paid yet with no lines', async () => {
+  it('opens with a Cash line that follows the total until the amount is typed', async () => {
+    mocks.quote.mockImplementation(({ hours }) =>
+      Promise.resolve({ ...QUOTE, hours, amount: `${Number(hours) * 95000}.0000` }),
+    );
     const user = userEvent.setup();
     open([RECORD]);
     await toPaymentStep(user);
+    expect(amounts()[0]).toHaveValue('570000');
+    expect(screen.getByText('Fully paid')).toBeInTheDocument();
+
+    // Hours change the total: the untouched line follows it.
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    await user.clear(screen.getByLabelText(/Hours bought/));
+    await user.type(screen.getByLabelText(/Hours bought/), '4');
+    expect(await screen.findByText('Total: TZS 380,000 (4 h × 95,000/h)')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await screen.findByRole('button', { name: 'Add payment' });
+    expect(amounts()[0]).toHaveValue('380000');
+
+    // Typed: never changed again.
+    await user.clear(amounts().at(0) as HTMLElement);
+    await user.type(amounts().at(0) as HTMLElement, '100000');
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    await user.clear(screen.getByLabelText(/Hours bought/));
+    await user.type(screen.getByLabelText(/Hours bought/), '6');
+    expect(await screen.findByText('Total: TZS 570,000 (6 h × 95,000/h)')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await screen.findByRole('button', { name: 'Add payment' });
+    expect(amounts()[0]).toHaveValue('100000');
+    expect(screen.getByText('Part paid (balance TZS 470,000)')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await user.click(await screen.findByRole('button', { name: 'Record purchase' }));
+    await waitFor(() => {
+      expect(mocks.record).toHaveBeenCalled();
+    });
+    expect(nthCall().payments?.map((p) => [p.method, p.amount])).toEqual([['CASH', '100000']]);
+  });
+
+  it('records not paid yet when the opening line is removed', async () => {
+    const user = userEvent.setup();
+    open([RECORD]);
+    await toPaymentStep(user);
+    await user.click(screen.getByRole('button', { name: 'Remove payment 1' }));
+    expect(screen.queryAllByRole('textbox', { name: /^Amount/ })).toHaveLength(0);
     await user.click(screen.getByRole('button', { name: 'Next' }));
     expect(await screen.findAllByText('Not paid yet')).not.toHaveLength(0);
     await user.click(screen.getByRole('button', { name: 'Record purchase' }));

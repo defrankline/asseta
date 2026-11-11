@@ -28,12 +28,14 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
+import com.asseta.core.domain.accountability.AccountabilityMessages
 import com.asseta.core.domain.accountability.AccountabilityRules
 import com.asseta.core.domain.accountability.FieldAccess
 import com.asseta.core.domain.accountability.HoursPayments
 import com.asseta.core.domain.accountability.HoursPriceBook
 import com.asseta.core.domain.accountability.HoursPricing
 import com.asseta.core.domain.accountability.HoursSaleDraft
+import com.asseta.core.domain.accountability.HoursSalePrice
 import com.asseta.core.domain.accountability.PaymentLine
 import com.asseta.core.domain.accountability.PaymentMethod
 import com.asseta.core.domain.finance.FormCheck
@@ -135,8 +137,8 @@ data class HoursSaleForm(
     val walkInPhone: String = "",
     val machineId: String? = null,
     val hours: String = "",
-    /** Payment lines as typed; none = not paid yet. */
-    val payments: List<PaymentLine> = emptyList(),
+    /** Payment lines as typed; opens with one Cash line that follows the total; none = not paid yet. */
+    val payments: List<PaymentLine> = HoursPayments.opening(),
     val note: String = "",
     val holderId: String? = null,
     val atMs: Long = 0,
@@ -148,6 +150,12 @@ data class HoursSaleForm(
     fun line(index: Int, change: (PaymentLine) -> PaymentLine) = copy(payments = payments.mapIndexed { i, l -> if (i == index) change(l) else l })
 
     fun photosOf(index: Int): List<CapturedPhoto> = photos.getOrNull(index).orEmpty()
+
+    /** The sale total on this phone for what is entered so far. */
+    fun price(book: HoursPriceBook): HoursSalePrice = HoursPricing.price(book, machineId, customerId, walkIn, hours)
+
+    /** A line not typed into yet keeps the total's amount ([HoursPayments.follow]). */
+    fun following(book: HoursPriceBook) = copy(payments = HoursPayments.follow(payments, price(book)))
 
     fun photos(index: Int, change: (List<CapturedPhoto>) -> List<CapturedPhoto>) =
         copy(photos = payments.indices.map { i -> if (i == index) change(photosOf(i)) else photosOf(i) })
@@ -165,8 +173,13 @@ class HoursSaleViewModel(field: FieldGraph, tenantId: String, permissions: Set<S
     val prices: StateFlow<HoursPriceBook> = field.financeRepository.observeHoursPrices(tenantId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HoursPriceBook())
 
+    init {
+        // The opening Cash line follows the total as the prices arrive or change.
+        viewModelScope.launch { prices.collect { book -> form.update { it.following(book) } } }
+    }
+
     fun edit(change: (HoursSaleForm) -> HoursSaleForm) {
-        form.update(change)
+        form.update { change(it).following(prices.value) }
         _save.update { it.copy(messages = emptyList()) }
     }
 
@@ -175,8 +188,7 @@ class HoursSaleViewModel(field: FieldGraph, tenantId: String, permissions: Set<S
     /** A new payment line: cash, its amount set once to what is still owed (when the total is known). */
     fun addPayment() = edit { f ->
         if (f.payments.size >= HoursPayments.MAX) return@edit f
-        val price = HoursPricing.price(prices.value, f.machineId, f.customerId, f.walkIn, f.hours)
-        f.copy(payments = f.payments + HoursPayments.newLine(f.payments, price))
+        f.copy(payments = f.payments + HoursPayments.newLine(f.payments, f.price(prices.value)))
     }
 
     /** Removes the line and its photos. */
@@ -248,15 +260,24 @@ fun HoursSaleScreen(vm: HoursSaleViewModel, onDone: () -> Unit) {
                 if (a.saleMethods.size > 1) {
                     SegmentedChoice(a.saleMethods, line.method, T::method, { m -> vm.edit { it.line(index) { l -> l.copy(method = m) } } }, editable)
                 }
-                DecimalField(T.AMOUNT_RECEIVED, line.amountText, { v -> vm.edit { it.line(index) { l -> l.copy(amountText = v) } } }, editable)
+                DecimalField(T.AMOUNT_RECEIVED, line.amountText, { v -> vm.edit { it.line(index) { l -> l.typed(v) } } }, editable)
                 if (line.method != PaymentMethod.CASH) {
-                    TextInput(T.REFERENCE, line.reference, { v -> vm.edit { it.line(index) { l -> l.copy(reference = v) } } }, editable)
+                    TextInput(T.REFERENCE, line.reference, { v -> vm.edit { it.line(index) { l -> l.copy(reference = v) } } }, editable,
+                        error = AccountabilityMessages.REFERENCE_LINE.takeIf { AccountabilityRules.referenceMissing(line) })
                 }
+                // The line's own photos (the bank slip, the mobile-money message), sent with that payment.
+                EvidencePhotos(form.photosOf(index), { p -> vm.edit { it.photos(index) { l -> l + p } } },
+                    { i -> vm.edit { it.photos(index) { l -> l.filterIndexed { j, _ -> j != i } } } }, vm::onPhotoError, editable,
+                    title = if (form.payments.size == 1) T.EVIDENCE else T.LINE_PHOTO, inline = true)
                 if (editable) TextButton(onClick = { vm.removePayment(index) }) { Text(T.REMOVE_PAYMENT, color = palette.offline) }
             }
             if (editable && form.payments.size < HoursPayments.MAX) OutlinedButton(onClick = vm::addPayment) { Text(T.ADD_PAYMENT) }
             T.paymentSummary(HoursPayments.summary(form.payments, price)).forEach { line ->
                 Text(line, style = MaterialTheme.typography.bodyLarge)
+            }
+            // Why Save is off, in one line (Save is disabled, so no save attempt would show it).
+            AccountabilityRules.hoursSaleBlockers(form.draft(), a.walkIn, a.noncashPayments, price)?.let {
+                Text(it, color = palette.offline, style = MaterialTheme.typography.bodyMedium)
             }
             if (form.payments.isNotEmpty()) {
                 DateTimeField(T.RECEIVED, form.atMs, { v -> vm.edit { it.copy(atMs = v) } }, editable, notAfter = now)
@@ -265,12 +286,6 @@ fun HoursSaleScreen(vm: HoursSaleViewModel, onDone: () -> Unit) {
                         emptyText = T.CUSTODIANS_EMPTY, enabled = editable)
                 }
             }
-        }
-        // Each payment line has its own photos (the bank slip, the mobile-money receipt), sent with that payment.
-        form.payments.indices.forEach { index ->
-            EvidencePhotos(form.photosOf(index), { p -> vm.edit { it.photos(index) { l -> l + p } } },
-                { i -> vm.edit { it.photos(index) { l -> l.filterIndexed { j, _ -> j != i } } } }, vm::onPhotoError, editable,
-                title = if (form.payments.size == 1) T.EVIDENCE else T.evidenceFor(index + 1))
         }
         val check = AccountabilityRules.hoursSale(form.draft(), a.walkIn, a.noncashPayments, price)
         SaveSection(save, vm::save, onDone, enabled = check is FormCheck.Valid)
@@ -291,11 +306,22 @@ fun EvidencePhotos(
     photograph: String = T.PHOTOGRAPH,
     addPhoto: String = T.ADD_PHOTO,
     remove: String = "Remove",
+    /** True: inside another section (a payment line), titled and footed in place instead of a section of its own. */
+    inline: Boolean = false,
 ) {
     val context = LocalContext.current
     var granted by remember { mutableStateOf(context.hasAllPermissions(arrayOf(Manifest.permission.CAMERA))) }
     var open by remember { mutableStateOf(false) }
-    Section(title, footer = footer) {
+    val wrap: @Composable (@Composable () -> Unit) -> Unit = if (inline) {
+        { content ->
+            Text(title, style = MaterialTheme.typography.labelLarge)
+            content()
+            Text(footer, style = MaterialTheme.typography.bodySmall, color = palette.secondaryText)
+        }
+    } else {
+        { content -> Section(title, footer = footer, content = content) }
+    }
+    wrap {
         photos.forEachIndexed { index, photo ->
             Row(verticalAlignment = Alignment.CenterVertically) {
                 val preview = remember(photo) { MeterOcr.decodeForOcr(photo.jpeg, photo.rotationDegrees)?.asImageBitmap() }
