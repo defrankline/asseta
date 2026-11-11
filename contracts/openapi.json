@@ -14833,6 +14833,16 @@
         "title": "ExpenseDto",
         "type": "object"
       },
+      "ExpenseFlag": {
+        "description": "Why a human must look at an expense (DEC-033). Neutral: something to check, never a verdict.",
+        "enum": [
+          "OVERSPEND",
+          "SPENT_FROM_COLLECTIONS",
+          "ABOVE_PETTY_CASH_MAXIMUM"
+        ],
+        "title": "ExpenseFlag",
+        "type": "string"
+      },
       "ExpenseIn": {
         "properties": {
           "amount": {
@@ -75244,6 +75254,37 @@
             }
           },
           {
+            "description": "Only petty cash differences (needs the petty cash capability, not cash custody)",
+            "in": "query",
+            "name": "petty_cash_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Only petty cash differences (needs the petty cash capability, not cash custody)",
+              "title": "Petty Cash Only",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Only this petty cash fund's differences",
+            "in": "query",
+            "name": "petty_cash_fund_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only this petty cash fund's differences",
+              "title": "Petty Cash Fund Id"
+            }
+          },
+          {
             "in": "query",
             "name": "page",
             "required": false,
@@ -90590,6 +90631,24 @@
                 }
               ],
               "title": "Petty Cash Fund Id"
+            }
+          },
+          {
+            "description": "Only expenses carrying this control flag",
+            "in": "query",
+            "name": "control_flag",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ExpenseFlag"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only expenses carrying this control flag",
+              "title": "Control Flag"
             }
           },
           {

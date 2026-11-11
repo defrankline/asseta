@@ -84,6 +84,7 @@ def expense_list_query(
     custodian_staff_id: uuid.UUID | None = None,
     paid_from: ExpensePaidFrom | None = None,
     petty_cash_fund_id: uuid.UUID | None = None,
+    control_flag: ExpenseFlag | None = None,
 ) -> Select[Expense]:
     """The expense list (latest incurred first) shared by the expenses endpoint and the expenses report."""
     stmt = select(Expense).order_by(Expense.incurred_at.desc(), Expense.id)
@@ -97,6 +98,8 @@ def expense_list_query(
     ):
         if val is not None:
             stmt = stmt.where(col == val)
+    if control_flag is not None:
+        stmt = stmt.where(Expense.control_flags.contains([control_flag.value]))
     return stmt
 
 

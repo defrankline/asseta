@@ -484,9 +484,21 @@ class CashCustodyControls:
         staff_id: uuid.UUID | None,
         source_type: VarianceSource | None,
         assignee_user_id: uuid.UUID | None = None,
+        petty_cash_fund_id: uuid.UUID | None = None,
+        petty_cash_only: bool = False,
     ) -> Select[CashVariance]:
-        require_capability(self._s, self._tid, variance_capability(source_type), self._now)
+        """`petty_cash_only` (or a fund) lists the petty cash differences under the petty cash capability alone, so
+        they stay reachable while the cash custody controls are switched off."""
+        petty = petty_cash_only or petty_cash_fund_id is not None
+        if petty and source_type is not None and source_type not in PETTY_CASH_SOURCES:
+            raise BusinessRuleViolation("Not a petty cash source", code="VARIANCE_SOURCE_NOT_PETTY_CASH")
+        capability = PETTY_CASH if petty else variance_capability(source_type)
+        require_capability(self._s, self._tid, capability, self._now)
         stmt = select(CashVariance).order_by(CashVariance.opened_at.desc(), CashVariance.id)
+        if petty:
+            stmt = stmt.where(CashVariance.source_type.in_(PETTY_CASH_SOURCES))
+        if petty_cash_fund_id:
+            stmt = stmt.where(CashVariance.petty_cash_fund_id == petty_cash_fund_id)
         if assignee_user_id:
             stmt = stmt.where(CashVariance.assignee_user_id == assignee_user_id)
         if status:

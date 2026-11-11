@@ -13343,6 +13343,12 @@ export interface components {
             /** Supplier */
             supplier: string | null;
         };
+        /**
+         * ExpenseFlag
+         * @description Why a human must look at an expense (DEC-033). Neutral: something to check, never a verdict.
+         * @enum {string}
+         */
+        ExpenseFlag: "OVERSPEND" | "SPENT_FROM_COLLECTIONS" | "ABOVE_PETTY_CASH_MAXIMUM";
         /** ExpenseIn */
         ExpenseIn: {
             /** Amount */
@@ -41474,6 +41480,10 @@ export interface operations {
                 date_to?: string | null;
                 /** @description Only those still in question, whatever their stage */
                 open_only?: boolean;
+                /** @description Only petty cash differences (needs the petty cash capability, not cash custody) */
+                petty_cash_only?: boolean;
+                /** @description Only this petty cash fund's differences */
+                petty_cash_fund_id?: string | null;
                 page?: number;
                 page_size?: number;
                 q?: string | null;
@@ -50318,6 +50328,8 @@ export interface operations {
                 custodian_staff_id?: string | null;
                 paid_from?: components["schemas"]["ExpensePaidFrom"] | null;
                 petty_cash_fund_id?: string | null;
+                /** @description Only expenses carrying this control flag */
+                control_flag?: components["schemas"]["ExpenseFlag"] | null;
                 /** @description Only the caller's own records. Always applied for callers without approval or finance oversight permission (field supervisors). */
                 mine?: boolean;
                 page?: number;

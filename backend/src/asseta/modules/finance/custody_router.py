@@ -372,11 +372,19 @@ def list_variances(
     date_from: Annotated[date | None, Query(description="Opened on or after this tenant-local day")] = None,
     date_to: Annotated[date | None, Query(description="Opened on or before this tenant-local day")] = None,
     open_only: Annotated[bool, Query(description="Only those still in question, whatever their stage")] = False,
+    petty_cash_only: Annotated[
+        bool, Query(description="Only petty cash differences (needs the petty cash capability, not cash custody)")
+    ] = False,
+    petty_cash_fund_id: Annotated[
+        uuid.UUID | None, Query(description="Only this petty cash fund's differences")
+    ] = None,
 ) -> Page[CashVarianceDto]:
     """Cash and customer-hour variances (`source_type` CUSTOMER_HOUR). `direction` concerns money only, as the
     dashboard's shortage and overage figures do. Refused per capability: CASH_CUSTODY_DISABLED, or HOURS_DISABLED when
     asking for customer-hour variances with hours switched off."""
-    stmt = CashCustodyControls(session, ctx, now).list_variances(status, staff_member_id, source_type, assignee_user_id)
+    stmt = CashCustodyControls(session, ctx, now).list_variances(
+        status, staff_member_id, source_type, assignee_user_id, petty_cash_fund_id, petty_cash_only
+    )
     assert ctx.tenant_id is not None
     stmt = stmt.where(*period_conditions(session, ctx.tenant_id, CashVariance.opened_at, date_from, date_to))
     if open_only:

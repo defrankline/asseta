@@ -34,6 +34,7 @@ from asseta.modules.expenses.models import (
     Expense,
     ExpenseAttachment,
     ExpenseCategory,
+    ExpenseFlag,
     ExpensePaidFrom,
     ExpenseStatus,
     FuelEvent,
@@ -221,9 +222,12 @@ def list_expenses(
     custodian_staff_id: uuid.UUID | None = None,
     paid_from: ExpensePaidFrom | None = None,
     petty_cash_fund_id: uuid.UUID | None = None,
+    control_flag: Annotated[ExpenseFlag | None, Query(description="Only expenses carrying this control flag")] = None,
     mine: Mine = False,
 ) -> Page[ExpenseDto]:
-    stmt = expense_list_query(status, machine_id, job_id, custodian_staff_id, paid_from, petty_cash_fund_id)
+    stmt = expense_list_query(
+        status, machine_id, job_id, custodian_staff_id, paid_from, petty_cash_fund_id, control_flag
+    )
     if restricted_to_own(ctx, EXPENSE_OVERSIGHT, mine):
         stmt = stmt.where(own_expense_filter(ctx, own_staff(session, ctx)))
     rows, total = paginate(session, stmt, paging)

@@ -305,6 +305,19 @@ def test_count_variance_write_off_moves_the_fund_not_the_holders_custody(api: Ap
     assert (b["balance"], b["written_off"], b["available_to_spend"]) == (D(195000), D(5000), D(195000))
     custody = _ok(f.supervisor.get(f"{C}/custody/me"), 200)
     assert all(D(c["outstanding"]) == 0 for c in custody)  # collections custody untouched
+    # with the cash custody controls off, petty cash differences stay listed and open under petty cash
+    cash_policy(f, enabled=False)
+    _err(f.accountant.get(f"{C}/variances"), 422, "CASH_CUSTODY_DISABLED")
+    petty = _ok(f.accountant.get(f"{C}/variances", petty_cash_only="true"), 200)
+    assert [x["id"] for x in petty["items"]] == [v["id"]]
+    by_fund = _ok(f.accountant.get(f"{C}/variances", petty_cash_fund_id=fid), 200)
+    assert [x["id"] for x in by_fund["items"]] == [v["id"]]
+    assert _ok(f.accountant.get(f"{C}/variances/{v['id']}"), 200)["id"] == v["id"]
+    _err(
+        f.accountant.get(f"{C}/variances", petty_cash_only="true", source_type="REMITTANCE"),
+        422,
+        "VARIANCE_SOURCE_NOT_PETTY_CASH",
+    )
     # the variance belongs to petty cash: refused while petty cash is off
     petty_policy(f, enabled=False)
     _err(f.accountant.get(f"{C}/variances/{v['id']}"), 422, "PETTY_CASH_DISABLED")
@@ -397,6 +410,9 @@ def test_overspend_and_collections_switch_online_and_offline(api: Api) -> None:
     assert "offline above" in approval["reason"]
     assert _push(api, f.supervisor, [op])[0]["status"] == "DUPLICATE"
     assert tenant_sql(f.tid, "SELECT count(*) FROM expense")[0][0] == 1
+    flagged = _ok(f.accountant.get("/api/v1/tenant/expenses", control_flag="OVERSPEND"), 200)
+    assert [e["id"] for e in flagged["items"]] == [entity["id"]]
+    assert _ok(f.accountant.get("/api/v1/tenant/expenses", control_flag="SPENT_FROM_COLLECTIONS"), 200)["total"] == 0
     # online the same is refused; with overspend offline switched off, the offline one is held for review
     _err(
         _spend(f, f.supervisor, cat, fid, "15000", incurred_at=api.clock.now.isoformat()),
