@@ -47,6 +47,7 @@ from asseta.modules.hours.dto import (
     PaymentEvidenceDto,
     PurchaseAllocationDto,
     PurchaseAllocationIn,
+    PurchasePaymentIn,
     PurchaseTotalsDto,
     WalkInCustomerDto,
     WalkInCustomerIn,
@@ -521,6 +522,8 @@ class HoursService:
 
     def _check_payment_permission(self, method: HirePaymentMethod) -> None:
         needed = {PAYMENT_RECORDERS.get(method, OFFICE_PAYMENT), OFFICE_PAYMENT}
+        if self.engine.policy.field_noncash_payments:  # tenant policy: field staff also record bank/mobile parts
+            needed.add(PAYMENT_RECORDERS[HirePaymentMethod.CASH])
         if not needed & self._ctx.permissions:
             raise PermissionDenied(
                 f"Recording a {method.value} payment needs {' or '.join(sorted(needed))}", code="PAYMENT_NOT_PERMITTED"
@@ -534,8 +537,8 @@ class HoursService:
             if existing is not None:
                 return purchase_dto(self._s, existing)  # offline retry: exactly one purchase
         self._require_enabled()
-        if body.payment is not None:
-            self._check_payment_permission(body.payment.method)
+        for part in body.payment_parts():
+            self._check_payment_permission(part.method)
         if body.walk_in is not None:
             walk_in = body.walk_in
             if walk_in.client_id is None and body.client_id is not None:
@@ -625,15 +628,24 @@ class HoursService:
                 AdjustmentRequests(self._s, self._ctx, self._now).propose_zero_amount(purchase)
             else:
                 self.engine.activate_from_payments(purchase)
-        payment_out = None
-        if body.payment is not None:
-            payment_out = self._take_payment(purchase, body, source)
-        return purchase_dto(self._s, purchase, payment_out)
+        parts = body.payment_parts()
+        paid = sum((p.amount or purchase.amount for p in parts), Decimal(0))
+        if len(parts) > 1 and paid > purchase.amount:
+            raise BusinessRuleViolation(
+                f"The payment parts add up to {paid}, more than the purchase total {purchase.amount}",
+                code="PAYMENTS_EXCEED_TOTAL",
+            )
+        taken = [self._take_payment(purchase, body, p, i, source) for i, p in enumerate(parts)]
+        out = purchase_dto(self._s, purchase, taken[0] if taken else None)
+        out.payments = taken
+        return out
 
-    def _take_payment(self, purchase: HoursPurchase, body: HoursPurchaseIn, source: str) -> CustomerPaymentDto:
-        pay = body.payment
-        assert pay is not None
-        client_id = uuid.uuid5(body.client_id, "payment") if body.client_id else None
+    def _take_payment(
+        self, purchase: HoursPurchase, body: HoursPurchaseIn, pay: PurchasePaymentIn, index: int, source: str
+    ) -> CustomerPaymentDto:
+        # The first part keeps the original offline id, so a sale recorded by an older app replays the same way.
+        key = "payment" if index == 0 else f"payment-{index}"
+        client_id = uuid.uuid5(body.client_id, key) if body.client_id else None
         amount = pay.amount or purchase.amount
         if amount <= 0:
             raise BusinessRuleViolation("Nothing to pay on this purchase", code="NOTHING_TO_PAY")
@@ -670,9 +682,11 @@ class HoursService:
         if pay.evidence_attachment_ids:
             self.link_evidence(recorded.id, pay.evidence_attachment_ids)
         if purchase.amount > 0:
-            self.allocate(
-                purchase.id, PurchaseAllocationIn(payment_id=recorded.id, amount=min(amount, purchase.amount))
-            )
+            open_amount = purchase.amount - active_allocated(self._s, purchase_id=purchase.id)
+            if open_amount > 0:
+                self.allocate(
+                    purchase.id, PurchaseAllocationIn(payment_id=recorded.id, amount=min(amount, open_amount))
+                )
         return payment_dto(self._s, self._payment(recorded.id))
 
     def _payment(self, payment_id: uuid.UUID, lock: bool = False) -> CustomerPayment:

@@ -262,12 +262,25 @@ class HoursPurchaseIn(BaseModel):
     client_id: uuid.UUID | None = Field(default=None, description="Device/client id (offline idempotency)")
     client_created_at: datetime | None = Field(default=None, description="Device time the purchase was recorded")
     payment: PurchasePaymentIn | None = None
+    payments: list[PurchasePaymentIn] = Field(
+        default_factory=list,
+        max_length=10,
+        description="The bill split across methods (e.g. cash + bank + mobile money); each part needs its amount. "
+        "Give payment or payments, not both. Together they may not exceed the purchase amount.",
+    )
 
     @model_validator(mode="after")
     def _customer(self) -> "HoursPurchaseIn":
         if (self.customer_id is None) == (self.walk_in is None):
             raise ValueError("give exactly one of customer_id or walk_in")
+        if self.payment is not None and self.payments:
+            raise ValueError("give payment or payments, not both")
+        if len(self.payments) > 1 and any(p.amount is None for p in self.payments):
+            raise ValueError("every part of a split payment needs its amount")
         return self
+
+    def payment_parts(self) -> list[PurchasePaymentIn]:
+        return [self.payment] if self.payment is not None else list(self.payments)
 
 
 class PurchaseAllocationIn(BaseModel):
@@ -399,6 +412,9 @@ class HoursPurchaseDto(BaseModel):
     machines: list[MachineHoursDto] = []
     allocations: list[PurchaseAllocationDto] = []
     payment: CustomerPaymentDto | None = Field(default=None, description="The payment recorded with the purchase")
+    payments: list[CustomerPaymentDto] = Field(
+        default_factory=list, description="Every payment part recorded with the purchase (split bills)"
+    )
 
 
 class LedgerEntryDto(Dto):

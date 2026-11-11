@@ -459,6 +459,44 @@ def test_hours_quote_and_offline_prices_match_the_sale(api: Api) -> None:
     assert prices.get(f.c.t.machine_id) == Decimal(RATE)
 
 
+def test_split_payment_cash_bank_and_mobile_money(api: Api) -> None:
+    f = _setup(api)
+    now = api.clock.now.isoformat()
+    total = 6 * RATE
+    cash, bank = Decimal(total) * Decimal("0.35"), Decimal(total) * Decimal("0.5")
+    mobile = Decimal(total) - cash - bank
+    parts = [
+        {"method": "CASH", "amount": str(cash), "received_at": now},
+        {"method": "BANK", "amount": str(bank), "reference": "CRDB-1", "received_at": now},
+        {"method": "MOBILE_MONEY", "amount": str(mobile), "reference": "MPESA-1", "received_at": now},
+    ]
+    body = {"customer_id": f.customer_id, "machine_id": f.c.t.machine_id, "hours": "6"}
+    # Field staff record only cash unless the company switches non-cash on.
+    refused = f.supervisor.post("/api/v1/tenant/hours-purchases", {**body, "payments": parts})
+    assert refused.status_code == 403 and _code(refused) == "PAYMENT_NOT_PERMITTED", refused.text
+    over = [*parts, {"method": "CASH", "amount": "1", "received_at": now}]
+    too_much = f.owner.post("/api/v1/tenant/hours-purchases", {**body, "payments": over})
+    assert too_much.status_code == 422 and _code(too_much) == "PAYMENTS_EXCEED_TOTAL", too_much.text
+    no_amount = f.owner.post(
+        "/api/v1/tenant/hours-purchases", {**body, "payments": [{**parts[0], "amount": None}, parts[1]]}
+    )
+    assert no_amount.status_code == 422, no_amount.text
+
+    hours_policy(f, field_noncash_payments=True)
+    r = f.supervisor.post("/api/v1/tenant/hours-purchases", {**body, "payments": parts})
+    assert r.status_code == 201, r.text
+    p = r.json()
+    assert [x["method"] for x in p["payments"]] == ["CASH", "BANK", "MOBILE_MONEY"]
+    assert sum(Decimal(x["amount"]) for x in p["payments"]) == Decimal(p["amount"]) == Decimal(total)
+    assert p["status"] == "AWAITING_PAYMENT"  # every part is only claimed until the office verifies it
+    # The office verifies the bank part: half the bill, so half the hours become usable (partial activation).
+    verify(f.accountant, p["payments"][1]["id"])
+    assert get_purchase(f.owner, p["id"])["status"] == "PARTLY_ACTIVE"
+    for part in (p["payments"][0], p["payments"][2]):
+        verify(f.accountant, part["id"])
+    assert get_purchase(f.owner, p["id"])["status"] == "ACTIVE"
+
+
 def test_offline_walk_in_purchase_is_applied_exactly_once(api: Api) -> None:
     f = _setup(api)
     device = "android-hours-0001"

@@ -14198,6 +14198,11 @@ export interface components {
             note: string | null;
             /** @description The payment recorded with the purchase */
             payment?: components["schemas"]["CustomerPaymentDto"] | null;
+            /**
+             * Payments
+             * @description Every payment part recorded with the purchase (split bills)
+             */
+            payments?: components["schemas"]["CustomerPaymentDto"][];
             /** Pending Zero Amount Request Id */
             pending_zero_amount_request_id?: string | null;
             /** Policy Version */
@@ -14248,6 +14253,11 @@ export interface components {
             /** Note */
             note?: string | null;
             payment?: components["schemas"]["PurchasePaymentIn"] | null;
+            /**
+             * Payments
+             * @description The bill split across methods (e.g. cash + bank + mobile money); each part needs its amount. Give payment or payments, not both. Together they may not exceed the purchase amount.
+             */
+            payments?: components["schemas"]["PurchasePaymentIn"][];
             walk_in?: components["schemas"]["WalkInCustomerIn"] | null;
         };
         /**

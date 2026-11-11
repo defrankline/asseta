@@ -17178,6 +17178,14 @@
             ],
             "description": "The payment recorded with the purchase"
           },
+          "payments": {
+            "description": "Every payment part recorded with the purchase (split bills)",
+            "items": {
+              "$ref": "#/components/schemas/CustomerPaymentDto"
+            },
+            "title": "Payments",
+            "type": "array"
+          },
           "pending_zero_amount_request_id": {
             "anyOf": [
               {
@@ -17343,6 +17351,15 @@
                 "type": "null"
               }
             ]
+          },
+          "payments": {
+            "description": "The bill split across methods (e.g. cash + bank + mobile money); each part needs its amount. Give payment or payments, not both. Together they may not exceed the purchase amount.",
+            "items": {
+              "$ref": "#/components/schemas/PurchasePaymentIn"
+            },
+            "maxItems": 10,
+            "title": "Payments",
+            "type": "array"
           },
           "walk_in": {
             "anyOf": [

@@ -87,6 +87,12 @@ export const CUSTOMER_HOURS_FIELDS: readonly PolicyFieldDef[] = [
   { key: 'reason_code_required', label: 'A reason from the tenant list is required', kind: 'bool' },
   { key: 'refund_allowed', label: 'Allow refunds of unused hours', kind: 'bool' },
   {
+    key: 'field_noncash_payments',
+    label:
+      'Field staff may record bank and mobile-money parts of an hours sale (reference required; the office verifies)',
+    kind: 'bool',
+  },
+  {
     key: 'reversal_used_hours_treatment',
     label: 'When a reversal takes back hours already used',
     kind: 'enum',

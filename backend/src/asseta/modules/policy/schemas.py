@@ -236,6 +236,9 @@ class CustomerHoursPolicy(BaseModel):
     # DEC-032 B3/B4: refunds of unused activated hours are switchable per tenant (D4); a reversal that takes back hours
     # already used turns them into money owed: an issued receivable (the default) or an investigation case.
     refund_allowed: bool = False
+    # Off (today): field staff record only cash on an hours sale. On: staff who collect cash may also record bank and
+    # mobile-money parts of the payment (reference required); they stay claimed until the office verifies them.
+    field_noncash_payments: bool = False
     reversal_used_hours_treatment: UsedHoursTreatment = UsedHoursTreatment.RECEIVABLE
     # T7: corrections, refunds and reversals carry supporting evidence (attachments); a tenant may relax it.
     adjustment_evidence_required: bool = True
@@ -619,6 +622,7 @@ SEED_DEFAULTS: dict[PolicyType, dict[str, object]] = {
         "low_balance_hours": None,
         "low_balance_notify_customer": False,
         "refund_allowed": False,
+        "field_noncash_payments": False,
         "reversal_used_hours_treatment": "RECEIVABLE",
         "adjustment_evidence_required": True,
         "transfer_evidence_required": False,
