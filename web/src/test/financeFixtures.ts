@@ -104,6 +104,7 @@ export function makePayment(overrides: Partial<CustomerPaymentDto> = {}): Custom
     verified_at: null,
     decision_note: null,
     allocations: [],
+    verifies_on_handover: false,
     ...overrides,
   };
 }

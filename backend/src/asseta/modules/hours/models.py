@@ -263,6 +263,23 @@ class PaymentEvidence(UuidPk, Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
 
 
+class PaymentAutoVerification(UuidPk, Base):
+    """Why the system verified a cash payment of an hours sale (CUSTOMER_HOURS cash_activation): ON_HANDOVER (the
+    confirmed handover that covered it) or ON_RECORDING (accepted when recorded, held by the custodian). Append-only:
+    one row per payment, written with the verification itself."""
+
+    __tablename__ = "payment_auto_verification"
+    __table_args__ = (UniqueConstraint("payment_id", name="uq_payment_auto_verification"),)
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenant.id"), nullable=False, index=True)
+    payment_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("customer_payment.id"), nullable=False)
+    mode: Mapped[str] = mapped_column(String(16), nullable=False)  # ON_HANDOVER | ON_RECORDING
+    handover_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("cash_handover.id"), index=True)
+    custodian_staff_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("staff_member.id"))
+    policy_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
 class WorkExecutionAllocation(UuidPk, Base):
     """One per prepaid job, written on COMPLETE: the job's billable hours. What was actually consumed is the sum of
     its CONSUMED ledger entries; the rest is the overrun (HOURS_OVERRUN exception) until covered or reviewed."""

@@ -107,6 +107,15 @@ MONEY_CONFLICT_CODES = frozenset(
         "NO_RATE",
         "DISCOUNT_ABOVE_MAXIMUM",
         "NOTHING_TO_PAY",
+        # the job booked with the sale (OP_HOURS_SALE_BOOKING)
+        "CONTRACT_REQUIRED",
+        "CONTRACT_CHOICE_REQUIRED",
+        "CONTRACT_NOT_ACTIVE",
+        "CONTRACT_CUSTOMER_MISMATCH",
+        "JOB_REQUEST_NOT_PERMITTED",
+        "NO_STAFF_RECORD",
+        "BILLING_MODE_NOT_ALLOWED",
+        "DUPLICATE_JOB",
     }
 )
 

@@ -140,6 +140,10 @@ export const customerPaymentSchema: Schema<CustomerPaymentDto> = object({
   purchase_links: array(
     object({ purchase_id: id(), purchase_number: text(), amount: text() }),
   ).default([]),
+  verified_automatically: nullableOneOf(['ON_HANDOVER', 'ON_RECORDING'] as const).default(null),
+  verified_by_handover_id: string().nullable().default(null),
+  verified_by_remittance_number: string().nullable().default(null),
+  verifies_on_handover: bool().default(false),
 });
 
 export const customerBalanceSchema: Schema<CustomerBalanceDto> = object({

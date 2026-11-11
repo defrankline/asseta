@@ -201,6 +201,15 @@ class HoursDrawdown(StrEnum):
     DAILY = "DAILY"  # each day's customer-work hours are drawn provisionally; the final allocation replaces them
 
 
+class CashActivation(StrEnum):
+    """When the cash part of an hours sale counts as verified (bank and mobile money are always verified by a
+    person)."""
+
+    VERIFY = "VERIFY"  # a person verifies the cash payment (as before)
+    ON_HANDOVER = "ON_HANDOVER"  # verified when the office confirms the custodian's handover that covers it (FIFO)
+    ON_RECORDING = "ON_RECORDING"  # verified when recorded; the custodian stays accountable through cash custody
+
+
 class CustomerHoursPolicy(BaseModel):
     """Customer prepaid hours (accountability 3.1). Every rule a tenant may want differently is here; the platform
     default is only a starting point. Segregation of duties on approvals is always enforced (never relaxable)."""
@@ -252,6 +261,14 @@ class CustomerHoursPolicy(BaseModel):
     # below the tolerance (hours) are not reported. Off: no customer-hour variances are opened.
     variance_sweep_enabled: bool = True
     variance_tolerance_hours: Decimal = Field(default=Decimal("0.01"), ge=0, le=Decimal(1000))
+    # Sell hours and book the job in one step. A WALK_IN customer without an active contract gets a standard contract
+    # (rate card prices, starting today) when the sale books a job. Off: the office creates the contract first.
+    walk_in_standard_contract: bool = False
+    # A job booked with an hours sale is approved automatically (system decision, audited) once every hour of that
+    # sale is active. Off: a person with tenant.job.approve approves it (as before).
+    prepaid_job_auto_approval: bool = False
+    # When the cash part of an hours sale counts as verified (VERIFY = a person verifies it, as before).
+    cash_activation: CashActivation = CashActivation.VERIFY
 
     @model_validator(mode="after")
     def _consistent(self) -> "CustomerHoursPolicy":
@@ -630,5 +647,8 @@ SEED_DEFAULTS: dict[PolicyType, dict[str, object]] = {
         "zero_amount_requires_approval": True,
         "variance_sweep_enabled": True,
         "variance_tolerance_hours": "0.01",
+        "walk_in_standard_contract": False,
+        "prepaid_job_auto_approval": False,
+        "cash_activation": "VERIFY",
     },
 }

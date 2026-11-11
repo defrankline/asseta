@@ -10,6 +10,7 @@ from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.orm import Session
 
 from asseta.core.audit import AuditService
+from asseta.core.db import utcnow
 from asseta.core.errors import BusinessRuleViolation, Conflict, NotFound
 from asseta.core.outbox import OutboxWriter
 from asseta.core.signals import sod_violation
@@ -23,17 +24,20 @@ from asseta.modules.finance.dto import (
     SettlementDecisionIn,
 )
 from asseta.modules.finance.models import (
+    CashHandover,
     CustomerPayment,
     HireInvoiceStatus,
     HirePaymentAllocation,
+    HirePaymentMethod,
     SettlementStatus,
     TenantHireInvoice,
 )
 from asseta.modules.finance.references import payment_series, reference
 from asseta.modules.fleet.models import StaffMember
+from asseta.modules.hours.cash_activation import verified_by_handover
 from asseta.modules.hours.engine import HoursEngine
 from asseta.modules.hours.ledger import active_allocated as hours_allocated
-from asseta.modules.hours.models import HoursPaymentAllocation, HoursPurchase
+from asseta.modules.hours.models import HoursPaymentAllocation, HoursPurchase, PaymentAutoVerification
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.jobs.models import Customer
 
@@ -57,6 +61,18 @@ def payment_dto(session: Session, p: CustomerPayment) -> CustomerPaymentDto:
     dto.purchase_links = [
         PurchaseLinkDto(purchase_id=a.purchase_id, purchase_number=number, amount=a.amount) for a, number in links
     ]
+    if p.method is HirePaymentMethod.CASH and dto.purchase_links:
+        if p.status is SettlementStatus.VERIFIED and p.verified_by is None:
+            auto = session.execute(
+                select(PaymentAutoVerification, CashHandover.remittance_number)
+                .outerjoin(CashHandover, CashHandover.id == PaymentAutoVerification.handover_id)
+                .where(PaymentAutoVerification.payment_id == p.id)
+            ).first()
+            if auto is not None:
+                dto.verified_automatically = "ON_HANDOVER" if auto[0].mode == "ON_HANDOVER" else "ON_RECORDING"
+                dto.verified_by_handover_id, dto.verified_by_remittance_number = auto[0].handover_id, auto[1]
+        elif p.status is SettlementStatus.CLAIMED:
+            dto.verifies_on_handover = verified_by_handover(session, p, utcnow())
     return dto
 
 

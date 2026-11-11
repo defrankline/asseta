@@ -127,7 +127,7 @@ DELETE: frozenset[str] = frozenset(
         "petty_cash_adjustment", "petty_cash_advance",
         # hire invoices, payments, allocations
         "tenant_hire_invoice", "hire_invoice_job", "hire_invoice_line", "hire_invoice_counter", "customer_payment",
-        "hire_payment_allocation", "payment_evidence", "financial_adjustment",
+        "hire_payment_allocation", "payment_evidence", "payment_auto_verification", "financial_adjustment",
         # customer hours
         "hours_purchase", "hours_ledger_entry", "hours_payment_allocation", "hours_transfer", "hours_cancellation",
         "hours_low_balance_alert", "hours_reason_code", "hours_sequence", "credit_arrangement", "customer_discount",

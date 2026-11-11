@@ -4193,6 +4193,80 @@
         "title": "Body_uploadRemittanceEvidence",
         "type": "object"
       },
+      "BookedJobDto": {
+        "description": "The job booked together with an hours sale.",
+        "properties": {
+          "approved_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved At"
+          },
+          "contract_id": {
+            "format": "uuid",
+            "title": "Contract Id",
+            "type": "string"
+          },
+          "contract_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contract Number"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "job_number": {
+            "title": "Job Number",
+            "type": "string"
+          },
+          "planned_end": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planned End"
+          },
+          "planned_start": {
+            "format": "date-time",
+            "title": "Planned Start",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "job_number",
+          "status",
+          "contract_id",
+          "planned_start",
+          "planned_end",
+          "approved_at"
+        ],
+        "title": "BookedJobDto",
+        "type": "object"
+      },
       "BootstrapDto": {
         "properties": {
           "capabilities": {
@@ -10750,6 +10824,21 @@
             ],
             "title": "Verified At"
           },
+          "verified_automatically": {
+            "anyOf": [
+              {
+                "enum": [
+                  "ON_HANDOVER",
+                  "ON_RECORDING"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified Automatically"
+          },
           "verified_by": {
             "anyOf": [
               {
@@ -10762,6 +10851,18 @@
             ],
             "title": "Verified By"
           },
+          "verified_by_handover_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified By Handover Id"
+          },
           "verified_by_name": {
             "anyOf": [
               {
@@ -10772,6 +10873,23 @@
               }
             ],
             "title": "Verified By Name"
+          },
+          "verified_by_remittance_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified By Remittance Number"
+          },
+          "verifies_on_handover": {
+            "default": false,
+            "description": "Claimed cash of an hours sale the tenant verifies when the custodian's handover covering it is confirmed (cash_activation ON_HANDOVER): no one verifies it by hand",
+            "title": "Verifies On Handover",
+            "type": "boolean"
           }
         },
         "required": [
@@ -17104,6 +17222,17 @@
             "title": "Id",
             "type": "string"
           },
+          "job": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BookedJobDto"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The job booked together with this sale, if any"
+          },
           "job_site_id": {
             "anyOf": [
               {
@@ -17317,6 +17446,17 @@
               }
             ],
             "title": "Hours"
+          },
+          "job": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SaleJobIn"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Book the job with the sale (needs tenant.job.request too). The job id is derived from client_id (uuid5(client_id, 'job')), so offline retries create it exactly once."
           },
           "job_site_id": {
             "anyOf": [
@@ -18926,6 +19066,19 @@
           "hourly_rate": {
             "title": "Hourly Rate",
             "type": "string"
+          },
+          "hours_purchase_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The hours sale this job was booked with (sell hours and book the job in one step)",
+            "title": "Hours Purchase Id"
           },
           "id": {
             "format": "uuid",
@@ -35856,6 +36009,73 @@
         "title": "RuleCode",
         "type": "string"
       },
+      "SaleJobIn": {
+        "description": "Book the job together with the hours sale (one step): a field job request for the sale's customer and machine,\nbilled from these prepaid hours, waiting for approval like any field request (or approved automatically once the\nsale is fully paid and verified, when the tenant's CUSTOMER_HOURS policy prepaid_job_auto_approval is on).",
+        "properties": {
+          "contract_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Omit to use the customer's only active contract (for that site when one is given); a walk-in without a contract gets a standard one when the tenant allows it (walk_in_standard_contract)",
+            "title": "Contract Id"
+          },
+          "job_site_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Defaults to the sale's site, then to the contract's site",
+            "title": "Job Site Id"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What the customer asked for",
+            "title": "Note"
+          },
+          "planned_end": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Omit for an open-ended booking",
+            "title": "Planned End"
+          },
+          "planned_start": {
+            "format": "date-time",
+            "title": "Planned Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "planned_start"
+        ],
+        "title": "SaleJobIn",
+        "type": "object"
+      },
       "ScorecardDetailDto": {
         "properties": {
           "records": {
@@ -38647,6 +38867,21 @@
             ],
             "title": "Verified At"
           },
+          "verified_automatically": {
+            "anyOf": [
+              {
+                "enum": [
+                  "ON_HANDOVER",
+                  "ON_RECORDING"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified Automatically"
+          },
           "verified_by": {
             "anyOf": [
               {
@@ -38659,6 +38894,18 @@
             ],
             "title": "Verified By"
           },
+          "verified_by_handover_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified By Handover Id"
+          },
           "verified_by_name": {
             "anyOf": [
               {
@@ -38669,6 +38916,23 @@
               }
             ],
             "title": "Verified By Name"
+          },
+          "verified_by_remittance_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified By Remittance Number"
+          },
+          "verifies_on_handover": {
+            "default": false,
+            "description": "Claimed cash of an hours sale the tenant verifies when the custodian's handover covering it is confirmed (cash_activation ON_HANDOVER): no one verifies it by hand",
+            "title": "Verifies On Handover",
+            "type": "boolean"
           }
         },
         "required": [
@@ -91447,7 +91711,7 @@
     },
     "/api/v1/tenant/field/contracts": {
       "get": {
-        "description": "Active contracts of active customers a job can be requested under (by contract number, reference or customer\nname, at most 100), with the customer and default site names the field apps show.",
+        "description": "Active contracts of active customers a job can be requested under (by contract number, reference or customer\nname, at most 100), with the customer and default site names the field apps show. `customer_id` narrows the list\nto one customer (booking a job with an hours sale).",
         "operationId": "listFieldContracts",
         "parameters": [
           {
@@ -91464,6 +91728,23 @@
                 }
               ],
               "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "customer_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Customer Id"
             }
           },
           {

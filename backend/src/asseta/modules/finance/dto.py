@@ -180,6 +180,16 @@ class CustomerPaymentDto(Dto):
     allocations: list[HireAllocationDto] = []
     collection_number: str | None = None
     purchase_links: list[PurchaseLinkDto] | None = None
+    # CUSTOMER_HOURS cash_activation: how the system verified this cash payment of an hours sale (null when a person
+    # verified it): ON_HANDOVER (the confirmed handover below covered it) or ON_RECORDING (accepted when recorded).
+    verified_automatically: Literal["ON_HANDOVER", "ON_RECORDING"] | None = None
+    verified_by_handover_id: uuid.UUID | None = None
+    verified_by_remittance_number: str | None = None
+    verifies_on_handover: bool = Field(
+        default=False,
+        description="Claimed cash of an hours sale the tenant verifies when the custodian's handover covering it is "
+        "confirmed (cash_activation ON_HANDOVER): no one verifies it by hand",
+    )
 
 
 class SettlementDecisionIn(BaseModel):

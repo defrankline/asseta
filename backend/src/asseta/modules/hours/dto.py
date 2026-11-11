@@ -252,6 +252,43 @@ class PurchasePaymentIn(BaseModel):
         return self
 
 
+class SaleJobIn(BaseModel):
+    """Book the job together with the hours sale (one step): a field job request for the sale's customer and machine,
+    billed from these prepaid hours, waiting for approval like any field request (or approved automatically once the
+    sale is fully paid and verified, when the tenant's CUSTOMER_HOURS policy prepaid_job_auto_approval is on)."""
+
+    planned_start: datetime
+    planned_end: datetime | None = Field(default=None, description="Omit for an open-ended booking")
+    job_site_id: uuid.UUID | None = Field(
+        default=None, description="Defaults to the sale's site, then to the contract's site"
+    )
+    contract_id: uuid.UUID | None = Field(
+        default=None,
+        description="Omit to use the customer's only active contract (for that site when one is given); a walk-in "
+        "without a contract gets a standard one when the tenant allows it (walk_in_standard_contract)",
+    )
+    note: Note | None = Field(default=None, description="What the customer asked for")
+
+    @model_validator(mode="after")
+    def _dates(self) -> "SaleJobIn":
+        if self.planned_end is not None and self.planned_end <= self.planned_start:
+            raise ValueError("planned_end must be after planned_start")
+        return self
+
+
+class BookedJobDto(BaseModel):
+    """The job booked together with an hours sale."""
+
+    id: uuid.UUID
+    job_number: str
+    status: str
+    contract_id: uuid.UUID
+    contract_number: str | None = None
+    planned_start: datetime
+    planned_end: datetime | None
+    approved_at: datetime | None
+
+
 class HoursPurchaseIn(BaseModel):
     customer_id: uuid.UUID | None = Field(default=None, description="Give customer_id or walk_in, not both")
     walk_in: WalkInCustomerIn | None = None
@@ -267,6 +304,11 @@ class HoursPurchaseIn(BaseModel):
         max_length=10,
         description="The bill split across methods (e.g. cash + bank + mobile money); each part needs its amount. "
         "Give payment or payments, not both. Together they may not exceed the purchase amount.",
+    )
+    job: SaleJobIn | None = Field(
+        default=None,
+        description="Book the job with the sale (needs tenant.job.request too). The job id is derived from client_id "
+        "(uuid5(client_id, 'job')), so offline retries create it exactly once.",
     )
 
     @model_validator(mode="after")
@@ -416,6 +458,7 @@ class HoursPurchaseDto(BaseModel):
     payments: list[CustomerPaymentDto] = Field(
         default_factory=list, description="Every payment part recorded with the purchase (split bills)"
     )
+    job: BookedJobDto | None = Field(default=None, description="The job booked together with this sale, if any")
 
 
 class LedgerEntryDto(Dto):

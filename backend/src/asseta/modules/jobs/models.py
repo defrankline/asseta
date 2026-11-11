@@ -141,11 +141,13 @@ class Job(UuidPk, SyncRevisioned, Timestamps, Base):
             "discount_percent BETWEEN 0 AND 100 AND tax_rate_percent BETWEEN 0 AND 100", name="ck_job_percentages"
         ),
         Index(
-            "uq_job_machine_active",
+            "uq_job_machine_running",
             "machine_id",
             unique=True,
-            postgresql_where=text("status IN ('APPROVED', 'IN_PROGRESS')"),
-        ),  # one active job per machine
+            postgresql_where=text("status = 'IN_PROGRESS'"),
+        ),  # one running job per machine
+        # Raw SQL (migration jobwin01, not reflected by Alembic): ex_job_machine_window - approved or running jobs on
+        # one machine may not overlap in their planned windows [planned_start, planned_end); no planned end = open.
     )
 
     tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenant.id"), nullable=False, index=True)
@@ -179,6 +181,8 @@ class Job(UuidPk, SyncRevisioned, Timestamps, Base):
     # Set when a supervisor requested the job from the field (owner approves it); null for office-created jobs.
     requested_by_staff_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("staff_member.id"))
     request_note: Mapped[str | None] = mapped_column(Text)
+    # Set when the job was booked together with an hours sale (one step); its approval may follow that sale's money.
+    hours_purchase_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("hours_purchase.id"), index=True)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     __mapper_args__ = {"version_id_col": version}  # noqa: RUF012
 

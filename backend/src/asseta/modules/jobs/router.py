@@ -402,10 +402,14 @@ def field_machines(
 
 @router.get("/field/contracts", response_model=list[FieldContractDto], operation_id="listFieldContracts")
 def field_contracts(
-    session: DbSession, _: Annotated[RequestContext, Depends(JOB_REQUEST)], q: str | None = None
+    session: DbSession,
+    _: Annotated[RequestContext, Depends(JOB_REQUEST)],
+    q: str | None = None,
+    customer_id: uuid.UUID | None = None,
 ) -> list[FieldContractDto]:
     """Active contracts of active customers a job can be requested under (by contract number, reference or customer
-    name, at most 100), with the customer and default site names the field apps show."""
+    name, at most 100), with the customer and default site names the field apps show. `customer_id` narrows the list
+    to one customer (booking a job with an hours sale)."""
     stmt = (
         select(RentalContract, Customer.name, JobSite.name)
         .join(Customer, Customer.id == RentalContract.customer_id)
@@ -414,6 +418,8 @@ def field_contracts(
         .order_by(Customer.name, RentalContract.contract_number)
         .limit(100)
     )
+    if customer_id is not None:
+        stmt = stmt.where(RentalContract.customer_id == customer_id)
     if (match := ilike_any(q, RentalContract.contract_number, RentalContract.reference, Customer.name)) is not None:
         stmt = stmt.where(match)
     return [

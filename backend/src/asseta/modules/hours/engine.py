@@ -168,7 +168,19 @@ class HoursEngine:
         )
         self._emit("CustomerHoursActivated", purchase, {"hours": str(new), "source": "PAYMENT"})
         self.cover_overruns(purchase.customer_id, purchase.machine_id)
+        self._approval_follows_money(purchase)
         return new
+
+    def _approval_follows_money(self, purchase: HoursPurchase) -> None:
+        """CUSTOMER_HOURS prepaid_job_auto_approval: once every hour of the sale is active, the job booked with it is
+        approved by policy (or left pending with the approvers told why). A partly active sale never qualifies."""
+        if not self.policy.prepaid_job_auto_approval or purchase.cancelled_at is not None:
+            return
+        if purchase_totals(self._s, purchase).activated < purchase.hours:
+            return
+        from asseta.modules.jobs.booking import auto_approve_booked  # lazy: the jobs module builds on this engine
+
+        auto_approve_booked(self._s, self._tid, purchase, self._now)
 
     def credit_exposure(self, customer_id: uuid.UUID, currency: str) -> Decimal:
         """Activated value not covered by verified money, over the customer's purchases in `currency`."""
@@ -252,6 +264,7 @@ class HoursEngine:
         )
         self._emit("CustomerHoursActivated", purchase, {"hours": str(hours), "source": "CREDIT"})
         self.cover_overruns(purchase.customer_id, purchase.machine_id)
+        self._approval_follows_money(purchase)
         return entry
 
     def on_payment_decided(self, payment: CustomerPayment) -> None:

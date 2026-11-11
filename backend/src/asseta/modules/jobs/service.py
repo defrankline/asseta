@@ -10,7 +10,7 @@ from sqlalchemy import ColumnElement, Integer, cast, func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from asseta.core.audit import AuditService
+from asseta.core.audit import AuditActor, AuditService
 from asseta.core.db import utcnow
 from asseta.core.errors import BusinessRuleViolation, Conflict, NotFound
 from asseta.core.outbox import OutboxWriter
@@ -78,6 +78,71 @@ _TRANSITIONS: dict[str, tuple[set[JobStatus], JobStatus]] = {
     "COMPLETE": ({JobStatus.IN_PROGRESS}, JobStatus.COMPLETED),
     "CANCEL": ({JobStatus.DRAFT, JobStatus.PENDING_APPROVAL, JobStatus.APPROVED}, JobStatus.CANCELLED),
 }
+# One machine: approved/running jobs may not overlap in their planned windows (no planned end = open-ended), and only
+# one job runs at a time (database constraints ex_job_machine_window and uq_job_machine_running).
+_BUSY_WINDOW = "The machine already has an approved or running job in this period"
+MACHINE_BUSY_MESSAGE = {
+    "APPROVE": _BUSY_WINDOW,
+    "START": "Another job is running on this machine; complete it first",
+    "SUBMIT": _BUSY_WINDOW,
+    "COMPLETE": _BUSY_WINDOW,
+    "CANCEL": _BUSY_WINDOW,
+}
+SYSTEM_POLICY_ACTOR = AuditActor(None, ["system:policy"], "policy")
+AUTO_APPROVAL_REASON = "Approved automatically: fully covered by verified prepaid hours (policy)"
+
+
+def emit_job_event(
+    session: Session, tenant_id: uuid.UUID, job: Job, status: JobStatus, reason: str | None, **extra: Any
+) -> None:
+    OutboxWriter(session).emit(
+        topic=TOPIC,
+        event_type=f"Job{status.value.title().replace('_', '')}",
+        key=str(job.machine_id),
+        payload={
+            "job_id": str(job.id),
+            "job_number": job.job_number,
+            "status": status.value,
+            "machine_id": str(job.machine_id),
+            "job_site_id": str(job.job_site_id) if job.job_site_id else None,
+            "supervisor_id": str(job.supervisor_id) if job.supervisor_id else None,
+            "requested_by_staff_id": str(job.requested_by_staff_id) if job.requested_by_staff_id else None,
+            "request_note": job.request_note,
+            "reason": reason,
+            **extra,
+        },
+        tenant_id=tenant_id,
+    )
+
+
+def approve_by_policy(session: Session, tenant_id: uuid.UUID, job: Job, now: datetime) -> str | None:
+    """Approve a PENDING_APPROVAL job as the system (a tenant policy decided it), with the same checks as a person
+    approving: the job must have a price and the machine must be free in the job's planned window. Returns None when
+    approved, else the refusal code (PRICE_REQUIRED, MACHINE_BUSY) and the job stays pending. The system never stands
+    in for the proposer: the requester's own request is decided by policy, not by them."""
+    if job.status is not JobStatus.PENDING_APPROVAL:
+        return None
+    if job.rate_source == PENDING_PRICE:
+        return "PRICE_REQUIRED"
+    try:
+        with session.begin_nested():
+            job.status, job.approved_by, job.approved_at = JobStatus.APPROVED, None, now
+            session.flush()
+    except IntegrityError:
+        session.refresh(job)
+        return "MACHINE_BUSY"
+    AuditService(session).record(
+        actor=SYSTEM_POLICY_ACTOR,
+        action="jobs.job.approve",
+        entity_type="job",
+        entity_id=job.id,
+        tenant_id=tenant_id,
+        before={"status": JobStatus.PENDING_APPROVAL.value},
+        after={"status": JobStatus.APPROVED.value, "approved_automatically": True},
+        reason=AUTO_APPROVAL_REASON,
+    )
+    emit_job_event(session, tenant_id, job, JobStatus.APPROVED, AUTO_APPROVAL_REASON, approved_automatically=True)
+    return None
 
 
 def charges_dto(c: JobCharges) -> JobChargesDto:
@@ -259,9 +324,10 @@ class JobService:
         ).scalar_one_or_none()
         return f"{prefix}{(top or 0) + 1:03d}"
 
-    def request_job(self, body: JobRequestIn) -> JobDto:
+    def request_job(self, body: JobRequestIn, hours_purchase_id: uuid.UUID | None = None) -> JobDto:
         """A supervisor's field request: numbered and priced by the server, straight to PENDING_APPROVAL with the
-        caller as supervisor. Replaying the same client_id returns the job already created (offline retries)."""
+        caller as supervisor. Replaying the same client_id returns the job already created (offline retries).
+        `hours_purchase_id`: the job is booked together with that hours sale (same transaction)."""
         existing = self._s.get(Job, body.client_id)
         if existing is not None:
             staff = own_staff(self._s, self._ctx)
@@ -310,6 +376,7 @@ class JobService:
             tax_rate_percent=Decimal(0),
             rate_source=source,
             billing_mode=resolve_billing_mode(self._s, self._tid, body.billing_mode, utcnow()),
+            hours_purchase_id=hours_purchase_id,
         )
         self._insert(job, "DUPLICATE_JOB", "Job number already exists")
         dto = job_dto(self._s, job)
@@ -326,23 +393,7 @@ class JobService:
         return dto
 
     def _emit(self, job: Job, status: JobStatus, reason: str | None) -> None:
-        OutboxWriter(self._s).emit(
-            topic=TOPIC,
-            event_type=f"Job{status.value.title().replace('_', '')}",
-            key=str(job.machine_id),
-            payload={
-                "job_id": str(job.id),
-                "job_number": job.job_number,
-                "status": status.value,
-                "machine_id": str(job.machine_id),
-                "job_site_id": str(job.job_site_id) if job.job_site_id else None,
-                "supervisor_id": str(job.supervisor_id) if job.supervisor_id else None,
-                "requested_by_staff_id": str(job.requested_by_staff_id) if job.requested_by_staff_id else None,
-                "request_note": job.request_note,
-                "reason": reason,
-            },
-            tenant_id=self._tid,
-        )
+        emit_job_event(self._s, self._tid, job, status, reason)
 
     def transition(
         self, job_id: uuid.UUID, action: str, reason: str | None, hourly_rate: Decimal | None = None
@@ -394,7 +445,7 @@ class JobService:
         try:
             self._s.flush()
         except IntegrityError as exc:
-            raise Conflict("Machine already has an approved or running job", code="MACHINE_BUSY") from exc
+            raise Conflict(MACHINE_BUSY_MESSAGE[action], code="MACHINE_BUSY") from exc
         if action == "COMPLETE":
             self._allocate_prepaid_hours(job, now)
         if action in ("START", "COMPLETE"):

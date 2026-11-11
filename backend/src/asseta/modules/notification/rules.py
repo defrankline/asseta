@@ -377,12 +377,17 @@ def _job_approved(session: Session, e: DomainEvent) -> list[Intent]:
         return []
     link = f"/tenant/field/jobs/{jid}" if jid else "/tenant/field/jobs"
     if p.get("requested_by_staff_id") == supervisor:
+        how = (
+            " automatically: the customer's prepaid hours are paid and verified"
+            if p.get("approved_automatically")
+            else ""
+        )
         return [
             Intent(
                 "JOB_REQUEST_APPROVED",
                 (staff(supervisor),),
                 f"Job {number} approved",
-                f"Your job request {number} was approved; you can start it.",
+                f"Your job request {number} was approved{how}; you can start it.",
                 _key(e),
                 link,
                 "job",
@@ -400,6 +405,26 @@ def _job_approved(session: Session, e: DomainEvent) -> list[Intent]:
             f"New job {number} assigned to you: {where}.",
             _key(e),
             link,
+            "job",
+            jid,
+        )
+    ]
+
+
+@rule("JobAutoApprovalHeld")
+def _job_auto_approval_held(_: Session, e: DomainEvent) -> list[Intent]:
+    """A job booked with an hours sale is fully paid but the approval checks kept it pending: the approvers decide."""
+    p = e.payload
+    jid, number = p.get("job_id"), p.get("job_number", "")
+    return [
+        Intent(
+            "JOB_AUTO_APPROVAL_HELD",
+            (perm("tenant.job.approve"),),
+            f"Job {number} needs approval",
+            f"Job {number} is covered by the verified hours sale {p.get('purchase_number', '')} but was not approved "
+            f"automatically: {p.get('reason', 'the approval checks did not pass')}. Please review it.",
+            _key(e),
+            f"/tenant/jobs/{jid}" if jid else "/tenant/jobs",
             "job",
             jid,
         )
@@ -431,8 +456,22 @@ def _job_cancelled(_: Session, e: DomainEvent) -> list[Intent]:
 
 
 @rule("CustomerPaymentRecorded")
-def _customer_payment(_: Session, e: DomainEvent) -> list[Intent]:
+def _customer_payment(session: Session, e: DomainEvent) -> list[Intent]:
+    """Nothing to verify when the tenant's cash_activation already verified the payment (on recording) or verifies
+    it with the custodian's confirmed handover."""
+    from asseta.modules.finance.models import CustomerPayment, SettlementStatus  # lazy: rules load before finance
+    from asseta.modules.hours.cash_activation import verified_by_handover
+
     p = e.payload
+    try:
+        payment = session.get(CustomerPayment, uuid.UUID(str(p["payment_id"])))
+    except ValueError:
+        payment = None
+    if payment is not None and (
+        (payment.status is SettlementStatus.VERIFIED and payment.verified_by is None)
+        or verified_by_handover(session, payment, payment.recorded_at)
+    ):
+        return []
     return [
         Intent(
             "CUSTOMER_PAYMENT_TO_VERIFY",

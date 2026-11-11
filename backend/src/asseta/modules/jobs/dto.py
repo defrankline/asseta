@@ -174,6 +174,9 @@ class JobDto(Dto):
     )
     requested_by_name: str | None = None
     request_note: str | None = None
+    hours_purchase_id: uuid.UUID | None = Field(
+        default=None, description="The hours sale this job was booked with (sell hours and book the job in one step)"
+    )
 
 
 class JobRequestIn(BaseModel):

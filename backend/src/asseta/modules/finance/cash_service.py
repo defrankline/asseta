@@ -259,9 +259,12 @@ class CashCustodyService:
         )
         recorded = CustomerPaymentService(self._s, self._ctx, self._now).record(payment, source)
         if body.purchase_id is not None and replay is None:
-            from asseta.modules.hours.service import HoursService  # lazy: the hours service builds on this one
+            from asseta.modules.hours.cash_activation import CashActivation  # lazy: hours build on this service
+            from asseta.modules.hours.service import HoursService
 
             HoursService(self._s, self._ctx, self._now).link_collection(recorded.id, body.purchase_id, recorded.amount)
+            # Tenant policy cash_activation ON_RECORDING: cash paying an hours purchase is verified as recorded.
+            CashActivation(self._s, self._tid, self._ctx.user_id, self._now).on_recorded(recorded.id)
             return payment_dto(self._s, CustomerPaymentService(self._s, self._ctx, self._now).payment(recorded.id))
         return recorded
 
@@ -558,7 +561,47 @@ class CashCustodyService:
                 },
                 tenant_id=self._tid,
             )
+            from asseta.modules.hours.cash_activation import CashActivation  # lazy: hours build on this service
+
+            # Tenant policy cash_activation ON_HANDOVER: hours-sale cash this handover covers is verified with it.
+            CashActivation(self._s, self._tid, self._ctx.user_id, self._now).on_handover_confirmed(
+                row, lambda: self.covered_collections(row)
+            )
         return CashHandoverDto.model_validate(row)
+
+    def covered_collections(self, handover: CashHandover) -> list[uuid.UUID]:
+        """Cash collections this confirmed handover finished handing over, first-in first-out over the custodian's
+        ledger: confirmed remittances (amount received) settle the oldest cash first. A collection counts only when
+        all of it went out through confirmed remittances, this one included (cash spent, transferred or written off
+        is not a handover). Unconfirmed remittances settle nothing."""
+        held: list[list[Any]] = []  # [payment id or None, remaining, settled by this handover, settled otherwise]
+        covered: list[uuid.UUID] = []
+        movements = self._movements(handover.staff_member_id, handover.currency, self._now + FOREVER)
+        # Deterministic order: time, money in before money out, then the generated reference (COL-/RMT- numbers).
+        order = sorted(
+            movements, key=lambda m: (m.at, SIGN.get(m.figure, 0) * m.amount < 0, m.reference or "", m.entity_id)
+        )
+        for m in order:
+            if m.figure not in SIGN:
+                continue
+            delta = SIGN[m.figure] * m.amount
+            if delta > 0:
+                held.append([m.entity_id if m.entity_type == "customer_payment" else None, delta, False, False])
+                continue
+            out, remittance = -delta, m.entity_type == "cash_handover"
+            while out > 0 and held:
+                take = min(held[0][1], out)
+                held[0][1] -= take
+                out -= take
+                if not remittance:
+                    held[0][3] = True
+                elif m.entity_id == handover.id:
+                    held[0][2] = True
+                if held[0][1] <= 0:
+                    payment_id, _, by_this, otherwise = held.pop(0)
+                    if payment_id is not None and by_this and not otherwise:
+                        covered.append(payment_id)
+        return covered
 
     # --- the ledger -----------------------------------------------------------------------------------------
     def _movements(self, staff_id: uuid.UUID, currency: str, end: datetime) -> list[Movement]:

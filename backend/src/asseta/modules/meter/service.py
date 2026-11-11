@@ -152,6 +152,16 @@ class MeterService:
             evidence |= {"issued_at": nearest.issued_at.isoformat(), "valid_until": nearest.valid_until.isoformat()}
         return Finding(ExceptionType.POLICY_SNAPSHOT_UNVERIFIED, "WARNING", True, evidence)
 
+    def _running_other(self, job: Job) -> bool:
+        return (
+            self._s.execute(
+                select(Job.id)
+                .where(Job.machine_id == job.machine_id, Job.status == JobStatus.IN_PROGRESS, Job.id != job.id)
+                .limit(1)
+            ).first()
+            is not None
+        )
+
     def _target(self, body: MeterCaptureIn, correction: bool) -> tuple[Job | None, uuid.UUID, uuid.UUID | None]:
         """The job (locked) and machine a reading belongs to. A DAILY reading may name only its machine; a field
         user may only read machines assigned to them (others are "not found"). An approved correction replaces a
@@ -172,6 +182,12 @@ class MeterService:
                 )
             if body.machine_id is not None and body.machine_id != job.machine_id:
                 raise BusinessRuleViolation("machine_id is not the job's machine", code="READING_MACHINE_MISMATCH")
+            if not correction and job.status is JobStatus.APPROVED and self._running_other(job):
+                # A later booking on a busy machine: its readings start once the running job is completed.
+                raise BusinessRuleViolation(
+                    "Another job is running on this machine; read it for this job once that one is completed",
+                    code="MACHINE_BUSY",
+                )
             return job, job.machine_id, job.job_site_id
         machine = self._s.get(Machine, body.machine_id)
         if machine is None:

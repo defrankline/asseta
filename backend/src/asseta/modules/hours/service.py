@@ -32,6 +32,7 @@ from asseta.modules.finance.models import (
 from asseta.modules.finance.payment_service import CustomerPaymentService, payment_dto
 from asseta.modules.fleet.models import Machine, MachineStatus
 from asseta.modules.geospatial.models import JobSite
+from asseta.modules.hours.cash_activation import CashActivation
 from asseta.modules.hours.dto import (
     AllocationLineDto,
     CreditActivationIn,
@@ -77,6 +78,7 @@ from asseta.modules.hours.models import (
 )
 from asseta.modules.hours.numbering import next_number
 from asseta.modules.identity.principal import RequestContext
+from asseta.modules.jobs.booking import SaleBooking, booked_job
 from asseta.modules.jobs.dto import CustomerDto
 from asseta.modules.jobs.models import Customer, CustomerKind, RentalRatePolicy
 from asseta.modules.meter.models import CaptureAttachment, JobException
@@ -180,6 +182,7 @@ def purchase_dto(session: Session, p: HoursPurchase, payment: CustomerPaymentDto
         machines=machines,
         allocations=allocations,
         payment=payment,
+        job=booked_job(session, p.id),
     )
 
 
@@ -540,6 +543,9 @@ class HoursService:
         self._require_enabled()
         for part in body.payment_parts():
             self._check_payment_permission(part.method)
+        booking = SaleBooking(self._s, self._ctx, self._now, self.engine.policy) if body.job is not None else None
+        if booking is not None:
+            booking.check_permission()
         if body.walk_in is not None:
             walk_in = body.walk_in
             if walk_in.client_id is None and body.client_id is not None:
@@ -565,6 +571,7 @@ class HoursService:
             if not site.is_active:
                 raise BusinessRuleViolation("Job site is deactivated", code="SITE_INACTIVE")
         card, discount, pct, effective_rate, amount = self._price(machine, customer.id, body.hours)
+        plan = booking.plan(customer, body.job, body.job_site_id) if booking is not None and body.job else None
         year = self._local_year()
         purchase = HoursPurchase(
             id=uuid.uuid4(),
@@ -622,6 +629,8 @@ class HoursService:
             },
             tenant_id=self._tid,
         )
+        if booking is not None and body.job is not None and plan is not None:
+            booking.book(purchase, body.job, plan)  # before any activation, so approval can follow the money
         if amount <= 0:  # nothing to pay: a second person approves, unless the tenant lets it activate on recording
             if self.engine.policy.zero_amount_requires_approval:
                 from asseta.modules.adjustments.requests import AdjustmentRequests  # lazy: builds on the hours modules
@@ -688,6 +697,8 @@ class HoursService:
                 self.allocate(
                     purchase.id, PurchaseAllocationIn(payment_id=recorded.id, amount=min(amount, open_amount))
                 )
+        if pay.method is HirePaymentMethod.CASH:  # tenant policy cash_activation ON_RECORDING: verified as recorded
+            CashActivation(self._s, self._tid, self._ctx.user_id, self._now).on_recorded(recorded.id)
         return payment_dto(self._s, self._payment(recorded.id))
 
     def _payment(self, payment_id: uuid.UUID, lock: bool = False) -> CustomerPayment:

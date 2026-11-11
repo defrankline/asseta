@@ -73,6 +73,12 @@ CAPABILITIES = [
     # PETTY_CASH_ADVANCE: the holder hands out an advance offline (tenant policy advances_enabled); above what the fund
     # has available it is still recorded at sync when the tenant allows overspending offline (the fund shows it).
     "OP_PETTY_CASH_ADVANCE",
+    # HOURS_PURCHASE accepts job {planned_start, planned_end?, job_site_id?, contract_id?, note?}: the sale books its
+    # prepaid job in the same transaction (needs tenant.job.request; job id = uuid5(op id, "job")); the acked entity
+    # carries job {id, job_number, status, ...}. Contract: the one given, else the customer's only active contract (for
+    # the site), else a standard walk-in contract when the tenant allows it; else CONFLICT CONTRACT_REQUIRED /
+    # CONTRACT_CHOICE_REQUIRED (kept for review: the money changed hands).
+    "OP_HOURS_SALE_BOOKING",
 ]
 # Protocol capabilities that belong to a tenant capability (`asseta.modules.policy.capabilities`): not announced
 # while the tenant has it switched off, and their operations are then refused (CONFLICT, the capability's code).
@@ -93,6 +99,7 @@ TENANT_CAPABILITY_OF = {
     "OP_PETTY_CASH_ADVANCE": "PETTY_CASH",
     "SYNC_PETTY_CASH_WITNESSES": "PETTY_CASH",
     "SYNC_HOURS_PRICES": "CUSTOMER_HOURS",
+    "OP_HOURS_SALE_BOOKING": "CUSTOMER_HOURS",
 }
 
 

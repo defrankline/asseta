@@ -4548,7 +4548,8 @@ export interface paths {
         /**
          * Field Contracts
          * @description Active contracts of active customers a job can be requested under (by contract number, reference or customer
-         *     name, at most 100), with the customer and default site names the field apps show.
+         *     name, at most 100), with the customer and default site names the field apps show. `customer_id` narrows the list
+         *     to one customer (booking a job with an hours sale).
          */
         get: operations["listFieldContracts"];
         put?: never;
@@ -9790,6 +9791,37 @@ export interface components {
             /** File */
             file: string;
         };
+        /**
+         * BookedJobDto
+         * @description The job booked together with an hours sale.
+         */
+        BookedJobDto: {
+            /** Approved At */
+            approved_at: string | null;
+            /**
+             * Contract Id
+             * Format: uuid
+             */
+            contract_id: string;
+            /** Contract Number */
+            contract_number?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Job Number */
+            job_number: string;
+            /** Planned End */
+            planned_end: string | null;
+            /**
+             * Planned Start
+             * Format: date-time
+             */
+            planned_start: string;
+            /** Status */
+            status: string;
+        };
         /** BootstrapDto */
         BootstrapDto: {
             /** Capabilities */
@@ -12020,10 +12052,22 @@ export interface components {
             status: components["schemas"]["SettlementStatus"];
             /** Verified At */
             verified_at: string | null;
+            /** Verified Automatically */
+            verified_automatically?: ("ON_HANDOVER" | "ON_RECORDING") | null;
             /** Verified By */
             verified_by: string | null;
+            /** Verified By Handover Id */
+            verified_by_handover_id?: string | null;
             /** Verified By Name */
             verified_by_name?: string | null;
+            /** Verified By Remittance Number */
+            verified_by_remittance_number?: string | null;
+            /**
+             * Verifies On Handover
+             * @description Claimed cash of an hours sale the tenant verifies when the custodian's handover covering it is confirmed (cash_activation ON_HANDOVER): no one verifies it by hand
+             * @default false
+             */
+            verifies_on_handover: boolean;
         };
         /** CustomerPaymentIn */
         CustomerPaymentIn: {
@@ -14181,6 +14225,8 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** @description The job booked together with this sale, if any */
+            job?: components["schemas"]["BookedJobDto"] | null;
             /** Job Site Id */
             job_site_id: string | null;
             /** Job Site Name */
@@ -14247,6 +14293,8 @@ export interface components {
             customer_id?: string | null;
             /** Hours */
             hours: number | string;
+            /** @description Book the job with the sale (needs tenant.job.request too). The job id is derived from client_id (uuid5(client_id, 'job')), so offline retries create it exactly once. */
+            job?: components["schemas"]["SaleJobIn"] | null;
             /** Job Site Id */
             job_site_id?: string | null;
             /**
@@ -14855,6 +14903,11 @@ export interface components {
             discount_percent: string;
             /** Hourly Rate */
             hourly_rate: string;
+            /**
+             * Hours Purchase Id
+             * @description The hours sale this job was booked with (sell hours and book the job in one step)
+             */
+            hours_purchase_id?: string | null;
             /**
              * Id
              * Format: uuid
@@ -20967,6 +21020,39 @@ export interface components {
          * @enum {string}
          */
         RuleCode: "UNREPORTED_ENGINE_ACTIVITY" | "DUPLICATE_RECEIPT" | "FUEL_ALLOWANCE_EXCEEDED" | "EXPENSE_THRESHOLD_EXCEEDED" | "CASH_NOT_HANDED_OVER" | "WORK_WITHOUT_AUTHORIZATION" | "UNEXPLAINED_ENGINE_HOURS" | "ENGINE_RUNNING_WITHOUT_WORK" | "MACHINE_FUEL_ABOVE_NORM" | "REPEATED_PATTERN";
+        /**
+         * SaleJobIn
+         * @description Book the job together with the hours sale (one step): a field job request for the sale's customer and machine,
+         *     billed from these prepaid hours, waiting for approval like any field request (or approved automatically once the
+         *     sale is fully paid and verified, when the tenant's CUSTOMER_HOURS policy prepaid_job_auto_approval is on).
+         */
+        SaleJobIn: {
+            /**
+             * Contract Id
+             * @description Omit to use the customer's only active contract (for that site when one is given); a walk-in without a contract gets a standard one when the tenant allows it (walk_in_standard_contract)
+             */
+            contract_id?: string | null;
+            /**
+             * Job Site Id
+             * @description Defaults to the sale's site, then to the contract's site
+             */
+            job_site_id?: string | null;
+            /**
+             * Note
+             * @description What the customer asked for
+             */
+            note?: string | null;
+            /**
+             * Planned End
+             * @description Omit for an open-ended booking
+             */
+            planned_end?: string | null;
+            /**
+             * Planned Start
+             * Format: date-time
+             */
+            planned_start: string;
+        };
         /** ScorecardDetailDto */
         ScorecardDetailDto: {
             /** Records */
@@ -22041,10 +22127,22 @@ export interface components {
             sync_revision: number;
             /** Verified At */
             verified_at: string | null;
+            /** Verified Automatically */
+            verified_automatically?: ("ON_HANDOVER" | "ON_RECORDING") | null;
             /** Verified By */
             verified_by: string | null;
+            /** Verified By Handover Id */
+            verified_by_handover_id?: string | null;
             /** Verified By Name */
             verified_by_name?: string | null;
+            /** Verified By Remittance Number */
+            verified_by_remittance_number?: string | null;
+            /**
+             * Verifies On Handover
+             * @description Claimed cash of an hours sale the tenant verifies when the custodian's handover covering it is confirmed (cash_activation ON_HANDOVER): no one verifies it by hand
+             * @default false
+             */
+            verifies_on_handover: boolean;
         };
         /** SyncCashHandoverDto */
         SyncCashHandoverDto: {
@@ -50815,6 +50913,7 @@ export interface operations {
         parameters: {
             query?: {
                 q?: string | null;
+                customer_id?: string | null;
             };
             header?: {
                 "x-tenant-id"?: string | null;
