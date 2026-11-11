@@ -376,7 +376,7 @@ struct PettyCashReturnFormView: View {
                     }
                     if model.access.depositAccountsOn {
                         let accounts = model.depositAccounts.filter { $0.isActive && $0.currency == f.currency }
-                            .map { PickerOption(id: $0.id, title: $0.name, subtitle: $0.institution) }
+                            .map { PickerOption(id: $0.id, title: $0.name, subtitle: RemittanceRules.subtitle($0)) }
                         if !accounts.isEmpty {
                             SearchablePickerField(label: P.returnAccount, options: accounts, selection: $accountID,
                                                   noneTitle: P.returnNoAccount, identifier: "pettyCash.return.account")
