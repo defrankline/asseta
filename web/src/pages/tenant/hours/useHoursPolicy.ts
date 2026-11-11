@@ -24,6 +24,8 @@ export interface HoursPolicy {
   creditEvidenceRequired: boolean;
   zeroAmountRequiresApproval: boolean;
   maxDiscountPercent: string;
+  /** Field staff (collection.record) may record bank and mobile-money payments. */
+  fieldNoncashPayments: boolean;
 }
 
 const MODES: readonly BillingMode[] = ['INVOICE', 'PREPAID_HOURS'];
@@ -54,6 +56,7 @@ export function parseHoursPolicy(values: Record<string, unknown>): HoursPolicy {
     zeroAmountRequiresApproval: flag(values.zero_amount_requires_approval, true),
     maxDiscountPercent:
       typeof values.max_discount_percent === 'string' ? values.max_discount_percent : '100',
+    fieldNoncashPayments: flag(values.field_noncash_payments, false),
   };
 }
 

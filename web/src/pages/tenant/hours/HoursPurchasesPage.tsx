@@ -181,6 +181,7 @@ export function HoursPurchasesPage() {
         <RecordPurchaseDialog
           timeZone={timeZone}
           walkInAllowed={hours.policy?.walkInAllowed ?? true}
+          fieldNoncashPayments={hours.policy?.fieldNoncashPayments ?? false}
           onClose={() => {
             setRecording(false);
           }}

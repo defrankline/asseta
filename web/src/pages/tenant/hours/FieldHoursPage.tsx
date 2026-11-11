@@ -134,6 +134,7 @@ export function FieldHoursPage() {
           field
           timeZone={timeZone}
           walkInAllowed={hours.policy?.walkInAllowed ?? true}
+          fieldNoncashPayments={hours.policy?.fieldNoncashPayments ?? false}
           onClose={close}
           onRecorded={(p) => {
             notify.success(`Hours purchase ${p.purchase_number} recorded.`);

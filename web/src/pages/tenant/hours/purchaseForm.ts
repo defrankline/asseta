@@ -1,11 +1,28 @@
-import { mixed, object, string, type ObjectSchema } from 'yup';
+import { array, mixed, object, string, type ObjectSchema } from 'yup';
 import type { HoursPurchaseIn } from '../../../api/hoursTypes';
 import type { AttachmentDto, HirePaymentMethod } from '../../../api/types';
 import { PAYMENT_METHODS } from '../../../api/services/financeSchemas';
 import { positiveDecimalField } from '../../platform/shared/validators';
-import { optionalDecimal, optionalText, orNull } from '../shared/formRules';
+import { compareDecimal, isDecimalString, sumDecimals } from '../../../utils/money';
+import { optionalText, orNull } from '../shared/formRules';
 
 export type CustomerMode = 'EXISTING' | 'WALK_IN';
+
+/** One part of the bill (cash, bank or mobile money). */
+export interface PaymentLine {
+  /** Stable React key only; never sent. */
+  key: string;
+  method: HirePaymentMethod;
+  amount: string;
+  reference: string;
+  received_at: string;
+  /** Office only: the staff member holding the cash ('' = me). */
+  staff_member_id: string;
+  evidence: AttachmentDto | null;
+}
+
+export const NEEDS_REFERENCE: ReadonlySet<HirePaymentMethod> = new Set(['BANK', 'MOBILE_MONEY']);
+export const MAX_PAYMENT_LINES = 10;
 
 /** Record an hours purchase: customer (or a new walk-in), machine and hours, optional payment. */
 export interface PurchaseValues {
@@ -17,15 +34,11 @@ export interface PurchaseValues {
   hours: string;
   job_site_id: string;
   note: string;
-  /** '' = no payment recorded with the purchase. */
-  payment_method: HirePaymentMethod | '';
-  /** Empty = the purchase amount. */
-  payment_amount: string;
-  payment_reference: string;
-  received_at: string;
-  /** Office only: the staff member holding the cash ('' = me). */
-  staff_member_id: string;
-  evidence: AttachmentDto | null;
+  /** Empty = not paid yet. */
+  payments: PaymentLine[];
+  /** The live quote total ('' while unknown); only used to stop over-payment. Never sent. */
+  quote_amount: string;
+  quote_currency: string;
 }
 
 export const CUSTOMER_FIELDS = [
@@ -35,16 +48,59 @@ export const CUSTOMER_FIELDS = [
   'walk_in_phone',
 ] as const;
 export const HOURS_FIELDS = ['machine_id', 'hours', 'job_site_id', 'note'] as const;
-export const PAYMENT_FIELDS = [
-  'payment_method',
-  'payment_amount',
-  'payment_reference',
-  'received_at',
-  'staff_member_id',
-  'evidence',
-] as const;
+export const PAYMENT_FIELDS = ['payments'] as const;
 
-export function emptyPurchaseValues(now: string): PurchaseValues {
+/** Every line's fields, so each row shows its errors before leaving the step. */
+export function paymentFieldsFor(v: PurchaseValues): string[] {
+  return [
+    'payments',
+    ...v.payments.flatMap((_, i) => [
+      `payments[${i}].method`,
+      `payments[${i}].amount`,
+      `payments[${i}].reference`,
+      `payments[${i}].received_at`,
+    ]),
+  ];
+}
+
+/** Sum of the lines with a valid amount. */
+export function paidSoFar(lines: readonly PaymentLine[]): string {
+  return sumDecimals([
+    '0',
+    ...lines
+      .map((l) => (l as Partial<PaymentLine> | undefined)?.amount?.trim() ?? '')
+      .filter(isDecimalString),
+  ]);
+}
+
+/** True when the lines add up to more than the known total. */
+export function paymentsExceedTotal(v: Pick<PurchaseValues, 'payments' | 'quote_amount'>): boolean {
+  return (
+    v.quote_amount !== '' &&
+    v.payments.length > 0 &&
+    compareDecimal(paidSoFar(v.payments), v.quote_amount) > 0
+  );
+}
+
+export const OVER_TOTAL_TEXT = 'The payments add up to more than the total. Lower an amount.';
+
+export function emptyPaymentLine(
+  method: HirePaymentMethod,
+  amount: string,
+  now: string,
+): PaymentLine {
+  return {
+    key: Math.random().toString(36).slice(2),
+    method,
+    amount,
+    reference: '',
+    received_at: now,
+    staff_member_id: '',
+    evidence: null,
+  };
+}
+
+export function emptyPurchaseValues(): PurchaseValues {
   return {
     customer_mode: 'EXISTING',
     customer_id: '',
@@ -54,12 +110,9 @@ export function emptyPurchaseValues(now: string): PurchaseValues {
     hours: '',
     job_site_id: '',
     note: '',
-    payment_method: '',
-    payment_amount: '',
-    payment_reference: '',
-    received_at: now,
-    staff_member_id: '',
-    evidence: null,
+    payments: [],
+    quote_amount: '',
+    quote_currency: '',
   };
 }
 
@@ -91,24 +144,38 @@ export const purchaseSchema: ObjectSchema<PurchaseValues> = object({
   hours: positiveDecimalField('Hours'),
   job_site_id: string().ensure(),
   note: optionalText('Note', 1000),
-  payment_method: mixed<HirePaymentMethod | ''>()
-    .default('')
-    .oneOf(['', ...PAYMENT_METHODS])
-    .defined(),
-  payment_amount: optionalDecimal('Amount'),
-  payment_reference: optionalText('Reference', 120),
-  received_at: string()
-    .ensure()
-    .test('received', 'Received at is required', function (v) {
-      return parent(this).payment_method === '' || v !== '';
-    })
-    .test(
-      'instant',
-      'Enter a valid date and time',
-      (v) => v === '' || !Number.isNaN(Date.parse(v)),
-    ),
-  staff_member_id: string().ensure(),
-  evidence: mixed<AttachmentDto>().nullable().defined(),
+  payments: array(
+    object({
+      key: string().required(),
+      method: mixed<HirePaymentMethod>()
+        .oneOf([...PAYMENT_METHODS])
+        .required('Choose the method'),
+      amount: positiveDecimalField('Amount'),
+      reference: optionalText('Reference', 120).test(
+        'reference',
+        'Reference is required for bank and mobile money',
+        function (v) {
+          const line = this.parent as PaymentLine;
+          return !NEEDS_REFERENCE.has(line.method) || v.trim() !== '';
+        },
+      ),
+      received_at: string()
+        .required('Received at is required')
+        .test('instant', 'Enter a valid date and time', (v) => !Number.isNaN(Date.parse(v))),
+      staff_member_id: string().ensure(),
+      evidence: mixed<AttachmentDto>().nullable().defined(),
+    }),
+  )
+    .max(MAX_PAYMENT_LINES, `At most ${MAX_PAYMENT_LINES} payments`)
+    .required()
+    .test('total', OVER_TOTAL_TEXT, function (v) {
+      return !paymentsExceedTotal({
+        payments: v,
+        quote_amount: parent(this).quote_amount,
+      });
+    }),
+  quote_amount: string().ensure(),
+  quote_currency: string().ensure(),
 });
 
 /** recordHoursPurchase body. The server prices it from the rate card and approved discounts. */
@@ -128,16 +195,13 @@ export function toPurchasePayload(
     hours: v.hours.trim(),
     job_site_id: orNull(v.job_site_id),
     note: orNull(v.note),
-    payment:
-      v.payment_method === ''
-        ? null
-        : {
-            method: v.payment_method,
-            amount: orNull(v.payment_amount),
-            reference: orNull(v.payment_reference),
-            received_at: v.received_at,
-            staff_member_id: options.field ? null : orNull(v.staff_member_id),
-            evidence_attachment_ids: v.evidence === null ? [] : [v.evidence.id],
-          },
+    payments: v.payments.map((l) => ({
+      method: l.method,
+      amount: l.amount.trim(),
+      reference: orNull(l.reference),
+      received_at: l.received_at,
+      staff_member_id: options.field ? null : orNull(l.staff_member_id),
+      evidence_attachment_ids: l.evidence === null ? [] : [l.evidence.id],
+    })),
   };
 }

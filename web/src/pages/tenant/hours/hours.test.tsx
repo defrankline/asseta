@@ -18,7 +18,15 @@ import { CustomerDiscountsPage } from './CustomerDiscountsPage';
 import { HoursLedgerPage } from './HoursLedgerPage';
 import { HoursPurchasesPage } from './HoursPurchasesPage';
 import { HoursTransfersPage } from './HoursTransfersPage';
-import { emptyPurchaseValues, toPurchasePayload } from './purchaseForm';
+import { paidSummary } from './hoursQuote';
+import {
+  emptyPaymentLine,
+  emptyPurchaseValues,
+  OVER_TOTAL_TEXT,
+  paymentsExceedTotal,
+  purchaseSchema,
+  toPurchasePayload,
+} from './purchaseForm';
 import { parseHoursPolicy } from './useHoursPolicy';
 
 const ME = '33333333-3333-4333-8333-333333333333';
@@ -179,33 +187,117 @@ describe('parseHoursPolicy', () => {
 describe('toPurchasePayload', () => {
   it('sends a walk-in with a field cash payment in own custody and the evidence id', () => {
     const v = {
-      ...emptyPurchaseValues('2026-10-20T08:00:00Z'),
+      ...emptyPurchaseValues(),
       customer_mode: 'WALK_IN' as const,
       walk_in_name: ' Juma ',
       machine_id: 'm1',
       hours: '10',
-      payment_method: 'CASH' as const,
-      staff_member_id: 's9',
-      evidence: {
-        id: 'a1',
-        sha256: 'x',
-        content_type: 'image/jpeg',
-        size_bytes: 1,
-        purpose: 'PAYMENT_EVIDENCE',
-        uploaded_at: '2026-10-20T08:00:00Z',
-      },
+      payments: [
+        {
+          ...emptyPaymentLine('CASH', '50000', '2026-10-20T08:00:00Z'),
+          staff_member_id: 's9',
+          evidence: {
+            id: 'a1',
+            sha256: 'x',
+            content_type: 'image/jpeg',
+            size_bytes: 1,
+            purpose: 'PAYMENT_EVIDENCE',
+            uploaded_at: '2026-10-20T08:00:00Z',
+          },
+        },
+      ],
     };
     const body = toPurchasePayload(v, 'client-1', { field: true });
     expect(body.customer_id).toBeNull();
     expect(body.walk_in).toEqual({ name: 'Juma', phone: null, client_id: 'client-1' });
-    expect(body.payment).toEqual(
-      expect.objectContaining({
+    expect(body.payment).toBeUndefined();
+    expect(body.payments).toEqual([
+      {
         method: 'CASH',
-        amount: null,
+        amount: '50000',
+        reference: null,
+        received_at: '2026-10-20T08:00:00Z',
         staff_member_id: null,
         evidence_attachment_ids: ['a1'],
-      }),
+      },
+    ]);
+  });
+
+  it('splits the bill across methods and keeps the office custodian', () => {
+    const at = '2026-10-20T08:00:00Z';
+    const body = toPurchasePayload(
+      {
+        ...emptyPurchaseValues(),
+        customer_id: 'c1',
+        machine_id: 'm1',
+        hours: '6',
+        payments: [
+          { ...emptyPaymentLine('CASH', '300000', at), staff_member_id: 's9' },
+          { ...emptyPaymentLine('BANK', '270000', at), reference: ' TT-1 ' },
+        ],
+      },
+      'client-1',
+      { field: false },
     );
+    expect(body.payments?.map((p) => [p.method, p.amount, p.reference, p.staff_member_id])).toEqual(
+      [
+        ['CASH', '300000', null, 's9'],
+        ['BANK', '270000', 'TT-1', null],
+      ],
+    );
+  });
+
+  it('sends no payments when nothing was paid yet', () => {
+    expect(
+      toPurchasePayload({ ...emptyPurchaseValues(), machine_id: 'm1', hours: '1' }, 'c', {
+        field: true,
+      }).payments,
+    ).toEqual([]);
+  });
+});
+
+describe('purchaseSchema payments', () => {
+  const at = '2026-10-20T08:00:00Z';
+  const base = { ...emptyPurchaseValues(), customer_id: 'c1', machine_id: 'm1', hours: '6' };
+
+  it('blocks lines adding up to more than the total', async () => {
+    const v = {
+      ...base,
+      quote_amount: '570000.0000',
+      payments: [emptyPaymentLine('CASH', '400000', at), emptyPaymentLine('CASH', '200000', at)],
+    };
+    expect(paymentsExceedTotal(v)).toBe(true);
+    await expect(purchaseSchema.validate(v)).rejects.toThrow(OVER_TOTAL_TEXT);
+    await expect(
+      purchaseSchema.validate({ ...v, payments: [emptyPaymentLine('CASH', '570000', at)] }),
+    ).resolves.toBeTruthy();
+  });
+
+  it('requires a reference for bank and mobile money', async () => {
+    await expect(
+      purchaseSchema.validate({
+        ...base,
+        payments: [emptyPaymentLine('MOBILE_MONEY', '1000', at)],
+      }),
+    ).rejects.toThrow(/Reference is required/);
+  });
+
+  it('reads field_noncash_payments, off by default', () => {
+    expect(parseHoursPolicy({}).fieldNoncashPayments).toBe(false);
+    expect(parseHoursPolicy({ field_noncash_payments: true }).fieldNoncashPayments).toBe(true);
+  });
+});
+
+describe('paidSummary', () => {
+  it('words fully paid, part paid and not paid yet', () => {
+    expect(paidSummary('570000', '570000.0000', 'TZS')).toEqual({
+      line: 'Paid TZS 570,000 of TZS 570,000 · Balance TZS 0',
+      status: 'Fully paid',
+      over: false,
+    });
+    expect(paidSummary('500000', '570000', 'TZS').status).toBe('Part paid (balance TZS 70,000)');
+    expect(paidSummary('0', '570000', 'TZS').status).toBe('Not paid yet');
+    expect(paidSummary('600000', '570000', 'TZS').over).toBe(true);
   });
 });
 

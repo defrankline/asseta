@@ -1,5 +1,5 @@
 import { Typography } from '@mui/material';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ApiError } from '../../../api/ApiError';
 import type { HoursQuoteDto } from '../../../api/hoursTypes';
 import { hoursService } from '../../../api/services/hoursService';
@@ -29,19 +29,29 @@ export function HoursQuoteLine({
   machineId,
   hours,
   customerId,
+  onQuote,
 }: {
   machineId: string;
   hours: string;
   /** Empty for a walk-in or while no customer is chosen (no discount). */
   customerId: string;
+  /** Each settled quote (null when unquotable or failed), e.g. to check payments against it. */
+  onQuote?: (quote: HoursQuoteDto | null) => void;
 }) {
+  const notify = useRef(onQuote);
+  useEffect(() => {
+    notify.current = onQuote;
+  });
   const key = useDebouncedValue(
     JSON.stringify([machineId, hours.trim(), customerId]),
     QUOTE_DEBOUNCE_MS,
   );
   const [state, setState] = useState<QuoteState | null>(null);
   useEffect(() => {
-    if (!isQuotable(key)) return;
+    if (!isQuotable(key)) {
+      notify.current?.(null);
+      return;
+    }
     const [m, h, c] = JSON.parse(key) as [string, string, string];
     const ctrl = new AbortController();
     hoursService
@@ -50,10 +60,12 @@ export function HoursQuoteLine({
         (quote) => {
           if (ctrl.signal.aborted) return;
           setState({ key, kind: 'ok', quote });
+          notify.current?.(quote);
         },
         (err: unknown) => {
           if (ctrl.signal.aborted) return;
           setState({ key, kind: 'error', message: errorText(err) });
+          notify.current?.(null);
         },
       );
     return () => {
