@@ -22,6 +22,9 @@ export interface ExpenseFormValues {
   machine_id: string;
   paid_from: ExpensePaidFrom;
   custodian_staff_id: string;
+  /** PETTY_CASH: the fund that paid (required) and optionally its advance. */
+  petty_cash_fund_id: string;
+  petty_cash_advance_id: string;
   receipts: AttachmentDto[];
   gps: GpsIn | null;
 }
@@ -39,6 +42,8 @@ export const ATTRIBUTION_FIELDS = [
   'machine_id',
   'paid_from',
   'custodian_staff_id',
+  'petty_cash_fund_id',
+  'petty_cash_advance_id',
 ] as const;
 export const EVIDENCE_FIELDS = ['receipts', 'gps'] as const;
 
@@ -54,6 +59,8 @@ export function emptyExpenseValues(now: string): ExpenseFormValues {
     machine_id: '',
     paid_from: 'COMPANY',
     custodian_staff_id: '',
+    petty_cash_fund_id: '',
+    petty_cash_advance_id: '',
     receipts: [],
     gps: null,
   };
@@ -73,6 +80,13 @@ export const expenseFormSchema: ObjectSchema<ExpenseFormValues> = object({
   machine_id: string().ensure(),
   paid_from: mixed<ExpensePaidFrom>().oneOf(PAID_FROM_VALUES).required(),
   custodian_staff_id: string().ensure(),
+  petty_cash_fund_id: string()
+    .ensure()
+    .when('paid_from', {
+      is: 'PETTY_CASH',
+      then: (s) => s.required('Choose the petty cash fund that paid'),
+    }),
+  petty_cash_advance_id: string().ensure(),
   receipts: array(mixed<AttachmentDto>().required()).required().max(10, 'At most 10 receipts'),
   gps: mixed<GpsIn>().nullable().defined(),
 });
@@ -89,6 +103,8 @@ export function toExpensePayload(v: ExpenseFormValues, clientId: string): Expens
     machine_id: orNull(v.machine_id),
     paid_from: v.paid_from,
     custodian_staff_id: v.paid_from === 'CASH_CUSTODY' ? orNull(v.custodian_staff_id) : null,
+    petty_cash_fund_id: v.paid_from === 'PETTY_CASH' ? orNull(v.petty_cash_fund_id) : null,
+    petty_cash_advance_id: v.paid_from === 'PETTY_CASH' ? orNull(v.petty_cash_advance_id) : null,
     receipt_attachment_ids: v.receipts.map((r) => r.id),
     gps: v.gps,
     client_id: clientId,

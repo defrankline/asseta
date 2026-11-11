@@ -6,6 +6,8 @@ import { PERMISSIONS } from '../../../access/permissionCodes';
 import { CanMutate } from '../../../access/CanMutate';
 import { expenseService } from '../../../api/services/expenseService';
 import type { ExpenseDto, MachineDto, StaffDto } from '../../../api/types';
+import type { PettyCashFundDto } from '../../../api/pettyCashTypes';
+import { pettyCashService } from '../../../api/services/pettyCashService';
 import { ExportMenu } from '../../../components/data/ExportMenu';
 import { ServerDataTable, type DataColumn } from '../../../components/data/ServerDataTable';
 import { initialFilter } from '../../../navigation/urlFilters';
@@ -20,8 +22,13 @@ import { labelOf } from '../shared/display';
 import {
   EXPENSE_STATUS_OPTIONS,
   EXPENSE_STATUS_TONES,
+  PAID_FROM_CHOICES,
   PAID_FROM_LABELS,
+  PAID_FROM_WITH_PETTY_OPTIONS,
 } from '../shared/financeDisplay';
+import { controlFlagLabel } from '../finance/pettyCash/pettyCashDisplay';
+import { FundFilter } from '../finance/pettyCash/pettyCashPickers';
+import { usePettyCashOn } from '../finance/pettyCash/pettyCashState';
 import { MachineFilter, StaffFilter } from '../shared/financePickers';
 import { useExpenseCategoryLabels } from '../shared/useFinanceLabels';
 import { useMachineLabels } from '../shared/useMachineLabels';
@@ -41,6 +48,22 @@ export function ExpensesTab({ timeZone }: { timeZone: string }) {
   );
   const [machine, setMachine] = useState<MachineDto | null>(null);
   const [custodian, setCustodian] = useState<StaffDto | null>(null);
+  const pettyOn = usePettyCashOn();
+  const [paidFrom, setPaidFrom] = useState(() =>
+    initialFilter(params, 'paid_from', PAID_FROM_WITH_PETTY_OPTIONS, ''),
+  );
+  const [fund, setFund] = useState<PettyCashFundDto | null>(null);
+  const fundParam = params.get('petty_cash_fund_id');
+  useEffect(() => {
+    if (!pettyOn || fundParam === null || fundParam === '') return undefined;
+    const controller = new AbortController();
+    pettyCashService.fund(fundParam, controller.signal).then(setFund, () => {
+      // The fund is chosen by hand when it cannot be read.
+    });
+    return () => {
+      controller.abort();
+    };
+  }, [pettyOn, fundParam]);
   const [viewing, setViewing] = useState<ExpenseDto | null>(null);
   const { expenseId } = useParams();
   useEffect(() => {
@@ -75,6 +98,14 @@ export function ExpensesTab({ timeZone }: { timeZone: string }) {
       render: (e) => (e.machine_id === null ? 'Unattributed' : machineLabel(e.machine_id)),
     },
     { id: 'paid', header: 'Paid from', render: (e) => PAID_FROM_LABELS[e.paid_from] },
+    {
+      id: 'flags',
+      header: 'To look at',
+      render: (e) =>
+        (e.control_flags ?? []).length === 0
+          ? '—'
+          : (e.control_flags ?? []).map(controlFlagLabel).join('; '),
+    },
     {
       id: 'status',
       header: 'Status',
@@ -124,6 +155,8 @@ export function ExpensesTab({ timeZone }: { timeZone: string }) {
           status: status || undefined,
           machine_id: machine?.id,
           custodian_staff_id: custodian?.id,
+          paid_from: paidFrom || undefined,
+          petty_cash_fund_id: pettyOn ? fund?.id : undefined,
         }}
         emptyTitle="No expenses"
         isRowMuted={(e) => e.status === 'REJECTED'}
@@ -147,6 +180,17 @@ export function ExpensesTab({ timeZone }: { timeZone: string }) {
                 onChange={setCustodian}
               />
             </Box>
+            <StaticSelectFilter
+              label="Paid from"
+              value={paidFrom}
+              options={PAID_FROM_CHOICES[pettyOn ? 'petty' : 'basic']}
+              onChange={setPaidFrom}
+            />
+            {pettyOn && (
+              <Box sx={{ minWidth: 220 }}>
+                <FundFilter label="Petty cash fund" value={fund} onChange={setFund} />
+              </Box>
+            )}
             <Box className="flex-1" />
             <ExportMenu
               reports={[
@@ -156,8 +200,17 @@ export function ExpensesTab({ timeZone }: { timeZone: string }) {
                     status,
                     machine_id: machine?.id,
                     custodian_staff_id: custodian?.id,
+                    paid_from: paidFrom,
                   },
                 },
+                ...(pettyOn
+                  ? [
+                      {
+                        code: 'petty_cash_expenses',
+                        filters: { status, machine_id: machine?.id, petty_cash_fund_id: fund?.id },
+                      },
+                    ]
+                  : []),
               ]}
             />
             <CanMutate permission={PERMISSIONS.tenantExpenseWrite}>

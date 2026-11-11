@@ -15,6 +15,8 @@ interface EvidenceUploadProps {
   helperText?: string;
   /** Stored purpose of the upload; a correction's evidence is kept as a meter photo. */
   purpose?: AttachmentPurpose;
+  /** Uploads to a module's own evidence endpoint instead of the generic attachments (e.g. petty cash). */
+  upload?: (file: File, idempotencyKey: string) => Promise<AttachmentDto>;
   required?: boolean;
 }
 
@@ -25,15 +27,19 @@ export function EvidenceUpload({
   label = 'Evidence (photos)',
   helperText = 'Photos are stored unchanged with their SHA-256 hash.',
   purpose = 'METER_PHOTO',
+  upload: uploadTo,
   required = false,
 }: EvidenceUploadProps) {
   const uploadKey = useIdempotencyKey();
-  const upload = (file: File) =>
-    meterService.upload(
-      file,
+  const upload = (file: File) => {
+    const key = uploadKey({
+      name: file.name,
+      size: file.size,
+      modified: file.lastModified,
       purpose,
-      uploadKey({ name: file.name, size: file.size, modified: file.lastModified, purpose }),
-    );
+    });
+    return uploadTo === undefined ? meterService.upload(file, purpose, key) : uploadTo(file, key);
+  };
   return (
     <Box className="flex flex-col gap-1">
       {value.length < MAX_EVIDENCE && (

@@ -21,6 +21,7 @@ export const CAPABILITY = {
   tracking: 'TRACKING',
   depositAccounts: 'DEPOSIT_ACCOUNTS',
   managedService: 'MANAGED_SERVICE',
+  pettyCash: 'PETTY_CASH',
 } as const;
 
 export type CapabilityCode = (typeof CAPABILITY)[keyof typeof CAPABILITY];
@@ -40,6 +41,7 @@ export const CAPABILITY_FEATURE: Readonly<Record<CapabilityCode, string>> = {
   TRACKING: 'Tracking',
   DEPOSIT_ACCOUNTS: 'Deposit accounts',
   MANAGED_SERVICE: 'The managed service page',
+  PETTY_CASH: 'Petty cash',
 };
 
 /** The capability each exact-record kind belongs to (cash floats and remittances are the basics). */
@@ -93,6 +95,8 @@ const PATH_CAPABILITY: readonly [string, CapabilityCode][] = [
   ['/tenant/alerts', CAPABILITY.tracking],
   ['/tenant/finance/deposit-accounts', CAPABILITY.depositAccounts],
   ['/tenant/managed-service', CAPABILITY.managedService],
+  ['/tenant/finance/petty-cash', CAPABILITY.pettyCash],
+  ['/tenant/field/petty-cash', CAPABILITY.pettyCash],
 ];
 
 /** The capability that owns a console path, or null. */

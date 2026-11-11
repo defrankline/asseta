@@ -1,4 +1,4 @@
-import { Alert, Box, ToggleButton, ToggleButtonGroup } from '@mui/material';
+import { Alert, Box, Tab, Tabs, ToggleButton, ToggleButtonGroup } from '@mui/material';
 import { useCallback, useState, type ReactNode } from 'react';
 import { useParams, useSearchParams } from 'react-router';
 import { FocusMissingAlert } from '../shared/FocusMissingAlert';
@@ -28,6 +28,8 @@ import { useMyUserId } from '../shared/useFinanceLabels';
 import { ExpenseDetailsDrawer } from '../expenses/ExpenseDetailsDrawer';
 import { ENTITY } from '../../../realtime/entities';
 import { useLiveRefresh } from '../../../realtime/hooks';
+import { usePettyCashOn } from '../finance/pettyCash/pettyCashState';
+import { PettyCashApprovals } from './PettyCashApprovals';
 
 type View = ApprovalStatus | 'ALL';
 
@@ -39,6 +41,10 @@ export function ApprovalsPage() {
   const canDecide = useCanMutate(PERMISSIONS.tenantApprovalExpense);
   const canReadExpenses = useSession().hasPermission(PERMISSIONS.tenantExpenseRead);
   const [urlParams] = useSearchParams();
+  const pettyOn = usePettyCashOn();
+  const [area, setArea] = useState<'expenses' | 'petty'>(() =>
+    urlParams.get('area') === 'petty' ? 'petty' : 'expenses',
+  );
   const { focusId } = useParams();
   const [view, setView] = useState<View>(() => {
     if (focusId !== undefined) return 'ALL';
@@ -168,42 +174,65 @@ export function ApprovalsPage() {
   return (
     <>
       <PageHeader
-        title="Expense approvals"
-        subtitle="Expenses above the EXPENSE_CAPTURE auto-approval limit wait here for someone other than the submitter"
+        title={pettyOn ? 'Approvals' : 'Expense approvals'}
+        subtitle={
+          pettyOn
+            ? 'Expenses above the auto-approval limit and petty cash requests wait here for someone other than the proposer'
+            : 'Expenses above the EXPENSE_CAPTURE auto-approval limit wait here for someone other than the submitter'
+        }
       />
-      <Box className="flex flex-col gap-3">
-        <ToggleButtonGroup
-          exclusive
-          size="small"
-          value={view}
-          aria-label="Approval status"
-          onChange={(_e, v: View | null) => {
-            if (v !== null) setView(v);
+      {pettyOn && (
+        <Tabs
+          value={area}
+          aria-label="Approval area"
+          className="mb-3"
+          onChange={(_e, v: 'expenses' | 'petty') => {
+            setArea(v);
           }}
         >
-          <ToggleButton value="PENDING">Pending</ToggleButton>
-          <ToggleButton value="APPROVED">Approved</ToggleButton>
-          <ToggleButton value="REJECTED">Rejected</ToggleButton>
-          <ToggleButton value="ALL">All</ToggleButton>
-        </ToggleButtonGroup>
-        {canDecide && (
-          <Alert severity="info">
-            Requests you submitted yourself cannot be approved by you (segregation of duties).
-          </Alert>
-        )}
-        <FocusMissingAlert missing={focus.missing} />
-        {loadError !== null && <ErrorState error={loadError} title="Could not load the expense" />}
-        <ServerDataTable
-          columns={columns}
-          fetchPage={fetchPage}
-          getRowId={(a) => a.id}
-          searchable={false}
-          reloadKey={reloadKey}
-          filters={{ status: view === 'ALL' ? undefined : view }}
-          emptyTitle="No approval requests"
-          isRowMuted={(a) => a.status === 'REJECTED'}
-        />
-      </Box>
+          <Tab value="expenses" label="Expenses" />
+          <Tab value="petty" label="Petty cash" />
+        </Tabs>
+      )}
+      {pettyOn && area === 'petty' ? (
+        <PettyCashApprovals />
+      ) : (
+        <Box className="flex flex-col gap-3">
+          <ToggleButtonGroup
+            exclusive
+            size="small"
+            value={view}
+            aria-label="Approval status"
+            onChange={(_e, v: View | null) => {
+              if (v !== null) setView(v);
+            }}
+          >
+            <ToggleButton value="PENDING">Pending</ToggleButton>
+            <ToggleButton value="APPROVED">Approved</ToggleButton>
+            <ToggleButton value="REJECTED">Rejected</ToggleButton>
+            <ToggleButton value="ALL">All</ToggleButton>
+          </ToggleButtonGroup>
+          {canDecide && (
+            <Alert severity="info">
+              Requests you submitted yourself cannot be approved by you (segregation of duties).
+            </Alert>
+          )}
+          <FocusMissingAlert missing={focus.missing} />
+          {loadError !== null && (
+            <ErrorState error={loadError} title="Could not load the expense" />
+          )}
+          <ServerDataTable
+            columns={columns}
+            fetchPage={fetchPage}
+            getRowId={(a) => a.id}
+            searchable={false}
+            reloadKey={reloadKey}
+            filters={{ status: view === 'ALL' ? undefined : view }}
+            emptyTitle="No approval requests"
+            isRowMuted={(a) => a.status === 'REJECTED'}
+          />
+        </Box>
+      )}
       {expense !== null && (
         <ExpenseDetailsDrawer
           expense={expense}

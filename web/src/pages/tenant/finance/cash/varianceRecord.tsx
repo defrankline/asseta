@@ -12,6 +12,11 @@ import { useAsyncResource } from '../../../../hooks/useAsyncResource';
 import { hoursPurchasePath } from '../../../../navigation/hoursRoutes';
 import { recordPath, type RecordKind } from '../../../../navigation/recordRoutes';
 import { caseDetailPath, jobDetailPath } from '../../../../navigation/routes';
+import {
+  pettyCashFundPath,
+  pettyCashPath,
+  type PettyCashRecord,
+} from '../../../../navigation/pettyCashRoutes';
 import { useNotify } from '../../../../notifications/useNotify';
 import { formatInstantIn } from '../../../../utils/time';
 import { DecisionDialog } from '../../shared/DecisionDialog';
@@ -67,10 +72,19 @@ const SOURCE_KIND: Readonly<
   FLOAT: 'CASH_FLOAT',
 };
 
+/** Petty cash sources (DEC-033): the count, the funding / return movement or the advance. */
+const PETTY_SOURCE: Readonly<Record<string, PettyCashRecord>> = {
+  PETTY_CASH_COUNT: 'counts',
+  PETTY_CASH_FUNDING: 'movements',
+  PETTY_CASH_RETURN: 'movements',
+  PETTY_CASH_ADVANCE: 'advances',
+};
+
 /** The record that opened the variance; customer-hour checks point at the purchase or the job. */
 export function varianceSourcePath(v: CashVarianceDto): string | null {
+  const petty = PETTY_SOURCE[v.source_type];
+  if (petty !== undefined) return pettyCashPath(petty, v.source_id);
   if (v.source_type !== 'CUSTOMER_HOUR') {
-    // petty cash sources have no record kind here yet (DEC-033 web pass)
     const kind = (SOURCE_KIND as Partial<Record<string, RecordKind>>)[v.source_type];
     return kind ? recordPath(kind, v.source_id) : null;
   }
@@ -334,6 +348,18 @@ export function varianceItems(
   return [
     { label: 'From', value: sourceItem(v) },
     { label: 'Kind', value: VARIANCE_KIND_LABELS[v.kind] },
+    ...(v.petty_cash_fund_id == null
+      ? []
+      : [
+          {
+            label: 'Petty cash fund',
+            value: (
+              <Link component={RouterLink} to={pettyCashFundPath(v.petty_cash_fund_id)}>
+                {v.petty_cash_fund_name ?? 'Open the fund'}
+              </Link>
+            ),
+          },
+        ]),
     ...customerHourItems(v),
     ...(hours
       ? []

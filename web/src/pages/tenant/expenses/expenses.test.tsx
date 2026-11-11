@@ -160,3 +160,44 @@ describe('ExpensesPage', () => {
     });
   });
 });
+
+describe('expenses paid from petty cash (DEC-033)', () => {
+  it('filters by paid from and shows control flags in neutral words', async () => {
+    const user = userEvent.setup();
+    mocks.list.mockResolvedValue(
+      page([
+        makeExpense({
+          paid_from: 'PETTY_CASH',
+          petty_cash_fund_id: 'fund-1',
+          control_flags: ['OVERSPEND', 'ABOVE_PETTY_CASH_MAXIMUM'],
+        }),
+      ]),
+    );
+    renderWithProviders(<ExpensesPage />, {
+      tenantPermissions: [...READ, P.tenantPettyCashRead],
+    });
+    expect(
+      await screen.findByText('More than the fund had available; Above the per-expense maximum'),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('combobox', { name: 'Paid from' }));
+    await user.click(await screen.findByRole('option', { name: 'Petty cash fund' }));
+    await waitFor(() => {
+      expect(mocks.list.mock.lastCall?.[0].filters).toMatchObject({ paid_from: 'PETTY_CASH' });
+    });
+    expect(screen.getByRole('combobox', { name: 'Petty cash fund' })).toBeInTheDocument();
+  });
+
+  it('offers no petty cash choice while the capability is off', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ExpensesPage />, {
+      tenantPermissions: [...READ, P.tenantPettyCashRead],
+      disabledCapabilities: ['PETTY_CASH'],
+    });
+    await user.click(await screen.findByRole('combobox', { name: 'Paid from' }));
+    expect(
+      await screen.findByRole('option', { name: 'Company (office / bank)' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'Petty cash fund' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Petty cash fund' })).not.toBeInTheDocument();
+  });
+});

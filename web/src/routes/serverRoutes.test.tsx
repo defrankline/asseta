@@ -8,6 +8,7 @@ import { AppRoutes } from './AppRoutes';
 /** Every console route the accountability module returns must open a real page, not the 404. */
 const MODULE = resolve(__dirname, '../../../backend/src/asseta/modules/accountability');
 const CASH = '/tenant/finance/cash';
+const PETTY = '/tenant/finance/petty-cash';
 const ID = '00000000-0000-4000-8000-000000000001';
 
 const source = (file: string) => readFileSync(resolve(MODULE, file), 'utf8');
@@ -18,7 +19,7 @@ function recordRoutes(): [string, string][] {
   const block = text.slice(text.indexOf('RECORD_ROUTES'), text.indexOf('def record_route'));
   return [...block.matchAll(/"([a-z_]+)": f?"([^"]+)"/g)].map((m) => [
     m[1] ?? '',
-    (m[2] ?? '').replace('{CASH}', CASH),
+    (m[2] ?? '').replace('{CASH}', CASH).replace('{PETTY}', PETTY),
   ]);
 }
 

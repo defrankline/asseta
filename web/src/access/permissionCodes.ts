@@ -212,4 +212,15 @@ export const PERMISSIONS = {
   tenantOversightRead: 'tenant.oversight.read',
   /** Check in at the site (GPS) and see one's own check-ins and schedule. */
   tenantSiteCheckinRecord: 'tenant.site_checkin.record',
+  // ---- Petty cash funds (DEC-033); approvals never on your own proposal or your own fund ----
+  /** See funds and their ledgers (holders: only the funds they hold). */
+  tenantPettyCashRead: 'tenant.pettycash.read',
+  /** Create, edit, deactivate and reactivate funds; change the holder. */
+  tenantPettyCashManage: 'tenant.pettycash.manage',
+  /** Propose fundings, top-ups and adjustments; issue approved money; confirm returns. */
+  tenantPettyCashPropose: 'tenant.pettycash.propose',
+  /** Approve or reject fundings, top-ups and adjustments. */
+  tenantPettyCashApprove: 'tenant.pettycash.approve',
+  /** Record a physical count of a fund or witness one. */
+  tenantPettyCashCount: 'tenant.pettycash.count',
 } as const;

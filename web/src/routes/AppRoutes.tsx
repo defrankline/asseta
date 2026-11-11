@@ -23,6 +23,7 @@ import { adjustmentRouteElements } from './adjustmentRoutes';
 import { cashRecordRouteElements } from './cashRoutes';
 import { managementRouteElements } from './managementRoutes';
 import { oversightRouteElements } from './oversightRoutes';
+import { pettyCashRouteElements } from './pettyCashRoutes';
 import { revenueRouteElements } from './revenueRoutes';
 import {
   AccessPage,
@@ -488,6 +489,7 @@ export function AppRoutes() {
         {engineHoursDetailRouteElements(engineGuard)}
         {revenueRouteElements(revenueGuard)}
         {oversightRouteElements(guard)}
+        {pettyCashRouteElements(guard)}
         {managementRouteElements(guard)}
         <Route path={ROUTES.forbidden} element={<ForbiddenPage />} />
         <Route path="*" element={<NotFoundPage />} />

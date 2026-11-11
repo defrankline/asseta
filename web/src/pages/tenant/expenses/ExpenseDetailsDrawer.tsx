@@ -21,6 +21,8 @@ import { useExpenseCategoryLabels, useStaffLabels } from '../shared/useFinanceLa
 import { useMachineLabels } from '../shared/useMachineLabels';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import { useSession } from '../../../session/useSession';
+import { pettyCashFundPath, pettyCashPath } from '../../../navigation/pettyCashRoutes';
+import { controlFlagLabel } from '../finance/pettyCash/pettyCashDisplay';
 
 interface ExpenseDetailsDrawerProps {
   expense: ExpenseDto;
@@ -59,6 +61,11 @@ export function ExpenseDetailsDrawer({ expense: e, timeZone, onClose }: ExpenseD
           )}
         </Alert>
       )}
+      {(e.control_flags ?? []).length > 0 && (
+        <Alert severity="info">
+          For the approver to look at: {(e.control_flags ?? []).map(controlFlagLabel).join('; ')}.
+        </Alert>
+      )}
       {e.status === 'REJECTED' && (
         <Alert severity="error">
           Rejected{e.decision_note === null ? '' : `: ${e.decision_note}`}. It never counts as
@@ -73,7 +80,32 @@ export function ExpenseDetailsDrawer({ expense: e, timeZone, onClose }: ExpenseD
           { label: 'Supplier', value: e.supplier ?? '—' },
           { label: 'Incurred at', value: formatInstantIn(e.incurred_at, timeZone) },
           { label: 'Paid from', value: PAID_FROM_LABELS[e.paid_from] },
-          { label: 'Custodian', value: staffLabel(e.custodian_staff_id) },
+          ...(e.paid_from === 'PETTY_CASH'
+            ? [
+                {
+                  label: 'Petty cash fund',
+                  value:
+                    e.petty_cash_fund_id == null ? (
+                      '—'
+                    ) : (
+                      <RouterLink to={pettyCashFundPath(e.petty_cash_fund_id)}>
+                        Open the fund
+                      </RouterLink>
+                    ),
+                },
+                {
+                  label: 'Advance',
+                  value:
+                    e.petty_cash_advance_id == null ? (
+                      '—'
+                    ) : (
+                      <RouterLink to={pettyCashPath('advances', e.petty_cash_advance_id)}>
+                        Open the advance
+                      </RouterLink>
+                    ),
+                },
+              ]
+            : [{ label: 'Custodian', value: staffLabel(e.custodian_staff_id) }]),
           {
             label: 'Machine',
             value: e.machine_id === null ? 'Unattributed' : machineLabel(e.machine_id),

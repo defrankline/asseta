@@ -324,3 +324,36 @@ export const PlatformBalanceVerificationPage = lazy(() =>
     default: m.PlatformBalanceVerificationPage,
   })),
 );
+
+// Petty cash (DEC-033).
+export const PettyCashPage = lazy(() =>
+  import('../pages/tenant/finance/pettyCash/PettyCashPage').then((m) => ({
+    default: m.PettyCashPage,
+  })),
+);
+export const PettyCashFundDetailPage = lazy(() =>
+  import('../pages/tenant/finance/pettyCash/FundDetailPage').then((m) => ({
+    default: m.FundDetailPage,
+  })),
+);
+const loadPettyCashRecords = () => import('../pages/tenant/finance/pettyCash/PettyCashRecordPages');
+export const PettyCashMovementDetailPage = lazy(() =>
+  loadPettyCashRecords().then((m) => ({ default: m.PettyCashMovementDetailPage })),
+);
+export const PettyCashCountDetailPage = lazy(() =>
+  loadPettyCashRecords().then((m) => ({ default: m.PettyCashCountDetailPage })),
+);
+export const PettyCashHolderChangeDetailPage = lazy(() =>
+  loadPettyCashRecords().then((m) => ({ default: m.PettyCashHolderChangeDetailPage })),
+);
+export const PettyCashAdjustmentDetailPage = lazy(() =>
+  loadPettyCashRecords().then((m) => ({ default: m.PettyCashAdjustmentDetailPage })),
+);
+export const PettyCashAdvanceDetailPage = lazy(() =>
+  loadPettyCashRecords().then((m) => ({ default: m.PettyCashAdvanceDetailPage })),
+);
+export const FieldPettyCashPage = lazy(() =>
+  import('../pages/tenant/field/FieldPettyCashPage').then((m) => ({
+    default: m.FieldPettyCashPage,
+  })),
+);

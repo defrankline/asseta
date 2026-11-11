@@ -1,4 +1,4 @@
-import { object, type Schema } from 'yup';
+import { array, object, string, type Schema } from 'yup';
 import type {
   ApprovalRequestDto,
   ApprovalStatus,
@@ -57,7 +57,11 @@ export const EXPENSE_STATUSES: readonly ExpenseStatus[] = [
   'APPROVED',
   'REJECTED',
 ];
-export const PAID_FROM_VALUES: readonly ExpensePaidFrom[] = ['CASH_CUSTODY', 'COMPANY'];
+export const PAID_FROM_VALUES: readonly ExpensePaidFrom[] = [
+  'CASH_CUSTODY',
+  'COMPANY',
+  'PETTY_CASH',
+];
 export const FUEL_EVENT_TYPES: readonly FuelEventType[] = ['PURCHASE', 'ISSUE', 'USAGE'];
 export const APPROVAL_STATUSES: readonly ApprovalStatus[] = ['PENDING', 'APPROVED', 'REJECTED'];
 
@@ -89,6 +93,10 @@ export const expenseSchema: Schema<ExpenseDto> = object({
   decision_note: nullableText(),
   receipt_attachment_ids: idList().default([]),
   approval_request_id: nullableId().default(null),
+  // DEC-033: the petty cash fund (and advance) that paid, and why a person should look at it.
+  petty_cash_fund_id: nullableId().default(null),
+  petty_cash_advance_id: nullableId().default(null),
+  control_flags: array(string().required()).default([]),
 });
 
 export const fuelEventSchema: Schema<FuelEventDto> = object({

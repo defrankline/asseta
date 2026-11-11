@@ -71,7 +71,18 @@ export const PAID_FROM_OPTIONS: readonly Option<ExpensePaidFrom>[] = [
   { value: 'CASH_CUSTODY', label: 'Supervisor cash custody' },
   { value: 'COMPANY', label: 'Company (office / bank)' },
 ];
-// PETTY_CASH needs a fund; it is chosen on the petty cash screens, not in this generic picker.
+/** Paid-from choices while petty cash is on (DEC-033): PETTY_CASH then names its fund. */
+export const PAID_FROM_WITH_PETTY_OPTIONS: readonly Option<ExpensePaidFrom>[] = [
+  ...PAID_FROM_OPTIONS,
+  { value: 'PETTY_CASH', label: 'Petty cash fund' },
+];
+/** Paid-from choices by whether the tenant's petty cash is on for this user. */
+export const PAID_FROM_CHOICES: Readonly<
+  Record<'basic' | 'petty', readonly Option<ExpensePaidFrom>[]>
+> = {
+  basic: PAID_FROM_OPTIONS,
+  petty: PAID_FROM_WITH_PETTY_OPTIONS,
+};
 export const PAID_FROM_LABELS: Readonly<Record<ExpensePaidFrom, string>> = {
   CASH_CUSTODY: 'Supervisor cash custody',
   COMPANY: 'Company (office / bank)',

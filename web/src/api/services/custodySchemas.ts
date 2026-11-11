@@ -67,6 +67,10 @@ export const VARIANCE_SOURCES: readonly VarianceSource[] = [
   'REMITTANCE',
   'FLOAT',
   'CUSTOMER_HOUR',
+  'PETTY_CASH_COUNT',
+  'PETTY_CASH_FUNDING',
+  'PETTY_CASH_RETURN',
+  'PETTY_CASH_ADVANCE',
 ];
 export const VARIANCE_STATUSES: readonly VarianceStatus[] = [
   'OPEN',
@@ -201,6 +205,8 @@ export const varianceSchema: Schema<CashVarianceDto> = object({
   purchase_number: nullableText().default(null),
   job_id: nullableId().default(null),
   job_number: nullableText().default(null),
+  petty_cash_fund_id: nullableId().default(null),
+  petty_cash_fund_name: nullableText().default(null),
 });
 
 export const varianceEventSchema: Schema<VarianceEventDto> = object({

@@ -15,9 +15,11 @@ import { withErrorCode } from '../shared/errorHints';
 import {
   CURRENCY_OPTIONS,
   FINANCE_ERROR_HINTS,
+  PAID_FROM_CHOICES,
   PAID_FROM_LABELS,
-  PAID_FROM_OPTIONS,
 } from '../shared/financeDisplay';
+import { FormikAdvanceIdPicker, FormikFundIdPicker } from '../finance/pettyCash/pettyCashPickers';
+import { usePettyCashOn, usePettyCashPolicy } from '../finance/pettyCash/pettyCashState';
 import { expenseCategoryOptionLabel } from '../shared/financeLookups';
 import {
   FormikExpenseCategoryIdPicker,
@@ -45,6 +47,8 @@ interface RecordExpenseDialogProps {
   variant?: 'office' | 'field';
   /** Pre-selects the job (Field work job workspace). */
   jobId?: string;
+  /** Pre-selects "paid from" this petty cash fund (the holder's petty cash page). */
+  pettyCashFundId?: string;
   timeZone: string;
   onClose: () => void;
   onRecorded: (expense: ExpenseDto) => void;
@@ -54,16 +58,22 @@ interface RecordExpenseDialogProps {
 export function RecordExpenseDialog({
   variant = 'office',
   jobId,
+  pettyCashFundId,
   timeZone,
   onClose,
   onRecorded,
 }: RecordExpenseDialogProps) {
+  const pettyOn = usePettyCashOn();
+  const pettyPolicy = usePettyCashPolicy();
   const keyFor = useIdempotencyKey();
   const [clientId] = useState(() => newUuid());
   const [category, setCategory] = useState<ExpenseCategoryDto | null>(null);
   const [initial] = useState(() => ({
     ...emptyExpenseValues(new Date().toISOString()),
     job_id: jobId ?? '',
+    ...(pettyCashFundId === undefined
+      ? {}
+      : { paid_from: 'PETTY_CASH' as const, petty_cash_fund_id: pettyCashFundId }),
   }));
   const field = variant === 'field';
   const JobPicker = field ? FormikFieldJobIdPicker : FormikJobIdPicker;
@@ -111,9 +121,26 @@ export function RecordExpenseDialog({
           <FormikSelectField
             name="paid_from"
             label="Paid from"
-            options={PAID_FROM_OPTIONS}
+            options={PAID_FROM_CHOICES[pettyOn ? 'petty' : 'basic']}
             required
           />
+          {formik.values.paid_from === 'PETTY_CASH' && (
+            <>
+              <FormikFundIdPicker
+                name="petty_cash_fund_id"
+                label="Petty cash fund"
+                required
+                helperText="The expense must be in the fund's currency. Spending more than the fund has available is refused."
+              />
+              {pettyPolicy?.advancesEnabled === true && (
+                <FormikAdvanceIdPicker
+                  name="petty_cash_advance_id"
+                  label="Paid from an advance (optional)"
+                  fundId={formik.values.petty_cash_fund_id}
+                />
+              )}
+            </>
+          )}
           {formik.values.paid_from === 'CASH_CUSTODY' && field && (
             <Typography variant="body2" color="text.secondary">
               Paid from your own cash custody. An approved cash expense reduces your outstanding

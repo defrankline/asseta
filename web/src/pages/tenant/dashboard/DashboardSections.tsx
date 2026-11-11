@@ -28,6 +28,7 @@ import {
   type SectionKey,
 } from './dashboardModel';
 import { KpiCard, type KpiRow } from './KpiCard';
+import { PETTY_CASH_ROUTES } from '../../../navigation/pettyCashRoutes';
 
 export type Can = (permission: string) => boolean;
 
@@ -234,6 +235,8 @@ function money(amount: string, currency: string) {
 }
 
 function CurrencyCard({ c, can }: { c: OverviewCurrencyMoneyDto; can: Can }) {
+  /** DEC-033: kept apart from the collections custody; shown only while petty cash is on. */
+  const pettyOn = useCapabilityEnabled(CAPABILITY.pettyCash);
   const rows: KpiRow[] = [
     {
       key: 'outstanding',
@@ -265,6 +268,16 @@ function CurrencyCard({ c, can }: { c: OverviewCurrencyMoneyDto; can: Can }) {
       ...money(c.cash_with_supervisors, c.currency),
       to: L.cashCustody(),
     },
+    ...(pettyOn
+      ? [
+          {
+            key: 'petty',
+            label: 'Petty cash held',
+            ...money(c.petty_cash_held, c.currency),
+            to: can(PERMISSIONS.tenantPettyCashRead) ? PETTY_CASH_ROUTES.home : undefined,
+          },
+        ]
+      : []),
   ];
   return <KpiCard title={c.currency} rows={rows} />;
 }
