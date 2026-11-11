@@ -1,5 +1,6 @@
 import { Box } from '@mui/material';
 import { FormikTextField } from '../../../components/forms/FormikTextField';
+import { PaymentTermsField } from './PaymentTermsField';
 import type { FormStep } from '../../../components/forms/StepperFormDialog';
 import { CONTACT_FIELDS, CUSTOMER_FIELDS, type CustomerFormValues } from './customerForm';
 
@@ -15,12 +16,7 @@ export const CUSTOMER_STEPS: readonly FormStep<CustomerFormValues>[] = [
         <FormikTextField name="code" label="Code" required />
         <FormikTextField name="name" label="Name" required />
         <FormikTextField name="tax_id" label="Tax ID" />
-        <FormikTextField
-          name="payment_terms_days"
-          label="Payment terms (days)"
-          required
-          slotProps={{ htmlInput: { inputMode: 'numeric' } }}
-        />
+        <PaymentTermsField />
       </Box>
     ),
   },

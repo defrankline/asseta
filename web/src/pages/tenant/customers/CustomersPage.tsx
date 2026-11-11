@@ -21,6 +21,8 @@ import { CreateCustomerDialog } from './CreateCustomerDialog';
 import { RateCardSection } from './RateCardSection';
 import { customerLabel, useCustomerActions } from './useCustomerActions';
 
+const CUSTOMER_EDIT = [PERMISSIONS.tenantCustomerWrite, PERMISSIONS.tenantCustomerDetails] as const;
+
 /** Customers (open one for its contracts) and the tenant's rental rate cards. */
 export function CustomersPage() {
   const navigate = useNavigate();
@@ -76,7 +78,7 @@ export function CustomersPage() {
         title="Customers"
         subtitle="Customers, rental contracts and rate cards. Open a customer to see its contracts."
         actions={
-          <CanMutate permission={PERMISSIONS.tenantCustomerWrite}>
+          <CanMutate permission={CUSTOMER_EDIT} match="any">
             <Button
               variant="contained"
               startIcon={<Add />}

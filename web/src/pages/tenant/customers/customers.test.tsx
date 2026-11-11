@@ -22,6 +22,7 @@ vi.mock('../../../api/services/customerService', () => ({ customerService: mocks
 
 const READ = ['tenant.customer.read'];
 const WRITE = [...READ, 'tenant.customer.write'];
+const DETAILS = [...READ, 'tenant.customer.details'];
 const MENU = 'Actions for C-01 · Acme Roads';
 const page = <T,>(items: T[]) => ({ items, total: items.length, page: 1, page_size: 25 });
 const conflict = (code: string, message: string) =>
@@ -125,6 +126,20 @@ async function walkToReview(user: ReturnType<typeof userEvent.setup>) {
   await screen.findByRole('textbox', { name: /Contact email/ });
   await user.click(screen.getByRole('button', { name: 'Next' }));
 }
+
+describe('customer details permission (field staff)', () => {
+  it('adds and edits customers but leaves terms and deactivation to the office', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<CustomersPage />, { tenantPermissions: DETAILS });
+    expect(await screen.findByRole('button', { name: 'New customer' })).toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: MENU }));
+    expect(screen.getByRole('menuitem', { name: 'Edit' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Deactivate' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('menuitem', { name: 'Edit' }));
+    expect(await screen.findByRole('textbox', { name: /Payment terms/ })).toBeDisabled();
+    expect(screen.getByText('Set by the office')).toBeInTheDocument();
+  });
+});
 
 describe('edit customer', () => {
   it('is prefilled and submits with the version that was read', async () => {

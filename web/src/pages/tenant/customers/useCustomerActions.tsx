@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { PERMISSIONS } from '../../../access/permissionCodes';
-import { useCanMutate } from '../../../access/useCanMutate';
+import { useCanMutate, useMutationGuard } from '../../../access/useCanMutate';
 import { customerService } from '../../../api/services/customerService';
 import type { CustomerDto } from '../../../api/types';
 import { standardRowActions, type RowAction } from '../../../components/lifecycle/rowActions';
@@ -26,6 +26,8 @@ export function useCustomerActions({ onChanged, onReload, onView }: UseCustomerA
 } {
   const notify = useNotify();
   const canWrite = useCanMutate(PERMISSIONS.tenantCustomerWrite);
+  const guard = useMutationGuard();
+  const canEditDetails = canWrite || guard(PERMISSIONS.tenantCustomerDetails);
   const [editing, setEditing] = useState<CustomerDto | null>(null);
   const lifecycle = useLifecycleDialog<CustomerDto>({
     labelOf: customerLabel,
@@ -48,7 +50,7 @@ export function useCustomerActions({ onChanged, onReload, onView }: UseCustomerA
   const actionsFor = (c: CustomerDto): RowAction[] =>
     standardRowActions({
       active: c.is_active,
-      canEdit: canWrite,
+      canEdit: canEditDetails,
       canChangeState: canWrite,
       ...(onView !== undefined
         ? {

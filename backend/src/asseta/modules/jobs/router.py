@@ -21,7 +21,7 @@ from asseta.modules.fleet.models import Machine
 from asseta.modules.geospatial.models import JobSite
 from asseta.modules.identity.catalog import CATALOG, MenuDef
 from asseta.modules.identity.catalog import PermissionScope as S
-from asseta.modules.identity.dependencies import requires
+from asseta.modules.identity.dependencies import requires, requires_any
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.jobs.dto import (
     AcknowledgementDto,
@@ -61,6 +61,25 @@ from asseta.modules.jobs.service import JobService
 
 CUSTOMER_READ = requires("tenant.customer.read", S.TENANT, "View customers and contracts")
 CUSTOMER_WRITE = requires("tenant.customer.write", S.TENANT, "Manage customers, contracts and rate cards")
+CUSTOMER_DETAILS = requires(
+    "tenant.customer.details",
+    S.TENANT,
+    "Add customers and edit their details (not payment terms, contracts or rates)",
+)
+# Adding a customer or editing its details: either permission. Payment terms stay with tenant.customer.write.
+CUSTOMER_EDIT = requires_any(("tenant.customer.write", "tenant.customer.details"), S.TENANT)
+DEFAULT_PAYMENT_TERMS = CustomerIn.model_fields["payment_terms_days"].default
+
+
+def _terms_allowed(ctx: RequestContext, wanted: int, current: int) -> None:
+    """Without tenant.customer.write the payment terms are left as they are (the default for a new customer)."""
+    if wanted != current and "tenant.customer.write" not in ctx.permissions:
+        raise PermissionDenied(
+            "Payment terms are set by the office; you can add customers and edit their details",
+            code="CUSTOMER_TERMS_NOT_PERMITTED",
+        )
+
+
 JOB_READ = requires("tenant.job.read", S.TENANT, "View jobs, work logs and job summaries")
 JOB_WRITE = requires("tenant.job.write", S.TENANT, "Create jobs and submit them for approval")
 JOB_APPROVE = requires("tenant.job.approve", S.TENANT, "Approve job prices and authorize start/completion")
@@ -89,8 +108,9 @@ CustomerWrite = Annotated[RequestContext, Depends(CUSTOMER_WRITE)]
 
 @router.post("/customers", response_model=CustomerDto, status_code=201, operation_id="createCustomer")
 def create_customer(
-    body: CustomerIn, session: DbSession, ctx: Annotated[RequestContext, Depends(CUSTOMER_WRITE)]
+    body: CustomerIn, session: DbSession, ctx: Annotated[RequestContext, Depends(CUSTOMER_EDIT)]
 ) -> CustomerDto:
+    _terms_allowed(ctx, body.payment_terms_days, DEFAULT_PAYMENT_TERMS)
     return JobService(session, ctx).create_customer(body)
 
 
@@ -118,9 +138,14 @@ def get_customer(customer_id: uuid.UUID, session: DbSession, ctx: CustomerRead) 
 
 @router.put("/customers/{customer_id}", response_model=CustomerDto, operation_id="updateCustomer")
 def update_customer(
-    customer_id: uuid.UUID, body: CustomerUpdateIn, session: DbSession, ctx: CustomerWrite
+    customer_id: uuid.UUID,
+    body: CustomerUpdateIn,
+    session: DbSession,
+    ctx: Annotated[RequestContext, Depends(CUSTOMER_EDIT)],
 ) -> CustomerDto:
-    return RecordLifecycleService(session, ctx).update_customer(customer_id, body)
+    svc = RecordLifecycleService(session, ctx)
+    _terms_allowed(ctx, body.payment_terms_days, svc.customer(customer_id).payment_terms_days)
+    return svc.update_customer(customer_id, body)
 
 
 @router.post("/customers/{customer_id}/deactivate", response_model=CustomerDto, operation_id="deactivateCustomer")

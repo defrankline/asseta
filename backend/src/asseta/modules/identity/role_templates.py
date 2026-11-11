@@ -91,6 +91,7 @@ TENANT_TEMPLATES = (
             "tenant.meter.capture",
             "tenant.meter.read",
             "tenant.customer.read",
+            "tenant.customer.details",  # supervisors deal with customers daily: add them, keep their details current
             "tenant.expense.read",
             "tenant.expense.write",
             "tenant.collection.record",

@@ -78,6 +78,8 @@ export const PERMISSIONS = {
   /** Customers and contracts (read); write also covers rate-card versions. */
   tenantCustomerRead: 'tenant.customer.read',
   tenantCustomerWrite: 'tenant.customer.write',
+  /** Add customers and edit their details (not payment terms, contracts or rates). */
+  tenantCustomerDetails: 'tenant.customer.details',
   /** Jobs, work logs and job summaries (read). */
   tenantJobRead: 'tenant.job.read',
   /** Create jobs and SUBMIT them for approval. */
