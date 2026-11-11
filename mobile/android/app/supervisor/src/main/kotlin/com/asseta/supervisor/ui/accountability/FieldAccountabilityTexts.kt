@@ -1,5 +1,8 @@
 package com.asseta.supervisor.ui.accountability
 
+import com.asseta.core.domain.accountability.HoursPricing
+import com.asseta.core.domain.accountability.HoursSalePrice
+import com.asseta.core.domain.accountability.HoursSaleQuote
 import com.asseta.core.domain.accountability.PaymentMethod
 import com.asseta.core.model.sync.CashTransferDto
 
@@ -52,6 +55,20 @@ object FieldAccountabilityTexts {
     const val MACHINE = "Machine"
     const val HOURS = "Hours"
     const val HOURS_FOOTER = "The price comes from your company's rate card and any approved discount."
+    const val HOURS_PRICE_LATER = "The price is set when the sale reaches the office."
+
+    /** "Total: TZS 570,000 (6 h × 95,000/h)", with " less 10% discount" inside the brackets when the customer has one. */
+    fun hoursTotal(q: HoursSaleQuote): String {
+        val discount = if (q.discountPercent.signum() > 0) " less ${HoursPricing.figure(q.discountPercent)}% discount" else ""
+        return "Total: ${HoursPricing.money(q.amount, q.currency)} (${HoursPricing.figure(q.hours)} h × ${HoursPricing.rate(q.hourlyRate)}/h$discount)"
+    }
+
+    /** The line under Hours: the total, the "priced at the office" notice, or nothing yet. */
+    fun hoursPrice(price: HoursSalePrice): String? = when (price) {
+        HoursSalePrice.Hidden -> null
+        HoursSalePrice.Unpriced -> HOURS_PRICE_LATER
+        is HoursSalePrice.Priced -> hoursTotal(price.quote)
+    }
     const val SECTION_PAYMENT = "Payment"
     const val PAID_NOW = "Paid now"
     const val NOT_PAID = "Not paid yet"

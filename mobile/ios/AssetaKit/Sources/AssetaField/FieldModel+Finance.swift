@@ -15,6 +15,8 @@ extension FieldModel {
     var customers: [CustomerDTO] { (try? services?.directory.customers()) ?? [] }
     var machines: [MachineDTO] { (try? services?.directory.machines()) ?? [] }
     var baseCurrency: String? { services?.directory.baseCurrency() }
+    /// Machine rates and customer discounts saved from sync: the hours sale total shows as the hours are typed, offline.
+    var hoursPrices: HoursPriceBook { services?.directory.hoursPrices() ?? HoursPriceBook() }
     /// Company deposit accounts saved from sync (deactivated ones included; the picker shows active ones).
     var depositAccounts: [DepositAccountDTO] { (try? services?.directory.allDepositAccounts()) ?? [] }
 

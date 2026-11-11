@@ -149,6 +149,9 @@ public enum AccountabilityRules {
         return value.isEmpty ? nil : value
     }
 
+    /// The hours of a sale as typed (more than 0, at most 2 decimals), or nil while they are not a valid number.
+    public static func saleHours(_ text: String) -> Decimal? { value(text, decimals: hoursDecimals) }
+
     public static func hoursSale(_ d: HoursSaleDraft, walkInAllowed: Bool) -> Check<HoursSaleValues> {
         var m: [String] = []
         var name: String?, phone: String?

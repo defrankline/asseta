@@ -10,6 +10,10 @@ import com.asseta.core.database.ClientOperationEntity
 import com.asseta.core.database.ExpenseCategoryEntity
 import com.asseta.core.database.MachineEntity
 import com.asseta.core.domain.accountability.DepositAccountOption
+import com.asseta.core.domain.accountability.HoursPrice
+import com.asseta.core.domain.accountability.HoursPriceBook
+import com.asseta.core.model.sync.CustomerDiscountRateDto
+import com.asseta.core.model.sync.HoursPriceDto
 import com.asseta.core.domain.accountability.LinkableInvoice
 import com.asseta.core.domain.accountability.UnsyncedPurchase
 import com.asseta.core.domain.finance.CustodyBalance
@@ -150,6 +154,25 @@ class FinanceRepository(
         return db().fieldDataDao().observeReferences(tenantId, ServerDataWriter.KIND_UNBILLABLE_REASON).first()
             .mapNotNull { runCatching { json.decodeFromString(SyncUnbillableReasonDto.serializer(), it.json) }.getOrNull() }
             .filter { it.isActive }.sortedBy { it.name.lowercase() }
+    }
+
+    /** Machine rates and customer discounts of the last pull (SYNC_HOURS_PRICES), for the hours sale total offline. */
+    fun observeHoursPrices(tenantId: String): Flow<HoursPriceBook> {
+        val dao = db().fieldDataDao()
+        return combine(
+            dao.observeReferences(tenantId, ServerDataWriter.KIND_HOURS_PRICE),
+            dao.observeReferences(tenantId, ServerDataWriter.KIND_CUSTOMER_DISCOUNT),
+        ) { prices, discounts ->
+            HoursPriceBook(
+                prices = prices.mapNotNull { runCatching { json.decodeFromString(HoursPriceDto.serializer(), it.json) }.getOrNull() }
+                    .mapNotNull { p ->
+                        val rate = p.hourlyRate.toBigDecimalOrNull() ?: return@mapNotNull null
+                        HoursPrice(p.machineId, rate, p.minimumHours.toBigDecimalOrNull() ?: BigDecimal.ZERO, p.currency)
+                    }.associateBy { it.machineId },
+                discounts = discounts.mapNotNull { runCatching { json.decodeFromString(CustomerDiscountRateDto.serializer(), it.json) }.getOrNull() }
+                    .mapNotNull { d -> d.percent.toBigDecimalOrNull()?.let { d.customerId to it } }.toMap(),
+            )
+        }
     }
 
     fun observeMachines(tenantId: String): Flow<List<MachineEntity>> =

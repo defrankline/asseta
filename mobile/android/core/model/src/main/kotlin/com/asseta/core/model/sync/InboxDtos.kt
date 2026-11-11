@@ -68,6 +68,12 @@ object SyncCapabilities {
     /** SyncData.petty_cash_witnesses: who may witness a count (never me), so a witnessed count is recorded offline. */
     const val SYNC_PETTY_CASH_WITNESSES = "SYNC_PETTY_CASH_WITNESSES"
 
+    /**
+     * SyncData.hours_prices and customer_discounts (full snapshots): the phone shows the total of an hours sale as the
+     * hours are typed, offline, with the server's price rule.
+     */
+    const val SYNC_HOURS_PRICES = "SYNC_HOURS_PRICES"
+
     /** PETTY_CASH_ADVANCE: the fund's holder hands out an advance offline (policy advances_enabled). */
     const val OP_PETTY_CASH_ADVANCE = "OP_PETTY_CASH_ADVANCE"
 }

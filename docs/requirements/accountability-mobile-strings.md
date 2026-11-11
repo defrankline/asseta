@@ -80,6 +80,9 @@ encrypted on the phone) enables it. Unknown policy (never loaded) = hidden, so t
 | field.hours.machine | Machine |
 | field.hours.hours | Hours |
 | field.hours.hoursFooter | The price comes from your company's rate card and any approved discount. |
+| field.hours.total | Total: {amount} ({hours} h × {rate}/h) |
+| field.hours.totalDiscount | Total: {amount} ({hours} h × {rate}/h less {percent}% discount) |
+| field.hours.priceLater | The price is set when the sale reaches the office. |
 | field.hours.sectionPayment | Payment |
 | field.hours.paidNow | Paid now |
 | field.hours.notPaid | Not paid yet |
@@ -104,6 +107,17 @@ encrypted on the phone) enables it. Unknown policy (never loaded) = hidden, so t
 | field.hours.errReference | Enter the reference for bank and mobile-money payments. |
 | field.hours.errWalkInOff | Walk-in customers are turned off for your company. |
 | field.hours.off | Customer hours are turned off for your company. |
+
+The total line shows under Hours once a machine is chosen and the hours are more than 0. It is computed on the phone from
+the last pull's `SyncData.hours_prices` and `customer_discounts` (`SYNC_HOURS_PRICES`, full snapshots that replace the
+local sets; cleared when the capability goes away), so it works offline, with the server's rule: effective rate = hourly
+rate × (100 − percent) / 100, rounded to 4 decimals (half-even); total = hours × effective rate, rounded half-up to the
+currency's minor units (ISO 4217: TZS 2, UGX 0, KWD 3; 2 for an unlisted code). A walk-in sale has no discount.
+`{amount}` is the currency code then the grouped amount, with decimals only when it has cents ("TZS 570,000",
+"USD 1,234.50"); `{rate}` is the hourly rate before the discount, grouped, up to 4 decimals ("95,000"); `{hours}` and
+`{percent}` are grouped, up to 2 decimals ("6", "12.5"). A machine without a stored price shows `field.hours.priceLater`;
+saving still works and the server prices the sale on arrival. The line is information only: the amount received is never
+filled in from it.
 
 ### Request hours transfer (offline, `HOURS_TRANSFER_REQUEST`)
 | Key | English |

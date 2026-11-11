@@ -99,6 +99,10 @@ public struct SyncData: Codable, Hashable, Sendable {
     public var pettyCashAdvances: [JSONValue] = []
     /// SYNC_PETTY_CASH_WITNESSES: colleagues who may witness a count (full snapshot, replaces the local set).
     public var pettyCashWitnesses: [JSONValue] = []
+    /// SYNC_HOURS_PRICES: each synced machine's current hourly rate, and customers' approved discounts in force today
+    /// (full snapshots, they replace the local sets).
+    public var hoursPrices: [JSONValue] = []
+    public var customerDiscounts: [JSONValue] = []
     /// Supervisor inbox lists (SUPERVISOR_INBOX_V1), raw as sent; `nil` when the server did not send
     /// the field (an older server): the stored inbox is then left untouched.
     public var inbox: [InboxList: [JSONValue]] = [:]
@@ -129,6 +133,7 @@ public struct SyncData: Codable, Hashable, Sendable {
         case pettyCashFunds = "petty_cash_funds", pettyCashAwaiting = "petty_cash_awaiting"
         case pettyCashHolderChanges = "petty_cash_holder_changes", pettyCashAdvances = "petty_cash_advances"
         case pettyCashWitnesses = "petty_cash_witnesses"
+        case hoursPrices = "hours_prices", customerDiscounts = "customer_discounts"
     }
 
     /// The `my_*` inbox lists of `SyncData`.
@@ -158,6 +163,8 @@ public struct SyncData: Codable, Hashable, Sendable {
         try c.encode(pettyCashHolderChanges, forKey: .pettyCashHolderChanges)
         try c.encode(pettyCashAdvances, forKey: .pettyCashAdvances)
         try c.encode(pettyCashWitnesses, forKey: .pettyCashWitnesses)
+        try c.encode(hoursPrices, forKey: .hoursPrices)
+        try c.encode(customerDiscounts, forKey: .customerDiscounts)
         var lists = encoder.container(keyedBy: InboxList.self)
         for (key, rows) in inbox { try lists.encode(rows, forKey: key) }
     }
@@ -184,6 +191,8 @@ public struct SyncData: Codable, Hashable, Sendable {
         pettyCashHolderChanges = try c.decodeIfPresent([JSONValue].self, forKey: .pettyCashHolderChanges) ?? []
         pettyCashAdvances = try c.decodeIfPresent([JSONValue].self, forKey: .pettyCashAdvances) ?? []
         pettyCashWitnesses = try c.decodeIfPresent([JSONValue].self, forKey: .pettyCashWitnesses) ?? []
+        hoursPrices = try c.decodeIfPresent([JSONValue].self, forKey: .hoursPrices) ?? []
+        customerDiscounts = try c.decodeIfPresent([JSONValue].self, forKey: .customerDiscounts) ?? []
         let lists = try decoder.container(keyedBy: InboxList.self)
         for key in InboxList.allCases {
             if let rows = try lists.decodeIfPresent([JSONValue].self, forKey: key) { inbox[key] = rows }

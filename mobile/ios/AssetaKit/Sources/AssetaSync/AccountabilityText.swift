@@ -52,6 +52,23 @@ public enum FieldAccountabilityTexts {
     public static let hoursMachine = "Machine"
     public static let hoursHours = "Hours"
     public static let hoursHoursFooter = "The price comes from your company's rate card and any approved discount."
+    public static let hoursPriceLater = "The price is set when the sale reaches the office." // field.hours.priceLater
+
+    /// "Total: TZS 570,000 (6 h × 95,000/h)", with " less 10% discount" inside the brackets when the customer has one
+    /// (field.hours.total, field.hours.totalDiscount).
+    public static func hoursTotal(_ q: HoursSaleQuote) -> String {
+        let discount = q.discountPercent > 0 ? " less \(HoursPricing.figure(q.discountPercent))% discount" : ""
+        return "Total: \(HoursPricing.money(q.amount, currency: q.currency)) (\(HoursPricing.figure(q.hours)) h × \(HoursPricing.rate(q.hourlyRate))/h\(discount))"
+    }
+
+    /// The line under Hours: the total, the "priced at the office" notice, or nothing yet.
+    public static func hoursPrice(_ price: HoursSalePrice) -> String? {
+        switch price {
+        case .hidden: nil
+        case .unpriced: hoursPriceLater
+        case let .priced(quote): hoursTotal(quote)
+        }
+    }
     public static let hoursSectionPayment = "Payment"
     public static let hoursPaidNow = "Paid now"
     public static let hoursNotPaid = "Not paid yet"

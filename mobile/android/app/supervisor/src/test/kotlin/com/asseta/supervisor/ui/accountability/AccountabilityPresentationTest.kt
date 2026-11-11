@@ -76,6 +76,23 @@ class AccountabilityPresentationTest {
     }
 
     @Test
+    fun `hours sale total wording`() {
+        val book = com.asseta.core.domain.accountability.HoursPriceBook(
+            prices = mapOf("ex01" to com.asseta.core.domain.accountability.HoursPrice("ex01", java.math.BigDecimal("95000.0000"), java.math.BigDecimal.ZERO, "TZS")),
+            discounts = mapOf("acme" to java.math.BigDecimal("10.00")),
+        )
+        fun line(customer: String?, hours: String, walkIn: Boolean = false, machine: String? = "ex01") =
+            FieldAccountabilityTexts.hoursPrice(com.asseta.core.domain.accountability.HoursPricing.price(book, machine, customer, walkIn, hours))
+        assertEquals("Total: TZS 570,000 (6 h × 95,000/h)", line(null, "6"))
+        assertEquals("Total: TZS 513,000 (6 h × 95,000/h less 10% discount)", line("acme", "6"))
+        assertEquals("Total: TZS 570,000 (6 h × 95,000/h)", line("acme", "6", walkIn = true))
+        assertEquals("Total: TZS 1,068,750 (12.5 h × 95,000/h less 10% discount)", line("acme", "12.5"))
+        assertEquals("The price is set when the sale reaches the office.", line(null, "6", machine = "other"))
+        assertEquals(null, line(null, "", machine = "ex01"))
+        assertEquals(null, line(null, "6", machine = null))
+    }
+
+    @Test
     fun `routes are titled and presented as forms`() {
         assertEquals("Sell customer hours", Route.HoursSale.title("Acme"))
         assertEquals("Daily reading", Route.DailyReading("m1").title("Acme"))

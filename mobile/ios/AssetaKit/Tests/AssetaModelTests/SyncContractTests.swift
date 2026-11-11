@@ -172,6 +172,18 @@ struct SyncContractTests {
         try Self.check("ChangesDto", encoded: Self.roundTrip(ChangesDTO.self, changes), sample: changes)
     }
 
+    @Test func hoursPricesMatchTheContract() throws {
+        let price: [String: Any] = ["machine_id": Self.ids[2], "rate_card_id": Self.ids[1], "hourly_rate": "95000.0000",
+                                    "minimum_hours": "0.0000", "currency": "TZS", "effective_from": "2026-01-01T00:00:00Z"]
+        try Self.check("HoursPriceDto", encoded: Self.roundTrip(HoursPriceDTO.self, price), sample: price)
+        let discount: [String: Any] = ["customer_id": Self.ids[4], "percent": "10.00"]
+        try Self.check("CustomerDiscountRateDto", encoded: Self.roundTrip(CustomerDiscountRateDTO.self, discount), sample: discount)
+        let data: [String: Any] = ["jobs": [], "hours_prices": [price], "customer_discounts": [discount]]
+        let decoded = try AssetaJSON.decoder().decode(SyncData.self, from: try JSONSerialization.data(withJSONObject: data))
+        #expect(decoded.hoursPrices.count == 1 && decoded.customerDiscounts.count == 1)
+        try Self.check("SyncData", encoded: Self.roundTrip(SyncData.self, data), sample: data)
+    }
+
     @Test func olderServerWithoutInboxListsLeavesThemAbsent() throws {
         let changes: [String: Any] = ["server_time": "2026-10-23T08:00:00Z", "cursor": 5, "has_more": false, "data": [:],
                                       "policy_snapshots": []]

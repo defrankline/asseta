@@ -46,6 +46,7 @@ struct HoursSaleFormView: View {
     var body: some View {
         let a = model.access
         let check = AccountabilityRules.hoursSale(draft, walkInAllowed: a.walkIn)
+        let prices = model.hoursPrices
         NavigationStack {
             Form {
                 if !a.sellHours {
@@ -71,6 +72,10 @@ struct HoursSaleFormView: View {
                                               identifier: "hours.machine")
                         TextField(T.hoursHours, text: $draft.hoursText).keyboardType(.decimalPad)
                             .font(.title3.monospacedDigit()).accessibilityIdentifier("hours.hours")
+                        if let line = T.hoursPrice(HoursPricing.price(prices, machineID: draft.machineID, customerID: draft.customerID,
+                                                                      walkIn: draft.walkIn, hoursText: draft.hoursText)) {
+                            Text(line).font(.body).accessibilityIdentifier("hours.total")
+                        }
                         TextField(T.noteOptional, text: $draft.note, axis: .vertical)
                     } header: { Text(T.hoursSectionHours) } footer: { Text(T.hoursHoursFooter) }
                     Section {

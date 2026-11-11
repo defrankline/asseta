@@ -190,6 +190,7 @@ public actor SyncEngine {
             try saveCustody(response.data.cashCustody, asOf: response.serverTime)
             try saveOpenInvoices(response.data, capabilities: response.capabilities, revision: response.cursor)
             try savePettyCash(response.data, capabilities: response.capabilities, revision: response.cursor)
+            try saveHoursPrices(response.data, capabilities: response.capabilities, revision: response.cursor)
             try saveSnapshots(response.policySnapshots, receivedAt: response.serverTime)
             try setValue(String(response.cursor), SyncKey.cursor)
             try setDate(response.deviceSession.offlineGrantUntil, SyncKey.grantUntil)
@@ -214,6 +215,7 @@ public actor SyncEngine {
                 try saveCustody(page.data.cashCustody, asOf: page.serverTime)
                 try saveOpenInvoices(page.data, capabilities: page.capabilities, revision: page.cursor)
                 try savePettyCash(page.data, capabilities: page.capabilities, revision: page.cursor)
+                try saveHoursPrices(page.data, capabilities: page.capabilities, revision: page.cursor)
                 try saveSnapshots(page.policySnapshots, receivedAt: page.serverTime)
                 try setValue(String(max(page.cursor, cursor)), SyncKey.cursor)
             }
@@ -332,6 +334,22 @@ public actor SyncEngine {
             let rows = on ? try objects.compactMap { object -> StoredEntity? in
                 // Witnesses are keyed by their login (`user_id`), every other set by `id`.
                 let key = type == PettyCash.witnessType ? "user_id" : "id"
+                guard let id = object[key]?.stringValue.flatMap(UUID.init(uuidString:)) else { return nil }
+                return StoredEntity(entityType: type, id: id, revision: revision, version: nil, json: try object.jsonString())
+            } : []
+            try store.syncState.replaceEntities(type: type, with: rows, tenantID: tenantID)
+        }
+    }
+
+    /// Hours-sale prices (SYNC_HOURS_PRICES) are full snapshots on every pull: machine rates (keyed by machine) and
+    /// customer discounts (keyed by customer) replace the local sets. Without the capability nothing of them is kept.
+    private func saveHoursPrices(_ data: SyncData, capabilities: [String]?, revision: Int64) throws {
+        let on = capabilities?.contains(SyncCapability.hoursPrices) == true
+        let lists: [(String, String, [JSONValue])] = [
+            (HoursPricing.priceType, "machine_id", data.hoursPrices), (HoursPricing.discountType, "customer_id", data.customerDiscounts),
+        ]
+        for (type, key, objects) in lists {
+            let rows = on ? try objects.compactMap { object -> StoredEntity? in
                 guard let id = object[key]?.stringValue.flatMap(UUID.init(uuidString:)) else { return nil }
                 return StoredEntity(entityType: type, id: id, revision: revision, version: nil, json: try object.jsonString())
             } : []

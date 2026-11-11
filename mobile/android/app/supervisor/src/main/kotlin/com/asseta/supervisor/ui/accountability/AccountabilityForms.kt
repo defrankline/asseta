@@ -30,6 +30,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.asseta.core.domain.accountability.AccountabilityRules
 import com.asseta.core.domain.accountability.FieldAccess
+import com.asseta.core.domain.accountability.HoursPriceBook
+import com.asseta.core.domain.accountability.HoursPricing
 import com.asseta.core.domain.accountability.HoursSaleDraft
 import com.asseta.core.domain.accountability.PaymentMethod
 import com.asseta.core.domain.finance.FormCheck
@@ -151,6 +153,9 @@ class HoursSaleViewModel(field: FieldGraph, tenantId: String, permissions: Set<S
     val machines: StateFlow<List<PickerOption>> = field.financeRepository.observeMachines(tenantId)
         .map { list -> list.map { PickerOption(it.id, it.assetCode, it.name) } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    /** Machine rates and customer discounts saved from sync: the total shows as the hours are typed, offline. */
+    val prices: StateFlow<HoursPriceBook> = field.financeRepository.observeHoursPrices(tenantId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HoursPriceBook())
 
     fun edit(change: (HoursSaleForm) -> HoursSaleForm) {
         form.update(change)
@@ -185,9 +190,11 @@ fun HoursSaleScreen(vm: HoursSaleViewModel, onDone: () -> Unit) {
     val me by vm.me.collectAsStateWithLifecycle()
     val customers by vm.customers.collectAsStateWithLifecycle()
     val machines by vm.machines.collectAsStateWithLifecycle()
+    val prices by vm.prices.collectAsStateWithLifecycle()
     val a = access ?: return
     val editable = !save.saving && !save.saved
     val now = System.currentTimeMillis()
+    val priceLine = T.hoursPrice(HoursPricing.price(prices, form.machineId, form.customerId, form.walkIn, form.hours))
     FormColumn {
         if (!a.sellHours) {
             NoticeCard(T.TITLE_HOURS_SALE, if (a.hours == null) T.NEEDS_RULES else T.HOURS_OFF, isError = true)
@@ -205,6 +212,7 @@ fun HoursSaleScreen(vm: HoursSaleViewModel, onDone: () -> Unit) {
         Section(T.SECTION_HOURS, footer = T.HOURS_FOOTER) {
             SearchablePickerField(T.MACHINE, machines, form.machineId, { id -> vm.edit { it.copy(machineId = id) } }, enabled = editable)
             DecimalField(T.HOURS, form.hours, { v -> vm.edit { it.copy(hours = v) } }, editable)
+            priceLine?.let { Text(it, style = MaterialTheme.typography.bodyLarge) }
             TextInput(T.NOTE_OPTIONAL, form.note, { v -> vm.edit { it.copy(note = v) } }, editable, singleLine = false)
         }
         Section(T.SECTION_PAYMENT, footer = if (form.paidNow) T.PAYMENT_FOOTER else T.NOT_PAID_FOOTER) {

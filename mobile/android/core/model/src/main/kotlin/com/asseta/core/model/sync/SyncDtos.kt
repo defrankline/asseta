@@ -73,6 +73,10 @@ data class SyncData(
     @SerialName("petty_cash_advances") val pettyCashAdvances: List<PettyCashAdvanceDto> = emptyList(),
     /** SYNC_PETTY_CASH_WITNESSES: colleagues who may witness a count (full snapshot, replaced on every pull). */
     @SerialName("petty_cash_witnesses") val pettyCashWitnesses: List<PettyCashWitnessDto> = emptyList(),
+    /** SYNC_HOURS_PRICES: each synced machine's current hourly rate (full snapshot, replaced on every pull). */
+    @SerialName("hours_prices") val hoursPrices: List<HoursPriceDto> = emptyList(),
+    /** SYNC_HOURS_PRICES: customers' approved discounts in force today (full snapshot, replaced on every pull). */
+    @SerialName("customer_discounts") val customerDiscounts: List<CustomerDiscountRateDto> = emptyList(),
 )
 
 /** `SyncOpenInvoiceDto`: an issued invoice with money still owed, so a collection can name it. */

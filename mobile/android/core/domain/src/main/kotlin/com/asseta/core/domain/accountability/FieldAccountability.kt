@@ -262,6 +262,9 @@ object AccountabilityRules {
     const val MAX_PHONE = 40
     private val HOURS = DecimalLimit.METER_READING
 
+    /** The hours of a sale as typed (more than 0, at most 2 decimals), or null while they are not a valid number. */
+    fun saleHours(text: String): BigDecimal? = AmountParser.valueOrNull(text, HOURS)
+
     fun hoursSale(d: HoursSaleDraft, walkInAllowed: Boolean): FormCheck<HoursSaleValues> {
         val m = mutableListOf<String>()
         var name: String? = null
