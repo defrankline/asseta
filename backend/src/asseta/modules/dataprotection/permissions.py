@@ -18,6 +18,19 @@ PLATFORM_BALANCE_READ = requires(
 PLATFORM_BALANCE_VERIFY = requires(
     "platform.balance.verify", S.PLATFORM, "Run balance verification on a tenant's records (counts only)"
 )
+# Company closure: deletes ALL of the company's data after the platform-wide waiting period. In the owner template only
+# (it is an approver-control permission: only an owner can give it to anyone). Requesting and cancelling stay open on
+# a read-only subscription (the request itself makes the company read-only, and leaving is the company's right).
+_COMPANY_CLOSE_TEXT = "Close the company and delete all its data"
+COMPANY_CLOSE_PERMISSION = "tenant.company.close"
+COMPANY_CLOSE = requires(COMPANY_CLOSE_PERMISSION, S.TENANT, _COMPANY_CLOSE_TEXT, read_only_exempt=True)
+COMPANY_CLOSE_VIEW = requires(COMPANY_CLOSE_PERMISSION, S.TENANT, _COMPANY_CLOSE_TEXT)
+PLATFORM_DELETION_READ = requires("platform.tenant.deletion.read", S.PLATFORM, "View company deletion requests")
+PLATFORM_DELETION_EXECUTE = requires(
+    "platform.tenant.deletion.execute",
+    S.PLATFORM,
+    "Run a company deletion before its waiting period ends (when the owner asks in writing)",
+)
 GO_LIVE = requires("platform.tenant.go_live", S.PLATFORM, "Mark a tenant as live (locks the tenant data reset)")
 
 for key, scope, label, path, order, permission, group in (
@@ -38,6 +51,24 @@ for key, scope, label, path, order, permission, group in (
         82,
         "tenant.balance.read",
         "tenant.admin",
+    ),
+    (
+        "tenant.company_close",
+        S.TENANT,
+        "Close company",
+        "/tenant/company/close",
+        95,
+        COMPANY_CLOSE_PERMISSION,
+        "tenant.admin",
+    ),
+    (
+        "platform.deletion_requests",
+        S.PLATFORM,
+        "Deletion requests",
+        "/platform/deletion-requests",
+        28,
+        "platform.tenant.deletion.read",
+        "platform.tenants",
     ),
     (
         "platform.balance_verification",

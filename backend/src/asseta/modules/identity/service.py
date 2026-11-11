@@ -6,6 +6,7 @@ from datetime import date, datetime
 from sqlalchemy.orm import Session
 
 from asseta.core.db import DbScope, apply_scope, utcnow
+from asseta.core.errors import PermissionDenied
 from asseta.modules.identity.catalog import CATALOG
 from asseta.modules.identity.dto import MandateBadgeDto, MeDto, MenuDto, MenuGroupDto, TenantAccessDto
 from asseta.modules.identity.models import Menu
@@ -58,6 +59,8 @@ class IdentityService:
         """Tenants the user may enter. Platform staff reach clients only through in-force mandates (DEC-018); the
         Keycloak groups those mandates create are never shown as ordinary tenant membership."""
         user = self._repo.upsert_user_from_claims(claims)
+        if not user.is_active:  # a deleted account's token, still within its lifetime
+            raise PermissionDenied("User is deactivated", code="USER_INACTIVE")
         grants = parse_group_grants(claims.groups)
         menus = self._repo.menus()
         platform_groups = [g for g in claims.groups if g.startswith("/platform/")]
@@ -89,6 +92,7 @@ class IdentityService:
                     name=tenant.display_name,
                     status=tenant.status,
                     access_state=tenant.access_state,
+                    access_state_reason=tenant.access_state_reason,
                     permissions=sorted(perms),
                     menus=tenant_menus,
                     menu_groups=tenant_groups,

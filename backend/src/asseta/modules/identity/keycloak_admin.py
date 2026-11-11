@@ -226,3 +226,22 @@ class KeycloakAdminClient:
     def find_user_by_email(self, email: str) -> str | None:
         rows = self._ok(self._request("GET", "/users", params={"email": email, "exact": "true"})).json()
         return str(rows[0]["id"]) if rows else None
+
+    # --- account and company deletion ---------------------------------------------------------------
+    def user_group_paths(self, subject: str) -> list[str]:
+        resp = self._request("GET", f"/users/{subject}/groups", params={"max": "10000", "briefRepresentation": "true"})
+        if resp.status_code == 404:
+            return []
+        return [str(g["path"]) for g in self._ok(resp).json()]
+
+    def disable_user(self, subject: str) -> None:
+        self._ok(self._request("PUT", f"/users/{subject}", json={"enabled": False}), 204, 404)
+
+    def delete_user(self, subject: str) -> None:
+        self._ok(self._request("DELETE", f"/users/{subject}"), 204, 404)
+
+    def delete_group(self, path: str) -> None:
+        """Deletes the group and its subgroups (Keycloak removes their memberships)."""
+        group = self._group_by_path(path)
+        if group is not None:
+            self._ok(self._request("DELETE", f"/groups/{group['id']}"), 204, 404)

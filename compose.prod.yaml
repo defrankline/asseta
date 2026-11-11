@@ -319,10 +319,17 @@ services:
     restart: unless-stopped
     logging: *logging
 
-  data-export-worker:
+  data-export-worker:  # data exports, and company deletions after their waiting period (schema-owner connection)
     image: ${DOCKER_IMAGE_PREFIX:-asseta}/api:${DEPLOY_IMAGE_TAG:-current}
     command: ["asseta-data-export-worker"]
-    environment: {<<: *api-env, ASSETA_DB_STATEMENT_TIMEOUT_MS: *worker-statement-timeout}
+    environment:
+      <<: *api-env
+      ASSETA_DB_STATEMENT_TIMEOUT_MS: *worker-statement-timeout
+      # Optional Traccar admin: a company deletion then also removes its trackers' Traccar devices (blank: left there,
+      # recorded on the deletion request).
+      ASSETA_TRACCAR_API_URL: http://traccar:8082
+      ASSETA_TRACCAR_ADMIN_EMAIL: ${ASSETA_TRACCAR_ADMIN_EMAIL:-}
+      ASSETA_TRACCAR_ADMIN_PASSWORD: ${ASSETA_TRACCAR_ADMIN_PASSWORD:-}
     healthcheck: {disable: true}
     depends_on:
       migrate: {condition: service_completed_successfully}

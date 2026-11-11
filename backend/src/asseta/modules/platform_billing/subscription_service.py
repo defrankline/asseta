@@ -1,6 +1,7 @@
 """Subscription lifecycle, negotiated rate versions and entitlement evaluation."""
 
 import uuid
+from dataclasses import replace
 from datetime import date, timedelta
 
 from sqlalchemy.orm import Session
@@ -9,6 +10,7 @@ from asseta.core.audit import AuditActor, AuditService
 from asseta.core.db import utcnow
 from asseta.core.errors import BusinessRuleViolation, Conflict
 from asseta.core.outbox import OutboxWriter
+from asseta.modules.dataprotection.closure_service import active_closure, closure_access_reason
 from asseta.modules.platform_billing import entitlement_rules
 from asseta.modules.platform_billing.dto import (
     EntitlementDto,
@@ -31,7 +33,7 @@ from asseta.modules.platform_billing.models_commercial import (
     TenantSubscription,
 )
 from asseta.modules.platform_billing.repository import BillingRepository
-from asseta.modules.tenancy.models import Tenant, TenantStatus, VerificationStatus
+from asseta.modules.tenancy.models import Tenant, TenantAccessState, TenantStatus, VerificationStatus
 
 TOPIC = "asseta.platform.subscription"
 
@@ -236,6 +238,10 @@ class SubscriptionService:
         decision = entitlement_rules.evaluate(sub.status, sub.manually_suspended, overdue, as_of, terms)
         if decision.status != sub.status and sub.status in BILLABLE_STATUSES:
             self._set_status(sub, decision.status, as_of, f"Automatic: {decision.reason}")
+        closure = active_closure(self._s, tenant.id)
+        if closure is not None and decision.access is TenantAccessState.FULL:
+            # A company asked to be closed: read-only until the deletion (or until the request is cancelled).
+            decision = replace(decision, access=TenantAccessState.READ_ONLY, reason=closure_access_reason(closure))
         changed = tenant.access_state != decision.access
         if changed:
             self._s.add(

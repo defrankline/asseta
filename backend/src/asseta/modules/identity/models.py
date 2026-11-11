@@ -19,6 +19,9 @@ class AppUser(UuidPk, Timestamps, Base):
     display_name: Mapped[str] = mapped_column(String(200), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Account deleted (personal request or company deletion): login removed, name and email anonymised, never restored
+    # from a token or the Keycloak mirror. Records the person made stay attributed to this row.
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class Permission(UuidPk, Timestamps, Base):

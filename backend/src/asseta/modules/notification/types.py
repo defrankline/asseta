@@ -82,6 +82,27 @@ _TYPES = (
     NotificationType(
         "SMS_WALLET_EMPTY", "SMS credits used up", Category.BILLING, Severity.CRITICAL, T, mandatory=IN_APP
     ),
+    # Company closure and account deletion (data protection): access-affecting, so always also e-mailed
+    NotificationType(
+        "COMPANY_DELETION_REQUESTED",
+        "Company closure requested",
+        Category.ACTION,
+        Severity.CRITICAL,
+        BOTH,
+        True,
+        IN_APP_EMAIL,
+    ),
+    NotificationType(
+        "COMPANY_DELETION_CANCELLED",
+        "Company closure cancelled",
+        Category.INFO,
+        Severity.WARNING,
+        BOTH,
+        True,
+        IN_APP_EMAIL,
+    ),
+    NotificationType("COMPANY_DELETED", "Company data deleted", Category.INFO, Severity.WARNING, P, mandatory=IN_APP),
+    NotificationType("ACCOUNT_DELETED", "Account deleted", Category.INFO, Severity.INFO, T, mandatory=IN_APP),
     # Operations: actions
     NotificationType("APPROVAL_REQUESTED", "Approval requested", Category.ACTION, Severity.INFO, T),
     NotificationType("APPROVAL_PENDING_AGING", "Approval waiting", Category.REMINDER, Severity.WARNING, T, True),

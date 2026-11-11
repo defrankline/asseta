@@ -27,6 +27,7 @@ from asseta.modules.policy.petty_cash import PettyCashPolicy
 from asseta.modules.policy.revenue import RevenueReconciliationPolicy
 from asseta.modules.policy.schemas import (
     OVERRIDABLE,
+    PLATFORM_ONLY_FIELDS,
     SCHEMAS,
     CashCustodyPolicy,
     CustomerHoursPolicy,
@@ -240,6 +241,10 @@ class PolicyService:
     ) -> EffectivePolicy[DataProtectionPolicy]:
         return cast(EffectivePolicy[DataProtectionPolicy], self.resolve(PolicyType.DATA_PROTECTION, tenant_id, at=at))
 
+    def platform_data_protection(self, at: datetime | None = None) -> EffectivePolicy[DataProtectionPolicy]:
+        """The platform layer only: where platform-wide settings (company deletion waiting period) are read."""
+        return cast(EffectivePolicy[DataProtectionPolicy], self.resolve(PolicyType.DATA_PROTECTION, None, at=at))
+
     def petty_cash(self, tenant_id: uuid.UUID, at: datetime | None = None) -> EffectivePolicy[PettyCashPolicy]:
         return cast(EffectivePolicy[PettyCashPolicy], self.resolve(PolicyType.PETTY_CASH, tenant_id, at=at))
 
@@ -284,6 +289,12 @@ class PolicyService:
         if (scope in REF_SCOPES) != (scope_ref_id is not None):
             raise BusinessRuleViolation(
                 "Machine/category/site/staff policies require scope_ref_id", code="POLICY_SCOPE"
+            )
+        platform_only = set(values) & PLATFORM_ONLY_FIELDS.get(ptype, frozenset())
+        if scope is not PolicyScope.PLATFORM and platform_only:
+            raise BusinessRuleViolation(
+                f"Platform-wide settings cannot be changed at {scope.value}: {sorted(platform_only)}",
+                code="POLICY_FIELD_NOT_OVERRIDABLE",
             )
         allowed = OVERRIDABLE.get(ptype, {}).get(scope, frozenset() if scope in OPT_IN_SCOPES else None)
         if allowed is not None and (extra := set(values) - allowed):

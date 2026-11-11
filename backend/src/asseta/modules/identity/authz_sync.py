@@ -43,9 +43,10 @@ class AuthzSyncService:
         return result
 
     def ensure_tenant_roles(self, session: Session) -> None:
-        """A template added by a release also exists for tenants provisioned before it."""
+        """A template added by a release also exists for tenants provisioned before it (closed companies excluded: a
+        deleted company's groups must stay deleted)."""
         existing = {g.path for g in self._idp.list_role_groups()}
-        for tenant_id in IdentityRepository(session).tenant_ids():
+        for tenant_id in IdentityRepository(session).open_tenant_ids():
             for template in TENANT_TEMPLATES:
                 if (path := tenant_group_path(tenant_id, template.key)) not in existing:
                     self._idp.ensure_group(path)

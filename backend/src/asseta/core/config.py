@@ -43,6 +43,13 @@ class Settings(BaseSettings):
     keycloak_sync_on_startup: bool = True
 
     billing_scheduler_interval_seconds: int = Field(default=3600, ge=60)
+    # Company deletion (data protection worker): how often due closure requests are looked for, and the Traccar
+    # admin account used to remove the deleted company's devices (blank credentials: devices are left in Traccar and
+    # the deletion records that, as the operator tool does without --remove-traccar-devices).
+    company_deletion_sweep_seconds: int = Field(default=60, ge=10)
+    traccar_api_url: str = "http://traccar:8082"
+    traccar_admin_email: str = ""
+    traccar_admin_password: SecretStr = SecretStr("")
 
     # Gate 6 ML (ADR-007). Unset tracking URI -> training runs are recorded only in Asseta's governance tables
     # (`model_version.tracking_note` says so); the MLflow server keeps its artifacts in its own MinIO bucket.

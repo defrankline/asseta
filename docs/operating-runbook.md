@@ -350,8 +350,9 @@ keep the company itself. One-off, per tenant, production-safe; it never touches 
 | Managed-service mandates, push-device registrations | Hire invoices, customer payments, allocations, evidence; customer hours; engine-hour baselines/corrections/classifications; revenue reconciliation |
 | Platform-level audit events (`platform.*`, `billing.*`) | Cases, signals, insights, ML trained on the tenant's data; notifications, inbox, SMS log; reason lists; the tenant's own policy versions (platform defaults apply again); number counters (job, `HP-`, `HINV-` numbering restarts); the tenant's business audit and security events; its object-store files (`tenants/<id>/`, `platform/ml-models/<id>/`) |
 
-Tables are discovered from the schema; a tenant-scoped table that `backend/scripts/reset_tenant_data.py` does not
-classify stops the run before anything changes (classify it there when a new module adds one). The database part is
+Tables are discovered from the schema; a tenant-scoped table that
+`backend/src/asseta/modules/dataprotection/tenant_tables.py` does not classify stops the run before anything changes
+(classify it there when a new module adds one; the company deletion of §12 uses the same classification). The database part is
 one transaction as the schema owner (guard triggers and forced RLS are lifted only inside it), so it either completes
 or changes nothing. An issued platform invoice line that billed a demo machine keeps every printed field; only its
 internal pointer to the deleted per-machine charge is cleared. Platform invoices already issued for demo machines
@@ -399,6 +400,33 @@ Afterwards `scripts/seed-demo-tenant.sh seed` refuses this tenant (it carries th
 into a separate demo tenant. The demo accounts and demo staff that `seed` created remain (accounts are never touched);
 deactivate them in People and Keycloak if the company does not use them. Undo = restore the backup of step 1 (§6.2):
 that restores the whole database, i.e. every tenant, to that moment.
+
+## 12. Company closure (deletion) and account deletion
+
+**Company.** An owner (permission `tenant.company.close`, owner role only; only an owner can give it to someone) asks
+in Administration -> Close company, typing the company name and a reason. The company turns read-only at once (billing
+runs keep it so), every holder of the permission and the platform owners are notified (in-app and e-mail), and the
+data export stays available. Any holder of the permission can cancel until the deletion starts. After the waiting
+period (DATA_PROTECTION `company_deletion_waiting_days`, platform-wide, default 30 days; change it only by versioning
+the platform DATA_PROTECTION policy) the `data-export-worker` deletes everything: business records and master data,
+the company's files, its Keycloak groups and every account that belongs to no other company or platform role (the
+others keep their other companies), and the subscription is cancelled. Kept: platform billing (agreement, rate
+versions, subscription and its events, platform invoices and lines, payments, credits, SMS wallet), the company
+settings row, the closure request, the audit of billing and of the closure (`platform.company_closure.*`), and the
+tenant row as CLOSED with its names, registration number, `deleted_at` and `deletion_request_id`.
+
+The deletion records each finished step on the request (Platform -> Tenants -> Deletion requests); a failure keeps the
+error there and is retried automatically with a back-off from where it stopped. It empties one table per short
+transaction as the schema owner (only that table's guards are off, only while it is emptied). Traccar devices are
+removed when `ASSETA_TRACCAR_ADMIN_EMAIL` / `ASSETA_TRACCAR_ADMIN_PASSWORD` are set for the worker; otherwise the
+request records that they were left in Traccar (remove them there). When the owner asks in writing to delete sooner,
+Platform -> Deletion requests -> Run now (permission `platform.tenant.deletion.execute`, reason required, audited).
+There is no public deletion endpoint: the public page points to signing in, or to e-mailing support.
+
+**Personal account.** Any signed-in user (web or phone): Profile -> Delete my account. The login is deleted, the
+person's memberships closed, their name and email anonymised to "Former user <id>"; their records stay with each
+company under that name, a linked staff record keeps its role history without the phone number. Refused for the last
+owner of a company (hand over the owner role or close the company) and for platform staff (remove them in Keycloak).
 
 ## Apply a company's policy settings from a file
 

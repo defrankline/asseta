@@ -288,6 +288,113 @@ def _subscription(_: Session, e: DomainEvent) -> list[Intent]:
     ]
 
 
+# --- company closure and account deletion --------------------------------------------------------------------------
+CLOSE_COMPANY = "tenant.company.close"
+DELETION_REQUESTS = "platform.tenant.deletion.read"
+
+
+@rule("CompanyDeletionRequested")
+def _company_deletion_requested(_: Session, e: DomainEvent) -> list[Intent]:
+    p = e.payload
+    on = str(p["scheduled_for"])[:10]
+    body = (
+        f"{p['requested_by_name']} asked to close {p['tenant_name']}. The company is read-only from now on, and all "
+        f"its data will be deleted on {on}. Download the data export before then. Anyone allowed to close the company "
+        "can cancel until that date."
+    )
+    return [
+        Intent(
+            "COMPANY_DELETION_REQUESTED",
+            (perm(CLOSE_COMPANY),),
+            "Company closure requested",
+            body,
+            _key(e),
+            "/tenant/company/close",
+            "company_deletion_request",
+            p["request_id"],
+        ),
+        Intent(
+            "COMPANY_DELETION_REQUESTED",
+            (platform(DELETION_REQUESTS),),
+            f"Closure requested: {p['tenant_name']}",
+            f"All data of {p['tenant_name']} will be deleted on {on} unless the company cancels. Reason: {p['reason']}",
+            _key(e, "platform"),
+            f"/platform/deletion-requests/{p['request_id']}",
+            "company_deletion_request",
+            p["request_id"],
+        ),
+    ]
+
+
+@rule("CompanyDeletionCancelled")
+def _company_deletion_cancelled(_: Session, e: DomainEvent) -> list[Intent]:
+    p = e.payload
+    body = f"{p['cancelled_by_name']} cancelled the closure of {p['tenant_name']}. Normal access is restored."
+    return [
+        Intent(
+            "COMPANY_DELETION_CANCELLED",
+            (perm(CLOSE_COMPANY),),
+            "Company closure cancelled",
+            body,
+            _key(e),
+            "/tenant/company/close",
+            "company_deletion_request",
+            p["request_id"],
+        ),
+        Intent(
+            "COMPANY_DELETION_CANCELLED",
+            (platform(DELETION_REQUESTS),),
+            f"Closure cancelled: {p['tenant_name']}",
+            body,
+            _key(e, "platform"),
+            f"/platform/deletion-requests/{p['request_id']}",
+            "company_deletion_request",
+            p["request_id"],
+        ),
+    ]
+
+
+@rule("CompanyDeleted")
+def _company_deleted(_: Session, e: DomainEvent) -> list[Intent]:
+    p = e.payload
+    return [
+        Intent(
+            "COMPANY_DELETED",
+            (platform(DELETION_REQUESTS),),
+            f"Company data deleted: {p['tenant_name']}",
+            f"Every record of {p['tenant_name']} was deleted ({p['rows_deleted']} rows, {p['objects_deleted']} files, "
+            f"{p['accounts_deleted']} accounts). Platform billing records and the closure record remain.",
+            _key(e),
+            f"/platform/deletion-requests/{p['request_id']}",
+            "company_deletion_request",
+            p["request_id"],
+        )
+    ]
+
+
+@rule("AccountDeleted")
+def _account_deleted(_: Session, e: DomainEvent) -> list[Intent]:
+    p = e.payload
+    staff_note = (
+        " Their staff record stays without contact details; reassign their machines and work."
+        if p.get("staff_member_id")
+        else ""
+    )
+    return [
+        Intent(
+            "ACCOUNT_DELETED",
+            (perm("tenant.access.manage"),),
+            "A user deleted their account",
+            f"{p['former_name']} deleted their Asseta account; they can no longer sign in. Their records stay, shown "
+            f"as {p['anonymised_name']}.{staff_note}",
+            _key(e),
+            "/tenant/access",
+            "app_user",
+            p["user_id"],
+        )
+    ]
+
+
 # --- operations: actions -------------------------------------------------------------------------------------------
 @rule("ApprovalRequested")
 def _approval(_: Session, e: DomainEvent) -> list[Intent]:

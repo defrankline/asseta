@@ -16,6 +16,8 @@ class InMemoryIdp:
         self.group_perms: dict[str, set[str]] = {}  # id -> codes
         self.users: dict[str, str] = {}  # subject -> email
         self.memberships: dict[str, set[str]] = {}  # subject -> group paths
+        self.disabled: set[str] = set()
+        self.deleted: list[str] = []  # subjects deleted, in order
 
     def ensure_permission_roles(self, codes: list[str], descriptions: dict[str, str]) -> None:
         self.permission_roles |= set(codes)
@@ -62,6 +64,26 @@ class InMemoryIdp:
     def find_user_by_email(self, email: str) -> str | None:
         return next((s for s, e in self.users.items() if e == email), None)
 
+    def user_group_paths(self, subject: str) -> list[str]:
+        return sorted(self.memberships.get(subject, set()))
+
+    def disable_user(self, subject: str) -> None:
+        if subject in self.users:
+            self.disabled.add(subject)
+
+    def delete_user(self, subject: str) -> None:
+        self.users.pop(subject, None)
+        self.memberships.pop(subject, None)
+        self.disabled.discard(subject)
+        self.deleted.append(subject)
+
+    def delete_group(self, path: str) -> None:
+        gone = {p for p in self.groups if p == path or p.startswith(path.rstrip("/") + "/")}
+        for p in gone:
+            self.group_perms.pop(self.groups.pop(p), None)
+        for paths in self.memberships.values():
+            paths -= gone
+
     def subject_for(self, email: str) -> str:
         return next(s for s, e in self.users.items() if e == email)
 
@@ -80,6 +102,9 @@ class InMemoryObjectStore:
 
     def delete(self, key: str) -> None:
         self.objects.pop(key, None)
+
+    def list_keys(self, prefix: str) -> list[str]:
+        return sorted(k for k in self.objects if k.startswith(prefix))
 
     def get_bytes(self, key: str) -> bytes:
         if key not in self.objects:

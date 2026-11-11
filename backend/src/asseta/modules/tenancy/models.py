@@ -57,6 +57,10 @@ class Tenant(UuidPk, Timestamps, Base):
     live_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     live_marked_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     live_note: Mapped[str | None] = mapped_column(Text)
+    # Company deletion (closure): when every record of the company was deleted, and the request that did it. The row
+    # itself stays, CLOSED, with its names and registration number only (the platform's billing records point at it).
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    deletion_request_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     # Bumped only by company-detail edits (access-state changes by the entitlement service do not race them).
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
 

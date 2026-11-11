@@ -38,6 +38,9 @@ class TenantAccessDto(BaseModel):
     name: str
     status: TenantStatus
     access_state: TenantAccessState
+    access_state_reason: str | None = Field(
+        default=None, description="Why access is limited (e.g. a requested company closure and its deletion date)"
+    )
     permissions: list[str]
     menus: list[MenuDto]
     menu_groups: list[MenuGroupDto]

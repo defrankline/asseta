@@ -3,8 +3,9 @@
 import uuid
 from collections.abc import Iterable
 from datetime import datetime
+from typing import Any
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import case, delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -22,7 +23,12 @@ from asseta.modules.identity.models import (
     TenantMembership,
 )
 from asseta.modules.identity.principal import TokenClaims
-from asseta.modules.tenancy.models import Tenant, TenantAccessState
+from asseta.modules.tenancy.models import Tenant, TenantAccessState, TenantStatus
+
+
+def _unless_deleted(column: Any, value: str) -> Any:
+    """Upsert value for a personal field: unchanged once the account was deleted (anonymised for good)."""
+    return case((AppUser.deleted_at.is_(None), value), else_=column)
 
 
 class IdentityRepository:
@@ -45,9 +51,9 @@ class IdentityRepository:
             )
             .on_conflict_do_update(
                 index_elements=[AppUser.keycloak_subject],
-                set_={
-                    "email": claims.email,
-                    "display_name": claims.display_name,
+                set_={  # a deleted account stays anonymised (a token issued before the deletion carries the old name)
+                    "email": _unless_deleted(AppUser.email, claims.email),
+                    "display_name": _unless_deleted(AppUser.display_name, claims.display_name),
                     "last_seen_at": now,
                     "updated_at": now,
                 },
@@ -109,7 +115,8 @@ class IdentityRepository:
                 updated_at=now,
             )
             .on_conflict_do_update(
-                index_elements=[AppUser.keycloak_subject], set_={"email": member.email, "updated_at": now}
+                index_elements=[AppUser.keycloak_subject],
+                set_={"email": _unless_deleted(AppUser.email, member.email), "updated_at": now},
             )
             .returning(AppUser.id)
         ).scalar_one()
@@ -173,6 +180,10 @@ class IdentityRepository:
 
     def tenant_ids(self) -> set[uuid.UUID]:
         return set(self._s.execute(select(Tenant.id)).scalars())
+
+    def open_tenant_ids(self) -> set[uuid.UUID]:
+        """Tenants not CLOSED (a company being or already deleted is CLOSED: its groups are never recreated)."""
+        return set(self._s.execute(select(Tenant.id).where(Tenant.status != TenantStatus.CLOSED)).scalars())
 
     def offered_codes(self, group_path: str) -> set[str]:
         return set(

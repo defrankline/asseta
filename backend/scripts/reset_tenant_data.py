@@ -25,7 +25,8 @@ instruction (the app erases its local data and asks the user to sign in again); 
 and starts from a fresh bootstrap (asseta.modules.sync.models.TENANT_DATA_RESET_REVOKE_REASON).
 
 Tables are discovered from the schema (a `tenant_id` column, row-level security or a foreign key to `tenant`). Every
-discovered table must be classified below: an unclassified one stops the run before anything is changed, so a new
+discovered table must be classified in asseta/modules/dataprotection/tenant_tables.py (shared with the company
+deletion): an unclassified one stops the run before anything is changed, so a new
 module can neither be skipped silently nor wiped by accident. The deletion runs as the schema owner (the role the
 migrations use) in ONE transaction: the guard triggers and forced row-level security of the touched tables are
 switched off inside it and restored before commit (ALTER TABLE is transactional; other sessions wait on its lock and
@@ -39,13 +40,11 @@ TRACCAR_ADMIN_PASSWORD for --remove-traccar-devices.
 """
 
 import argparse
-import contextlib
 import json
 import os
 import sys
 import uuid
-from collections.abc import Iterable, Iterator
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
@@ -54,7 +53,13 @@ import psycopg
 from psycopg import sql
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))  # local runs (uv); the image has it installed
-try:
+try:  # the classification lives in the package, shared with the company deletion ("X as X": re-exported here)
+    from asseta.modules.dataprotection.tenant_tables import DELETE as DELETE
+    from asseta.modules.dataprotection.tenant_tables import DISCOVER as DISCOVER
+    from asseta.modules.dataprotection.tenant_tables import KEEP, SPECIAL, Plan, Refuse, classify
+    from asseta.modules.dataprotection.tenant_tables import PLATFORM_LEVEL as PLATFORM_LEVEL
+    from asseta.modules.dataprotection.tenant_tables import Unclassified as Unclassified
+    from asseta.modules.dataprotection.tenant_tables import guards_off as _guards_off
     from asseta.modules.sync.models import TENANT_DATA_RESET_REVOKE_REASON
 except ImportError:  # an API image older than this script: its phones could not register again after the reset
     sys.exit("[reset-tenant-data] refused: the deployed API image predates the tenant data reset; deploy it first")
@@ -62,137 +67,7 @@ except ImportError:  # an API image older than this script: its phones could not
 AUDIT_ACTION = "platform.tenant.data_reset"
 NIL_TENANT = uuid.UUID(int=0)
 
-# Tenant-scoped tables whose rows of the tenant are KEPT (owner decision, go-live without demo data).
-KEEP: dict[str, str] = {
-    "tenant_settings": "company settings (timezone, currency, locale)",
-    "commercial_agreement": "Asseta subscription",
-    "subscription_rate_version": "Asseta subscription",
-    "tenant_subscription": "Asseta subscription",
-    "subscription_status_event": "Asseta subscription",
-    "entitlement_event": "Asseta subscription",
-    "entitlement_policy": "Asseta subscription",
-    "platform_invoice": "platform billing",
-    "platform_payment": "platform billing",
-    "credit_adjustment": "platform billing",
-    "platform_line_allocation": "platform billing",
-    "platform_line_fulfilment": "platform billing",
-    "sms_wallet_entry": "platform billing (SMS credits)",
-    "tenant_membership": "user role assignments",
-    "role": "role mirror of the Keycloak groups",
-    "staff_member": "staff records and their login links",
-    "managed_service_mandate": "platform access governance (DEC-018)",
-    "mandate_assignment": "platform access governance (DEC-018)",
-    "push_device": "phones' push registrations",
-}
-# Kept, with one change each (see the module docstring).
-SPECIAL: dict[str, str] = {
-    "platform_invoice_line": "kept; pointer to a deleted per-machine charge cleared",
-    "device_session": "kept, revoked with the reset reason (phones wipe and bootstrap afresh)",
-    "audit_event": "platform/billing events kept; the tenant's business audit deleted",
-}
-# Discovered through row-level security but holding no tenant rows (platform catalogs, per-user settings).
-PLATFORM_LEVEL: dict[str, str] = {
-    "feature_definition": "ML feature catalog",
-    "ml_setting": "platform ML switch",
-    "platform_product": "platform product catalog",
-    "telemetry_gateway": "telemetry gateway keys",
-    "tracker_model": "tracker model catalog",
-    "notification_profile": "per-user contact profile (not tenant data)",
-}
-# Tenant business records: every row of the tenant is DELETED.
-DELETE: frozenset[str] = frozenset(
-    {
-        # fleet, trackers, telemetry, sites
-        "machine", "machine_category", "machine_assignment", "machine_photo", "machine_state_event",
-        "machine_latest_position", "machine_position_event", "machine_meter_baseline", "operating_area",
-        "tracker", "tracker_assignment", "tracker_capability", "tracker_ingestion_event", "tracking_alert",
-        "geofence", "geofence_event", "geofence_machine", "job_site", "site_checkin",
-        # per-machine billing of the deleted fleet
-        "subscription_asset_enrollment", "subscription_pending_charge",
-        # customers, contracts, rate cards, jobs, readings, work logs, exceptions
-        "customer", "rental_contract", "rental_rate_policy", "job", "job_activity", "job_exception",
-        "customer_acknowledgement", "meter_capture", "meter_correction", "meter_reset_event", "capture_attachment",
-        "approval_request", "non_revenue_approval", "work_execution_allocation",
-        # engine hours
-        "engine_hour_classification", "engine_hour_reason", "work_allocation", "machine_changeover",
-        "daily_operational_report",
-        # expenses, fuel, receipts
-        "expense", "expense_attachment", "expense_category", "fuel_event",
-        # cash custody chain
-        "supervisor_cash_custody", "cash_handover", "cash_transfer", "cash_variance", "cash_retention",
-        "custody_adjustment", "cash_remittance_overdue", "cash_float_acknowledgement", "cash_reason",
-        "remittance_evidence", "company_deposit_account", "partial_remittance_approval", "cash_variance_event",
-        # petty cash funds (DEC-033)
-        "petty_cash_fund", "petty_cash_movement", "petty_cash_count", "petty_cash_holder_change",
-        "petty_cash_adjustment", "petty_cash_advance",
-        # hire invoices, payments, allocations
-        "tenant_hire_invoice", "hire_invoice_job", "hire_invoice_line", "hire_invoice_counter", "customer_payment",
-        "hire_payment_allocation", "payment_evidence", "payment_auto_verification", "financial_adjustment",
-        # customer hours
-        "hours_purchase", "hours_ledger_entry", "hours_payment_allocation", "hours_transfer", "hours_cancellation",
-        "hours_low_balance_alert", "hours_reason_code", "hours_sequence", "credit_arrangement", "customer_discount",
-        # revenue reconciliation
-        "revenue_difference", "revenue_difference_adjustment", "revenue_reason",
-        # adjustments ledger (Ledger 6) and its propose/decide flow
-        "adjustment_ledger_entry", "adjustment_request",
-        # data protection: export jobs and balance verification runs of the erased records
-        "tenant_data_export", "balance_verification_run",
-        # intelligence: cases, signals, insights, ML trained on the tenant's data
-        "anomaly_case", "anomaly_case_counter", "case_note", "case_outcome", "case_signal", "risk_signal",
-        "feature_snapshot", "prediction", "inference_audit", "model_version", "model_approval", "model_evaluation",
-        "model_readiness", "model_drift",
-        # notifications and inbox
-        "notification", "notification_delivery", "notification_preference", "notification_routing", "sms_delivery",
-        # offline sync state of the erased records
-        "client_operation", "sync_operation_resolution", "blob_upload_session", "blob_chunk",
-        "device_policy_snapshot",
-        # the tenant's own policy versions (platform defaults have no tenant)
-        "policy_version",
-        # the go-live checklist choices made for the erased setup (not needed marks, confirmations, dismissal)
-        "tenant_setup_choice",
-        # the tenant's accountability trail of the erased records, and its undelivered events
-        "security_event", "outbox_event",
-    }
-)  # fmt: skip
 OBJECT_PREFIXES = ("tenants/{tid}/", "platform/ml-models/{tid}/")
-
-DISCOVER = """
-SELECT c.relname,
-       EXISTS (SELECT 1 FROM pg_attribute a WHERE a.attrelid = c.oid AND a.attname = 'tenant_id' AND NOT a.attisdropped)
-FROM pg_class c
-WHERE c.relnamespace = 'public'::regnamespace AND c.relkind IN ('r', 'p') AND NOT c.relispartition
-  AND c.relname <> 'tenant'
-  AND (c.relrowsecurity
-       OR EXISTS (SELECT 1 FROM pg_attribute a WHERE a.attrelid = c.oid AND a.attname = 'tenant_id'
-                  AND NOT a.attisdropped)
-       OR EXISTS (SELECT 1 FROM pg_constraint k WHERE k.conrelid = c.oid AND k.contype = 'f'
-                  AND k.confrelid = 'public.tenant'::regclass))
-ORDER BY 1
-"""
-FK_EDGES = """
-SELECT k.conrelid::regclass::text, k.confrelid::regclass::text
-FROM pg_constraint k JOIN pg_class c ON c.oid = k.conrelid
-WHERE k.contype = 'f' AND k.connamespace = 'public'::regnamespace AND NOT c.relispartition
-"""
-USER_TRIGGERS = """
-SELECT t.tgname FROM pg_trigger t
-WHERE t.tgrelid = %s::regclass AND NOT t.tgisinternal AND t.tgparentid = 0 AND t.tgenabled <> 'D'
-"""
-
-
-class Refuse(Exception):
-    """Stops before anything is changed; the message says why and what to do."""
-
-
-class Unclassified(Refuse):
-    def __init__(self, tables: list[str]):
-        self.tables = tables
-        super().__init__(
-            "unclassified tenant-scoped table(s): "
-            + ", ".join(tables)
-            + ". Add each to KEEP, SPECIAL, PLATFORM_LEVEL or DELETE in backend/scripts/reset_tenant_data.py "
-            "(decide whether a go-live reset keeps or erases it); nothing was changed."
-        )
 
 
 @dataclass
@@ -202,14 +77,6 @@ class Tenant:
     legal_name: str
     registration_number: str | None
     live_at: datetime | None = None
-
-
-@dataclass
-class Plan:
-    delete: list[str]  # in a foreign-key safe order (children first)
-    keep: list[str]
-    platform_level: list[str]
-    stale: list[str] = field(default_factory=list)  # classified but absent from this schema (older database)
 
 
 @dataclass
@@ -235,51 +102,6 @@ class ObjectStore(Protocol):
     def list_keys(self, prefix: str) -> list[str]: ...
 
     def delete_keys(self, keys: list[str]) -> int: ...
-
-
-# --- discovery and classification -------------------------------------------------------------------------------------
-def classify(conn: psycopg.Connection[Any]) -> Plan:
-    """Fail closed: every discovered tenant-scoped table must be classified, and every DELETE table has tenant_id."""
-    found: dict[str, bool] = dict(conn.execute(DISCOVER).fetchall())
-    known = set(KEEP) | set(SPECIAL) | set(PLATFORM_LEVEL) | DELETE
-    unknown = sorted(set(found) - known)
-    if unknown:
-        raise Unclassified(unknown)
-    broken = sorted(t for t in DELETE | set(KEEP) | set(SPECIAL) if t in found and not found[t])
-    if broken:
-        raise Refuse(f"classified as tenant data but without a tenant_id column: {', '.join(broken)}")
-    stale = sorted(known - set(found))
-    present = [t for t in DELETE if t in found]
-    return Plan(
-        delete=_children_first(conn, present),
-        keep=sorted(t for t in KEEP if t in found),
-        platform_level=sorted(t for t in PLATFORM_LEVEL if t in found),
-        stale=stale,
-    )
-
-
-def _children_first(conn: psycopg.Connection[Any], tables: list[str]) -> list[str]:
-    """Topological order over the foreign keys among `tables`: a referencing table before the one it references."""
-    members = set(tables)
-    parents: dict[str, set[str]] = {t: set() for t in tables}
-    for child, parent in conn.execute(FK_EDGES).fetchall():
-        if child in members and parent in members and child != parent:
-            parents[child].add(parent)
-    children: dict[str, set[str]] = {t: set() for t in tables}
-    for child, ps in parents.items():
-        for p in ps:
-            children[p].add(child)
-    order: list[str] = []
-    ready = sorted(t for t in tables if not children[t])  # nothing references it: delete first
-    pending = {t: len(children[t]) for t in tables}
-    while ready:
-        t = ready.pop(0)
-        order.append(t)
-        for p in sorted(parents[t]):
-            pending[p] -= 1
-            if pending[p] == 0:
-                ready.append(p)
-    return order + sorted(members - set(order))  # cycles (none today): resolved by the retry loop in _delete_all
 
 
 # --- tenant selection -------------------------------------------------------------------------------------------------
@@ -413,29 +235,6 @@ def print_report(r: Report, out: Any = sys.stdout) -> None:
 
 
 # --- the reset --------------------------------------------------------------------------------------------------------
-@contextlib.contextmanager
-def _guards_off(conn: psycopg.Connection[Any], tables: Iterable[str]) -> Iterator[None]:
-    """Inside the caller's transaction: user triggers off (recurses to partitions) and FORCE RLS off on `tables`,
-    restored before the transaction commits. The ACCESS EXCLUSIVE lock keeps every other session out meanwhile."""
-    triggers: list[tuple[str, str]] = []
-    forced: list[str] = []
-    for table in tables:
-        for (name,) in conn.execute(USER_TRIGGERS, (table,)).fetchall():
-            conn.execute(
-                sql.SQL("ALTER TABLE {} DISABLE TRIGGER {}").format(sql.Identifier(table), sql.Identifier(name))
-            )
-            triggers.append((table, name))
-        row = conn.execute("SELECT relforcerowsecurity FROM pg_class WHERE oid = %s::regclass", (table,)).fetchone()
-        if row and row[0]:
-            conn.execute(sql.SQL("ALTER TABLE {} NO FORCE ROW LEVEL SECURITY").format(sql.Identifier(table)))
-            forced.append(table)
-    yield
-    for table, name in triggers:
-        conn.execute(sql.SQL("ALTER TABLE {} ENABLE TRIGGER {}").format(sql.Identifier(table), sql.Identifier(name)))
-    for table in forced:
-        conn.execute(sql.SQL("ALTER TABLE {} FORCE ROW LEVEL SECURITY").format(sql.Identifier(table)))
-
-
 def _delete_all(conn: psycopg.Connection[Any], tables: list[str], tid: uuid.UUID) -> dict[str, int]:
     """Deletes in the planned order; a table still referenced (a cycle) is retried after the others (savepoints)."""
     counts: dict[str, int] = {}

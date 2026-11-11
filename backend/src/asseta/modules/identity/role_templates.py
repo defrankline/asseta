@@ -226,12 +226,16 @@ DECISION_PERMISSIONS = frozenset(
     }
 )
 
+# Closing the company deletes all its data: only the owner template holds it (through "tenant."), and like an
+# approval it is given or taken away only by an owner (approver control below).
+CLOSE_COMPANY_PERMISSION = "tenant.company.close"
+
 # Gives or takes away roles that carry approvals. Only the owner template holds it (through "tenant."); never add
 # "tenant.access." as a prefix to another template.
 ASSIGN_APPROVERS_PERMISSION = "tenant.access.assign_approvers"
 # A role carrying any of these takes the permission above to assign or remove: the permission itself is included so a
 # role carrying only it cannot be used to reach the approvals indirectly.
-APPROVER_CONTROL_PERMISSIONS = DECISION_PERMISSIONS | {ASSIGN_APPROVERS_PERMISSION}
+APPROVER_CONTROL_PERMISSIONS = DECISION_PERMISSIONS | {ASSIGN_APPROVERS_PERMISSION, CLOSE_COMPANY_PERMISSION}
 
 
 def template_permissions(template: RoleTemplate) -> set[str]:

@@ -7,7 +7,11 @@ from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from asseta.modules.policy.data_protection import DATA_PROTECTION_SEED, DataProtectionPolicy
+from asseta.modules.policy.data_protection import (
+    DATA_PROTECTION_PLATFORM_ONLY,
+    DATA_PROTECTION_SEED,
+    DataProtectionPolicy,
+)
 from asseta.modules.policy.engine_hours import ENGINE_HOURS_SEED, EngineHoursPolicy
 from asseta.modules.policy.petty_cash import PETTY_CASH_SEED, PettyCashPolicy
 from asseta.modules.policy.revenue import REVENUE_RECONCILIATION_SEED, RevenueReconciliationPolicy
@@ -504,6 +508,12 @@ OVERRIDABLE: dict[PolicyType, dict[PolicyScope, frozenset[str]]] = {
     PolicyType.REVENUE_RECONCILIATION: {PolicyScope.MACHINE: frozenset(), PolicyScope.SITE: frozenset()},
     PolicyType.DATA_PROTECTION: {PolicyScope.MACHINE: frozenset(), PolicyScope.SITE: frozenset()},
     PolicyType.PETTY_CASH: {PolicyScope.MACHINE: frozenset(), PolicyScope.SITE: frozenset()},
+}
+
+# Platform-wide settings kept in a policy type: only a PLATFORM version may set them; tenant and lower layers never
+# override them (create_version refuses, and readers resolve them at platform scope).
+PLATFORM_ONLY_FIELDS: dict[PolicyType, frozenset[str]] = {
+    PolicyType.DATA_PROTECTION: DATA_PROTECTION_PLATFORM_ONLY,
 }
 
 SEED_DEFAULTS: dict[PolicyType, dict[str, object]] = {

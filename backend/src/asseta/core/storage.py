@@ -131,6 +131,18 @@ class S3ObjectStore:
         except (BotoCoreError, ClientError) as exc:
             raise DependencyUnavailable("Object storage delete failed") from exc
 
+    def list_keys(self, prefix: str) -> list[str]:
+        """Every key under `prefix` (company deletion: a tenant's whole `tenants/<id>/` tree)."""
+        from botocore.exceptions import BotoCoreError, ClientError
+
+        try:
+            keys: list[str] = []
+            for page in self._client.get_paginator("list_objects_v2").paginate(Bucket=self._bucket, Prefix=prefix):
+                keys += [str(o["Key"]) for o in page.get("Contents", []) if "Key" in o]
+            return keys
+        except (BotoCoreError, ClientError) as exc:
+            raise DependencyUnavailable("Object storage listing failed") from exc
+
     def get_bytes(self, key: str) -> bytes:
         from botocore.exceptions import BotoCoreError, ClientError
 
