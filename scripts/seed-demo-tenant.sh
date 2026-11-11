@@ -5,6 +5,7 @@
 #   scripts/seed-demo-tenant.sh feed     [--minutes 90] [--interval 30]
 #   scripts/seed-demo-tenant.sh field    [--dry-run] [--reset-demo-password]
 #   scripts/seed-demo-tenant.sh status   [--quick]
+#   scripts/seed-demo-tenant.sh extras                 (once, after seed: petty cash, rates, customer hours, approvals)
 #   scripts/seed-demo-tenant.sh retire   --yes
 #
 # Defaults target "Wambura & Sons Ltd" (registration number 2026/10/0001); --registration-number, --tenant-name and
@@ -39,7 +40,7 @@ usage() {
 command="$1"
 shift
 case "$command" in
-  seed | feed | field | status | retire) ;;
+  seed | feed | field | status | retire | extras) ;;
   -h | --help | help) usage 0 ;;
   *) usage 1 ;;
 esac

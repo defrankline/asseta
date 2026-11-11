@@ -2307,6 +2307,333 @@ def retire(a: argparse.Namespace) -> int:
 
 
 # --- CLI ------------------------------------------------------------------------------------------------------------
+# --- extras: office workflows on top of `seed` (petty cash, rates, customer hours, approvals) --------------------
+def upload_receipt(api: Api, amount: str, key: str) -> str:
+    """A generated receipt image (placeholder of the amount, not a camera photo) as an expense receipt attachment."""
+    h = {k: v for k, v in api._h().items() if k != "Content-Type"}
+    files = {"file": (f"{key}.png", png_image(amount.replace(",", ""), key), "image/png")}
+    r = httpx.post(f"{API}/tenant/attachments", headers=h, files=files, data={"purpose": "RECEIPT"}, timeout=60.0)
+    if r.status_code != 201:
+        raise ApiError(f"upload receipt {key}", r)
+    return str(r.json()["id"])
+
+
+def demo_login(client: Client, a: argparse.Namespace, state: dict[str, Any], role: str) -> Api:
+    """Sign in as a demo account `seed` created (from its credentials file only)."""
+    creds = json.loads((Path(a.out_dir) / f"demo-{a.slug}-credentials.json").read_text())
+    acc = (creds.get("accounts") or {}).get(role) or {}
+    if creds.get("tenant_id") != state["tenant_id"] or norm(acc.get("email")) != norm(
+        f"{role}.{a.slug}@{a.demo_domain}"
+    ):
+        raise Refuse(f"the credentials file has no {role} account created by `seed` for this tenant")
+    api = Api(Login(client, acc["email"], acc["password"]), state["tenant_id"])
+    me = api.get("/me")
+    if str(me.get("user_id")) != str(state["users"][role]["user_id"]):
+        raise Refuse(f"{acc['email']} signed in as another app user than the one `seed` created; stopping")
+    return api
+
+
+def extras(a: argparse.Namespace) -> int:
+    """Office workflows for the demo, through the API as the people who do them (every rule applies): a company bank
+    account, hourly rate cards, an accountant staff record, two petty cash funds funded through propose -> approve
+    -> hand over -> acknowledge, petty cash expenses (some approved, one waiting), a top-up request waiting for
+    approval, customer hours sold in the field (one verified by the accountant, one waiting). Run once after `seed`."""
+    path = state_file(a)
+    state = load_state(path)
+    if state.get("retired_at") or state.get("incomplete"):
+        raise Refuse("the demo data is retired or incomplete; extras are not added")
+    done: dict[str, Any] = state.setdefault("extras", {})
+    if done.get("completed_at"):
+        raise Refuse(f"extras were already added ({done['completed_at']}); they are added only once")
+    kc = KeycloakAdmin()
+    client = kc.create_client()
+    now = utcnow()
+    try:
+        sup = demo_login(client, a, state, "supervisor")
+        acct = demo_login(client, a, state, "accountant")
+        with platform_session(kc, a.demo_domain) as pf:
+            tenant = find_tenant(pf.api, a.registration_number, a.tenant_name)
+            if tenant["id"] != state["tenant_id"]:
+                raise Refuse(f"state file belongs to tenant {state['tenant_id']}, not {tenant['id']}")
+            with mandate(pf, tenant, a.consent_reference, "demo office workflows") as owner:
+                _extras(owner, acct, sup, state, now)
+        done["completed_at"] = utcnow().isoformat()
+        write_private(path, state)
+    finally:
+        try:
+            kc.delete_client(client.uuid)
+        except Exception as e:
+            log(f"WARNING: delete Keycloak client {client.client_id} in the admin console ({e})")
+    log("DEMO EXTRAS OK")
+    return 0
+
+
+def _extras(owner: Api, acct: Api, sup: Api, state: dict[str, Any], now: datetime) -> None:
+    def at(minutes_ago: int) -> str:
+        return _iso(now - timedelta(minutes=minutes_ago))
+
+    def step(label: str, fn: Any) -> Any:
+        try:
+            out = fn()
+            log(f"ok   {label}")
+            return out
+        except (ApiError, KeyError, IndexError) as e:
+            log(f"SKIP {label}: {e}")
+            return None
+
+    # Company bank and mobile-money accounts (where field cash and petty cash money go).
+    bank = step(
+        "deposit account CRDB",
+        lambda: owner.post(
+            "/tenant/deposit-accounts",
+            {
+                "name": "CRDB Bank - Operations",
+                "account_type": "BANK",
+                "institution": "CRDB Bank",
+                "account_number": "0150123456700",
+            },
+            "deposit account",
+            (201,),
+        )["id"],
+    )
+    step(
+        "deposit account M-Pesa",
+        lambda: owner.post(
+            "/tenant/deposit-accounts",
+            {
+                "name": "M-Pesa Till 555123",
+                "account_type": "MOBILE_MONEY",
+                "institution": "Vodacom M-Pesa",
+                "account_number": "555123",
+            },
+            "mobile money account",
+            (201,),
+        ),
+    )
+
+    # Hourly rate cards per machine type in use, from the demo jobs' rates.
+    machines = {m["code"]: m for m in owner.rows("/tenant/machines")}
+    rate_of = {mcode: hourly for _n, _c, mcode, hourly, _f in JOBS}
+    by_category: dict[str, str] = {}
+    for code, m in machines.items():
+        cat = m.get("category_id")
+        if cat and code in rate_of and cat not in by_category:
+            by_category[cat] = rate_of[code]
+    for cat, hourly in by_category.items():
+        step(
+            f"rate card {hourly}/h",
+            lambda cat=cat, hourly=hourly: owner.post(
+                "/tenant/rate-cards",
+                {
+                    "machine_category_id": cat,
+                    "hourly_rate": hourly,
+                    "minimum_hours": "4",
+                    "reason": "Standard hire rate",
+                    "effective_from": at(600),
+                },
+                "rate card",
+                (201,),
+            ),
+        )
+
+    # The accountant's staff record (holds the office petty cash box).
+    acct_staff = step(
+        "accountant staff record",
+        lambda: owner.post(
+            "/tenant/staff",
+            {
+                "full_name": " ".join(USERS["accountant"]),
+                "kind": "OTHER",
+                "keycloak_subject": state["users"]["accountant"]["subject"],
+                "employee_code": "WS-ACC-01",
+            },
+            "accountant staff",
+            (201,),
+        )["id"],
+    )
+    sup_staff = state["staff"]["supervisor"]
+
+    # Petty cash: a site fund held by the supervisor, an office box held by the accountant.
+    def fund(code: str, name: str, holder: str, limit: str, low: str) -> str:
+        return str(
+            owner.post(
+                "/tenant/petty-cash/funds",
+                {
+                    "code": code,
+                    "name": name,
+                    "holder_staff_id": holder,
+                    "approved_limit": limit,
+                    "low_balance_level": low,
+                    "note": "Demo fund",
+                },
+                f"fund {code}",
+                (201,),
+            )["id"]
+        )
+
+    site_fund = step(
+        "petty cash fund PC-SITE", lambda: fund("PC-SITE", "Site petty cash", sup_staff, "800000", "200000")
+    )
+    office_fund = (
+        step("petty cash fund PC-OFFICE", lambda: fund("PC-OFFICE", "Office petty cash", acct_staff, "300000", "75000"))
+        if acct_staff
+        else None
+    )
+
+    def funded(fund_id: str, amount: str, proposer: Api, approver: Api, issuer: Api, holder: Api) -> None:
+        m = proposer.post(
+            "/tenant/petty-cash/fundings",
+            {
+                "fund_id": fund_id,
+                "kind": "FUNDING",
+                "amount": amount,
+                "method": "CASH_TO_OFFICE",
+                "note": "Opening float for the fund",
+            },
+            "propose funding",
+            (201,),
+        )
+        approver.post(
+            f"/tenant/petty-cash/movements/{m['id']}/decision", {"approve": True, "note": "OK"}, "approve", (200,)
+        )
+        issuer.post(
+            f"/tenant/petty-cash/movements/{m['id']}/issue",
+            {"method": "CASH_TO_OFFICE", "reference": f"PCV-{amount}", "note": "Cash counted out at the office"},
+            "issue",
+            (200,),
+        )
+        holder.post(
+            f"/tenant/petty-cash/movements/{m['id']}/acknowledgement",
+            {"acknowledged": True, "amount_received": amount, "note": "Counted and received"},
+            "acknowledge",
+            (200,),
+        )
+
+    if site_fund:
+        step(
+            "PC-SITE funded 800,000 (accountant proposes, owner approves, accountant hands over, supervisor confirms)",
+            lambda: funded(site_fund, "800000", acct, owner, acct, sup),
+        )
+    if office_fund:
+        step(
+            "PC-OFFICE funded 300,000 (accountant proposes, owner approves and hands over, accountant confirms)",
+            lambda: funded(office_fund, "300000", acct, owner, owner, acct),
+        )
+
+    # Petty cash expenses from the site fund, by the supervisor, with receipts.
+    cats = {c["code"]: c["id"] for c in owner.rows("/tenant/expense-categories")}
+    home = (state.get("units") or [{"home": (-6.8, 39.28)}])[0]["home"]
+    site = (float(home[0]), float(home[1]))
+    gps = {"status": "FIX", "latitude": site[0], "longitude": site[1], "accuracy_m": 6.5, "provider": "fused"}
+    spends = [
+        ("FUEL", "Diesel top-up for EX-01 (jerrycans)", "Puma Energy Kibaha", "120000", "EX-01", 240),
+        ("SPARES", "Hydraulic hose fittings", "Kariakoo Spares", "85000", "EX-02", 200),
+        ("ALLOWANCE", "Operators' lunch allowance", "Site canteen", "45000", None, 150),
+        ("TRANSPORT", "Boda boda to fetch filters", "Local rider", "15000", "WL-01", 90),
+    ]
+    expense_ids: list[str] = []
+    if site_fund:
+        for i, (cat, desc, supplier, amount, mcode, ago) in enumerate(spends):
+
+            def spend(
+                cat: str = cat,
+                desc: str = desc,
+                supplier: str = supplier,
+                amount: str = amount,
+                mcode: str | None = mcode,
+                ago: int = ago,
+                i: int = i,
+            ) -> str:
+                receipt = upload_receipt(sup, amount, f"pc-receipt-{state['tenant_id'][:8]}-{i}")
+                body: dict[str, Any] = {
+                    "category_id": cats[cat],
+                    "description": desc,
+                    "supplier": supplier,
+                    "amount": amount,
+                    "incurred_at": at(ago),
+                    "paid_from": "PETTY_CASH",
+                    "petty_cash_fund_id": site_fund,
+                    "receipt_attachment_ids": [receipt],
+                    "gps": {**gps, "captured_at": at(ago)},
+                }
+                if mcode and mcode in machines:
+                    body["machine_id"] = machines[mcode]["id"]
+                return str(sup.post("/tenant/expenses", body, f"expense {desc}", (201,))["id"])
+
+            eid = step(f"petty cash expense {amount} ({desc})", spend)
+            if eid:
+                expense_ids.append(eid)
+        # Approve all but the last; the last stays waiting so the approval can be shown live.
+        for eid in expense_ids[:-1]:
+
+            def approve(eid: str = eid) -> None:
+                e = owner.get(f"/tenant/expenses/{eid}")
+                if e.get("status") == "PENDING_APPROVAL" and e.get("approval_request_id"):
+                    owner.post(
+                        f"/tenant/approvals/{e['approval_request_id']}/decision",
+                        {"approve": True, "note": "Receipt checked"},
+                        "approve expense",
+                        (200,),
+                    )
+
+            step(f"owner approves expense {eid[:8]}", approve)
+        step(
+            "supervisor requests a top-up (left waiting for approval)",
+            lambda: sup.post(
+                f"/tenant/petty-cash/funds/{site_fund}/top-up-requests",
+                {"note": "Fuel and spares this week"},
+                "top-up request",
+                (201,),
+            ),
+        )
+
+    # Customer hours sold in the field: one verified by the accountant, one waiting for verification.
+    customers = {c["code"]: c["id"] for c in owner.rows("/tenant/customers")}
+
+    def sell(cust: str, mcode: str, hours: str, method: str, amount: str, ref: str | None, ago: int) -> dict[str, Any]:
+        payment: dict[str, Any] = {"method": method, "received_at": at(ago), "amount": amount}
+        if ref:
+            payment["reference"] = ref
+        return dict(
+            sup.post(
+                "/tenant/hours-purchases",
+                {
+                    "customer_id": customers[cust],
+                    "machine_id": machines[mcode]["id"],
+                    "hours": hours,
+                    "payment": payment,
+                    "note": "Prepaid hours sold on site",
+                    "client_created_at": at(ago),
+                },
+                f"hours purchase {cust} {mcode}",
+                (201,),
+            )
+        )
+
+    first = step(
+        "PRC buys 20 h on EX-01 (bank transfer)",
+        lambda: sell("PRC", "EX-01", "20", "BANK", "1900000", "CRDB-TRX-88213", 180),
+    )
+    step(
+        "MMH buys 10 h on GR-01 (mobile money, left unverified)",
+        lambda: sell("MMH", "GR-01", "10", "MOBILE_MONEY", "1100000", "MPESA-QK7H2LX9", 60),
+    )
+    if first:
+
+        def verify() -> None:
+            pays = acct.rows("/tenant/customer-payments", {"customer_id": customers["PRC"]})
+            claimed = [p for p in pays if p.get("status") == "CLAIMED"]
+            acct.post(
+                f"/tenant/customer-payments/{claimed[0]['id']}/decision",
+                {"verified": True, "note": "Seen on the CRDB statement"},
+                "verify payment",
+                (200,),
+            )
+
+        step("accountant verifies the PRC payment (hours become active)", verify)
+    _ = bank
+
+
 def state_file(a: argparse.Namespace) -> Path:
     return Path(a.out_dir) / f"demo-{a.slug}-state.json"
 
@@ -2343,12 +2670,20 @@ def main(argv: list[str]) -> int:
         action="store_true",
         help="give the seed-created demo supervisor a new generated password first (saved to the credentials file)",
     )
+    sub.add_parser("extras", parents=[common])
     r = sub.add_parser("retire", parents=[common])
     r.add_argument("--yes", action="store_true")
     a = p.parse_args(argv)
     if a.command == "feed" and not 5 <= a.interval <= 120:
         p.error("--interval must be 5..120 s")
-    commands = {"seed": seed, "feed": feed, "field": field_history, "status": status, "retire": retire}
+    commands = {
+        "seed": seed,
+        "feed": feed,
+        "field": field_history,
+        "status": status,
+        "retire": retire,
+        "extras": extras,
+    }
     return int(commands[a.command](a))
 
 
