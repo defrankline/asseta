@@ -64,6 +64,9 @@ object SyncCapabilities {
      * (blob PETTY_CASH_EVIDENCE). Announced only while the tenant uses petty cash.
      */
     const val OP_PETTY_CASH = "OP_PETTY_CASH"
+
+    /** SyncData.petty_cash_witnesses: who may witness a count (never me), so a witnessed count is recorded offline. */
+    const val SYNC_PETTY_CASH_WITNESSES = "SYNC_PETTY_CASH_WITNESSES"
 }
 
 /** `ExceptionDto`: a server finding on a reading (type, severity, blocking) and its review. */

@@ -196,6 +196,62 @@ class PettyCashSyncTest : SyncTestBase() {
         assertEquals(listOf(session.id), payload(r.operationId)["evidence_upload_ids"]!!.jsonArray.map { it.jsonPrimitive.content })
     }
 
+    private fun witness(id: String, name: String) = buildJsonObject { put("user_id", id); put("name", name) }
+
+    @Test
+    fun witnessListIsStoredReplacedAndCleared() = runBlocking {
+        val asha = "e0000000-0000-4000-8000-000000000001"
+        val juma = "e0000000-0000-4000-8000-000000000002"
+        fake.capabilities = listOf(SyncCapabilities.SUPERVISOR_INBOX_V1, SyncCapabilities.OP_PETTY_CASH, SyncCapabilities.SYNC_PETTY_CASH_WITNESSES)
+        fake.inbox = snapshot() + ("petty_cash_witnesses" to listOf(witness(juma, "Juma"), witness(asha, "asha")))
+        synced()
+        assertTrue(pettyRepo.witnessesOffline(tenant))
+        assertEquals(listOf("asha", "Juma"), pettyRepo.observeWitnesses(tenant).first().map { it.name })
+
+        fake.inbox = snapshot() + ("petty_cash_witnesses" to listOf(witness(juma, "Juma Ali")))
+        synced()
+        assertEquals(listOf(juma to "Juma Ali"), pettyRepo.observeWitnesses(tenant).first().map { it.userId to it.name })
+
+        fake.inbox = snapshot()
+        synced()
+        assertTrue(pettyRepo.observeWitnesses(tenant).first().isEmpty())
+
+        fake.inbox = snapshot() + ("petty_cash_witnesses" to listOf(witness(asha, "Asha")))
+        synced()
+        fake.capabilities = listOf(SyncCapabilities.SUPERVISOR_INBOX_V1)
+        synced()
+        assertTrue(pettyRepo.observeWitnesses(tenant).first().isEmpty())
+        assertFalse(pettyRepo.witnessesOffline(tenant))
+    }
+
+    @Test
+    fun witnessPickedOfflineIsSentAndADroppedWitnessIsShownAfterSync() = runBlocking {
+        val asha = "e0000000-0000-4000-8000-000000000001"
+        fake.capabilities = listOf(SyncCapabilities.SUPERVISOR_INBOX_V1, SyncCapabilities.OP_PETTY_CASH, SyncCapabilities.SYNC_PETTY_CASH_WITNESSES)
+        fake.inbox = snapshot() + ("petty_cash_witnesses" to listOf(witness(asha, "Asha")))
+        synced()
+        // Offline: the witness comes from the stored list.
+        val picked = pettyRepo.observeWitnesses(tenant).first().single()
+        assertTrue(engine(online = false).sync(tenant) is SyncReport.Retry)
+        val withWitness = saved(petty.count(PettyCashCountRequest(tenant, UUID.randomUUID().toString(), fundId, "100", picked.userId, "", emptyList(), clock.now)))
+        val alone = saved(petty.count(PettyCashCountRequest(tenant, UUID.randomUUID().toString(), fundId, "100", null, "", emptyList(), clock.now)))
+        assertEquals(asha, payload(withWitness.operationId)["witness_user_id"]!!.jsonPrimitive.content)
+        assertNull(payload(alone.operationId)["witness_user_id"])
+
+        // The witness lost the permission meanwhile: the server keeps the count without the witness (a self-count).
+        fake.handler = { o ->
+            if (o["op_type"]!!.jsonPrimitive.content == PettyCashOps.COUNT) {
+                "ACKED" to buildJsonObject { putJsonObject("entity") { put("witness_user_id", null as String?); put("self_count", true) } }
+            } else null
+        }
+        synced()
+        val records = pettyRepo.observe(tenant).first().records.associateBy { it.operationId }
+        assertTrue(records.getValue(withWitness.operationId).witnessDropped)
+        assertFalse(records.getValue(withWitness.operationId).selfCount)
+        assertTrue(records.getValue(alone.operationId).selfCount)
+        assertFalse(records.getValue(alone.operationId).witnessDropped)
+    }
+
     @Test
     fun operationsNeedTheCapability() = runBlocking {
         fake.capabilities = listOf(SyncCapabilities.SUPERVISOR_INBOX_V1)

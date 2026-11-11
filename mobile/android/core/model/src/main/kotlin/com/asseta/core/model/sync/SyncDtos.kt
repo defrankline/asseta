@@ -71,6 +71,8 @@ data class SyncData(
     @SerialName("petty_cash_awaiting") val pettyCashAwaiting: List<PettyCashMovementDto> = emptyList(),
     @SerialName("petty_cash_holder_changes") val pettyCashHolderChanges: List<PettyCashHolderChangeDto> = emptyList(),
     @SerialName("petty_cash_advances") val pettyCashAdvances: List<PettyCashAdvanceDto> = emptyList(),
+    /** SYNC_PETTY_CASH_WITNESSES: colleagues who may witness a count (full snapshot, replaced on every pull). */
+    @SerialName("petty_cash_witnesses") val pettyCashWitnesses: List<PettyCashWitnessDto> = emptyList(),
 )
 
 /** `SyncOpenInvoiceDto`: an issued invoice with money still owed, so a collection can name it. */

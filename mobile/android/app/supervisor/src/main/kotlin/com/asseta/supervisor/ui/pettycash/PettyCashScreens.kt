@@ -195,6 +195,7 @@ fun MyPettyCashScreen(vm: PettyCashViewModel, access: FieldAccess?, syncing: Boo
                                 Text(LocalTime.format(r.createdAtMs), color = palette.secondaryText)
                                 SyncStateLabel(r.status)
                                 if (r.isRefused) Text(T.conflict(r.errorCode) ?: r.lastError.orEmpty(), color = palette.offline)
+                                T.countOutcome(r)?.let { Text(it, color = palette.secondaryText) }
                             }
                         }
                     },
@@ -417,9 +418,26 @@ data class CountForm(
 class PettyCashCountViewModel(field: FieldGraph, tenantId: String, val fundId: String) : PettyCashViewModel(field, tenantId) {
     val form = MutableStateFlow(CountForm())
 
-    /** Witness search results; null = offline or not searched. */
+    /** Witness search results; null = offline or not searched (servers without the witness list only). */
     private val _people = MutableStateFlow<List<PersonDto>?>(null)
     val people: StateFlow<List<PersonDto>?> = _people.asStateFlow()
+
+    /** The server sends who may witness a count: the witness is picked offline from that list. */
+    private val _offlineWitnesses = MutableStateFlow(false)
+    val offlineWitnesses: StateFlow<Boolean> = _offlineWitnesses.asStateFlow()
+
+    /** Colleagues who may witness a count, as the last pull delivered them. */
+    val witnesses: StateFlow<List<com.asseta.core.model.sync.PettyCashWitnessDto>> = field.pettyCash.observeWitnesses(tenantId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    init {
+        viewModelScope.launch { _offlineWitnesses.value = field.pettyCash.witnessesOffline(tenantId) }
+    }
+
+    /** Picks a witness from the downloaded list (null = no witness). */
+    fun pickWitness(userId: String?) = edit { f ->
+        f.copy(witness = witnesses.value.firstOrNull { it.userId == userId }?.let { PersonDto(it.userId, it.name) })
+    }
 
     fun edit(change: (CountForm) -> CountForm) { form.update(change); clearMessages() }
 
@@ -446,11 +464,13 @@ fun PettyCashCountScreen(vm: PettyCashCountViewModel, access: FieldAccess?, onli
     val form by vm.form.collectAsStateWithLifecycle()
     val policy by vm.policy.collectAsStateWithLifecycle()
     val people by vm.people.collectAsStateWithLifecycle()
+    val offlineWitnesses by vm.offlineWitnesses.collectAsStateWithLifecycle()
+    val witnesses by vm.witnesses.collectAsStateWithLifecycle()
     val fund = view.fund(vm.fundId)
     val editable = !save.saving && !save.saved
     LaunchedEffect(form.query, online) {
         delay(350)
-        if (online) vm.search(form.query)
+        if (online && !offlineWitnesses) vm.search(form.query)
     }
     FormColumn {
         if (access?.pettyCashCount != true) return@FormColumn NoticeCard(T.TITLE_COUNT, T.UNAVAILABLE, isError = true)
@@ -466,7 +486,12 @@ fun PettyCashCountScreen(vm: PettyCashCountViewModel, access: FieldAccess?, onli
         if (policy.countWitnessRequired) {
             Section(T.WITNESS, footer = if (form.witness == null) T.WITNESS_FOOTER + " " + T.NO_WITNESS else T.WITNESS_FOOTER) {
                 val w = form.witness
-                if (w != null) {
+                if (offlineWitnesses) {
+                    SearchablePickerField(
+                        T.WITNESS, witnesses.map { PickerOption(it.userId, it.name) }, w?.userId, vm::pickWitness,
+                        noneLabel = T.WITNESS_NONE, emptyText = T.WITNESS_EMPTY, enabled = editable,
+                    )
+                } else if (w != null) {
                     LabeledRow(T.WITNESS, w.displayName)
                     if (editable) ActionRow(T.WITNESS_NONE) { vm.edit { it.copy(witness = null) } }
                 } else if (!online) {

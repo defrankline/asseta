@@ -176,6 +176,10 @@ data class PettyCashAdvanceClearPayload(
     val note: String? = null,
 )
 
+/** `PettyCashWitnessDto`: a login that may witness a count (active, holding the count permission, never the caller). */
+@Serializable
+data class PettyCashWitnessDto(@SerialName("user_id") val userId: String, val name: String)
+
 /** `PersonDto` (listTenantPeople): a colleague's login and display name (the count witness search). */
 @Serializable
 data class PersonDto(@SerialName("user_id") val userId: String, @SerialName("display_name") val displayName: String)

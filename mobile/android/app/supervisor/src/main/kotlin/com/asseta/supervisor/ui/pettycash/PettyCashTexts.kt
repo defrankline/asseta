@@ -104,6 +104,16 @@ object PettyCashTexts {
     const val WITNESS_OFFLINE = "Connect to choose a witness."
     const val WITNESS_NO_RESULTS = "No one found."
     const val NO_WITNESS = "Without a witness this count is recorded as counted by you alone."
+    const val WITNESS_EMPTY = "No colleague who can witness a count is on this phone. Sync first."
+    const val RECORDED_SELF = "Recorded as counted by you alone."
+    const val WITNESS_DROPPED = "The witness could no longer witness counts, so this count was recorded without a witness."
+
+    /** The line under a synced count: the witness was dropped, else a self-count; null otherwise. */
+    fun countOutcome(r: PettyCashRecord): String? = when {
+        r.witnessDropped -> WITNESS_DROPPED
+        r.selfCount -> RECORDED_SELF
+        else -> null
+    }
 
     const val HOLDER_FROM = "From"
     const val HOLDER_REQUESTED_BY = "Requested by"

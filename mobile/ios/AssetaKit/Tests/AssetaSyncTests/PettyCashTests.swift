@@ -86,6 +86,61 @@ struct PettyCashTests {
         #expect(h.directoryView.pettyCash().funds.isEmpty)
     }
 
+    static func witness(_ id: UUID, _ name: String) -> [String: Any] { ["user_id": id.uuidString.lowercased(), "name": name] }
+    static let asha = UUID(uuidString: "e1000000-0000-4000-8000-000000000001")!
+    static let juma = UUID(uuidString: "e1000000-0000-4000-8000-000000000002")!
+
+    @Test func witnessListIsStoredReplacedAndCleared() async throws {
+        let h = try await Self.synced()
+        #expect(!h.directoryView.pettyCashWitnessesOffline()) // an older server: online search
+        h.server.mutate {
+            $0.capabilities = Self.caps + [SyncCapability.pettyCashWitnesses]
+            $0.extraData = ["petty_cash_funds": [Self.fund()],
+                            "petty_cash_witnesses": [Self.witness(Self.juma, "Juma"), Self.witness(Self.asha, "asha")]]
+        }
+        _ = try await h.engine().sync(force: true)
+        #expect(h.directoryView.pettyCashWitnessesOffline())
+        #expect(h.directoryView.pettyCashWitnesses().map(\.name) == ["asha", "Juma"])
+        h.server.mutate { $0.extraData = ["petty_cash_funds": [Self.fund()], "petty_cash_witnesses": [Self.witness(Self.juma, "Juma Ali")]] }
+        _ = try await h.engine().sync(force: true)
+        #expect(h.directoryView.pettyCashWitnesses().map(\.userID) == [Self.juma])
+        #expect(h.directoryView.pettyCashWitnesses().map(\.name) == ["Juma Ali"])
+        h.server.mutate { $0.extraData = ["petty_cash_funds": [Self.fund()]] }
+        _ = try await h.engine().sync(force: true)
+        #expect(h.directoryView.pettyCashWitnesses().isEmpty)
+        h.server.mutate { $0.extraData = ["petty_cash_witnesses": [Self.witness(Self.asha, "Asha")]] }
+        _ = try await h.engine().sync(force: true)
+        h.server.mutate { $0.capabilities = [SyncCapability.supervisorInbox] }
+        _ = try await h.engine().sync(force: true)
+        #expect(h.directoryView.pettyCashWitnesses().isEmpty && !h.directoryView.pettyCashWitnessesOffline())
+    }
+
+    @Test func aWitnessPickedOfflineIsSentAndADroppedWitnessIsShownAfterSync() async throws {
+        let h = try await Self.synced()
+        h.server.mutate {
+            $0.capabilities = Self.caps + [SyncCapability.pettyCashWitnesses]
+            $0.extraData = ["petty_cash_funds": [Self.fund()], "petty_cash_witnesses": [Self.witness(Self.asha, "Asha")]]
+        }
+        _ = try await h.engine().sync(force: true)
+        // No network needed: the witness comes from the stored list.
+        let picked = try #require(h.directoryView.pettyCashWitnesses().first)
+        let withWitness = try h.recorder.countPettyCash(fundID: Self.fundID, countedText: "240", witnessUserID: picked.userID, note: "", evidence: [])
+        let alone = try h.recorder.countPettyCash(fundID: Self.fundID, countedText: "240", witnessUserID: nil, note: "", evidence: [])
+        #expect(try payload(withWitness)["witness_user_id"] as? String == Self.asha.lowercased)
+        #expect(try payload(alone)["witness_user_id"] == nil)
+        // The server kept both counts without a witness (the witness lost the permission before the phone synced).
+        for op in [withWitness, alone] {
+            try h.store.database.execute(
+                "UPDATE client_operation SET status = 'ACKED', server_result_json = ? WHERE id = ?",
+                [.text(#"{"entity":{"witness_user_id":null,"self_count":true}}"#), .text(op.id.lowercased)])
+        }
+        let onPhone = h.directoryView.pettyCash().onPhone
+        #expect(onPhone.first { $0.id == withWitness.id }.flatMap(PettyCashTexts.countOutcome) == PettyCashTexts.countWitnessDropped)
+        #expect(onPhone.first { $0.id == alone.id }.flatMap(PettyCashTexts.countOutcome) == PettyCashTexts.countRecordedSelf)
+        let both = PettyCashTexts.countOutcome(sentWitness: "w", recordedWitness: "w", selfCount: false)
+        #expect(!both.selfCount && !both.witnessDropped)
+    }
+
     @Test func advancesAreHiddenWhileTheTenantDoesNotUseThem() async throws {
         let h = try await Self.synced(advances: false)
         let view = h.directoryView.pettyCash()

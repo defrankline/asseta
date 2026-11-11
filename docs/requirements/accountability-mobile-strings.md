@@ -2099,8 +2099,15 @@ Rules shared by both apps:
   (prefilled with available to spend when above 0), method (`CASH_TO_OFFICE`, `BANK_DEPOSIT`, `MOBILE_MONEY`), deposit account
   (optional; active synced accounts in the fund's currency, hidden when `DEPOSIT_ACCOUNTS` is off), reference, note, photos (at
   least one when `return_evidence_required`). Count: counted amount 0 or more, note, photos (optional); when
-  `count_witness_required` a witness is chosen by name search online (`GET /tenant/people?q=`, at least 2 characters); offline
-  or without one it saves with the note `field.pettyCash.count.noWitness`. Holder change: accept, or decline with a reason.
+  `count_witness_required` a witness is chosen from the colleagues who may witness a count, offline: sync capability
+  `SYNC_PETTY_CASH_WITNESSES` brings `SyncData.petty_cash_witnesses` (`{user_id, name}`, never me; sent while I hold a fund and
+  may count), a full snapshot that replaces the local set on every pull and is cleared with the other petty cash sets when
+  `OP_PETTY_CASH` goes away. The picker is searchable (`field.pettyCash.count.witness`, none = `field.pettyCash.count.witnessNone`,
+  empty list = `field.pettyCash.count.witnessEmpty`). A server without `SYNC_PETTY_CASH_WITNESSES` keeps the online name search
+  (`GET /tenant/people?q=`, at least 2 characters). Without a witness the count still saves, with the note
+  `field.pettyCash.count.noWitness` (a self-count). After sync, "Recorded on this phone" adds a line under a synced count:
+  `field.pettyCash.count.witnessDropped` when a witness was chosen but the server recorded none (the witness lost the
+  permission before the phone synced), else `field.pettyCash.count.recordedSelf` when the server marked it a self-count. Holder change: accept, or decline with a reason.
   Clear advance (fund holder, advances given to someone else): change handed back 0 or more, prefilled with `remaining`.
 - **Expense flags (`control_flags`)**, shown neutrally wherever an expense is shown (Supervisor Money rows and expense detail;
   Owner field spend rows and the expense card of an approval): header `expense.flags.title`, one line per flag; unknown flags
@@ -2228,6 +2235,9 @@ Screens per app:
 | field.pettyCash.count.witnessOffline | Connect to choose a witness. |
 | field.pettyCash.count.witnessNoResults | No one found. |
 | field.pettyCash.count.noWitness | Without a witness this count is recorded as counted by you alone. |
+| field.pettyCash.count.witnessEmpty | No colleague who can witness a count is on this phone. Sync first. |
+| field.pettyCash.count.recordedSelf | Recorded as counted by you alone. |
+| field.pettyCash.count.witnessDropped | The witness could no longer witness counts, so this count was recorded without a witness. |
 | field.pettyCash.holder.from | From |
 | field.pettyCash.holder.requestedBy | Requested by |
 | field.pettyCash.holder.requestedAt | Requested |

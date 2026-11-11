@@ -17,7 +17,16 @@ extension FieldModel {
         return services.directory.pettyCash()
     }
 
-    /// Colleagues by name for a count witness (online only).
+    /// Colleagues who may witness a count, from the last pull (offline); empty while the feature is off for me.
+    var pettyCashWitnesses: [PettyCashWitnessDTO] {
+        guard access.pettyCashCount, let services else { return [] }
+        return services.directory.pettyCashWitnesses()
+    }
+
+    /// The server sends the witness list, so the count form picks the witness offline.
+    var pettyCashWitnessesOffline: Bool { services?.directory.pettyCashWitnessesOffline() ?? false }
+
+    /// Colleagues by name for a count witness (online only; servers without the witness list).
     func searchPeople(_ query: String) async -> [PersonDTO]? {
         guard isOnline, let online = services?.online else { return nil }
         return try? await online.searchPeople(query)
@@ -138,6 +147,7 @@ struct MyPettyCashView: View {
                             if op.status == .failed || op.status == .conflict {
                                 Text(P.refusal(op)).font(.caption).foregroundStyle(Palette.offline)
                             }
+                            if let outcome = P.countOutcome(op) { Text(outcome).font(.caption).foregroundStyle(.secondary) }
                         }
                     }
                 }
@@ -451,7 +461,17 @@ struct PettyCashCountFormView: View {
 
     @ViewBuilder private var witnessSection: some View {
         Section {
-            if let witness {
+            if model.pettyCashWitnessesOffline {
+                // Picked offline from the colleagues the last pull delivered.
+                SearchablePickerField(label: P.countWitness,
+                                      options: model.pettyCashWitnesses.map { PickerOption(id: $0.userID, title: $0.name, subtitle: nil) },
+                                      selection: Binding(get: { witness?.userID }, set: { id in
+                                          witness = model.pettyCashWitnesses.first { $0.userID == id }
+                                              .map { PersonDTO(userID: $0.userID, displayName: $0.name) }
+                                      }),
+                                      noneTitle: P.countWitnessNone, emptyMessage: P.countWitnessEmpty,
+                                      identifier: "pettyCash.count.witness")
+            } else if let witness {
                 LabeledContent(P.countWitness, value: witness.displayName)
                 Button(P.countWitnessNone, role: .destructive) { self.witness = nil }
             } else if model.isOnline {

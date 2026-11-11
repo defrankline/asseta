@@ -160,6 +160,7 @@ class ServerDataWriter(private val db: () -> AssetaDatabase, private val json: J
             KIND_PETTY_AWAITING to (if (on) data.pettyCashAwaiting.map { ref(KIND_PETTY_AWAITING, it.id, tenantId, it.number, json.encodeToString(it)) } else emptyList()),
             KIND_PETTY_HOLDER_CHANGE to (if (on) data.pettyCashHolderChanges.map { ref(KIND_PETTY_HOLDER_CHANGE, it.id, tenantId, it.fundName.orEmpty(), json.encodeToString(it)) } else emptyList()),
             KIND_PETTY_ADVANCE to (if (on) data.pettyCashAdvances.map { ref(KIND_PETTY_ADVANCE, it.id, tenantId, it.number, json.encodeToString(it)) } else emptyList()),
+            KIND_PETTY_WITNESS to (if (on) data.pettyCashWitnesses.map { ref(KIND_PETTY_WITNESS, it.userId, tenantId, it.name, json.encodeToString(it)) } else emptyList()),
         )
         sets.forEach { (kind, rows) ->
             keepOnly(field, tenantId, kind, rows.map { it.id })
@@ -260,5 +261,6 @@ class ServerDataWriter(private val db: () -> AssetaDatabase, private val json: J
         const val KIND_PETTY_AWAITING = "petty_cash_awaiting"
         const val KIND_PETTY_HOLDER_CHANGE = "petty_cash_holder_change"
         const val KIND_PETTY_ADVANCE = "petty_cash_advance"
+        const val KIND_PETTY_WITNESS = "petty_cash_witness"
     }
 }

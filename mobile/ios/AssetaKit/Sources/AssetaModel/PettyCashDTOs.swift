@@ -7,6 +7,24 @@ import Foundation
 extension SyncCapability {
     /// `PETTY_CASH_*` operations, `EXPENSE.paid_from = PETTY_CASH` and the `petty_cash_*` snapshots.
     public static let pettyCash = "OP_PETTY_CASH"
+    /// `SyncData.petty_cash_witnesses`: who may witness a count (never me), so a witnessed count is recorded offline.
+    public static let pettyCashWitnesses = "SYNC_PETTY_CASH_WITNESSES"
+}
+
+/// `PettyCashWitnessDto`: a login that may witness a count (active, holding the count permission, never the caller).
+public struct PettyCashWitnessDTO: Codable, Hashable, Sendable, Identifiable {
+    public let userID: UUID
+    public let name: String
+    public var id: UUID { userID }
+
+    public init(userID: UUID, name: String) {
+        self.userID = userID
+        self.name = name
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case userID = "user_id", name
+    }
 }
 
 /// `PettyCashBalanceDto`: the server's figures of one fund (the phone never computes a balance).

@@ -147,6 +147,25 @@ public enum PettyCashTexts {
     public static let countWitnessOffline = "Connect to choose a witness."
     public static let countWitnessNoResults = "No one found."
     public static let countNoWitness = "Without a witness this count is recorded as counted by you alone."
+    public static let countWitnessEmpty = "No colleague who can witness a count is on this phone. Sync first."
+    public static let countRecordedSelf = "Recorded as counted by you alone."
+    public static let countWitnessDropped = "The witness could no longer witness counts, so this count was recorded without a witness."
+
+    /// (self-count, witness dropped): a witness was chosen but the server recorded none, or the server marked a self-count.
+    public static func countOutcome(sentWitness: String?, recordedWitness: String?, selfCount: Bool) -> (selfCount: Bool, witnessDropped: Bool) {
+        let dropped = sentWitness != nil && recordedWitness == nil
+        return (selfCount && !dropped, dropped)
+    }
+
+    /// The line under a synced count: the witness was dropped, else a self-count; nil otherwise (and for other ops).
+    public static func countOutcome(_ op: ClientOperation) -> String? {
+        guard op.opType == OperationType.pettyCashCount.rawValue, op.status == .acked,
+              let result = op.serverResultJSON.flatMap({ try? JSONValue.parse($0) }), let entity = result["entity"] else { return nil }
+        let sent = (try? JSONValue.parse(op.payloadJSON))?["witness_user_id"]?.stringValue
+        let outcome = countOutcome(sentWitness: sent, recordedWitness: entity["witness_user_id"]?.stringValue,
+                                   selfCount: entity["self_count"]?.boolValue ?? false)
+        return outcome.witnessDropped ? countWitnessDropped : outcome.selfCount ? countRecordedSelf : nil
+    }
     public static let holderFrom = "From"
     public static let holderRequestedBy = "Requested by"
     public static let holderRequestedAt = "Requested"
@@ -445,6 +464,7 @@ public enum PettyCash {
     public static let awaitingType = "petty_cash_awaiting"
     public static let holderChangeType = "petty_cash_holder_change"
     public static let advanceType = "petty_cash_advance"
+    public static let witnessType = "petty_cash_witness"
 
     static let operationTypes: Set<String> = [
         OperationType.pettyCashAcknowledgement.rawValue, OperationType.pettyCashTopUpRequest.rawValue,
@@ -483,6 +503,18 @@ extension FieldDirectory {
         guard let snapshot = stored.first(where: { $0.scopeKey == "tenant" }),
               let values = try? JSONValue.parse(snapshot.valuesJSON) else { return PettyCashPolicyValues() }
         return PettyCashPolicyValues(values: values)
+    }
+
+    /// Colleagues who may witness a count, by name, as the last pull delivered them (offline picker).
+    public func pettyCashWitnesses() -> [PettyCashWitnessDTO] {
+        pettyRows(PettyCash.witnessType, as: PettyCashWitnessDTO.self)
+            .sorted { ($0.name.lowercased(), $0.userID.uuidString) < ($1.name.lowercased(), $1.userID.uuidString) }
+    }
+
+    /// The server sends the witness list (SYNC_PETTY_CASH_WITNESSES): the count form picks offline, else searches online.
+    public func pettyCashWitnessesOffline() -> Bool {
+        let text = (try? store.syncState.value(SyncKey.capabilities, tenant: tenantID.uuidString.lowercased())) ?? nil
+        return (text ?? "").split(separator: ",").contains { $0 == SyncCapability.pettyCashWitnesses }
     }
 
     /// My petty cash: the last snapshot with this phone's answers.

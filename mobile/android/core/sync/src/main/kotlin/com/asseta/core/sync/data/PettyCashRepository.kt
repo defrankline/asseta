@@ -36,6 +36,10 @@ data class PettyCashRecord(
     val errorCode: String?,
     val lastError: String?,
     val createdAtMs: Long,
+    /** A synced count the server recorded as a self-count (no witness while the tenant asks for one). */
+    val selfCount: Boolean = false,
+    /** A synced count whose chosen witness the server dropped (the witness lost the permission before the phone synced). */
+    val witnessDropped: Boolean = false,
 ) {
     val isRefused: Boolean get() = status == ClientOperationStatus.FAILED || status == ClientOperationStatus.CONFLICT
 }
@@ -86,6 +90,15 @@ class PettyCashRepository(
     /** The `PETTY_CASH` policy snapshot as last synced (lenient: missing = off). */
     suspend fun policy(tenantId: String): PettyCashPolicy = policyOf(field.policySnapshots(tenantId))
 
+    /** Colleagues who may witness a count, by name, as the last pull delivered them (offline picker). */
+    fun observeWitnesses(tenantId: String): Flow<List<com.asseta.core.model.sync.PettyCashWitnessDto>> =
+        refs(tenantId, ServerDataWriter.KIND_PETTY_WITNESS, com.asseta.core.model.sync.PettyCashWitnessDto.serializer())
+            .map { list -> list.sortedWith(compareBy({ it.name.lowercase() }, { it.userId })) }
+
+    /** The server sends the witness list (SYNC_PETTY_CASH_WITNESSES): the count form picks offline, else searches online. */
+    suspend fun witnessesOffline(tenantId: String): Boolean =
+        db().syncStateDao().get(tenantId)?.supports(com.asseta.core.model.sync.SyncCapabilities.SYNC_PETTY_CASH_WITNESSES) == true
+
     /** Active deposit accounts in [currency] for the return form. */
     fun depositAccounts(accounts: List<DepositAccountOption>, currency: String): List<DepositAccountOption> =
         accounts.filter { it.isActive && it.currency == currency }
@@ -99,12 +112,28 @@ class PettyCashRepository(
             PettyCashOps.HOLDER_CHANGE_ACKNOWLEDGEMENT -> null
             else -> p.text("amount")
         }
-        return PettyCashRecord(op.id, op.opType, op.entityId, p.text("fund_id"), amount, op.status, op.errorCode, op.lastError, op.createdAtDevice)
+        val counted = if (op.opType == PettyCashOps.COUNT && op.status == ClientOperationStatus.ACKED) countOutcome(p, op.resultJson) else null
+        return PettyCashRecord(
+            op.id, op.opType, op.entityId, p.text("fund_id"), amount, op.status, op.errorCode, op.lastError, op.createdAtDevice,
+            selfCount = counted?.first == true, witnessDropped = counted?.second == true,
+        )
+    }
+
+    /** (self-count, witness dropped) of a synced count, from the server's copy in the push result. */
+    private fun countOutcome(payload: JsonObject?, resultJson: String?): Pair<Boolean, Boolean>? {
+        val entity = resultJson?.let { runCatching { json.parseToJsonElement(it).jsonObject["entity"] as? JsonObject }.getOrNull() } ?: return null
+        return countOutcome(payload.text("witness_user_id"), entity.text("witness_user_id"), (entity["self_count"] as? JsonPrimitive)?.contentOrNull == "true")
     }
 
     private fun JsonObject?.text(key: String): String? = (this?.get(key) as? JsonPrimitive)?.contentOrNull
 
     companion object {
+        /** (self-count, witness dropped): a witness was chosen but the server recorded none, or the server marked a self-count. */
+        fun countOutcome(sentWitness: String?, recordedWitness: String?, selfCount: Boolean): Pair<Boolean, Boolean> {
+            val dropped = sentWitness != null && recordedWitness == null
+            return Pair(selfCount && !dropped, dropped)
+        }
+
         fun policyOf(snapshots: List<PolicySnapshot>): PettyCashPolicy = PettyCashPolicy.fromValues(
             snapshots.firstOrNull { it.policyType == PettyCashPolicy.TYPE && it.scopeKey == PolicySnapshot.TENANT_SCOPE }?.values,
         )

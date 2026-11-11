@@ -326,10 +326,13 @@ public actor SyncEngine {
         let lists: [(String, [JSONValue])] = [
             (PettyCash.fundType, data.pettyCashFunds), (PettyCash.awaitingType, data.pettyCashAwaiting),
             (PettyCash.holderChangeType, data.pettyCashHolderChanges), (PettyCash.advanceType, data.pettyCashAdvances),
+            (PettyCash.witnessType, data.pettyCashWitnesses),
         ]
         for (type, objects) in lists {
             let rows = on ? try objects.compactMap { object -> StoredEntity? in
-                guard let id = object["id"]?.stringValue.flatMap(UUID.init(uuidString:)) else { return nil }
+                // Witnesses are keyed by their login (`user_id`), every other set by `id`.
+                let key = type == PettyCash.witnessType ? "user_id" : "id"
+                guard let id = object[key]?.stringValue.flatMap(UUID.init(uuidString:)) else { return nil }
                 return StoredEntity(entityType: type, id: id, revision: revision, version: nil, json: try object.jsonString())
             } : []
             try store.syncState.replaceEntities(type: type, with: rows, tenantID: tenantID)

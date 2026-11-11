@@ -72,6 +72,17 @@ class PettyCashPresentationTest {
     }
 
     @Test
+    fun `a synced count says when it was recorded without a witness`() {
+        assertEquals(false to true, PettyCashRepository.countOutcome("w1", null, selfCount = true))
+        assertEquals(true to false, PettyCashRepository.countOutcome(null, null, selfCount = true))
+        assertEquals(false to false, PettyCashRepository.countOutcome("w1", "w1", selfCount = false))
+        val base = record(PettyCashOps.COUNT, "c1", ClientOperationStatus.ACKED)
+        assertEquals(PettyCashTexts.WITNESS_DROPPED, PettyCashTexts.countOutcome(base.copy(witnessDropped = true)))
+        assertEquals("Recorded as counted by you alone.", PettyCashTexts.countOutcome(base.copy(selfCount = true)))
+        assertNull(PettyCashTexts.countOutcome(base))
+    }
+
+    @Test
     fun `petty cash is offered as paid-from only when there is a fund`() {
         assertEquals(listOf(PaidFrom.CASH_CUSTODY, PaidFrom.COMPANY), ExpenseTexts.paidFromOptions(false))
         assertEquals(PaidFrom.entries, ExpenseTexts.paidFromOptions(true))
