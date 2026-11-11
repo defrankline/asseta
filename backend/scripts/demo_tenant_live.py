@@ -2381,22 +2381,27 @@ def _extras(owner: Api, acct: Api, sup: Api, state: dict[str, Any], now: datetim
             log(f"SKIP {label}: {e}")
             return None
 
-    # Company bank and mobile-money accounts (where field cash and petty cash money go).
-    bank = step(
-        "deposit account CRDB",
-        lambda: owner.post(
-            "/tenant/deposit-accounts",
-            {
-                "name": "CRDB Bank - Operations",
-                "account_type": "BANK",
-                "institution": "CRDB Bank",
-                "account_number": "0150123456700",
-            },
-            "deposit account",
-            (201,),
-        )["id"],
+    # Company bank and mobile-money accounts (where field cash and petty cash money go); kept if already there.
+    have_accounts = {norm(x["name"]) for x in owner.rows("/tenant/deposit-accounts", {"include_inactive": "true"})}
+    bank = (
+        None
+        if norm("CRDB Bank - Operations") in have_accounts
+        else step(
+            "deposit account CRDB",
+            lambda: owner.post(
+                "/tenant/deposit-accounts",
+                {
+                    "name": "CRDB Bank - Operations",
+                    "account_type": "BANK",
+                    "institution": "CRDB Bank",
+                    "account_number": "0150123456700",
+                },
+                "deposit account",
+                (201,),
+            )["id"],
+        )
     )
-    step(
+    None if norm("M-Pesa Till 555123") in have_accounts else step(
         "deposit account M-Pesa",
         lambda: owner.post(
             "/tenant/deposit-accounts",
@@ -2412,7 +2417,7 @@ def _extras(owner: Api, acct: Api, sup: Api, state: dict[str, Any], now: datetim
     )
 
     # Hourly rate cards per machine type in use, from the demo jobs' rates.
-    machines = {m["code"]: m for m in owner.rows("/tenant/machines")}
+    machines = {m["asset_code"]: m for m in owner.rows("/tenant/machines")}
     rate_of = {mcode: hourly for _n, _c, mcode, hourly, _f in JOBS}
     by_category: dict[str, str] = {}
     for code, m in machines.items():
