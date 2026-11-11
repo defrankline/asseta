@@ -1,6 +1,6 @@
 # Acceptance scenarios: demonstration script
 
-This is the script for demonstrating the 13 scenarios in section 9 of your guideline, followed by scenarios 14 to 18 for the petty cash funds. It runs on a **test company**, never on your live company. Follow the scenarios in order: each one builds on the last.
+This is the script for demonstrating the 13 scenarios in section 9 of your guideline, followed by scenarios 14 to 19 for the petty cash funds. It runs on a **test company**, never on your live company. Follow the scenarios in order: each one builds on the last.
 
 **How to use it.** A named witness from the company ticks each box when the expected result is seen on screen. Tick only what you saw. Sign the page at the end.
 
@@ -322,6 +322,21 @@ Leave the setting as your company has decided after the demonstration.
 | 6 | Owner | WEB | Open the funding | **Proposed** by the Owner and **Approved** by the Manager, with times | ☐ |
 | 7 | Accountant, Supervisor | WEB, PHONE | Hand it over; the Supervisor acknowledges it | Fund **Balance** 200,000 | ☐ |
 
+## Scenario 19: An advance handed out offline is recorded once, spent against with a receipt, and cleared with change
+
+| # | Who | Device | Do | Should see | ✓ |
+|---|---|---|---|---|---|
+| 1 | Owner | WEB | **Administration → Policies**, **Petty cash**, **New override**. Turn on **Cash advances**. A reason, **Create version** | A new version in the **Version history** | ☐ |
+| 2 | Supervisor | PHONE | Sync. Note PC-SITE's **Balance** (200,000 after scenario 18). Switch on **airplane mode** | Offline banner | ☐ |
+| 3 | Supervisor | PHONE | On PC-SITE: **Give an advance**. Recipient **Juma**, **Amount** 20,000, purpose "Diesel at the quarry". Save | Saved. Listed under **Recorded on this phone** as **Waiting to sync** | ☐ |
+| 4 | Supervisor | PHONE | Switch off airplane mode, **Sync now**. Then tap **Sync now** again | **Synced**. Under **Advances**: "Given to Juma", 20,000. The second sync changes nothing | ☐ |
+| 5 | Accountant | WEB | **Finance → Petty cash → Advances** | Exactly **one** advance PC-… to Juma, 20,000, **Not cleared yet**. The fund **Balance** is 180,000 | ☐ |
+| 6 | Supervisor | PHONE | **Record expense**, **Paid from** Petty cash, **Fund** PC-SITE, **Advance** Juma's advance, amount 15,000, a receipt photo. Save and sync. (Approve it in **Expense approvals** if it waits) | Expense **Approved**. The advance shows **Remaining** 5,000. The fund **Balance** is still 180,000: the spending is not taken twice | ☐ |
+| 7 | Supervisor | PHONE | Tap the advance, **Clear an advance**. **Change handed back** 5,000, **Clear advance**. Sync | Advance **Cleared** | ☐ |
+| 8 | Owner | WEB | Fund page and **Statement** | **Balance** 185,000: the 15,000 spent is the only cost. No difference opened | ☐ |
+
+Leave **Cash advances** as your company has decided after the demonstration.
+
 ---
 
 ## Acceptance record
@@ -347,6 +362,7 @@ Leave the setting as your company has decided after the demonstration.
 | 16 Offline overspend kept for approval and flagged | ☐ | |
 | 17 Spending from collected cash refused | ☐ | |
 | 18 Proposer cannot approve their own funding | ☐ | |
+| 19 Advance given offline recorded once and cleared | ☐ | |
 
 | | Name | Signature | Date |
 |---|---|---|---|
