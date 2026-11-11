@@ -75,7 +75,7 @@ class OwnerRepository(
         if (classify(e) == FailureKind.UNAUTHENTICATED) events.sessionEnded()
         // A tenant refusal (403) makes the screen reload, and that load wipes the tenant's snapshots.
         val reload = api?.code?.let { OwnerErrors.needsReload(it) || it in OfflineFallback.TENANT_REVOKED_CODES } == true
-        ActionResult.Refused(uiError(e), api?.code, reload)
+        ActionResult.Refused(uiError(e), api?.code, reload, api?.message)
     }
 
     suspend fun purgeExpired() = runCatching { store.purgeExpired(clock()) }

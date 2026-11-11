@@ -30,6 +30,7 @@ import com.asseta.supervisor.ui.accountability.MoneyAccountability
 import com.asseta.supervisor.ui.accountability.cashToAcknowledgeSection
 import com.asseta.supervisor.ui.accountability.retentionsSection
 import com.asseta.supervisor.ui.accountability.transfersSection
+import com.asseta.supervisor.ui.pettycash.pettyCashSection
 import com.asseta.core.domain.inbox.InboxStatus
 import com.asseta.core.model.sync.CashReconciliationDayDto
 import com.asseta.core.sync.data.CashItem
@@ -85,8 +86,14 @@ fun MoneyScreen(
     } else {
         emptyList()
     }
+    // DEC-033: my petty cash funds (hidden while the server, my role or the company does not use them).
+    val pettyOn = access?.pettyCash == true
+    val petty by produceState(com.asseta.core.sync.data.PettyCashView(), tenantId, me, pettyOn) {
+        if (pettyOn) field.pettyCash.observe(tenantId, me).collect { value = it }
+    }
     PullToRefreshBox(isRefreshing = syncing, onRefresh = onRefresh, modifier = Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp)) {
+            if (pettyOn) pettyCashSection(petty.waitingCount, onRoute)
             if (view.lines.isEmpty()) {
                 item(key = "no-custody") { EmptyState("No cash balance yet", "Your cash custody appears here after a sync.") }
             }
@@ -202,6 +209,8 @@ private fun ExpenseRow(e: ExpenseItem) {
         InboxTexts.money(e.amount, e.currency) + " · " + InboxTexts.paidFrom(e.paidFrom),
         LocalTime.format(e.atMs),
         e.decisionNote?.let { "Office note: $it" },
+        com.asseta.core.domain.finance.ExpenseFlags.labels(e.controlFlags).takeIf { it.isNotEmpty() }
+            ?.let { com.asseta.core.domain.finance.ExpenseFlags.TITLE + ": " + it.joinToString("; ") },
     )
 }
 
@@ -242,6 +251,10 @@ fun ExpenseDetailScreen(
             LabeledRow("When", LocalTime.format(e.atMs))
             e.jobId?.let(snapshot.jobs::get)?.let { LabeledRow("Job", it.jobNumber) }
             e.machineId?.let(snapshot.machines::get)?.let { LabeledRow("Machine", InboxTexts.machine(it.assetCode, it.name)) }
+        }
+        val flags = com.asseta.core.domain.finance.ExpenseFlags.labels(e.controlFlags)
+        if (flags.isNotEmpty()) {
+            Section(com.asseta.core.domain.finance.ExpenseFlags.TITLE) { flags.forEach { Text(it, style = AssetaType.subheadline) } }
         }
         if (e.status == InboxStatus.APPROVED || e.status == InboxStatus.REJECTED) {
             Section("Office decision") {

@@ -70,6 +70,8 @@ object OwnerNavigation {
         is OwnerDestination.MeterException -> "Meter exception"
         is OwnerDestination.Handover -> "Cash handover"
         is OwnerDestination.CustomerPayment -> com.asseta.owner.ui.approvals.PaymentReviewText.SCREEN_TITLE
+        is OwnerDestination.PettyCashMovement -> com.asseta.owner.ui.approvals.PettyCashReviewText.TITLE_MOVEMENT
+        is OwnerDestination.PettyCashAdjustment -> com.asseta.owner.ui.approvals.PettyCashReviewText.TITLE_ADJUSTMENT
         OwnerDestination.FieldSpend -> "Field spend"
         OwnerDestination.Cash -> "Cash with supervisors"
         OwnerDestination.Cases -> "Investigations"

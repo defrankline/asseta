@@ -16,6 +16,9 @@ enum class OwnerAction(val permission: String) {
     /** Confirm (verify) or reject a customer payment someone recorded. */
     DECIDE_PAYMENT("tenant.finance.verify"),
 
+    /** Approve or reject a petty cash funding, top-up or fund adjustment (DEC-033; never one's own proposal). */
+    DECIDE_PETTY_CASH("tenant.pettycash.approve"),
+
     /** Record the review of a meter exception (EXPLAINED / CONFIRMED with a note). */
     REVIEW_EXCEPTION("tenant.meter.review"),
 

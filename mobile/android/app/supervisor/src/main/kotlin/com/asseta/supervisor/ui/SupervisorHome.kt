@@ -107,6 +107,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -158,6 +159,15 @@ sealed interface Route {
     data class DailyReportDetail(val key: String) : Route
     /** A changeover reading on a running job (DEC-032 A3). */
     data class Changeover(val jobId: String) : Route
+
+    /** DEC-033 petty cash: my funds, and the offline forms on them. */
+    data object PettyCash : Route
+    data class PettyCashAck(val movementId: String) : Route
+    data class PettyCashTopUp(val fundId: String) : Route
+    data class PettyCashReturn(val fundId: String) : Route
+    data class PettyCashCount(val fundId: String) : Route
+    data class PettyCashHolderChange(val changeId: String) : Route
+    data class PettyCashAdvance(val advanceId: String) : Route
 }
 
 val SupervisorTab.root: Route
@@ -212,6 +222,13 @@ fun Route.title(companyName: String): String = when (this) {
     is Route.DailyReportForm -> if (supersedesKey == null) DailyReportTexts.FORM_TITLE else DailyReportTexts.RESUBMIT_TITLE
     is Route.DailyReportDetail -> DailyReportTexts.FORM_TITLE
     is Route.Changeover -> DailyReportTexts.CHANGEOVER_TITLE
+    Route.PettyCash -> com.asseta.supervisor.ui.pettycash.PettyCashTexts.TITLE
+    is Route.PettyCashAck -> com.asseta.supervisor.ui.pettycash.PettyCashTexts.TITLE_ACK
+    is Route.PettyCashTopUp -> com.asseta.supervisor.ui.pettycash.PettyCashTexts.TITLE_TOP_UP
+    is Route.PettyCashReturn -> com.asseta.supervisor.ui.pettycash.PettyCashTexts.TITLE_RETURN
+    is Route.PettyCashCount -> com.asseta.supervisor.ui.pettycash.PettyCashTexts.TITLE_COUNT
+    is Route.PettyCashHolderChange -> com.asseta.supervisor.ui.pettycash.PettyCashTexts.TITLE_HOLDER_CHANGE
+    is Route.PettyCashAdvance -> com.asseta.supervisor.ui.pettycash.PettyCashTexts.TITLE_ADVANCE
 }
 
 /** Routes the iOS app presents as sheets (Cancel / Save in the navigation bar, no tab bar). */
@@ -220,7 +237,8 @@ val Route.isForm: Boolean
         this is Route.CashForm || this is Route.ResetRequest || this == Route.RequestJob || this == Route.HoursSale ||
         this == Route.HoursTransfer || this == Route.CashTransfer || this is Route.CashAck || this == Route.Retention ||
         this is Route.DailyReading || this is Route.Baseline || this is Route.Correction || this is Route.ExplainNonRevenue ||
-        this is Route.DailyReportForm || this is Route.Changeover
+        this is Route.DailyReportForm || this is Route.Changeover || this is Route.PettyCashAck || this is Route.PettyCashTopUp ||
+        this is Route.PettyCashReturn || this is Route.PettyCashCount || this is Route.PettyCashHolderChange || this is Route.PettyCashAdvance
 
 /** Back stacks of the five tabs; selecting the current tab again returns to its first screen (as on iOS). */
 data class TabStacks(val tab: SupervisorTab = SupervisorTab.JOBS, val stacks: Map<SupervisorTab, List<Route>> = SupervisorTab.entries.associateWith { listOf(it.root) }) {
@@ -391,10 +409,22 @@ fun SupervisorHome(
         }
     }
 
+    /** A petty cash record (DEC-033): the waiting form, else My petty cash; false when not petty cash or the feature is off. */
+    fun openPettyCash(entity: String?, id: String?): Boolean {
+        if (entity?.startsWith("petty_cash") != true || access?.pettyCash != true) return false
+        coroutines.launch {
+            val me = field.accountability.myStaffId(tenantId)
+            val view = field.pettyCash.observe(tenantId, me).first()
+            com.asseta.supervisor.ui.pettycash.PettyCashLinks.route(entity, id, view)?.let { push(it) }
+        }
+        return true
+    }
+
     /** Opens what a notification is about (marking it read), or its own detail when it points nowhere on the phone. */
     fun openNotification(n: NotificationDto) {
         val id = n.id.toString()
         if (n.readAt == null) inbox.markRead(id)
+        if (openPettyCash(n.target?.entity, n.target?.id)) return
         openLink(InboxLinks.from(n.target?.entity, n.target?.id, n.recordKind, n.recordId), id)
     }
 
@@ -422,6 +452,8 @@ fun SupervisorHome(
             val n = inbox.notifications.value.firstOrNull { it.id.toString() == id }
             if (n != null) {
                 openNotification(n)
+            } else if (openPettyCash(opened.entity, opened.entityId)) {
+                // A petty cash record named by the push.
             } else if (opened.recordId != null || opened.entityId != null) {
                 // Not in the Inbox (yet): the push itself names the record (kind / record_id, entity / entity_id).
                 openLink(InboxLinks.from(opened.entity, opened.entityId, opened.kind, opened.recordId), null)
@@ -638,7 +670,8 @@ private fun RouteContent(
         Route.RecordExpense -> {
             // A new key per visit: each form gets its own client id (exactly-once) and fresh GPS attempt.
             val visit = remember(route) { System.nanoTime() }
-            val vm: ExpenseViewModel = viewModel(key = "expense-$visit") { ExpenseViewModel(field, tenantId) }
+            val pettyCash = access?.pettyCashExpense == true
+            val vm: ExpenseViewModel = viewModel(key = "expense-$visit") { ExpenseViewModel(field, tenantId, pettyCash) }
             ExpenseScreen(vm, onDone = pop)
         }
         is Route.CashForm -> {
@@ -666,6 +699,34 @@ private fun RouteContent(
             val visit = remember(route) { System.nanoTime() }
             val vm: JobRequestViewModel = viewModel(key = "job-request-$visit") { JobRequestViewModel(field, tenantId) }
             JobRequestScreen(vm, onDone = pop)
+        }
+        Route.PettyCash -> com.asseta.supervisor.ui.pettycash.MyPettyCashScreen(
+            viewModel(key = "petty-cash-$scope") { com.asseta.supervisor.ui.pettycash.PettyCashViewModel(field, tenantId) }, access, syncing, onRefresh, push,
+        )
+        is Route.PettyCashAck -> {
+            val visit = remember(route) { System.nanoTime() }
+            com.asseta.supervisor.ui.pettycash.PettyCashAckScreen(viewModel(key = "petty-ack-$visit") { com.asseta.supervisor.ui.pettycash.PettyCashAckViewModel(field, tenantId, route.movementId) }, access, onDone = pop)
+        }
+        is Route.PettyCashTopUp -> {
+            val visit = remember(route) { System.nanoTime() }
+            com.asseta.supervisor.ui.pettycash.PettyCashTopUpScreen(viewModel(key = "petty-topup-$visit") { com.asseta.supervisor.ui.pettycash.PettyCashTopUpViewModel(field, tenantId, route.fundId) }, access, onDone = pop)
+        }
+        is Route.PettyCashReturn -> {
+            val visit = remember(route) { System.nanoTime() }
+            val accountsOn = access?.depositAccounts == true
+            com.asseta.supervisor.ui.pettycash.PettyCashReturnScreen(viewModel(key = "petty-return-$visit") { com.asseta.supervisor.ui.pettycash.PettyCashReturnViewModel(field, tenantId, route.fundId, accountsOn) }, access, onDone = pop)
+        }
+        is Route.PettyCashCount -> {
+            val visit = remember(route) { System.nanoTime() }
+            com.asseta.supervisor.ui.pettycash.PettyCashCountScreen(viewModel(key = "petty-count-$visit") { com.asseta.supervisor.ui.pettycash.PettyCashCountViewModel(field, tenantId, route.fundId) }, access, rememberOnline(), onDone = pop)
+        }
+        is Route.PettyCashHolderChange -> {
+            val visit = remember(route) { System.nanoTime() }
+            com.asseta.supervisor.ui.pettycash.PettyCashHolderChangeScreen(viewModel(key = "petty-holder-$visit") { com.asseta.supervisor.ui.pettycash.PettyCashHolderChangeViewModel(field, tenantId, route.changeId) }, access, onDone = pop)
+        }
+        is Route.PettyCashAdvance -> {
+            val visit = remember(route) { System.nanoTime() }
+            com.asseta.supervisor.ui.pettycash.PettyCashAdvanceScreen(viewModel(key = "petty-advance-$visit") { com.asseta.supervisor.ui.pettycash.PettyCashAdvanceViewModel(field, tenantId, route.advanceId) }, access, onDone = pop)
         }
         is Route.NotificationDetail -> {
             val notifications by inbox.notifications.collectAsStateWithLifecycle()

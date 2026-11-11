@@ -146,12 +146,13 @@ fun OwnerRoutes(
                 val vm: ApprovalsViewModel = viewModel(key = "approvals-$t") {
                     ApprovalsViewModel(
                         data,
-                        graph.refreshTriggers("approval", "expense", "meter_reset", "job", "cash_handover", "customer_payment", "meter_exception", "exception", *ACCOUNTABILITY_ENTITIES),
+                        graph.refreshTriggers("approval", "expense", "meter_reset", "job", "cash_handover", "customer_payment", "meter_exception", "exception", "petty_cash_movement", "petty_cash_adjustment", *ACCOUNTABILITY_ENTITIES),
                         meterResets = features.meterEvidence, jobs = features.jobs, handovers = features.finance, exceptions = features.meterEvidence,
                         payments = features.confirmPayments,
                         decisions = DecisionKind.visible(features),
                         revenueOpen = features.revenueExplain || features.revenueDecide,
                         expenseRequests = features.approvals,
+                        pettyCash = features.pettyCashApprove,
                     )
                 }
                 ApprovalsScreen(vm, open)
@@ -175,6 +176,18 @@ fun OwnerRoutes(
                 ExceptionDetailViewModel(data, route.exceptionId, graph.refreshTriggers("meter_exception", "exception"))
             }
             ExceptionDetailScreen(vm, session, online, open)
+        }
+        is OwnerDestination.PettyCashMovement -> {
+            val vm: com.asseta.owner.ui.approvals.PettyCashReviewViewModel = viewModel(key = "petty-movement-$t-${route.movementId}") {
+                com.asseta.owner.ui.approvals.PettyCashReviewViewModel.movement(data, route.movementId, graph.refreshTriggers("petty_cash_movement"))
+            }
+            com.asseta.owner.ui.approvals.PettyCashReviewScreen(vm, session, online)
+        }
+        is OwnerDestination.PettyCashAdjustment -> {
+            val vm: com.asseta.owner.ui.approvals.PettyCashReviewViewModel = viewModel(key = "petty-adjustment-$t-${route.adjustmentId}") {
+                com.asseta.owner.ui.approvals.PettyCashReviewViewModel.adjustment(data, route.adjustmentId, graph.refreshTriggers("petty_cash_adjustment"))
+            }
+            com.asseta.owner.ui.approvals.PettyCashReviewScreen(vm, session, online)
         }
         is OwnerDestination.CustomerPayment -> {
             val vm: PaymentReviewViewModel = viewModel(key = "payment-$t-${route.paymentId}") { PaymentReviewViewModel(data, route.paymentId, graph.refreshTriggers("customer_payment")) }

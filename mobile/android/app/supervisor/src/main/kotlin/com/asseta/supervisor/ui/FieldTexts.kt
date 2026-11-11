@@ -98,7 +98,7 @@ object FieldTexts {
         OpTypes.FUEL_EVENT -> "Fuel event"
         OpTypes.METER_RESET_REQUEST -> "Meter reset request"
         OpTypes.JOB_REQUEST -> JobRequestTexts.OPERATION
-        else -> opType
+        else -> com.asseta.supervisor.ui.pettycash.PettyCashTexts.outboxTitle(opType) ?: opType
     }
 
     /** "WORK" -> "Work". */
@@ -107,7 +107,8 @@ object FieldTexts {
     fun waiting(reason: WaitingReason, opType: String? = null): String = when (reason) {
         WaitingReason.EARLIER_ITEM -> "Waiting for an earlier item"
         WaitingReason.BLOCKED_BY_EARLIER -> "Blocked by an earlier item that needs attention"
-        WaitingReason.UPLOAD -> if (opType == OpTypes.CASH_HANDOVER || opType == AccountabilityOps.DAILY_REPORT) FieldAccountabilityTexts.OUTBOX_WAITING_PHOTOS else "Waiting for its photo/receipt/signature upload"
+        WaitingReason.UPLOAD -> if (opType == OpTypes.CASH_HANDOVER || opType == AccountabilityOps.DAILY_REPORT ||
+            opType == com.asseta.core.model.sync.PettyCashOps.RETURN || opType == com.asseta.core.model.sync.PettyCashOps.COUNT) FieldAccountabilityTexts.OUTBOX_WAITING_PHOTOS else "Waiting for its photo/receipt/signature upload"
     }
 
     fun signOutMessage(unsynced: Int): String =

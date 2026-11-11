@@ -53,6 +53,24 @@ class SyncContractTest {
         ).forEach { (name, serializer) -> ContractCheck.check(name, serializer.descriptor) }
         ContractCheck.check("SyncOpenInvoiceDto", com.asseta.core.model.sync.SyncOpenInvoiceDto.serializer().descriptor)
         ContractCheck.check("HireAllocationIn", com.asseta.core.model.sync.CollectionAllocationPayload.serializer().descriptor, request = true)
+        // DEC-033 petty cash: the parts the field app shows (subsets) and the operation payloads it sends.
+        ContractCheck.check("PettyCashFundDto", com.asseta.core.model.sync.PettyCashFundDto.serializer().descriptor, subset = true)
+        ContractCheck.check("PettyCashBalanceDto", com.asseta.core.model.sync.PettyCashBalanceDto.serializer().descriptor, subset = true)
+        ContractCheck.check("PettyCashMovementDto", com.asseta.core.model.sync.PettyCashMovementDto.serializer().descriptor, subset = true)
+        ContractCheck.check("PettyCashHolderChangeDto", com.asseta.core.model.sync.PettyCashHolderChangeDto.serializer().descriptor, subset = true)
+        ContractCheck.check("PettyCashAdvanceDto", com.asseta.core.model.sync.PettyCashAdvanceDto.serializer().descriptor, subset = true)
+        ContractCheck.check("PettyCashMovementDto", com.asseta.core.model.owner.PettyCashMovementReviewDto.serializer().descriptor, subset = true)
+        ContractCheck.check("PettyCashAdjustmentDto", com.asseta.core.model.owner.PettyCashAdjustmentReviewDto.serializer().descriptor, subset = true)
+        ContractCheck.check("TopUpExpenseDto", com.asseta.core.model.owner.TopUpExpenseDto.serializer().descriptor, subset = true)
+        ContractCheck.check("PettyCashDecisionIn", com.asseta.core.model.owner.PettyCashDecisionIn.serializer().descriptor, request = true)
+        ContractCheck.check("PersonDto", com.asseta.core.model.sync.PersonDto.serializer().descriptor)
+        ContractCheck.check("PettyCashAcknowledgementIn", com.asseta.core.model.sync.PettyCashAckPayload.serializer().descriptor, extra = setOf("movement_id"), request = true)
+        ContractCheck.check("TopUpRequestIn", com.asseta.core.model.sync.PettyCashTopUpPayload.serializer().descriptor, extra = setOf("fund_id"), request = true)
+        ContractCheck.check("PettyCashReturnIn", com.asseta.core.model.sync.PettyCashReturnPayload.serializer().descriptor, extra = setOf("evidence_upload_ids"), request = true, subset = true)
+        ContractCheck.check("PettyCashCountIn", com.asseta.core.model.sync.PettyCashCountPayload.serializer().descriptor, extra = setOf("evidence_upload_ids"), request = true, subset = true)
+        ContractCheck.check("PettyCashHolderChangeDecisionIn", com.asseta.core.model.sync.PettyCashHolderChangePayload.serializer().descriptor, extra = setOf("holder_change_id"), request = true)
+        ContractCheck.check("PettyCashAdvanceClearIn", com.asseta.core.model.sync.PettyCashAdvanceClearPayload.serializer().descriptor, extra = setOf("advance_id"), request = true)
+        ContractCheck.check("ExpenseIn", com.asseta.core.model.sync.ExpensePayload.serializer().descriptor, extra = setOf("receipt_upload_ids", "client_id"), request = true, subset = true)
         // The picker needs only part of a deposit account (no audit fields).
         ContractCheck.check("SyncDepositAccountDto", com.asseta.core.model.sync.SyncDepositAccountDto.serializer().descriptor, subset = true)
     }

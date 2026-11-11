@@ -8,6 +8,7 @@ import com.asseta.core.model.sync.BlobPurpose
 import com.asseta.core.model.sync.BlobSessionDto
 import com.asseta.core.model.sync.BlobStartIn
 import com.asseta.core.model.sync.OpTypes
+import com.asseta.core.model.sync.PettyCashOps
 import com.asseta.core.model.sync.SyncErrorCodes
 import com.asseta.core.network.ApiException
 import com.asseta.core.network.SyncApi
@@ -194,6 +195,8 @@ class BlobUploader(
                     AccountabilityOps.HOURS_TRANSFER_REQUEST -> "evidence_upload_ids" to appendUploadId(op.payloadJson, dto.id, "evidence_upload_ids")
                     // A daily report names its photos by upload ids too (DEC-032 A4).
                     AccountabilityOps.DAILY_REPORT -> "evidence_upload_ids" to appendUploadId(op.payloadJson, dto.id, "evidence_upload_ids")
+                    // Petty cash returns and counts name their photos by upload ids too (DEC-033).
+                    PettyCashOps.RETURN, PettyCashOps.COUNT -> "evidence_upload_ids" to appendUploadId(op.payloadJson, dto.id, "evidence_upload_ids")
                     AccountabilityOps.METER_BASELINE -> "photo_attachment_id" to JsonPrimitive(serverId)
                     // A correction's photo belongs to its replacement reading.
                     AccountabilityOps.METER_CORRECTION -> "replacement" to replacementWithPhoto(op.payloadJson, serverId)
@@ -228,7 +231,7 @@ class BlobUploader(
         val KNOWN_PURPOSES = setOf(
             BlobPurpose.METER_PHOTO, BlobPurpose.SIGNATURE, BlobPurpose.EXPENSE_RECEIPT, BlobPurpose.RESET_EVIDENCE,
             AccountabilityOps.PAYMENT_EVIDENCE, BlobPurpose.REMITTANCE_EVIDENCE, BlobPurpose.DAILY_REPORT_EVIDENCE,
-            BlobPurpose.ADJUSTMENT_EVIDENCE,
+            BlobPurpose.ADJUSTMENT_EVIDENCE, BlobPurpose.PETTY_CASH_EVIDENCE,
         )
         val OCTET_STREAM = "application/octet-stream".toMediaType()
     }

@@ -13,6 +13,9 @@ import java.time.Instant
 enum class PaidFrom(val label: String) {
     CASH_CUSTODY("My cash (custody)"),
     COMPANY("Company (office, card or account)"),
+
+    /** DEC-033: paid from a petty cash fund (offered only when the phone has a fund or an advance to pay from). */
+    PETTY_CASH("Petty cash"),
 }
 
 /**

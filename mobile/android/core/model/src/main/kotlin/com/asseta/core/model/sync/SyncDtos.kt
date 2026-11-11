@@ -66,6 +66,11 @@ data class SyncData(
     @SerialName("deposit_accounts") val depositAccounts: List<SyncDepositAccountDto>? = null,
     /** SYNC_OPEN_INVOICES: a full snapshot on every pull (invoices carry no revision), so the local set is replaced. */
     @SerialName("open_invoices") val openInvoices: List<SyncOpenInvoiceDto> = emptyList(),
+    /** OP_PETTY_CASH (DEC-033): full snapshots on every pull, so each local set is replaced. */
+    @SerialName("petty_cash_funds") val pettyCashFunds: List<PettyCashFundDto> = emptyList(),
+    @SerialName("petty_cash_awaiting") val pettyCashAwaiting: List<PettyCashMovementDto> = emptyList(),
+    @SerialName("petty_cash_holder_changes") val pettyCashHolderChanges: List<PettyCashHolderChangeDto> = emptyList(),
+    @SerialName("petty_cash_advances") val pettyCashAdvances: List<PettyCashAdvanceDto> = emptyList(),
 )
 
 /** `SyncOpenInvoiceDto`: an issued invoice with money still owed, so a collection can name it. */
@@ -210,6 +215,9 @@ object BlobPurpose {
 
     /** Evidence of an hours transfer request (`HOURS_TRANSFER_REQUEST` `evidence_upload_ids`, CASH_DETAILS_V2). */
     const val ADJUSTMENT_EVIDENCE = "ADJUSTMENT_EVIDENCE"
+
+    /** Photos of a petty cash return or count (`PETTY_CASH_RETURN` / `PETTY_CASH_COUNT` `evidence_upload_ids`, DEC-033). */
+    const val PETTY_CASH_EVIDENCE = "PETTY_CASH_EVIDENCE"
 }
 
 object SyncErrorCodes {

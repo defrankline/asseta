@@ -78,6 +78,7 @@ class ServerDataWriter(private val db: () -> AssetaDatabase, private val json: J
             if (SyncCapabilities.SYNC_UNBILLABLE_REASONS in dto.capabilities) keepOnly(field, tenantId, KIND_UNBILLABLE_REASON, dto.data.unbillableReasons.map { it.id })
             applyData(database, tenantId, dto.data)
             replaceOpenInvoices(database, tenantId, dto.capabilities, dto.data.openInvoices)
+            replacePettyCash(database, tenantId, dto.capabilities, dto.data)
             applySnapshots(database, tenantId, dto.policySnapshots)
             val states = database.syncStateDao()
             val current = states.get(tenantId) ?: SyncStateEntity(tenantId)
@@ -100,6 +101,7 @@ class ServerDataWriter(private val db: () -> AssetaDatabase, private val json: J
         database.inTransaction {
             applyData(database, tenantId, dto.data)
             replaceOpenInvoices(database, tenantId, dto.capabilities, dto.data.openInvoices)
+            replacePettyCash(database, tenantId, dto.capabilities, dto.data)
             applySnapshots(database, tenantId, dto.policySnapshots)
             val states = database.syncStateDao()
             val current = states.get(tenantId) ?: SyncStateEntity(tenantId)
@@ -144,6 +146,25 @@ class ServerDataWriter(private val db: () -> AssetaDatabase, private val json: J
         val field = database.fieldDataDao()
         keepOnly(field, tenantId, KIND_OPEN_INVOICE, invoices.map { it.id })
         if (invoices.isNotEmpty()) field.upsertReferences(invoices.map { ref(KIND_OPEN_INVOICE, it.id, tenantId, it.invoiceNumber, json.encodeToString(it)) })
+    }
+
+    /**
+     * Petty cash (OP_PETTY_CASH, DEC-033) is a full snapshot on every pull: each local set is replaced. Without the
+     * capability (switched off, or an older server) nothing of it is kept on the phone.
+     */
+    private suspend fun replacePettyCash(database: AssetaDatabase, tenantId: String, capabilities: List<String>, data: SyncData) {
+        val field = database.fieldDataDao()
+        val on = SyncCapabilities.OP_PETTY_CASH in capabilities
+        val sets = listOf(
+            KIND_PETTY_FUND to (if (on) data.pettyCashFunds.map { ref(KIND_PETTY_FUND, it.id, tenantId, it.name, json.encodeToString(it)) } else emptyList()),
+            KIND_PETTY_AWAITING to (if (on) data.pettyCashAwaiting.map { ref(KIND_PETTY_AWAITING, it.id, tenantId, it.number, json.encodeToString(it)) } else emptyList()),
+            KIND_PETTY_HOLDER_CHANGE to (if (on) data.pettyCashHolderChanges.map { ref(KIND_PETTY_HOLDER_CHANGE, it.id, tenantId, it.fundName.orEmpty(), json.encodeToString(it)) } else emptyList()),
+            KIND_PETTY_ADVANCE to (if (on) data.pettyCashAdvances.map { ref(KIND_PETTY_ADVANCE, it.id, tenantId, it.number, json.encodeToString(it)) } else emptyList()),
+        )
+        sets.forEach { (kind, rows) ->
+            keepOnly(field, tenantId, kind, rows.map { it.id })
+            if (rows.isNotEmpty()) field.upsertReferences(rows)
+        }
     }
 
     /** Deposit accounts upsert by sync revision (an older revision never replaces a newer one; deactivations kept). */
@@ -235,5 +256,9 @@ class ServerDataWriter(private val db: () -> AssetaDatabase, private val json: J
         const val KIND_CHANGEOVER_JOB = "changeover_job"
         const val KIND_UNBILLABLE_REASON = "unbillable_reason"
         const val KIND_OPEN_INVOICE = "open_invoice"
+        const val KIND_PETTY_FUND = "petty_cash_fund"
+        const val KIND_PETTY_AWAITING = "petty_cash_awaiting"
+        const val KIND_PETTY_HOLDER_CHANGE = "petty_cash_holder_change"
+        const val KIND_PETTY_ADVANCE = "petty_cash_advance"
     }
 }

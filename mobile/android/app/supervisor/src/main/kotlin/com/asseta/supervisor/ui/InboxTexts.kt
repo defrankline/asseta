@@ -97,6 +97,7 @@ object InboxTexts {
     fun paidFrom(code: String): String = when (code) {
         "CASH_CUSTODY" -> "My cash"
         "COMPANY" -> "Company"
+        "PETTY_CASH" -> com.asseta.core.domain.finance.ExpenseFlags.PAID_FROM_PETTY_CASH
         else -> sentence(code)
     }
 

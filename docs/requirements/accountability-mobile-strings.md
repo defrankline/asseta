@@ -2065,3 +2065,266 @@ Deep links: the notification `CUSTOMER_PAYMENT_TO_VERIFY` (entity `customer_paym
 | owner.payments.rejected | Payment rejected. |
 | owner.payments.own | You recorded this payment, so someone else must confirm or reject it. |
 | owner.payments.alreadyDecided | Someone already decided this payment. Reload to see it. |
+
+## DEC-033 — petty cash funds
+
+The holder's petty cash in the Supervisor app (offline first, sync capability `OP_PETTY_CASH`) and approvals of fundings,
+top-ups and fund adjustments in the Owner app (online). Android: `PettyCashTexts` (Supervisor), `PettyCashReviewText`
+(Owner), `ExpenseFlags` (both, `core:domain`); iOS: the same names.
+
+Rules shared by both apps:
+- **Gating (Supervisor):** the whole feature (Money tab section, screens, the "Petty cash" paid-from option) needs the sync
+  capability `OP_PETTY_CASH`, the permission `tenant.pettycash.read` and `PETTY_CASH` not in `/me disabled_capabilities`.
+  Counting also needs `tenant.pettycash.count`. "Petty cash" as paid-from also needs at least one fund I hold or an advance I
+  received. Advances appear only when the `PETTY_CASH` policy snapshot has `advances_enabled`.
+- **Snapshot (Supervisor):** `petty_cash_funds`, `petty_cash_awaiting`, `petty_cash_holder_changes`, `petty_cash_advances` are
+  full snapshots on every bootstrap and delta: the local set is replaced (cleared when the server stops announcing
+  `OP_PETTY_CASH`). The `PETTY_CASH` policy snapshot (tenant scope) gives `count_witness_required`, `return_evidence_required`,
+  `advances_enabled`, `max_expense_amount` (missing keys read as off / none). Figures are the server's (`balance`,
+  `available_to_spend`, ...); the phone never computes a fund balance.
+- **Operations (outbox, client ids and device times as every field op):** `PETTY_CASH_ACKNOWLEDGEMENT` (entity = movement id,
+  one answer per movement), `PETTY_CASH_TOP_UP_REQUEST` / `PETTY_CASH_RETURN` / `PETTY_CASH_COUNT` (entity = the form's client
+  id, sent as `client_id`), `PETTY_CASH_HOLDER_CHANGE_ACKNOWLEDGEMENT` (entity = holder change id),
+  `PETTY_CASH_ADVANCE_CLEARANCE` (entity = advance id). Return and count photos: blob purpose `PETTY_CASH_EVIDENCE`, sent as
+  `evidence_upload_ids` (the op waits for every upload, at most 10). An item answered on this phone (not refused) leaves
+  "Waiting for you" / "Advances" and shows under "Recorded on this phone" with its sync state.
+- **Expense paid from petty cash:** `EXPENSE.paid_from = PETTY_CASH` with `petty_cash_fund_id` (required) and
+  `petty_cash_advance_id` (optional; only advances of that fund given to me). The currency is the fund's (not editable). Amount
+  above the fund's (or the advance's remaining) available: still saved offline, with `field.pettyCash.expense.overspend` as the
+  approval note. Above `max_expense_amount` (fund currency = base currency): `field.pettyCash.expense.aboveMaximum`. A fund I
+  do not hold (only through an advance given to me) requires the advance (`field.pettyCash.expense.advanceRequired`).
+- **Forms:** acknowledge = amount received (0 or more, prefilled with the issued amount) or dispute with a reason (as cash
+  acknowledgements). Top-up: amount optional (empty = the server's suggestion), more than 0 when given; when the amount is above
+  `approved_limit - balance` the reason for going above is required (at least 3 characters). Return: amount more than 0
+  (prefilled with available to spend when above 0), method (`CASH_TO_OFFICE`, `BANK_DEPOSIT`, `MOBILE_MONEY`), deposit account
+  (optional; active synced accounts in the fund's currency, hidden when `DEPOSIT_ACCOUNTS` is off), reference, note, photos (at
+  least one when `return_evidence_required`). Count: counted amount 0 or more, note, photos (optional); when
+  `count_witness_required` a witness is chosen by name search online (`GET /tenant/people?q=`, at least 2 characters); offline
+  or without one it saves with the note `field.pettyCash.count.noWitness`. Holder change: accept, or decline with a reason.
+  Clear advance (fund holder, advances given to someone else): change handed back 0 or more, prefilled with `remaining`.
+- **Expense flags (`control_flags`)**, shown neutrally wherever an expense is shown (Supervisor Money rows and expense detail;
+  Owner field spend rows and the expense card of an approval): header `expense.flags.title`, one line per flag; unknown flags
+  are humanized.
+- **Owner approvals (online):** Approvals section `owner.pettyCash.section` lists `GET /petty-cash/movements?status=PROPOSED`
+  (FUNDING and TOP_UP) and `GET /petty-cash/adjustments?status=PENDING`; visible with `tenant.pettycash.read` and
+  `tenant.pettycash.approve`, `PETTY_CASH` not switched off, shown only when something waits. The record screen (by id) has
+  the facts, the expenses behind a top-up (`GET /petty-cash/movements/{id}/expenses`, best effort) and Approve / Reject
+  (`POST .../decision {approve, note?}`; reject needs a reason of at least 3 characters). The proposer (`created_by` = me)
+  sees `owner.pettyCash.own` instead of the buttons. Every refusal shows the server's message as it is (the server also
+  refuses the fund's holder); `PETTY_CASH_ALREADY_DECIDED` shows `owner.pettyCash.alreadyDecided` and reloads.
+- **Deep links:** Owner: entity `petty_cash_movement` / `petty_cash_adjustment` (+ id) and `/tenant/finance/petty-cash/movements/{id}`,
+  `/tenant/finance/petty-cash/adjustments/{id}` open the record; other `/tenant/finance/petty-cash` links open Approvals.
+  Supervisor: `petty_cash_movement` waiting for my acknowledgement opens the acknowledge form, `petty_cash_holder_change`
+  waiting for me opens the take-over form, any other petty cash entity opens My petty cash.
+
+Screens per app:
+| App | Screen | Change |
+|---|---|---|
+| Supervisor | Money tab | Section "Petty cash" with the row "My petty cash" (footer: how many items wait) |
+| Supervisor | My petty cash | Funds with figures and actions, Waiting for you, Advances, Recorded on this phone |
+| Supervisor | Acknowledge petty cash, Request a top-up, Return money, Record a count, Take over a fund, Clear an advance | Forms (offline) |
+| Supervisor | Record expense | "Petty cash" paid-from, fund and advance pickers, overspend / maximum notes |
+| Supervisor | Money rows, expense detail | "Petty cash" paid-from, flags ("To check") |
+| Owner | Approvals | Section "Petty cash to approve" |
+| Owner | Petty cash request / Fund adjustment | Facts, expenses behind a top-up, Approve / Reject |
+| Owner | Field spend rows, approval expense card | Flags ("To check") |
+
+### Shared (both apps)
+| Key | English |
+|---|---|
+| expense.flags.title | To check |
+| expense.flags.OVERSPEND | Recorded above what the fund had available |
+| expense.flags.SPENT_FROM_COLLECTIONS | Paid from collected cash |
+| expense.flags.ABOVE_PETTY_CASH_MAXIMUM | Above the petty cash maximum per expense |
+| expense.paidFrom.PETTY_CASH | Petty cash |
+
+### Supervisor
+| Key | English |
+|---|---|
+| field.pettyCash.section | Petty cash |
+| field.pettyCash.row | My petty cash |
+| field.pettyCash.rowWaiting | {n} waiting for you |
+| field.pettyCash.title | My petty cash |
+| field.pettyCash.empty.title | No petty cash fund |
+| field.pettyCash.empty.message | Petty cash funds you hold appear here after a sync. |
+| field.pettyCash.fundHeader | {code} · {name} |
+| field.pettyCash.balance | Balance |
+| field.pettyCash.available | Available to spend |
+| field.pettyCash.pendingSpending | Expenses awaiting approval |
+| field.pettyCash.awaitingAck | Money on its way to you |
+| field.pettyCash.returnsClaimed | Returns awaiting confirmation |
+| field.pettyCash.limit | Approved limit |
+| field.pettyCash.low | Below the low-balance level |
+| field.pettyCash.lastCount | Last count |
+| field.pettyCash.notCounted | Not counted yet |
+| field.pettyCash.nextCount | Next count due |
+| field.pettyCash.asOf | As of {date}. Figures from the last sync. |
+| field.pettyCash.action.topUp | Request a top-up |
+| field.pettyCash.action.return | Return money to the office |
+| field.pettyCash.action.count | Record a count |
+| field.pettyCash.waiting | Waiting for you |
+| field.pettyCash.waiting.funding | Funding {number} · {amount} |
+| field.pettyCash.waiting.topUp | Top-up {number} · {amount} |
+| field.pettyCash.waiting.holderChange | Take over {fund} from {name} |
+| field.pettyCash.someone | someone |
+| field.pettyCash.advances | Advances |
+| field.pettyCash.advance.row | {number} · {amount} |
+| field.pettyCash.advance.detail | Remaining {amount} · due {date} |
+| field.pettyCash.advance.overdue | Overdue |
+| field.pettyCash.advance.toMe | Given to you |
+| field.pettyCash.advance.fromMe | Given to {name} |
+| field.pettyCash.onPhone | Recorded on this phone |
+| field.pettyCash.outbox.ack | Petty cash acknowledgement |
+| field.pettyCash.outbox.topUp | Petty cash top-up request |
+| field.pettyCash.outbox.return | Petty cash return |
+| field.pettyCash.outbox.count | Petty cash count |
+| field.pettyCash.outbox.holderChange | Petty cash fund take-over |
+| field.pettyCash.outbox.advance | Petty cash advance cleared |
+| field.pettyCash.title.ack | Acknowledge petty cash |
+| field.pettyCash.title.topUp | Request a top-up |
+| field.pettyCash.title.return | Return money |
+| field.pettyCash.title.count | Record a count |
+| field.pettyCash.title.holderChange | Take over a fund |
+| field.pettyCash.title.advance | Clear an advance |
+| field.pettyCash.notFound | This is no longer waiting on this phone. Pull to sync. |
+| field.pettyCash.unavailable | Petty cash is not available on this phone. Sync, or ask your office. |
+| field.pettyCash.fund | Fund |
+| field.pettyCash.ack.funding | Funding from the office |
+| field.pettyCash.ack.topUp | Top-up from the office |
+| field.pettyCash.ack.number | Number |
+| field.pettyCash.ack.issued | Issued |
+| field.pettyCash.ack.issuedAt | Issued at |
+| field.pettyCash.ack.issuedBy | Issued by |
+| field.pettyCash.ack.reference | Reference |
+| field.pettyCash.ack.amount | Amount received |
+| field.pettyCash.ack.footer | Count the money before you acknowledge. A different amount is recorded as a difference for the office to review. |
+| field.pettyCash.ack.acknowledge | Acknowledge |
+| field.pettyCash.ack.dispute | Dispute |
+| field.pettyCash.ack.disputeReason | To dispute, write in the note why. |
+| field.pettyCash.ack.waiting | You already answered on this phone. It is sent when the phone syncs. |
+| field.pettyCash.note | Note (optional) |
+| field.pettyCash.topUp.amount | Amount (optional) |
+| field.pettyCash.topUp.amountFooter | Leave it empty to ask for the approved spending since the last top-up. |
+| field.pettyCash.topUp.aboveReason | Reason for going above the limit |
+| field.pettyCash.topUp.aboveFooter | This is more than brings the fund to its limit ({amount}); say why. |
+| field.pettyCash.topUp.footer | Someone else approves the top-up. The money counts in your fund only after you acknowledge it. |
+| field.pettyCash.topUp.send | Send request |
+| field.pettyCash.return.amount | Amount returned |
+| field.pettyCash.return.method | How |
+| field.pettyCash.return.method.CASH_TO_OFFICE | Cash to office |
+| field.pettyCash.return.method.BANK_DEPOSIT | Bank deposit |
+| field.pettyCash.return.method.MOBILE_MONEY | Mobile money |
+| field.pettyCash.return.account | Deposit account (optional) |
+| field.pettyCash.return.noAccount | No account |
+| field.pettyCash.return.reference | Reference (optional) |
+| field.pettyCash.return.footer | The fund goes down only when the office confirms what it received. |
+| field.pettyCash.return.evidenceRequired | Your company requires a photo of the slip or the cash. |
+| field.pettyCash.count.amount | Cash counted |
+| field.pettyCash.count.footer | Count every note and coin in the fund. A difference from the expected amount goes to the office to review. |
+| field.pettyCash.count.witness | Witness |
+| field.pettyCash.count.witnessSearch | Search a colleague by name |
+| field.pettyCash.count.witnessNone | No witness |
+| field.pettyCash.count.witnessFooter | Your company asks for a witness: someone else who can count petty cash watches the count. |
+| field.pettyCash.count.witnessOffline | Connect to choose a witness. |
+| field.pettyCash.count.witnessNoResults | No one found. |
+| field.pettyCash.count.noWitness | Without a witness this count is recorded as counted by you alone. |
+| field.pettyCash.holder.from | From |
+| field.pettyCash.holder.requestedBy | Requested by |
+| field.pettyCash.holder.requestedAt | Requested |
+| field.pettyCash.holder.footer | Until you accept, {name} stays accountable for the fund. Count the cash before you accept. |
+| field.pettyCash.holder.accept | Take over the fund |
+| field.pettyCash.holder.decline | Decline |
+| field.pettyCash.holder.declineReason | To decline, write in the note why. |
+| field.pettyCash.advance.recipient | Given to |
+| field.pettyCash.advance.amount | Advance |
+| field.pettyCash.advance.purpose | Purpose |
+| field.pettyCash.advance.approved | Approved spending |
+| field.pettyCash.advance.pending | Spending awaiting approval |
+| field.pettyCash.advance.remaining | Remaining |
+| field.pettyCash.advance.due | Due |
+| field.pettyCash.advance.change | Change handed back |
+| field.pettyCash.advance.footer | Count the change you take back. A difference is recorded for the office to review. |
+| field.pettyCash.advance.pendingWarning | Expenses of this advance are still waiting for approval. It can be cleared once they are decided. |
+| field.pettyCash.advance.clear | Clear advance |
+| field.pettyCash.err.amount | Enter the amount (more than 0). |
+| field.pettyCash.err.counted | Enter the cash counted (0 or more). |
+| field.pettyCash.err.change | Enter the change handed back (0 or more). |
+| field.pettyCash.err.aboveReason | Enter the reason for going above the limit (at least 3 characters). |
+| field.pettyCash.err.evidence | Photograph the slip or the cash. |
+| field.pettyCash.err.reason | Enter a reason (at least 3 characters). |
+| field.pettyCash.expense.section | Petty cash fund |
+| field.pettyCash.expense.fund | Fund |
+| field.pettyCash.expense.fundEmpty | No petty cash fund on this phone. Sync first. |
+| field.pettyCash.expense.fundOption | Available {amount} |
+| field.pettyCash.expense.advance | Advance (optional) |
+| field.pettyCash.expense.advanceRequiredLabel | Advance |
+| field.pettyCash.expense.noAdvance | Not from an advance |
+| field.pettyCash.expense.advanceOption | Remaining {amount} |
+| field.pettyCash.expense.footer | Available to spend: {amount}. The currency is the fund's. |
+| field.pettyCash.expense.fundRequired | Choose the petty cash fund. |
+| field.pettyCash.expense.advanceRequired | Choose the advance this was paid from. |
+| field.pettyCash.expense.currency | The fund holds {currency}. |
+| field.pettyCash.expense.overspend | Above what the fund has available ({amount}): it is kept for approval and marked for the approver to check. |
+| field.pettyCash.expense.aboveMaximum | Above the petty cash maximum per expense ({amount}): a manager must approve it. |
+| field.pettyCash.conflict.PETTY_CASH_INSUFFICIENT | The fund did not have enough available. Check the fund and record the expense again if needed. |
+| field.pettyCash.conflict.PETTY_CASH_FUND_INACTIVE | This petty cash fund is no longer active. |
+| field.pettyCash.conflict.PETTY_CASH_DISABLED | Petty cash is switched off for your company. |
+| field.pettyCash.conflict.PETTY_CASH_ALREADY_ACKNOWLEDGED | This was already answered. |
+| field.pettyCash.conflict.PETTY_CASH_ALREADY_DECIDED | This was already decided. |
+| field.pettyCash.conflict.PETTY_CASH_NOTHING_TO_TOP_UP | Nothing to top up: no approved spending since the last top-up, or the fund is at its limit. |
+| field.pettyCash.conflict.PETTY_CASH_ABOVE_CAP_REASON_REQUIRED | The amount is above the fund's limit; send the request again with a reason. |
+| field.pettyCash.conflict.PETTY_CASH_ADVANCE_EXPENSES_PENDING | Expenses of this advance are still waiting for approval. |
+| field.pettyCash.conflict.PETTY_CASH_ADVANCE_CLEARED | This advance is already cleared. |
+
+### Owner
+| Key | English |
+|---|---|
+| owner.pettyCash.section | Petty cash to approve |
+| owner.pettyCash.empty | No petty cash requests waiting. |
+| owner.pettyCash.kind.FUNDING | Funding |
+| owner.pettyCash.kind.TOP_UP | Top-up |
+| owner.pettyCash.kind.ADJUSTMENT | Fund adjustment |
+| owner.pettyCash.title.movement | Petty cash request |
+| owner.pettyCash.title.adjustment | Fund adjustment |
+| owner.pettyCash.headline | {kind} {amount} · {fund} |
+| owner.pettyCash.fundFallback | A fund |
+| owner.pettyCash.proposedBy | Proposed by {name} |
+| owner.pettyCash.card | Request |
+| owner.pettyCash.field.fund | Fund |
+| owner.pettyCash.field.holder | Holder |
+| owner.pettyCash.field.kind | Kind |
+| owner.pettyCash.field.number | Number |
+| owner.pettyCash.field.amount | Amount |
+| owner.pettyCash.field.suggested | Suggested |
+| owner.pettyCash.field.cap | Brings the fund to its limit |
+| owner.pettyCash.field.aboveCapReason | Reason for going above the limit |
+| owner.pettyCash.field.reason | Reason |
+| owner.pettyCash.field.note | Note |
+| owner.pettyCash.field.proposedBy | Proposed by |
+| owner.pettyCash.field.proposedAt | Proposed |
+| owner.pettyCash.field.status | Status |
+| owner.pettyCash.field.decidedBy | Decided by |
+| owner.pettyCash.field.decisionNote | Decision note |
+| owner.pettyCash.status.PROPOSED | Waiting for approval |
+| owner.pettyCash.status.PENDING | Waiting for approval |
+| owner.pettyCash.status.APPROVED | Approved |
+| owner.pettyCash.status.REJECTED | Rejected |
+| owner.pettyCash.expenses | Spending behind this top-up |
+| owner.pettyCash.expensesNone | No expenses listed. |
+| owner.pettyCash.expensesFailed | The expenses could not be loaded. Pull to try again. |
+| owner.pettyCash.expenseLine | {description} · {amount} |
+| owner.pettyCash.decision | Decision |
+| owner.pettyCash.explanation.movement | Approving lets the office hand the money over. It counts in the fund only after the holder acknowledges it. |
+| owner.pettyCash.explanation.adjustment | Approving changes the fund balance by this amount. |
+| owner.pettyCash.approve | Approve |
+| owner.pettyCash.reject | Reject |
+| owner.pettyCash.cancel | Cancel |
+| owner.pettyCash.approveTitle | Approve this request? |
+| owner.pettyCash.rejectTitle | Reject this request? |
+| owner.pettyCash.noteOptional | Note (optional) |
+| owner.pettyCash.reasonRequired | Reason (required) |
+| owner.pettyCash.errReasonShort | Write at least 3 characters. |
+| owner.pettyCash.approved | Request approved. |
+| owner.pettyCash.rejected | Request rejected. |
+| owner.pettyCash.own | You proposed this, so someone else must approve or reject it. |
+| owner.pettyCash.alreadyDecided | Someone already decided this. Reload to see it. |

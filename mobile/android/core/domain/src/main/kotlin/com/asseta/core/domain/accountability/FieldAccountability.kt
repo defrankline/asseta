@@ -185,7 +185,23 @@ data class FieldAccess(
     val transferEvidence: Boolean get() = cashDetailsV2 && customerHours
     val transferEvidenceRequired: Boolean get() = transferEvidence && hours?.transferEvidenceRequired == true
 
+    /**
+     * DEC-033 petty cash: the server announces OP_PETTY_CASH (only while the tenant uses it), the role reads petty cash
+     * (a holder sees only the funds they hold) and PETTY_CASH is not switched off in `/me`.
+     */
+    val pettyCash: Boolean
+        get() = TenantAccess.PETTY_CASH !in disabled && supports(SyncCapabilities.OP_PETTY_CASH) && can(PETTY_CASH_READ)
+
+    /** Record a physical count of a fund I hold. */
+    val pettyCashCount: Boolean get() = pettyCash && can(PETTY_CASH_COUNT)
+
+    /** Pay an expense from a fund (the form also needs a fund or an advance on the phone). */
+    val pettyCashExpense: Boolean get() = pettyCash && can(EXPENSE_WRITE)
+
     companion object {
+        const val PETTY_CASH_READ = "tenant.pettycash.read"
+        const val PETTY_CASH_COUNT = "tenant.pettycash.count"
+        const val EXPENSE_WRITE = "tenant.expense.write"
         const val HOURS_PURCHASE = "tenant.hours.purchase"
         const val HOURS_TRANSFER = "tenant.hours.transfer"
         const val HOURS_READ = "tenant.hours.read"

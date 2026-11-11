@@ -138,6 +138,15 @@ class SupervisorOnline(
     }.getOrNull()
 
     /** A short-lived URL of a server attachment (meter photo, signature, reset evidence), when online and allowed. */
+    /** Colleagues matching [query] (the petty cash count witness); null when offline or refused. */
+    suspend fun searchPeople(query: String): List<com.asseta.core.model.sync.PersonDto>? = try {
+        api().people(query.trim())
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+    } catch (_: Exception) {
+        null
+    }
+
     suspend fun attachmentUrl(attachmentId: String): String? = runCatching { api().attachmentUrl(attachmentId).url }.getOrNull()
 
     /** A short-lived URL of an expense receipt, when online and allowed. */

@@ -120,6 +120,10 @@ class FieldGraph(context: Context, val container: AssetaAppContainer) {
     /** Tenant policies, cash holders, transfers/floats waiting for me and open purchases (online, saved encrypted). */
     val accountability = FieldAccountabilityData({ tenantApi }, db, json, account)
 
+    /** Petty cash funds I hold (DEC-033): the synced snapshot and the offline operations on it. */
+    val pettyCash = com.asseta.core.sync.data.PettyCashRepository(db, repository, json)
+    val pettyCashCapture = com.asseta.core.sync.usecase.PettyCashCapture(db, outbox, evidence, json) { scheduler.syncNow() }
+
     /** Daily operational reports (DEC-032 A4): queued offline, read online and saved encrypted. */
     val dailyReportCapture = DailyReportCapture(db, repository, outbox, evidence, json) { scheduler.syncNow() }
     val dailyReports = DailyReportData({ tenantApi }, db, json, account)

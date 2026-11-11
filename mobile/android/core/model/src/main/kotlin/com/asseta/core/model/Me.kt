@@ -64,6 +64,9 @@ data class TenantAccess(
         const val TRACKING = "TRACKING"
         const val DEPOSIT_ACCOUNTS = "DEPOSIT_ACCOUNTS"
         const val MANAGED_SERVICE = "MANAGED_SERVICE"
+
+        /** DEC-033 petty cash funds (PETTY_CASH policy `enabled`; platform default off, listed in `/me` while off). */
+        const val PETTY_CASH = "PETTY_CASH"
     }
 }
 

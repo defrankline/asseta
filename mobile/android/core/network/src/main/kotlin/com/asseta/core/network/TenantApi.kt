@@ -809,4 +809,44 @@ interface TenantApi {
     /** getHireInvoice, read here only for the invoice number beside a payment. */
     @GET("api/v1/tenant/hire-invoices/{id}")
     suspend fun invoiceNumber(@Path("id") id: String): com.asseta.core.model.owner.InvoiceNumberDto
+
+    // --- DEC-033 petty cash -----------------------------------------------------------------------------------------
+
+    /** listTenantPeople: colleagues by name (the count witness search; `tenant.directory.read`). */
+    @GET("api/v1/tenant/people")
+    suspend fun people(@Query("q") q: String): List<com.asseta.core.model.sync.PersonDto>
+
+    /** listPettyCashMovements (latest first); [status] PROPOSED for approvals. */
+    @GET("api/v1/tenant/petty-cash/movements")
+    suspend fun pettyCashMovements(
+        @Query("status") status: String? = null,
+        @Query("page") page: Int = 1,
+        @Query("page_size") pageSize: Int = 50,
+    ): PageDto<com.asseta.core.model.owner.PettyCashMovementReviewDto>
+
+    @GET("api/v1/tenant/petty-cash/movements/{id}")
+    suspend fun pettyCashMovement(@Path("id") id: String): com.asseta.core.model.owner.PettyCashMovementReviewDto
+
+    /** listPettyCashMovementExpenses: the approved spending a top-up proposal was based on. */
+    @GET("api/v1/tenant/petty-cash/movements/{id}/expenses")
+    suspend fun pettyCashMovementExpenses(@Path("id") id: String): List<com.asseta.core.model.owner.TopUpExpenseDto>
+
+    /** decidePettyCashMovement (tenant.pettycash.approve; never the proposer or the fund's holder). */
+    @POST("api/v1/tenant/petty-cash/movements/{id}/decision")
+    suspend fun decidePettyCashMovement(@Path("id") id: String, @Body body: com.asseta.core.model.owner.PettyCashDecisionIn): com.asseta.core.model.owner.PettyCashMovementReviewDto
+
+    /** listPettyCashAdjustments; [status] PENDING for approvals. */
+    @GET("api/v1/tenant/petty-cash/adjustments")
+    suspend fun pettyCashAdjustments(
+        @Query("status") status: String? = null,
+        @Query("page") page: Int = 1,
+        @Query("page_size") pageSize: Int = 50,
+    ): PageDto<com.asseta.core.model.owner.PettyCashAdjustmentReviewDto>
+
+    @GET("api/v1/tenant/petty-cash/adjustments/{id}")
+    suspend fun pettyCashAdjustment(@Path("id") id: String): com.asseta.core.model.owner.PettyCashAdjustmentReviewDto
+
+    /** decidePettyCashAdjustment (tenant.pettycash.approve; never the proposer or the fund's holder). */
+    @POST("api/v1/tenant/petty-cash/adjustments/{id}/decision")
+    suspend fun decidePettyCashAdjustment(@Path("id") id: String, @Body body: com.asseta.core.model.owner.PettyCashDecisionIn): com.asseta.core.model.owner.PettyCashAdjustmentReviewDto
 }

@@ -70,6 +70,10 @@ data class OwnerFeatures(val permissions: Set<String>, val disabled: Set<String>
 
     /** The "Payments to confirm" queue: the role can read customer payments and decide them. */
     val confirmPayments get() = finance && verifyHandovers
+
+    /** DEC-033: "Petty cash to approve" (read and approve; the company uses petty cash). */
+    val pettyCashRead get() = "tenant.pettycash.read" in permissions && TenantAccess.PETTY_CASH !in disabled
+    val pettyCashApprove get() = pettyCashRead && "tenant.pettycash.approve" in permissions
     val issueFloats get() = "tenant.finance.cash" in permissions
     val reviewExceptions get() = "tenant.meter.review" in permissions
     val notifications get() = "tenant.notification.read" in permissions
@@ -123,7 +127,7 @@ data class OwnerFeatures(val permissions: Set<String>, val disabled: Set<String>
     val adjustmentPropose get() = "tenant.adjustment.propose" in permissions
 
     /** Approvals opens for expense approvers and for adjustment holders, who may hold no tenant.approval.* at all. */
-    val approvalsScreen get() = approvals || DecisionKind.visible(this).isNotEmpty() || revenueRead || confirmPayments
+    val approvalsScreen get() = approvals || DecisionKind.visible(this).isNotEmpty() || revenueRead || confirmPayments || pettyCashApprove
 
     /** One customer payment can be read (to mark a reversed one). */
     val paymentDetails get() = finance || adjustmentRead
@@ -162,6 +166,8 @@ data class OwnerFeatures(val permissions: Set<String>, val disabled: Set<String>
         is OwnerDestination.Alerts -> if (alerts) d else OwnerDestination.Home
         // A link to a customer payment for a role that cannot read them: the inbox, where the notification already is.
         is OwnerDestination.CustomerPayment -> if (finance) d else OwnerDestination.Notifications()
+        // A petty cash record for a role that cannot read petty cash (or the company switched it off): the inbox.
+        is OwnerDestination.PettyCashMovement, is OwnerDestination.PettyCashAdjustment -> if (pettyCashRead) d else OwnerDestination.Notifications()
         else -> d
     }
     val custodyRead get() = finance || "tenant.collection.record" in permissions

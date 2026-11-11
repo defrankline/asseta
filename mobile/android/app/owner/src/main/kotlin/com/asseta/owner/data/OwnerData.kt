@@ -184,6 +184,35 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
     suspend fun paymentsToConfirm(): Load<PageDto<CustomerPaymentDto>> =
         repo.load(tenantId, "payments:CLAIMED", PageDto.serializer(CustomerPaymentDto.serializer())) { customerPayments(status = "CLAIMED", pageSize = LIST_PAGE) }
 
+    /** Petty cash fundings / top-ups (PROPOSED) and fund adjustments (PENDING) waiting for approval (DEC-033). */
+    suspend fun pettyCashToApprove(): Load<com.asseta.owner.ui.approvals.PettyCashQueue> =
+        repo.load(tenantId, "petty_cash:to_approve", com.asseta.owner.ui.approvals.PettyCashQueue.serializer()) {
+            com.asseta.owner.ui.approvals.PettyCashQueue(
+                pettyCashMovements(status = "PROPOSED", pageSize = LIST_PAGE).items,
+                pettyCashAdjustments(status = "PENDING", pageSize = LIST_PAGE).items,
+            )
+        }
+
+    /** One petty cash movement with the approved spending behind a top-up (best effort; never fails the movement). */
+    suspend fun pettyCashMovementReview(id: String): Load<com.asseta.core.model.owner.PettyCashMovementReview> =
+        repo.load(tenantId, "petty_cash_movement:$id", com.asseta.core.model.owner.PettyCashMovementReview.serializer()) {
+            val movement = pettyCashMovement(id)
+            val expenses = if (movement.kind == "TOP_UP") {
+                runCatching { pettyCashMovementExpenses(id) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
+            } else Result.success(emptyList())
+            com.asseta.core.model.owner.PettyCashMovementReview(movement, expenses.getOrDefault(emptyList()), expenses.isFailure)
+        }
+
+    suspend fun pettyCashAdjustmentReview(id: String): Load<com.asseta.core.model.owner.PettyCashAdjustmentReviewDto> =
+        repo.load(tenantId, "petty_cash_adjustment:$id", com.asseta.core.model.owner.PettyCashAdjustmentReviewDto.serializer()) { pettyCashAdjustment(id) }
+
+    /** Approve or reject a petty cash movement / adjustment; a rejection carries the reason. */
+    suspend fun decidePettyCashMovement(id: String, approve: Boolean, note: String?) =
+        repo.act { decidePettyCashMovement(id, com.asseta.core.model.owner.PettyCashDecisionIn(approve, note?.trim()?.takeIf { it.isNotEmpty() })) }
+
+    suspend fun decidePettyCashAdjustment(id: String, approve: Boolean, note: String?) =
+        repo.act { decidePettyCashAdjustment(id, com.asseta.core.model.owner.PettyCashDecisionIn(approve, note?.trim()?.takeIf { it.isNotEmpty() })) }
+
     /** One payment by id, with its evidence photos and the invoice numbers (both read beside it; never fails the payment). */
     suspend fun paymentReview(id: String): Load<PaymentReview> =
         repo.load(tenantId, "payment:$id", PaymentReview.serializer()) {

@@ -155,6 +155,10 @@ fun ExpenseRow(e: ExpenseDto, zone: ZoneId) {
             StatusPill(OwnerFormat.humanize(e.status), OwnerColors.tone(SpendText.expenseTone(e.status)))
         }
         e.decisionNote?.takeIf { it.isNotBlank() }?.let { Text(it, style = AssetaType.caption, color = palette.secondaryText) }
+        // DEC-033: why the office must look at it, in neutral words.
+        com.asseta.core.domain.finance.ExpenseFlags.labels(e.controlFlags).takeIf { it.isNotEmpty() }?.let { flags ->
+            Text(com.asseta.core.domain.finance.ExpenseFlags.TITLE + ": " + flags.joinToString("; "), style = AssetaType.caption, color = OwnerColors.Warning)
+        }
     }
 }
 

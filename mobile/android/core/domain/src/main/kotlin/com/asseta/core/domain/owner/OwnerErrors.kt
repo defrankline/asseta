@@ -59,5 +59,6 @@ object OwnerErrors {
 
     /** Codes after which the shown list is out of date and must be reloaded. */
     fun needsReload(code: String): Boolean = code == "ALERT_CLOSED" || code == "APPROVAL_ALREADY_DECIDED" || code == "RESET_DECIDED" ||
-        code == "HANDOVER_ALREADY_DECIDED" || code == "PAYMENT_ALREADY_DECIDED" || code == "ALREADY_REVIEWED"
+        code == "HANDOVER_ALREADY_DECIDED" || code == "PAYMENT_ALREADY_DECIDED" || code == "ALREADY_REVIEWED" ||
+        code == "PETTY_CASH_ALREADY_DECIDED"
 }

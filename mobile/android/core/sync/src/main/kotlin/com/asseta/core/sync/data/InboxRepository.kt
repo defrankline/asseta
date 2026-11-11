@@ -97,6 +97,9 @@ data class ExpenseItem(
     val receiptAttachmentIds: List<String>,
     val server: SyncExpenseDto?,
     val op: ClientOperationEntity?,
+    /** DEC-033: the fund that paid, and why the office must look at it (server copy only). */
+    val pettyCashFundId: String? = null,
+    val controlFlags: List<String> = emptyList(),
 )
 
 data class FuelItem(
@@ -326,6 +329,7 @@ class InboxRepository(
                 status = InboxStatusRules.combined(op?.status, s?.let { InboxStatusRules.expense(it.status) }),
                 decisionNote = s?.decisionNote, decidedAtMs = s?.decidedAt?.let(::ms),
                 receiptAttachmentIds = s?.receiptAttachmentIds.orEmpty(), server = s, op = op,
+                pettyCashFundId = s?.pettyCashFundId ?: p?.pettyCashFundId, controlFlags = s?.controlFlags.orEmpty(),
             )
         }
 

@@ -23,5 +23,5 @@ fun <A, B> Load<A>.map(transform: (A) -> B): Load<B> = when (this) {
 /** Result of an owner mutation (acknowledge/resolve alert, approval decision, settings). */
 sealed interface ActionResult<out T> {
     data class Done<T>(val value: T) : ActionResult<T>
-    data class Refused(val error: UiError, val code: String?, val reload: Boolean = false) : ActionResult<Nothing>
+    data class Refused(val error: UiError, val code: String?, val reload: Boolean = false, /** The server's own words (before friendly rewording). */ val serverMessage: String? = null) : ActionResult<Nothing>
 }

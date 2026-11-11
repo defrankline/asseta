@@ -58,6 +58,12 @@ object SyncCapabilities {
      * HOURS_TRANSFER_REQUEST `evidence_upload_ids` (blob ADJUSTMENT_EVIDENCE).
      */
     const val CASH_DETAILS_V2 = "CASH_DETAILS_V2"
+
+    /**
+     * DEC-033 petty cash: SyncData.petty_cash_* (full snapshots), EXPENSE paid_from PETTY_CASH, the PETTY_CASH_* operations
+     * (blob PETTY_CASH_EVIDENCE). Announced only while the tenant uses petty cash.
+     */
+    const val OP_PETTY_CASH = "OP_PETTY_CASH"
 }
 
 /** `ExceptionDto`: a server finding on a reading (type, severity, blocking) and its review. */
@@ -188,6 +194,10 @@ data class SyncExpenseDto(
     @SerialName("receipt_attachment_ids") val receiptAttachmentIds: List<String> = emptyList(),
     @SerialName("approval_request_id") val approvalRequestId: String? = null,
     @SerialName("sync_revision") val syncRevision: Long,
+    /** DEC-033: the fund (and advance) that paid, and why a human must look at it (OVERSPEND, ...). */
+    @SerialName("petty_cash_fund_id") val pettyCashFundId: String? = null,
+    @SerialName("petty_cash_advance_id") val pettyCashAdvanceId: String? = null,
+    @SerialName("control_flags") val controlFlags: List<String> = emptyList(),
 )
 
 @Serializable

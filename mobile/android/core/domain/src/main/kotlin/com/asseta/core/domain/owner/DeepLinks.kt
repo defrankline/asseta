@@ -20,6 +20,10 @@ sealed interface OwnerDestination {
     data class Handover(val handoverId: String) : OwnerDestination
     /** One customer payment, with confirm / reject while it waits (CUSTOMER_PAYMENT_TO_VERIFY). */
     data class CustomerPayment(val paymentId: String) : OwnerDestination
+    /** DEC-033: a petty cash funding or top-up waiting for approval, with approve / reject. */
+    data class PettyCashMovement(val movementId: String) : OwnerDestination
+    /** DEC-033: a petty cash fund adjustment waiting for approval, with approve / reject. */
+    data class PettyCashAdjustment(val adjustmentId: String) : OwnerDestination
     /** Expenses and fuel recorded in the field. */
     data object FieldSpend : OwnerDestination
     /** Cash held by each supervisor over a period. */
@@ -242,6 +246,8 @@ object DeepLinkRouter {
             // PARTIAL_REMITTANCE: the remittance (cash handover).
             "cash_handover" -> target?.let { OwnerDestination.Handover(it) } ?: OwnerDestination.Approvals()
             "customer_payment" -> target?.let { OwnerDestination.CustomerPayment(it) } ?: OwnerDestination.Approvals()
+            "petty_cash_movement" -> target?.let { OwnerDestination.PettyCashMovement(it) } ?: OwnerDestination.Approvals()
+            "petty_cash_adjustment" -> target?.let { OwnerDestination.PettyCashAdjustment(it) } ?: OwnerDestination.Approvals()
             "cash_transfer" -> target?.let { OwnerDestination.CashRecord(RecordKinds.CASH_TRANSFER, it) } ?: OwnerDestination.Cash
             "supervisor_cash_custody" -> target?.let { OwnerDestination.CashRecord(RecordKinds.CASH_FLOAT, it) } ?: OwnerDestination.Cash
             "cash_remittance_overdue" -> OwnerDestination.RemittanceOverdue(target)
@@ -285,6 +291,12 @@ object DeepLinkRouter {
             "finance" -> when (rest.getOrNull(1)) {
                 "cash" -> cashPath(rest.getOrNull(2), id(rest.getOrNull(3)))
                 // Adjustments ledger (DEC-032): a request by id; the ledger itself is web-only, its requests wait in Approvals.
+                // Petty cash (DEC-033): a movement or adjustment by id; anything else waits in Approvals.
+                "petty-cash" -> when (rest.getOrNull(2)) {
+                    "movements" -> id(rest.getOrNull(3))?.let { OwnerDestination.PettyCashMovement(it) }
+                    "adjustments" -> id(rest.getOrNull(3))?.let { OwnerDestination.PettyCashAdjustment(it) }
+                    else -> null
+                } ?: OwnerDestination.Approvals()
                 "adjustments" ->
                     (if (rest.getOrNull(2) == "requests") RecordKinds.destination(RecordKinds.ADJUSTMENT_REQUEST, id(rest.getOrNull(3))) else null)
                         ?: OwnerDestination.Approvals()
@@ -336,7 +348,14 @@ object DeepLinkRouter {
     fun fromPush(data: Map<String, String?>): DeepLink? {
         val notificationId = id(data["notification_id"])
         val link = data["link"]
-        val payment = id(data["entity_id"])?.takeIf { data["entity"] == "customer_payment" }?.let { OwnerDestination.CustomerPayment(it) }
+        val payment = id(data["entity_id"])?.let { entityId ->
+            when (data["entity"]) {
+                "customer_payment" -> OwnerDestination.CustomerPayment(entityId)
+                "petty_cash_movement" -> OwnerDestination.PettyCashMovement(entityId)
+                "petty_cash_adjustment" -> OwnerDestination.PettyCashAdjustment(entityId)
+                else -> null
+            }
+        }
         val record = RecordKinds.destination(data["kind"], id(data["record_id"])) ?: payment
         if (notificationId == null && link.isNullOrBlank() && record == null) return null
         val destination = record ?: fromPath(link) ?: OwnerDestination.Notifications(notificationId)

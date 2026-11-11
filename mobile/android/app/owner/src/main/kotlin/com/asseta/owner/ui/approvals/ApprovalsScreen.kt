@@ -138,6 +138,7 @@ class ApprovalsViewModel private constructor(
     revenueOpen: Boolean,
     /** The role may read expense requests (`tenant.approval.read`); otherwise they are neither asked for nor shown. */
     val expenseRequests: Boolean,
+    pettyCash: Boolean,
 ) : SnapshotViewModel<PageDto<ApprovalRequestDto>>({ if (expenseRequests) data.approvals(selected.value) else noExpenseRequests() }, refreshOn) {
     /**
      * [meterResets]: also list pending meter reset requests (`tenant.meter.read`); [jobs]: also list jobs waiting for
@@ -157,7 +158,9 @@ class ApprovalsViewModel private constructor(
         /** Also list revenue differences still to explain (explain or decide holders); otherwise only proposed ones. */
         revenueOpen: Boolean = true,
         expenseRequests: Boolean = true,
-    ) : this(data, MutableStateFlow(ApprovalText.DEFAULT_FILTER), refreshOn, meterResets, jobs, handovers, payments, exceptions, decisions, revenueOpen, expenseRequests)
+        /** Petty cash fundings, top-ups and fund adjustments waiting for approval (read and approve, DEC-033). */
+        pettyCash: Boolean = false,
+    ) : this(data, MutableStateFlow(ApprovalText.DEFAULT_FILTER), refreshOn, meterResets, jobs, handovers, payments, exceptions, decisions, revenueOpen, expenseRequests, pettyCash)
 
     val status: StateFlow<String?> get() = selected
 
@@ -173,6 +176,9 @@ class ApprovalsViewModel private constructor(
     /** Customer payments waiting to be confirmed, loaded independently (null when the role cannot decide them). */
     val claimedPayments: Section<PageDto<CustomerPaymentDto>>? = if (payments) Section(viewModelScope) { data.paymentsToConfirm() } else null
 
+    /** Petty cash requests waiting for approval, loaded independently (null when the role cannot approve them). */
+    val pettyCashQueue: Section<PettyCashQueue>? = if (pettyCash) Section(viewModelScope) { data.pettyCashToApprove() } else null
+
     /** Open meter exceptions, loaded independently (null when the role cannot read meter evidence). */
     val openExceptions: Section<ExceptionList>? = if (exceptions) Section(viewModelScope) { data.openExceptions(jobNumbers = jobs) } else null
 
@@ -183,7 +189,7 @@ class ApprovalsViewModel private constructor(
         }
     }
 
-    private val sections get() = listOfNotNull(resets, pendingJobs, claimedHandovers, claimedPayments, openExceptions) + decisionSections.map { it.second }
+    private val sections get() = listOfNotNull(resets, pendingJobs, claimedHandovers, claimedPayments, pettyCashQueue, openExceptions) + decisionSections.map { it.second }
 
     init {
         sections.forEach { it.refresh() }
@@ -242,6 +248,7 @@ fun ApprovalsScreen(vm: ApprovalsViewModel, onOpen: (OwnerDestination) -> Unit) 
     val handovers = vm.claimedHandovers?.state?.collectAsStateWithLifecycle()?.value
     val payments = vm.claimedPayments?.state?.collectAsStateWithLifecycle()?.value
     val exceptions = vm.openExceptions?.state?.collectAsStateWithLifecycle()?.value
+    val petty = vm.pettyCashQueue?.state?.collectAsStateWithLifecycle()?.value
     val decisions = vm.decisionSections.map { (kind, section) -> kind to section.state.collectAsStateWithLifecycle().value }
     Column(Modifier.fillMaxSize()) {
         if (vm.expenseRequests) FilterChipRow(ApprovalText.FILTERS.map { (s, l) -> s as String? to l }, status, vm::filter)
@@ -249,7 +256,7 @@ fun ApprovalsScreen(vm: ApprovalsViewModel, onOpen: (OwnerDestination) -> Unit) 
             val zone = ZoneId.systemDefault()
             val rows = buildList {
                 if (page.items.isEmpty() && vm.expenseRequests) add(GroupedItem("empty") { EmptyState(ApprovalText.EMPTY_TITLE, ApprovalText.EMPTY_MESSAGE, R.drawable.ic_approval) })
-                if (!vm.expenseRequests && listOf(resets, jobs, handovers, payments, exceptions).all { it == null } && decisions.all { (_, st) -> st.data.orEmpty().none { it.pending } }) {
+                if (!vm.expenseRequests && listOf(resets, jobs, handovers, payments, exceptions).all { it == null } && petty?.data.isNullOrEmptyQueue() && decisions.all { (_, st) -> st.data.orEmpty().none { it.pending } }) {
                     add(GroupedItem("empty") { EmptyState(ApprovalText.EMPTY_TITLE, AdjustmentTexts.EMPTY, R.drawable.ic_approval) })
                 }
                 page.items.forEach { a ->
@@ -315,6 +322,15 @@ fun ApprovalsScreen(vm: ApprovalsViewModel, onOpen: (OwnerDestination) -> Unit) 
                 jobRows?.let { groupedSection("jobs", it, header = JobApprovalText.SECTION) }
                 handoverRows?.let { groupedSection("handovers", it, header = HandoverText.SECTION) }
                 paymentRows?.let { groupedSection("payments", it, header = PaymentReviewText.SECTION) }
+                // Petty cash requests appear only when something waits (DEC-033).
+                petty?.data?.takeIf { it.isNotEmpty() }?.let { q ->
+                    groupedSection(
+                        "petty-cash",
+                        q.movements.map { m -> GroupedItem("pm-${m.id}", onClick = { onOpen(OwnerDestination.PettyCashMovement(m.id.toString())) }) { PettyCashMovementRow(m, zone) } } +
+                            q.adjustments.map { a -> GroupedItem("pa-${a.id}", onClick = { onOpen(OwnerDestination.PettyCashAdjustment(a.id.toString())) }) { PettyCashAdjustmentRow(a, zone) } },
+                        header = PettyCashReviewText.SECTION,
+                    )
+                }
                 exceptionRows?.let { groupedSection("exceptions", it, header = ExceptionReviewText.SECTION) }
                 resetRows?.let { groupedSection("resets", it, header = MeterResetText.SECTION) }
                 // Accountability sections appear only when something waits (a capability the company does not use
@@ -444,8 +460,11 @@ private fun ExpenseCard(data: OwnerData, expenseId: String, online: Boolean, zon
         } else {
             KeyValue("Description", e.description)
             e.supplier?.let { KeyValue("Supplier", it) }
-            KeyValue("Paid from", OwnerFormat.humanize(e.paidFrom))
+            KeyValue("Paid from", if (e.paidFrom == "PETTY_CASH") com.asseta.core.domain.finance.ExpenseFlags.PAID_FROM_PETTY_CASH else OwnerFormat.humanize(e.paidFrom))
             KeyValue("Incurred", OwnerFormat.dateTime(e.incurredAt, zone))
+            com.asseta.core.domain.finance.ExpenseFlags.labels(e.controlFlags).takeIf { it.isNotEmpty() }?.let { flags ->
+                KeyValue(com.asseta.core.domain.finance.ExpenseFlags.TITLE, flags.joinToString("; "))
+            }
             e.receiptAttachmentIds.forEach { rid -> EvidencePhoto("receipt", online) { data.receiptUrl(e.id.toString(), rid.toString()) } }
         }
         detailError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }

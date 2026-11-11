@@ -209,7 +209,11 @@ class FinanceRepository(
         val p = payload(op)
         val title = when (op.opType) {
             OpTypes.EXPENSE -> "Expense · " + (p?.text("description") ?: "") +
-                (if (p?.text("paid_from") == PaidFrom.CASH_CUSTODY.name) " (paid from my cash)" else " (company paid)")
+                when (p?.text("paid_from")) {
+                    PaidFrom.CASH_CUSTODY.name -> " (paid from my cash)"
+                    PaidFrom.PETTY_CASH.name -> " (petty cash)"
+                    else -> " (company paid)"
+                }
             OpTypes.CASH_COLLECTION -> "Cash collected · " + (p?.text("customer_id")?.let { customerNames[it] ?: "customer" } ?: "customer")
             OpTypes.CASH_HANDOVER -> "Cash handed to office" + (p?.text("note")?.let { " · $it" } ?: "")
             OpTypes.FUEL_EVENT -> "Fuel ${p?.text("event_type")?.lowercase() ?: ""} · ${p?.text("litres") ?: "?"} L"

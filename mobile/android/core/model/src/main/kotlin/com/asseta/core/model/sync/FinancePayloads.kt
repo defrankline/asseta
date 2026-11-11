@@ -26,6 +26,9 @@ data class ExpensePayload(
     @SerialName("receipt_upload_ids") val receiptUploadIds: List<String> = emptyList(),
     val gps: GpsIn? = null,
     @SerialName("device_id") val deviceId: String? = null,
+    /** DEC-033: paid_from PETTY_CASH names the fund (required then) and optionally the advance it was paid from. */
+    @SerialName("petty_cash_fund_id") val pettyCashFundId: String? = null,
+    @SerialName("petty_cash_advance_id") val pettyCashAdvanceId: String? = null,
 )
 
 @Serializable

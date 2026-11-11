@@ -74,6 +74,9 @@ data class ExpenseDto(
     @SerialName("custodian_staff_id") val custodianStaffId: SerializableUuid? = null,
     @SerialName("receipt_required") val receiptRequired: Boolean = false,
     @SerialName("decision_note") val decisionNote: String? = null,
+    /** DEC-033: why a human must look at it (OVERSPEND, SPENT_FROM_COLLECTIONS, ABOVE_PETTY_CASH_MAXIMUM). */
+    @SerialName("control_flags") val controlFlags: List<String> = emptyList(),
+    @SerialName("petty_cash_fund_id") val pettyCashFundId: SerializableUuid? = null,
 )
 
 /** `AnomalyCaseDto` (listAnomalyCases). Investigations are read-only in the Owner app. */

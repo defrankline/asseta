@@ -61,6 +61,9 @@ data class ExpenseRequest(
     val receiptJpegs: List<ByteArray>,
     val gps: GpsOutcome?,
     val incurredAtMs: Long,
+    /** DEC-033, [paidFrom] PETTY_CASH: the fund that paid and, optionally, the advance given to me (pickers' choices). */
+    val pettyFund: com.asseta.core.domain.finance.FundChoice? = null,
+    val pettyAdvance: com.asseta.core.domain.finance.AdvanceChoice? = null,
 )
 
 data class CashCollectionRequest(
@@ -164,6 +167,13 @@ class FinanceCapture(
         )
         val assessment = ExpenseRules.assess(draft, decision.policy, finance.baseCurrency(r.tenantId))
         if (!assessment.isValid) return FinanceResult.Invalid(assessment.issues.map { it.message })
+        val petty = r.paidFrom == PaidFrom.PETTY_CASH
+        if (petty) {
+            if (!supports(r.tenantId, SyncCapabilities.OP_PETTY_CASH)) return FinanceResult.Blocked(CaptureMeterReading.SERVER_TOO_OLD)
+            val advance = r.pettyAdvance?.takeIf { it.fundId == r.pettyFund?.id }
+            val issues = com.asseta.core.domain.finance.PettyCashRules.expenseIssues(r.pettyFund, advance, assessment.currency)
+            if (issues.isNotEmpty()) return FinanceResult.Invalid(issues)
+        }
         if (alreadySaved(r.tenantId, FieldOps.EXPENSE, r.clientId)) return FinanceResult.AlreadySaved // cheap pre-check
 
         val stored = receipts.map { bytes -> StoredReceipt(UUID.randomUUID().toString(), files.write(bytes), bytes) }
@@ -181,6 +191,8 @@ class FinanceCapture(
             receiptUploadIds = emptyList(), // filled in as each receipt upload completes, before the op is ever sent
             gps = r.gps!!.toWire(),
             deviceId = deviceId(),
+            pettyCashFundId = r.pettyFund?.id?.takeIf { petty },
+            pettyCashAdvanceId = r.pettyAdvance?.takeIf { petty && it.fundId == r.pettyFund?.id }?.id,
         )
         val database = db()
         return database.inTransaction {
