@@ -1,4 +1,5 @@
 @testable import AssetaSync
+import AssetaCapture
 import AssetaModel
 import AssetaStore
 import AssetaTestSupport
@@ -199,8 +200,8 @@ struct HoursPricingTests {
             d.payments = lines
             return d
         }
-        func problems(_ d: HoursSaleDraft, noncash: Bool = true, price p: HoursSalePrice = .hidden, photos: Int = 0) -> [String] {
-            if case let .failure(found) = AccountabilityRules.hoursSale(d, walkInAllowed: false, noncashAllowed: noncash, price: p, photos: photos) {
+        func problems(_ d: HoursSaleDraft, noncash: Bool = true, price p: HoursSalePrice = .hidden) -> [String] {
+            if case let .failure(found) = AccountabilityRules.hoursSale(d, walkInAllowed: false, noncashAllowed: noncash, price: p) {
                 return found.messages
             }
             return []
@@ -218,9 +219,7 @@ struct HoursPricingTests {
         #expect(problems(draft([cash, cash]), price: price) == [FieldAccountabilityTexts.hoursErrPaymentsExceed("TZS 570,000")])
         #expect(problems(draft([cash, cash]), price: .unpriced).isEmpty) // without a known total the server checks it
         #expect(problems(draft(Array(repeating: PaymentLine(amountText: "1"), count: 11))) == [FieldAccountabilityTexts.hoursErrTooManyPayments])
-        #expect(problems(draft([cash, cash]), photos: 1) == [FieldAccountabilityTexts.hoursErrPhotosSplit])
-        #expect(problems(draft([]), photos: 1) == [FieldAccountabilityTexts.hoursErrPhotosSplit])
-        #expect(problems(draft([cash]), photos: 1).isEmpty)
+        #expect(problems(draft([cash])).isEmpty)
     }
 
     @Test func methodsFollowTheTenantPolicy() throws {
@@ -289,6 +288,47 @@ struct HoursPricingTests {
             try h.recorder.recordHoursSale(draft, walkInAllowed: false, cashHolderID: nil, evidence: [], receivedAt: h.clock.wallNow)
         }
     }
+
+    @Test func eachSplitPartCarriesItsOwnEvidenceAndTheOpWaitsForEveryUpload() async throws {
+        let h = try SyncHarness().withFinanceData()
+        h.server.mutate { $0.capabilities = AccountabilityTests.all }
+        let engine = h.engine()
+        _ = try await engine.sync()
+        func photo(_ seed: Int) throws -> StoredEvidence {
+            try h.evidence.store(Data((0..<1500).map { UInt8(($0 + seed) % 251) }), fileExtension: "jpg", contentType: "image/jpeg")
+        }
+        var draft = HoursSaleDraft()
+        draft.customerID = FinanceFixtures.customerID
+        draft.machineID = SyncFixtures.machineID
+        draft.hoursText = "6"
+        draft.payments = [PaymentLine(method: "CASH", amountText: "300000"), PaymentLine(method: "BANK", amountText: "200000", reference: "CRDB-77"),
+                          PaymentLine(method: "MOBILE_MONEY", amountText: "70000", reference: "MP-1")]
+        let op = try h.recorder.recordHoursSale(draft, walkInAllowed: false, cashHolderID: nil,
+                                                evidence: [[], [try photo(1), try photo(2)], [try photo(3)]],
+                                                receivedAt: h.clock.wallNow, noncashAllowed: true)
+        // Queued: each part names its photos by local id; the op-level list stays empty; not sendable before the uploads.
+        let queued = try JSONValue.parse(op.payloadJSON)
+        guard case let .array(before)? = queued["payments"] else { Issue.record("no payments"); return }
+        func ids(_ part: JSONValue) -> [String] {
+            if case let .array(list)? = part["evidence_upload_ids"] { return list.compactMap(\.stringValue) }
+            return []
+        }
+        #expect(part0Empty(before[0]) && ids(before[1]).count == 2 && ids(before[2]).count == 1)
+        #expect(queued["evidence_upload_ids"] == JSONValue.array([]))
+        #expect(try h.store.outbox.readyToSend(tenantID: SyncFixtures.tenant, now: h.clock.wallNow, limit: 10).isEmpty)
+        _ = try await engine.sync(force: true)
+        #expect(try h.status(op.id) == .acked)
+        let applied = try #require(h.server.read { $0.appliedPayloads[op.id] })
+        let parts = try #require(applied["payments"] as? [[String: Any]])
+        let uploads = Set(h.server.read { $0.blobs.keys.map { "\($0)".lowercased() } })
+        #expect(uploads.count == 3)
+        #expect(parts[0]["evidence_upload_ids"] == nil)
+        let named = ((parts[1]["evidence_upload_ids"] as? [String]) ?? []) + ((parts[2]["evidence_upload_ids"] as? [String]) ?? [])
+        #expect(Set(named.map { $0.lowercased() }) == uploads)
+        #expect((applied["evidence_upload_ids"] as? [Any])?.isEmpty == true)
+    }
+
+    private func part0Empty(_ part: JSONValue) -> Bool { part["evidence_upload_ids"] == nil }
 
     // MARK: - Wording
 

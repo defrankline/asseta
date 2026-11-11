@@ -169,7 +169,7 @@ struct AccountabilityTests {
         draft.hoursText = "10"
         draft.payments = [PaymentLine(amountText: "250000")]
         let holder = UUID(), clientID = UUID()
-        let op = try h.recorder.recordHoursSale(draft, walkInAllowed: true, cashHolderID: holder, evidence: [receipt],
+        let op = try h.recorder.recordHoursSale(draft, walkInAllowed: true, cashHolderID: holder, evidence: [[receipt]],
                                                 receivedAt: h.clock.wallNow, clientID: clientID)
         #expect(op.opType == "HOURS_PURCHASE" && op.entityID == clientID)
         #expect(throws: FieldRecorderError.notAllowed(FieldAccountabilityTexts.alreadySaved)) {

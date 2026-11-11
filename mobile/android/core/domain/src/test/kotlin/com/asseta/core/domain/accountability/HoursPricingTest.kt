@@ -124,9 +124,7 @@ class HoursPricingTest {
         assertTrue(AccountabilityRules.hoursSale(draft(cash, cash), false, true, HoursSalePrice.Unpriced) is FormCheck.Valid)
         val eleven = draft(*Array(11) { PaymentLine(PaymentMethod.CASH, "1", "") })
         assertEquals(listOf(AccountabilityMessages.TOO_MANY_PAYMENTS), (AccountabilityRules.hoursSale(eleven, false) as FormCheck.Invalid).messages)
-        assertEquals(listOf(AccountabilityMessages.PHOTOS_SPLIT), (AccountabilityRules.hoursSale(draft(cash, cash), false, photos = 1) as FormCheck.Invalid).messages)
-        assertEquals(listOf(AccountabilityMessages.PHOTOS_SPLIT), (AccountabilityRules.hoursSale(draft(), false, photos = 1) as FormCheck.Invalid).messages)
-        assertTrue(AccountabilityRules.hoursSale(draft(cash), false, photos = 1) is FormCheck.Valid)
+        assertTrue(AccountabilityRules.hoursSale(draft(cash), false) is FormCheck.Valid)
     }
 
     @Test

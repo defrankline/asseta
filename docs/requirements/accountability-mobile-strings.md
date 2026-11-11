@@ -94,7 +94,7 @@ encrypted on the phone) enables it. Unknown policy (never loaded) = hidden, so t
 | field.hours.fullyPaid | Fully paid |
 | field.hours.partPaid | Part paid (balance {balance}) |
 | field.hours.noncashByOffice | Bank and mobile-money payments are recorded by the office. |
-| field.hours.photosOnePayment | Payment photos go with a single payment. |
+| field.hours.evidenceForPayment | Payment {n} evidence (optional) |
 | field.hours.outbox | Hours sale · {method} {amount}[ + {method} {amount}…] (no payment: "Hours sale · Not paid yet") |
 | field.hours.methodCash | Cash |
 | field.hours.methodBank | Bank |
@@ -119,7 +119,6 @@ encrypted on the phone) enables it. Unknown policy (never loaded) = hidden, so t
 | field.hours.errNoncashOff | Bank and mobile-money payments are recorded by the office. |
 | field.hours.errTooManyPayments | At most 10 payments per sale. |
 | field.hours.errPaymentsExceed | The payments add up to more than the total of {total}. |
-| field.hours.errPhotosSplit | Payment photos go with a single payment. Remove the photos or keep one payment. |
 | field.hours.off | Customer hours are turned off for your company. |
 
 The total line shows under Hours once a machine is chosen and the hours are more than 0. It is computed on the phone from
@@ -147,9 +146,12 @@ lines, the cash holder are shared by all lines. One line is sent as `payment` (u
 keep working); two or more as `payments` in the order typed, never both; cash parts carry the cash holder
 (`staff_member_id`) when recording for another custodian. The server keys part n's payment uuid5(client_id, "payment-n")
 (the first "payment"), and a second save of the same form is refused on the phone, so retries stay exactly-once.
-Evidence photos go with a single payment: with two or more lines the photo section only lets existing photos be removed
-(footer `field.hours.photosOnePayment`) and Save stays off with `field.hours.errPhotosSplit` while any are left (the
-server attaches `evidence_upload_ids` to `payment` only). On the sync status screen the sale reads `field.hours.outbox`,
+Each payment line has its own evidence photos (bank slip, mobile-money receipt; at most 10 per line): titled
+`field.hours.evidence` when there is one line, `field.hours.evidenceForPayment` per line when there are more; removing a
+line drops its photos. A single line's photos go in the op-level `evidence_upload_ids` (as before). With two or more
+lines each part of `payments` carries its own `evidence_upload_ids` (omitted when it has none): queued with the local
+attachment ids, each replaced by its upload id as the photo finishes uploading; the op is sent only after every photo of
+every part has uploaded (sync fix 13595b6, `PurchasePaymentOp`). On the sync status screen the sale reads `field.hours.outbox`,
 e.g. "Hours sale · Cash 300,000 + Bank 270,000".
 
 ### Request hours transfer (offline, `HOURS_TRANSFER_REQUEST`)

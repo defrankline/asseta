@@ -45,18 +45,25 @@ public struct PurchasePaymentPayload: Codable, Hashable, Sendable {
     public let note: String?
     /// The custodian who holds the cash (nil = the recorder).
     public let staffMemberID: UUID?
+    /// Op only, a part of a split bill (`PurchasePaymentOp`): this part's evidence uploads (purpose PAYMENT_EVIDENCE).
+    /// Queued with the local attachment ids, each replaced by its upload id when the photo finishes uploading (the op
+    /// waits for all of them). Nil (omitted) for a single `payment`, whose photos use the op-level list.
+    public let evidenceUploadIDs: [UUID]?
 
-    public init(method: String, amount: Decimal?, receivedAt: Date, reference: String?, note: String?, staffMemberID: UUID?) {
+    public init(method: String, amount: Decimal?, receivedAt: Date, reference: String?, note: String?, staffMemberID: UUID?,
+                evidenceUploadIDs: [UUID]? = nil) {
         self.method = method
         self.amount = amount.map(DecimalString.init)
         self.receivedAt = receivedAt
         self.reference = reference
         self.note = note
         self.staffMemberID = staffMemberID
+        self.evidenceUploadIDs = evidenceUploadIDs
     }
 
     enum CodingKeys: String, CodingKey {
         case method, amount, reference, note, receivedAt = "received_at", staffMemberID = "staff_member_id"
+        case evidenceUploadIDs = "evidence_upload_ids"
     }
 }
 

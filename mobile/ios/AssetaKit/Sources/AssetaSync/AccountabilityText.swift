@@ -70,13 +70,12 @@ public enum FieldAccountabilityTexts {
     public static let hoursRemovePayment = "Remove payment" // field.hours.removePayment
     public static let hoursMethod = "Method" // field.hours.method
     public static let hoursNoncashByOffice = "Bank and mobile-money payments are recorded by the office." // field.hours.noncashByOffice
-    public static let hoursPhotosOnePayment = "Payment photos go with a single payment." // field.hours.photosOnePayment
+    public static func hoursEvidenceFor(_ n: Int) -> String { "Payment \(n) evidence (optional)" } // field.hours.evidenceForPayment
     public static let hoursFullyPaid = "Fully paid" // field.hours.fullyPaid
     public static func hoursPaymentNumber(_ n: Int) -> String { "Payment \(n)" } // field.hours.paymentNumber
     public static func hoursPartPaid(_ balance: String) -> String { "Part paid (balance \(balance))" } // field.hours.partPaid
     public static let hoursErrNoncashOff = "Bank and mobile-money payments are recorded by the office." // field.hours.errNoncashOff
     public static let hoursErrTooManyPayments = "At most 10 payments per sale." // field.hours.errTooManyPayments
-    public static let hoursErrPhotosSplit = "Payment photos go with a single payment. Remove the photos or keep one payment." // field.hours.errPhotosSplit
     public static func hoursErrPaymentsExceed(_ total: String) -> String { "The payments add up to more than the total of \(total)." } // field.hours.errPaymentsExceed
 
     /// The lines under the payments: "Paid TZS 300,000 of TZS 570,000 · Balance TZS 270,000", then the status.

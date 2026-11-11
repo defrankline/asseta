@@ -276,15 +276,13 @@ object AccountabilityRules {
 
     /**
      * [noncashAllowed]: the tenant lets field staff record bank and mobile-money parts (CUSTOMER_HOURS
-     * `field_noncash_payments`); [price]: the offline total, which the parts may not exceed; [photos]: evidence photos
-     * taken (they go with a single payment).
+     * `field_noncash_payments`); [price]: the offline total, which the parts may not exceed.
      */
     fun hoursSale(
         d: HoursSaleDraft,
         walkInAllowed: Boolean,
         noncashAllowed: Boolean = false,
         price: HoursSalePrice = HoursSalePrice.Hidden,
-        photos: Int = 0,
     ): FormCheck<HoursSaleValues> {
         val m = mutableListOf<String>()
         var name: String? = null
@@ -317,7 +315,6 @@ object AccountabilityRules {
         if (price is HoursSalePrice.Priced && parts.fold(BigDecimal.ZERO) { s, p -> s + p.amount } > price.quote.amount) {
             m += AccountabilityMessages.paymentsExceed(HoursPricing.money(price.quote.amount, price.quote.currency, price.quote.minorUnits))
         }
-        if (photos > 0 && d.payments.size != 1) m += AccountabilityMessages.PHOTOS_SPLIT
         val note = d.note.trim().take(MAX_NOTE).ifEmpty { null }
         return if (m.isEmpty()) FormCheck.Valid(HoursSaleValues(hours!!, parts, name, phone, note)) else FormCheck.Invalid(m)
     }
@@ -416,7 +413,6 @@ object AccountabilityMessages {
     const val REFERENCE = "Enter the reference for bank and mobile-money payments."
     const val NONCASH_OFF = "Bank and mobile-money payments are recorded by the office."
     const val TOO_MANY_PAYMENTS = "At most 10 payments per sale."
-    const val PHOTOS_SPLIT = "Payment photos go with a single payment. Remove the photos or keep one payment."
     fun paymentsExceed(total: String) = "The payments add up to more than the total of $total."
     const val WALK_IN_OFF = "Walk-in customers are turned off for your company."
     const val PURCHASE = "Choose the purchase."

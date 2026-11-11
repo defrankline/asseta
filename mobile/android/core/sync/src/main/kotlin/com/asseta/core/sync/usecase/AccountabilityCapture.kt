@@ -43,8 +43,8 @@ data class HoursSaleRequest(
     /** The cash holder when the recorder records for another custodian; null = the recorder. */
     val cashHolderId: String?,
     val receivedAtMs: Long,
-    /** Original evidence JPEGs (receipt, mobile-money screenshot), at most ten; they go with a single payment. */
-    val evidenceJpegs: List<ByteArray>,
+    /** Original evidence JPEGs per payment line (receipt, bank slip, mobile-money screenshot), at most ten each. */
+    val paymentEvidence: List<List<ByteArray>>,
     /** The tenant lets field staff record bank and mobile-money parts (CUSTOMER_HOURS `field_noncash_payments`). */
     val noncashAllowed: Boolean = false,
 )
@@ -133,18 +133,22 @@ class AccountabilityCapture(
     suspend fun hoursSale(r: HoursSaleRequest): FinanceResult {
         unavailable(r.tenantId, SyncCapabilities.OP_HOURS_PURCHASE)?.let { return FinanceResult.Blocked(it) }
         val d = r.draft
-        val evidence = r.evidenceJpegs.filter { it.isNotEmpty() }
+        // Each payment line's photos (the bank slip, the mobile-money receipt); lines without photos have none.
+        val evidence = d.payments.indices.map { i -> r.paymentEvidence.getOrNull(i).orEmpty().filter { it.isNotEmpty() } }
         // The parts may not exceed the total this phone knows (the server checks again with its own price).
         val price = HoursPricing.price(finance.observeHoursPrices(r.tenantId).first(), d.machineId, d.customerId, d.walkIn, d.hoursText)
-        val values = when (val check = AccountabilityRules.hoursSale(d, r.walkInAllowed, r.noncashAllowed, price, evidence.size)) {
+        val values = when (val check = AccountabilityRules.hoursSale(d, r.walkInAllowed, r.noncashAllowed, price)) {
             is FormCheck.Invalid -> return FinanceResult.Invalid(check.messages)
             is FormCheck.Valid -> check.value
         }
         if (!d.walkIn) finance.activeCustomer(d.customerId!!) ?: return FinanceResult.Blocked(CUSTOMER_GONE)
         field.machine(d.machineId!!) ?: return FinanceResult.Blocked(CaptureMeterReading.MACHINE_MISSING)
-        if (evidence.size > MAX_EVIDENCE) return FinanceResult.Invalid(listOf("At most $MAX_EVIDENCE evidence photos per sale."))
+        if (evidence.any { it.size > MAX_EVIDENCE }) return FinanceResult.Invalid(listOf("At most $MAX_EVIDENCE evidence photos per payment."))
         if (alreadySaved(r.tenantId, FieldOps.HOURS_PURCHASE, r.clientId)) return FinanceResult.AlreadySaved
-        val parts = values.payments.map { part ->
+        // Local attachment ids per line, known before the payload so a split part can name its own photos.
+        val stored = evidence.map { line -> line.map { bytes -> Triple(UUID.randomUUID().toString(), files.write(bytes), bytes) } }
+        val split = values.payments.size > 1
+        val parts = values.payments.mapIndexed { i, part ->
             PurchasePaymentPayload(
                 method = part.method.wire,
                 amount = DecimalAmount.of(part.amount),
@@ -152,12 +156,14 @@ class AccountabilityCapture(
                 reference = part.reference,
                 // Cash parts go to the holder's custody (the recorder's unless recording for another holder).
                 staffMemberId = r.cashHolderId.takeIf { part.method == PaymentMethod.CASH },
+                // A split part names its photos by local id; the uploader swaps in each upload id when it completes.
+                evidenceUploadIds = stored[i].map { it.first }.takeIf { split && it.isNotEmpty() },
             )
         }
-        // One part travels as `payment` (as before, so its photos and an older server still work); a split bill as
-        // `payments`, in the order typed (the server keys part n "payment-n").
+        // One part travels as `payment` with the op-level evidence list (as before, so an older server still works); a
+        // split bill as `payments`, in the order typed (the server keys part n "payment-n"), each part with its photos.
         val payment = parts.singleOrNull()
-        val split = parts.takeIf { it.size > 1 }
+        val splitParts = parts.takeIf { split }
         val payload = HoursPurchasePayload(
             clientId = r.clientId,
             customerId = d.customerId.takeIf { !d.walkIn },
@@ -167,23 +173,23 @@ class AccountabilityCapture(
             hours = AccountabilityRules.plain(values.hours),
             note = values.note,
             payment = payment,
-            payments = split,
+            payments = splitParts,
         )
-        val stored = evidence.map { bytes -> Triple(UUID.randomUUID().toString(), files.write(bytes), bytes) }
+        val all = stored.flatten()
         val database = db()
         return database.inTransaction {
             if (alreadySaved(r.tenantId, FieldOps.HOURS_PURCHASE, r.clientId)) {
-                stored.forEach { files.delete(it.second) }
+                all.forEach { files.delete(it.second) }
                 return@inTransaction FinanceResult.AlreadySaved
             }
-            stored.forEach { (id, file, bytes) ->
+            all.forEach { (id, file, bytes) ->
                 database.evidenceDao().insertAttachment(
                     AttachmentEntity(id, r.tenantId, AccountabilityOps.PAYMENT_EVIDENCE, file, Sha256.hex(bytes), bytes.size.toLong(),
                         "image/jpeg", AttachmentEntity.PENDING, createdAt = r.receivedAtMs),
                 )
             }
             val opId = enqueue(r.tenantId, AccountabilityOps.HOURS_PURCHASE, FieldOps.HOURS_PURCHASE, r.clientId,
-                HoursPurchasePayload.serializer(), payload, stored.map { it.first })
+                HoursPurchasePayload.serializer(), payload, all.map { it.first })
             FinanceResult.Saved(r.clientId, opId)
         }.also { if (it is FinanceResult.Saved) onQueued() }
     }

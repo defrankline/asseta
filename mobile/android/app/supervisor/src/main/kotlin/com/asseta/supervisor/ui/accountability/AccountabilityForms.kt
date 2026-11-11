@@ -30,7 +30,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.asseta.core.domain.accountability.AccountabilityRules
 import com.asseta.core.domain.accountability.FieldAccess
-import com.asseta.core.domain.accountability.AccountabilityMessages
 import com.asseta.core.domain.accountability.HoursPayments
 import com.asseta.core.domain.accountability.HoursPriceBook
 import com.asseta.core.domain.accountability.HoursPricing
@@ -141,11 +140,17 @@ data class HoursSaleForm(
     val note: String = "",
     val holderId: String? = null,
     val atMs: Long = 0,
-    val photos: List<CapturedPhoto> = emptyList(),
+    /** Photos per payment line, by line index (a line without photos may have no entry yet). */
+    val photos: List<List<CapturedPhoto>> = emptyList(),
 ) {
     fun draft() = HoursSaleDraft(walkIn, customerId, walkInName, walkInPhone, machineId, hours, payments, note)
 
     fun line(index: Int, change: (PaymentLine) -> PaymentLine) = copy(payments = payments.mapIndexed { i, l -> if (i == index) change(l) else l })
+
+    fun photosOf(index: Int): List<CapturedPhoto> = photos.getOrNull(index).orEmpty()
+
+    fun photos(index: Int, change: (List<CapturedPhoto>) -> List<CapturedPhoto>) =
+        copy(photos = payments.indices.map { i -> if (i == index) change(photosOf(i)) else photosOf(i) })
 }
 
 class HoursSaleViewModel(field: FieldGraph, tenantId: String, permissions: Set<String>) : AccountabilityFormViewModel(field, tenantId, permissions) {
@@ -174,7 +179,10 @@ class HoursSaleViewModel(field: FieldGraph, tenantId: String, permissions: Set<S
         f.copy(payments = f.payments + HoursPayments.newLine(f.payments, price))
     }
 
-    fun removePayment(index: Int) = edit { f -> f.copy(payments = f.payments.filterIndexed { i, _ -> i != index }) }
+    /** Removes the line and its photos. */
+    fun removePayment(index: Int) = edit { f ->
+        f.copy(payments = f.payments.filterIndexed { i, _ -> i != index }, photos = f.photos.filterIndexed { i, _ -> i != index })
+    }
 
     fun save() {
         if (saving()) return
@@ -185,7 +193,8 @@ class HoursSaleViewModel(field: FieldGraph, tenantId: String, permissions: Set<S
                 HoursSaleRequest(
                     tenantId, clientId, f.draft(), walkInAllowed = a?.walkIn == true,
                     cashHolderId = f.holderId?.takeIf { a?.recordForOthers == true && it != me.value },
-                    receivedAtMs = f.atMs.coerceAtMost(field.clock.nowMs()), evidenceJpegs = f.photos.map { it.jpeg },
+                    receivedAtMs = f.atMs.coerceAtMost(field.clock.nowMs()),
+                    paymentEvidence = f.payments.indices.map { i -> f.photosOf(i).map { it.jpeg } },
                     noncashAllowed = a?.noncashPayments == true,
                 ),
             )
@@ -257,15 +266,13 @@ fun HoursSaleScreen(vm: HoursSaleViewModel, onDone: () -> Unit) {
                 }
             }
         }
-        // Photos go with a single payment (the server attaches them to it); with a split bill they can only be removed.
-        if (form.payments.size == 1 || form.photos.isNotEmpty()) {
-            EvidencePhotos(form.photos, { p -> vm.edit { it.copy(photos = it.photos + p) } }, { i -> vm.edit { it.copy(photos = it.photos.filterIndexed { j, _ -> j != i }) } },
-                vm::onPhotoError, editable, canAdd = form.payments.size == 1,
-                footer = if (form.payments.size == 1) T.EVIDENCE_FOOTER else T.PHOTOS_ONE_PAYMENT)
+        // Each payment line has its own photos (the bank slip, the mobile-money receipt), sent with that payment.
+        form.payments.indices.forEach { index ->
+            EvidencePhotos(form.photosOf(index), { p -> vm.edit { it.photos(index) { l -> l + p } } },
+                { i -> vm.edit { it.photos(index) { l -> l.filterIndexed { j, _ -> j != i } } } }, vm::onPhotoError, editable,
+                title = if (form.payments.size == 1) T.EVIDENCE else T.evidenceFor(index + 1))
         }
-        val check = AccountabilityRules.hoursSale(form.draft(), a.walkIn, a.noncashPayments, price, form.photos.size)
-        // Why Save stays off when it is not obvious from the form (the over-total status shows under the payments).
-        (check as? FormCheck.Invalid)?.messages?.filter { it == AccountabilityMessages.PHOTOS_SPLIT }?.forEach { Text(it, color = palette.offline) }
+        val check = AccountabilityRules.hoursSale(form.draft(), a.walkIn, a.noncashPayments, price)
         SaveSection(save, vm::save, onDone, enabled = check is FormCheck.Valid)
     }
 }

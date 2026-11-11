@@ -57,6 +57,12 @@ data class PurchasePaymentPayload(
     val note: String? = null,
     @SerialName("staff_member_id") val staffMemberId: String? = null,
     @SerialName("evidence_attachment_ids") val evidenceAttachmentIds: List<String> = emptyList(),
+    /**
+     * Op only, a part of a split bill (`PurchasePaymentOp`): this part's evidence uploads (purpose PAYMENT_EVIDENCE).
+     * Queued with the local attachment ids, each replaced by its upload id when the photo finishes uploading (the op
+     * waits for all of them). Null (omitted) for a single `payment`, whose photos use the op-level list.
+     */
+    @SerialName("evidence_upload_ids") val evidenceUploadIds: List<String>? = null,
 )
 
 /**

@@ -187,8 +187,9 @@ class BlobUploader(
                     OpTypes.EXPENSE -> "receipt_upload_ids" to appendUploadId(op.payloadJson, dto.id)
                     // A meter reset request names its evidence photo by upload id, like expense receipts.
                     OpTypes.METER_RESET_REQUEST -> "evidence_upload_id" to JsonPrimitive(dto.id)
-                    // An hours sale names its payment evidence by upload ids (one per photo), like expense receipts.
-                    AccountabilityOps.HOURS_PURCHASE -> "evidence_upload_ids" to appendUploadId(op.payloadJson, dto.id, "evidence_upload_ids")
+                    // An hours sale names its payment evidence by upload ids (one per photo), like expense receipts; a
+                    // split bill's part names its own photos (queued as local ids, swapped for the upload id here).
+                    AccountabilityOps.HOURS_PURCHASE -> hoursSaleEvidence(op.payloadJson, attachment.id, dto.id)
                     // A remittance names its deposit slip photos by upload ids too (REMITTANCE_DETAILS_V1).
                     OpTypes.CASH_HANDOVER -> "evidence_upload_ids" to appendUploadId(op.payloadJson, dto.id, "evidence_upload_ids")
                     // An hours transfer names its evidence photos by upload ids too (CASH_DETAILS_V2).
@@ -212,6 +213,24 @@ class BlobUploader(
     private fun replacementWithPhoto(payloadJson: String, attachmentId: String): JsonElement {
         val replacement = json.parseToJsonElement(payloadJson).jsonObject["replacement"]?.jsonObject ?: JsonObject(emptyMap())
         return JsonObject(replacement + ("photo_attachment_id" to JsonPrimitive(attachmentId)))
+    }
+
+    /**
+     * HOURS_PURCHASE: a part of `payments` that lists [localId] gets [uploadId] in its place; a photo of a single
+     * `payment` is appended to the op-level `evidence_upload_ids`. Repeating a completion changes nothing.
+     */
+    private fun hoursSaleEvidence(payloadJson: String, localId: String, uploadId: String): Pair<String, JsonElement> {
+        val payload = json.parseToJsonElement(payloadJson).jsonObject
+        val parts = payload["payments"] as? JsonArray
+        fun ids(part: JsonElement) = ((part as? JsonObject)?.get("evidence_upload_ids") as? JsonArray).orEmpty().map { it.jsonPrimitive.content }
+        if (parts != null && parts.any { part -> ids(part).any { it == localId || it == uploadId } }) {
+            return "payments" to JsonArray(parts.map { part ->
+                val list = ids(part)
+                if (localId !in list) part
+                else JsonObject(part.jsonObject + ("evidence_upload_ids" to JsonArray(list.map { JsonPrimitive(if (it == localId) uploadId else it) })))
+            })
+        }
+        return "evidence_upload_ids" to appendUploadId(payloadJson, uploadId, "evidence_upload_ids")
     }
 
     private fun appendUploadId(payloadJson: String, uploadId: String, key: String = "receipt_upload_ids"): JsonElement {

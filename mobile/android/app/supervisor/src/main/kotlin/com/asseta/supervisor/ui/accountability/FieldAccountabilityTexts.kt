@@ -72,7 +72,7 @@ object FieldAccountabilityTexts {
     const val REMOVE_PAYMENT = "Remove payment"
     const val METHOD = "Method"
     const val NONCASH_BY_OFFICE = "Bank and mobile-money payments are recorded by the office."
-    const val PHOTOS_ONE_PAYMENT = "Payment photos go with a single payment."
+    fun evidenceFor(n: Int) = "Payment $n evidence (optional)"
     const val FULLY_PAID = "Fully paid"
     fun paymentNumber(n: Int) = "Payment $n"
     fun partPaid(balance: String) = "Part paid (balance $balance)"

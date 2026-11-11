@@ -113,6 +113,7 @@ class AccountabilityPresentationTest {
         assertEquals("Bank and mobile-money payments are recorded by the office.", FieldAccountabilityTexts.NONCASH_BY_OFFICE)
         assertEquals("Add payment", FieldAccountabilityTexts.ADD_PAYMENT)
         assertEquals("Payment 2", FieldAccountabilityTexts.paymentNumber(2))
+        assertEquals("Payment 2 evidence (optional)", FieldAccountabilityTexts.evidenceFor(2))
     }
 
     @Test

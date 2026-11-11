@@ -40,7 +40,8 @@ struct HoursSaleFormView: View {
     @State private var draft = HoursSaleDraft()
     @State private var receivedAt = Date()
     @State private var holderID: UUID?
-    @State private var photos: [(evidence: StoredEvidence, data: Data)] = []
+    /// Photos per payment line (by the line's id).
+    @State private var photos: [UUID: [(evidence: StoredEvidence, data: Data)]] = [:]
     @State private var error: String?
 
     var body: some View {
@@ -48,8 +49,7 @@ struct HoursSaleFormView: View {
         let prices = model.hoursPrices
         let price = HoursPricing.price(prices, machineID: draft.machineID, customerID: draft.customerID, walkIn: draft.walkIn,
                                        hoursText: draft.hoursText)
-        let check = AccountabilityRules.hoursSale(draft, walkInAllowed: a.walkIn, noncashAllowed: a.noncashPayments, price: price,
-                                                  photos: photos.count)
+        let check = AccountabilityRules.hoursSale(draft, walkInAllowed: a.walkIn, noncashAllowed: a.noncashPayments, price: price)
         NavigationStack {
             Form {
                 if !a.sellHours {
@@ -93,7 +93,11 @@ struct HoursSaleFormView: View {
                             if draft.payments[index].method != "CASH" {
                                 TextField(T.hoursReference, text: $draft.payments[index].reference)
                             }
-                            Button(T.hoursRemovePayment, role: .destructive) { draft.payments.remove(at: index) }
+                            Button(T.hoursRemovePayment, role: .destructive) {
+                                // The line's photos go with it.
+                                let removed = draft.payments.remove(at: index)
+                                photos.removeValue(forKey: removed.id)?.forEach { model.discardEvidence($0.evidence) }
+                            }
                         }
                         if draft.payments.count < HoursPayments.max {
                             Button(T.hoursAddPayment, systemImage: "plus") {
@@ -116,14 +120,12 @@ struct HoursSaleFormView: View {
                         Text([draft.payments.isEmpty ? T.hoursNotPaidFooter : T.hoursPaymentFooter,
                               a.noncashPayments ? nil : T.hoursNoncashByOffice].compactMap { $0 }.joined(separator: " "))
                     }
-                    // Photos go with a single payment (the server attaches them to it); with a split bill they can only be removed.
-                    if draft.payments.count == 1 || !photos.isEmpty {
-                        EvidencePhotosSection(model: model, photos: $photos, error: $error,
-                                              footer: draft.payments.count == 1 ? T.hoursEvidenceFooter : T.hoursPhotosOnePayment,
-                                              canAdd: draft.payments.count == 1)
-                    }
-                    if case let .failure(problems) = check, problems.messages.contains(T.hoursErrPhotosSplit) {
-                        Text(T.hoursErrPhotosSplit).foregroundStyle(.red)
+                    // Each payment line has its own photos (the bank slip, the mobile-money receipt), sent with that payment.
+                    ForEach(Array(draft.payments.enumerated()), id: \.element.id) { index, line in
+                        EvidencePhotosSection(model: model,
+                                              photos: Binding(get: { photos[line.id] ?? [] }, set: { photos[line.id] = $0 }),
+                                              error: $error,
+                                              title: draft.payments.count == 1 ? T.hoursEvidence : T.hoursEvidenceFor(index + 1))
                     }
                 }
             }
@@ -143,8 +145,8 @@ struct HoursSaleFormView: View {
     }
 
     private func discardPhotos() {
-        photos.forEach { model.discardEvidence($0.evidence) }
-        photos = []
+        photos.values.joined().forEach { model.discardEvidence($0.evidence) }
+        photos = [:]
     }
 
     private func save() {
@@ -153,10 +155,10 @@ struct HoursSaleFormView: View {
         do {
             try model.perform {
                 try $0.recordHoursSale(draft, walkInAllowed: a.walkIn, cashHolderID: holder,
-                                       evidence: photos.map(\.evidence), receivedAt: min(receivedAt, Date()),
-                                       clientID: clientID, noncashAllowed: a.noncashPayments)
+                                       evidence: draft.payments.map { (photos[$0.id] ?? []).map(\.evidence) },
+                                       receivedAt: min(receivedAt, Date()), clientID: clientID, noncashAllowed: a.noncashPayments)
             }
-            photos = [] // now owned by the queued sale
+            photos = [:] // now owned by the queued sale
             dismiss()
         } catch {
             self.error = JobDetailView.describe(error)

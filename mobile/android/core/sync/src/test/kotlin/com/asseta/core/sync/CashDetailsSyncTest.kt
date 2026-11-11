@@ -136,7 +136,7 @@ class CashDetailsSyncTest : SyncTestBase() {
         val sale = HoursSaleRequest(
             tenant, UUID.randomUUID().toString(),
             HoursSaleDraft(false, fake.customerId, "", "", fake.machineId, "12.50", emptyList(), ""),
-            walkInAllowed = false, cashHolderId = null, receivedAtMs = clock.now, evidenceJpegs = emptyList(),
+            walkInAllowed = false, cashHolderId = null, receivedAtMs = clock.now, paymentEvidence = emptyList(),
         )
         val saleOp = saved(accountability.hoursSale(sale)).operationId
         val unsynced = financeRepository.observeUnsyncedPurchases(tenant).first().single()
@@ -154,7 +154,7 @@ class CashDetailsSyncTest : SyncTestBase() {
         val sale = HoursSaleRequest(
             tenant, UUID.randomUUID().toString(),
             HoursSaleDraft(false, fake.customerId, "", "", fake.machineId, "12.50", emptyList(), ""),
-            walkInAllowed = false, cashHolderId = null, receivedAtMs = clock.now, evidenceJpegs = emptyList(),
+            walkInAllowed = false, cashHolderId = null, receivedAtMs = clock.now, paymentEvidence = emptyList(),
         )
         val saleOp = saved(accountability.hoursSale(sale)).operationId
         assertEquals(1, financeRepository.observeUnsyncedPurchases(tenant).first().size)

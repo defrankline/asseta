@@ -74,7 +74,7 @@ class AccountabilitySyncTest : SyncTestBase() {
             tenant, UUID.randomUUID().toString(),
             HoursSaleDraft(walkIn, if (walkIn) null else fake.customerId, "Walk-in Joe", "0712", fake.machineId, "12.50",
                 listOf(PaymentLine(method, "300000", reference)), ""),
-            walkInAllowed = true, cashHolderId = null, receivedAtMs = clock.now, evidenceJpegs = evidence,
+            walkInAllowed = true, cashHolderId = null, receivedAtMs = clock.now, paymentEvidence = listOf(evidence),
         )
 
     @Test
@@ -97,7 +97,7 @@ class AccountabilitySyncTest : SyncTestBase() {
     private fun split(lines: List<PaymentLine>, clientId: String = UUID.randomUUID().toString(), noncash: Boolean = true, holder: String? = null) =
         HoursSaleRequest(
             tenant, clientId, HoursSaleDraft(false, fake.customerId, "", "", fake.machineId, "6", lines, ""),
-            walkInAllowed = false, cashHolderId = holder, receivedAtMs = clock.now, evidenceJpegs = emptyList(), noncashAllowed = noncash,
+            walkInAllowed = false, cashHolderId = holder, receivedAtMs = clock.now, paymentEvidence = emptyList(), noncashAllowed = noncash,
         )
 
     private fun priced(rate: String = "95000.0000", minorUnits: Int? = 2) {
@@ -151,7 +151,37 @@ class AccountabilitySyncTest : SyncTestBase() {
     }
 
     @Test
-    fun partsAboveTheTotalNonCashWithoutThePolicyAndPhotosOnASplitAreRefused() = runBlocking {
+    fun eachSplitPartCarriesItsOwnEvidenceAndTheOpWaitsForEveryUpload() = runBlocking {
+        synced()
+        val lines = listOf(PaymentLine(PaymentMethod.CASH, "300000", ""), PaymentLine(PaymentMethod.BANK, "200000", "CRDB-77"),
+            PaymentLine(PaymentMethod.MOBILE_MONEY, "70000", "MP-1"))
+        val request = split(lines).copy(paymentEvidence = listOf(emptyList(), listOf(photo, photo.reversedArray()), listOf(photo + byteArrayOf(9))))
+        val opId = saved(accountability.hoursSale(request)).operationId
+        // Queued: each part names its photos by local id; the op-level list stays empty; three uploads to wait for.
+        val before = payload(opId)["payments"]!!.jsonArray.map { it.jsonObject }
+        val local = db.clientOperationDao().attachmentsOf(opId)
+        assertEquals(3, local.size)
+        assertNull(before[0]["evidence_upload_ids"])
+        assertEquals(2, before[1]["evidence_upload_ids"]!!.jsonArray.size)
+        assertEquals(1, before[2]["evidence_upload_ids"]!!.jsonArray.size)
+        assertEquals(local.toSet(), (before[1]["evidence_upload_ids"]!!.jsonArray + before[2]["evidence_upload_ids"]!!.jsonArray).map { it.jsonPrimitive.content }.toSet())
+        assertTrue(payload(opId)["evidence_upload_ids"]!!.jsonArray.isEmpty())
+        // Offline nothing is sent; once online every photo uploads first, then the sale goes with the upload ids.
+        assertTrue(engine(online = false).sync(tenant) is SyncReport.Retry)
+        synced()
+        assertEquals(ACKED, status(opId))
+        val sent = fake.stored[opId]!!.payload
+        val parts = sent["payments"]!!.jsonArray.map { it.jsonObject }
+        val uploads = fake.blobs.values.map { it.id }.toSet()
+        assertEquals(3, uploads.size)
+        assertNull(parts[0]["evidence_upload_ids"])
+        val named = (parts[1]["evidence_upload_ids"]!!.jsonArray + parts[2]["evidence_upload_ids"]!!.jsonArray).map { it.jsonPrimitive.content }
+        assertEquals(uploads, named.toSet())
+        assertTrue(sent["evidence_upload_ids"]!!.jsonArray.isEmpty())
+    }
+
+    @Test
+    fun partsAboveTheTotalAndNonCashWithoutThePolicyAreRefused() = runBlocking {
         priced()
         synced()
         // 6 h x 95,000 = 570,000.
@@ -160,10 +190,6 @@ class AccountabilitySyncTest : SyncTestBase() {
         saved(accountability.hoursSale(split(listOf(PaymentLine(PaymentMethod.CASH, "300000", ""), PaymentLine(PaymentMethod.CASH, "270000", "")))))
         val bank = accountability.hoursSale(split(listOf(PaymentLine(PaymentMethod.BANK, "100", "REF")), noncash = false))
         assertEquals(listOf(AccountabilityMessages.NONCASH_OFF), (bank as FinanceResult.Invalid).messages)
-        val photos = accountability.hoursSale(
-            split(listOf(PaymentLine(PaymentMethod.CASH, "100", ""), PaymentLine(PaymentMethod.CASH, "100", ""))).copy(evidenceJpegs = listOf(photo)),
-        )
-        assertEquals(listOf(AccountabilityMessages.PHOTOS_SPLIT), (photos as FinanceResult.Invalid).messages)
     }
 
     @Test

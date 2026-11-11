@@ -198,6 +198,10 @@ public final class AttachmentRepository: Sendable {
                 switch kind {
                 case .receiptUploads, .evidenceUploads:
                     guard let session else { throw OutboxError.attachmentMissing(id) }
+                    // A split hours sale's part names its own photos (queued as local ids): swap in the upload id there.
+                    if kind == .evidenceUploads, try replacePartEvidence(operationID: operationID, localID: id, uploadID: session) {
+                        continue
+                    }
                     try db.execute(
                         """
                         UPDATE client_operation
@@ -229,6 +233,31 @@ public final class AttachmentRepository: Sendable {
                 }
             }
         }
+    }
+
+    /// HOURS_PURCHASE split bill: a part of `payments` whose `evidence_upload_ids` lists `localID` gets `uploadID` in its
+    /// place. True when the photo belongs to a part (also when it was already swapped), false otherwise (op-level list).
+    private func replacePartEvidence(operationID: String, localID: UUID, uploadID: UUID) throws -> Bool {
+        let rows = try db.query("SELECT payload_json FROM client_operation WHERE id = ? AND status = 'PENDING'", [.text(operationID)]) {
+            $0.string(0) ?? ""
+        }
+        guard let text = rows.first,
+              var payload = (try? JSONSerialization.jsonObject(with: Data(text.utf8))) as? [String: Any],
+              let parts = payload["payments"] as? [[String: Any]] else { return false }
+        let local = localID.lowercased, upload = uploadID.lowercased
+        func ids(_ part: [String: Any]) -> [String] { (part["evidence_upload_ids"] as? [String]) ?? [] }
+        guard parts.contains(where: { ids($0).contains { $0.lowercased() == local || $0.lowercased() == upload } }) else { return false }
+        payload["payments"] = parts.map { part -> [String: Any] in
+            var copy = part
+            if part["evidence_upload_ids"] != nil {
+                copy["evidence_upload_ids"] = ids(part).map { $0.lowercased() == local ? upload : $0 }
+            }
+            return copy
+        }
+        let data = try JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys, .withoutEscapingSlashes])
+        try db.execute("UPDATE client_operation SET payload_json = ? WHERE id = ? AND status = 'PENDING'",
+                       [.text(String(decoding: data, as: UTF8.self)), .text(operationID)])
+        return true
     }
 
     private static func decode(_ row: Row) throws -> LocalAttachment {

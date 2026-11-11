@@ -115,7 +115,7 @@ public struct PaymentLine: Sendable, Equatable, Identifiable {
     }
 }
 
-/// The hours-sale form as typed (validated by ``AccountabilityRules/hoursSale(_:walkInAllowed:noncashAllowed:price:photos:)``);
+/// The hours-sale form as typed (validated by ``AccountabilityRules/hoursSale(_:walkInAllowed:noncashAllowed:price:)``);
 /// no payment lines = not paid yet.
 public struct HoursSaleDraft: Sendable, Equatable {
     public var walkIn = false
@@ -180,10 +180,9 @@ public enum AccountabilityRules {
     public static func saleHours(_ text: String) -> Decimal? { value(text, decimals: hoursDecimals) }
 
     /// `noncashAllowed`: the tenant lets field staff record bank and mobile-money parts (CUSTOMER_HOURS
-    /// `field_noncash_payments`); `price`: the offline total, which the parts may not exceed; `photos`: evidence photos
-    /// taken (they go with a single payment).
+    /// `field_noncash_payments`); `price`: the offline total, which the parts may not exceed.
     public static func hoursSale(_ d: HoursSaleDraft, walkInAllowed: Bool, noncashAllowed: Bool = false,
-                                 price: HoursSalePrice = .hidden, photos: Int = 0) -> Check<HoursSaleValues> {
+                                 price: HoursSalePrice = .hidden) -> Check<HoursSaleValues> {
         var m: [String] = []
         var name: String?, phone: String?
         if d.walkIn {
@@ -216,7 +215,6 @@ public enum AccountabilityRules {
             m.append(FieldAccountabilityTexts.hoursErrPaymentsExceed(
                 HoursPricing.money(quote.amount, currency: quote.currency, minorUnits: quote.minorUnits)))
         }
-        if photos > 0 && d.payments.count != 1 { m.append(FieldAccountabilityTexts.hoursErrPhotosSplit) }
         guard m.isEmpty, let hours else { return .failure(Problems(messages: m)) }
         return .success(HoursSaleValues(hours: hours, payments: parts, walkInName: name,
                                         walkInPhone: phone, note: trimmed(d.note, max: maxNote)))
@@ -355,21 +353,20 @@ extension FieldRecorder {
 
     // MARK: - Customer hours
 
-    /// Queues an `HOURS_PURCHASE` (registered customer or walk-in) with the payment parts taken now and their evidence
-    /// photos (photos go with a single payment). `clientID` (one per form visit) is the purchase's idempotency key.
-    /// `cashHolderID` is the cash holder when the recorder records for another custodian (cash parts only).
-    /// `noncashAllowed`: the tenant lets field staff record bank and mobile-money parts. Payments stay CLAIMED until
-    /// someone else verifies them.
+    /// Queues an `HOURS_PURCHASE` (registered customer or walk-in) with the payment parts taken now and each part's
+    /// evidence photos (`evidence[i]` belongs to `draft.payments[i]`). `clientID` (one per form visit) is the purchase's
+    /// idempotency key. `cashHolderID` is the cash holder when the recorder records for another custodian (cash parts
+    /// only). `noncashAllowed`: the tenant lets field staff record bank and mobile-money parts. Payments stay CLAIMED
+    /// until someone else verifies them.
     @discardableResult
-    public func recordHoursSale(_ draft: HoursSaleDraft, walkInAllowed: Bool, cashHolderID: UUID?, evidence: [StoredEvidence],
+    public func recordHoursSale(_ draft: HoursSaleDraft, walkInAllowed: Bool, cashHolderID: UUID?, evidence: [[StoredEvidence]],
                                 receivedAt: Date, clientID: UUID = UUID(), noncashAllowed: Bool = false) throws -> ClientOperation {
         try requireCapability(SyncCapability.hoursPurchase)
         let values: HoursSaleValues
         // The parts may not exceed the total this phone knows (the server checks again with its own price).
         let price = HoursPricing.price(HoursPricing.load(store: store, tenantID: tenantID), machineID: draft.machineID,
                                        customerID: draft.customerID, walkIn: draft.walkIn, hoursText: draft.hoursText)
-        switch AccountabilityRules.hoursSale(draft, walkInAllowed: walkInAllowed, noncashAllowed: noncashAllowed, price: price,
-                                             photos: evidence.count) {
+        switch AccountabilityRules.hoursSale(draft, walkInAllowed: walkInAllowed, noncashAllowed: noncashAllowed, price: price) {
         case let .failure(problems): throw Self.invalid(problems)
         case let .success(checked): values = checked
         }
@@ -381,28 +378,33 @@ extension FieldRecorder {
         guard let machineID = draft.machineID, try store.syncState.entity(type: "machine", id: machineID, tenantID: tenantID) != nil else {
             throw FieldRecorderError.notAllowed(FieldAccountabilityTexts.machineMissing)
         }
-        guard evidence.count <= AccountabilityRules.maxEvidence else {
+        // Each payment line's photos (the bank slip, the mobile-money receipt); lines without photos have none.
+        let lineEvidence = draft.payments.indices.map { $0 < evidence.count ? evidence[$0] : [] }
+        guard lineEvidence.allSatisfy({ $0.count <= AccountabilityRules.maxEvidence }) else {
             throw FieldRecorderError.invalid(FieldAccountabilityTexts.tooManyEvidence)
         }
         if try alreadySaved(.hoursPurchase, clientID: clientID) { throw FieldRecorderError.notAllowed(FieldAccountabilityTexts.alreadySaved) }
-        // Cash parts go to the holder's custody (the recorder's unless recording for another holder).
-        let parts = values.payments.map {
-            PurchasePaymentPayload(method: $0.method, amount: $0.amount, receivedAt: receivedAt, reference: $0.reference, note: nil,
-                                   staffMemberID: $0.method == "CASH" ? cashHolderID : nil)
-        }
-        // One part travels as `payment` (as before, so its photos and an older server still work); a split bill as
-        // `payments`, in the order typed (the server keys part n "payment-n").
-        let payment = parts.count == 1 ? parts[0] : nil
-        let split = parts.count > 1 ? parts : nil
         let walkIn = draft.walkIn ? WalkInCustomerPayload(clientID: AccountabilityRules.walkInClientID(saleClientID: clientID),
                                                           name: values.walkInName ?? "", phone: values.walkInPhone) : nil
         return try store.database.transaction {
-            let locals = try evidence.map { try addAttachment($0, purpose: .paymentEvidence) }
+            // Local attachment ids per line, known before the payload so a split part can name its own photos.
+            let locals = try lineEvidence.map { line in try line.map { try addAttachment($0, purpose: .paymentEvidence) } }
+            let split = values.payments.count > 1
+            // Cash parts go to the holder's custody (the recorder's unless recording for another holder); a split part
+            // names its photos by local id, swapped for each upload id when it completes (the op waits for all).
+            let parts = values.payments.enumerated().map { i, part in
+                PurchasePaymentPayload(method: part.method, amount: part.amount, receivedAt: receivedAt, reference: part.reference,
+                                       note: nil, staffMemberID: part.method == "CASH" ? cashHolderID : nil,
+                                       evidenceUploadIDs: split && !locals[i].isEmpty ? locals[i] : nil)
+            }
+            // One part travels as `payment` with the op-level evidence list (as before, so an older server still works);
+            // a split bill as `payments`, in the order typed (the server keys part n "payment-n").
+            let payment = parts.count == 1 ? parts[0] : nil
             let payload = HoursPurchasePayload(clientID: clientID, machineID: machineID, hours: values.hours,
                                                customerID: draft.walkIn ? nil : draft.customerID, walkIn: walkIn,
-                                               jobSiteID: nil, note: values.note, payment: payment, payments: split)
+                                               jobSiteID: nil, note: values.note, payment: payment, payments: split ? parts : nil)
             return try enqueue(.hoursPurchase, entityType: "hours_purchase", entityID: clientID, payload: payload,
-                               dependsOn: [], attachments: locals.map { ($0, .evidenceUploads) }, createdAt: receivedAt)
+                               dependsOn: [], attachments: locals.flatMap { $0 }.map { ($0, .evidenceUploads) }, createdAt: receivedAt)
         }
     }
 
