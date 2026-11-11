@@ -1,11 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Online/offline indicator (mutations disabled while offline). -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Push (Android 13+), requested only when the user enables push in Settings. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- MapLibre's library manifest adds these for its location component, which the fleet map never uses: the owner
+         app does not read the phone's location (docs/play-store/permissions.md, data-safety.md). -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" tools:node="remove" />
 
     <application
         android:name=".OwnerApplication"
