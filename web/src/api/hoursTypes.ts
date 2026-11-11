@@ -8,6 +8,7 @@ type Schemas = components['schemas'];
 
 export type HoursPurchaseDto = Schemas['HoursPurchaseDto'];
 export type HoursPurchaseIn = Schemas['HoursPurchaseIn'];
+export type HoursQuoteDto = Schemas['HoursQuoteDto'];
 export type HoursPurchaseStatus = HoursPurchaseDto['status'];
 export type PurchasePaymentIn = Schemas['PurchasePaymentIn'];
 export type PurchaseAllocationDto = Schemas['PurchaseAllocationDto'];

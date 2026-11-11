@@ -14,6 +14,7 @@ import type {
   HoursBalanceDto,
   HoursPurchaseDto,
   HoursPurchaseStatus,
+  HoursQuoteDto,
   LedgerEntryDto,
   LedgerEntryType,
   MachineHoursDto,
@@ -122,6 +123,18 @@ export const purchaseTotalsSchema: ObjectSchema<PurchaseTotalsDto> = object({
   amount_claimed_unverified: text(),
   amount_outstanding: text(),
   amount_verified: text(),
+});
+
+export const hoursQuoteSchema: Schema<HoursQuoteDto> = object({
+  machine_id: id(),
+  customer_id: nullableId(),
+  hours: text(),
+  hourly_rate: text(),
+  discount_percent: text(),
+  effective_rate: text(),
+  amount: text(),
+  currency: text(),
+  minimum_hours: text(),
 });
 
 export const hoursPurchaseSchema: Schema<HoursPurchaseDto> = object({

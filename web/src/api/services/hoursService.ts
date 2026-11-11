@@ -16,6 +16,7 @@ import type {
   HoursBalanceDto,
   HoursPurchaseDto,
   HoursPurchaseIn,
+  HoursQuoteDto,
   LedgerEntryDto,
   PaymentEvidenceDto,
   PurchaseAllocationIn,
@@ -38,6 +39,7 @@ import {
   discountSchema,
   hoursBalanceSchema,
   hoursPurchaseSchema,
+  hoursQuoteSchema,
   ledgerEntrySchema,
   paymentEvidenceSchema,
   reasonCodeSchema,
@@ -108,6 +110,17 @@ export const hoursService = {
     );
   },
   /** POST /tenant/hours-purchases (recordHoursPurchase): optional walk-in and cash payment. */
+  /** GET /tenant/hours-purchases/quote (quoteHoursPurchase): the price a sale would get now. */
+  quotePurchase(
+    query: { machine_id: string; hours: string; customer_id?: string | undefined },
+    signal?: AbortSignal,
+  ): Promise<HoursQuoteDto> {
+    return tenantGet(`${T}/hours-purchases/quote`, hoursQuoteSchema, 'hours quote', signal, {
+      machine_id: query.machine_id,
+      hours: query.hours,
+      customer_id: query.customer_id,
+    });
+  },
   recordPurchase(body: HoursPurchaseIn, idempotencyKey: string): Promise<HoursPurchaseDto> {
     return tenantSend(
       'post',

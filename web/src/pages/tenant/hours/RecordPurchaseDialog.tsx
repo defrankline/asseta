@@ -33,6 +33,7 @@ import {
 } from '../shared/financePickers';
 import { FormikJobSitePicker } from '../shared/lookupPickers';
 import { HOURS_ERROR_HINTS } from './hoursDisplay';
+import { HoursQuoteLine } from './HoursQuoteLine';
 import {
   CUSTOMER_FIELDS,
   emptyPurchaseValues,
@@ -89,6 +90,22 @@ function CustomerStep({
         </>
       )}
     </>
+  );
+}
+
+function quoteCustomerId(v: PurchaseValues): string {
+  return v.customer_mode === 'EXISTING' ? v.customer_id : '';
+}
+
+/** The live total under the Hours field. */
+function HoursStepQuote() {
+  const { values } = useFormikContext<PurchaseValues>();
+  return (
+    <HoursQuoteLine
+      machineId={values.machine_id}
+      hours={values.hours}
+      customerId={quoteCustomerId(values)}
+    />
   );
 }
 
@@ -186,6 +203,7 @@ export function RecordPurchaseDialog({
                 onOptionChange={setMachine}
               />
               <FormikTextField name="hours" label="Hours bought" required slotProps={decimal} />
+              <HoursStepQuote />
               {hasPermission(PERMISSIONS.tenantGeofenceRead) && (
                 <FormikJobSitePicker name="job_site_id" label="Job site (optional)" />
               )}
@@ -235,6 +253,11 @@ export function RecordPurchaseDialog({
                     { label: 'Evidence', value: v.evidence === null ? 'None' : 'Photo attached' },
                   ]),
             ]}
+          />
+          <HoursQuoteLine
+            machineId={v.machine_id}
+            hours={v.hours}
+            customerId={quoteCustomerId(v)}
           />
           <Alert severity="info">
             Hours activate only from verified money: someone other than you verifies the payment.
