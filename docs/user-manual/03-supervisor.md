@@ -50,6 +50,7 @@ If your company has switched these controls on, you can also:
 - Take a **changeover reading** when a machine moves to the next customer while a job is still running ([A17](#a17-changeover-between-two-customers-in-one-day)).
 - Say **which purchase or invoice** a cash collection pays, and **why part of your cash stays** when you remit less than your full balance.
 - Attach **evidence photos** to an hours transfer.
+- **Hold a petty cash fund**: spend from it with receipts, confirm money the office gives you, ask for a top-up, return money, count it and take over a fund handed to you ([A18](#a18-petty-cash)).
 
 Each of these appears only when your company's policies switch it on and your role has the permission. If you don't see one, it is not used in your company.
 
@@ -80,7 +81,7 @@ At the top of each tab's first screen:
 | Group | Menus |
 |---|---|
 | Overview | Dashboard, Fleet map |
-| **Field work** | **My jobs**, **Readings**, **Fuel**, **Expenses**, **Cash**, **Customer hours**, **Site check-in** |
+| **Field work** | **My jobs**, **Readings**, **Fuel**, **Expenses**, **Cash**, **Customer hours**, **Site check-in**, **Petty cash** |
 | Operations | Jobs, Customers (to look things up) |
 | Fleet | Alerts |
 | Engine hours | Reconciliation, Hours to explain, Hour explanations, Meter baselines, Reading corrections, Work allocations, Daily reports (your machines, to look things up) |
@@ -260,7 +261,7 @@ You cannot start a job while it is waiting for approval.
 
 The Supervisor app is built for sites with no signal.
 
-**What works offline:** everything in this manual. That includes jobs, job requests, readings with photos, starting and completing jobs, the work log, acknowledgements, fuel, expenses, cash collections and handovers, and (when switched on) hours sales, hours transfer requests, cash transfers, acknowledgements of transfers and floats, requests to keep cash, daily readings, baseline proposals, correction proposals, site check-ins, daily reports and changeover readings.
+**What works offline:** everything in this manual. That includes jobs, job requests, readings with photos, starting and completing jobs, the work log, acknowledgements, fuel, expenses, cash collections and handovers, and (when switched on) hours sales, hours transfer requests, cash transfers, acknowledgements of transfers and floats, requests to keep cash, daily readings, baseline proposals, correction proposals, site check-ins, daily reports, changeover readings and petty cash (expenses from a fund, confirming money received, top-up requests, returns, counts, taking over a fund, giving and clearing advances).
 
 Offline work never skips a check. The server applies every rule when the item arrives, and anything that needs a second person still waits for one. Everything is saved **encrypted on the phone** and sent later.
 
@@ -326,6 +327,7 @@ Fuel events are a log. They are not edited after recording. If you made a mistak
 4. Set **Paid from**:
    - **My cash**: paid from the cash you hold. Once approved, it reduces your cash accountability.
    - **Company**: paid by the office.
+   - **Petty cash**: paid from a petty cash fund you hold ([A18](#a18-petty-cash)).
 5. Under **Charge to**, pick the **Job** or **Machine** the cost belongs to. With a job, the cost goes to that job's machine.
 6. Add the **Receipt**: tap **Photograph receipt**. You can add up to 10 receipt photos.
 7. If GPS is required, allow location. The fix must meet the accuracy your company requires.
@@ -647,6 +649,99 @@ If the machine moves to the next customer **before the first job is closed**, ta
 
 The first job keeps running. The hours from this reading on are recorded as the next customer's work. It works offline. If it could not be applied, the Sync status screen says why in plain words, for example "This job was no longer running, so the changeover was not accepted." and the record is held for the office.
 
+### A18. Petty cash
+
+If your company uses petty cash funds and gives you one, you are its **holder**: the person accountable for that cash box. The fund has an **approved limit** set by the office. Its money is kept apart from the cash you collect from customers, so you see two separate figures, and you never remit petty cash with your collections.
+
+Open the **Money** tab. Under **Petty cash**, tap **My petty cash** (the row says "<n> waiting for you" when something waits). If you hold no fund: "Petty cash funds you hold appear here after a sync."
+
+#### Your fund figures
+
+Each fund shows its code and name and the office's figures as of your last sync ("As of <date>. Figures from the last sync."):
+
+- **Balance**: the money the fund should hold. It goes down only for approved expenses and returns the office confirmed.
+- **Available to spend**: the balance minus **Expenses awaiting approval** and **Returns awaiting confirmation**. This is what you can still spend, and it is also the cash that should be in the box when it is counted.
+- **Money on its way to you**: money the office handed over that you have not yet acknowledged. It is not in your balance yet.
+- **Approved limit**, **Last count** (or **Not counted yet**) and **Next count due**. **Below the low-balance level** shows when the fund is running low.
+
+The phone never works out a fund balance itself. Sync to see the latest figures.
+
+#### Record an expense paid from the fund
+
+1. **Money** tab → **+** → **Record expense**, as in [A6](#a6-expenses).
+2. Set **Paid from** to **Petty cash**. (It is offered only when you hold a fund or have received an advance.)
+3. Under **Petty cash fund**, choose the **Fund**. Each fund shows "Available <amount>". "Available to spend: <amount>. The currency is the fund's."
+4. Add the receipt and the rest as usual, and tap **Save**.
+
+*What you'll see:* the expense is approved automatically within your company's auto-approval limit; otherwise it waits for approval. Approved expenses lower the fund's balance; rejected ones never touch it.
+
+- If the amount is more than the fund has available: "Above what the fund has available (<amount>): it is kept for approval and marked for the approver to check." The phone may have an old balance, so it is not refused, but it always waits for a person to approve it.
+- If it is above your company's petty cash maximum per expense: "Above the petty cash maximum per expense (<amount>): a manager must approve it."
+- If your company does not allow spending from the cash you collect, pay from your fund, not from **My cash**. An expense paid from **My cash** then waits for approval and is marked for the office to look at.
+
+On your expense rows and in the expense detail, **To check** shows anything the approver will look at: **Recorded above what the fund had available**, **Paid from collected cash** or **Above the petty cash maximum per expense**. This is a note for the approver, not a finding.
+
+#### Acknowledge or dispute money you receive
+
+When the office hands you a funding or a top-up, it appears under **Waiting for you** ("Funding <number> · <amount>" or "Top-up <number> · <amount>"), and you get a notification.
+
+1. Tap it. **Acknowledge petty cash** shows the **Fund**, **Number**, **Issued**, **Issued at**, **Issued by** and **Reference**.
+2. Count the money. Enter the **Amount received** (it starts at the amount issued). "Count the money before you acknowledge. A different amount is recorded as a difference for the office to review."
+3. Tap **Acknowledge**. If you did not receive it, write why in the note and tap **Dispute**.
+
+The money counts in your fund only once you acknowledge it. A different amount, or a dispute, opens a difference for the office; it stays with the office, not with you. Offline, your answer is saved and sent at the next sync.
+
+#### Request a top-up
+
+1. On the fund, tap **Request a top-up**.
+2. Leave the **Amount (optional)** empty to ask for the approved spending since the last top-up, or enter an amount. If it is more than brings the fund to its limit, write the **Reason for going above the limit**.
+3. Tap **Send request**.
+
+"Someone else approves the top-up. The money counts in your fund only after you acknowledge it." If there is nothing to refill, the request comes back: "Nothing to top up: no approved spending since the last top-up, or the fund is at its limit."
+
+#### Return money to the office
+
+1. On the fund, tap **Return money to the office**.
+2. Enter the **Amount returned** (it starts at what is available to spend), choose **How** (**Cash to office**, **Bank deposit** or **Mobile money**), and if you like the **Deposit account (optional)**, **Reference (optional)** and a note.
+3. Add a photo of the slip or the cash. "Your company requires a photo of the slip or the cash." appears when it is required.
+4. Tap **Save**.
+
+"The fund goes down only when the office confirms what it received." Until then the amount shows under **Returns awaiting confirmation** and is not available to spend. If the office counts a different amount, a difference is opened for review.
+
+#### Record a count
+
+Your company may ask you to count the fund regularly, and you are reminded when a count is due.
+
+1. On the fund, tap **Record a count**.
+2. Count every note and coin and enter the **Cash counted**. "A difference from the expected amount goes to the office to review." Add a note and photos if you like.
+3. If your company asks for a witness, the **Witness** section appears. Choose the colleague who watched the count from the list; it works offline, because the phone keeps the list of everyone who may witness a count from its last sync. If the list is empty it says "No colleague who can witness a count is on this phone. Sync first." You can also choose **No witness** and still save: "Without a witness this count is recorded as counted by you alone." The office then sees it as a self-count. After the count syncs, **Recorded on this phone** shows "Recorded as counted by you alone." for a self-count, or "The witness could no longer witness counts, so this count was recorded without a witness." if the person you chose lost that permission before your phone synced.
+4. Tap **Save**.
+
+The count is compared with the fund's available to spend at the moment the server receives it. A difference is a question for the office to follow up, not a finding against you.
+
+#### Take over a fund
+
+When the office hands a fund to you, **Waiting for you** shows "Take over <fund> from <name>".
+
+1. Tap it. **Take over a fund** shows the fund, **From**, **Requested by** and **Requested**. "Until you accept, <name> stays accountable for the fund. Count the cash before you accept."
+2. Tap **Take over the fund**, or write why in the note and tap **Decline**.
+
+Once you accept, the fund is yours and appears with your other funds.
+
+#### Advances
+
+Only if your company uses cash advances. An advance is cash a holder gives someone before a purchase.
+
+- **An advance given to you** ("Given to you") shows its amount, "Remaining <amount> · due <date>" and **Overdue** when it is late. Record what you buy with **Paid from** **Petty cash**, the fund, and the advance under **Advance**. Then hand the change back to the fund's holder.
+- **An advance you gave from your fund** ("Given to <name>"): when the person hands back the change, tap the advance. **Clear an advance** shows the **Advance**, **Approved spending**, **Spending awaiting approval** and **Remaining**. Count the change, enter the **Change handed back** and tap **Clear advance**. "Count the change you take back. A difference is recorded for the office to review." It can be cleared only once its expenses are decided: "Expenses of this advance are still waiting for approval. It can be cleared once they are decided."
+- **Give an advance** (on your fund, only when your company uses advances): choose who receives it (a colleague saved on the phone, never yourself), the **Amount** and what it is for, and save. It works offline and is recorded at the next sync; it then shows under **Advances** as "Given to <name>". If the amount is above what the fund has available, the app says so: "Above what the fund has available (<amount>): it is recorded when the phone syncs and marked for the office to check." If your company does not allow this offline, the form says so and does not save. The list of colleagues comes from the phone's last sync with a connection; if it is empty, connect and open the form again.
+
+You can also give an advance in the web console ([B5](#b5-petty-cash)).
+
+#### Offline
+
+Everything in this section works offline: expenses from a fund, acknowledging or disputing money, top-up requests, returns, counts (with a witness chosen from the list saved on the phone), taking over a fund, giving an advance and clearing an advance. They are saved on the phone, listed under **Recorded on this phone** with their sync state, and sent at the next sync. The server checks each one when it arrives. If something changed meanwhile (for example the fund was deactivated or someone already answered), the Sync status screen says so, for example "This petty cash fund is no longer active."
+
 ---
 
 <a id="working-from-a-laptop-web-console"></a>
@@ -769,6 +864,25 @@ The page also shows:
 
 When check-ins are not required at the moment: "Check-ins are not required at the moment. You can still check in; your schedule below shows any earlier times."
 
+### B5. Petty cash
+
+**Field work → Petty cash** opens **My petty cash** ("The funds you hold, what you can spend, and money to confirm"). It appears when your company uses petty cash. If you hold no fund: "You hold no petty cash fund".
+
+Each fund shows **Balance**, **Available to spend**, **Approved limit**, **Spending waiting for approval**, **Handed to you, not yet confirmed** and **Returns waiting for the office**, and "Running low: request a top-up." when it is low. Click the fund's name for its full page and statement. The buttons:
+
+- **Record an expense**: the usual expense steps with **Paid from** set to **Petty cash fund** and the fund chosen. The web console is online, so an amount above what is available is refused: "The fund has <currency> <amount> available".
+- **Request a top-up**: **Request a top-up of <fund>** shows the figures and fills in the approved spending since the last top-up. Change the **Amount** if needed (above the limit, write **Why more than the limit allows**) and click **Send request**.
+- **Return money**: **Return money from <fund>**. Enter the **Amount**, and if you like **Into company account (optional)**, **How (optional)**, **Reference (optional)**, a photo (required when your company asks) and a **Note (optional)**, then **Record return**. "The fund balance goes down once the office confirms the amount it counted."
+- **Record a count**: **Count <fund>**. Enter the **Amount counted**; the dialog shows the **Difference against the cash expected**. Choose a **Witness** (or **Witness (optional)**), add a photo and a note, and click **Record count**.
+- **Pay an advance** (only with advances on): choose who it is **Paid to**, the **Amount** and **What it is for**, then **Pay advance**. The person records the expenses against the advance and hands back the change.
+
+The tabs below the funds:
+
+- **Money to you**: fundings and top-ups handed to you. Click **Confirm money received**, count the cash, choose **Received (state the amount counted)** with the **Amount you counted**, or **Not received (dispute)** with a **Note**, and click **Record answer**.
+- **Funds handed to you**: click **Accept / decline the fund**, choose **Take over the fund (I counted the cash)** or **Decline**, and click **Record answer**.
+- **Returns** and **Counts**: what you recorded and the office's answer.
+- **Advances** (with advances on): click **Clear (change handed back)**, enter the **Change handed back** and click **Clear advance**.
+
 ---
 
 ## Statuses and what they mean
@@ -814,6 +928,9 @@ Each finding is shown as **Waiting for review**, **Explained** (a legitimate rea
 | Daily report | Sent (web: "To review") → Reviewed / Sent back (web: "Returned") → Replaced |
 | Hours purchase | Awaiting payment → Partly active → Active → Used up; Expired; Cancelled |
 | Handover evidence | Declared by the field → Supported by evidence → Confirmed by the company |
+| Petty cash funding or top-up (web) | Waiting for approval → Approved, to hand over → Handed over, waiting for the holder → Received by the holder / Disputed by the holder |
+| Petty cash return (web) | Waiting for the office count → Confirmed by the office |
+| Petty cash fund handed to you (web) | Waiting for the new holder → Taken over / Declined; Cancelled |
 
 ### Sync status (phone)
 

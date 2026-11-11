@@ -54,6 +54,7 @@ Everything any other role can do, plus the tasks reserved for owners by default:
 - **Investigate**: [Employee accountability](#42-employee-accountability), [Find a reference](#43-find-a-reference), and the four groups of the [Accountability dashboard](#14-accountability-dashboard).
 - **Decide who approves**: only the owner can give someone a role that approves things, or take one away ([Task 9](#9-users-and-roles)).
 - **Protect your data**: [Data export and Balance verification](#45-data-export-and-balance-verification), and [Devices](#47-devices-lost-phones) for lost phones.
+- **Run petty cash** (if you switch it on): cash boxes with one accountable holder each, their fundings, top-ups, returns and counts, and the approvals ([Task 48](#48-petty-cash-funds)).
 
 By default the owner role holds every permission, so you can also make every decision described in the other chapters (hours discounts, credit, transfers, cancellations, write-offs, retentions, custody adjustments). Your company can give any of these permissions to other roles; the person who proposed something can never decide it.
 
@@ -64,16 +65,16 @@ By default the owner role holds every permission, so you can also make every dec
 | Group | Menus |
 |---|---|
 | Overview | Dashboard, Go-live checklist, Fleet map, Accountability, People scorecard |
-| Field work | My jobs, Readings, Fuel, Expenses, Cash, Customer hours, Site check-in |
+| Field work | My jobs, Readings, Fuel, Expenses, Cash, Customer hours, Site check-in, Petty cash |
 | Operations | Jobs, Customers, Staff, Site check-ins |
 | Fleet | Machines, Trackers, Sites & geofences, Alerts, Idle machines |
 | Customer hours | Hours purchases, Balances, Hours ledger, Prepaid hours used, Transfers, Cancellations, Customer discounts, Credit arrangements, Walk-in customers, Reason lists |
 | Engine hours | Reconciliation, Hours to explain, Hour explanations, Meter baselines, Reading corrections, Engine-hour reasons, Work allocations, Daily reports, Non-revenue hours, Daily machine sheet |
-| Finance | Hire finance, Cash custody, Expenses & fuel, Expense approvals, Deposit accounts, Adjustments ledger, Revenue differences, Revenue reasons, Unbilled work, Profitability |
+| Finance | Hire finance, Cash custody, Expenses & fuel, Expense approvals, Deposit accounts, Petty cash, Adjustments ledger, Revenue differences, Revenue reasons, Unbilled work, Profitability |
 | Risk & review | Exceptions, Meter resets, Investigations, Insights, Security events, Sync conflicts |
 | Administration | Policies, Users & roles, Devices, Audit log, Data export, Balance verification, Subscription, Managed service, Notifications, My access |
 
-When a control is switched off in your policies, its menus are left out. For example, with **Customer hours switched on** set to No, the whole **Customer hours** group and **Field work → Customer hours** disappear. Opening such a page by its address shows "Customer hours is not enabled for your company". **Engine-hour controls switched on** works the same way for the **Engine hours** group. With **Cash custody controls switched on** set to No, **Finance → Cash custody** stays (custodians, custody, floats, remittances and reconciliation), but its Transfers, Overdue remittances, Variances, Retentions, Adjustments and Reason lists tabs disappear. With **Revenue checks switched on** set to No, **Engine hours → Non-revenue hours**, **Engine hours → Daily machine sheet**, **Finance → Revenue differences** and **Finance → Revenue reasons** disappear. Because the first two sit in the **Engine hours** group, they also need **Engine-hour controls switched on**. The **Oversight** policy works the same way: **Overview → People scorecard** appears only with **People scorecard** switched on, **Finance → Unbilled work** only when **Completed work not invoiced after** is set, **Fleet → Idle machines** only when **Machine idle after** is set, and **Operations → Site check-ins** and **Field work → Site check-in** only with **Supervisors check in at the site** switched on. **Engine hours → Work allocations** and **Daily reports** follow **Engine-hour controls switched on**. The five optional modules can each be switched off too ([Task 44](#44-five-per-company-switches)).
+When a control is switched off in your policies, its menus are left out. For example, with **Customer hours switched on** set to No, the whole **Customer hours** group and **Field work → Customer hours** disappear. Opening such a page by its address shows "Customer hours is not enabled for your company". **Engine-hour controls switched on** works the same way for the **Engine hours** group. With **Cash custody controls switched on** set to No, **Finance → Cash custody** stays (custodians, custody, floats, remittances and reconciliation), but its Transfers, Overdue remittances, Variances, Retentions, Adjustments and Reason lists tabs disappear. With **Revenue checks switched on** set to No, **Engine hours → Non-revenue hours**, **Engine hours → Daily machine sheet**, **Finance → Revenue differences** and **Finance → Revenue reasons** disappear. Because the first two sit in the **Engine hours** group, they also need **Engine-hour controls switched on**. The **Oversight** policy works the same way: **Overview → People scorecard** appears only with **People scorecard** switched on, **Finance → Unbilled work** only when **Completed work not invoiced after** is set, **Fleet → Idle machines** only when **Machine idle after** is set, and **Operations → Site check-ins** and **Field work → Site check-in** only with **Supervisors check in at the site** switched on. **Engine hours → Work allocations** and **Daily reports** follow **Engine-hour controls switched on**. The five optional modules can each be switched off too ([Task 44](#44-five-per-company-switches)). **Finance → Petty cash** and **Field work → Petty cash** appear only with **Petty cash funds** switched on ([Task 48](#48-petty-cash-funds)).
 
 The top bar has:
 
@@ -93,7 +94,7 @@ The top bar has:
 | **Fleet** | Map or list of machines with live/last-known status; a machine's **Daily machine sheet** |
 | **Jobs** | Jobs and their hours, charges, readings, work log, expenses, fuel and customer acknowledgement; **New job**; approve or decline jobs waiting for approval |
 | **Alerts** | Tracking alerts to acknowledge or resolve |
-| **More** | **Go-live checklist**, Approvals (expenses, meter resets, jobs, cash handovers, exceptions, the accountability requests, revenue differences, non-revenue hours, daily reports, corrections, adjustments, partial remittance reasons and variance closures), **Accountability** (with **Unbilled work** and **Idle machines**), **Find a reference**, Meter exceptions, Field spend, Cash with supervisors (with **Issue float**), **Customer hours**, **People scorecard**, Investigations, Notifications, Settings, Company |
+| **More** | **Go-live checklist**, Approvals (expenses, meter resets, jobs, cash handovers, exceptions, the accountability requests, revenue differences, non-revenue hours, daily reports, corrections, adjustments, partial remittance reasons, variance closures and petty cash requests), **Accountability** (with **Unbilled work** and **Idle machines**), **Find a reference**, Meter exceptions, Field spend, Cash with supervisors (with **Issue float**), **Customer hours**, **People scorecard**, Investigations, Notifications, Settings, Company |
 
 ---
 
@@ -305,6 +306,8 @@ The most important settings:
 | | **Require the company account the money was paid into** | Every remittance must name one of your [deposit accounts](04-accountant.md#23-deposit-accounts) |
 | | **Deposit accounts** | Off: the deposit accounts and the account picker are hidden, and no account is required on a remittance ([Task 44](#44-five-per-company-switches)) |
 | | **Days a custodian may hold unremitted cash** | Empty = no limit. Cash covered by an approved retention does not count. Can be set per site or per staff member |
+| | **Staff may spend from cash collected from customers** | On by default. Off: an expense paid from collected cash is refused on the web; from a phone it waits for approval and is flagged ([Task 48](#48-petty-cash-funds)) |
+| Petty cash | **Petty cash funds** and the petty cash rules | Off by default. See [Task 48](#48-petty-cash-funds) |
 | Oversight | **Hidden dashboard tiles** | Ticked tiles are hidden from the accountability dashboard |
 | | **Insights**, **Investigations**, **Managed service page** | Optional modules, on by default ([Task 44](#44-five-per-company-switches)) |
 | | **Case resolution needs a second person** | Off by default |
@@ -333,7 +336,7 @@ The most important settings:
 | Data protection | **Scheduled balance verification**, **Days between scheduled verifications** | Regularly compares every balance with its records. Verification can always be run by hand ([Task 45](#45-data-export-and-balance-verification)) |
 | | **Days an export stays available** | How long a finished data export can be downloaded |
 
-Hire billing, Device sync, Expense capture, Customer hours, Oversight, Revenue checks and Data protection are company-wide only. They cannot be overridden per machine or site. In Engine hours, only **Approved meter baseline before a job starts** and **Daily report required** can be set per machine. In Cash custody, only **Days a custodian may hold unremitted cash** can be set per site or per staff member. In Risk signals, **Fuel norm per engine hour** can also be set per machine category.
+Hire billing, Device sync, Expense capture, Customer hours, Oversight, Revenue checks, Petty cash and Data protection are company-wide only. They cannot be overridden per machine or site. In Engine hours, only **Approved meter baseline before a job starts** and **Daily report required** can be set per machine. In Cash custody, only **Days a custodian may hold unremitted cash** can be set per site or per staff member. In Risk signals, **Fuel norm per engine hour** can also be set per machine category.
 
 **Hourly hire prices** are not policies. They are set in rate cards and on each job (see the [Manager manual](02-manager-dispatcher.md#1-add-a-customer-a-contract-and-rate-cards)). Your **Asseta subscription price** is negotiated with Asseta and cannot be edited here.
 
@@ -1026,6 +1029,67 @@ When your company has moved into real use, the Platform Owner marks it live with
 
 To revoke a lost or stolen phone, click **Revoke** on its row, enter a **Reason for revoking** and click **Revoke phone**. The dialog warns: "Any unsent work on this phone will be erased." That happens the next time the phone connects, and it cannot be recovered. Records already synced are not affected. The phone can no longer sync or be registered again. The revocation is shown on the row with who did it and why, and is recorded in the audit log. Revoking is not available while the company is read-only.
 
+### 48. Petty cash funds
+
+A **petty cash fund** is a cash box with one accountable **holder** and an **approved limit**. You can have one office box, one per site or one per field manager; each is just a fund. Each fund keeps its own ledger. Its balance is worked out from its records, never typed in, and it is kept apart from the cash a person collects from customers: a holder who also collects sees two separate figures.
+
+Money moved into or out of a fund (fundings, top-ups, returns) is never a cost. Only **approved expenses** paid from the fund are costs, so profitability and reports count each amount once.
+
+**Switching petty cash on.** Petty cash is off until you switch it on. In **Administration → Policies**, choose the **Petty cash** policy type and create a new version (company-wide only). Its settings:
+
+| Setting | Default | What it does |
+|---|---|---|
+| **Petty cash funds** | Off | The master switch. Off: the **Petty cash** menus, the "Petty cash fund" choice on expenses and the phone screens are hidden, and petty cash requests are refused |
+| **Approval always needed above** | Empty (no maximum) | An expense paid from a fund above this amount always waits for an approver, even under the expense auto-approval limit. It applies to funds in your base currency |
+| **Keep offline overspends for approval** | On | On: an expense recorded on a phone for more than the fund had available is kept, waits for approval and is flagged for the approver. Off: it is held as a sync conflict for review instead |
+| **Count every fund every** | Empty (no schedule) | Number of days between counts. When a count is due, the holder and the people who manage funds are notified |
+| **A count needs a witness** | Off | On: a count by the holder with no witness is marked **Self-count** |
+| **Evidence on returns** | Off | On: returning money needs a photo of the slip or the cash |
+| **Evidence on fundings and top-ups** | Off | On: handing over a funding or top-up needs a photo of the slip or the cash |
+| **Cash advances** | Off | On: a holder can pay cash to someone before a purchase; that person records the expenses against the advance and hands back the change |
+| **Clear an advance within** | 7 days | How long an advance may stay open before the holder and the person who received it are reminded |
+
+Fund limits and low-balance levels are set on each fund, not in the policy. Receipts, GPS and the auto-approval limit for petty cash expenses still come from the **Expense capture** policy.
+
+**Spending from collected cash.** The **Cash custody** policy has **Staff may spend from cash collected from customers** (on by default). With it off, an expense paid from cash a person collected is refused in the web console: "This company does not allow spending from cash collected from customers; pay from a petty cash fund or by the office". An expense recorded on the phone is never lost: it is kept, waits for approval (never approved automatically) and is flagged **Paid from collected cash**. Nothing quietly lowers the cash a person must remit. This switch works only while **Cash custody controls switched on** is on.
+
+**Who does what.** Petty cash follows permissions, and your company can change which roles hold them in **Administration → Users & roles**:
+
+| Permission | What it allows | Roles that hold it by default |
+|---|---|---|
+| See petty cash funds | See funds and their ledgers. A person who holds no other petty cash permission sees only the funds they hold | Owner, Manager, Accountant, Supervisor |
+| Manage petty cash funds | Create, edit, deactivate and reactivate funds; change the holder | Owner, Manager |
+| Propose petty cash | Propose fundings, top-ups and adjustments; hand over approved money; confirm returns | Owner, Accountant |
+| Approve petty cash | Approve or reject fundings, top-ups and adjustments | Owner |
+| Count petty cash | Record a count of a fund, or be its witness | Owner, Manager, Accountant, Supervisor |
+
+Holders record expenses with the usual expense permission. Approving petty cash is an approving permission, so only you can give it to a role. These rules hold whatever the roles: the person who proposed a funding, top-up or adjustment never decides it; the holder never approves or hands over money for their own fund; the holder confirms what they received; and someone other than the holder (and other than the person who recorded it) confirms a return. Give the approve permission to at least two people, so a request you proposed yourself still has someone to decide it.
+
+**Approving fundings, top-ups and adjustments.** Requests wait in **Finance → Expense approvals**. With petty cash on, the page is called **Approvals** and has two tabs, **Expenses** and **Petty cash**. The **Petty cash** tab lists **Fundings and top-ups** (showing **Waiting for approval**) and **Fund adjustments** (showing **Waiting for approval**). You are notified: "Approve petty cash …".
+
+1. Open the request to check it. A top-up shows **Suggested**, **Most that brings it to its limit**, any **Above the limit because**, and **Spending behind this top-up**: the approved expenses it refills.
+2. On its row or on the record page, click **Approve / reject**. The proposer does not see this command; for a fund you hold it is disabled ("You hold this fund; someone else decides or hands over its money.").
+3. Choose to approve or reject, with a note, and confirm.
+
+*What you'll see:* "<number> approved; it can be handed over." or "<number> rejected." Approved money is not yet in the fund. Someone with the propose permission records **Hand over the money**, and the money counts only once the holder confirms what they received. An approved adjustment changes the fund balance at once. In the Owner app the same requests are under **More → Approvals → Petty cash to approve** (see [Approvals](#approvals)).
+
+**Reading a fund.** **Finance → Petty cash** has the tabs **Funds**, **Fundings & top-ups**, **Returns**, **Counts**, **Holder changes**, **Adjustments**, **Differences** and, with advances on, **Advances**. The **Funds** list shows each fund's **Holder**, **Job site**, **Approved limit**, **Balance**, **Available to spend** and a **Running low** chip below its low-balance level. Click a fund to open it:
+
+- **Balance**: **Balance**, **Available to spend**, **Approved limit**, and every figure behind them: **Fundings and top-ups received**, **Approved spending**, **Returned to the office**, **Approved adjustments**, **Written-off differences**, and, shown apart because they do not yet count, **Spending waiting for approval**, **Handed over, not yet acknowledged**, **Returns waiting for the office count**, **Open return differences** and **Adjustments waiting for approval**. Also **Last count** and **Next count due**.
+  - **Balance** = money received − approved spending − confirmed returns ± approved adjustments − written-off differences (− advances + change returned, with advances on).
+  - **Available to spend** = balance − spending waiting for approval − returns waiting for the office. It is also the cash expected in the box when someone counts it.
+- **Statement**: every movement of the balance between **From** and **To** (this month by default), with **When**, **What**, **Reference**, **Note**, **In**, **Out** and the running **Balance**, plus the opening and closing balance. Click a reference to open the record. **Export** downloads the **Petty cash fund statement** as CSV or PDF.
+- **Fund**: code, name, holder, job site, currency, limit, low-balance level and who created it.
+- **Records**: the fund's fundings and top-ups, returns, counts, adjustments and holder changes, and **Expenses paid from this fund**.
+
+**On the dashboard.** With petty cash on, each currency card of the money section shows **Petty cash held**: the total balance of all active funds. It is shown beside the cash with supervisors and is never added to it. Click it to open **Petty cash**.
+
+**Differences.** A count that does not match, a return the office counts differently, or money the holder received differently from what was handed over opens a **variance** (**From**: **Petty cash count**, **Petty cash return** or **Petty cash funding**). It is listed on the **Differences** tab of **Finance → Petty cash** and on the fund's page, and followed up like any cash difference ([Task 41](#41-variances)): explained, closed or written off by someone other than the holder. This works whether or not **Cash custody controls switched on** is on; with it on, the same differences also appear in **Finance → Cash custody → Variances**. A written-off count or return difference changes the fund balance; a funding difference stays with the office that handed the money over and does not.
+
+**Notifications.** Asseta tells the people concerned when a funding, top-up or adjustment waits for approval, approved money waits to be handed over, money waits for the holder to confirm, a return waits for the office, a count is due, a fund is below its low-balance level, an advance is not cleared in time, and an expense is flagged for a closer look.
+
+**Find a reference.** Fundings, top-ups, returns, counts, adjustments and advances share one numbering, **PC-…**, and can be found with **Find a reference** ([Task 43](#43-find-a-reference)).
+
 ---
 
 ## The Asseta Owner app
@@ -1188,6 +1252,15 @@ To handle a revenue difference, tap it. The **Revenue difference** screen shows 
 
 To decide non-revenue hours, tap the row. The decision screen shows the **Machine**, **Job**, **Type**, **Time**, **Hours**, **Reason**, **Note** and **Proposed by**: "Approved time stops counting as revenue. The person who explained it can't approve it." Write a note (at least 5 characters) and tap **Approve** or **Reject**.
 
+**Petty cash.** With petty cash on and the approve permission, Approvals has the section **Petty cash to approve** when something waits (needs a connection). Each row reads "<kind> <amount> · <fund>" (**Funding**, **Top-up** or **Fund adjustment**) with "Proposed by <name>". Tap one:
+
+1. The **Petty cash request** (or **Fund adjustment**) screen shows the **Fund**, **Holder**, **Kind**, **Number**, **Amount** and, for a top-up, **Suggested**, **Brings the fund to its limit**, any **Reason for going above the limit** and **Spending behind this top-up**. "Approving lets the office hand the money over. It counts in the fund only after the holder acknowledges it." For an adjustment: "Approving changes the fund balance by this amount."
+2. Under **Decision**, tap **Approve** (a note is optional) or **Reject** (a **Reason (required)**, at least 3 characters), and confirm **Approve this request?** or **Reject this request?**.
+
+*What you'll see:* "Request approved." or "Request rejected." On your own proposal: "You proposed this, so someone else must approve or reject it." The server also refuses a decision on a fund you hold. If someone decided first: "Someone already decided this. Reload to see it."
+
+Expenses that need a closer look show **To check** with the reason, on **Field spend** rows and on the expense card of an approval: **Recorded above what the fund had available**, **Paid from collected cash** or **Above the petty cash maximum per expense**.
+
 ### More: other screens
 
 - **Meter exceptions**: open and all exceptions, with **Blocking** marked. Tap one to see it and **Review** it, as in [Approvals](#approvals).
@@ -1252,6 +1325,11 @@ While you are looking at saved data, **all decisions are disabled**. **Find a re
 | Revenue difference | To explain → Explanation awaiting decision → Explained (or back to To explain); Confirmed (money to recover); Cleared (money arrived) |
 | Non-revenue time | Counts as revenue (not explained) → Explanation awaiting decision → Approved as non-revenue / Rejected (counts as revenue) |
 | Overdue remittance (reason) | Not remitted by the cut-off; Held longer than allowed |
+| Petty cash funding or top-up | Waiting for approval → Approved, to hand over → Handed over, waiting for the holder → Received by the holder / Disputed by the holder; or Rejected |
+| Petty cash return | Waiting for the office count → Confirmed by the office |
+| Petty cash adjustment | Waiting for approval → Approved / Rejected |
+| Petty cash holder change | Waiting for the new holder → Taken over / Declined; Cancelled |
+| Petty cash advance | Not cleared yet → Cleared |
 | Site check-in (each set time) | Upcoming → Due now → Made / Missed |
 | Site check-in (distance) | Within the distance; Farther than set; Distance only; No distance |
 | Customer hours, cash | See the [Manager](02-manager-dispatcher.md#statuses-and-what-they-mean) and [Accountant](04-accountant.md#statuses-and-what-they-mean) manuals |

@@ -15,7 +15,15 @@
       "remittance_reference_required": true,
       "remittance_evidence_required": true,
       "remittance_account_required": true,
-      "float_ack_required": true
+      "float_ack_required": true,
+      "spend_from_collections_allowed": false
+    },
+    "PETTY_CASH": {
+      "enabled": true,
+      "count_every_days": 7,
+      "count_witness_required": true,
+      "return_evidence_required": true,
+      "funding_evidence_required": true
     },
     "DEVICE_SYNC": {
       "offline_grant_hours": 336,

@@ -1,6 +1,6 @@
 # Acceptance scenarios: demonstration script
 
-This is the script for demonstrating the 13 scenarios in section 9 of your guideline. It runs on a **test company**, never on your live company. Follow the scenarios in order: each one builds on the last.
+This is the script for demonstrating the 13 scenarios in section 9 of your guideline, followed by scenarios 14 to 18 for the petty cash funds. It runs on a **test company**, never on your live company. Follow the scenarios in order: each one builds on the last.
 
 **How to use it.** A named witness from the company ticks each box when the expected result is seen on screen. Tick only what you saw. Sign the page at the end.
 
@@ -53,10 +53,14 @@ The Platform Owner creates the test company. The Owner completes this list and c
 | Revenue checks | **Unexplained hours outside jobs** | Show as value at risk (never in expected revenue) |
 | Meter capture | **Max meter hours per elapsed hour** | 5 (for this demonstration only; a live company keeps the standard value) |
 | Device sync | **Offline grant** and **Policy snapshot validity** | Leave as they are |
+| Petty cash | **Petty cash funds** | On |
+| Petty cash | **Keep offline overspends for approval** | On (the default) |
 
-**Why the last-but-one setting.** The system flags a meter that climbs faster than time allows. Because this demonstration compresses a day into minutes, **wait at least 8 minutes between the readings of each job** in scenarios 3 and 6. If a reading still shows **Provisional**, the Manager opens **Risk & review → Exceptions** and records it as **Explained**.
+**Why the Meter capture setting.** The system flags a meter that climbs faster than time allows. Because this demonstration compresses a day into minutes, **wait at least 8 minutes between the readings of each job** in scenarios 3 and 6. If a reading still shows **Provisional**, the Manager opens **Risk & review → Exceptions** and records it as **Explained**.
 
 **Meter baseline.** Sign in as the Supervisor on the phone and sync. For EX-01: **Jobs → My machines → EX-01 → Propose meter baseline**, reading 1000.0. Then the Manager approves it in **Engine hours → Meter baselines → Decide**. Repeat for EX-02. Readings need a photo and a GPS position, so do this outdoors.
+
+**Petty cash approver.** For scenario 18, the Owner gives the Manager role the permission "Approve or reject petty cash fundings, top-ups and adjustments (never your own)" in **Administration → Users & roles**, so that two people can approve.
 
 ☐ Test company ready, confirmed by the Owner.
 
@@ -241,6 +245,83 @@ The final test in your guideline is to select any customer, excavator, employee 
 
 ☐ Customer traced   ☐ Excavator traced   ☐ Employee traced   ☐ Transaction traced
 
+## Scenario 14: A petty cash fund is funded, acknowledged, spent from with receipts, topped up, and its statement balances
+
+| # | Who | Device | Do | Should see | ✓ |
+|---|---|---|---|---|---|
+| 1 | Manager | WEB | **Finance → Petty cash → New fund**. **Code** PC-SITE, **Name** Site petty cash, **Holder** the Supervisor, **Approved limit** 200,000, **Low-balance level** 50,000. **Create fund** | "Site petty cash created." The fund page shows **Balance** 0 | ☐ |
+| 2 | Accountant | WEB | On the fund: **Propose funding or top-up**. **Kind** Funding, **Amount** 200,000. **Propose** | "Funding PC-… sent for approval." Status **Waiting for approval** | ☐ |
+| 3 | Owner | OWNER APP | **More → Approvals → Petty cash to approve**. Open the funding, tap **Approve** | "Request approved." | ☐ |
+| 4 | Accountant | WEB | **Fundings & top-ups**, the funding: **Hand over the money**. **How** Cash at the office. **Record hand-over** | "PC-… handed over; the holder confirms what they received." On the fund: **Balance** 0, **Handed over, not yet acknowledged** 200,000 | ☐ |
+| 5 | Supervisor | PHONE | Sync. **Money → My petty cash**. Under **Waiting for you**, open the funding. **Amount received** 200,000, **Acknowledge**. Sync | The fund shows **Balance** 200,000, **Available to spend** 200,000 | ☐ |
+| 6 | Supervisor | PHONE | **Money → + → Record expense**. **Paid from** Petty cash, **Fund** PC-SITE, amount 30,000, a receipt photo. Save. Then a second expense of 20,000 the same way. Sync | Both saved and synced | ☐ |
+| 7 | Owner | WEB | If either expense waits for approval (above the auto-approval limit), approve it in **Finance → Expense approvals** | Both expenses **Approved** | ☐ |
+| 8 | Accountant | WEB | **Finance → Expenses & fuel**. **Paid from** Petty cash fund, **Petty cash fund** PC-SITE | The two expenses with their receipts. The funding is not listed as an expense | ☐ |
+| 9 | Supervisor | PHONE | Sync. On the fund: **Request a top-up**, leave **Amount (optional)** empty, **Send request**. Sync | Fund **Balance** 150,000 | ☐ |
+| 10 | Owner | WEB | **Finance → Expense approvals → Petty cash**. Open the top-up | **Suggested** 50,000. **Spending behind this top-up** lists the two expenses | ☐ |
+| 11 | Owner | WEB | **Approve / reject**, approve | "PC-… approved; it can be handed over." | ☐ |
+| 12 | Accountant, Supervisor | WEB, PHONE | Accountant: **Hand over the money**. Supervisor: sync, acknowledge 50,000, sync | Fund **Balance** 200,000 | ☐ |
+| 13 | Owner | WEB | Fund page, **Statement** for this month | Lines: **Fundings and top-ups received** 200,000 in; **Approved spending** 30,000 and 20,000 out; **Fundings and top-ups received** 50,000 in. **Closing balance** 200,000, the same as **Balance** | ☐ |
+| 14 | Owner | WEB | **Export**, **Petty cash fund statement (PDF)** | The same lines and running balance | ☐ |
+| 15 | Owner | WEB | **Overview → Dashboard**, the TZS money card | **Petty cash held** 200,000, shown apart from the cash with supervisors | ☐ |
+
+## Scenario 15: A count finds a shortage that is explained or written off, and the fund balance follows
+
+| # | Who | Device | Do | Should see | ✓ |
+|---|---|---|---|---|---|
+| 1 | Supervisor | PHONE | Sync. On PC-SITE: **Record a count**. **Cash counted** 190,000 (10,000 less than available). Save and sync | Saved and synced | ☐ |
+| 2 | Manager | WEB | **Finance → Petty cash → Counts**. Open the count | **Cash expected** 200,000, **Cash counted** 190,000, **Difference** −10,000, a **Variance** link | ☐ |
+| 3 | Accountant | WEB | **Finance → Petty cash → Differences** (or the fund page's **Differences**) | One open variance, **Shortfall** 10,000. The fund **Balance** is still 200,000 | ☐ |
+| 4 | Accountant | WEB | **Assign** it to yourself, **Explain** it ("Explanation saved.") | The history shows each step | ☐ |
+| | | | **Either: written off** | | |
+| 5a | Accountant | WEB | **Propose write-off**, a reason, an explanation | "Write-off proposed; someone else with the write-off permission decides." | ☐ |
+| 6a | Owner | WEB | **Approve / reject write-off**, **Approve**, **Record decision** | Variance **Resolved**, written off | ☐ |
+| 7a | Owner | WEB | Fund page | **Written-off differences** 10,000. **Balance** 190,000. The statement shows a **Written-off differences** line of 10,000 out | ☐ |
+| | | | **Or: explained** | | |
+| 5b | Supervisor | PHONE | The shortage was a purchase never recorded: **Record expense**, **Paid from** Petty cash, 10,000, its receipt. Sync. (Approve it in **Expense approvals** if it waits) | Expense **Approved**. Fund **Balance** 190,000 | ☐ |
+| 6b | Accountant, Owner | WEB | Accountant: **Propose closure**, **Outcome** Corrected error, an explanation. Owner: **Decide closure**, approve | Variance **Resolved**. Nothing written off | ☐ |
+| | | | **Both ways** | | |
+| 8 | Supervisor | PHONE | Sync. **Record a count**, **Cash counted** 190,000. Save and sync | The count's **Difference** is 0 and no variance opens | ☐ |
+
+## Scenario 16: An expense recorded offline above the available amount is kept for approval and flagged
+
+| # | Who | Device | Do | Should see | ✓ |
+|---|---|---|---|---|---|
+| 1 | Supervisor | PHONE | Sync. Note PC-SITE's **Available to spend** (190,000 after scenario 15). Switch on **airplane mode** | Offline banner | ☐ |
+| 2 | Supervisor | PHONE | **Record expense**, **Paid from** Petty cash, **Fund** PC-SITE, amount 200,000, a receipt photo | Before saving: "Above what the fund has available (…): it is kept for approval and marked for the approver to check." Save works | ☐ |
+| 3 | Supervisor | PHONE | Switch off airplane mode, **Sync now** | The expense is **Synced**, not refused | ☐ |
+| 4 | Manager | WEB | **Finance → Expenses & fuel**, open the expense | **Pending approval**, even if the amount were within the auto-approval limit. **To look at**: More than the fund had available. "For the approver to look at: …" | ☐ |
+| 5 | Owner | WEB | Fund page | **Balance** unchanged at 190,000. **Spending waiting for approval** 200,000 | ☐ |
+| 6 | Owner | OWNER APP | **More → Field spend**, the expense | **To check**: Recorded above what the fund had available | ☐ |
+| 7 | Owner | WEB | **Finance → Expense approvals**, reject it with a note | Rejected. Fund **Spending waiting for approval** back to 0; **Balance** 190,000. The expense stays on record as **Rejected** | ☐ |
+| 8 | Supervisor | WEB | **Field work → Petty cash → Record an expense** on PC-SITE, amount 200,000 | Refused: "The fund has TZS … available". Online, it is never accepted | ☐ |
+
+## Scenario 17: With spending from collections switched off, an expense paid from collected cash is refused
+
+| # | Who | Device | Do | Should see | ✓ |
+|---|---|---|---|---|---|
+| 1 | Owner | WEB | **Administration → Policies**, **Cash custody**, **New override**. Turn on **Staff may spend from cash collected from customers** and set it off. A reason, **Create version** | A new version in the **Version history** | ☐ |
+| 2 | Accountant | WEB | **Finance → Cash custody → All custodians**. Note the Supervisor's outstanding cash | Figure noted | ☐ |
+| 3 | Supervisor | WEB | **Field work → Expenses → Submit expense**. **Paid from** Supervisor cash custody, amount 5,000. Submit | Refused: "This company does not allow spending from cash collected from customers; pay from a petty cash fund or by the office" | ☐ |
+| 4 | Supervisor | PHONE | Sync. **Record expense**, **Paid from** My cash, 5,000, a receipt. Save and sync | Synced | ☐ |
+| 5 | Manager | WEB | **Finance → Expenses & fuel**, open it | **Pending approval**, never approved automatically. **To look at**: Paid from collected cash | ☐ |
+| 6 | Accountant | WEB | **All custodians** | The Supervisor's outstanding cash is unchanged | ☐ |
+| 7 | Owner | WEB | Reject the expense in **Finance → Expense approvals** | Rejected. Outstanding cash still unchanged | ☐ |
+
+Leave the setting as your company has decided after the demonstration.
+
+## Scenario 18: The person who proposes a funding or top-up cannot approve it
+
+| # | Who | Device | Do | Should see | ✓ |
+|---|---|---|---|---|---|
+| 1 | Owner | WEB | On PC-SITE: **Propose funding or top-up**. **Kind** Funding, **Amount** 10,000. **Propose** | "Funding PC-… sent for approval." | ☐ |
+| 2 | Owner | WEB | **Finance → Expense approvals → Petty cash**. Find the funding | No **Approve / reject** for it: the proposer never decides their own proposal | ☐ |
+| 3 | Owner | OWNER APP | **More → Approvals → Petty cash to approve**, open it | "You proposed this, so someone else must approve or reject it." No buttons | ☐ |
+| 4 | Accountant | WEB | **Finance → Petty cash → Fundings & top-ups**, open the funding | No **Approve / reject**: the role proposes but does not approve | ☐ |
+| 5 | Manager | WEB | **Finance → Expense approvals → Petty cash**, **Approve / reject**, approve | "PC-… approved; it can be handed over." | ☐ |
+| 6 | Owner | WEB | Open the funding | **Proposed** by the Owner and **Approved** by the Manager, with times | ☐ |
+| 7 | Accountant, Supervisor | WEB, PHONE | Hand it over; the Supervisor acknowledges it | Fund **Balance** 200,000 | ☐ |
+
 ---
 
 ## Acceptance record
@@ -261,6 +342,11 @@ The final test in your guideline is to select any customer, excavator, employee 
 | 12 Offline without duplication or loss (Android) | ☐ | |
 | 12 Offline without duplication or loss (iPhone) | ☐ | |
 | 13 Trace to underlying transactions | ☐ | |
+| 14 Petty cash funded, spent and topped up; statement balances | ☐ | |
+| 15 Count shortage explained or written off | ☐ | |
+| 16 Offline overspend kept for approval and flagged | ☐ | |
+| 17 Spending from collected cash refused | ☐ | |
+| 18 Proposer cannot approve their own funding | ☐ | |
 
 | | Name | Signature | Date |
 |---|---|---|---|

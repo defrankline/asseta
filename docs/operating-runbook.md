@@ -411,6 +411,14 @@ scripts/apply-tenant-policies.sh --registration-number <number> --file /home/ass
 It creates ordinary company policy versions (validated, all-or-nothing, with the reason and audit events). A second run
 changes nothing. Tenant values never go in a migration: migrations only set platform defaults.
 
+The example file includes the petty cash settings (DEC-033): a `PETTY_CASH` block (`enabled`, `count_every_days`,
+`count_witness_required`, `return_evidence_required`, `funding_evidence_required`) and
+`spend_from_collections_allowed` in `CASH_CUSTODY` (platform default true; false refuses expenses paid from collected
+cash online and keeps phone ones for approval, flagged). Keys left out keep the company's current values, which are the
+platform defaults unless changed: `max_expense_amount` none, `overspend_allowed_offline` true, `advances_enabled` false,
+`advance_clear_within_days` 7. Petty cash stays off for a company whose file has no `PETTY_CASH` block. Set
+`max_expense_amount` or `advances_enabled` only when the company has decided them.
+
 ## Seed a company's machine types from a file
 
 Copy `deploy/machine-categories.example.json` to the server, trim it to what the company wants, and run:

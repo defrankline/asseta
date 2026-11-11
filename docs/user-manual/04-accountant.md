@@ -24,6 +24,7 @@ You work in the **web console** at <https://asseta.co.tz> on a laptop or desktop
 - **Revenue checks** (when your company switches them on): read the **Daily machine sheet**, and explain **revenue differences** and **non-revenue hours**. Someone else decides them.
 - **See the Accountability dashboard.**
 - **Unbilled work and idle machines** (when your company switches them on): invoice completed work that is still not on an issued invoice, and see machines without work. You can also read supervisors' **Site check-ins**.
+- **Petty cash** (when your company switches it on): propose fundings, top-ups and adjustments of petty cash funds, hand over approved money, confirm returns, count funds and follow up differences ([Task 31](#31-petty-cash)).
 - **Track expenses and fuel.** See every field expense and fuel event, manage expense categories, and record your own expenses and fuel purchases.
 - **Report on profitability** by machine, job or customer for any period.
 - **Look up** jobs, machines, customers and staff (read-only) so invoices and cash records show real names.
@@ -47,12 +48,12 @@ These are your side-menu groups in the web console. The exact menus depend on yo
 | Menu group | Menus | Used for |
 |---|---|---|
 | Overview | Accountability | The accountability dashboard |
-| Field work | Fuel, Expenses, Cash, Customer hours | Your own fuel events, expenses and cash collections, the same screens a supervisor uses |
+| Field work | Fuel, Expenses, Cash, Customer hours, Petty cash | Your own fuel events, expenses and cash collections, the same screens a supervisor uses; any petty cash fund you hold |
 | Operations | Jobs, Customers, Staff, Site check-ins | Looking up jobs, customers (balances, statements), staff and site check-ins (read-only) |
 | Fleet | Machines, Idle machines | Looking up machines and machines without work (read-only) |
 | Customer hours | Hours purchases, Balances, Hours ledger, Prepaid hours used, and the other hours pages (read) | Linking payments to purchases and activating hours on credit |
 | Engine hours | Non-revenue hours, Daily machine sheet | Revenue checks: reading each machine's day and explaining non-revenue time |
-| Finance | Hire finance, Cash custody, Expenses & fuel, Deposit accounts, Adjustments ledger, Revenue differences, Unbilled work, Profitability | Your main daily work |
+| Finance | Hire finance, Cash custody, Expenses & fuel, Deposit accounts, Petty cash, Adjustments ledger, Revenue differences, Unbilled work, Profitability | Your main daily work |
 | Risk & review | Investigations | Reading investigation cases (read-only) |
 | Administration | Subscription, Notifications, My access | Your company's Asseta subscription, your inbox, your sign-in settings |
 
@@ -273,6 +274,7 @@ You can also record a remittance on someone's behalf: **Record remittance** on t
 
 - **Supervisor cash custody**: the supervisor paid from cash in hand. Once approved, it reduces their outstanding cash.
 - **Company (office / bank)**: paid by the office. It does not affect custody.
+- **Petty cash fund** (when petty cash is on): paid from a petty cash fund. Once approved, it lowers the fund's balance; it never touches anyone's custody. Filter with **Paid from** and **Petty cash fund** ([Task 31](#31-petty-cash)).
 
 ### 11. Manage expense categories
 
@@ -462,6 +464,59 @@ Asseta numbers each record so you can find it from one reference: **COL-**/**PAY
 
 The **Accountability** dashboard also has a period and a **Cash accountability** group ([owner's manual, Task 14](01-tenant-owner.md#14-accountability-dashboard)).
 
+### 31. Petty cash
+
+A **petty cash fund** is a cash box with one accountable **holder** and an **approved limit**. It appears when your company switches petty cash on ([owner's manual, Task 48](01-tenant-owner.md#48-petty-cash-funds), which also explains each balance figure). Go to **Finance → Petty cash**. Its tabs are **Funds**, **Fundings & top-ups**, **Returns**, **Counts**, **Holder changes**, **Adjustments**, **Differences** and, when your company uses them, **Advances**.
+
+By default your role proposes money and adjustments, hands over approved money, confirms returns and counts funds. You cannot approve: by default only the owner holds the approve permission. Whatever the roles, you never decide your own proposal, never confirm a return you recorded, and never approve, hand over money to or confirm a return from a fund you hold yourself.
+
+A fund's money is kept apart from collected cash: fundings, top-ups and returns are transfers, never costs. Only approved expenses paid from the fund count as costs.
+
+**Propose a funding or top-up.**
+
+1. Open the fund (or its row menu on **Funds**) and click **Propose funding or top-up**. The dialog **Propose money for <fund>** shows the **Balance**, **Approved limit**, **Already on its way**, **Approved spending since the last top-up** and **Most that brings it to its limit**.
+2. Choose the **Kind**: **Top-up (refill what was spent)** or **Funding (first money or a larger amount)**. A new fund starts empty, so its first money is a funding.
+3. The **Amount** starts at the approved spending since the last top-up, never more than brings the fund to its limit. You may lower it. If you go above the limit, write **Why more than the limit allows**.
+4. Optionally choose **From company account (optional)** (the company account the money comes from; only active accounts in the fund's currency are listed), **How (optional)** (**Cash at the office**, **Bank transfer or deposit** or **Mobile money**), a **Reference (optional)** and a **Note (optional)**. Click **Propose**.
+
+*What you'll see:* "Funding <number> sent for approval." (or "Top-up …"). The approver is notified, sees the expenses behind a top-up and decides. The holder can also ask for a top-up from their phone or the web; it reaches the same list. "Nothing to top up: no approved spending since the last top-up, or the fund is at its limit." means there is nothing to refill.
+
+**Hand over the money.** Once it shows **Approved, to hand over**, you are notified ("Hand over petty cash — <number>"). Give the money to the holder, then click **Hand over the money** on its row or record page. Check or set the account, **How** and **Reference**, add a photo of the slip or the cash (required when your company asks for evidence on fundings and top-ups) and click **Record hand-over**. *What you'll see:* "<number> handed over; the holder confirms what they received." It shows **Handed over, waiting for the holder** and counts in the fund only once the holder confirms the amount. If the holder confirms a different amount or disputes it, it shows **Received by the holder** or **Disputed by the holder** and a variance (**From**: **Petty cash funding**) opens. That difference stays with the office, not the fund.
+
+**Confirm a return.** When a holder returns money, the return shows **Waiting for the office count** on the **Returns** tab and you are notified ("Petty cash return to confirm — <number>").
+
+1. Count the money, or check the slip against the account.
+2. Click **Confirm the return**. The dialog **Confirm return <number>** shows the **Amount returned**. Enter the **Amount counted** ("State what you counted. A difference opens a variance for follow-up.") and a **Note (optional)**, and click **Confirm**.
+
+*What you'll see:* "Return <number> confirmed." The fund balance goes down by the amount you counted. A difference opens a variance (**From**: **Petty cash return**); until it is resolved it is taken off what the holder may spend.
+
+**Count a fund.** Click **Record a count** on the fund. Count the cash in the box and enter the **Amount counted**; the dialog shows the **Difference against the cash expected** (the fund's available to spend). Choose a **Witness** if you like (someone else with the count permission), add a photo and a **Note (optional)**, and click **Record count**. *What you'll see:* "Count <number> recorded; it matches the cash expected." or "Count <number> recorded; the difference is open for follow-up." The **Counts** tab lists every count with **Why** (**Routine count** or **Count at a holder change**), **Counted by**, **Expected**, **Counted** and **Difference**. A count made by the holder alone when your company asks for a witness shows **Self-count**.
+
+**Follow up differences.** Petty cash differences are listed on the **Differences** tab of **Finance → Petty cash**, and each fund's page has its own **Differences** list. They come **From** **Petty cash count**, **Petty cash return** or **Petty cash funding** (and **Petty cash advance** when advances are on). These lists work whether or not your company uses the cash custody controls; with those controls on, the same differences also appear in **Finance → Cash custody → Variances**. Open them from the count or return (**Variance**) or from a list, and handle them as in [Task 16](#16-cash-differences-variances-and-write-offs): assign, explain, propose closure or write-off, and someone else decides. The holder never closes a difference on their own fund. What happens to the fund:
+
+- **Written off**: a written-off count or return difference changes the fund balance by the difference (a shortage lowers it, a surplus raises it), so the balance matches the cash.
+- **Recovered** or **Corrected error**: the fund balance does not change by itself. The missing cash goes back into the box, or the missing record (for example an expense never recorded) is recorded, and the next count matches.
+
+**Propose an adjustment.** To correct a fund balance, click **Propose an adjustment** on the fund. Choose the **Direction** (**Raise the fund balance** or **Lower the fund balance**) and the **Amount**, choose a **Reason from your list (optional)** (the cash custody **Adjustment** reasons) and write the **Reason**. Add evidence (required when your company asks for evidence on custody adjustments) and click **Propose**. *What you'll see:* "Adjustment proposed; someone else decides it." It counts once someone other than you, and not the holder, approves it. Approved adjustments are also listed in the **Adjustments ledger**.
+
+**Reports.**
+
+- **Petty cash fund statement**: on a fund's page, choose **From** and **To** under **Statement** and use **Export** (CSV or PDF). Every movement of the balance (**When**, **Movement**, **Reference**, **Note**, **In**, **Out**, **Balance**), with the opening and closing balance.
+- **Petty cash expenses**: **Export** on the **Funds** tab, or on **Finance → Expenses & fuel → Expenses** (it uses the filters shown there). Expenses paid from petty cash with **Fund**, **Category**, **Description**, **Supplier**, **Amount**, **Machine**, **Job**, **Status**, **Flags** and **Decided**.
+- On the dashboard, **Petty cash held** is the balance of all active funds per currency.
+
+**Expenses paid from petty cash.** In **Finance → Expenses & fuel → Expenses**, filter **Paid from** = **Petty cash fund** and pick a **Petty cash fund** (or click **Expenses paid from this fund** on the fund page). The **To look at** column, and a note in the expense details ("For the approver to look at: …"), shows why an expense needs a closer look:
+
+| To look at | Meaning |
+|---|---|
+| **More than the fund had available** | Recorded on a phone, offline or with an old balance, for more than the fund had available to spend. It waits for approval |
+| **Paid from collected cash** | Paid from cash collected from customers, which your company does not allow. It waits for approval and is never approved automatically |
+| **Above the per-expense maximum** | Above your company's petty cash maximum per expense. It always needs an approver |
+
+These are things to check, not findings. The people who approve expenses are notified ("Expense flagged for review") and decide them in **Expense approvals**. Rejected expenses never touch the fund. To see only one kind, use the **To look at** filter next to **Paid from**; the **Expenses** and **Petty cash expenses** exports follow the same filter and include a **Flags** column.
+
+**A person's funds.** **Operations → Staff**, open the person, **Accountability**: **Petty cash held now** lists each fund they hold with its balance, available to spend, spending waiting for approval and limit. **Administration → Balance verification** recomputes every fund balance from its records (**Petty cash per fund**).
+
 ---
 
 ## Statuses and what they mean
@@ -492,6 +547,9 @@ The **Accountability** dashboard also has a period and a **Cash accountability**
 | Partial remittance reason | Awaiting decision → Approved / Rejected | Separate from confirming the money |
 | Adjustment request | Awaiting decision → Approved / Rejected; Withdrawn | Nothing changes until approved |
 | Adjustments ledger entry | Approved / Rejected / Revoked | Never edited |
+| Petty cash funding, top-up | Waiting for approval → Approved, to hand over → Handed over, waiting for the holder → Received by the holder / Disputed by the holder; or Rejected | Counts in the fund only once received by the holder |
+| Petty cash return | Waiting for the office count → Confirmed by the office | Lowers the fund by the amount the office counted |
+| Petty cash adjustment | Waiting for approval → Approved / Rejected | Only approved ones count |
 
 ## Good practice
 

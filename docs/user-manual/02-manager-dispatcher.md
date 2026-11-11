@@ -33,6 +33,7 @@ You work mainly in the **web console** at <https://asseta.co.tz>.
 - **Revenue checks** (if your company switches them on): read the **Daily machine sheet**, explain and approve **non-revenue hours**, explain and decide **revenue differences** (never your own explanation), and keep the **revenue reasons**.
 - **Prepaid hours used over days**: follow hours **in use by running jobs**, **low-balance warnings** and the customer **hours statement**.
 - **People and machines** (if your company switches them on): the **People scorecard**, **Unbilled work**, **Idle machines** and supervisors' **Site check-ins**.
+- **Petty cash** (if your company switches it on): create, edit and deactivate petty cash funds, change their holder and count them ([Task 34](#34-petty-cash-funds)).
 - **Go-live checklist**: follow your company's setup progress, mark steps as not needed (with a reason), confirm the default controls and hide the dashboard banner. See below.
 - **Read-only**: Policies and the Audit log.
 
@@ -49,13 +50,13 @@ The **Tenant Owner** handles these. Your company may customise roles.
 | Menu group | Menus |
 |---|---|
 | Overview | Dashboard, Go-live checklist, Fleet map, Accountability, People scorecard |
-| Field work | My jobs, Cash, Customer hours |
+| Field work | My jobs, Cash, Customer hours, Petty cash |
 | Operations | Jobs, Customers, Staff, Site check-ins |
 | Fleet | Machines, Trackers, Sites & geofences, Alerts, Idle machines |
 | Customer hours | Hours purchases, Balances, Hours ledger, Prepaid hours used, Transfers, Cancellations, Customer discounts, Credit arrangements, Walk-in customers, Reason lists |
 | Engine hours | Reconciliation, Hours to explain, Hour explanations, Meter baselines, Reading corrections, Work allocations, Daily reports, Non-revenue hours, Daily machine sheet |
 | Risk & review | Exceptions, Meter resets, Investigations, Insights, Security events, Sync conflicts |
-| Finance | Expense approvals, Adjustments ledger, Revenue differences, Revenue reasons, Unbilled work |
+| Finance | Expense approvals, Petty cash, Adjustments ledger, Revenue differences, Revenue reasons, Unbilled work |
 | Administration | Policies (read-only), Audit log, Notifications, My access |
 
 The **Customer hours** menus appear only when your company has switched customer hours on in its policies. The **Engine hours** menus appear only with engine-hour controls on, and **Non-revenue hours**, **Daily machine sheet**, **Revenue differences** and **Revenue reasons** also need revenue checks. Your company can also switch off **Tracking**, **Investigations** and **Insights** ([Task 44 of the owner's manual](01-tenant-owner.md#44-five-per-company-switches)). **People scorecard**, **Site check-ins**, **Idle machines** and **Unbilled work** appear only when your company switches them on in its **Oversight** policy. The decisions you see depend on the permissions your role holds; the role setup above is an example your company can change.
@@ -300,6 +301,8 @@ Filter by **Type**, **Severity**, **Status** or **Machine**. Open an alert and:
 4. Approve it, or reject it with a note. The supervisor sees your note.
 
 You cannot decide your own request. The button shows **Approve / reject (not allowed: your own request)**.
+
+With petty cash on, the page is called **Approvals** and has an **Expenses** tab and a **Petty cash** tab. An expense paid from a petty cash fund, or from collected cash, can wait here with a reason to look at, such as "Recorded offline above what the fund had available" or "Paid from cash collected from customers, which this company does not allow". Decide it like any other expense. The **Petty cash** tab holds fundings, top-ups and fund adjustments; deciding them needs the petty cash approve permission ([Task 34](#34-petty-cash-funds)).
 
 ### 12. Investigations
 
@@ -551,6 +554,52 @@ Your role proposes; someone else decides. Start from the record:
 
 Your company may use an **Administrator** for configuration and user access. Only the owner can give someone a role that approves things, so ask the owner if a person needs one.
 
+### 34. Petty cash funds
+
+A **petty cash fund** is a cash box with one accountable **holder** and an **approved limit**, for example an office box, one per site or one per field manager. It appears only when your company switches petty cash on ([owner's manual, Task 48](01-tenant-owner.md#48-petty-cash-funds)). Go to **Finance → Petty cash**.
+
+By default your role creates, edits and deactivates funds, changes their holder and counts them. Proposing money for a fund needs the propose permission, which the Accountant role holds by default and yours does not; approving needs the approve permission, which only the owner gives. Your company may change this.
+
+**Create a fund.**
+
+1. Click **New fund**. The dialog is **New petty cash fund**.
+2. **Fund**: enter a **Code** (short, for example PC-OFFICE; it must be unique) and a **Name**, choose the **Holder (accountable person)** from the staff list and, if it belongs to one site, a **Job site (optional)**.
+3. **Limits**: choose the **Currency** (the company's base currency unless you pick another), enter the **Approved limit** ("The most the fund holds; top-ups never take it above this."), a **Low-balance level (optional)** ("Below this, the people who fund it are told.") and a **Note (optional)**.
+4. Check the review and click **Create fund**.
+
+*What you'll see:* "<name> created." and the fund page. "A new fund starts empty. Propose its first funding from the fund page; someone else approves it and the holder confirms what they received."
+
+**Edit a fund.** On the **Funds** tab open the row menu, or open the fund, and click **Edit**. You can change the code, name, job site, approved limit, low-balance level and note, then click **Save changes**. The holder and the currency cannot be edited: use **Change holder** for the holder. If someone else changed the fund meanwhile, reload it and try again.
+
+**Deactivate or reactivate a fund.** Click **Deactivate** and give a reason: "Nobody can spend from it or fund it while inactive. Its records and statement are kept." A fund is deactivated only at a zero balance ("A fund is deactivated only at a zero balance. Return or adjust the money first.") and when nothing is waiting on it: spending waiting for approval, money on its way, a return waiting for the office, an adjustment waiting for approval, an open return difference, an advance not cleared or a holder change. **Show inactive** on the Funds tab lists inactive funds; **Reactivate** brings one back.
+
+**Change the holder.**
+
+1. On an active fund, click **Change holder**. The dialog is **Change the holder of <fund>**.
+2. Count the cash with the people handing over. Choose the **New holder**, enter the **Amount counted**, and if you like a **Witness (optional)** (someone else who holds the count permission), a photo and a **Note (optional)**.
+3. Click **Start holder change**.
+
+*What you'll see:* "Holder change started; the new holder confirms it." The count is recorded as a **Count at a holder change**; a difference from the cash expected opens a variance. "<current holder> stays accountable until the new holder accepts the fund." The new holder accepts with **Take over the fund** in the Supervisor app, or **Accept / decline the fund** on the web; the outgoing holder cannot accept it for them. While it waits, **Change holder** is disabled and the change is listed on the **Holder changes** tab (**Waiting for the new holder**). To stop it, click **Cancel the change** and choose **Cancel it (the current holder keeps the fund)**.
+
+**Propose a funding or top-up** (needs the propose permission).
+
+1. On the fund, click **Propose funding or top-up**. The dialog **Propose money for <fund>** shows the **Balance**, **Approved limit**, **Already on its way**, **Approved spending since the last top-up** and **Most that brings it to its limit**.
+2. Choose the **Kind**: **Top-up (refill what was spent)** or **Funding (first money or a larger amount)**.
+3. The **Amount** starts at the approved spending since the last top-up, never more than brings the fund to its limit. You may lower it. Above the limit, write **Why more than the limit allows**.
+4. Optionally choose the **From company account (optional)**, **How (optional)**, **Reference (optional)** and a **Note (optional)**, then click **Propose**.
+
+*What you'll see:* "Top-up <number> sent for approval." (or "Funding …"). Someone other than you approves it, someone with the propose permission records **Hand over the money**, and it counts in the fund once the holder confirms what they received. The holder can also ask with **Request a top-up**.
+
+**Count a fund.**
+
+1. On the fund, click **Record a count**. The dialog **Count <fund>** shows the fund's balance and **Available to spend**.
+2. Count the cash in the box and enter the **Amount counted**. The dialog shows the **Difference against the cash expected** as you type.
+3. Choose a **Witness** if you like (someone else with the count permission; when your company asks for a witness, a count by the holder alone is marked as a self-count), add a photo and a **Note (optional)**, and click **Record count**.
+
+*What you'll see:* "Count <number> recorded; it matches the cash expected." or "Count <number> recorded; the difference is open for follow-up." A difference opens a variance for the people who follow up cash differences ([Accountant manual, Task 31](04-accountant.md#31-petty-cash)). If your company sets a count schedule, you and the holder are told when a count is due.
+
+**Statement and records.** The fund page shows the balance figures, the **Statement** with a running balance (and **Export**), and the fund's records. See the [owner's manual, Task 48](01-tenant-owner.md#48-petty-cash-funds) for what each figure means.
+
 ---
 
 ## Statuses and what they mean
@@ -575,6 +624,8 @@ Your company may use an **Administrator** for configuration and user access. Onl
 | Work allocation | Active; Awaiting decision; Superseded; Rejected |
 | Daily report | To review → Reviewed / Returned; Replaced |
 | Adjustment request | Awaiting decision → Approved / Rejected; Withdrawn |
+| Petty cash funding or top-up | Waiting for approval → Approved, to hand over → Handed over, waiting for the holder → Received by the holder / Disputed by the holder; or Rejected |
+| Petty cash holder change | Waiting for the new holder → Taken over / Declined; Cancelled |
 
 ## Good practice
 
