@@ -200,6 +200,24 @@ class HoursPricingTest {
     }
 
     @Test
+    fun `cash activation follows the tenant policy and a missing value means VERIFY`() {
+        val values = { extra: String -> kotlinx.serialization.json.Json.parseToJsonElement(
+            """{"enabled":true,"walk_in_allowed":false,"transfer_requires_approval":true,"reason_code_required":false$extra}""",
+        ).jsonObject }
+        val access = { extra: String -> FieldAccess(setOf(com.asseta.core.model.sync.SyncCapabilities.OP_HOURS_PURCHASE), setOf("tenant.hours.purchase"),
+            hours = CustomerHoursPolicy.fromValues(values(extra))) }
+        assertEquals(HoursCashActivation.VERIFY, access("").cashActivation)
+        assertEquals(HoursCashActivation.VERIFY, access(""","cash_activation":"VERIFY"""").cashActivation)
+        assertEquals(HoursCashActivation.ON_HANDOVER, access(""","cash_activation":"ON_HANDOVER"""").cashActivation)
+        assertEquals(HoursCashActivation.ON_RECORDING, access(""","cash_activation":"ON_RECORDING"""").cashActivation)
+        assertEquals(HoursCashActivation.VERIFY, access(""","cash_activation":"SOMETHING_NEW"""").cashActivation)
+        assertEquals(HoursCashActivation.VERIFY, access(""","cash_activation":null""").cashActivation)
+        // The rest of the policy still parses with the new key present.
+        assertEquals(true, access(""","cash_activation":"ON_RECORDING"""").sellHours)
+        assertEquals(HoursCashActivation.VERIFY, FieldAccess(null, emptySet()).cashActivation) // policy unknown
+    }
+
+    @Test
     fun `minor units and figures`() {
         assertEquals(2, HoursPricing.minorUnits("TZS"))
         assertEquals(0, HoursPricing.minorUnits("ugx"))

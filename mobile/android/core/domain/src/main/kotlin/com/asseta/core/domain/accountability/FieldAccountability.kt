@@ -9,6 +9,7 @@ import com.asseta.core.model.sync.SyncCapabilities
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.contentOrNull
 import java.math.BigDecimal
 
 /**
@@ -64,6 +65,8 @@ data class CustomerHoursPolicy(
     val transferEvidenceRequired: Boolean = false,
     /** Field staff may record bank and mobile-money parts of a sale (missing from older servers = cash only). */
     val fieldNoncashPayments: Boolean = false,
+    /** When the cash parts of a sale count as verified (CUSTOMER_HOURS `cash_activation`; missing = [HoursCashActivation.VERIFY]). */
+    val cashActivation: HoursCashActivation = HoursCashActivation.VERIFY,
 ) {
     companion object {
         const val TYPE = "CUSTOMER_HOURS"
@@ -76,8 +79,27 @@ data class CustomerHoursPolicy(
                 reasonCodeRequired = values.flag("reason_code_required"),
                 transferEvidenceRequired = values.optionalFlag("transfer_evidence_required"),
                 fieldNoncashPayments = values.optionalFlag("field_noncash_payments"),
+                cashActivation = HoursCashActivation.fromWire((values["cash_activation"] as? JsonPrimitive)?.contentOrNull),
             )
         }.getOrNull()
+    }
+}
+
+/**
+ * CUSTOMER_HOURS `cash_activation`: when the cash parts of an hours sale count as verified. Bank and mobile-money parts
+ * always wait for the office to verify them.
+ */
+enum class HoursCashActivation(val wire: String) {
+    /** The office verifies the cash payment (default; also when the key is missing or unknown). */
+    VERIFY("VERIFY"),
+    /** Verified automatically when the office confirms the cash handover that covers it. */
+    ON_HANDOVER("ON_HANDOVER"),
+    /** Verified when recorded; the supervisor holds the cash in custody until they hand it over. */
+    ON_RECORDING("ON_RECORDING"),
+    ;
+
+    companion object {
+        fun fromWire(value: String?): HoursCashActivation = entries.firstOrNull { it.wire == value } ?: VERIFY
     }
 }
 
@@ -111,6 +133,8 @@ data class FieldAccess(
     /** Bank and mobile-money parts may be recorded on a sale (CUSTOMER_HOURS `field_noncash_payments`); else cash only. */
     val noncashPayments: Boolean get() = sellHours && hours?.fieldNoncashPayments == true
     /** The payment methods the sale form offers. */
+    /** When the cash parts of a sale count as verified (VERIFY while the policy is unknown). */
+    val cashActivation: HoursCashActivation get() = hours?.cashActivation ?: HoursCashActivation.VERIFY
     val saleMethods: List<PaymentMethod> get() = if (noncashPayments) PaymentMethod.entries else listOf(PaymentMethod.CASH)
     val requestHoursTransfer: Boolean
         get() = supports(SyncCapabilities.OP_HOURS_TRANSFER_REQUEST) && can(HOURS_TRANSFER) && customerHours

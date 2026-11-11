@@ -596,15 +596,19 @@ public struct CustomerHoursPolicyValues: Codable, Hashable, Sendable {
     public let transferEvidenceRequired: Bool
     /// Field staff may record bank and mobile-money parts of a sale (off when absent: cash only).
     public let fieldNoncashPayments: Bool
+    /// When the cash parts of a sale count as verified (`cash_activation`; missing or unknown = `.verify`).
+    public let cashActivation: HoursCashActivation
 
     public init(enabled: Bool, walkInAllowed: Bool, transferRequiresApproval: Bool, reasonCodeRequired: Bool = false,
-                transferEvidenceRequired: Bool = false, fieldNoncashPayments: Bool = false) {
+                transferEvidenceRequired: Bool = false, fieldNoncashPayments: Bool = false,
+                cashActivation: HoursCashActivation = .verify) {
         self.enabled = enabled
         self.walkInAllowed = walkInAllowed
         self.transferRequiresApproval = transferRequiresApproval
         self.reasonCodeRequired = reasonCodeRequired
         self.transferEvidenceRequired = transferEvidenceRequired
         self.fieldNoncashPayments = fieldNoncashPayments
+        self.cashActivation = cashActivation
     }
 
     /// The older switches stay strict; the DEC-032 key defaults to off.
@@ -616,12 +620,30 @@ public struct CustomerHoursPolicyValues: Codable, Hashable, Sendable {
         reasonCodeRequired = try c.decode(Bool.self, forKey: .reasonCodeRequired)
         transferEvidenceRequired = try c.decodeIfPresent(Bool.self, forKey: .transferEvidenceRequired) ?? false
         fieldNoncashPayments = (try? c.decodeIfPresent(Bool.self, forKey: .fieldNoncashPayments)) ?? false
+        cashActivation = HoursCashActivation(wire: (try? c.decodeIfPresent(String.self, forKey: .cashActivation)) ?? nil)
     }
 
     enum CodingKeys: String, CodingKey {
         case enabled, walkInAllowed = "walk_in_allowed", transferRequiresApproval = "transfer_requires_approval"
         case reasonCodeRequired = "reason_code_required", transferEvidenceRequired = "transfer_evidence_required"
-        case fieldNoncashPayments = "field_noncash_payments"
+        case fieldNoncashPayments = "field_noncash_payments", cashActivation = "cash_activation"
+    }
+}
+
+/// CUSTOMER_HOURS `cash_activation`: when the cash parts of an hours sale count as verified (Android
+/// `HoursCashActivation`). Bank and mobile-money parts always wait for the office to verify them.
+public enum HoursCashActivation: String, Codable, Hashable, Sendable {
+    /// The office verifies the cash payment (default; also when the key is missing or unknown).
+    case verify = "VERIFY"
+    /// Verified automatically when the office confirms the cash handover that covers it.
+    case onHandover = "ON_HANDOVER"
+    /// Verified when recorded; the supervisor holds the cash in custody until they hand it over.
+    case onRecording = "ON_RECORDING"
+
+    public init(wire: String?) { self = wire.flatMap(Self.init(rawValue:)) ?? .verify }
+
+    public init(from decoder: any Decoder) throws {
+        self.init(wire: try? decoder.singleValueContainer().decode(String.self))
     }
 }
 

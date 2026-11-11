@@ -134,7 +134,8 @@ struct HoursSaleFormView: View {
                             }
                         }
                     } header: { Text(T.hoursSectionPayment) } footer: {
-                        Text([draft.payments.isEmpty ? T.hoursNotPaidFooter : T.hoursPaymentFooter,
+                        Text([draft.payments.isEmpty ? T.hoursNotPaidFooter
+                                : T.hoursPaymentFooter(methods: draft.payments.map(\.method), activation: a.cashActivation),
                               a.noncashPayments ? nil : T.hoursNoncashByOffice].compactMap { $0 }.joined(separator: " "))
                     }
                 }

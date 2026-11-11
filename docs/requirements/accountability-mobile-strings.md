@@ -117,6 +117,9 @@ encrypted on the phone) enables it. Unknown policy (never loaded) = hidden, so t
 | field.hours.reference | Reference (required for bank and mobile money) |
 | field.hours.received | Received |
 | field.hours.paymentFooter | Hours become available only after someone else verifies this payment. |
+| field.hours.paymentFooterCashOnRecording | The hours are available once this sale syncs. You hold this cash until you hand it over. |
+| field.hours.paymentFooterCashOnHandover | The hours become available when the office confirms your handover of this cash. |
+| field.hours.paymentFooterCashParts | Cash parts: hand them over; the office confirms the handover. |
 | field.hours.notPaidFooter | The hours stay inactive until a payment is verified or credit is approved by the office. |
 | field.hours.evidence | Payment evidence (optional) |
 | field.hours.evidenceFooter | Receipt or mobile-money screenshot. Stored encrypted on this phone and uploaded before the sale is sent. |
@@ -145,6 +148,20 @@ UGX 0, KWD 3, 2 for an unlisted code). A walk-in sale has no discount.
 "USD 1,234.50"); `{rate}` is the hourly rate before the discount, grouped, up to 4 decimals ("95,000"); `{hours}` and
 `{percent}` are grouped, up to 2 decimals ("6", "12.5"). A machine without a stored price shows `field.hours.priceLater`;
 saving still works and the server prices the sale on arrival.
+
+**Cash activation (CUSTOMER_HOURS `cash_activation`).** `VERIFY` (also when missing or unknown): the office verifies
+the cash payment. `ON_HANDOVER`: cash parts are verified when the office confirms the cash handover that covers them.
+`ON_RECORDING`: cash parts count as verified when recorded; the supervisor holds the cash until handing it over. Bank
+and mobile-money parts always need office verification. With at least one payment line, the Payment footer is:
+- `VERIFY`, or no cash line: `field.hours.paymentFooter`.
+- Only cash lines: `field.hours.paymentFooterCashOnRecording` (`ON_RECORDING`) or `field.hours.paymentFooterCashOnHandover`
+  (`ON_HANDOVER`).
+- Cash with a bank or mobile-money line under `ON_RECORDING` or `ON_HANDOVER`: `field.hours.paymentFooter` then
+  `field.hours.paymentFooterCashParts`.
+
+`field.hours.noncashByOffice` still follows when bank and mobile money are off. After the sale syncs the cash shows as
+before: the sync status row (`field.hours.outbox`) and My cash, where the server's custody balance holds it until it is
+handed over; no new screen.
 
 **Payment lines (split bill, backend 2cb541c).** The Payment section lists payment lines: **Add payment** adds one
 (`field.hours.paymentNumber`, then Method, `field.hours.amountReceived`, and `field.hours.reference` for bank and mobile

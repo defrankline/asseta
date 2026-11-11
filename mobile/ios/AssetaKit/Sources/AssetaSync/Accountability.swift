@@ -45,6 +45,8 @@ public struct FieldAccess: Sendable, Equatable {
     public var walkIn: Bool { sellHours && hours?.walkInAllowed == true }
     /// Bank and mobile-money parts may be recorded on a sale (CUSTOMER_HOURS `field_noncash_payments`); else cash only.
     public var noncashPayments: Bool { sellHours && hours?.fieldNoncashPayments == true }
+    /// When the cash parts of a sale count as verified (`.verify` while the policy is unknown).
+    public var cashActivation: HoursCashActivation { hours?.cashActivation ?? .verify }
     /// The payment methods (wire values) the sale form offers.
     public var saleMethods: [String] { noncashPayments ? ["CASH", "BANK", "MOBILE_MONEY"] : ["CASH"] }
     public var requestHoursTransfer: Bool {

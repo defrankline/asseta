@@ -1,5 +1,6 @@
 package com.asseta.supervisor.ui.accountability
 
+import com.asseta.core.domain.accountability.HoursCashActivation
 import com.asseta.core.domain.accountability.HoursPricing
 import com.asseta.core.domain.accountability.HoursSalePrice
 import com.asseta.core.domain.accountability.HoursSaleQuote
@@ -121,6 +122,24 @@ object FieldAccountabilityTexts {
     const val REFERENCE = "Reference (required for bank and mobile money)"
     const val RECEIVED = "Received"
     const val PAYMENT_FOOTER = "Hours become available only after someone else verifies this payment."
+    const val PAYMENT_FOOTER_CASH_ON_RECORDING = "The hours are available once this sale syncs. You hold this cash until you hand it over."
+    const val PAYMENT_FOOTER_CASH_ON_HANDOVER = "The hours become available when the office confirms your handover of this cash."
+    const val PAYMENT_FOOTER_CASH_PARTS = "Cash parts: hand them over; the office confirms the handover."
+
+    /**
+     * The payment footer for the sale's lines under CUSTOMER_HOURS `cash_activation`: bank and mobile-money parts always
+     * wait for someone else to verify them; cash alone follows the policy (VERIFY keeps [PAYMENT_FOOTER]).
+     */
+    fun paymentFooter(methods: List<PaymentMethod>, activation: HoursCashActivation): String {
+        val cash = PaymentMethod.CASH in methods
+        val noncash = methods.any { it != PaymentMethod.CASH }
+        return when {
+            activation == HoursCashActivation.VERIFY || !cash -> PAYMENT_FOOTER
+            noncash -> "$PAYMENT_FOOTER $PAYMENT_FOOTER_CASH_PARTS"
+            activation == HoursCashActivation.ON_RECORDING -> PAYMENT_FOOTER_CASH_ON_RECORDING
+            else -> PAYMENT_FOOTER_CASH_ON_HANDOVER
+        }
+    }
     const val NOT_PAID_FOOTER = "The hours stay inactive until a payment is verified or credit is approved by the office."
     const val EVIDENCE = "Payment evidence (optional)"
     const val EVIDENCE_FOOTER = "Receipt or mobile-money screenshot. Stored encrypted on this phone and uploaded before the sale is sent."

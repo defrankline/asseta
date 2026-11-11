@@ -251,7 +251,7 @@ fun HoursSaleScreen(vm: HoursSaleViewModel, onDone: () -> Unit) {
             TextInput(T.NOTE_OPTIONAL, form.note, { v -> vm.edit { it.copy(note = v) } }, editable, singleLine = false)
         }
         val paymentFooter = listOfNotNull(
-            if (form.payments.isEmpty()) T.NOT_PAID_FOOTER else T.PAYMENT_FOOTER,
+            if (form.payments.isEmpty()) T.NOT_PAID_FOOTER else T.paymentFooter(form.payments.map { it.method }, a.cashActivation),
             T.NONCASH_BY_OFFICE.takeIf { !a.noncashPayments },
         ).joinToString(" ")
         Section(T.SECTION_PAYMENT, footer = paymentFooter) {

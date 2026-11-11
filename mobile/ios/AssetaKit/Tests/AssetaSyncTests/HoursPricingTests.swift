@@ -305,6 +305,47 @@ struct HoursPricingTests {
         #expect(try access(#","field_noncash_payments":false"#).saleMethods == ["CASH"])
     }
 
+    @Test func cashActivationFollowsTheTenantPolicyAndMissingMeansVerify() throws {
+        func access(_ extra: String) throws -> FieldAccess {
+            let json = #"{"enabled":true,"walk_in_allowed":false,"transfer_requires_approval":true,"reason_code_required":false"# + extra + "}"
+            let hours = try AssetaJSON.decoder().decode(CustomerHoursPolicyValues.self, from: Data(json.utf8))
+            return FieldAccess(capabilities: [SyncCapability.hoursPurchase], permissions: ["tenant.hours.purchase"], hours: hours)
+        }
+        #expect(try access("").cashActivation == .verify)
+        #expect(try access(#","cash_activation":"VERIFY""#).cashActivation == .verify)
+        #expect(try access(#","cash_activation":"ON_HANDOVER""#).cashActivation == .onHandover)
+        #expect(try access(#","cash_activation":"ON_RECORDING""#).cashActivation == .onRecording)
+        #expect(try access(#","cash_activation":"SOMETHING_NEW""#).cashActivation == .verify)
+        #expect(try access(#","cash_activation":null"#).cashActivation == .verify)
+        #expect(try access(#","cash_activation":"ON_RECORDING""#).sellHours)
+        #expect(FieldAccess(capabilities: nil, permissions: []).cashActivation == .verify) // policy unknown
+    }
+
+    @Test func paymentFooterFollowsTheLinesAndTheCashActivationPolicy() {
+        typealias T = FieldAccountabilityTexts
+        func footer(_ a: HoursCashActivation, _ m: String...) -> String { T.hoursPaymentFooter(methods: m, activation: a) }
+        let verified = "Hours become available only after someone else verifies this payment."
+        let withCashParts = verified + " Cash parts: hand them over; the office confirms the handover."
+        let onSync = "The hours are available once this sale syncs. You hold this cash until you hand it over."
+        let onHandover = "The hours become available when the office confirms your handover of this cash."
+        // VERIFY: unchanged for every mix.
+        #expect(footer(.verify, "CASH") == verified)
+        #expect(footer(.verify, "CASH", "CASH") == verified)
+        #expect(footer(.verify, "CASH", "BANK") == verified)
+        #expect(footer(.verify, "MOBILE_MONEY") == verified)
+        // Only cash.
+        #expect(footer(.onRecording, "CASH") == onSync)
+        #expect(footer(.onRecording, "CASH", "CASH") == onSync)
+        #expect(footer(.onHandover, "CASH") == onHandover)
+        #expect(footer(.onHandover, "CASH", "CASH") == onHandover)
+        // Cash with bank or mobile money.
+        #expect(footer(.onRecording, "CASH", "BANK") == withCashParts)
+        #expect(footer(.onHandover, "MOBILE_MONEY", "CASH") == withCashParts)
+        // No cash: bank and mobile money always wait for verification.
+        #expect(footer(.onRecording, "BANK") == verified)
+        #expect(footer(.onHandover, "BANK", "MOBILE_MONEY") == verified)
+    }
+
     @Test func splitSaleIsQueuedWithItsPartsInOrderAndRetriesStayExactlyOnce() async throws {
         let h = try SyncHarness().withFinanceData()
         h.server.mutate {

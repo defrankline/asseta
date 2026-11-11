@@ -157,6 +157,23 @@ public enum FieldAccountabilityTexts {
     public static let hoursReference = "Reference (required for bank and mobile money)"
     public static let hoursReceived = "Received"
     public static let hoursPaymentFooter = "Hours become available only after someone else verifies this payment."
+    public static let hoursPaymentFooterCashOnRecording =
+        "The hours are available once this sale syncs. You hold this cash until you hand it over." // field.hours.paymentFooterCashOnRecording
+    public static let hoursPaymentFooterCashOnHandover =
+        "The hours become available when the office confirms your handover of this cash." // field.hours.paymentFooterCashOnHandover
+    public static let hoursPaymentFooterCashParts =
+        "Cash parts: hand them over; the office confirms the handover." // field.hours.paymentFooterCashParts
+
+    /// The payment footer for the sale's lines (wire methods) under CUSTOMER_HOURS `cash_activation`: bank and
+    /// mobile-money parts always wait for someone else to verify them; cash alone follows the policy (`.verify` keeps
+    /// `hoursPaymentFooter`). Same as Android `FieldAccountabilityTexts.paymentFooter`.
+    public static func hoursPaymentFooter(methods: [String], activation: HoursCashActivation) -> String {
+        let cash = methods.contains("CASH")
+        let noncash = methods.contains { $0 != "CASH" }
+        if activation == .verify || !cash { return hoursPaymentFooter }
+        if noncash { return hoursPaymentFooter + " " + hoursPaymentFooterCashParts }
+        return activation == .onRecording ? hoursPaymentFooterCashOnRecording : hoursPaymentFooterCashOnHandover
+    }
     public static let hoursNotPaidFooter = "The hours stay inactive until a payment is verified or credit is approved by the office."
     public static let hoursEvidence = "Payment evidence (optional)"
     public static let hoursEvidenceFooter = "Receipt or mobile-money screenshot. Stored encrypted on this phone and uploaded before the sale is sent."

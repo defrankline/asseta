@@ -117,6 +117,36 @@ class AccountabilityPresentationTest {
     }
 
     @Test
+    fun `hours sale payment footer follows the lines and the cash activation policy`() {
+        val cash = com.asseta.core.domain.accountability.PaymentMethod.CASH
+        val bank = com.asseta.core.domain.accountability.PaymentMethod.BANK
+        val mobile = com.asseta.core.domain.accountability.PaymentMethod.MOBILE_MONEY
+        val verify = com.asseta.core.domain.accountability.HoursCashActivation.VERIFY
+        val handover = com.asseta.core.domain.accountability.HoursCashActivation.ON_HANDOVER
+        val recording = com.asseta.core.domain.accountability.HoursCashActivation.ON_RECORDING
+        val verified = "Hours become available only after someone else verifies this payment."
+        val withCashParts = "$verified Cash parts: hand them over; the office confirms the handover."
+        fun footer(a: com.asseta.core.domain.accountability.HoursCashActivation, vararg m: com.asseta.core.domain.accountability.PaymentMethod) =
+            FieldAccountabilityTexts.paymentFooter(m.toList(), a)
+        // VERIFY: unchanged for every mix.
+        assertEquals(verified, footer(verify, cash))
+        assertEquals(verified, footer(verify, cash, cash))
+        assertEquals(verified, footer(verify, cash, bank))
+        assertEquals(verified, footer(verify, mobile))
+        // Only cash.
+        assertEquals("The hours are available once this sale syncs. You hold this cash until you hand it over.", footer(recording, cash))
+        assertEquals("The hours are available once this sale syncs. You hold this cash until you hand it over.", footer(recording, cash, cash))
+        assertEquals("The hours become available when the office confirms your handover of this cash.", footer(handover, cash))
+        assertEquals("The hours become available when the office confirms your handover of this cash.", footer(handover, cash, cash))
+        // Cash with bank or mobile money.
+        assertEquals(withCashParts, footer(recording, cash, bank))
+        assertEquals(withCashParts, footer(handover, mobile, cash))
+        // No cash: bank and mobile money always wait for verification.
+        assertEquals(verified, footer(recording, bank))
+        assertEquals(verified, footer(handover, bank, mobile))
+    }
+
+    @Test
     fun `hours sale form opens with one cash line that follows the total until typed`() {
         val book = com.asseta.core.domain.accountability.HoursPriceBook(
             prices = mapOf("ex01" to com.asseta.core.domain.accountability.HoursPrice("ex01", java.math.BigDecimal("95000"), java.math.BigDecimal.ZERO, "TZS", 2)),
