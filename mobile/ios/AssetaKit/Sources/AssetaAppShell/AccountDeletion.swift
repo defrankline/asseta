@@ -158,9 +158,10 @@ public final class AccountDeletionFlow {
 
 /// The company-closure (or other limited-access) banner on the home screen of both apps.
 public enum AccessBanner {
-    /// `access_state_reason` of the open company, nil when there is nothing to say.
+    /// `access_state_reason` of the open company while its access is limited; nil at full access (the server keeps
+    /// a stale reason such as "Onboarding" or "Company closure cancelled" there).
     public static func text(_ tenant: TenantMembership) -> String? {
-        guard let reason = tenant.accessStateReason?.trimmingCharacters(in: .whitespacesAndNewlines),
+        guard tenant.accessState != .full, let reason = tenant.accessStateReason?.trimmingCharacters(in: .whitespacesAndNewlines),
               !reason.isEmpty else { return nil }
         return reason
     }

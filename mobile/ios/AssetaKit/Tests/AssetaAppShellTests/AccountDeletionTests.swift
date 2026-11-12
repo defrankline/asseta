@@ -180,5 +180,8 @@ struct AccountDeletionTests {
         let blank = TenantMembership(tenantID: UUID(), name: "B", status: tenant.status, accessState: tenant.accessState,
                                      permissions: [], menus: [], accessStateReason: "  ")
         #expect(AccessBanner.text(blank) == nil)
+        let cancelled = TenantMembership(tenantID: UUID(), name: "C", status: tenant.status, accessState: .full,
+                                         permissions: [], menus: [], accessStateReason: "Company closure cancelled")
+        #expect(AccessBanner.text(cancelled) == nil)
     }
 }

@@ -134,5 +134,6 @@ class AccountDeletionFlowTest {
         assertNull(CompanyNotice.banner(t.copy(accessStateReason = "  ")))
         assertFalse(CompanyNotice.opensClosure(t.copy(accessStateReason = null, permissions = listOf("tenant.company.close"))))
         assertNull(CompanyNotice.banner(null))
+        assertNull(CompanyNotice.banner(t.copy(accessState = TenantAccessState.FULL, accessStateReason = "Company closure cancelled")))
     }
 }

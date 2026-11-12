@@ -1,6 +1,7 @@
 package com.asseta.core.ui.session
 
 import com.asseta.core.model.TenantAccess
+import com.asseta.core.model.TenantAccessState
 import com.asseta.core.network.ApiException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -54,7 +55,9 @@ object CompanyNotice {
     /** Permission to see (and cancel) the company's closure request. */
     const val CLOSE_PERMISSION = "tenant.company.close"
 
-    fun banner(tenant: TenantAccess?): String? = tenant?.accessStateReason?.trim()?.takeIf { it.isNotEmpty() }
+    /** Only while access is limited: at FULL the server keeps a stale reason ("Onboarding", "Company closure cancelled"). */
+    fun banner(tenant: TenantAccess?): String? =
+        tenant?.takeIf { it.accessState != TenantAccessState.FULL }?.accessStateReason?.trim()?.takeIf { it.isNotEmpty() }
 
     /** Owner app: the banner opens the closure request for holders of [CLOSE_PERMISSION]. */
     fun opensClosure(tenant: TenantAccess?): Boolean = banner(tenant) != null && CLOSE_PERMISSION in tenant!!.permissions
