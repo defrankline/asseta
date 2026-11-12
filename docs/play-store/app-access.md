@@ -6,7 +6,7 @@ Choose: **All or some functionality in my app is restricted.** Add one set of in
 
 **No password is ever written in this repository.** The owner types the demo login (username and password) directly
 into the Console's App access form, which only Google's reviewers can see. Use dedicated demo accounts in the demo
-company (Wambura & Sons Ltd demo tenant on asseta.co.tz), never a real customer's login, and keep them active for as
+company (Kachinga & Sons Ltd demo tenant on asseta.co.tz), never a real customer's login, and keep them active for as
 long as the apps are under review or published (reviews can recur at any update).
 
 ## Asseta Supervisor

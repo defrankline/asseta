@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | Package | `com.asseta.owner` |
-| Version | 0.8.0 (versionCode 3) |
+| Version | 0.8.2 (versionCode 5) |
 | Default language | English (United States) – en-US |
 | Added language | Swahili – sw |
 | App or game | App |
@@ -35,7 +35,7 @@ Asseta Owner
 Run your equipment-hire business from your phone: approvals, cash, fleet map.
 ```
 
-**Full description** (1549/4000)
+**Full description** (1623/4000)
 
 ```
 Asseta Owner is the phone app for owners and managers of equipment-hire companies that run their business on Asseta. It puts the decisions and the numbers that matter in your pocket, so you can keep revenue and machines safe even when you are away from the office.
@@ -55,6 +55,7 @@ WHAT YOU CAN DO
 
 SECURE BY DESIGN
 • Data on the phone is encrypted and wiped when you sign out.
+• You can delete your account from the app (Settings, Delete my account).
 • The app does not use your camera or your location.
 • Everything travels over HTTPS to your company's Asseta account.
 • No ads, no tracking, no data selling.
@@ -72,7 +73,7 @@ Asseta is operated by Crysalion Tech Company Ltd. Privacy policy: https://asseta
 Endesha biashara ya kukodisha mitambo kwa simu: idhini, pesa, ramani ya mitambo.
 ```
 
-**Full description** (1595/4000)
+**Full description** (1674/4000)
 
 ```
 Asseta Owner ni programu ya simu kwa wamiliki na mameneja wa kampuni zinazokodisha mitambo na zinazoendesha biashara yao kwa Asseta. Inakuwekea maamuzi na takwimu muhimu mfukoni, ili ulinde mapato na mitambo yako hata ukiwa mbali na ofisi.
@@ -92,6 +93,7 @@ UNACHOWEZA KUFANYA
 
 USALAMA
 • Data kwenye simu imesimbwa (encrypted) na inafutwa unapotoka (sign out).
+• Unaweza kufuta akaunti yako ndani ya programu (Settings, Delete my account).
 • Programu haitumii kamera wala mahali ulipo.
 • Kila kitu kinasafiri kwa HTTPS kwenda kwenye akaunti ya Asseta ya kampuni yako.
 • Hakuna matangazo, hakuna ufuatiliaji, hakuna kuuza data.
