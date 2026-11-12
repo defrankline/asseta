@@ -3,9 +3,9 @@
 Play limit: 500 characters per language. Counts measured with Python `len()` on the text between the language tags (tags not counted). Paste
 into Release → (track) → Create release → Release notes, using the language tags shown.
 
-## Asseta Supervisor 0.5.5 (8)
+## Asseta Supervisor 0.5.6 (9)
 
-English (406/500):
+English (441/500):
 
 ```
 <en-US>
@@ -18,10 +18,11 @@ First release of Asseta Supervisor, the field app for equipment-hire companies:
 • Book the job together with the sale
 • Petty cash requests
 • Add and edit customers
+• Delete your account from the app
 </en-US>
 ```
 
-Swahili (433/500):
+Swahili (471/500):
 
 ```
 <sw>
@@ -34,12 +35,13 @@ Toleo la kwanza la Asseta Supervisor, programu ya uwanjani kwa kampuni za kukodi
 • Weka kazi pamoja na mauzo
 • Maombi ya pesa ndogo
 • Ongeza na hariri wateja
+• Futa akaunti yako ndani ya programu
 </sw>
 ```
 
-## Asseta Owner 0.8.0 (3)
+## Asseta Owner 0.8.2 (5)
 
-English (293/500):
+English (352/500):
 
 ```
 <en-US>
@@ -49,10 +51,11 @@ First release of Asseta Owner, the phone app for owners of equipment-hire compan
 • Fleet map of your machines
 • Petty cash approvals
 • Notifications inbox for everything that needs you
+• Delete your account, or see and cancel a company closure
 </en-US>
 ```
 
-Swahili (293/500):
+Swahili (352/500):
 
 ```
 <sw>
@@ -62,5 +65,6 @@ Toleo la kwanza la Asseta Owner, programu ya simu kwa wamiliki wa kampuni za kuk
 • Ramani ya mitambo yako
 • Idhini za pesa ndogo
 • Arifa za kila jambo linalokuhitaji
+• Futa akaunti yako, au ona na sitisha ufungaji wa kampuni
 </sw>
 ```

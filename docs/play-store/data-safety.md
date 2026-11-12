@@ -2,13 +2,13 @@
 
 Play Console → the app → Policy and programs → App content → Data safety. Fill it once per app. The answers below
 follow the order of the form. They are based on the release code (manifests, `mobile/android/README.md`,
-`core/network`, `core/security`, `core/sync`, `app/*`) as of Supervisor 0.5.5 (8) and Owner 0.8.0 (3).
+`core/network`, `core/security`, `core/sync`, `app/*`) as of Supervisor 0.5.6 (9) and Owner 0.8.2 (5).
 
 Key facts behind the answers:
 
 - All traffic goes over HTTPS to the company's Asseta account on asseta.co.tz (operated by Crysalion Tech Company Ltd).
 - On the phone, data is in an SQLCipher database and AES-GCM encrypted files with Android Keystore keys; backups are
-  off; sign-out wipes it.
+  off; sign-out wipes it except records not yet sent (kept encrypted until sent); account deletion wipes all of it.
 - No ads SDK, no advertising ID, no analytics SDK, no crash reporter. Firebase Messaging is compiled in but has no
   Firebase config in this release, so it never starts and sends nothing (push is not enabled).
 - **Google ML Kit text recognition** (bundled, Supervisor only) reads the hour-meter photo on the phone. Google's ML
@@ -34,9 +34,9 @@ Key facts behind the answers:
 | Do you provide a way for users to request that their data is deleted? / Delete account URL | **Yes.** URL: **https://asseta.co.tz/account-deletion** |
 | Can users request that some or all of their data is deleted without deleting their account? | **Yes** (see note 2) |
 
-Deletion, as the page describes it: a user deletes their own login in the app or on the web (My account → Delete my
-account; name, email and phone wiped at once; records made for the company stay with the company as "Former user");
-a company owner closes the company on the web (Administration → Data protection; 30-day read-only grace period, then
+Deletion, as the page describes it: a user deletes their own login in the app or on the web (Delete my account: web My access, Supervisor account
+menu, Owner Settings; name, email and phone wiped at once; records made for the company stay with the company as "Former user");
+a company owner closes the company on the web (Administration → Close company; 30-day read-only grace period, then
 everything is deleted permanently); anyone who cannot sign in emails frank.kachinga@gmail.com and gets a reply within
 30 days.
 
@@ -113,7 +113,6 @@ same types, purposes, no sharing, encryption in transit, and deletion.
    here. Declaring Diagnostics and Device IDs for Analytics is the conservative reading.
 4. Photos "Required": capture screens require evidence photos for meter readings and receipts per company policy; if a
    company's policy makes them optional, the answer can still stay "Required" (the strict reading).
-5. Owner 0.8.0 (3) as built lists location permissions merged in from MapLibre (see `permissions.md`); the app never
-   requests them, so "Location: not collected" is accurate. If Play's review questions the mismatch, ship the rebuilt
-   Owner (the manifest now removes them) and answer that the permissions came from a map library and are unused.
+5. Owner 0.8.2 (5) declares no location or Wi-Fi permissions (the map library's ones are removed in the manifest),
+   so "Location: not collected" matches the bundle.
 6. Owner app collection is minimal because it mostly displays data; what it sends is decisions, notes and new jobs.

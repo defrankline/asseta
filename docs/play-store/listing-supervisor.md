@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | Package | `com.asseta.supervisor` |
-| Version | 0.5.5 (versionCode 8) |
+| Version | 0.5.6 (versionCode 9) |
 | Default language | English (United States) – en-US |
 | Added language | Swahili – sw |
 | App or game | App |
@@ -37,7 +37,7 @@ Asseta Supervisor
 Field app for equipment hire: jobs, meter photos, fuel, expenses, cash. Offline
 ```
 
-**Full description** (1828/4000)
+**Full description** (1948/4000)
 
 ```
 Asseta Supervisor is the field app for equipment-hire companies that run their business on Asseta. Site supervisors use it to record every job, hour and shilling where the work happens, so the owner can see what each machine earned and where the money went.
@@ -60,7 +60,8 @@ WORKS OFFLINE
 Sites often have no signal. Everything you record is saved on the phone and sent to your company's Asseta server as soon as there is a connection. The Sync screen shows what is still waiting.
 
 SECURE BY DESIGN
-• Data on the phone is encrypted and wiped when you sign out.
+• Data on the phone is encrypted. Records not yet sent stay encrypted on the phone until they are sent.
+• You can delete your account from the app (account menu, Delete my account).
 • Camera and location are used only while you capture a record, never in the background.
 • Everything travels over HTTPS to your company's Asseta account.
 • No ads, no tracking, no data selling.
@@ -78,7 +79,7 @@ Asseta is operated by Crysalion Tech Company Ltd. Privacy policy: https://asseta
 Programu ya kazi za mitambo ya kukodisha: kazi, picha za mita, mafuta, pesa.
 ```
 
-**Full description** (1913/4000)
+**Full description** (2043/4000)
 
 ```
 Asseta Supervisor ni programu ya kazi za uwanjani kwa kampuni zinazokodisha mitambo na zinazoendesha biashara yao kwa Asseta. Wasimamizi wa site wanaitumia kurekodi kila kazi, kila saa na kila shilingi pale kazi inapofanyika, ili mmiliki aone kila mtambo umeingiza kiasi gani na pesa zimeenda wapi.
@@ -101,7 +102,8 @@ INAFANYA KAZI BILA MTANDAO
 Mara nyingi site hazina mtandao. Kila unachorekodi kinahifadhiwa kwenye simu na kutumwa kwenye seva ya Asseta ya kampuni yako mara mtandao unapopatikana. Skrini ya Sync inaonyesha kinachosubiri kutumwa.
 
 USALAMA
-• Data kwenye simu imesimbwa (encrypted) na inafutwa unapotoka (sign out).
+• Data kwenye simu imesimbwa (encrypted). Kumbukumbu ambazo hazijatumwa zinabaki zimesimbwa kwenye simu hadi zitumwe.
+• Unaweza kufuta akaunti yako ndani ya programu (menyu ya akaunti, Delete my account).
 • Kamera na mahali vinatumika tu unaporekodi, kamwe si chinichini.
 • Kila kitu kinasafiri kwa HTTPS kwenda kwenye akaunti ya Asseta ya kampuni yako.
 • Hakuna matangazo, hakuna ufuatiliaji, hakuna kuuza data.
