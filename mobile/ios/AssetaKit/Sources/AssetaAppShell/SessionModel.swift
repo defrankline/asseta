@@ -61,6 +61,10 @@ public final class SessionModel {
         self.api = api
         self.configuration = configuration
         self.secrets = secrets
+        // A deleted or disabled account (403 USER_INACTIVE on any call) signs the user out with an explanation.
+        api.userInactive?.setHandler { [weak self] in
+            Task { @MainActor in await self?.accountInactive() }
+        }
     }
 
     /// The user signed in when the app launched: owner of field data written before per-user
@@ -86,6 +90,7 @@ public final class SessionModel {
 
     public func signIn(using authenticate: BrowserAuthenticator) async {
         errorMessage = nil
+        accountDeleted = false
         phase = .signingIn
         do {
             let pending = try await auth.beginSignIn()
@@ -112,6 +117,8 @@ public final class SessionModel {
             apply(me)
         } catch APIError.notAuthenticated {
             await signOut()
+        } catch where UserInactiveSignal.matches(error) {
+            await accountInactive()
         } catch {
             // Offline (or server down) with a cached profile: open read-only cached data instead.
             if (error as? APIError)?.isRetryable == true, await auth.state == .signedIn,
@@ -161,6 +168,41 @@ public final class SessionModel {
     public func endSession(explanation: String) async {
         await signOut()
         errorMessage = explanation
+    }
+
+    /// The server answered 403 `USER_INACTIVE`: the account was deleted or disabled. Signs out once (while signed in),
+    /// never over the "Your account was deleted." of a deletion made on this phone.
+    func accountInactive() async {
+        guard phase != .signedOut, !accountDeleted else { return }
+        await endSession(explanation: AccountDeletionText.inactive)
+    }
+
+    // MARK: - Delete my account
+
+    /// What the signed-in app adds to "Delete my account" (the Supervisor: its unsynced work and its local data).
+    public var accountDeletionHooks: AccountDeletionHooks?
+    /// Set once this phone deleted the account: later USER_INACTIVE answers (in-flight calls) change nothing.
+    private var accountDeleted = false
+
+    /// `POST /api/v1/me/account-deletion` (no tenant header). On success the app erases what it keeps (hook), then the
+    /// normal sign-out runs and the login screen says "Your account was deleted." Errors are thrown unchanged.
+    public func deleteAccount(reason: String?) async throws {
+        let request = try APIRequest<AccountDeletionDTO>.mutation(
+            .post, "/api/v1/me/account-deletion", body: AccountDeletionIn(reason: reason), idempotencyKey: UUID(),
+            tenantScoped: false)
+        _ = try await api.withTenant(nil).send(request)
+        accountDeleted = true
+        await accountDeletionHooks?.eraseLocalData()
+        accountDeletionHooks = nil
+        await signOut()
+        errorMessage = AccountDeletionText.deleted
+    }
+
+    /// The "Delete my account" flow for the current app (its hooks, this session's request).
+    public func makeAccountDeletionFlow(isOnline: Bool) -> AccountDeletionFlow {
+        AccountDeletionFlow(isOnline: isOnline, hooks: accountDeletionHooks ?? .none) { [weak self] reason in
+            try await self?.deleteAccount(reason: reason)
+        }
     }
 
     public func dismissError() {

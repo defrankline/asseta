@@ -33,6 +33,8 @@ enum FieldSheet: Identifiable {
     case dailyReport(machineID: UUID, resubmitting: DailyReportDTO?)
     /// A petty cash form (DEC-033).
     case pettyCash(PettyCashSheet)
+    /// "Delete my account" (account menu).
+    case deleteAccount
 
     var id: String {
         switch self {
@@ -50,6 +52,7 @@ enum FieldSheet: Identifiable {
         case let .capture(target, _): "capture-\(target.title)-\(target.machineID?.uuidString ?? "")"
         case let .dailyReport(machine, report): "daily-report-\(machine)-\(report?.id.uuidString ?? "")"
         case let .pettyCash(form): form.id
+        case .deleteAccount: "delete-account"
         }
     }
 }
@@ -118,6 +121,13 @@ public struct FieldRootView: View {
             case let .capture(target, snapshot): MeterCaptureView(model: model, target: target, snapshot: snapshot)
             case let .dailyReport(machine, report): DailyReportFormView(model: model, machineID: machine, resubmitting: report)
             case let .pettyCash(form): form.view(model)
+            case .deleteAccount:
+                NavigationStack {
+                    AccountDeletionView(session: model.session, isOnline: model.isOnline)
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) { Button("Cancel") { self.sheet = nil } }
+                        }
+                }
             }
         }
         .alert("Can't record now", isPresented: Binding(get: { blockedCapture != nil },
@@ -253,6 +263,8 @@ public struct FieldRootView: View {
                     }
                 }
                 Button("Sign out", role: .destructive) { confirmSignOut = true }
+                Button(AccountDeletionText.action, role: .destructive) { sheet = .deleteAccount }
+                    .accessibilityIdentifier("account.delete")
             } label: { Image(systemName: "person.crop.circle") }
         }
     }
@@ -395,6 +407,11 @@ struct JobsTabView: View {
 
     var body: some View {
         List {
+            if let reason = AccessBanner.text(model.tenant) {
+                AccessReasonBanner(text: reason)
+                    .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                    .listRowBackground(Color.clear)
+            }
             FieldBanners(model: model)
             if model.access.siteCheckin { SiteCheckinEntryRow(model: model) }
             FilterChips(options: JobSegment.allCases.map { ($0, $0.label) },

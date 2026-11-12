@@ -6,6 +6,12 @@ object AssetaHeaders {
     const val CORRELATION_ID = "X-Correlation-ID"
     const val IDEMPOTENCY_KEY = "Idempotency-Key"
     const val DEVICE_ID = "X-Device-Id"
+
+    /** Local marker (never sent): the call must go without `X-Tenant-ID` (e.g. account deletion). */
+    const val NO_TENANT = "X-Asseta-No-Tenant"
+
+    /** Retrofit `@Headers` value for [NO_TENANT]. */
+    const val NO_TENANT_HEADER = "$NO_TENANT: 1"
 }
 
 /** Supplies a currently valid access token (refreshing if needed), or null when signed out. Called off the main thread. */

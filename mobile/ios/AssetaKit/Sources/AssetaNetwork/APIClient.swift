@@ -87,6 +87,33 @@ public struct EmptyResponse: Decodable, Sendable, Equatable {
     public init() {}
 }
 
+/// Raised when the server answers 403 `USER_INACTIVE` (the account was deleted or disabled), whatever the call:
+/// the app signs the user out. The handler is installed once by the session; firing without one does nothing.
+public final class UserInactiveSignal: @unchecked Sendable {
+    // @unchecked: `handler` is only touched while holding `lock`.
+    private let lock = NSLock()
+    private var handler: (@Sendable () -> Void)?
+
+    public init() {}
+
+    public func setHandler(_ handler: (@Sendable () -> Void)?) {
+        lock.withLock { self.handler = handler }
+    }
+
+    public func fire() {
+        let current = lock.withLock { handler }
+        current?()
+    }
+
+    /// The server code of a deleted or disabled account.
+    public static let code = "USER_INACTIVE"
+
+    public static func matches(_ error: any Error) -> Bool {
+        guard case let .server(status, body)? = error as? APIError else { return false }
+        return status == 403 && body.code == code
+    }
+}
+
 /// Asseta REST client. Adds bearer auth, tenant, correlation and idempotency headers and maps
 /// failures to ``APIError``. It never makes authorization decisions — it reports the server's.
 public struct APIClient: Sendable {
@@ -95,28 +122,41 @@ public struct APIClient: Sendable {
     private let transport: any HTTPTransport
     private let tokens: any AccessTokenProvider
     private let makeCorrelationID: @Sendable () -> UUID
+    /// Told about every 403 `USER_INACTIVE` answer (shared by the tenant-bound copies of this client).
+    public let userInactive: UserInactiveSignal?
 
     public init(
         baseURL: URL,
         transport: any HTTPTransport = URLSessionTransport(),
         tokens: any AccessTokenProvider,
         tenantID: UUID? = nil,
-        makeCorrelationID: @escaping @Sendable () -> UUID = { UUID() }
+        makeCorrelationID: @escaping @Sendable () -> UUID = { UUID() },
+        userInactive: UserInactiveSignal? = nil
     ) {
         self.baseURL = baseURL
         self.transport = transport
         self.tokens = tokens
         self.tenantID = tenantID
         self.makeCorrelationID = makeCorrelationID
+        self.userInactive = userInactive
     }
 
     /// Returns a client bound to `tenantID` (sent as `X-Tenant-ID`).
     public func withTenant(_ tenantID: UUID?) -> APIClient {
         APIClient(baseURL: baseURL, transport: transport, tokens: tokens, tenantID: tenantID,
-                  makeCorrelationID: makeCorrelationID)
+                  makeCorrelationID: makeCorrelationID, userInactive: userInactive)
     }
 
     public func send<Response>(_ request: APIRequest<Response>) async throws -> Response {
+        do {
+            return try await sendOnce(request)
+        } catch {
+            if UserInactiveSignal.matches(error) { userInactive?.fire() }
+            throw error
+        }
+    }
+
+    private func sendOnce<Response>(_ request: APIRequest<Response>) async throws -> Response {
         if request.tenantScoped && tenantID == nil { throw APIError.tenantRequired }
         let token = try await tokens.validAccessToken()
         let (data, response, correlationID) = try await perform(request, token: token)

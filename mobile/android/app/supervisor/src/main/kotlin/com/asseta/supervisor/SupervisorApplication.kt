@@ -40,12 +40,24 @@ class SupervisorApplication : Application(), AssetaContainerOwner, SyncHost {
                 field.push.forget()
             }
 
-            override suspend fun signOutConfirmation(): String {
-                val tenantId = container.tenantStore.tenantId()
-                val unsynced = tenantId?.let {
-                    withContext(Dispatchers.IO) { runCatching { field.repository.observeUnsynced(it).first().size }.getOrDefault(0) }
-                } ?: 0
-                return FieldTexts.signOutMessage(unsynced)
+            override suspend fun signOutConfirmation(): String = FieldTexts.signOutMessage(unsyncedCount())
+
+            // Delete my account: this user's unsent records are counted and can be synced first.
+            override suspend fun unsyncedCount(): Int {
+                val tenantId = container.tenantStore.tenantId() ?: return 0
+                return withContext(Dispatchers.IO) { runCatching { field.repository.observeUnsynced(tenantId).first().size }.getOrDefault(0) }
+            }
+
+            override suspend fun syncNow() {
+                val tenantId = container.tenantStore.tenantId() ?: return
+                field.engine.sync(tenantId)
+            }
+
+            // The account no longer exists: its field data on this phone is erased unless another account's unsent work
+            // is held here (that stays encrypted for its owner, as on any sign-out).
+            override suspend fun onAccountDeleted() {
+                val account = container.authManager.account() ?: return
+                withContext(Dispatchers.IO) { field.eraseAfterAccountDeletion(account.subject) }
             }
         }
         SupervisorMessagingService.notifier.ensureChannels(this)

@@ -108,7 +108,23 @@ fun OwnerRoutes(
             val vm: HomeViewModel = viewModel(key = "home-$t") { HomeViewModel(data, graph.refreshTriggers("alert", "approval", "job", "case", "fleet.position", debounceMs = 10_000)) }
             val setup by data.setupProgress.collectAsStateWithLifecycle()
             val banner = setup?.takeIf { features.setupRead && it.showBanner }
-            HomeScreen(vm, features, now, open, header = banner?.let { b -> { com.asseta.owner.ui.setup.SetupBanner(b) { open(OwnerDestination.SetupChecklist) } } })
+            val notice = session.companyNotice
+            val header: (@Composable () -> Unit)? = if (banner == null && notice == null) null else {
+                {
+                    androidx.compose.foundation.layout.Column(verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(androidx.compose.ui.unit.Dp(12f))) {
+                        notice?.let { text ->
+                            val opens = features.closeCompany
+                            com.asseta.core.ui.session.CompanyNoticeBanner(
+                                text,
+                                actionLabel = if (opens) com.asseta.owner.ui.settings.ClosureTexts.BANNER_ACTION else null,
+                                onOpen = if (opens) ({ open(OwnerDestination.CompanyClosure) }) else null,
+                            )
+                        }
+                        banner?.let { b -> com.asseta.owner.ui.setup.SetupBanner(b) { open(OwnerDestination.SetupChecklist) } }
+                    }
+                }
+            }
+            HomeScreen(vm, features, now, open, header = header)
         }
         OwnerDestination.Fleet -> {
             val vm: FleetViewModel = viewModel(key = "fleet-$t") { FleetViewModel(data, graph.refreshTriggers("fleet.position", "alert", debounceMs = 10_000)) }
@@ -344,6 +360,12 @@ fun OwnerRoutes(
                 com.asseta.owner.ui.accountability.IdleMachinesViewModel(data, graph.refreshTriggers("job", "machine"))
             }
             com.asseta.owner.ui.accountability.IdleMachinesScreen(vm, features, open)
+        }
+        OwnerDestination.CompanyClosure -> {
+            val vm: com.asseta.owner.ui.settings.CompanyClosureViewModel = viewModel(key = "closure-$t") {
+                com.asseta.owner.ui.settings.CompanyClosureViewModel(data)
+            }
+            com.asseta.owner.ui.settings.CompanyClosureScreen(vm, online)
         }
         OwnerDestination.SetupChecklist -> {
             val vm: com.asseta.owner.ui.setup.SetupChecklistViewModel = viewModel(key = "setup-$t") {

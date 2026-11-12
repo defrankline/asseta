@@ -33,6 +33,8 @@ data class OwnerSession(
     val disabledCapabilities: Set<String> = emptySet(),
     /** Go-live banner figures from `/me` (null without tenant.setup.read). */
     val setup: com.asseta.owner.ui.setup.SetupProgress? = null,
+    /** Why the company's access is limited (`/me` `access_state_reason`, e.g. a requested closure): the home banner. */
+    val companyNotice: String? = null,
 ) {
     val features: OwnerFeatures get() = OwnerFeatures(permissions, disabledCapabilities)
 
@@ -138,6 +140,9 @@ data class OwnerFeatures(val permissions: Set<String>, val disabled: Set<String>
     /** Mark steps as not needed / undo, confirm the default controls. */
     val setupManage get() = setupRead && "tenant.setup.manage" in permissions
 
+    /** See and cancel the company's closure request (starting one is web-only). */
+    val closeCompany get() = com.asseta.core.ui.session.CompanyNotice.CLOSE_PERMISSION in permissions
+
     /** The same features with more switched-off capabilities (e.g. the dashboard's `disabled_capabilities`). */
     fun without(capabilities: Collection<String>): OwnerFeatures =
         if (capabilities.all { it in disabled }) this else copy(disabled = disabled + capabilities)
@@ -159,6 +164,7 @@ data class OwnerFeatures(val permissions: Set<String>, val disabled: Set<String>
         OwnerDestination.UnbilledWork -> if (unbilledWork) d else OwnerDestination.Accountability
         OwnerDestination.IdleMachines -> if (idleMachines) d else OwnerDestination.Accountability
         OwnerDestination.SetupChecklist -> if (setupRead) d else OwnerDestination.More
+        OwnerDestination.CompanyClosure -> if (closeCompany) d else OwnerDestination.Home
         is OwnerDestination.EmployeeAccountability -> if (employeeAccountability) d else OwnerDestination.Accountability
         OwnerDestination.Lookup -> if (lookup) d else OwnerDestination.More
         // DEC-032 switches: a link to a hidden module opens the overview instead.

@@ -27,6 +27,8 @@ data class TenantAccess(
     val status: String,
     /** Server-computed effective access (subscription/membership); the app only reflects it in UI. */
     @SerialName("access_state") val accessState: TenantAccessState = TenantAccessState.UNKNOWN,
+    /** Why access is limited, shown as a banner (e.g. "Company closure requested: all its data will be deleted on ..."). */
+    @SerialName("access_state_reason") val accessStateReason: String? = null,
     val permissions: List<String> = emptyList(),
     val menus: List<MenuEntry> = emptyList(),
     @SerialName("menu_groups") val menuGroups: List<MenuGroup> = emptyList(),
@@ -69,6 +71,19 @@ data class TenantAccess(
         const val PETTY_CASH = "PETTY_CASH"
     }
 }
+
+/** `POST /api/v1/me/account-deletion` body: [confirm] must be true. */
+@Serializable
+data class AccountDeletionRequest(val confirm: Boolean = true, val reason: String? = null)
+
+/** The deleted account: the anonymous name its records now show and the companies whose membership was closed. */
+@Serializable
+data class AccountDeletionResponse(
+    @SerialName("user_id") val userId: String,
+    @SerialName("display_name") val displayName: String,
+    @SerialName("deleted_at") val deletedAt: String,
+    val companies: List<String> = emptyList(),
+)
 
 /** Server-driven menu entry (`MenuDto`): grouped navigation hints, never authorization. */
 @Serializable

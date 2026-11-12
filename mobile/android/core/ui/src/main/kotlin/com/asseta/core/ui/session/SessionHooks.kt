@@ -28,6 +28,18 @@ interface SessionHooks {
 
     /** After `/me` loaded; [me] is the server's current view of the user's tenants. */
     fun onProfile(me: MeResponse) {}
+
+    /** "Delete my account": the signed-in user's records on this phone not sent yet (Supervisor outbox). */
+    suspend fun unsyncedCount(): Int = 0
+
+    /** "Delete my account" -> "Sync first": send this phone's records now. */
+    suspend fun syncNow() {}
+
+    /**
+     * The account was deleted (bounded by a timeout, before tokens are cleared): erase what only this account could
+     * use. The sign-out reactions ([onSignedOut]) follow as for any sign-out.
+     */
+    suspend fun onAccountDeleted() {}
 }
 
 object NoSessionHooks : SessionHooks
@@ -46,6 +58,8 @@ data class SessionActions(
     val changePassword: () -> Unit = {},
     /** True while the password page is open (the action is disabled meanwhile). */
     val changingPassword: Boolean = false,
+    /** Opens the "Delete my account" screen (shown by the session shell over the home). */
+    val deleteAccount: () -> Unit = {},
 )
 
 val LocalSessionActions = staticCompositionLocalOf { SessionActions() }

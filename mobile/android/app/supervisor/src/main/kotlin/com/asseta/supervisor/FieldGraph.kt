@@ -143,6 +143,21 @@ class FieldGraph(context: Context, val container: AssetaAppContainer) {
     /** Pending notification tap, consumed by the home once the tenant is ready. */
     val pushTap = MutableStateFlow<PushTap?>(null)
 
+    /**
+     * After "Delete my account": erases the encrypted database, evidence files and caches, as the revocation wipe does
+     * (the device identity is kept), unless another account's unsent work is held on this phone. Returns whether it
+     * erased.
+     */
+    suspend fun eraseAfterAccountDeletion(deletedSubject: String): Boolean {
+        val othersWaiting = runCatching { container.database.clientOperationDao().countUnsyncedOfOthers(deletedSubject) }.getOrDefault(1)
+        if (othersWaiting > 0) return false
+        runCatching { scheduler.cancelAll() }
+        runCatching { container.databaseHolder.closeAndDelete() }
+        runCatching { evidence.wipeAll() }
+        runCatching { appContext.cacheDir.listFiles()?.forEach { it.deleteRecursively() } }
+        return true
+    }
+
     private fun signedInTenant(): String? =
         if (container.authManager.signedIn.value) container.tenantStore.tenantId() else null
 

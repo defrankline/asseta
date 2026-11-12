@@ -77,6 +77,9 @@ sealed interface OwnerDestination {
     /** The go-live setup checklist (tenant.setup.read). */
     data object SetupChecklist : OwnerDestination
 
+    /** The company's closure request, read-only with "Cancel closure" (tenant.company.close; starting one is web-only). */
+    data object CompanyClosure : OwnerDestination
+
     /** One employee's accountability over the local days [dayFrom]..[dayTo] (null: the default period). */
     data class EmployeeAccountability(val staffId: String, val name: String? = null, val dayFrom: String? = null, val dayTo: String? = null) : OwnerDestination
 

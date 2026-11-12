@@ -66,6 +66,12 @@ struct SettingsView: View {
                 ChangePasswordButton(session: model.session, isOnline: model.isOnline)
                 Button("Sign out", role: .destructive) { confirmSignOut = true }
                     .accessibilityIdentifier("settings.signOut")
+                NavigationLink {
+                    AccountDeletionView(session: model.session, isOnline: model.isOnline)
+                } label: {
+                    Text(AccountDeletionText.action).foregroundStyle(.red)
+                }
+                .accessibilityIdentifier("settings.deleteAccount")
             } header: {
                 Text("Account")
             } footer: {

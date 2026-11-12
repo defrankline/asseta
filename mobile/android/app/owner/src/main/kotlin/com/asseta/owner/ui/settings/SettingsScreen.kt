@@ -30,6 +30,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -42,6 +43,7 @@ import com.asseta.core.domain.owner.NotificationMatrix
 import com.asseta.core.domain.owner.OwnerFormat
 import com.asseta.core.ui.components.ButtonRow
 import com.asseta.core.ui.components.GroupedSection
+import com.asseta.core.ui.session.AccountDeletionText
 import com.asseta.core.ui.session.LocalSessionActions
 import com.asseta.core.ui.session.PasswordChangeText
 import com.asseta.core.ui.theme.AssetaType
@@ -145,6 +147,11 @@ fun SettingsScreen(vm: SettingsViewModel, session: OwnerSession, online: Boolean
                 if (session.canSwitchTenant) ButtonRow("Switch company", onClick = actions.switchTenant)
                 ButtonRow(PasswordChangeText.ACTION, enabled = online && !actions.changingPassword, onClick = actions.changePassword)
                 ButtonRow("Sign out", destructive = true) { confirmSignOut = true }
+            }
+        }
+        item {
+            SectionCard(null, footer = if (online) null else AccountDeletionText.OFFLINE) {
+                ButtonRow(AccountDeletionText.ACTION, Modifier.testTag("delete-account"), enabled = online, destructive = true, onClick = actions.deleteAccount)
             }
         }
     }

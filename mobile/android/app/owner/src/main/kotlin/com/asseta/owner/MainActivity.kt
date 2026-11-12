@@ -35,6 +35,7 @@ class MainActivity : ComponentActivity() {
                         userId = ready.me.userId.toString(),
                         disabledCapabilities = tenant.disabledCapabilities.toSet(),
                         setup = com.asseta.owner.ui.setup.SetupProgress.fromMe(tenant),
+                        companyNotice = com.asseta.core.ui.session.CompanyNotice.banner(tenant),
                     )
                     OwnerHome(app.graph, session, modifier)
                 }

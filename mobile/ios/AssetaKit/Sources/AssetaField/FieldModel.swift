@@ -66,6 +66,7 @@ public final class FieldModel {
         }
         phase = .ready
         refresh()
+        installAccountDeletionHooks()
         SupervisorPush.shared.attach(client: client, tenantID: tenant.tenantID, allowed: canReadNotifications)
         BackgroundSync.runner = { [weak self] in await self?.sync(force: false) }
         BackgroundSync.schedule()
@@ -226,6 +227,43 @@ public final class FieldModel {
     public func signOut() async {
         stop()
         await session.signOut()
+    }
+
+    // MARK: - Delete my account
+
+    /// "Delete my account" warns about this account's unsynced items (as the sign-out confirmation counts them),
+    /// offers a sync first, and erases the field data once the server deleted the account.
+    private func installAccountDeletionHooks() {
+        session.accountDeletionHooks = AccountDeletionHooks(
+            unsyncedCount: { [weak self] in
+                self?.refresh()
+                return self?.overview?.unsyncedCount ?? 0
+            },
+            syncNow: { [weak self] in await self?.sync(force: true) },
+            eraseLocalData: { [weak self] in self?.eraseAfterAccountDeletion() }
+        )
+    }
+
+    /// The account is gone: its unsent work can never be sent. The encrypted database, evidence files and caches are
+    /// erased unless another account on this phone still has unsynced work (held for them, so it must survive); then
+    /// the normal sign-out runs.
+    func eraseAfterAccountDeletion() {
+        stop()
+        guard let services else { return }
+        let othersWaiting = (try? services.store.outbox.hasUnsyncedWork(excluding: services.account.subject)) ?? true
+        if !othersWaiting {
+            _ = services.wipe()
+            URLCache.shared.removeAllCachedResponses()
+            if let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first,
+               let items = try? FileManager.default.contentsOfDirectory(at: caches, includingPropertiesForKeys: nil) {
+                for item in items { try? FileManager.default.removeItem(at: item) }
+            }
+        }
+        self.services = nil
+        jobs = []
+        overview = nil
+        inbox = InboxSnapshot()
+        notifications = []
     }
 }
 #endif

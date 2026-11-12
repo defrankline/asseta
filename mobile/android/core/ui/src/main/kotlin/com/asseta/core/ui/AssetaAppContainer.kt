@@ -53,6 +53,13 @@ class AssetaAppContainer(context: Context, val role: AppRole, private val oidcRe
 
     /** Encrypted local database; opened on first use (off the main thread). Fetch it per use, never cache it. */
     val database: AssetaDatabase get() = databaseHolder.get()
+
+    init {
+        // A deleted or disabled account (403 USER_INACTIVE from any call, sync included) signs out with its reason.
+        NetworkFactory.userInactiveListener = {
+            if (authManager.signedIn.value) sessionNotice.post(com.asseta.core.ui.session.AccountDeletionText.INACTIVE)
+        }
+    }
 }
 
 /** Implemented by each app's Application so shared UI can reach the container. */

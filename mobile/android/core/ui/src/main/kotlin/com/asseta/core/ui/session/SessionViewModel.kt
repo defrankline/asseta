@@ -7,6 +7,7 @@ import com.asseta.core.auth.AuthFailure
 import com.asseta.core.auth.AuthManager
 import com.asseta.core.auth.PasswordChange
 import com.asseta.core.auth.SelectedTenantStore
+import com.asseta.core.model.AccountDeletionRequest
 import com.asseta.core.network.ApiException
 import com.asseta.core.network.AssetaApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -76,7 +77,10 @@ class SessionViewModel(
                     _state.value = SessionState.Ready(me, selected)
                 }
                 .onFailure { e ->
-                    if (e is ApiException && e.isUnauthenticated) {
+                    if (e is ApiException && e.isUserInactive) {
+                        notice?.consume()
+                        signOutLocally(AccountDeletionText.INACTIVE)
+                    } else if (e is ApiException && e.isUnauthenticated) {
                         endSession(e.correlationId)
                     } else {
                         _state.value = SessionState.ProfileError(SessionRules.toUiError(e))
@@ -142,6 +146,29 @@ class SessionViewModel(
             withTimeoutOrNull(SIGN_OUT_HOOK_TIMEOUT_MS) { runCatching { hooks.beforeSignOut() } }
             logout()?.let(launch)
         }
+    }
+
+    /** `POST /me/account-deletion` (no tenant): the login is deleted for good; throws the server's refusal. */
+    suspend fun deleteAccount(reason: String?) {
+        api.deleteMyAccount(AccountDeletionRequest(confirm = true, reason = reason))
+    }
+
+    /**
+     * The account was deleted: the app erases what only it could use, then the same local sign-out as always (tokens,
+     * company, push, the app's sign-out wipe). No Keycloak end-session page: the session no longer exists.
+     */
+    fun accountDeleted() {
+        viewModelScope.launch {
+            withTimeoutOrNull(SIGN_OUT_HOOK_TIMEOUT_MS) { runCatching { hooks.onAccountDeleted() } }
+            signOutLocally(AccountDeletionText.DELETED)
+        }
+    }
+
+    private fun signOutLocally(message: String) {
+        tenants.clear()
+        auth.logout()
+        hooks.onSignedOut()
+        _state.value = SessionState.SignedOut(UiError(message))
     }
 
     /** The API rejected the session (401): sign out locally and explain why. */

@@ -10,6 +10,7 @@ struct OverviewView: View {
     let model: OwnerModel
     let open: (OwnerRoute) -> Void
     @State private var loader = Loader<TenantOverviewDTO>()
+    @State private var showClosure = false
     private let columns = [GridItem(.adaptive(minimum: 150), spacing: 12)]
 
     var body: some View {
@@ -17,6 +18,13 @@ struct OverviewView: View {
             VStack(alignment: .leading, spacing: 20) {
                 if loader.isFromCache {
                     StaleBanner(fetchedAt: loader.snapshot?.fetchedAt, isOnline: model.isOnline)
+                }
+                if let reason = AccessBanner.text(model.tenant) {
+                    if CompanyClosureText.canOpen(model.tenant) {
+                        AccessReasonBanner(text: reason, actionLabel: CompanyClosureText.bannerAction) { showClosure = true }
+                    } else {
+                        AccessReasonBanner(text: reason)
+                    }
                 }
                 if let banner = model.setupProgress.bannerText {
                     SetupBannerView(text: banner) { open(.setupChecklist) }
@@ -38,6 +46,7 @@ struct OverviewView: View {
         .navigationTitle(model.tenant.name)
         .refreshable { await reload() }
         .task(id: model.changeTick) { await reload() }
+        .navigationDestination(isPresented: $showClosure) { CompanyClosureView(model: model) }
         .modifier(NotificationBell(model: model) { open(.notifications) })
     }
 

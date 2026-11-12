@@ -224,4 +224,8 @@ abstract class ClientOperationDao {
            GROUP BY owner_sub ORDER BY MIN(created_at_device)""",
     )
     abstract fun observeHeld(tenantId: String, ownerSub: String): Flow<List<HeldOwner>>
+
+    /** Unsent operations of any account other than [ownerSub] (an unknown owner counts as another account), all tenants. */
+    @Query("SELECT COUNT(*) FROM client_operation WHERE (owner_sub IS NULL OR owner_sub != :ownerSub) AND status != 'ACKED'")
+    abstract suspend fun countUnsyncedOfOthers(ownerSub: String): Int
 }

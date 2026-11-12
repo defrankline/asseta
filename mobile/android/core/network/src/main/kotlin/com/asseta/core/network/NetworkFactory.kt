@@ -19,6 +19,12 @@ object NetworkFactory {
         encodeDefaults = true
     }
 
+    /**
+     * Called (on an OkHttp thread) when any call answers 403 `USER_INACTIVE`; the app container sets it to sign out
+     * with "This account was deleted or disabled."
+     */
+    @Volatile var userInactiveListener: (() -> Unit)? = null
+
     fun okHttpClient(
         tokens: AccessTokenProvider,
         tenant: TenantIdProvider,

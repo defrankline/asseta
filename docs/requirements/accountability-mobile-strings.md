@@ -2567,3 +2567,86 @@ Rules shared by both apps:
 | field.customers.errEmail | Enter a valid email address. |
 | field.customers.errTerms | Enter payment terms between 0 and 365 days. |
 | field.customers.errLong | Shorten the tax ID, contact name or phone. |
+
+## Account deletion and company closure
+
+Google Play requires deleting the account from inside the app. Backend: runbook section 12. Android: `AccountDeletionText`,
+`CompanyNotice` (core/ui) and `ClosureTexts` (Owner); iOS: `AccountDeletionText`, `CompanyNotice` and `CompanyClosureText`.
+
+Rules shared by both apps:
+- **Entry:** `account.delete.action` next to Sign out (Supervisor: the account menu; Owner: Settings, below the Account
+  section), destructive. Disabled offline with `account.delete.offline`.
+- **Screen:** `account.delete.explain`, an optional reason (at most 1000 characters, sent trimmed, blank = none), a field
+  `account.delete.typeLabel` that must equal `DELETE` exactly, and `account.delete.submit` (online and DELETE typed only).
+- **Unsynced work:** when the signed-in user has records on this phone not sent yet (Supervisor outbox), a warning
+  `account.delete.unsyncedTitle` / `account.delete.unsynced` with `account.delete.syncFirst` (syncs, then checks again),
+  `account.delete.deleteAnyway` and Cancel. The Owner app has nothing to send.
+- **Final question:** `account.delete.finalTitle` / `account.delete.finalMessage` with `account.delete.finalAction`, then
+  `POST /api/v1/me/account-deletion` `{confirm: true, reason}` without `X-Tenant-ID`. Online only; offline nothing is sent.
+- **Success:** the same local sign-out as Sign out (tokens, selected company, push registration, the Owner cache), without
+  the Keycloak end-session page (the session is gone). The Supervisor also erases the encrypted database, evidence files and
+  caches unless another account's unsent work is held on the phone (that stays for its owner). The sign-in screen shows
+  `account.delete.deleted`.
+- **Refusals:** `LAST_OWNER` shows the server's message (it names the companies); `PLATFORM_ACCOUNT` shows
+  `account.delete.platform`; a connection failure `account.delete.network`; anything else the server's message.
+- **Deleted or disabled account:** any call answering 403 `USER_INACTIVE` (including `/me` and background sync) signs out
+  and the sign-in screen shows `account.inactive`.
+- **Closure banner (both apps):** while the selected company's `/me` `access_state_reason` is set, its text is shown as a
+  banner at the top of the home screen (Supervisor: Jobs; Owner: Overview). The company is read-only meanwhile.
+- **Owner closure request:** with `tenant.company.close` the banner adds `owner.closure.bannerAction` and opens
+  `owner.closure.title` (`GET /api/v1/tenant/company/deletion-request`): status, asked by, asked on, deletion date, reason
+  (and who cancelled it, why). Starting a closure is web-only. `owner.closure.cancel` only while REQUESTED: a reason of at
+  least 3 characters (`owner.closure.reasonTooShort`), online only (`owner.closure.offline`), not blocked by the read-only
+  company; `POST .../deletion-request/cancel {reason}`; then `owner.closure.cancelled` and `/me` is read again.
+
+### Shared (both apps)
+| Key | English |
+|---|---|
+| account.delete.action | Delete my account |
+| account.delete.title | Delete my account |
+| account.delete.explain | Your login is deleted for good. Your name and email are removed; your records stay with the company under an anonymous name. This cannot be undone. |
+| account.delete.reasonLabel | Reason (optional) |
+| account.delete.typeLabel | Type DELETE to confirm |
+| account.delete.submit | Delete my account |
+| account.delete.finalTitle | Delete your account for good? |
+| account.delete.finalMessage | You will be signed out and this phone's saved data is erased. This cannot be undone. |
+| account.delete.finalAction | Delete for good |
+| account.delete.deleting | Deleting… |
+| account.delete.syncing | Syncing… |
+| account.delete.offline | Connect to the internet to delete your account. |
+| account.delete.unsyncedTitle | Records not yet sent will be lost |
+| account.delete.unsynced | {n} item(s) on this phone are not synced yet. If you delete your account now they are lost. Sync first to send them. |
+| account.delete.syncFirst | Sync first |
+| account.delete.deleteAnyway | Delete anyway |
+| account.delete.deleted | Your account was deleted. |
+| account.delete.platform | Platform accounts are removed by the platform owner. |
+| account.delete.network | Cannot reach Asseta. Check your connection and try again. |
+| account.inactive | This account was deleted or disabled. |
+| company.notice.banner | {access_state_reason} |
+
+### Owner
+| Key | English |
+|---|---|
+| owner.closure.title | Company closure |
+| owner.closure.bannerAction | View closure request |
+| owner.closure.status | Status |
+| owner.closure.status.REQUESTED | Requested |
+| owner.closure.status.IN_PROGRESS | Deletion in progress |
+| owner.closure.status.CANCELLED | Cancelled |
+| owner.closure.status.COMPLETED | Completed |
+| owner.closure.askedBy | Asked by |
+| owner.closure.askedOn | Asked on |
+| owner.closure.deletionDate | Deletion date |
+| owner.closure.reason | Reason |
+| owner.closure.cancelledBy | Cancelled by |
+| owner.closure.cancelReason | Cancel reason |
+| owner.closure.unknown | Unknown |
+| owner.closure.none | No closure has been requested for this company. |
+| owner.closure.footer | Closing a company is started on the web. Until the deletion date, anyone who may close the company can cancel it. |
+| owner.closure.cancel | Cancel closure |
+| owner.closure.cancelTitle | Cancel the closure? |
+| owner.closure.cancelReasonLabel | Reason (required) |
+| owner.closure.keep | Keep it |
+| owner.closure.reasonTooShort | Enter a reason (at least 3 characters). |
+| owner.closure.offline | Connect to the internet to cancel the closure. |
+| owner.closure.cancelled | Closure cancelled. The company is back to normal. |

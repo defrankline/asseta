@@ -1,4 +1,5 @@
 @testable import AssetaStore
+import AssetaModel
 import AssetaSecurity
 import Foundation
 import Testing
@@ -24,6 +25,24 @@ struct OutboxTests {
         #expect(applied == ["create_client_operation_outbox", "outbox_sync_protocol", "sync_state_entities_policies",
                            "finance_receipts_cash_custody", "per_user_field_data", "supervisor_inbox", "accountability_evidence",
                            "remittance_evidence", "daily_report_evidence", "adjustment_evidence", "petty_cash_evidence"])
+    }
+
+    /// "Delete my account" erases the field data only when no other account has unsynced work, in any tenant.
+    @Test func unsyncedWorkOfOtherAccountsIsSeenInEveryTenant() throws {
+        func op(_ owner: String, tenant: UUID) -> NewClientOperation {
+            NewClientOperation(tenantID: tenant, opType: "CREATE", entityType: "job", entityID: UUID(), payloadJSON: "{}",
+                               owner: AccountIdentity(subject: owner))
+        }
+        #expect(try !store.outbox.hasUnsyncedWork(excluding: "me"))
+        let mine = try store.outbox.enqueue(op("me", tenant: tenant))
+        #expect(try !store.outbox.hasUnsyncedWork(excluding: "me"))
+        let other = try store.outbox.enqueue(op("other", tenant: UUID()))
+        #expect(try store.outbox.hasUnsyncedWork(excluding: "me"))
+        try store.outbox.markSent(id: other.id)
+        try store.outbox.markAcked(id: other.id, resultJSON: "{}", serverRevision: nil)
+        #expect(try !store.outbox.hasUnsyncedWork(excluding: "me"))
+        #expect(try store.outbox.hasUnsyncedWork(excluding: "other")) // mine is still waiting
+        _ = mine
     }
 
     @Test func refusesDatabaseNewerThanApp() throws {

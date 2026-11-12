@@ -74,6 +74,8 @@ fun JobsScreen(
     onRoute: (Route) -> Unit,
     /** The "Site check-in" row (DEC-031 M3), when the server, the role and the company ask for check-ins. */
     checkinEntry: (@Composable () -> Unit)? = null,
+    /** The company's limited-access reason (`/me` `access_state_reason`, e.g. a requested closure). */
+    notice: String? = null,
 ) {
     // null until the encrypted store has answered once ("Opening your jobs…").
     val rows by remember(tenantId) {
@@ -104,6 +106,11 @@ fun JobsScreen(
         val inSegment = list.filter { InboxTexts.segment(it.second) == segment }.map { it.first }
             .let { jobs -> if (segment == JobSegment.CLOSED) jobs.sortedByDescending { it.job.plannedStart } else jobs }
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp)) {
+            notice?.let { text ->
+                item(key = "company-notice") {
+                    com.asseta.core.ui.session.CompanyNoticeBanner(text, modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp))
+                }
+            }
             item(key = "banners") { FieldBanners(field, tenantId) }
             checkinEntry?.let { entry -> item(key = "site-checkin") { entry() } }
             item(key = "segments") {

@@ -18,6 +18,8 @@ public protocol ClientOperationRepository: Sendable {
     /// Unsynced operations queued on this phone by other users than `owner`, per user: held (kept,
     /// never sent under this user's token) until their owner signs in again.
     func heldAccounts(tenantID: UUID, excluding owner: String) throws -> [HeldAccount]
+    /// Whether another user than `owner` (or an unrecorded owner) has unsynced work on this phone, in any tenant.
+    func hasUnsyncedWork(excluding owner: String) throws -> Bool
     func markSent(id: UUID) throws
     func markAcked(id: UUID, resultJSON: String, serverRevision: Int64?) throws
     func markFailed(id: UUID, code: String?, message: String, resultJSON: String?) throws
@@ -221,6 +223,17 @@ public final class SQLiteClientOperationRepository: ClientOperationRepository {
             """,
             [.text(tenantID.lowercased), .text(owner)]
         ) { HeldAccount(subject: $0.string(0) ?? "", label: $0.string(1), count: Int($0.int(2))) }
+    }
+
+    public func hasUnsyncedWork(excluding owner: String) throws -> Bool {
+        let counts = try db.query(
+            """
+            SELECT count(*) FROM client_operation
+            WHERE (owner_subject IS NULL OR owner_subject <> ?) AND status <> 'ACKED'
+            """,
+            [.text(owner)]
+        ) { Int($0.int(0)) }
+        return (counts.first ?? 0) > 0
     }
 
     public func markSent(id: UUID) throws {

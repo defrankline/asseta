@@ -485,6 +485,14 @@ class OwnerData(private val repo: OwnerRepository, val tenantId: String, private
     suspend fun idleMachines(): Load<List<com.asseta.core.model.owner.IdleMachineDto>> =
         repo.load(tenantId, "idle_machines", ListSerializer(com.asseta.core.model.owner.IdleMachineDto.serializer())) { idleMachines(pageSize = LIST_PAGE).items }
 
+    // --- company closure (tenant.company.close) --------------------------------------------------------------------
+
+    suspend fun companyClosure(): Load<com.asseta.core.model.owner.CompanyClosureStatusDto> =
+        repo.load(tenantId, "company_closure", com.asseta.core.model.owner.CompanyClosureStatusDto.serializer()) { companyClosure() }
+
+    suspend fun cancelCompanyClosure(reason: String): ActionResult<com.asseta.core.model.owner.CompanyClosureRequestDto> =
+        repo.act { cancelCompanyClosure(com.asseta.core.model.owner.ClosureCancelIn(reason.trim())) }
+
     // --- go-live setup checklist -------------------------------------------------------------------------------------
     /**
      * Dashboard banner figures: seeded from `/me` when the company is entered, then replaced by every checklist this

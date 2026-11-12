@@ -55,6 +55,9 @@ public struct TenantMembership: Codable, Hashable, Sendable, Identifiable {
     public let setupStepsDone: Int?
     public let setupStepsTotal: Int?
     public let setupDismissed: Bool?
+    /// Why access is limited, e.g. "Company closure requested: all its data will be deleted on 2026-12-12" (nil when
+    /// not limited, or on older servers). Shown as a banner on the home screen.
+    public let accessStateReason: String?
 
     public var id: UUID { tenantID }
 
@@ -70,7 +73,8 @@ public struct TenantMembership: Codable, Hashable, Sendable, Identifiable {
         setupPercent: Int? = nil,
         setupStepsDone: Int? = nil,
         setupStepsTotal: Int? = nil,
-        setupDismissed: Bool? = nil
+        setupDismissed: Bool? = nil,
+        accessStateReason: String? = nil
     ) {
         self.tenantID = tenantID
         self.name = name
@@ -84,6 +88,7 @@ public struct TenantMembership: Codable, Hashable, Sendable, Identifiable {
         self.setupStepsDone = setupStepsDone
         self.setupStepsTotal = setupStepsTotal
         self.setupDismissed = setupDismissed
+        self.accessStateReason = accessStateReason
     }
 
     /// Menus in server-defined order (ties broken by key for determinism).
@@ -98,6 +103,7 @@ public struct TenantMembership: Codable, Hashable, Sendable, Identifiable {
         case disabledCapabilities = "disabled_capabilities"
         case setupComplete = "setup_complete", setupPercent = "setup_percent", setupStepsDone = "setup_steps_done"
         case setupStepsTotal = "setup_steps_total", setupDismissed = "setup_dismissed"
+        case accessStateReason = "access_state_reason"
         case name, status, permissions, menus
     }
 
@@ -115,6 +121,7 @@ public struct TenantMembership: Codable, Hashable, Sendable, Identifiable {
         setupStepsDone = try? c.decodeIfPresent(Int.self, forKey: .setupStepsDone)
         setupStepsTotal = try? c.decodeIfPresent(Int.self, forKey: .setupStepsTotal)
         setupDismissed = try? c.decodeIfPresent(Bool.self, forKey: .setupDismissed)
+        accessStateReason = try? c.decodeIfPresent(String.self, forKey: .accessStateReason)
     }
 }
 

@@ -870,4 +870,14 @@ interface TenantApi {
     /** updateCustomer with the version last read (STALE_VERSION when someone else changed it). */
     @PUT("api/v1/tenant/customers/{id}")
     suspend fun updateCustomer(@Path("id") id: String, @Body body: com.asseta.core.model.sync.CustomerWriteIn): com.asseta.core.model.sync.FieldCustomerDto
+
+    // --- Company closure (tenant.company.close; starting one is web-only) ---------------------------------------------
+
+    /** getCompanyDeletion: the active (else latest) closure request. */
+    @GET("api/v1/tenant/company/deletion-request")
+    suspend fun companyClosure(): com.asseta.core.model.owner.CompanyClosureStatusDto
+
+    /** cancelCompanyDeletion: before the deletion starts; normal access is restored. */
+    @POST("api/v1/tenant/company/deletion-request/cancel")
+    suspend fun cancelCompanyClosure(@Body body: com.asseta.core.model.owner.ClosureCancelIn): com.asseta.core.model.owner.CompanyClosureRequestDto
 }

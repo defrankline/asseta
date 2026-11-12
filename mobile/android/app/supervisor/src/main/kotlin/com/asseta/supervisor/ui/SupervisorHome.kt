@@ -520,7 +520,8 @@ fun SupervisorHome(
         Box(Modifier.weight(1f).fillMaxWidth()) {
             CompositionLocalProvider(LocalFormBar provides formBar) {
                 RouteContent(field, tenantId, userId, scope, route, snapshot, syncing, ::refresh, ::push, ::pop, inbox, permissions, access,
-                    onRecordExpense = ::recordExpense, onNotification = ::openNotification, onAttention = ::openAttention)
+                    onRecordExpense = ::recordExpense, onNotification = ::openNotification, onAttention = ::openAttention,
+                    companyNotice = com.asseta.core.ui.session.CompanyNotice.banner(tenant))
             }
         }
         if (!route.isForm) {
@@ -573,10 +574,13 @@ private fun RouteContent(
     onRecordExpense: () -> Unit,
     onNotification: (NotificationDto) -> Unit,
     onAttention: (AttentionItem) -> Unit,
+    /** The company's limited-access reason (e.g. a requested closure), shown as a banner on the jobs home. */
+    companyNotice: String? = null,
 ) {
     when (route) {
         Route.Jobs -> JobsScreen(
             field, tenantId, snapshot, syncing, onRefresh, onOpen = { id, number -> push(Route.JobDetail(id, number)) }, onRoute = push,
+            notice = companyNotice,
             checkinEntry = if (access?.siteCheckin == true) {
                 { com.asseta.supervisor.ui.accountability.SiteCheckinEntry(field, tenantId, permissions, snapshot, syncing) { push(Route.SiteCheckins) } }
             } else null,
@@ -825,7 +829,7 @@ private fun AskNotificationsOnce(push: SupervisorPush, canRead: Boolean) {
 /**
  * Account menu (leading, like the iOS toolbar): "Switch company" when the user has several, "Notifications on this
  * phone" (push status; "Turn on" asks for the permission and registers), "Change password" (Keycloak's page; disabled
- * offline) and "Sign out".
+ * offline), "Sign out" and "Delete my account" (online only; the session shell shows its screen).
  */
 @Composable
 private fun AccountMenu(push: SupervisorPush, canReadNotifications: Boolean, showSwitchCompany: Boolean, onSwitchCompany: () -> Unit) {
@@ -892,6 +896,19 @@ private fun AccountMenu(push: SupervisorPush, canReadNotifications: Boolean, sho
         DropdownMenuItem(
             text = { Text("Sign out", color = MaterialTheme.colorScheme.error) },
             onClick = { open = false; actions.signOut() },
+        )
+        HorizontalDivider()
+        DropdownMenuItem(
+            text = {
+                Column {
+                    Text(com.asseta.core.ui.session.AccountDeletionText.ACTION, color = MaterialTheme.colorScheme.error)
+                    if (!online) {
+                        Text(com.asseta.core.ui.session.AccountDeletionText.OFFLINE, style = MaterialTheme.typography.bodySmall, color = palette.secondaryText)
+                    }
+                }
+            },
+            enabled = online,
+            onClick = { open = false; actions.deleteAccount() },
         )
     }
 }

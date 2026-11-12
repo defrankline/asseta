@@ -13,7 +13,9 @@ public enum AppBootstrap {
         let secrets = KeychainSecretStore(service: configuration.keychainService)
         let transport = URLSessionTransport()
         let auth = AuthSession(config: configuration.oidc, transport: transport, tokenStore: TokenStore(store: secrets))
-        let api = APIClient(baseURL: configuration.apiBaseURL, transport: transport, tokens: auth)
+        // Every call (profile, field sync, owner screens) reports a deleted or disabled account to the session.
+        let api = APIClient(baseURL: configuration.apiBaseURL, transport: transport, tokens: auth,
+                            userInactive: UserInactiveSignal())
         return SessionModel(auth: auth, api: api, configuration: configuration, secrets: secrets)
     }
 }

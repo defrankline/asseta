@@ -3,6 +3,7 @@ package com.asseta.core.ui.session
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -78,6 +79,10 @@ fun AssetaSessionApp(container: AssetaAppContainer, home: TenantHome? = null) {
         )
     }
 
+    // "Delete my account" is drawn by the shell over the app home (both apps, same screen).
+    var deletingAccount by remember { mutableStateOf(false) }
+    if (state !is SessionState.Ready) deletingAccount = false
+
     when (val s = state) {
         is SessionState.SignedOut -> LoginScreen(container.role, s) { vm.startLogin(loginLauncher::launch) }
         // The app home draws its own navigation bar (company title, account actions), as the iOS apps do.
@@ -90,8 +95,13 @@ fun AssetaSessionApp(container: AssetaAppContainer, home: TenantHome? = null) {
                 selectTenant = vm::selectTenant,
                 changePassword = { vm.startPasswordChange(passwordLauncher::launch) },
                 changingPassword = passwordChange == PasswordChangeState.InProgress,
+                deleteAccount = { deletingAccount = true },
             )
-            CompositionLocalProvider(LocalSessionActions provides actions) { home(s, vm::showTenantPicker, Modifier) }
+            // The home stays composed underneath, so closing the screen returns to where the user was.
+            Box(Modifier.fillMaxSize()) {
+                CompositionLocalProvider(LocalSessionActions provides actions) { home(s, vm::showTenantPicker, Modifier) }
+                if (deletingAccount) DeleteAccountRoute(vm, container, onClose = { deletingAccount = false })
+            }
         } else {
             Scaffold(topBar = {
                 AssetaTopBar(stringResource(R.string.hello_user, s.me.displayName), large = true, actions = {

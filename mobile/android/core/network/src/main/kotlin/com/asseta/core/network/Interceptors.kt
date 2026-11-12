@@ -20,6 +20,9 @@ class AuthInterceptor(private val tokens: AccessTokenProvider) : Interceptor {
 class TenantInterceptor(private val tenant: TenantIdProvider) : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val original = chain.request()
+        if (original.header(AssetaHeaders.NO_TENANT) != null) {
+            return chain.proceed(original.newBuilder().removeHeader(AssetaHeaders.NO_TENANT).removeHeader(AssetaHeaders.TENANT_ID).build())
+        }
         val tenantId = tenant.tenantId()
         if (tenantId == null || original.header(AssetaHeaders.TENANT_ID) != null) return chain.proceed(original)
         return chain.proceed(original.newBuilder().header(AssetaHeaders.TENANT_ID, tenantId).build())
@@ -68,12 +71,20 @@ class IdempotencyKeyInterceptor(private val newKey: () -> String = { UUID.random
     }
 }
 
-/** Converts non-2xx responses into [ApiException], parsing the standard error envelope when present. */
-class ErrorEnvelopeInterceptor(private val json: Json) : Interceptor {
+/**
+ * Converts non-2xx responses into [ApiException], parsing the standard error envelope when present. A 403
+ * `USER_INACTIVE` (the account was deleted or disabled) also tells [onUserInactive], so the app signs out from any call.
+ */
+class ErrorEnvelopeInterceptor(
+    private val json: Json,
+    private val onUserInactive: () -> Unit = { NetworkFactory.userInactiveListener?.invoke() },
+) : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val response = chain.proceed(chain.request())
         if (response.isSuccessful) return response
-        throw response.use { toApiException(it, json) }
+        val error = response.use { toApiException(it, json) }
+        if (error.isUserInactive) runCatching { onUserInactive() }
+        throw error
     }
 
     companion object {
