@@ -62,6 +62,20 @@ describe('routes the server returns', () => {
     expect(missing).toEqual([]);
   });
 
+  it('the company closure menus open real pages', () => {
+    const menus = readFileSync(
+      resolve(__dirname, '../../../backend/src/asseta/modules/dataprotection/permissions.py'),
+      'utf8',
+    );
+    for (const path of ['/tenant/company/close', '/platform/deletion-requests']) {
+      expect(menus).toContain(`"${path}"`);
+      expect(landing(path)).toBe(path);
+    }
+    expect(landing(`/platform/deletion-requests/${ID}`)).toBe(
+      '/platform/deletion-requests/:requestId',
+    );
+  });
+
   it('the employee view and the lookup results exist', () => {
     expect(landing(`/tenant/staff/${ID}/accountability`)).toBe(
       '/tenant/staff/:staffId/accountability',

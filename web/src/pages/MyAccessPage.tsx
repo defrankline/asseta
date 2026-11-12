@@ -6,6 +6,7 @@ import { EmptyState } from '../components/feedback/EmptyState';
 import { PageHeader } from '../components/feedback/PageHeader';
 import { useNotify } from '../notifications/useNotify';
 import { useSession } from '../session/useSession';
+import { DeleteAccountSection } from './DeleteAccountSection';
 
 function formatMenus(menus: readonly MenuDto[]): string {
   if (menus.length === 0) return 'None';
@@ -53,6 +54,11 @@ function TenantCard({ tenant, active }: { tenant: TenantAccess; active: boolean 
         />
         {active && <Chip label="Active" color="secondary" size="small" />}
       </Box>
+      {(tenant.access_state_reason ?? '') !== '' && (
+        <Typography variant="body2" color="text.secondary" className="mb-1">
+          {tenant.access_state_reason}
+        </Typography>
+      )}
       <Typography variant="caption" color="text.secondary" className="font-mono">
         {tenant.tenant_id}
       </Typography>
@@ -122,6 +128,7 @@ export function MyAccessPage() {
           </Typography>
         </Paper>
         <SignInSecurity />
+        <DeleteAccountSection />
         <Typography variant="h6" component="h2">
           Tenants
         </Typography>

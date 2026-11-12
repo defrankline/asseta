@@ -55,7 +55,13 @@ export function AppHeader({ onToggleNav }: AppHeaderProps) {
           </IconButton>
         </Tooltip>
         <Tooltip title="Sign out">
-          <IconButton color="inherit" aria-label="Sign out" onClick={logout}>
+          <IconButton
+            color="inherit"
+            aria-label="Sign out"
+            onClick={() => {
+              logout();
+            }}
+          >
             <Logout />
           </IconButton>
         </Tooltip>

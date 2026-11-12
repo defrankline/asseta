@@ -96,9 +96,12 @@ export function AuthProvider({
     void kc.login({ redirectUri: window.location.href });
   }, [kc]);
 
-  const logout = useCallback(() => {
-    void kc.logout({ redirectUri: window.location.origin });
-  }, [kc]);
+  const logout = useCallback(
+    (redirectPath?: string) => {
+      void kc.logout({ redirectUri: `${window.location.origin}${redirectPath ?? ''}` });
+    },
+    [kc],
+  );
 
   const changePassword = useCallback(() => {
     void kc.login({ action: 'UPDATE_PASSWORD', redirectUri: window.location.href });

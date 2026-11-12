@@ -200,6 +200,12 @@ export const PERMISSIONS = {
   platformBalanceRead: 'platform.balance.read',
   platformBalanceVerify: 'platform.balance.verify',
   platformTenantGoLive: 'platform.tenant.go_live',
+  /** Close the company: read-only at once, all its data deleted after the waiting period (owner only). */
+  tenantCompanyClose: 'tenant.company.close',
+  /** See company deletion requests and their progress. */
+  platformTenantDeletionRead: 'platform.tenant.deletion.read',
+  /** Run a company deletion before its waiting period ends (owner asked in writing). */
+  platformTenantDeletionExecute: 'platform.tenant.deletion.execute',
   tenantAdjustmentRead: 'tenant.adjustment.read',
   tenantAdjustmentPropose: 'tenant.adjustment.propose',
   tenantAdjustmentDecide: 'tenant.adjustment.decide',

@@ -25,10 +25,15 @@ export const ROUTES = {
   /** Matches the backend `platform.models` menu path (governed ML, ADR-007). */
   platformModels: '/platform/models',
   platformBalanceVerification: '/platform/balance-verification',
+  /** Matches the backend `platform.deletion_requests` menu path (Tenants group). */
+  platformDeletionRequests: '/platform/deletion-requests',
+  platformDeletionRequestDetail: '/platform/deletion-requests/:requestId',
   platformModelDetail: '/platform/models/:modelId',
   /** Matches the backend `platform.system` menu path. */
   systemStatus: '/platform/system',
   forbidden: '/403',
+  /** Signed-out landing after a personal account deletion (`?reason=account-deleted`). */
+  signedOut: '/signed-out',
   /** The signed-in user's own notification inbox and preferences (no feature permission). */
   notifications: '/notifications',
   notificationPreferences: '/notifications/preferences',
@@ -56,6 +61,8 @@ export const ROUTES = {
   /** Matches the backend `tenant.setup` menu path (Overview group): the go-live checklist. */
   tenantSetup: '/tenant/setup',
   tenantDataExport: '/tenant/data-export',
+  /** Matches the backend `tenant.company_close` menu path (Administration group). */
+  tenantCompanyClose: '/tenant/company/close',
   /** Matches the backend `tenant.devices` menu path (Administration group). */
   tenantDevices: '/tenant/devices',
   tenantBalanceVerification: '/tenant/balance-verification',
@@ -244,6 +251,10 @@ export function modelDetailPath(modelId: string): string {
   return `${ROUTES.platformModels}/${encodeURIComponent(modelId)}`;
 }
 
+export function deletionRequestDetailPath(requestId: string): string {
+  return `${ROUTES.platformDeletionRequests}/${encodeURIComponent(requestId)}`;
+}
+
 export function tenantDetailPath(tenantId: string): string {
   return `${ROUTES.platformTenants}/${encodeURIComponent(tenantId)}`;
 }
@@ -292,6 +303,7 @@ export const IMPLEMENTED_PATHS: ReadonlySet<string> = new Set([
   ROUTES.platformTelemetry,
   ROUTES.platformModels,
   ROUTES.platformBalanceVerification,
+  ROUTES.platformDeletionRequests,
   ROUTES.systemStatus,
   ROUTES.platformAudit,
   ROUTES.tenantDashboard,
@@ -305,6 +317,7 @@ export const IMPLEMENTED_PATHS: ReadonlySet<string> = new Set([
   ROUTES.tenantPolicies,
   ROUTES.tenantSetup,
   ROUTES.tenantDataExport,
+  ROUTES.tenantCompanyClose,
   ROUTES.tenantDevices,
   ROUTES.tenantBalanceVerification,
   ROUTES.tenantSubscription,

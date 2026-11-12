@@ -21,6 +21,7 @@ import { engineHoursDetailRouteElements } from './engineHoursRoutes';
 import { hoursRouteElements } from './hoursRoutes';
 import { adjustmentRouteElements } from './adjustmentRoutes';
 import { cashRecordRouteElements } from './cashRoutes';
+import { closureRouteElements } from './closureRoutes';
 import { managementRouteElements } from './managementRoutes';
 import { oversightRouteElements } from './oversightRoutes';
 import { pettyCashRouteElements } from './pettyCashRoutes';
@@ -157,9 +158,8 @@ function revenueGuard(permission: string, page: ReactNode) {
 }
 
 /**
- * Every feature route must be wrapped in RequirePermission (deny by default).
- * Exceptions: My access (the user's own /me data), 403 and 404.
- */
+ * Every feature route must be wrapped in RequirePermission (deny by default). Exceptions: My access
+ * (the user's own /me data), the signed-out landing, 403 and 404. */
 export function AppRoutes() {
   return (
     <Routes>
@@ -491,6 +491,7 @@ export function AppRoutes() {
         {oversightRouteElements(guard)}
         {pettyCashRouteElements(guard)}
         {managementRouteElements(guard)}
+        {closureRouteElements(guard)}
         <Route path={ROUTES.forbidden} element={<ForbiddenPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>

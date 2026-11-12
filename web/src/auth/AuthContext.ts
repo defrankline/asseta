@@ -12,7 +12,8 @@ export interface AuthContextValue {
   username: string | null;
   error: string | null;
   login: () => void;
-  logout: () => void;
+  /** Signs out of Keycloak and returns to `redirectPath` (default: the site root). */
+  logout: (redirectPath?: string) => void;
   /**
    * Opens Keycloak's own password page (application-initiated action UPDATE_PASSWORD; Keycloak asks for the
    * current password when the sign-in is not recent) and returns to the current page. The app never handles

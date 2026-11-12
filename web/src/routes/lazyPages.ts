@@ -309,6 +309,21 @@ export const DataExportPage = lazy(() =>
     default: m.DataExportPage,
   })),
 );
+export const CloseCompanyPage = lazy(() =>
+  import('../pages/tenant/companyClosure/CloseCompanyPage').then((m) => ({
+    default: m.CloseCompanyPage,
+  })),
+);
+export const DeletionRequestsPage = lazy(() =>
+  import('../pages/platform/deletionRequests/DeletionRequestsPage').then((m) => ({
+    default: m.DeletionRequestsPage,
+  })),
+);
+export const DeletionRequestDetailPage = lazy(() =>
+  import('../pages/platform/deletionRequests/DeletionRequestDetailPage').then((m) => ({
+    default: m.DeletionRequestDetailPage,
+  })),
+);
 export const DevicesPage = lazy(() =>
   import('../pages/tenant/devices/DevicesPage').then((m) => ({
     default: m.DevicesPage,
