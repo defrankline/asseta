@@ -81,6 +81,16 @@ export const TRACKING_FIELDS: readonly PolicyFieldDef[] = [
   },
   { key: 'operating_window_end', label: 'Operating window end', kind: 'time' },
   { key: 'operating_weekdays', label: 'Operating weekdays', kind: 'weekdays' },
+  {
+    key: 'field_fleet_scope',
+    label: 'Supervisors see on the fleet map',
+    kind: 'enum',
+    options: [
+      { value: 'ASSIGNED', label: 'Only their own machines' },
+      { value: 'ALL', label: 'The whole fleet' },
+    ],
+    help: 'Own machines are those assigned to them or on jobs they supervise. Applies to the map, machine history, tracking alerts and fleet reports. Owners and managers always see the whole fleet.',
+  },
 ];
 
 const CAPTURE_MODES: readonly FieldOption[] = [

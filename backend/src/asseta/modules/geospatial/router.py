@@ -24,6 +24,7 @@ from asseta.modules.geospatial.dto import (
     JobSiteIn,
     JobSiteUpdateIn,
 )
+from asseta.modules.geospatial.field_scope import can_see, only_visible, visible_machines
 from asseta.modules.geospatial.fleet_map import Connectivity, FleetMapService, MachineMapDto, filter_fleet
 from asseta.modules.geospatial.history import HistoryDto, HistoryService
 from asseta.modules.geospatial.models import AlertSeverity, AlertStatus, AlertType, TrackingAlert
@@ -95,7 +96,7 @@ def fleet_map(
     connectivity: Connectivity | None = None,
     machine_status: MachineStatus | None = None,
 ) -> list[MachineMapDto]:
-    rows = FleetMapService(session, _tid(ctx)).fleet(now)
+    rows = only_visible(session, ctx, _tid(ctx), now, FleetMapService(session, _tid(ctx)).fleet(now))
     return filter_fleet(rows, q, connectivity, machine_status.value if machine_status else None)
 
 
@@ -104,7 +105,7 @@ def machine_status(
     machine_id: uuid.UUID, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(FLEET_READ)]
 ) -> MachineMapDto:
     rows = FleetMapService(session, _tid(ctx)).fleet(now, machine_id)
-    if not rows:
+    if not rows or not can_see(session, visible_machines(session, ctx, _tid(ctx), now), machine_id):
         raise NotFound("Machine not found")
     return rows[0]
 
@@ -116,7 +117,10 @@ def history(
     ctx: Annotated[RequestContext, Depends(FLEET_READ)],
     frm: Annotated[datetime, Query(alias="from")],
     to: datetime,
+    now: Now,
 ) -> HistoryDto:
+    if not can_see(session, visible_machines(session, ctx, _tid(ctx), now), machine_id):
+        raise NotFound("Machine not found")
     if to <= frm or (to - frm).days > MAX_HISTORY_DAYS:
         raise BusinessRuleViolation(f"Range must be positive and at most {MAX_HISTORY_DAYS} days", code="BAD_RANGE")
     return HistoryService(session, _tid(ctx)).history(machine_id, frm, to)
@@ -222,6 +226,7 @@ def update_geofence(
 @router.get("/alerts", response_model=Page[AlertDto], operation_id="listTrackingAlerts")
 def alerts(
     session: DbSession,
+    now: Now,
     ctx: Annotated[RequestContext, Depends(ALERT_READ)],
     paging: Annotated[PageParams, Depends(page_params)],
     status: AlertStatus | None = None,
@@ -230,6 +235,8 @@ def alerts(
     severity: AlertSeverity | None = None,
 ) -> Page[AlertDto]:
     stmt = alert_list_query(status, alert_type, machine_id, severity)
+    if (scope := visible_machines(session, ctx, _tid(ctx), now)) is not None:
+        stmt = stmt.where(TrackingAlert.machine_id.in_(scope))
     rows, total = paginate(session, stmt, paging)
     return Page(
         items=[AlertDto.model_validate(a) for a in rows], total=total, page=paging.page, page_size=paging.page_size
@@ -237,9 +244,11 @@ def alerts(
 
 
 @router.get("/alerts/{alert_id}", response_model=AlertDto, operation_id="getTrackingAlert")
-def get_alert(alert_id: uuid.UUID, session: DbSession, _: Annotated[RequestContext, Depends(ALERT_READ)]) -> AlertDto:
+def get_alert(
+    alert_id: uuid.UUID, session: DbSession, now: Now, ctx: Annotated[RequestContext, Depends(ALERT_READ)]
+) -> AlertDto:
     alert = session.get(TrackingAlert, alert_id)
-    if alert is None:
+    if alert is None or not can_see(session, visible_machines(session, ctx, _tid(ctx), now), alert.machine_id):
         raise NotFound("Alert not found")
     return AlertDto.model_validate(alert)
 

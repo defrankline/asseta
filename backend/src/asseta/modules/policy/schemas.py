@@ -42,6 +42,11 @@ class PolicyScope(StrEnum):
     MACHINE_CATEGORY = "MACHINE_CATEGORY"  # every machine of one category (between tenant and machine)
 
 
+class FieldFleetScope(StrEnum):
+    ASSIGNED = "ASSIGNED"  # field users see their own machines: assigned to them or on jobs they supervise
+    ALL = "ALL"  # field users see the whole fleet
+
+
 class TrackingPolicy(BaseModel):
     """GPS/telematics interpretation rules (R1-C/R1-D). Distances in metres, durations in seconds."""
 
@@ -65,6 +70,9 @@ class TrackingPolicy(BaseModel):
     operating_window_start: time | None = None
     operating_window_end: time | None = None
     operating_weekdays: list[int] = Field(default_factory=lambda: [0, 1, 2, 3, 4, 5, 6])
+    # Fleet map, machine status/history and tracking alerts for people without fleet oversight (supervisors):
+    # only their own machines (ASSIGNED) or the whole fleet (ALL). Tenant level only.
+    field_fleet_scope: FieldFleetScope = FieldFleetScope.ASSIGNED
 
     @model_validator(mode="after")
     def _ordered(self) -> "TrackingPolicy":

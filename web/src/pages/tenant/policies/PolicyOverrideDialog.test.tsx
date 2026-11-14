@@ -97,7 +97,8 @@ describe('PolicyOverrideDialog', () => {
     open('TENANT');
     await toValues(user);
     await screen.findByLabelText('Override Live max age');
-    expect(screen.getAllByRole('switch')).toHaveLength(15);
+    expect(screen.getAllByRole('switch')).toHaveLength(16);
+    expect(screen.getByLabelText('Override Supervisors see on the fleet map')).toBeInTheDocument();
   });
 
   it('sends only the enabled allowed fields, prefilled from the effective policy', async () => {

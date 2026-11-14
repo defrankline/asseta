@@ -12,8 +12,9 @@ from sqlalchemy.orm import Session
 
 from asseta.modules.fleet.models import Machine, MachineStatus
 from asseta.modules.geospatial.alerts import alert_list_query
+from asseta.modules.geospatial.field_scope import only_visible, visible_machines
 from asseta.modules.geospatial.fleet_map import Connectivity, FleetMapService, filter_fleet
-from asseta.modules.geospatial.models import AlertSeverity, AlertStatus, AlertType
+from asseta.modules.geospatial.models import AlertSeverity, AlertStatus, AlertType, TrackingAlert
 from asseta.modules.identity.catalog import PermissionScope as S
 from asseta.modules.identity.principal import RequestContext
 from asseta.modules.intelligence.insights import machine_insights
@@ -59,7 +60,8 @@ class FleetReportFilters(_Filters):
 def _fleet(session: Session, ctx: RequestContext, now: datetime, f: BaseModel, limit: int) -> list[dict[str, Any]]:
     assert isinstance(f, FleetReportFilters)
     status = f.machine_status.value if f.machine_status else None
-    rows = filter_fleet(FleetMapService(session, _tid(ctx)).fleet(now), f.q, f.connectivity, status)
+    fleet = only_visible(session, ctx, _tid(ctx), now, FleetMapService(session, _tid(ctx)).fleet(now))
+    rows = filter_fleet(fleet, f.q, f.connectivity, status)
     return [r.model_dump() for r in rows[: limit + 1]]
 
 
@@ -226,9 +228,10 @@ class AlertsReportFilters(_Filters):
 
 def _alerts(session: Session, ctx: RequestContext, now: datetime, f: BaseModel, limit: int) -> list[dict[str, Any]]:
     assert isinstance(f, AlertsReportFilters)
-    alerts = list(
-        session.execute(alert_list_query(f.status, f.alert_type, f.machine_id, f.severity).limit(limit + 1)).scalars()
-    )
+    stmt = alert_list_query(f.status, f.alert_type, f.machine_id, f.severity)
+    if (scope := visible_machines(session, ctx, _tid(ctx), now)) is not None:
+        stmt = stmt.where(TrackingAlert.machine_id.in_(scope))
+    alerts = list(session.execute(stmt.limit(limit + 1)).scalars())
     machines = machine_codes(session, (a.machine_id for a in alerts))
     return [
         {
