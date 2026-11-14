@@ -3,14 +3,15 @@
 Play limit: 500 characters per language. Counts measured with Python `len()` on the text between the language tags (tags not counted). Paste
 into Release → (track) → Create release → Release notes, using the language tags shown.
 
-## Asseta Supervisor 0.5.6 (9)
+## Asseta Supervisor 0.5.7 (10)
 
-English (441/500):
+English (464/500):
 
 ```
 <en-US>
 First release of Asseta Supervisor, the field app for equipment-hire companies:
 • Jobs with hour-meter photo readings and GPS
+• Map of your machines
 • Works offline and syncs when back online
 • Fuel and expenses with receipt photos
 • Cash collection and handover
@@ -22,12 +23,13 @@ First release of Asseta Supervisor, the field app for equipment-hire companies:
 </en-US>
 ```
 
-Swahili (471/500):
+Swahili (496/500):
 
 ```
 <sw>
 Toleo la kwanza la Asseta Supervisor, programu ya uwanjani kwa kampuni za kukodisha mitambo:
 • Kazi zenye picha za mita ya saa na GPS
+• Ramani ya mitambo yako
 • Inafanya kazi bila mtandao na kutuma data mtandao ukirudi
 • Mafuta na matumizi pamoja na picha za risiti
 • Kukusanya na kukabidhi pesa taslimu
@@ -39,7 +41,7 @@ Toleo la kwanza la Asseta Supervisor, programu ya uwanjani kwa kampuni za kukodi
 </sw>
 ```
 
-## Asseta Owner 0.8.2 (5)
+## Asseta Owner 0.8.3 (6)
 
 English (352/500):
 
