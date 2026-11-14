@@ -5,7 +5,7 @@ import com.asseta.core.ui.AppRole
 import com.asseta.core.ui.AssetaAppContainer
 import com.asseta.core.ui.AssetaContainerOwner
 import com.asseta.owner.push.OwnerMessagingService
-import com.asseta.owner.ui.map.MapSetup
+import com.asseta.core.map.MapSetup
 
 class OwnerApplication : Application(), AssetaContainerOwner {
     override val container: AssetaAppContainer by lazy { AssetaAppContainer(this, AppRole.OWNER, BuildConfig.OIDC_REDIRECT_SCHEME) }
@@ -16,6 +16,6 @@ class OwnerApplication : Application(), AssetaContainerOwner {
         super.onCreate()
         container.sessionHooks = graph.sessionHooks
         OwnerMessagingService.notifier.ensureChannels(this)
-        MapSetup.init(this)
+        MapSetup.init(this, "AssetaOwner/${BuildConfig.VERSION_NAME} (com.asseta.owner)")
     }
 }

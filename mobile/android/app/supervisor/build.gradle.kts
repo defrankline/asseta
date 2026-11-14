@@ -69,6 +69,7 @@ dependencies {
     implementation(project(":core:sync"))
     implementation(project(":core:security"))
     implementation(project(":core:push"))
+    implementation(project(":core:map"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
@@ -82,6 +83,7 @@ dependencies {
     implementation(libs.firebase.messaging)
 
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
 
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.ext.junit)

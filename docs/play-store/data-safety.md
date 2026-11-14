@@ -16,9 +16,9 @@ Key facts behind the answers:
   information, app package and version, a per-installation identifier, performance metrics, API configuration and
   error codes "for diagnostics and usage analytics", encrypted over HTTPS, and does not transfer it to third parties.
   That is declared below as collected (Diagnostics, Device or other IDs; purpose Analytics).
-- **Owner fleet map** downloads raster tiles from OpenStreetMap's tile servers (default `asseta.mapTileUrl`). Those
-  requests carry only the tile coordinates, the phone's IP address and the app's User-Agent; no user data. Not
-  declared (no Play data type is sent).
+- **Owner fleet map and Supervisor machine map** download raster tiles from OpenStreetMap's tile servers (default
+  `asseta.mapTileUrl`). Those requests carry only the tile coordinates, the phone's IP address and the app's
+  User-Agent; no user data. Not declared (no Play data type is sent).
 - Service providers that process data on our behalf (our hosting provider) are not "sharing" under Play's definitions.
   Crysalion processes the data on behalf of the hire company, which is not a third party for its own data.
 

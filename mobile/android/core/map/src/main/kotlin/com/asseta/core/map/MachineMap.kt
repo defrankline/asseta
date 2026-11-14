@@ -1,4 +1,4 @@
-package com.asseta.owner.ui.map
+package com.asseta.core.map
 
 import android.os.Bundle
 import androidx.compose.foundation.layout.Box
@@ -27,7 +27,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.asseta.core.ui.theme.AssetaColors
-import com.asseta.owner.BuildConfig
+import com.asseta.core.map.BuildConfig
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.geometry.LatLngBounds
@@ -68,7 +68,7 @@ private const val TRACK = "track"
  * The map is decorative for TalkBack ([description]); every screen using it also offers an accessible list.
  */
 @Composable
-fun OwnerMap(
+fun MachineMap(
     markers: List<MapMarker>,
     description: String,
     modifier: Modifier = Modifier,

@@ -16,11 +16,7 @@ val firebaseConfig = file("google-services.json")
 val fcmEnabled = firebaseConfig.exists()
 if (fcmEnabled) apply(plugin = libs.plugins.google.services.get().pluginId)
 
-// Map tiles: OSM raster tiles by default (tile usage policy: low volume, attribution shown, identifying user agent).
-// Production deployments should point this at their own/contracted tile server (README "Map tiles").
-fun prop(name: String, default: String): String = (findProperty(name) as String?)?.takeIf { it.isNotBlank() } ?: default
-val mapTileUrl = prop("asseta.mapTileUrl", "https://tile.openstreetmap.org/{z}/{x}/{y}.png")
-val mapAttribution = prop("asseta.mapAttribution", "© OpenStreetMap contributors")
+// Map tiles (`asseta.mapTileUrl`, `asseta.mapAttribution`) are configured in :core:map, shared with the Supervisor app.
 
 // Shared contract (openapi.json) is read in place by DTO tests; never copied.
 val contractsDir = rootProject.layout.projectDirectory.dir("../../contracts").asFile
@@ -43,8 +39,6 @@ android {
         manifestPlaceholders["appAuthRedirectScheme"] = oidcRedirectScheme
         buildConfigField("String", "OIDC_REDIRECT_SCHEME", "\"$oidcRedirectScheme\"")
         buildConfigField("boolean", "FCM_ENABLED", fcmEnabled.toString())
-        buildConfigField("String", "MAP_TILE_URL", "\"$mapTileUrl\"")
-        buildConfigField("String", "MAP_ATTRIBUTION", "\"$mapAttribution\"")
     }
     buildFeatures {
         compose = true
@@ -75,12 +69,12 @@ dependencies {
     implementation(project(":core:ui"))
     implementation(project(":core:domain"))
     implementation(project(":core:push"))
+    implementation(project(":core:map"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)
-    implementation(libs.maplibre.android)
     implementation(libs.firebase.messaging)
 
     testImplementation(libs.junit)

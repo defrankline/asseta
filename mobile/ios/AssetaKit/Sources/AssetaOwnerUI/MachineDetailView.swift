@@ -1,5 +1,6 @@
 #if os(iOS)
 import AssetaAppShell
+import AssetaFleetMap
 import AssetaModel
 import AssetaNetwork
 import AssetaOwnerKit

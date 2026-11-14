@@ -404,8 +404,42 @@ struct JobsTabView: View {
     let open: (FieldRoute) -> Void
     @State private var segment: JobSegment = .inProgress
     @State private var chosen = false // the user picked a segment: stop auto-selecting
+    /// My machines: List (the phone's synced data, works offline) by default; Map (online) with `tenant.fleet.read`.
+    @State private var showMap = false
 
     var body: some View {
+        if segment == .machines && model.canSeeMachineMap && showMap {
+            mapLayout
+        } else {
+            list
+        }
+    }
+
+    /// The map takes the remaining height (not inside the scrolling list, so panning the map never scrolls it).
+    private var mapLayout: some View {
+        VStack(spacing: 8) {
+            if let reason = AccessBanner.text(model.tenant) {
+                AccessReasonBanner(text: reason).padding(.horizontal)
+            }
+            VStack(alignment: .leading, spacing: 8) {
+                FieldBanners(model: model)
+                if model.access.siteCheckin { SiteCheckinEntryRow(model: model).foregroundStyle(.primary) }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal)
+            segmentChips
+            MapListSwitch(showMap: $showMap).padding(.horizontal)
+            MachinesMapView(model: model)
+        }
+        .padding(.top, 8)
+    }
+
+    private var segmentChips: some View {
+        FilterChips(options: JobSegment.allCases.map { ($0, $0.label) },
+                    selection: Binding(get: { segment }, set: { segment = $0; chosen = true }))
+    }
+
+    private var list: some View {
         List {
             if let reason = AccessBanner.text(model.tenant) {
                 AccessReasonBanner(text: reason)
@@ -414,9 +448,13 @@ struct JobsTabView: View {
             }
             FieldBanners(model: model)
             if model.access.siteCheckin { SiteCheckinEntryRow(model: model) }
-            FilterChips(options: JobSegment.allCases.map { ($0, $0.label) },
-                        selection: Binding(get: { segment }, set: { segment = $0; chosen = true }))
+            segmentChips
             if segment == .machines {
+                if model.canSeeMachineMap {
+                    MapListSwitch(showMap: $showMap)
+                        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 8, trailing: 16))
+                        .listRowBackground(Color.clear)
+                }
                 let rows = machineRows
                 if rows.isEmpty { empty }
                 Section {

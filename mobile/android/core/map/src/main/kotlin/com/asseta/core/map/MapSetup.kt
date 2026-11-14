@@ -1,7 +1,7 @@
-package com.asseta.owner.ui.map
+package com.asseta.core.map
 
 import android.content.Context
-import com.asseta.owner.BuildConfig
+import com.asseta.core.map.BuildConfig
 import okhttp3.OkHttpClient
 import org.json.JSONArray
 import org.json.JSONObject
@@ -13,9 +13,16 @@ import org.maplibre.android.module.http.HttpRequestUtil
  * Maps. Tile requests carry an identifying User-Agent as the OSM tile usage policy requires; nothing else is sent.
  */
 object MapSetup {
-    val userAgent = "AssetaOwner/${BuildConfig.VERSION_NAME} (com.asseta.owner)"
+    @Volatile private var ready = false
 
-    fun init(context: Context) {
+    /**
+     * Once per process, before the first map is shown. [userAgent] names the app, e.g.
+     * `AssetaOwner/0.8.2 (com.asseta.owner)`. Later calls do nothing.
+     */
+    @Synchronized
+    fun init(context: Context, userAgent: String) {
+        if (ready) return
+        ready = true
         MapLibre.getInstance(context.applicationContext)
         HttpRequestUtil.setOkHttpClient(
             OkHttpClient.Builder().addNetworkInterceptor { chain ->

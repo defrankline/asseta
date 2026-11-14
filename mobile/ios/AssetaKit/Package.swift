@@ -26,6 +26,7 @@ let package = Package(
         .library(name: "AssetaField", targets: ["AssetaField"]),
         .library(name: "AssetaOwnerKit", targets: ["AssetaOwnerKit"]),
         .library(name: "AssetaOwnerUI", targets: ["AssetaOwnerUI"]),
+        .library(name: "AssetaFleetMap", targets: ["AssetaFleetMap"]),
     ],
     dependencies: [
         // Official Zetetic SQLCipher binary distribution. Pinned exactly; bump deliberately.
@@ -68,7 +69,7 @@ let package = Package(
             name: "AssetaField",
             dependencies: [
                 "AssetaAppShell", "AssetaCapture", "AssetaSync", "AssetaStore", "AssetaSecurity", "AssetaNetwork",
-                "AssetaModel",
+                "AssetaModel", "AssetaFleetMap",
             ],
             swiftSettings: strict
         ),
@@ -82,7 +83,17 @@ let package = Package(
         // Gate 7: Owner SwiftUI screens (iOS only; compiles empty on macOS).
         .target(
             name: "AssetaOwnerUI",
-            dependencies: ["AssetaAppShell", "AssetaOwnerKit", "AssetaModel", "AssetaNetwork", "AssetaStore", "AssetaSecurity"],
+            dependencies: [
+                "AssetaAppShell", "AssetaOwnerKit", "AssetaFleetMap", "AssetaModel", "AssetaNetwork", "AssetaStore",
+                "AssetaSecurity",
+            ],
+            swiftSettings: strict
+        ),
+        // Machine map shared by the Owner and Supervisor apps: the rules (who sees it, placed vs unplaced machines,
+        // online only; unit-tested on macOS) and the MapKit view (iOS only).
+        .target(
+            name: "AssetaFleetMap",
+            dependencies: ["AssetaAppShell", "AssetaOwnerKit", "AssetaModel", "AssetaNetwork"],
             swiftSettings: strict
         ),
         // Test doubles shared by test targets only (not exported as a product).
@@ -111,6 +122,7 @@ let package = Package(
                 "AssetaOwnerKit", "AssetaModel", "AssetaNetwork", "AssetaStore", "AssetaSecurity", "AssetaTestSupport",
             ]
         ),
+        .testTarget(name: "AssetaFleetMapTests", dependencies: ["AssetaFleetMap", "AssetaModel", "AssetaNetwork"]),
         .testTarget(
             name: "AssetaAppShellTests",
             dependencies: [

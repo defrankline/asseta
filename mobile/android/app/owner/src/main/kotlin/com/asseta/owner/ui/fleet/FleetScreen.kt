@@ -49,8 +49,9 @@ import com.asseta.owner.ui.common.OwnerColors
 import com.asseta.owner.ui.common.SnapshotScaffold
 import com.asseta.owner.ui.common.SnapshotViewModel
 import com.asseta.owner.ui.common.StatusPill
-import com.asseta.owner.ui.map.MapMarker
-import com.asseta.owner.ui.map.OwnerMap
+import com.asseta.core.map.FleetMapRules
+import com.asseta.core.map.MapMarker
+import com.asseta.core.map.MachineMap
 import kotlinx.coroutines.flow.Flow
 import com.asseta.core.ui.R as CoreR
 
@@ -93,11 +94,7 @@ object FleetRows {
     fun alertsLine(count: Int): String = if (count == 1) "1 open alert" else "$count open alerts"
 
     /** Shown over the map when filtered machines have no fix. */
-    fun unplacedNote(count: Int): String? = when {
-        count <= 0 -> null
-        count == 1 -> "1 machine has no known position (see List)."
-        else -> "$count machines have no known position (see List)."
-    }
+    fun unplacedNote(count: Int): String? = FleetMapRules.unplacedNote(count)
 
     const val EMPTY_TITLE = "No machines"
     const val EMPTY_MESSAGE = "Nothing matches this search or filter."
@@ -143,7 +140,7 @@ fun FleetScreen(vm: FleetViewModel, now: () -> Long, tracking: Boolean = true, o
                     )
                 }
                 Box(Modifier.fillMaxSize()) {
-                    OwnerMap(
+                    MachineMap(
                         markers, "Fleet map with ${markers.size} machines. Use the List view for details.",
                         Modifier.fillMaxSize(), onMarker = onMachine,
                     )

@@ -1,4 +1,4 @@
-package com.asseta.owner.ui.map
+package com.asseta.core.map
 
 import android.content.Context
 import android.graphics.Bitmap
@@ -8,7 +8,7 @@ import android.graphics.Paint
 import android.graphics.Typeface
 import androidx.compose.ui.graphics.toArgb
 import androidx.core.content.ContextCompat
-import com.asseta.owner.R
+import com.asseta.core.map.R
 
 /**
  * Draws a machine marker as one bitmap, matching the iOS Owner app: a coloured circle with a white truck, a dashed ring

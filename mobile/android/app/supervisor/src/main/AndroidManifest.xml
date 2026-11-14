@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Offline banner on the home screen (connectivity callback). -->
@@ -9,6 +10,9 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- MapLibre's library manifest (machine map) adds Wi-Fi state for its location component, which the map never
+         uses; the app's own location permissions above stay (meter readings). -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" tools:node="remove" />
     <!-- Push (Android 13+), requested the first time the Inbox tab is shown after sign-in. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-feature android:name="android.hardware.camera.any" android:required="false" />

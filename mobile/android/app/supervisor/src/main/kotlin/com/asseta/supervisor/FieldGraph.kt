@@ -131,6 +131,12 @@ class FieldGraph(context: Context, val container: AssetaAppContainer) {
     val dailyReportCapture = DailyReportCapture(db, repository, outbox, evidence, json) { scheduler.syncNow() }
     val dailyReports = DailyReportData({ tenantApi }, db, json, account)
 
+    /**
+     * The machine map (online only, needs `tenant.fleet.read`): the server returns this supervisor's own machines, or
+     * every machine when the company's `TRACKING.field_fleet_scope` is `ALL`. Never filtered on the phone.
+     */
+    suspend fun fleetMap(): List<com.asseta.core.model.owner.MachineMapDto> = tenantApi.fleetMap()
+
     val ocr by lazy { MeterOcr(appContext) }
     val gps by lazy { GpsLocator(appContext) }
 

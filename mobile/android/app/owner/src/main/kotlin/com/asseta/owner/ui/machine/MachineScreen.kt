@@ -45,8 +45,8 @@ import com.asseta.owner.ui.common.StatusPill
 import com.asseta.owner.ui.fleet.FleetRow
 import com.asseta.owner.ui.fleet.FleetRows
 import com.asseta.owner.ui.jobs.JobRow
-import com.asseta.owner.ui.map.MapMarker
-import com.asseta.owner.ui.map.OwnerMap
+import com.asseta.core.map.MapMarker
+import com.asseta.core.map.MachineMap
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import java.time.ZoneId
@@ -190,7 +190,7 @@ private fun Track(row: FleetRow, state: ScreenState<HistoryDto>, zone: ZoneId) {
         if (h.points.isEmpty() && !m.hasPosition) {
             SecondaryText(MachineText.NO_TRACK)
         } else {
-            OwnerMap(
+            MachineMap(
                 markers = if (m.hasPosition) {
                     listOf(MapMarker(m.machineId.toString(), m.latitude!!, m.longitude!!, OwnerColors.connectivity(row.connectivity), m.name, code = m.assetCode, live = row.connectivity == Connectivity.LIVE))
                 } else {

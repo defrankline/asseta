@@ -253,7 +253,8 @@ also refreshes the Inbox.
 
 ### Map tiles
 
-MapLibre Android 13.6.1 with a raster style built in code; default tiles `https://tile.openstreetmap.org/{z}/{x}/{y}.png`
+Module `:core:map` (Owner fleet map and machine track, Supervisor "My machines" map): MapLibre Android 13.6.1 with a raster
+style built in code; default tiles `https://tile.openstreetmap.org/{z}/{x}/{y}.png`
 with visible "© OpenStreetMap contributors" attribution and an identifying User-Agent. The OSM tile policy allows only
 light use: production must set `-Passeta.mapTileUrl=...` (and `asseta.mapAttribution`) to a contracted/self-hosted
 tile server. No Google Maps key is needed.

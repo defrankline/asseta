@@ -1,11 +1,11 @@
 #if os(iOS)
 import AssetaAppShell
+import AssetaFleetMap
 import AssetaModel
 import AssetaOwnerKit
-import MapKit
 import SwiftUI
 
-/// Fleet map (MapKit) and list of last-known machine positions, styled by connectivity.
+/// Fleet map (shared `FleetMapView`) and list of last-known machine positions, styled by connectivity.
 struct FleetView: View {
     enum Mode: String, CaseIterable { case map = "Map", list = "List" }
 
@@ -15,7 +15,6 @@ struct FleetView: View {
     @State private var search = ""
     @State private var tone: MarkerTone?
     @State private var selected: UUID?
-    @State private var camera: MapCameraPosition = .automatic
 
     var body: some View {
         VStack(spacing: 0) {
@@ -83,26 +82,8 @@ struct FleetView: View {
     }
 
     private var map: some View {
-        let placed = machines.filter(\.hasPosition)
-        return Map(position: $camera) {
-            ForEach(placed) { machine in
-                let style = FleetPresentation.style(for: machine, dataIsCached: loader.isFromCache)
-                Annotation(machine.assetCode, coordinate: CLLocationCoordinate2D(latitude: machine.latitude ?? 0,
-                                                                                 longitude: machine.longitude ?? 0)) {
-                    Button { selected = machine.id } label: { MachineMarker(style: style, alerts: machine.openAlerts) }
-                        .accessibilityLabel(style.accessibilityLabel)
-                        .accessibilityHint("Opens machine details")
-                }
-            }
-        }
-        .mapControls { MapCompass(); MapScaleView() } // no user location: the Owner app never asks for it
-        .overlay(alignment: .bottom) {
-            if let note = FleetPresentation.unplacedNote(machines.count - placed.count) {
-                Text(note)
-                    .font(.caption).padding(8)
-                    .background(.regularMaterial, in: Capsule()).padding(.bottom, 8)
-            }
-        }
+        // No user location: the Owner app never asks for it.
+        FleetMapView(machines: machines, dataIsCached: loader.isFromCache) { selected = $0 }
     }
 
     private var list: some View {
@@ -118,30 +99,6 @@ struct FleetView: View {
                 EmptyState(title: FleetPresentation.emptyTitle, message: FleetPresentation.emptyMessage, systemImage: "magnifyingglass")
             }
         }
-    }
-}
-
-struct MachineMarker: View {
-    let style: MachineMarkerStyle
-    let alerts: Int
-
-    var body: some View {
-        ZStack(alignment: .topTrailing) {
-            Image(systemName: "truck.box.fill")
-                .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(.white)
-                .padding(8)
-                .background(style.tone.color, in: Circle())
-                .overlay(Circle().strokeBorder(.white, lineWidth: 2))
-                // Live markers are solid; anything else is dashed so colour is not the only cue.
-                .overlay(Circle().strokeBorder(style: StrokeStyle(lineWidth: style.claimsLive ? 0 : 2, dash: [3, 3]))
-                    .foregroundStyle(Brand.slate.opacity(0.6)))
-            if alerts > 0 {
-                Text("\(alerts)").font(.caption2.bold()).foregroundStyle(.white)
-                    .padding(4).background(Palette.offline, in: Circle()).offset(x: 6, y: -6)
-            }
-        }
-        .frame(minWidth: 44, minHeight: 44)
     }
 }
 

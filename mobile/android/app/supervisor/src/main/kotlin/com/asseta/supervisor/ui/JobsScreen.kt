@@ -24,6 +24,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -45,6 +46,7 @@ import com.asseta.core.domain.jobs.JobRequestState
 import com.asseta.core.sync.usecase.JobRequestItem
 import com.asseta.core.sync.usecase.JobRequestLookups
 import androidx.compose.runtime.saveable.rememberSaveable
+import com.asseta.core.map.FleetMapRules
 import com.asseta.core.ui.components.FilterChipRow
 import com.asseta.core.ui.components.GroupedItem
 import com.asseta.core.ui.components.GroupedSection
@@ -76,6 +78,8 @@ fun JobsScreen(
     checkinEntry: (@Composable () -> Unit)? = null,
     /** The company's limited-access reason (`/me` `access_state_reason`, e.g. a requested closure). */
     notice: String? = null,
+    /** The user's permissions in this company (`/me`): `tenant.fleet.read` offers the Map / List switch on My machines. */
+    permissions: Set<String> = emptySet(),
 ) {
     // null until the encrypted store has answered once ("Opening your jobs…").
     val rows by remember(tenantId) {
@@ -88,7 +92,12 @@ fun JobsScreen(
     val lookups by produceState(JobRequestLookups(), tenantId, requests.size) { value = field.jobRequests.savedLookups(tenantId) }
     var segment by rememberSaveable { mutableStateOf(JobSegment.IN_PROGRESS) }
     var chosen by rememberSaveable { mutableStateOf(false) } // the user picked a segment: stop auto-selecting
-    PullToRefreshBox(isRefreshing = syncing, onRefresh = onRefresh, modifier = Modifier.fillMaxSize()) {
+    // My machines: List (the phone's synced data, works offline) by default; Map (online) when the user may read the fleet.
+    val mapAllowed = FleetMapRules.canShowMap(permissions)
+    var showMap by rememberSaveable { mutableStateOf(false) }
+    var mapReload by remember { mutableIntStateOf(0) }
+    val online = rememberOnline()
+    PullToRefreshBox(isRefreshing = syncing, onRefresh = { onRefresh(); mapReload++ }, modifier = Modifier.fillMaxSize()) {
         val list = rows
         if (list == null) {
             Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
@@ -103,6 +112,18 @@ fun JobsScreen(
             if (!chosen) segment = InboxTexts.defaultSegment(list.map { it.second } + pending.map { JobRequestRules.PENDING_APPROVAL })
         }
         val status = list.toMap()
+        if (segment == JobSegment.MACHINES && mapAllowed && showMap) {
+            // The map takes the remaining height (not inside the scrolling list, so panning the map never scrolls it).
+            Column(Modifier.fillMaxSize().padding(top = 8.dp)) {
+                notice?.let { com.asseta.core.ui.session.CompanyNoticeBanner(it, modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp)) }
+                FieldBanners(field, tenantId)
+                checkinEntry?.invoke()
+                FilterChipRow(JobSegment.entries.map { it to it.label }, segment, { segment = it; chosen = true }, Modifier.padding(bottom = 8.dp))
+                MapListSwitch(true, { showMap = it }, Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp))
+                MyMachinesMap(field, tenantId, online, mapReload, Modifier.weight(1f).fillMaxWidth())
+            }
+            return@PullToRefreshBox
+        }
         val inSegment = list.filter { InboxTexts.segment(it.second) == segment }.map { it.first }
             .let { jobs -> if (segment == JobSegment.CLOSED) jobs.sortedByDescending { it.job.plannedStart } else jobs }
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp)) {
@@ -117,6 +138,9 @@ fun JobsScreen(
                 FilterChipRow(JobSegment.entries.map { it to it.label }, segment, { segment = it; chosen = true }, Modifier.padding(bottom = 8.dp))
             }
             if (segment == JobSegment.MACHINES) {
+                if (mapAllowed) {
+                    item(key = "map-list") { MapListSwitch(false, { showMap = it }, Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp)) }
+                }
                 val machines = machineRows(snapshot, list.map { it.first }, status)
                 if (machines.isEmpty()) {
                     item(key = "empty") { InboxTexts.jobsEmpty(segment).let { (t, m) -> EmptyState(t, if (syncing) "Syncing…" else m) } }

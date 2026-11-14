@@ -2650,3 +2650,38 @@ Rules shared by both apps:
 | owner.closure.reasonTooShort | Enter a reason (at least 3 characters). |
 | owner.closure.offline | Connect to the internet to cancel the closure. |
 | owner.closure.cancelled | Closure cancelled. The company is back to normal. |
+
+## Supervisor — map of my machines
+
+The Supervisor app's "My machines" view (Jobs tab) gets a Map / List switch, the same look as the Owner app's Fleet
+screen, reusing its map (Android `:core:map`, iOS `AssetaFleetMap`). Rules (Android and iOS `FleetMapRules`):
+- **Switch:** shown only when the user holds `tenant.fleet.read` in the selected company (`/me`). List stays the default.
+- **Machines:** exactly what `GET /tenant/fleet/map` returns; the phone never filters. The server limits a supervisor to
+  their own machines unless the company setting `TRACKING.field_fleet_scope` is `ALL` (then machines outside the phone's
+  list appear too). Machines without a position are not placed; `field.map.unplaced` says how many.
+- **Online only:** offline the map is not loaded and `field.map.offline` is shown; List works from the phone's data as
+  before. 403 shows `field.map.forbidden`, 404 `field.map.notFound`, no connection `field.map.noConnection`, anything else
+  `field.map.failed`, each with `field.map.retry`.
+- **Marker tap:** a small card with "{asset code} · {name}", the connectivity pill (Live / Recent / Stale / Offline /
+  Never reported / No tracker; never Live from a response older than two minutes), "Last seen {age}" (or "Never seen")
+  and "Reported: {work status}".
+
+### Supervisor
+| Key | English |
+|---|---|
+| field.map.switch.map | Map |
+| field.map.switch.list | List |
+| field.map.loading | Loading the map… |
+| field.map.offline | The map needs a connection. Your machines are still listed under List. |
+| field.map.empty | No machines to show on the map. |
+| field.map.forbidden | You do not have access to the machine map in this company. |
+| field.map.notFound | The machine map is not available in this company. |
+| field.map.noConnection | Could not reach the server. Check your connection and try again. |
+| field.map.failed | Could not load the map. Try again. |
+| field.map.retry | Try again |
+| field.map.unplaced.one | 1 machine has no known position (see List). |
+| field.map.unplaced.other | {n} machines have no known position (see List). |
+| field.map.lastSeen | Last seen {age} |
+| field.map.neverSeen | Never seen |
+| field.map.reported | Reported: {work status} |
+| field.map.a11y (Android) | Map of your machines with {n} machines. Use the List view for details. |

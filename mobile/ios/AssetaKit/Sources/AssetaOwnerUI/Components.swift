@@ -96,18 +96,6 @@ struct LoadFailure: View {
     }
 }
 
-extension MarkerTone {
-    var color: Color {
-        switch self {
-        case .live: Palette.live
-        case .recent: Palette.recent
-        case .stale: Palette.stale
-        case .offline: Palette.offline
-        case .unknown: Palette.neutral
-        }
-    }
-}
-
 extension AlertSeverity {
     var color: Color {
         switch self {

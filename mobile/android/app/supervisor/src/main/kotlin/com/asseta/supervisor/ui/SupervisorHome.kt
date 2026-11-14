@@ -581,6 +581,7 @@ private fun RouteContent(
         Route.Jobs -> JobsScreen(
             field, tenantId, snapshot, syncing, onRefresh, onOpen = { id, number -> push(Route.JobDetail(id, number)) }, onRoute = push,
             notice = companyNotice,
+            permissions = permissions,
             checkinEntry = if (access?.siteCheckin == true) {
                 { com.asseta.supervisor.ui.accountability.SiteCheckinEntry(field, tenantId, permissions, snapshot, syncing) { push(Route.SiteCheckins) } }
             } else null,
