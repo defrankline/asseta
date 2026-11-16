@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { meterService } from '../../../api/services/meterService';
 import { explainException } from '../../../components/meter/exceptionText';
 import { EXCEPTION_TYPES } from '../../../api/services/meterSchemas';
-import { makeException } from '../../../test/jobFixtures';
+import { makeException } from '../../../test/meterFixtures';
 import { renderWithProviders } from '../../../test/renderWithProviders';
 import { ExceptionDetailDialog } from './ExceptionDetailDialog';
 import { NOTE_REQUIRED } from './ReviewExceptionDialog';

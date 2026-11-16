@@ -8,7 +8,7 @@ import type { policyService } from '../../../api/services/policyService';
 import type { revenueService } from '../../../api/services/revenueService';
 import type { PolicyType } from '../../../api/types';
 import { notificationTargetPath } from '../../../notifications/center/display';
-import { MACHINE_ID } from '../../../test/jobFixtures';
+import { MACHINE_ID } from '../../../test/meterFixtures';
 import { renderWithProviders } from '../../../test/renderWithProviders';
 import {
   APPROVAL_ID,

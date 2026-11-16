@@ -9,7 +9,7 @@ import { FormikTextField } from '../../../components/forms/FormikTextField';
 import { useIdempotencyKey } from '../../../hooks/useIdempotencyKey';
 import { formatInstantIn } from '../../../utils/time';
 import { withErrorCode } from '../shared/errorHints';
-import { RESET_ERROR_HINTS } from '../shared/jobDisplay';
+import { RESET_ERROR_HINTS } from '../shared/meterDisplay';
 
 /** decideMeterReset reuses the review outcome: EXPLAINED approves, CONFIRMED rejects. */
 const OUTCOME_OPTIONS = [

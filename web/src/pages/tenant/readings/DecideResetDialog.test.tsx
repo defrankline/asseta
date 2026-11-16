@@ -5,7 +5,7 @@ import { ApiError } from '../../../api/ApiError';
 import type { meterService } from '../../../api/services/meterService';
 import type { ResetDto } from '../../../api/types';
 import { renderWithProviders } from '../../../test/renderWithProviders';
-import { MACHINE_ID } from '../../../test/jobFixtures';
+import { MACHINE_ID } from '../../../test/meterFixtures';
 import { DecideResetDialog } from './DecideResetDialog';
 
 const mocks = vi.hoisted(() => ({ decide: vi.fn<typeof meterService.decideReset>() }));

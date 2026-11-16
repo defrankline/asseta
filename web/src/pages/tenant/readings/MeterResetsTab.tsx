@@ -13,7 +13,7 @@ import { useAsyncResource } from '../../../hooks/useAsyncResource';
 import { useNotify } from '../../../notifications/useNotify';
 import { useSession } from '../../../session/useSession';
 import { formatInstantIn } from '../../../utils/time';
-import { RESET_TONES } from '../shared/jobDisplay';
+import { RESET_TONES } from '../shared/meterDisplay';
 import { DecideResetDialog } from './DecideResetDialog';
 import { RequestResetDialog } from './RequestResetDialog';
 

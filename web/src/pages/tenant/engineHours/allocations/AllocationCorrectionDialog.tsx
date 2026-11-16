@@ -20,7 +20,7 @@ import { FormikSelectField } from '../../../../components/forms/FormikSelectFiel
 import { FormikTextField } from '../../../../components/forms/FormikTextField';
 import { useIdempotencyKey } from '../../../../hooks/useIdempotencyKey';
 import { withErrorCode } from '../../shared/errorHints';
-import { FormikCustomerIdPicker, FormikJobIdPicker } from '../../shared/financePickers';
+import { FormikCustomerIdPicker } from '../../shared/financePickers';
 import { optionId } from '../../shared/lookups';
 import { ENGINE_HOURS_ERROR_HINTS } from '../engineHoursDisplay';
 import { reasonLabel, resolveReason } from '../engineHoursLookups';
@@ -34,7 +34,6 @@ interface PartValues {
   hours: string;
   kind: AllocationKind;
   customer_id: string;
-  job_id: string;
   reason_id: string;
 }
 
@@ -63,7 +62,6 @@ const partSchema: ObjectSchema<PartValues> = object({
       'Choose the customer',
       (v, ctx) => (ctx.parent as PartValues).kind !== 'CUSTOMER_WORK' || v !== '',
     ),
-  job_id: string().ensure(),
   reason_id: string()
     .ensure()
     .test(
@@ -104,7 +102,6 @@ const emptyPart = (): PartValues => ({
   hours: '',
   kind: 'CUSTOMER_WORK',
   customer_id: '',
-  job_id: '',
   reason_id: '',
 });
 
@@ -144,14 +141,11 @@ function PartsFields({ formik, total }: { formik: FormikProps<CorrectionValues>;
                 />
               </Box>
               {p.kind === 'CUSTOMER_WORK' && (
-                <Box className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <FormikCustomerIdPicker
-                    name={`parts.${String(i)}.customer_id`}
-                    label="Customer"
-                    required
-                  />
-                  <FormikJobIdPicker name={`parts.${String(i)}.job_id`} label="Job (optional)" />
-                </Box>
+                <FormikCustomerIdPicker
+                  name={`parts.${String(i)}.customer_id`}
+                  label="Customer"
+                  required
+                />
               )}
               {p.kind === 'AUTHORIZED_ACTIVITY' && (
                 <FormikAsyncIdAutocomplete<EngineHourReasonDto>
@@ -213,7 +207,6 @@ export function AllocationCorrectionDialog({
             hours: fromHundredths(toHundredths(allocation.hours)),
             kind: allocation.kind,
             customer_id: allocation.customer_id ?? '',
-            job_id: allocation.job_id ?? '',
             reason_id: allocation.reason_id ?? '',
           },
         ],
@@ -229,7 +222,6 @@ export function AllocationCorrectionDialog({
             hours: p.hours.trim(),
             kind: p.kind,
             customer_id: p.kind === 'CUSTOMER_WORK' ? p.customer_id : null,
-            job_id: p.kind === 'CUSTOMER_WORK' && p.job_id !== '' ? p.job_id : null,
             reason_id: p.kind === 'AUTHORIZED_ACTIVITY' ? p.reason_id : null,
           })),
           reason: v.reason.trim(),

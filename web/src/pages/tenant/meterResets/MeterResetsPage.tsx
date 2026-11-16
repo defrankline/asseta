@@ -22,7 +22,7 @@ import { useSession } from '../../../session/useSession';
 import { formatInstantIn } from '../../../utils/time';
 import { DecideResetDialog } from '../readings/DecideResetDialog';
 import { OWN_RESET_TEXT } from '../readings/MeterResetsTab';
-import { RESET_STATUS_OPTIONS, RESET_TONES } from '../shared/jobDisplay';
+import { RESET_STATUS_OPTIONS, RESET_TONES } from '../shared/meterDisplay';
 import { MachineFilter } from '../shared/financePickers';
 import { PersonName } from '../shared/PersonName';
 import { useMachineLabels } from '../shared/useMachineLabels';

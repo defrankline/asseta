@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { engineHoursService } from '../../../api/services/engineHoursService';
 import type { CorrectionDto } from '../../../api/types';
 import { recordPath, recordRoutePattern } from '../../../navigation/recordRoutes';
-import { MACHINE_ID, ME_ID } from '../../../test/jobFixtures';
+import { MACHINE_ID, ME_ID } from '../../../test/meterFixtures';
 import { renderWithProviders } from '../../../test/renderWithProviders';
 import { MeterCorrectionDetailPage } from './EngineRecordDetailPages';
 

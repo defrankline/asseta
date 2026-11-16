@@ -1,78 +1,6 @@
-import type {
-  AcknowledgementDto,
-  ContractDto,
-  ExceptionDto,
-  JobDto,
-  JobSummaryDto,
-  MachineDto,
-  MeterCaptureDto,
-  ResetDto,
-} from '../api/types';
+import type { ExceptionDto, MachineDto, MeterCaptureDto, ResetDto } from '../api/types';
 
-export const JOB_ID = 'dddddddd-0000-4000-8000-000000000001';
 export const MACHINE_ID = 'aaaaaaaa-0000-4000-8000-000000000001';
-
-export function makeJob(overrides: Partial<JobDto> = {}): JobDto {
-  return {
-    id: JOB_ID,
-    contract_id: 'cccccccc-0000-4000-8000-000000000001',
-    job_number: 'J-100',
-    machine_id: MACHINE_ID,
-    job_site_id: null,
-    supervisor_id: null,
-    status: 'DRAFT',
-    planned_start: '2026-10-21T06:00:00Z',
-    planned_end: null,
-    currency: 'TZS',
-    hourly_rate: '150000.0000',
-    minimum_hours: '8.00',
-    standby_treatment: 'EXCLUDED',
-    standby_rate: null,
-    mobilization_fee: '0.0000',
-    discount_percent: '0.00',
-    tax_rate_percent: '18.00',
-    rate_source: 'NEGOTIATED',
-    billing_mode: 'INVOICE',
-    approved_at: null,
-    started_at: null,
-    completed_at: null,
-    version: 1,
-    ...overrides,
-  };
-}
-
-const CHANGEOVER_FIELDS = { changeover_carried_hours: '0.00' };
-
-export function makeSummary(overrides: Partial<JobSummaryDto> = {}): JobSummaryDto {
-  return {
-    job: makeJob({ status: 'COMPLETED' }),
-    opening_reading: '1200.4',
-    closing_reading: '1208.8',
-    meter_hours: '8.4',
-    nonbillable_hours: '1.50',
-    billable_hours: '8.0',
-    standby_hours: '0.00',
-    ...CHANGEOVER_FIELDS,
-    open_exceptions: 1,
-    blocking_exceptions: 1,
-    billing_ready: false,
-    policy_version: 'HB:P1',
-    ...overrides,
-  };
-}
-
-export const CONTRACT: ContractDto = {
-  id: 'cccccccc-0000-4000-8000-000000000001',
-  customer_id: 'eeeeeeee-0000-4000-8000-000000000001',
-  contract_number: 'C-1',
-  job_site_id: null,
-  currency: 'TZS',
-  status: 'ACTIVE',
-  starts_on: '2026-10-01T00:00:00Z',
-  ends_on: null,
-  reference: null,
-  version: 1,
-};
 
 export const MACHINE: MachineDto = {
   id: MACHINE_ID,
@@ -99,7 +27,7 @@ export const MACHINE: MachineDto = {
 export function makeCapture(overrides: Partial<MeterCaptureDto> = {}): MeterCaptureDto {
   return {
     id: 'ffffffff-0000-4000-8000-000000000001',
-    job_id: JOB_ID,
+    job_id: null,
     machine_id: MACHINE_ID,
     kind: 'OPENING',
     capture_mode: 'AUTOMATIC',
@@ -136,7 +64,7 @@ export function makeCapture(overrides: Partial<MeterCaptureDto> = {}): MeterCapt
 export function makeException(overrides: Partial<ExceptionDto> = {}): ExceptionDto {
   return {
     id: '99999999-0000-4000-8000-000000000001',
-    job_id: JOB_ID,
+    job_id: null,
     machine_id: MACHINE_ID,
     meter_capture_id: 'ffffffff-0000-4000-8000-000000000001',
     exception_type: 'LOCATION_MISMATCH',
@@ -173,19 +101,6 @@ export function makeReset(overrides: Partial<ResetDto> = {}): ResetDto {
     status: 'PENDING',
     requested_by: '44444444-4444-4444-8444-444444444444',
     decided_at: null,
-    ...overrides,
-  };
-}
-
-export function makeAck(overrides: Partial<AcknowledgementDto> = {}): AcknowledgementDto {
-  return {
-    id: '66666666-0000-4000-8000-000000000001',
-    method: 'SIGNATURE',
-    signer_name: 'Asha Mwita',
-    signer_phone: '+255700000001',
-    signature_attachment_id: '55555555-0000-4000-8000-000000000001',
-    acknowledged_hours: '8.0',
-    captured_at: '2026-10-21T17:00:00Z',
     ...overrides,
   };
 }

@@ -69,7 +69,7 @@ function fleetOf(o: TenantOverviewDto) {
   return o.fleet;
 }
 
-const ALL = [P.tenantFleetRead, P.tenantJobRead, P.tenantFinanceRead, P.tenantCaseRead];
+const ALL = [P.tenantFleetRead, P.tenantFinanceRead, P.tenantCaseRead];
 
 function renderDashboard(data: TenantOverviewDto, perms: string[] = ALL) {
   mocks.get.mockResolvedValue(data);

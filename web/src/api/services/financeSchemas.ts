@@ -54,7 +54,8 @@ export const REMITTANCE_METHODS: readonly RemittanceMethod[] = [
   'BANK_DEPOSIT',
   'MOBILE_MONEY',
 ];
-export const GROUP_BYS: readonly ProfitabilityGroupBy[] = ['MACHINE', 'JOB', 'CUSTOMER'];
+/** By machine and by customer (ADR-008 dropped the per-job grouping). */
+export const GROUP_BYS: readonly ProfitabilityGroupBy[] = ['MACHINE', 'CUSTOMER'];
 
 /** Hire invoice allocations (retired by ADR-008): still parsed while the server sends them, never shown. */
 const allocationSchema = object({

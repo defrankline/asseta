@@ -47,6 +47,8 @@ import {
   num,
   oneOf,
   record,
+  retiredId,
+  retiredNullable,
   text,
 } from './schemaKit';
 
@@ -412,8 +414,8 @@ const overrideItemSchema: Schema<ManualOverrideItemDto> = object({
   machine_id: id(),
   asset_code: text(),
   machine_name: text(),
-  job_id: id(),
-  job_number: nullableText(),
+  job_id: retiredId(),
+  job_number: retiredNullable(),
   kind: text(),
   capture_mode: text(),
   manually_corrected: bool(),

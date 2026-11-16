@@ -9,7 +9,7 @@ import type {
 import type { StatusTone } from '../../../components/display/StatusChip';
 import type { Option } from '../shared/display';
 import { machineText } from '../shared/names';
-import { activityTypeLabel } from '../shared/jobDisplay';
+import { activityTypeLabel } from '../shared/meterDisplay';
 
 export const DIFFERENCE_STATUS_LABELS: Readonly<Record<RevenueDifferenceStatus, string>> = {
   OPEN: 'To explain',

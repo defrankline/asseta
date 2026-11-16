@@ -13,7 +13,7 @@ import { pathCapability } from '../../../../access/capabilities';
 import { ROUTES } from '../../../../navigation/routes';
 import { notificationTargetPath } from '../../../../notifications/center/display';
 import { recordPath, recordRoutePattern } from '../../../../navigation/recordRoutes';
-import { MACHINE_ID, ME_ID } from '../../../../test/jobFixtures';
+import { MACHINE_ID, ME_ID } from '../../../../test/meterFixtures';
 import { renderWithProviders } from '../../../../test/renderWithProviders';
 import { AllocationCorrectionDialog } from './AllocationCorrectionDialog';
 import {
@@ -136,7 +136,7 @@ describe('WorkAllocationsPage', () => {
   it('lists entries with kind chips and lots, and filters by kind', async () => {
     const user = userEvent.setup();
     renderWithProviders(<WorkAllocationsPage />, { tenantPermissions: ['tenant.meter.read'] });
-    expect(await screen.findByText('Acme Quarry · J-100')).toBeInTheDocument();
+    expect(await screen.findByText('Acme Quarry')).toBeInTheDocument();
     expect(screen.getByText('HP-7 · 6.00 h')).toBeInTheDocument();
     expect(screen.getAllByText('Customer work').length).toBeGreaterThan(0);
     await user.click(screen.getByRole('button', { name: 'Unexplained' }));
@@ -154,7 +154,7 @@ describe('WorkAllocationsPage', () => {
       tenantPermissions: ['tenant.meter.read'],
       disabledCapabilities: ['REVENUE_RECONCILIATION'],
     });
-    expect(await screen.findByText('Acme Quarry · J-100')).toBeInTheDocument();
+    expect(await screen.findByText('Acme Quarry')).toBeInTheDocument();
   });
 
   it('shows the day balance and highlights a difference', async () => {

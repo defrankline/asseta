@@ -33,7 +33,18 @@ import type {
 import type { CustomerPaymentDto } from '../types';
 import { customerPaymentSchema } from './financeSchemas';
 import { CUSTOMER_KINDS } from './customerSchemas';
-import { bool, id, int, nullableId, nullableOneOf, nullableText, oneOf, text } from './schemaKit';
+import {
+  bool,
+  id,
+  int,
+  nullableId,
+  nullableOneOf,
+  nullableText,
+  oneOf,
+  retiredId,
+  retiredNullable,
+  text,
+} from './schemaKit';
 
 export const PURCHASE_STATUSES: readonly HoursPurchaseStatus[] = [
   'AWAITING_PAYMENT',
@@ -229,7 +240,7 @@ export const ledgerEntrySchema: Schema<LedgerEntryDto> = object({
   cancellation_id: nullableId(),
   transfer_id: nullableId(),
   payment_id: nullableId(),
-  job_id: nullableId(),
+  job_id: retiredNullable(),
   job_number: optionalText(),
   expires_at: nullableText(),
   policy_version: nullableText(),
@@ -247,7 +258,7 @@ export const allocationLineSchema: Schema<AllocationLineDto> = object({
 
 export const workExecutionAllocationSchema: Schema<WorkExecutionAllocationDto> = object({
   id: id(),
-  job_id: id(),
+  job_id: retiredId(),
   customer_id: id(),
   machine_id: id(),
   billable_hours: text(),

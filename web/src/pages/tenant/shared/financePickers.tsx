@@ -2,7 +2,6 @@ import type {
   CustomerDto,
   ExpenseCategoryDto,
   ExpenseDto,
-  JobDto,
   MachineDto,
   StaffDto,
 } from '../../../api/types';
@@ -12,18 +11,15 @@ import {
   customerOptionLabel,
   expenseCategoryOptionLabel,
   expenseOptionLabel,
-  jobOptionLabel,
   machineOptionLabel,
   resolveCustomer,
   resolveExpense,
   resolveExpenseCategory,
-  resolveJob,
   resolveMachine,
   resolveStaff,
   searchCustomers,
   searchExpenseCategories,
   searchExpenses,
-  searchJobs,
   searchMachines,
   searchStaff,
   searchSupervisors,
@@ -78,19 +74,6 @@ export function FormikMachineIdPicker(props: IdPickerProps<MachineDto>) {
       resolveOption={resolveMachine}
       getOptionId={optionId}
       getOptionLabel={machineOptionLabel}
-    />
-  );
-}
-
-/** Job search (job number) bound to a Formik id field. */
-export function FormikJobIdPicker(props: IdPickerProps<JobDto>) {
-  return (
-    <FormikAsyncIdAutocomplete<JobDto>
-      {...props}
-      fetchOptions={searchJobs}
-      resolveOption={resolveJob}
-      getOptionId={optionId}
-      getOptionLabel={jobOptionLabel}
     />
   );
 }

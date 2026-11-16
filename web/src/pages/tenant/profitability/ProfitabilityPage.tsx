@@ -26,11 +26,11 @@ import { isIsoDate, todayIsoDate } from '../../../utils/dates';
 import { signOfDecimal } from '../../../utils/money';
 import { groupByCurrency } from '../shared/financeDisplay';
 
-const GROUP_LABELS: Readonly<Record<ProfitabilityGroupBy, string>> = {
+const GROUP_LABELS: Readonly<Record<string, string>> = {
   MACHINE: 'Machine',
-  JOB: 'Job',
   CUSTOMER: 'Customer',
 };
+const groupLabel = (g: string): string => GROUP_LABELS[g] ?? g;
 
 const COLUMNS = [
   'Revenue',
@@ -72,7 +72,7 @@ function CurrencyTable({
         <Table size="small" aria-label={`${currency} profitability`}>
           <TableHead>
             <TableRow>
-              <TableCell>{GROUP_LABELS[groupBy]}</TableCell>
+              <TableCell>{groupLabel(groupBy)}</TableCell>
               {(fuelOn ? COLUMNS : COLUMNS_NO_FUEL).map((c) => (
                 <TableCell key={c} align="right">
                   {c}
@@ -92,7 +92,7 @@ function CurrencyTable({
                   <TableCell>
                     {unattributed ? (
                       <Typography variant="body2" sx={{ fontStyle: 'italic' }}>
-                        Unattributed (no {GROUP_LABELS[groupBy].toLowerCase()})
+                        Unattributed (no {groupLabel(groupBy).toLowerCase()})
                       </Typography>
                     ) : (
                       r.label || r.group_key
@@ -145,7 +145,7 @@ export function ProfitabilityPage() {
     <>
       <PageHeader
         title="Profitability"
-        subtitle="Recognized hire revenue (issued invoices, excluding tax; voids reverse) against approved, categorized direct costs"
+        subtitle="Recognized hire revenue (excluding tax; reversals deducted) against approved, categorized direct costs"
       />
       <Box className="flex flex-col gap-3">
         <Box className="flex flex-wrap items-center gap-3">
@@ -159,7 +159,6 @@ export function ProfitabilityPage() {
             }}
           >
             <ToggleButton value="MACHINE">By machine</ToggleButton>
-            <ToggleButton value="JOB">By job</ToggleButton>
             <ToggleButton value="CUSTOMER">By customer</ToggleButton>
           </ToggleButtonGroup>
           <TextField
@@ -197,7 +196,7 @@ export function ProfitabilityPage() {
               <Typography variant="body2" color="text.secondary">
                 {d.period_from} to {d.period_to}, tenant-local days ({d.timezone}). Pending and
                 rejected expenses never count; costs without a{' '}
-                {GROUP_LABELS[d.group_by].toLowerCase()} are shown as Unattributed. Each currency is
+                {groupLabel(d.group_by).toLowerCase()} are shown as Unattributed. Each currency is
                 reported separately.
               </Typography>
               {groupByCurrency(d.rows).map(([currency, rows]) => (

@@ -11,7 +11,7 @@ import type {
   Page,
   UnallocatedSegmentDto,
 } from '../../../api/types';
-import { MACHINE, MACHINE_ID, ME_ID } from '../../../test/jobFixtures';
+import { MACHINE, MACHINE_ID, ME_ID } from '../../../test/meterFixtures';
 import { renderWithProviders } from '../../../test/renderWithProviders';
 import { EngineHourReasonsPage } from './EngineHourReasonsPage';
 import { MachineEngineHoursPanel } from './MachineEngineHoursPanel';

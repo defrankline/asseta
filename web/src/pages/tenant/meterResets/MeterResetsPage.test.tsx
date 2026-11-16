@@ -2,7 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { meterService } from '../../../api/services/meterService';
-import { MACHINE, ME_ID, makeReset } from '../../../test/jobFixtures';
+import { MACHINE, ME_ID, makeReset } from '../../../test/meterFixtures';
 import { renderWithProviders } from '../../../test/renderWithProviders';
 import { MeterResetsPage } from './MeterResetsPage';
 import { Route, Routes } from 'react-router';

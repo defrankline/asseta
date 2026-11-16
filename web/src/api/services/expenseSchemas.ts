@@ -20,6 +20,7 @@ import {
   nullableNum,
   nullableText,
   oneOf,
+  retiredNullable,
   text,
 } from './schemaKit';
 
@@ -75,7 +76,7 @@ export const expenseSchema: Schema<ExpenseDto> = object({
   currency: text(),
   incurred_at: text(),
   machine_id: nullableId(),
-  job_id: nullableId(),
+  job_id: retiredNullable(),
   paid_from: oneOf(PAID_FROM_VALUES),
   custodian_staff_id: nullableId(),
   status: oneOf(EXPENSE_STATUSES),
@@ -108,7 +109,7 @@ export const fuelEventSchema: Schema<FuelEventDto> = object({
   attributed_cost: text(),
   currency: text(),
   machine_id: nullableId(),
-  job_id: nullableId(),
+  job_id: retiredNullable(),
   expense_id: nullableId(),
   meter_reading: nullableText(),
   supplier: nullableText(),

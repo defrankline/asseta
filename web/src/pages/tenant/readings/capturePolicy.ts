@@ -1,4 +1,4 @@
-import type { CaptureMode, CaptureResultDto, JobDto, ReadingKind } from '../../../api/types';
+import type { CaptureMode, CaptureResultDto, ReadingKind } from '../../../api/types';
 import { humanize } from '../../../utils/text';
 
 /** The METER_CAPTURE values the console needs, read defensively from the free-form policy values. */
@@ -35,12 +35,6 @@ export function photoExpected(policy: CapturePolicyView | null, used: CaptureMod
 
 /** Device id recorded for readings captured from the web console. */
 export const CONSOLE_DEVICE_ID = 'web-console';
-
-export function readingKindFor(job: JobDto): ReadingKind | null {
-  if (job.status === 'APPROVED') return 'OPENING';
-  if (job.status === 'IN_PROGRESS') return 'CLOSING';
-  return null;
-}
 
 export function resultMessage(r: CaptureResultDto): string {
   const state = humanize(r.capture.state);

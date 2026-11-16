@@ -2,7 +2,7 @@ import { screen, waitFor } from '@testing-library/react';
 import { Route, Routes } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { meterService } from '../../../api/services/meterService';
-import { MACHINE, makeCapture, makeException } from '../../../test/jobFixtures';
+import { MACHINE, makeCapture, makeException } from '../../../test/meterFixtures';
 import { renderWithProviders } from '../../../test/renderWithProviders';
 import { MeterCaptureDetailPage } from './MeterCaptureDetailPage';
 

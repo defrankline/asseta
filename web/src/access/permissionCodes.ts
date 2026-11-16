@@ -63,7 +63,7 @@ export const PERMISSIONS = {
   /** Trackers, capabilities, assignments and ingestion events. */
   tenantTrackerRead: 'tenant.tracker.read',
   tenantTrackerWrite: 'tenant.tracker.write',
-  /** Job sites and geofences. */
+  /** Sites and geofences. */
   tenantGeofenceRead: 'tenant.geofence.read',
   tenantGeofenceWrite: 'tenant.geofence.write',
   tenantPolicyRead: 'tenant.policy.read',
@@ -80,16 +80,6 @@ export const PERMISSIONS = {
   tenantCustomerWrite: 'tenant.customer.write',
   /** Add customers and edit their details (not payment terms or rates). */
   tenantCustomerDetails: 'tenant.customer.details',
-  /** Jobs, work logs and job summaries (read). */
-  tenantJobRead: 'tenant.job.read',
-  /** Create jobs and SUBMIT them for approval. */
-  tenantJobWrite: 'tenant.job.write',
-  /** APPROVE and CANCEL jobs. */
-  tenantJobApprove: 'tenant.job.approve',
-  /** START / COMPLETE jobs, work logs and customer acknowledgements. */
-  tenantJobLog: 'tenant.job.log',
-  /** Request a job from the field; it goes straight to owner approval. */
-  tenantJobRequest: 'tenant.job.request',
   /** Meter readings, evidence and exceptions (read). */
   tenantMeterRead: 'tenant.meter.read',
   /** Capture readings, upload evidence and request meter resets. */
@@ -104,7 +94,7 @@ export const PERMISSIONS = {
   tenantMeterReasons: 'tenant.meter.reasons',
   /** Revenue checks (DEC-031): daily machine sheet and revenue differences (read). */
   tenantRevenueRead: 'tenant.revenue.read',
-  /** Explain a revenue difference or non-revenue time inside a job. */
+  /** Explain a revenue difference or non-revenue time. */
   tenantRevenueExplain: 'tenant.revenue.explain',
   /** Decide explanations (never one's own) and manage the revenue reason list. */
   tenantRevenueDecide: 'tenant.revenue.decide',
@@ -133,7 +123,7 @@ export const PERMISSIONS = {
   tenantFinanceVerify: 'tenant.finance.verify',
   /** Issue cash floats and record custody for any supervisor. */
   tenantFinanceCash: 'tenant.finance.cash',
-  /** Machine / job / customer profitability. */
+  /** Machine / customer profitability. */
   tenantFinanceReport: 'tenant.finance.report',
   // ---- Cash custody chain + oversight (accountability design C/D); never on your own record ----
   /** Resolve cash variances and propose write-offs. */

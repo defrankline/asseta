@@ -18,7 +18,18 @@ import type {
   SheetReadingDto,
   SheetSegmentDto,
 } from '../types';
-import { bool, id, int, nullableId, nullableText, oneOf, record, text } from './schemaKit';
+import {
+  bool,
+  id,
+  int,
+  nullableId,
+  nullableText,
+  oneOf,
+  record,
+  retiredId,
+  retiredNullable,
+  text,
+} from './schemaKit';
 
 export const SHEET_FLAGS: readonly SheetFlag[] = [
   'MISSING_DAILY_REPORT',
@@ -74,7 +85,7 @@ const moneySchema: Schema<SheetMoneyDto> = object({
 });
 
 const jobSchema: Schema<SheetJobDto> = object({
-  job_id: id(),
+  job_id: retiredId(),
   job_number: optionalText(),
   billing_mode: text(),
   status: text(),
@@ -106,7 +117,8 @@ const rowFields = {
   pending_review_hours: text(),
   fuel_litres: text(),
   fuel_litres_per_engine_hour: nullableText().optional(),
-  jobs: array(jobSchema).required(),
+  /** Retired by ADR-008 (jobs removed): parsed while sent, never shown. */
+  jobs: array(jobSchema).required().default([]),
   money: array(moneySchema).required(),
   flags: array(oneOf(SHEET_FLAGS)).required(),
 };
@@ -119,7 +131,7 @@ const readingSchema: Schema<SheetReadingDto> = object({
   captured_at: text(),
   reading: text(),
   state: text(),
-  job_id: nullableId(),
+  job_id: retiredNullable(),
   job_number: optionalText(),
 });
 
@@ -134,7 +146,7 @@ const segmentSchema: Schema<SheetSegmentDto> = object({
   hours_in_day: text(),
   customer_work_hours_in_day: text(),
   non_revenue_by_type: hoursByType(),
-  job_id: nullableId(),
+  job_id: retiredNullable(),
   job_number: optionalText(),
 });
 
@@ -142,7 +154,7 @@ const moneySourceSchema: Schema<SheetMoneySourceDto> = object({
   source: oneOf(MONEY_SOURCES),
   ref_id: id(),
   parent_id: id(),
-  job_id: id(),
+  job_id: retiredId(),
   job_number: optionalText(),
   currency: text(),
   amount: text(),
@@ -160,7 +172,7 @@ const fuelSchema: Schema<SheetFuelDto> = object({
   event_type: text(),
   litres: text(),
   occurred_at: text(),
-  job_id: nullableId(),
+  job_id: retiredNullable(),
 });
 
 export const sheetDetailSchema: Schema<DailyMachineSheetDetailDto> = object({
@@ -206,7 +218,7 @@ export const revenueDifferenceSchema: Schema<RevenueDifferenceDto> = object({
   period_end: text(),
   local_from: text(),
   local_to: text(),
-  job_id: nullableId(),
+  job_id: retiredNullable(),
   job_number: optionalText(),
   currency: text(),
   expected_amount: text(),
@@ -241,7 +253,7 @@ export const revenueDifferenceSchema: Schema<RevenueDifferenceDto> = object({
 
 export const nonRevenueActivitySchema: Schema<NonRevenueActivityDto> = object({
   activity_id: id(),
-  job_id: id(),
+  job_id: retiredId(),
   job_number: optionalText(),
   machine_id: id(),
   machine_code: optionalText(),
@@ -258,7 +270,7 @@ export const nonRevenueActivitySchema: Schema<NonRevenueActivityDto> = object({
 export const nonRevenueApprovalSchema: Schema<NonRevenueApprovalDto> = object({
   id: id(),
   activity_id: id(),
-  job_id: id(),
+  job_id: retiredId(),
   job_number: optionalText(),
   machine_id: id(),
   machine_code: optionalText(),

@@ -5,14 +5,12 @@
 import { customerService } from '../../../api/services/customerService';
 import { expenseCategoryService } from '../../../api/services/expenseCategoryService';
 import { expenseService } from '../../../api/services/expenseService';
-import { jobService } from '../../../api/services/jobService';
 import { machineService } from '../../../api/services/machineService';
 import { staffService } from '../../../api/services/staffService';
 import type {
   CustomerDto,
   ExpenseCategoryDto,
   ExpenseDto,
-  JobDto,
   MachineDto,
   StaffDto,
 } from '../../../api/types';
@@ -38,12 +36,6 @@ export const machineOptionLabel = (m: MachineDto): string => machineLabel(m);
 export const searchMachines = async (q: string, signal: AbortSignal) =>
   (await machineService.list(one(q), signal)).items;
 export const resolveMachine = (id: string, signal: AbortSignal) => machineService.get(id, signal);
-
-export const jobOptionLabel = (j: JobDto): string => `${j.job_number} · ${j.status}`;
-export const searchJobs = async (q: string, signal: AbortSignal) =>
-  (await jobService.list(one(q), signal)).items;
-export const resolveJob = async (id: string, signal: AbortSignal) =>
-  (await jobService.summary(id, signal)).job;
 
 export const expenseCategoryOptionLabel = (c: ExpenseCategoryDto): string =>
   `${c.code} · ${c.name}`;

@@ -15,7 +15,17 @@ import type {
   SignalStatus,
   SubjectType,
 } from '../types';
-import { id, int, nullableId, nullableOneOf, nullableText, oneOf, record, text } from './schemaKit';
+import {
+  id,
+  int,
+  nullableId,
+  nullableOneOf,
+  nullableText,
+  oneOf,
+  record,
+  retiredNullable,
+  text,
+} from './schemaKit';
 
 // ---- Risk signals and investigation cases (ADR-007) ----
 
@@ -71,7 +81,7 @@ export const riskSignalSchema: Schema<RiskSignalDto> = object({
   subject_type: oneOf(SUBJECT_TYPES),
   subject_id: id(),
   machine_id: nullableId(),
-  job_id: nullableId(),
+  job_id: retiredNullable(),
   staff_member_id: nullableId(),
   window_start: text(),
   window_end: text(),
@@ -89,7 +99,7 @@ const caseFields = {
   subject_type: oneOf(SUBJECT_TYPES),
   subject_id: id(),
   machine_id: nullableId(),
-  job_id: nullableId(),
+  job_id: retiredNullable(),
   staff_member_id: nullableId(),
   severity: oneOf(SIGNAL_SEVERITIES),
   status: oneOf(CASE_STATUSES),

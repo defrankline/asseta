@@ -42,7 +42,6 @@ vi.mock('../api/services/policyService', () => ({ policyService: { effective: sv
 vi.mock('../api/services/meterService', () => ({
   meterService: { listAllCaptures: svc.emptyPage, listExceptions: svc.emptyPage },
 }));
-vi.mock('../api/services/jobService', () => ({ jobService: { list: svc.emptyPage } }));
 vi.mock('../api/services/machineService', () => ({
   machineService: {
     list: svc.emptyPage,

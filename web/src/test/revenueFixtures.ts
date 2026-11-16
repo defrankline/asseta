@@ -7,13 +7,16 @@ import type {
   RevenueDifferenceDto,
   RevenueReasonDto,
 } from '../api/types';
-import { JOB_ID, MACHINE_ID, ME_ID } from './jobFixtures';
+import { MACHINE_ID, ME_ID } from './meterFixtures';
+
+/** Job fields the contract still carries (retired by ADR-008; never shown). */
+const JOB_ID = 'dddddddd-0000-4000-8000-000000000001';
+const INVOICE_ID = 'ffffffff-0000-4000-8000-000000000004';
 
 export const OTHER_ID = '44444444-4444-4444-8444-444444444444';
 export const DIFFERENCE_ID = 'ffffffff-0000-4000-8000-000000000001';
 export const APPROVAL_ID = 'ffffffff-0000-4000-8000-000000000002';
 export const ACTIVITY_ID = 'ffffffff-0000-4000-8000-000000000003';
-export const INVOICE_ID = 'ffffffff-0000-4000-8000-000000000004';
 export const PURCHASE_ID = 'ffffffff-0000-4000-8000-000000000005';
 export const CASE_ID = 'ffffffff-0000-4000-8000-000000000006';
 

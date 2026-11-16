@@ -4,7 +4,7 @@ import { Route, Routes } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { revenueService } from '../../../api/services/revenueService';
 import { recordPath, recordRoutePattern } from '../../../navigation/recordRoutes';
-import { ME_ID } from '../../../test/jobFixtures';
+import { ME_ID } from '../../../test/meterFixtures';
 import { renderWithProviders } from '../../../test/renderWithProviders';
 import {
   ACTIVITY_ID,

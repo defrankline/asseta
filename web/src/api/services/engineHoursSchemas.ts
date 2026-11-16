@@ -26,7 +26,6 @@ import type {
 import {
   bool,
   id,
-  idList,
   int,
   lifecycleFields,
   nullableId,
@@ -34,6 +33,9 @@ import {
   nullableNum,
   nullableText,
   oneOf,
+  retiredId,
+  retiredIds,
+  retiredNullable,
   text,
 } from './schemaKit';
 
@@ -125,7 +127,7 @@ const pointFields = {
   at: text(),
   reading: text(),
   source: text(),
-  job_id: nullableId(),
+  job_id: retiredNullable(),
 };
 export const ledgerPointSchema: Schema<LedgerPointDto> = object(pointFields);
 
@@ -133,8 +135,8 @@ const segmentSchema: Schema<SegmentDto> = object({
   kind: oneOf(SEGMENT_KINDS),
   hours: text(),
   classification: oneOf(SEGMENT_CLASSIFICATIONS),
-  job_id: nullableId(),
-  job_number: nullableText(),
+  job_id: retiredNullable(),
+  job_number: retiredNullable(),
   activity_type: optionalText(),
   approved: nullableRef(),
   proposal: nullableRef(),
@@ -152,7 +154,7 @@ const intervalSchema: Schema<IntervalDto> = object({
   review: oneOf(READING_REVIEWS),
   opened_at: text(),
   age_days: int(),
-  overlapping_job_ids: idList(),
+  overlapping_job_ids: retiredIds(),
   segments: array(segmentSchema).required(),
 });
 
@@ -170,8 +172,8 @@ const totalsFields = {
 export const engineHourTotalsSchema: Schema<EngineHourTotalsDto> = object(totalsFields);
 
 const overlapSchema: Schema<JobOverlapDto> = object({
-  first_job_id: id(),
-  second_job_id: id(),
+  first_job_id: retiredId(),
+  second_job_id: retiredId(),
   basis: text(),
 });
 
@@ -184,7 +186,8 @@ export const machineEngineHoursSchema: Schema<MachineEngineHoursDto> = object({
   baseline_proposal: object(baselineFields).nullable().defined(),
   intervals: array(intervalSchema).required(),
   totals: object(totalsFields).required(),
-  overlaps: array(overlapSchema).required(),
+  /** Job overlaps, retired by ADR-008: parsed while sent, never shown. */
+  overlaps: array(overlapSchema).required().default([]),
   policy_version: text(),
 });
 
@@ -247,7 +250,7 @@ export const correctionSchema: Schema<CorrectionDto> = object({
   id: id(),
   machine_id: id(),
   machine_code: optionalText(),
-  job_id: nullableId(),
+  job_id: retiredNullable(),
   superseded_capture_id: id(),
   replacement_capture_id: id(),
   old_reading: text(),

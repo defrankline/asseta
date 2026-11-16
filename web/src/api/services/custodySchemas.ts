@@ -44,6 +44,8 @@ import {
   nullableText,
   oneOf,
   record,
+  retiredInt,
+  retiredNullable,
   text,
 } from './schemaKit';
 
@@ -203,8 +205,8 @@ export const varianceSchema: Schema<CashVarianceDto> = object({
   machine_name: nullableText().default(null),
   purchase_id: nullableId().default(null),
   purchase_number: nullableText().default(null),
-  job_id: nullableId().default(null),
-  job_number: nullableText().default(null),
+  job_id: retiredNullable(),
+  job_number: retiredNullable(),
   petty_cash_fund_id: nullableId().default(null),
   petty_cash_fund_name: nullableText().default(null),
 });
@@ -412,7 +414,7 @@ export const accountabilitySummarySchema: Schema<AccountabilitySummaryDto> = obj
     meter_baselines: int(),
     meter_resets: int(),
     partial_reasons: int(),
-    jobs_awaiting_approval: int(),
+    jobs_awaiting_approval: retiredInt(),
     daily_reports_to_review: int(),
     case_closures: int(),
     revenue_decisions: int(),

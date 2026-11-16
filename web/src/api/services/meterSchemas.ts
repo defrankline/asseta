@@ -24,6 +24,7 @@ import {
   nullableText,
   oneOf,
   record,
+  retiredNullable,
   text,
 } from './schemaKit';
 
@@ -80,7 +81,7 @@ export const photoUrlSchema: Schema<PhotoUrlDto> = object({
 
 const captureFields = {
   id: id(),
-  job_id: nullableId(),
+  job_id: retiredNullable(),
   machine_id: id(),
   kind: oneOf(READING_KINDS),
   capture_mode: text(),
@@ -119,7 +120,7 @@ export const captureResultSchema: Schema<CaptureResultDto> = object({
 
 export const exceptionSchema: Schema<ExceptionDto> = object({
   id: id(),
-  job_id: nullableId(),
+  job_id: retiredNullable(),
   machine_id: id(),
   meter_capture_id: nullableId(),
   exception_type: oneOf(EXCEPTION_TYPES),

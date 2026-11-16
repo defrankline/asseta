@@ -7,7 +7,6 @@ import type {
   AttachmentDto,
   CaptureMode,
   CaptureResultDto,
-  JobDto,
   MeterCaptureIn,
   ReadingKind,
 } from '../../../api/types';
@@ -16,7 +15,7 @@ import { useIdempotencyKey } from '../../../hooks/useIdempotencyKey';
 import { humanize } from '../../../utils/text';
 import { FormikFieldMachineIdPicker } from '../field/fieldPickers';
 import { withErrorCode } from '../shared/errorHints';
-import { JOB_ERROR_HINTS } from '../shared/jobDisplay';
+import { CAPTURE_ERROR_HINTS } from '../shared/meterDisplay';
 import { CONSOLE_DEVICE_ID } from './capturePolicy';
 import { CaptureEvidenceFields } from './ReadingEvidence';
 import {
@@ -39,16 +38,14 @@ const schemaFor = (needsMachine: boolean): ObjectSchema<CaptureValues> =>
     reading: readingField(),
   });
 
-/** A machine the reading is for when it is not tied to a job (DAILY readings). */
+/** The machine a reading is for. */
 export interface ReadingMachine {
   id: string;
   label: string;
 }
 
 interface ConsoleCaptureDialogProps {
-  /** The job of an OPENING / CLOSING reading; omit for a DAILY reading (no job). */
-  job?: JobDto;
-  /** DAILY reading: the machine (omit to let the user choose one). Ignored when `job` is given. */
+  /** The machine (omit to let the user choose one). */
   machine?: ReadingMachine;
   kind: ReadingKind;
   /** `field`: a supervisor recording from a laptop or tablet (Field work), not an office fallback. */
@@ -58,13 +55,12 @@ interface ConsoleCaptureDialogProps {
 }
 
 /**
- * Records a meter reading from a browser: a job's opening / closing reading, or a DAILY reading of a
- * machine outside jobs (job optional). The capture `id` is generated once per dialog open so retries
+ * Records a meter reading of a machine from a browser (e.g. a DAILY reading). The capture `id` is
+ * generated once per dialog open so retries
  * never create a second reading, and the browser's real GPS outcome is submitted — coordinates are
  * never invented.
  */
 export function ConsoleCaptureDialog({
-  job,
   machine,
   kind,
   variant = 'console',
@@ -76,9 +72,9 @@ export function ConsoleCaptureDialog({
   const keyFor = useIdempotencyKey();
   const { gps, retry } = useBrowserGps();
   const [photo, setPhoto] = useState<AttachmentDto | null>(null);
-  const needsMachine = job === undefined && machine === undefined;
+  const needsMachine = machine === undefined;
   const kindLabel = humanize(kind).toLowerCase();
-  const target = job?.job_number ?? machine?.label ?? null;
+  const target = machine?.label ?? null;
   const title = `Record ${kindLabel} reading${target === null ? '' : ` · ${target}`}`;
 
   return (
@@ -95,7 +91,7 @@ export function ConsoleCaptureDialog({
         const machineId = machine?.id ?? v.machine_id;
         const payload: MeterCaptureIn = {
           id: captureId,
-          ...(job !== undefined ? { job_id: job.id } : { job_id: null, machine_id: machineId }),
+          machine_id: machineId,
           kind,
           capture_mode: v.capture_mode === '' ? 'MANUAL' : v.capture_mode,
           reading: v.reading.trim(),
@@ -109,15 +105,13 @@ export function ConsoleCaptureDialog({
         try {
           onRecorded(await meterService.submitCapture(payload, keyFor(payload)));
         } catch (err) {
-          throw withErrorCode(err, JOB_ERROR_HINTS);
+          throw withErrorCode(err, CAPTURE_ERROR_HINTS);
         }
       }}
     >
       {(formik) => {
         const machineId =
-          job?.machine_id ??
-          machine?.id ??
-          (formik.values.machine_id === '' ? null : formik.values.machine_id);
+          machine?.id ?? (formik.values.machine_id === '' ? null : formik.values.machine_id);
         return (
           <>
             {variant === 'field' ? (
@@ -135,8 +129,8 @@ export function ConsoleCaptureDialog({
             )}
             {kind === 'DAILY' && (
               <Alert severity="info">
-                A daily reading records the machine&apos;s engine hours outside a job, so hours
-                between jobs are accounted for.
+                A daily reading records the machine&apos;s engine hours so every hour is accounted
+                for.
               </Alert>
             )}
             {needsMachine && (
@@ -144,7 +138,7 @@ export function ConsoleCaptureDialog({
             )}
             <CaptureEvidenceFields
               machineId={machineId}
-              siteId={job?.job_site_id ?? null}
+              siteId={null}
               kind={kind}
               captureMode={formik.values.capture_mode}
               photo={photo}

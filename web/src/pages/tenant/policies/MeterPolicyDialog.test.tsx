@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { policyService } from '../../../api/services/policyService';
 import type { JobSiteDto, PolicyType, PolicyVersionDto } from '../../../api/types';
-import { MACHINE } from '../../../test/jobFixtures';
+import { MACHINE } from '../../../test/meterFixtures';
 import { renderWithProviders } from '../../../test/renderWithProviders';
 import { PolicyOverrideDialog } from './PolicyOverrideDialog';
 import type { OverrideScope } from './policyFields';

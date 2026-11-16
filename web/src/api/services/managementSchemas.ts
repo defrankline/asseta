@@ -11,7 +11,7 @@ import type {
   PendingItemDto,
   PurchaseQueueDto,
 } from '../custodyTypes';
-import { bool, id, int, nullableId, nullableInt, nullableText, text } from './schemaKit';
+import { bool, id, int, nullableId, nullableInt, nullableText, retiredId, text } from './schemaKit';
 
 /** Management view of guideline sections 8 and 10: figures with their `route` (DEC-032 Phase 4). */
 
@@ -190,12 +190,13 @@ const exceptionsSection = object({
       }),
     ).required(),
   }),
+  /** Retired by ADR-008 (no changeovers): parsed while sent, empty once the server drops it. */
   changeover_jobs_awaiting_approval: object({
-    count: int(),
-    oldest_days: nullableInt(),
+    count: int().default(0),
+    oldest_days: nullableInt().default(null),
     items: array(
       object({
-        job_id: id(),
+        job_id: retiredId(),
         job_number: optText(),
         machine_id: id(),
         machine_code: optText(),
@@ -206,7 +207,9 @@ const exceptionsSection = object({
         days_waiting: int(),
         route: text(),
       }),
-    ).required(),
+    )
+      .required()
+      .default([]),
   }),
 });
 

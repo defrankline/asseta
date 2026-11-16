@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DailyReportDto, DailyReportPrefillDto } from '../../../../api/allocationTypes';
 import type { allocationService } from '../../../../api/services/allocationService';
 import { recordPath, recordRoutePattern } from '../../../../navigation/recordRoutes';
-import { MACHINE, MACHINE_ID, ME_ID } from '../../../../test/jobFixtures';
+import { MACHINE, MACHINE_ID, ME_ID } from '../../../../test/meterFixtures';
 import { renderWithProviders } from '../../../../test/renderWithProviders';
 import { DailyReportDetailPage } from './DailyReportDetailPage';
 import { DailyReportsPage } from './DailyReportsPage';
@@ -23,8 +23,8 @@ const policy = vi.hoisted(() => ({ effective: vi.fn() }));
 const meter = vi.hoisted(() => ({ upload: vi.fn() }));
 vi.mock('../../../../api/services/policyService', () => ({ policyService: policy }));
 vi.mock('../../../../api/services/meterService', () => ({ meterService: meter }));
-vi.mock('../../../../api/services/jobService', () => ({
-  jobService: { fieldMachines: vi.fn().mockResolvedValue([MACHINE]) },
+vi.mock('../../../../api/services/machineService', () => ({
+  machineService: { fieldMachines: vi.fn().mockResolvedValue([MACHINE]), list: vi.fn() },
 }));
 
 const OTHER = '44444444-4444-4444-8444-444444444444';

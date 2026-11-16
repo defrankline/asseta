@@ -2,7 +2,7 @@
  * Customer hours over days (DEC-031 P2 / P3): low-balance warnings and the customer hours statement
  * (JSON + PDF). Gated by the CUSTOMER_HOURS capability; reading needs `tenant.hours.read`.
  */
-import { array, boolean, object, string, type Schema } from 'yup';
+import { array, object, string, type Schema } from 'yup';
 import { http } from '../client';
 import type {
   HoursStatementDto,
@@ -17,7 +17,17 @@ import { requestContext } from '../requestContext';
 import type { Page } from '../types';
 import { LEDGER_ENTRY_TYPES, PURCHASE_STATUSES } from './hoursSchemas';
 import { exportError, filenameFromDisposition } from './reportService';
-import { bool, id, int, nullableId, nullableText, oneOf, text } from './schemaKit';
+import {
+  bool,
+  id,
+  int,
+  nullableId,
+  nullableText,
+  oneOf,
+  retiredBool,
+  retiredNullable,
+  text,
+} from './schemaKit';
 import {
   seg,
   tenantGet,
@@ -97,12 +107,12 @@ const statementPurchaseSchema: Schema<HoursStatementPurchaseDto> = object({
 
 const usageSchema: Schema<HoursStatementUsageDto> = object({
   day: text(),
-  job_id: nullableId(),
+  job_id: retiredNullable(),
   job_number: optionalText(),
   ...machineRef(),
   hours: text(),
   basis: oneOf(['DAILY', 'FINAL'] as const),
-  job_running: boolean().required(),
+  job_running: retiredBool(),
 });
 
 const lineSchema: Schema<HoursStatementLineDto> = object({
@@ -115,7 +125,7 @@ const lineSchema: Schema<HoursStatementLineDto> = object({
   purchase_id: id(),
   purchase_number: optionalText(),
   ...machineRef(),
-  job_id: nullableId(),
+  job_id: retiredNullable(),
   job_number: optionalText(),
   reason: nullableText(),
 });

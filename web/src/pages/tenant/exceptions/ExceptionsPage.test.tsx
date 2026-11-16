@@ -1,7 +1,7 @@
 import { screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { meterService } from '../../../api/services/meterService';
-import { makeException } from '../../../test/jobFixtures';
+import { makeException } from '../../../test/meterFixtures';
 import { renderWithProviders } from '../../../test/renderWithProviders';
 import { ExceptionsPage } from './ExceptionsPage';
 

@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../../../api/ApiError';
 import type { meterService } from '../../../api/services/meterService';
 import type { policyService } from '../../../api/services/policyService';
-import { makeCapture, makeJob } from '../../../test/jobFixtures';
+import { MACHINE_ID, makeCapture } from '../../../test/meterFixtures';
 import { renderWithProviders } from '../../../test/renderWithProviders';
 import { ConsoleCaptureDialog } from './ConsoleCaptureDialog';
 
@@ -63,12 +63,12 @@ afterEach(() => {
 function render() {
   renderWithProviders(
     <ConsoleCaptureDialog
-      job={makeJob({ status: 'IN_PROGRESS' })}
-      kind="CLOSING"
+      machine={{ id: MACHINE_ID, label: 'EX-01 · Excavator' }}
+      kind="DAILY"
       onClose={vi.fn()}
       onRecorded={vi.fn()}
     />,
-    { tenantPermissions: ['tenant.job.read', 'tenant.meter.capture', 'tenant.policy.read'] },
+    { tenantPermissions: ['tenant.meter.capture', 'tenant.policy.read'] },
   );
 }
 
@@ -104,8 +104,10 @@ describe('ConsoleCaptureDialog', () => {
     expect(first?.[0].id).toMatch(UUID);
     expect(second?.[0].id).toBe(first?.[0].id);
     expect(second?.[1]).toBe(first?.[1]);
+    expect(first?.[0]).not.toHaveProperty('job_id');
     expect(first?.[0]).toMatchObject({
-      kind: 'CLOSING',
+      machine_id: MACHINE_ID,
+      kind: 'DAILY',
       capture_mode: 'MANUAL',
       reading: '1208.8',
       device_id: 'web-console',

@@ -24,13 +24,13 @@ vi.mock('../../api/services/reportService', async (importOriginal) => ({
 
 function definition(overrides: Partial<ReportDefinitionDto> = {}): ReportDefinitionDto {
   return {
-    code: 'jobs',
-    title: 'Jobs',
-    description: 'Rental jobs',
+    code: 'machine_reports',
+    title: 'Machine reports',
+    description: 'Reports of machine hours',
     formats: ['csv', 'pdf'],
-    csv_path: '/api/v1/tenant/reports/jobs.csv',
-    pdf_path: '/api/v1/tenant/reports/jobs.pdf',
-    list_operation: 'listJobs',
+    csv_path: '/api/v1/tenant/reports/machine_reports.csv',
+    pdf_path: '/api/v1/tenant/reports/machine_reports.pdf',
+    list_operation: 'listMachineReports',
     filters: ['q', 'status', 'machine_id'],
     columns: [],
     csv_row_cap: 10000,
@@ -46,7 +46,7 @@ beforeEach(() => {
   mocks.listDefinitions.mockResolvedValue([definition()]);
   mocks.download.mockResolvedValue({
     blob: new Blob(['a,b']),
-    filename: 'asseta-jobs-2026-10-22.csv',
+    filename: 'asseta-machine-reports-2026-10-22.csv',
     rows: 42,
     truncated: false,
   });
@@ -61,11 +61,11 @@ function renderMenu(filters: Record<string, string | undefined> = {}) {
   return renderWithProviders(
     <ExportMenu
       reports={[
-        { code: 'jobs', filters },
+        { code: 'machine_reports', filters },
         { code: 'readings', filters: { machine_id: 'm1' } },
       ]}
     />,
-    { tenantPermissions: [P.tenantJobRead] },
+    { tenantPermissions: [P.tenantMachineReportRead] },
   );
 }
 
@@ -76,8 +76,8 @@ describe('ExportMenu', () => {
     await user.click(await screen.findByRole('button', { name: 'Export' }));
     const items = screen.getAllByRole('menuitem').map((i) => i.textContent);
     expect(items).toEqual([
-      expect.stringContaining('Jobs (CSV)'),
-      expect.stringContaining('Jobs (PDF)'),
+      expect.stringContaining('Machine reports (CSV)'),
+      expect.stringContaining('Machine reports (PDF)'),
     ]);
     expect(mocks.listDefinitions).toHaveBeenCalledWith('tenant', expect.any(String));
   });
@@ -95,28 +95,28 @@ describe('ExportMenu', () => {
     const user = userEvent.setup();
     renderMenu({ q: 'J-1', status: 'IN_PROGRESS', machine_id: '', sort: '-created_at' });
     await user.click(await screen.findByRole('button', { name: 'Export' }));
-    await user.click(screen.getByRole('menuitem', { name: /Jobs \(CSV\)/ }));
+    await user.click(screen.getByRole('menuitem', { name: /Machine reports \(CSV\)/ }));
     await waitFor(() => {
-      expect(mocks.download).toHaveBeenCalledWith('tenant', 'jobs', 'csv', {
+      expect(mocks.download).toHaveBeenCalledWith('tenant', 'machine_reports', 'csv', {
         q: 'J-1',
         status: 'IN_PROGRESS',
       });
     });
     expect(createObjectURL).toHaveBeenCalled();
-    expect(await screen.findByText('Jobs: exported 42 rows.')).toBeInTheDocument();
+    expect(await screen.findByText('Machine reports: exported 42 rows.')).toBeInTheDocument();
   });
 
   it('shows the truncation notice from the response headers', async () => {
     const user = userEvent.setup();
     mocks.download.mockResolvedValue({
       blob: new Blob(['x']),
-      filename: 'asseta-jobs.pdf',
+      filename: 'asseta-machine-reports.pdf',
       rows: 2000,
       truncated: true,
     });
     renderMenu();
     await user.click(await screen.findByRole('button', { name: 'Export' }));
-    await user.click(screen.getByRole('menuitem', { name: /Jobs \(PDF\)/ }));
+    await user.click(screen.getByRole('menuitem', { name: /Machine reports \(PDF\)/ }));
     expect(
       await screen.findByText(/export truncated to the first 2,000 rows \(PDF limit\)/),
     ).toBeInTheDocument();
@@ -134,7 +134,7 @@ describe('ExportMenu', () => {
     );
     renderMenu();
     await user.click(await screen.findByRole('button', { name: 'Export' }));
-    await user.click(screen.getByRole('menuitem', { name: /Jobs \(CSV\)/ }));
+    await user.click(screen.getByRole('menuitem', { name: /Machine reports \(CSV\)/ }));
     expect(await screen.findByText(/Missing permission/)).toBeInTheDocument();
     expect(createObjectURL).not.toHaveBeenCalled();
   });
