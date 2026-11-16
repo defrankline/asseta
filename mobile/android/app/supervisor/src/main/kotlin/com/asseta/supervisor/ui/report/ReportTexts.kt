@@ -38,6 +38,7 @@ object ReportTexts {
 
     /** "Next: account for 300 h". */
     fun nextAccount(hours: BigDecimal) = "Next: account for ${h(hours)} h"
+    const val NEXT = "Next"
 
     // Opening report (no starting reading yet)
     const val OPENING_TITLE = "First reading for this machine"

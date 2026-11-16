@@ -201,7 +201,7 @@ private fun ReadingStep(vm: MachineReportViewModel, machines: List<ReportMachine
         }
     }
     if (issues.isNotEmpty() && (c.photo != null || c.readingText.isNotEmpty() || vm.correcting())) IssueList(issues)
-    PrimaryAction(vm.difference()?.takeIf { it.signum() > 0 }?.let(T::nextAccount) ?: T.nextAccount(BigDecimal.ZERO), enabled = issues.isEmpty(), onClick = vm::next)
+    PrimaryAction(vm.difference()?.takeIf { it.signum() > 0 }?.let(T::nextAccount) ?: T.NEXT, enabled = issues.isEmpty(), onClick = vm::next)
     Text(T.NOTHING_TO_REPORT, style = MaterialTheme.typography.bodySmall, color = palette.secondaryText, modifier = Modifier.padding(horizontal = 20.dp))
 }
 

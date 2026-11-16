@@ -17,12 +17,8 @@ import com.asseta.core.sync.engine.DeviceWipe
 import com.asseta.core.sync.engine.SyncEngine
 import com.asseta.core.sync.evidence.EncryptedEvidenceStore
 import com.asseta.core.sync.usecase.AccountabilityCapture
-import com.asseta.core.sync.usecase.DailyReportCapture
-import com.asseta.core.sync.data.DailyReportData
 import com.asseta.core.sync.usecase.CaptureMeterReading
 import com.asseta.core.sync.usecase.FinanceCapture
-import com.asseta.core.sync.usecase.JobRequests
-import com.asseta.core.sync.usecase.JobWorkflow
 import com.asseta.core.sync.usecase.RequestMeterReset
 import com.asseta.core.sync.work.SyncScheduler
 import com.asseta.core.ui.AssetaAppContainer
@@ -103,15 +99,12 @@ class FieldGraph(context: Context, val container: AssetaAppContainer) {
     private val outbox = FieldOutbox(db, json, clock, account)
 
     val captureReading = CaptureMeterReading(db, repository, outbox, evidence, { deviceId }, json) { scheduler.syncNow() }
-    val workflow = JobWorkflow(db, repository, outbox, evidence, { deviceId }, clock, json) { scheduler.syncNow() }
     val financeRepository = FinanceRepository(db, repository, json, clock)
     val finance = FinanceCapture(db, repository, financeRepository, outbox, evidence, { deviceId }, json) { scheduler.syncNow() }
 
     /** The supervisor's own records (server copies merged with this phone's) behind every tab. */
     val inbox = InboxRepository(db, json, evidence, account)
     val online = SupervisorOnline({ tenantApi }, db, json, account)
-    /** Job requests from the field (owner approval), queued offline like every field action. */
-    val jobRequests = JobRequests({ tenantApi }, db, outbox, json, account, onQueued = { scheduler.syncNow() })
     val meterReset = RequestMeterReset(db, repository, outbox, evidence, json) { scheduler.syncNow() }
 
     /** Accountability: hours sales/transfers and the cash custody chain, queued offline like every field action. */
@@ -127,9 +120,6 @@ class FieldGraph(context: Context, val container: AssetaAppContainer) {
     /** Customers the supervisor adds or edits (online only); what it reads or saves also reaches the pickers. */
     val customers = com.asseta.core.sync.data.FieldCustomers({ tenantApi }, db, json)
 
-    /** Daily operational reports (DEC-032 A4): queued offline, read online and saved encrypted. */
-    val dailyReportCapture = DailyReportCapture(db, repository, outbox, evidence, json) { scheduler.syncNow() }
-    val dailyReports = DailyReportData({ tenantApi }, db, json, account)
 
     /** ADR-008 machine reports and credit-invoice payments: synced snapshots and offline operations. */
     val machineReports = com.asseta.core.sync.data.MachineReportData(db, json, account)
