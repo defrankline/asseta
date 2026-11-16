@@ -1,23 +1,16 @@
-/** Runtime (Yup) response schemas for customers, contracts, rate cards, jobs and work logs. */
+/** Runtime (Yup) response schemas for jobs and work logs. */
 import { array, object, type Schema } from 'yup';
 import type {
   AcknowledgementDto,
   ActivityDto,
   ActivityType,
-  ContractDto,
-  ContractStatus,
-  CustomerDto,
-  FieldContractDto,
   JobDto,
   JobStatus,
   JobSummaryDto,
-  RateCardDto,
   StandbyTreatment,
 } from '../types';
-import { bool, id, int, nullableId, nullableText, oneOf, text, lifecycleFields } from './schemaKit';
+import { bool, id, int, nullableId, nullableText, oneOf, text } from './schemaKit';
 
-export const CONTRACT_STATUSES: readonly ContractStatus[] = ['DRAFT', 'ACTIVE', 'CLOSED'];
-export const CUSTOMER_KINDS: readonly CustomerDto['kind'][] = ['REGISTERED', 'WALK_IN'];
 export const BILLING_MODES: readonly JobDto['billing_mode'][] = ['INVOICE', 'PREPAID_HOURS'];
 export const JOB_STATUSES: readonly JobStatus[] = [
   'DRAFT',
@@ -39,59 +32,6 @@ export const ACTIVITY_TYPES: readonly ActivityType[] = [
   'MOBILIZATION',
   'NOTE',
 ];
-
-export const customerSchema: Schema<CustomerDto> = object({
-  id: id(),
-  code: text(),
-  name: text(),
-  tax_id: nullableText(),
-  contact_name: nullableText(),
-  contact_phone: nullableText(),
-  contact_email: nullableText(),
-  payment_terms_days: int(),
-  kind: oneOf(CUSTOMER_KINDS),
-  is_active: bool(),
-  ...lifecycleFields(),
-});
-
-export const contractSchema: Schema<ContractDto> = object({
-  id: id(),
-  customer_id: id(),
-  contract_number: text(),
-  job_site_id: nullableId(),
-  currency: text(),
-  status: oneOf(CONTRACT_STATUSES),
-  starts_on: text(),
-  ends_on: nullableText(),
-  reference: nullableText(),
-  notes: nullableText().default(null),
-  closed_at: nullableText().default(null),
-  close_reason: nullableText().default(null),
-  version: int(),
-});
-
-export const fieldContractSchema: Schema<FieldContractDto> = object({
-  id: id(),
-  contract_number: text(),
-  reference: nullableText().default(null),
-  customer_id: id(),
-  customer_name: text(),
-  job_site_id: nullableId(),
-  job_site_name: nullableText().default(null),
-  currency: text(),
-  starts_on: text(),
-  ends_on: nullableText().default(null),
-});
-
-export const rateCardSchema: Schema<RateCardDto> = object({
-  id: id(),
-  machine_category_id: id(),
-  effective_from: text(),
-  hourly_rate: text(),
-  minimum_hours: text(),
-  currency: text(),
-  reason: text(),
-});
 
 const jobFields = {
   id: id(),

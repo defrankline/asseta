@@ -13,7 +13,11 @@ export const CUSTOMER_STEPS: readonly FormStep<CustomerFormValues>[] = [
     fields: CUSTOMER_FIELDS,
     render: () => (
       <Box className={grid}>
-        <FormikTextField name="code" label="Code" required />
+        <FormikTextField
+          name="code"
+          label="Code (optional)"
+          helperText="Leave blank to have a code generated."
+        />
         <FormikTextField name="name" label="Name" required />
         <FormikTextField name="tax_id" label="Tax ID" />
         <PaymentTermsField />

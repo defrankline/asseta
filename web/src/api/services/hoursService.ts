@@ -47,7 +47,7 @@ import {
   walkInCustomerSchema,
   workExecutionAllocationSchema,
 } from './hoursSchemas';
-import { customerSchema } from './jobSchemas';
+import { customerSchema } from './customerSchemas';
 import { attachmentSchema, photoUrlSchema } from './meterSchemas';
 import {
   seg,

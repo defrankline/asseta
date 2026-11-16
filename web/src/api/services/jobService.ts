@@ -3,7 +3,6 @@ import type {
   AcknowledgementDto,
   AcknowledgementIn,
   ActivityDto,
-  FieldContractDto,
   ActivityIn,
   JobDto,
   JobIn,
@@ -15,13 +14,7 @@ import type {
   Page,
 } from '../types';
 import { machineSchema } from './fleetSchemas';
-import {
-  acknowledgementSchema,
-  activitySchema,
-  fieldContractSchema,
-  jobSchema,
-  jobSummarySchema,
-} from './jobSchemas';
+import { acknowledgementSchema, activitySchema, jobSchema, jobSummarySchema } from './jobSchemas';
 import {
   seg,
   tenantGet,
@@ -53,20 +46,6 @@ export const jobService = {
    */
   request(body: JobRequestIn, idempotencyKey: string): Promise<JobDto> {
     return tenantSend('post', '/tenant/jobs/requests', body, jobSchema, 'job', idempotencyKey);
-  },
-  /**
-   * GET /tenant/field/contracts (listFieldContracts): active contracts to request jobs on;
-   * `customerId` narrows them to one customer.
-   */
-  fieldContracts(
-    q: string | undefined,
-    signal?: AbortSignal,
-    customerId?: string,
-  ): Promise<FieldContractDto[]> {
-    return tenantList('/tenant/field/contracts', fieldContractSchema, 'field contracts', signal, {
-      q,
-      customer_id: customerId,
-    });
   },
   /** GET /tenant/jobs/{id} (getJobSummary). */
   summary(jobId: string, signal?: AbortSignal): Promise<JobSummaryDto> {

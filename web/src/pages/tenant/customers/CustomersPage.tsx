@@ -23,7 +23,7 @@ import { customerLabel, useCustomerActions } from './useCustomerActions';
 
 const CUSTOMER_EDIT = [PERMISSIONS.tenantCustomerWrite, PERMISSIONS.tenantCustomerDetails] as const;
 
-/** Customers (open one for its contracts) and the tenant's rental rate cards. */
+/** Customers (open one for its balance and statements) and the tenant's rental rate cards. */
 export function CustomersPage() {
   const navigate = useNavigate();
   const notify = useNotify();
@@ -76,7 +76,7 @@ export function CustomersPage() {
     <>
       <PageHeader
         title="Customers"
-        subtitle="Customers, rental contracts and rate cards. Open a customer to see its contracts."
+        subtitle="Customers, payment terms and rate cards. Open a customer to see its balance and statements."
         actions={
           <CanMutate permission={CUSTOMER_EDIT} match="any">
             <Button
@@ -100,7 +100,7 @@ export function CustomersPage() {
           toolbar={<ShowInactiveToggle checked={showInactive} onChange={setShowInactive} />}
           searchPlaceholder="Search name or code"
           emptyTitle="No customers found"
-          emptyDescription="Add customers to create contracts and jobs."
+          emptyDescription="Add customers to sell them hours."
           reloadKey={reloadKey}
           isRowMuted={(c) => !c.is_active}
           onRowClick={view}

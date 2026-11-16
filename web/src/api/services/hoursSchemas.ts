@@ -32,7 +32,7 @@ import type {
 } from '../hoursTypes';
 import type { CustomerPaymentDto } from '../types';
 import { customerPaymentSchema } from './financeSchemas';
-import { CUSTOMER_KINDS } from './jobSchemas';
+import { CUSTOMER_KINDS } from './customerSchemas';
 import { bool, id, int, nullableId, nullableOneOf, nullableText, oneOf, text } from './schemaKit';
 
 export const PURCHASE_STATUSES: readonly HoursPurchaseStatus[] = [

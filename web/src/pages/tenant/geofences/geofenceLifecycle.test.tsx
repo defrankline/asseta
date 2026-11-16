@@ -154,7 +154,7 @@ describe('job site lifecycle', () => {
     await user.type(screen.getByRole('textbox', { name: /Reason/ }), 'Closed down');
     await user.click(screen.getByRole('button', { name: 'Deactivate' }));
     expect(
-      await screen.findByText(/^SITE_IN_USE: Site is in use\. — The site is still used/),
+      await screen.findByText(/^SITE_IN_USE: Site is in use\. — The site is still in use/),
     ).toBeInTheDocument();
     expect(mocks.deactivateJobSite.mock.calls[0]?.[1]).toEqual({
       reason: 'Closed down',

@@ -1,5 +1,5 @@
 import { Box, Paper, Tab, Tabs } from '@mui/material';
-import { useCallback, useState, type ReactNode } from 'react';
+import { useCallback, useState } from 'react';
 import { useParams } from 'react-router';
 import { CAPABILITY, useCapabilityEnabled } from '../../../access/capabilities';
 import { PERMISSIONS } from '../../../access/permissionCodes';
@@ -18,24 +18,23 @@ import { useSession } from '../../../session/useSession';
 import { formatInstantIn } from '../../../utils/time';
 import { HoursStatementPanel } from '../hours/HoursStatementPanel';
 import { CustomerBalanceTab, CustomerStatementTab } from './CustomerFinanceTabs';
-import { ContractsPanel } from './ContractsPanel';
 import { CustomerFields } from './CustomerViews';
 import { customerLabel, useCustomerActions } from './useCustomerActions';
 
-type TabKey = 'contracts' | 'balance' | 'statement' | 'hours';
+type TabKey = 'balance' | 'statement' | 'hours';
 
 /**
- * Contracts; with `tenant.finance.read` the receivable Balance and Statement (per currency); with
+ * With `tenant.finance.read` the receivable Balance and Statement (per currency); with
  * `tenant.hours.read` (customer hours on) the prepaid Hours statement.
  */
-function CustomerTabs({ customerId, children }: { customerId: string; children: ReactNode }) {
+function CustomerTabs({ customerId }: { customerId: string }) {
   const { hasPermission } = useSession();
   const timeZone = useDisplayTimeZone();
   const hoursOn = useCapabilityEnabled(CAPABILITY.customerHours);
-  const [tab, setTab] = useState<TabKey>('contracts');
   const finance = hasPermission(PERMISSIONS.tenantFinanceRead);
   const hours = hoursOn && hasPermission(PERMISSIONS.tenantHoursRead);
-  if (!finance && !hours) return <>{children}</>;
+  const [tab, setTab] = useState<TabKey>(finance ? 'balance' : 'hours');
+  if (!finance && !hours) return null;
   return (
     <Paper variant="outlined">
       <Tabs
@@ -45,13 +44,11 @@ function CustomerTabs({ customerId, children }: { customerId: string; children: 
           setTab(v);
         }}
       >
-        <Tab value="contracts" label="Contracts" />
         {finance && <Tab value="balance" label="Balance" />}
         {finance && <Tab value="statement" label="Statement" />}
         {hours && <Tab value="hours" label="Hours statement" />}
       </Tabs>
       <Box className="p-3">
-        {tab === 'contracts' && children}
         {tab === 'balance' && <CustomerBalanceTab customerId={customerId} />}
         {tab === 'statement' && (
           <CustomerStatementTab customerId={customerId} timeZone={timeZone} />
@@ -62,7 +59,7 @@ function CustomerTabs({ customerId, children }: { customerId: string; children: 
   );
 }
 
-/** Customer record with its contracts, balance and statement; edit, deactivate and reactivate. */
+/** Customer record with its balance and statements; edit, deactivate and reactivate. */
 export function CustomerDetailPage() {
   const { customerId = '' } = useParams();
   const timeZone = useDisplayTimeZone();
@@ -92,7 +89,7 @@ export function CustomerDetailPage() {
           customer !== null && !customer.is_active
             ? {
                 title:
-                  'This customer is inactive: no new contracts or jobs. Its history, balance and statement are kept.',
+                  'This customer is inactive: no new hours sales. Its history, balance and statement are kept.',
                 reason: customer.deactivation_reason ?? null,
                 since:
                   customer.deactivated_at == null
@@ -112,9 +109,7 @@ export function CustomerDetailPage() {
               <DetailSection title="Customer">
                 <CustomerFields customer={c} />
               </DetailSection>
-              <CustomerTabs customerId={c.id}>
-                <ContractsPanel key={c.id} customer={c} timeZone={timeZone} />
-              </CustomerTabs>
+              <CustomerTabs key={c.id} customerId={c.id} />
             </div>
           )}
         </AsyncContent>

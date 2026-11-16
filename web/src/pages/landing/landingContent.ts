@@ -33,10 +33,10 @@ export const FEATURES: Feature[] = [
       'sync exactly once when the network returns.',
   },
   {
-    title: 'Jobs, contracts and approvals',
+    title: 'Machine reports and approvals',
     body:
-      'Customers, rental contracts and jobs with approval steps. Disputed readings and meter resets need ' +
-      'a second person to approve.',
+      'Supervisors report the hours of each machine per customer; a second person approves. Disputed ' +
+      'readings and meter resets need a second person too.',
   },
   {
     title: 'Geofences and alerts',
@@ -61,7 +61,10 @@ export const STEPS: Feature[] = [
     title: 'Register machines',
     body: 'Add machines, sites and supervisors, and set your capture rules.',
   },
-  { title: 'Run jobs', body: 'Supervisors record readings and work on site, online or offline.' },
+  {
+    title: 'Report machine hours',
+    body: 'Supervisors record readings and report hours on site, online or offline.',
+  },
   {
     title: 'Bill with evidence',
     body: 'Hours are backed by photos, GPS and tracker data you can show a customer.',

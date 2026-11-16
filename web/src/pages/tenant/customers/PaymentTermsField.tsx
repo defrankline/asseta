@@ -2,7 +2,7 @@ import { PERMISSIONS } from '../../../access/permissionCodes';
 import { useCanMutate } from '../../../access/useCanMutate';
 import { FormikTextField } from '../../../components/forms/FormikTextField';
 
-/** Payment terms are a credit decision: only people who manage customers' contracts and rates change them. */
+/** Payment terms are a credit decision: only people who manage customers' terms and rates change them. */
 export function PaymentTermsField() {
   const canSetTerms = useCanMutate(PERMISSIONS.tenantCustomerWrite);
   return (

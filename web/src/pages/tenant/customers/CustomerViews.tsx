@@ -8,7 +8,7 @@ export function CustomerReview({ values: v }: { values: CustomerFormValues }) {
     <KeyValueGrid
       columns={2}
       items={[
-        { label: 'Code', value: v.code.trim() },
+        { label: 'Code', value: v.code.trim() || 'Generated when saved' },
         { label: 'Name', value: v.name.trim() },
         { label: 'Tax ID', value: v.tax_id.trim() || '—' },
         { label: 'Payment terms', value: `${v.payment_terms_days} days` },

@@ -47,7 +47,6 @@ vi.mock('../api/services/machineService', () => ({
   machineService: {
     list: svc.emptyPage,
     fieldMachines: svc.emptyList,
-    fieldContracts: svc.emptyList,
   },
 }));
 

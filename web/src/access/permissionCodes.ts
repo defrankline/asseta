@@ -75,10 +75,10 @@ export const PERMISSIONS = {
   tenantBillingRead: 'tenant.billing.read',
   /** Enroll a machine as a billable asset (proration preview first). */
   tenantBillingEnroll: 'tenant.billing.enroll',
-  /** Customers and contracts (read); write also covers rate-card versions. */
+  /** Customers (read); write also covers payment terms and rate-card versions. */
   tenantCustomerRead: 'tenant.customer.read',
   tenantCustomerWrite: 'tenant.customer.write',
-  /** Add customers and edit their details (not payment terms, contracts or rates). */
+  /** Add customers and edit their details (not payment terms or rates). */
   tenantCustomerDetails: 'tenant.customer.details',
   /** Jobs, work logs and job summaries (read). */
   tenantJobRead: 'tenant.job.read',

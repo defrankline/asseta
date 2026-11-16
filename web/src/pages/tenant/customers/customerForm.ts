@@ -29,7 +29,8 @@ export function emptyCustomerValues(): CustomerFormValues {
 }
 
 export const customerFormSchema: ObjectSchema<CustomerFormValues> = object({
-  code: string().trim().required('Code is required').max(32, 'Code must be at most 32 characters'),
+  /** Optional: blank lets the server generate the code. */
+  code: optionalText('Code', 32),
   name: string()
     .trim()
     .required('Name is required')
@@ -48,6 +49,7 @@ export const customerFormSchema: ObjectSchema<CustomerFormValues> = object({
   contact_email: optionalText('Contact email', 320).email('Enter a valid email address'),
 });
 
+/** A blank code is sent as '' and the server generates one. */
 export function toCustomerPayload(v: CustomerFormValues): CustomerIn {
   return {
     code: v.code.trim(),
