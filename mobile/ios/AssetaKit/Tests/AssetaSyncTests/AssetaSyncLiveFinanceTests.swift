@@ -34,7 +34,7 @@ extension AssetaSyncLiveTests {
         let fieldDirectory = FieldDirectory(store: store, tenantID: fixture.tenantID)
         let recorder = FieldRecorder(store: store, tenantID: fixture.tenantID, deviceID: deviceID)
 
-        // 1. Bootstrap brings categories, the job's customer, the custody float and the expense rules.
+        // 1. Bootstrap brings categories, the customer, the custody float and the expense rules.
         let first = try await live.sync(force: true)
         #expect(first.outcome == .synced, "first sync: \(first.outcome)")
         #expect(try fieldDirectory.expenseCategories().map(\.id).contains(categoryID))
@@ -53,8 +53,7 @@ extension AssetaSyncLiveTests {
         draft.description = "Live E2E hydraulic hose"
         draft.currency = "TZS"
         draft.supplier = "Hose Centre"
-        draft.jobID = fixture.jobID
-        draft.jobMachineID = fixture.machineID
+        draft.machineID = fixture.machineID
         draft.paidFrom = .cashCustody
         draft.gps = .fix(latitude: -6.8, longitude: 39.28, accuracyM: 8, capturedAt: Date().addingTimeInterval(-2))
         let base = fieldDirectory.baseCurrency()
@@ -65,7 +64,7 @@ extension AssetaSyncLiveTests {
                                                  incurredAt: Date())
         let collection = try recorder.recordCashCollection(
             customerID: customerID, amountText: "250000", currency: "TZS", reference: "RCPT-\(UUID().uuidString.prefix(8))",
-            note: nil, jobNumber: fieldDirectory.job(id: fixture.jobID)?.job.jobNumber, receivedAt: Date())
+            note: "Live E2E", receivedAt: Date())
         let handover = try recorder.recordCashHandover(amountText: "100000", currency: "TZS", reference: "DEP-E2E",
                                                        note: "Live E2E", handedAt: Date())
         let (offline, _) = engine(URL(string: "http://127.0.0.1:9")!)
@@ -96,7 +95,7 @@ extension AssetaSyncLiveTests {
 
         // 5. Server side: exactly one expense (with the uploaded receipt), and custody moved as expected.
         let page = try await client.send(APIRequest<JSONValue>.get(
-            "/api/v1/tenant/expenses", query: [URLQueryItem(name: "job_id", value: fixture.jobID.lowercased)]))
+            "/api/v1/tenant/expenses", query: [URLQueryItem(name: "machine_id", value: fixture.machineID.lowercased)]))
         var expenses: [JSONValue] = []
         if case let .array(items)? = page["items"] { expenses = items }
         #expect(expenses.count == 1)
