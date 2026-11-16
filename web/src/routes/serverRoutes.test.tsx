@@ -19,6 +19,15 @@ const source = (file: string) => readFileSync(resolve(MODULE, file), 'utf8');
  */
 const RETIRED: ReadonlySet<string> = new Set(['job', 'hire_invoice']);
 
+/** List pages of the retired records (sections.py may still link them until the server pass). */
+const RETIRED_PATHS: readonly string[] = [
+  '/tenant/jobs',
+  '/tenant/finance/invoices',
+  '/tenant/unbilled-work',
+  '/tenant/site-checkins',
+];
+const isRetiredPath = (p: string) => RETIRED_PATHS.some((r) => p === r || p.startsWith(`${r}/`));
+
 /** `RECORD_ROUTES` of links.py: record type -> list prefix (retired types left out). */
 function recordRoutes(): [string, string][] {
   const text = source('links.py');
@@ -37,7 +46,7 @@ function figurePaths(): string[] {
   for (const m of source('sections.py').matchAll(/f?"((?:\/tenant|\{CASH\})[^"?]*)/g)) {
     found.add((m[1] ?? '').replace('{CASH}', CASH).replace('{b.staff_member_id}', ID));
   }
-  return [...found];
+  return [...found].filter((p) => !isRetiredPath(p));
 }
 
 function appRoutes() {

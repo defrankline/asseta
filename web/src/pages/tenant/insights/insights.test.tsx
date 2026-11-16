@@ -9,7 +9,6 @@ import { PERSON } from '../../../test/caseFixtures';
 import { page } from '../../../test/financeFixtures';
 import {
   CASE_ML,
-  JOB_ID,
   makeCashFlow,
   makeInsights,
   makeObservation,
@@ -71,7 +70,6 @@ function renderPage(permissions: string[], route = '/tenant/insights') {
     <Routes>
       <Route path="/tenant/insights" element={<InsightsPage />} />
       <Route path="/tenant/cases/:caseId" element={<p>Case page</p>} />
-      <Route path="/tenant/jobs/:jobId" element={<p>Job page</p>} />
     </Routes>,
     { tenantPermissions: permissions, route },
   );
@@ -230,25 +228,21 @@ describe('InsightsPage: baseline insights', () => {
 });
 
 describe('InsightsPage: manual overrides', () => {
-  it('shows OCR vs entered values with the summary and a link to the job', async () => {
-    const user = userEvent.setup();
+  it('shows OCR vs entered values with the summary', async () => {
     renderPage(ALL, '/tenant/insights?tab=overrides');
-    const row = (await screen.findByText('JOB-2026-00042')).closest('tr') as HTMLElement;
+    const row = (await screen.findByText('1234.5')).closest('tr') as HTMLElement;
     expect(within(row).getByText('1234.5')).toBeInTheDocument();
     expect(within(row).getByText('1243.5')).toBeInTheDocument();
     expect(within(row).getByText('82%')).toBeInTheDocument();
     expect(within(row).getByText('Sam Supervisor')).toBeInTheDocument();
     expect(screen.getByText('Entered value differs from OCR')).toBeInTheDocument();
-    const job = within(row).getByRole('link', { name: 'JOB-2026-00042' });
-    expect(job).toHaveAttribute('href', `/tenant/jobs/${JOB_ID}`);
-    await user.click(job);
-    expect(await screen.findByText('Job page')).toBeInTheDocument();
+    expect(within(row).queryByRole('link', { name: 'JOB-2026-00042' })).not.toBeInTheDocument();
   });
 
   it('sends period and person filters to the server', async () => {
     const user = userEvent.setup();
     renderPage(ALL, '/tenant/insights?tab=overrides');
-    await screen.findByText('JOB-2026-00042');
+    await screen.findByText('1234.5');
     fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-10-01' } });
     fireEvent.change(screen.getByLabelText('To'), { target: { value: '2026-10-07' } });
     await waitFor(() => {

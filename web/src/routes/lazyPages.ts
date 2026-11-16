@@ -61,12 +61,6 @@ export const TenantSubscriptionPage = lazy(() =>
 export const CustomersPage = lazy(() =>
   import('../pages/tenant/customers/CustomersPage').then((m) => ({ default: m.CustomersPage })),
 );
-export const JobsPage = lazy(() =>
-  import('../pages/tenant/jobs/JobsPage').then((m) => ({ default: m.JobsPage })),
-);
-export const JobDetailPage = lazy(() =>
-  import('../pages/tenant/jobDetail/JobDetailPage').then((m) => ({ default: m.JobDetailPage })),
-);
 export const ExceptionsPage = lazy(() =>
   import('../pages/tenant/exceptions/ExceptionsPage').then((m) => ({ default: m.ExceptionsPage })),
 );
@@ -262,12 +256,6 @@ export const AuditLogPage = lazy(() =>
 );
 
 // ---- Field work: the supervisor's capture flows from a browser ----
-export const MyJobsPage = lazy(() =>
-  import('../pages/tenant/field/MyJobsPage').then((m) => ({ default: m.MyJobsPage })),
-);
-export const FieldJobPage = lazy(() =>
-  import('../pages/tenant/field/FieldJobPage').then((m) => ({ default: m.FieldJobPage })),
-);
 export const FieldReadingsPage = lazy(() =>
   import('../pages/tenant/field/FieldReadingsPage').then((m) => ({
     default: m.FieldReadingsPage,

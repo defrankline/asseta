@@ -1,5 +1,5 @@
 import { Link, Typography } from '@mui/material';
-import { useCallback, useState, type ReactNode } from 'react';
+import { useCallback, useState } from 'react';
 import { Link as RouterLink, useNavigate, useParams } from 'react-router';
 import { PERMISSIONS } from '../../../../access/permissionCodes';
 import { useCanMutate } from '../../../../access/useCanMutate';
@@ -13,7 +13,7 @@ import { DetailSection } from '../../../../components/lifecycle/EntityDetailsLay
 import { useAsyncResource } from '../../../../hooks/useAsyncResource';
 import { useDisplayTimeZone } from '../../../../hooks/useDisplayTimeZone';
 import { recordPath } from '../../../../navigation/recordRoutes';
-import { engineHoursMachinePath, jobDetailPath, ROUTES } from '../../../../navigation/routes';
+import { engineHoursMachinePath, ROUTES } from '../../../../navigation/routes';
 import { useNotify } from '../../../../notifications/useNotify';
 import { useSession } from '../../../../session/useSession';
 import { formatDate } from '../../../../utils/dates';
@@ -115,15 +115,6 @@ function SupersededHistory({ allocation }: { allocation: WorkAllocationDto }) {
   );
 }
 
-const jobLink = (a: WorkAllocationDto): ReactNode =>
-  a.job_id === null ? (
-    '—'
-  ) : (
-    <Link component={RouterLink} to={jobDetailPath(a.job_id)}>
-      {a.job_number ?? 'Open job'}
-    </Link>
-  );
-
 function allocationItems(a: WorkAllocationDto, timeZone: string): KeyValueItem[] {
   return [
     { label: 'Machine', value: machineOf(a) },
@@ -136,7 +127,6 @@ function allocationItems(a: WorkAllocationDto, timeZone: string): KeyValueItem[]
     },
     { label: 'End reading', value: `${a.end_reading} · ${formatInstantIn(a.end_at, timeZone)}` },
     { label: 'For', value: allocationTarget(a) },
-    { label: 'Job', value: jobLink(a) },
     { label: 'Prepaid lots', value: <LotsList lots={a.lots} /> },
     { label: 'Source', value: sourceText(a.source) },
     {

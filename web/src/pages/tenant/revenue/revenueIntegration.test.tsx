@@ -4,18 +4,15 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CAPABILITY, pathCapability } from '../../../access/capabilities';
 import type { AccountabilitySummaryDto } from '../../../api/custodyTypes';
-import type { jobService } from '../../../api/services/jobService';
 import type { policyService } from '../../../api/services/policyService';
 import type { revenueService } from '../../../api/services/revenueService';
-import type { ActivityDto, PolicyType } from '../../../api/types';
+import type { PolicyType } from '../../../api/types';
 import { notificationTargetPath } from '../../../notifications/center/display';
-import { JOB_ID, MACHINE_ID, makeJob } from '../../../test/jobFixtures';
+import { MACHINE_ID } from '../../../test/jobFixtures';
 import { renderWithProviders } from '../../../test/renderWithProviders';
 import {
-  ACTIVITY_ID,
   APPROVAL_ID,
   DIFFERENCE_ID,
-  makeActivity,
   makeSheetDay,
   makeSheetRow,
   page,
@@ -23,7 +20,6 @@ import {
 } from '../../../test/revenueFixtures';
 import { buildTiles } from '../accountability/accountabilityModel';
 import { SegmentChip } from '../engineHours/SegmentDisplay';
-import { WorkLogTab } from '../jobDetail/WorkLogTab';
 import { PoliciesPage } from '../policies/PoliciesPage';
 import { DailySheetDayPage } from './DailySheetDayPage';
 import { DailySheetPage } from './DailySheetPage';
@@ -34,7 +30,6 @@ const mocks = vi.hoisted(() => ({
   exportSheetCsv: vi.fn<typeof revenueService.exportSheetCsv>(),
   listActivities: vi.fn<typeof revenueService.listActivities>(),
   listReasons: vi.fn<typeof revenueService.listReasons>(),
-  jobActivities: vi.fn<typeof jobService.listActivities>(),
   effective: vi.fn<typeof policyService.effective>(),
   versions: vi.fn<typeof policyService.versions>(),
   saveBlob: vi.fn(),
@@ -48,9 +43,6 @@ vi.mock('../../../api/services/revenueService', () => ({
     listReasons: mocks.listReasons,
   },
 }));
-vi.mock('../../../api/services/jobService', () => ({
-  jobService: { listActivities: mocks.jobActivities },
-}));
 vi.mock('../../../api/services/policyService', () => ({
   policyService: { effective: mocks.effective, versions: mocks.versions },
 }));
@@ -61,7 +53,6 @@ vi.mock('../../../api/services/machineService', () => ({ machineService: { list:
 vi.mock('../../../components/data/exportFile', () => ({ saveBlob: mocks.saveBlob }));
 
 const READ = 'tenant.revenue.read';
-const EXPLAIN = 'tenant.revenue.explain';
 
 beforeEach(() => {
   mocks.listSheet.mockResolvedValue(page([makeSheetRow()]));
@@ -85,10 +76,7 @@ describe('Daily machine sheet', () => {
       'href',
       `/tenant/engine-hours/machines/${MACHINE_ID}`,
     );
-    expect(within(table).getByRole('link', { name: 'J-100' })).toHaveAttribute(
-      'href',
-      `/tenant/jobs/${JOB_ID}`,
-    );
+    expect(within(table).queryByRole('link', { name: 'J-100' })).toBeNull();
   });
 
   it('exports the CSV with the current filters', async () => {
@@ -178,10 +166,9 @@ describe('Daily machine sheet: engine running without work and fuel per engine h
         route: `/tenant/engine-hours/daily-sheet/${MACHINE_ID}/2026-10-20`,
       },
     );
-    expect(await screen.findByRole('link', { name: 'Engine on without a job' })).toHaveAttribute(
-      'href',
-      '/tenant/cases/case-1',
-    );
+    expect(
+      await screen.findByRole('link', { name: 'Engine on without reported work' }),
+    ).toHaveAttribute('href', '/tenant/cases/case-1');
     expect(screen.getByText('12.00 L per engine h')).toBeInTheDocument();
   });
 
@@ -200,66 +187,6 @@ describe('Daily machine sheet: engine running without work and fuel per engine h
       },
     );
     expect(await screen.findByText('— (no engine hours)')).toBeInTheDocument();
-  });
-});
-
-const ACTIVITY: ActivityDto = {
-  id: ACTIVITY_ID,
-  job_id: JOB_ID,
-  activity_type: 'MOBILIZATION',
-  billable: false,
-  started_at: '2026-10-20T05:00:00Z',
-  ended_at: '2026-10-20T06:30:00Z',
-  note: 'Drove to site B',
-  client_id: 'c1',
-} as ActivityDto;
-
-describe('Job work log', () => {
-  beforeEach(() => {
-    mocks.jobActivities.mockResolvedValue([ACTIVITY]);
-  });
-
-  it('shows the non-revenue status of each entry with Explain', async () => {
-    mocks.listActivities.mockResolvedValue(page([makeActivity()]));
-    renderWithProviders(
-      <WorkLogTab job={makeJob({ status: 'COMPLETED' })} timeZone="UTC" onChanged={vi.fn()} />,
-      { tenantPermissions: ['tenant.job.read', READ, EXPLAIN] },
-    );
-    const table = await screen.findByRole('table', { name: 'Work log' });
-    expect(await within(table).findByText('Counts as revenue (not explained)')).toBeInTheDocument();
-    expect(within(table).getByRole('button', { name: 'Explain' })).toBeInTheDocument();
-    expect(mocks.listActivities).toHaveBeenCalledWith(
-      expect.objectContaining({ filters: { job_id: JOB_ID } }),
-      expect.any(AbortSignal),
-    );
-  });
-
-  it('links an entry under approval to its record', async () => {
-    mocks.listActivities.mockResolvedValue(
-      page([makeActivity({ approval_id: APPROVAL_ID, approval_status: 'PROPOSED' })]),
-    );
-    renderWithProviders(
-      <WorkLogTab job={makeJob({ status: 'COMPLETED' })} timeZone="UTC" onChanged={vi.fn()} />,
-      { tenantPermissions: ['tenant.job.read', READ, EXPLAIN] },
-    );
-    expect(
-      await screen.findByRole('link', { name: 'Explanation awaiting decision' }),
-    ).toHaveAttribute('href', `/tenant/non-revenue-approvals/${APPROVAL_ID}`);
-    expect(screen.queryByRole('button', { name: 'Explain' })).not.toBeInTheDocument();
-  });
-
-  it('asks nothing while revenue checks are off', async () => {
-    mocks.listActivities.mockClear();
-    renderWithProviders(
-      <WorkLogTab job={makeJob({ status: 'COMPLETED' })} timeZone="UTC" onChanged={vi.fn()} />,
-      {
-        tenantPermissions: ['tenant.job.read', READ, EXPLAIN],
-        disabledCapabilities: [CAPABILITY.revenue],
-      },
-    );
-    await screen.findByRole('table', { name: 'Work log' });
-    expect(screen.queryByText('Non-revenue approval')).not.toBeInTheDocument();
-    expect(mocks.listActivities).not.toHaveBeenCalled();
   });
 });
 
@@ -340,8 +267,8 @@ describe('Revenue checks across the console', () => {
             kind: 'NON_REVENUE',
             hours: '1.5',
             classification: 'NOT_APPLICABLE',
-            job_id: JOB_ID,
-            job_number: 'J-100',
+            job_id: null,
+            job_number: null,
             activity_type: 'MOBILIZATION',
             approved: null,
             proposal: null,
@@ -349,9 +276,8 @@ describe('Revenue checks across the console', () => {
         />
       </MemoryRouter>,
     );
-    expect(screen.getByRole('link')).toHaveTextContent(
-      'Movement (mobilization) · Job J-100 · 1.5 h',
-    );
+    expect(screen.queryByRole('link')).toBeNull();
+    expect(screen.getByText('Movement (mobilization) · 1.5 h')).toBeInTheDocument();
   });
 
   it('renders the revenue checks policy labels', async () => {

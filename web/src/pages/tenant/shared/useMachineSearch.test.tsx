@@ -1,7 +1,6 @@
 import { renderHook } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { jobService } from '../../../api/services/jobService';
 import { machineService } from '../../../api/services/machineService';
 import { SessionContext } from '../../../session/SessionContext';
 import { makeMe, makeSession, TENANT_A } from '../../../test/fixtures';
@@ -24,14 +23,14 @@ describe('useMachineSearch', () => {
     const list = vi
       .spyOn(machineService, 'list')
       .mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20 });
-    const field = vi.spyOn(jobService, 'fieldMachines').mockResolvedValue([]);
+    const field = vi.spyOn(machineService, 'fieldMachines').mockResolvedValue([]);
     const signal = new AbortController().signal;
 
     await hookWith(['tenant.machine.read'])('EX', signal);
     expect(list).toHaveBeenCalledTimes(1);
     expect(field).not.toHaveBeenCalled();
 
-    await hookWith(['tenant.job.read'])('EX', signal);
+    await hookWith(['tenant.machine_report.submit'])('EX', signal);
     expect(field).toHaveBeenCalledWith('EX', signal);
     expect(list).toHaveBeenCalledTimes(1); // a supervisor never calls the register (it answers 403)
   });

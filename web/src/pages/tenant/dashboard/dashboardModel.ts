@@ -12,7 +12,7 @@ const DAY = 24 * HOUR;
 
 /**
  * How old a section's newest source record may be before the dashboard says the figures may be out
- * of date: trackers report every few minutes; jobs, money and reviews move daily or weekly.
+ * of date: trackers report every few minutes; work, money and reviews move daily or weekly.
  */
 export const STALE_AFTER_MS: Readonly<Record<SectionKey, number>> = {
   fleet: 2 * HOUR,
@@ -32,7 +32,6 @@ export const STALE_AFTER_LABEL: Readonly<Record<SectionKey, string>> = {
 export const DASHBOARD_LIVE_ENTITIES: readonly string[] = [
   ENTITY.alert,
   ENTITY.fleetPosition,
-  ENTITY.job,
   ENTITY.approval,
   ENTITY.meterCapture,
   ENTITY.meterException,
@@ -84,7 +83,6 @@ export const SEVERITY_ROWS: readonly {
 export const DASHBOARD_LINKS = {
   fleet: (connectivity?: string) => withQuery(ROUTES.tenantFleet, { connectivity }),
   openAlerts: (severity?: string) => withQuery(ROUTES.tenantAlerts, { status: 'OPEN', severity }),
-  jobs: (status?: string) => withQuery(ROUTES.tenantJobs, { status }),
   approvals: () => ROUTES.tenantApprovals,
   openExceptions: () => withQuery(ROUTES.tenantExceptions, { status: 'OPEN' }),
   receivables: () => creditInvoicesPath(),

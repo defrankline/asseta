@@ -1,8 +1,6 @@
 import { Box, Chip } from '@mui/material';
-import { Link as RouterLink } from 'react-router';
 import type { IntervalDto, SegmentDto } from '../../../api/types';
 import { StatusChip } from '../../../components/display/StatusChip';
-import { jobDetailPath } from '../../../navigation/routes';
 import { activityTypeLabel } from '../revenue/revenueDisplay';
 import {
   CLASSIFICATION_LABELS,
@@ -11,38 +9,16 @@ import {
   OUTCOME_LABELS,
 } from './engineHoursDisplay';
 
-/** One segment of an engine-hour interval: customer work, non-revenue time in a job, or unallocated. */
+/** One segment of an engine-hour interval: customer work, non-revenue time, or unallocated. */
 export function SegmentChip({ segment }: { segment: SegmentDto }) {
   if (segment.kind === 'NON_REVENUE') {
     const type =
       segment.activity_type == null ? 'Non-revenue' : activityTypeLabel(segment.activity_type);
-    const label = `${type} · Job ${segment.job_number ?? '—'} · ${hoursText(segment.hours)}`;
-    return segment.job_id === null ? (
-      <Chip size="small" color="secondary" label={label} />
-    ) : (
-      <Chip
-        size="small"
-        color="secondary"
-        label={label}
-        component={RouterLink}
-        to={jobDetailPath(segment.job_id)}
-        clickable
-      />
-    );
+    return <Chip size="small" color="secondary" label={`${type} · ${hoursText(segment.hours)}`} />;
   }
   if (segment.kind === 'CUSTOMER_WORK') {
-    const label = `Job ${segment.job_number ?? '—'} · ${hoursText(segment.hours)}`;
-    return segment.job_id === null ? (
-      <Chip size="small" color="success" label={label} />
-    ) : (
-      <Chip
-        size="small"
-        color="success"
-        label={label}
-        component={RouterLink}
-        to={jobDetailPath(segment.job_id)}
-        clickable
-      />
+    return (
+      <Chip size="small" color="success" label={`Customer work · ${hoursText(segment.hours)}`} />
     );
   }
   const pending =

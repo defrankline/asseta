@@ -61,8 +61,6 @@ import {
   FinancePage,
   FleetMapPage,
   GeofencesPage,
-  JobDetailPage,
-  JobsPage,
   MachineDetailPage,
   MachinesPage,
   ManagedServicePage,
@@ -88,8 +86,6 @@ import {
   DepositAccountDetailPage,
   DepositAccountsPage,
   AuditLogPage,
-  FieldJobPage,
-  MyJobsPage,
 } from './lazyPages';
 
 const NOTIFICATION_MANAGE = [
@@ -377,11 +373,6 @@ export function AppRoutes() {
           path={ROUTES.tenantProfitability}
           element={guard(PERMISSIONS.tenantFinanceReport, <ProfitabilityPage />)}
         />
-        <Route path={ROUTES.tenantJobs} element={guard(PERMISSIONS.tenantJobRead, <JobsPage />)} />
-        <Route
-          path={ROUTES.tenantJobDetail}
-          element={guard(PERMISSIONS.tenantJobRead, <JobDetailPage />)}
-        />
         <Route
           path={ROUTES.tenantExceptions}
           element={guard(PERMISSIONS.tenantMeterRead, <ExceptionsPage />)}
@@ -449,11 +440,6 @@ export function AppRoutes() {
             CAPABILITY.managedService,
             guard(PERMISSIONS.tenantManagedServiceRead, <ClientManagedServicePage />),
           )}
-        />
-        <Route path={ROUTES.fieldJobs} element={guard(PERMISSIONS.tenantJobLog, <MyJobsPage />)} />
-        <Route
-          path={ROUTES.fieldJobDetail}
-          element={guard(PERMISSIONS.tenantJobLog, <FieldJobPage />)}
         />
         {fieldRouteElements(guard)}
         {cashRecordRouteElements(guard, guardAny)}

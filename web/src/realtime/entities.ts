@@ -13,7 +13,6 @@ export const ENTITY = {
   cashHandover: 'cash_handover',
   meterCapture: 'meter_capture',
   meterException: 'meter_exception',
-  job: 'job',
   platformInvoice: 'platform_invoice',
   platformPayment: 'platform_payment',
   subscription: 'subscription',

@@ -172,8 +172,8 @@ export const purchaseLabel = (p: HoursPurchaseDto): string =>
 export const paymentLabel = (p: CustomerPaymentDto): string =>
   `${formatMoney(p.amount, p.currency)} · ${p.reference ?? p.method} · ${SETTLEMENT_LABELS[p.status]}`;
 
-/** Daily drawdown (DEC-031 P1): hours held by running jobs until the final allocation at completion. */
-export const PROVISIONAL_LABEL = 'In use by running jobs';
+/** Hours held provisionally until their final allocation. */
+export const PROVISIONAL_LABEL = 'Provisional';
 
 /** Low-balance warnings (DEC-031 P2): `armed` = the balance is still at or below the threshold. */
 export const LOW_BALANCE_STATE_OPTIONS: readonly Option[] = [

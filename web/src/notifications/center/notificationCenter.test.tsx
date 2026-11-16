@@ -211,15 +211,16 @@ describe('notifications drawer', () => {
 describe('notification targets', () => {
   it('only follows internal console paths and maps known entities', () => {
     expect(notificationTargetPath(null)).toBeNull();
-    expect(notificationTargetPath({ entity: 'x', id: null, path: '/tenant/jobs/j1' })).toBe(
-      '/tenant/jobs/j1',
+    expect(notificationTargetPath({ entity: 'x', id: null, path: '/tenant/machines/m1' })).toBe(
+      '/tenant/machines/m1',
     );
-    expect(notificationTargetPath({ entity: 'job', id: 'j1', path: 'https://evil.test' })).toBe(
-      '/tenant/jobs/j1',
+    expect(notificationTargetPath({ entity: 'machine', id: 'm1', path: 'https://evil.test' })).toBe(
+      '/tenant/machines/m1',
     );
-    expect(notificationTargetPath({ entity: 'job', id: null, path: '//evil.test' })).toBe(
-      '/tenant/jobs',
+    expect(notificationTargetPath({ entity: 'machine', id: null, path: '//evil.test' })).toBe(
+      '/tenant/machines',
     );
+    expect(notificationTargetPath({ entity: 'job', id: 'j1', path: null })).toBeNull();
     expect(notificationTargetPath({ entity: 'platform_invoice', id: 'i 1', path: null })).toBe(
       '/platform/invoices/i%201',
     );

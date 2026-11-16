@@ -104,7 +104,7 @@ describe('DashboardPage', () => {
     expect(screen.getByRole('heading', { name: 'Open exceptions' })).toBeInTheDocument();
   });
 
-  it('links fleet and job figures to their filtered lists', async () => {
+  it('links fleet and alert figures to their filtered lists', async () => {
     renderDashboard(overview());
     await screen.findByRole('heading', { name: 'Fleet', level: 2 });
     expect(link(/^Machines, Offline: 3/)).toHaveAttribute(
@@ -115,10 +115,7 @@ describe('DashboardPage', () => {
       'href',
       '/tenant/fleet?connectivity=NEVER_REPORTED',
     );
-    expect(link(/^Jobs, In progress: 2/)).toHaveAttribute(
-      'href',
-      '/tenant/jobs?status=IN_PROGRESS',
-    );
+    expect(screen.queryByRole('heading', { name: 'Jobs' })).not.toBeInTheDocument();
     expect(link(/^Open alerts, Critical: 4/)).toHaveAttribute(
       'href',
       '/tenant/alerts?status=OPEN&severity=CRITICAL',

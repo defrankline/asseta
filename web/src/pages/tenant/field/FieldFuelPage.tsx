@@ -16,13 +16,12 @@ import { formatInstantIn } from '../../../utils/time';
 import { RecordFuelDialog } from '../expenses/FuelTab';
 import { labelOf } from '../shared/display';
 import { FUEL_EVENT_OPTIONS } from '../shared/financeDisplay';
-import { useFieldJobLabels, useFieldMachineLabels } from './fieldLookups';
+import { useFieldMachineLabels } from './fieldLookups';
 
 /** The caller's fuel log (issues to machines, purchases, usage) and recording a new event. */
 export function FieldFuelPage() {
   const timeZone = useDisplayTimeZone();
   const notify = useNotify();
-  const jobLabel = useFieldJobLabels();
   const machineLabel = useFieldMachineLabels();
   const [type, setType] = useState('');
   const [recording, setRecording] = useState(false);
@@ -41,7 +40,6 @@ export function FieldFuelPage() {
       header: 'Machine',
       render: (f) => (f.machine_id === null ? '—' : machineLabel(f.machine_id)),
     },
-    { id: 'job', header: 'Job', render: (f) => (f.job_id === null ? '—' : jobLabel(f.job_id)) },
     { id: 'meter', header: 'Meter', render: (f) => f.meter_reading ?? '—' },
     {
       id: 'price',

@@ -8,11 +8,11 @@ import { isFieldUser } from './tenant/field/fieldWork';
 export function HomeRedirect() {
   const { me, mode, activeTenant, hasPermission } = useSession();
   const items = navItems(buildNav(mode, activeTenant, me));
-  // Field users (supervisors without office oversight) start on My jobs; everyone else on the first
-  // item of the first group (each console's Overview).
+  // Field users (supervisors without office oversight) start on the machine report; everyone else on
+  // the first item of the first group (each console's Overview).
   const fieldHome =
     mode.kind === 'tenant' && isFieldUser(hasPermission)
-      ? items.find((i) => i.path === ROUTES.fieldJobs)
+      ? items.find((i) => i.path === ROUTES.fieldMachineReport)
       : undefined;
   const first = fieldHome ?? items.find((i) => IMPLEMENTED_PATHS.has(i.path));
   return <Navigate to={first?.path ?? ROUTES.myAccess} replace />;

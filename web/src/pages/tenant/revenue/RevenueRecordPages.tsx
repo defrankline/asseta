@@ -8,13 +8,13 @@ import { MoneyText } from '../../../components/display/MoneyText';
 import { DetailSection } from '../../../components/lifecycle/EntityDetailsLayout';
 import { useDisplayTimeZone } from '../../../hooks/useDisplayTimeZone';
 import { recordPath } from '../../../navigation/recordRoutes';
-import { jobDetailPath, ROUTES } from '../../../navigation/routes';
+import { ROUTES } from '../../../navigation/routes';
 import { formatInstantIn } from '../../../utils/time';
 import { PersonName } from '../shared/PersonName';
 import { RecordDetail } from '../shared/RecordDetail';
 import { useRecordById } from '../shared/useRecordById';
 import { MoneySourcesTable } from './moneySources';
-import { parseDifferenceJobs, parseMoneySources, type DifferenceJob } from './revenueDetail';
+import { parseMoneySources } from './revenueDetail';
 import { ADJUSTMENT_CAUSE_LABELS } from './revenueDisplay';
 import { differenceMachine, differencePeriod } from './revenueDisplay';
 import { approvalChip, differenceChip, useApprovalKit, useDifferenceKit } from './revenueKits';
@@ -22,37 +22,6 @@ import { approvalChip, differenceChip, useApprovalKit, useDifferenceKit } from '
 const loadDifference = (id: string, signal: AbortSignal) =>
   revenueService.getDifference(id, signal);
 const loadApproval = (id: string, signal: AbortSignal) => revenueService.getApproval(id, signal);
-
-const jobColumns: DataColumn<DifferenceJob>[] = [
-  {
-    id: 'job',
-    header: 'Job',
-    render: (j) => (
-      <Link component={RouterLink} to={jobDetailPath(j.job_id)}>
-        {j.job_number ?? 'Open job'}
-      </Link>
-    ),
-  },
-  { id: 'state', header: 'State', render: (j) => (j.completed ? 'Completed' : 'Running') },
-  {
-    id: 'expected',
-    header: 'Expected',
-    align: 'right',
-    render: (j) => <MoneyText amount={j.expected} currency={j.currency} />,
-  },
-  {
-    id: 'progress',
-    header: 'In progress',
-    align: 'right',
-    render: (j) => <MoneyText amount={j.in_progress} currency={j.currency} />,
-  },
-  {
-    id: 'attributed',
-    header: 'Attributed',
-    align: 'right',
-    render: (j) => <MoneyText amount={j.attributed} currency={j.currency} />,
-  },
-];
 
 function adjustmentColumns(
   d: RevenueDifferenceDto,
@@ -104,29 +73,14 @@ function adjustmentColumns(
 }
 
 function DifferenceSections({ d, timeZone }: { d: RevenueDifferenceDto; timeZone: string }) {
-  const jobs = parseDifferenceJobs(d.detail);
   const sources = parseMoneySources(d.detail);
   const adjustments = d.adjustments ?? [];
   return (
     <>
-      <DetailSection title="Jobs">
-        {jobs.length === 0 ? (
-          <Typography variant="body2" color="text.secondary">
-            No jobs in this period: the expected revenue is from engine hours outside jobs.
-          </Typography>
-        ) : (
-          <StaticTable
-            ariaLabel="Jobs"
-            columns={jobColumns}
-            rows={jobs}
-            getRowId={(j) => `${j.job_id}:${j.currency}`}
-          />
-        )}
-      </DetailSection>
       <DetailSection title="Money sources">
         {sources.length === 0 ? (
           <Typography variant="body2" color="text.secondary">
-            No issued invoice lines or prepaid hours used for these jobs yet.
+            No prepaid hours used in this period yet.
           </Typography>
         ) : (
           <MoneySourcesTable rows={sources} />
@@ -151,7 +105,7 @@ function DifferenceSections({ d, timeZone }: { d: RevenueDifferenceDto; timeZone
   );
 }
 
-/** One revenue difference (exact-record link): figures, explain / decide, jobs, money, adjustments. */
+/** One revenue difference (exact-record link): figures, explain / decide, money, adjustments. */
 export function RevenueDifferenceDetailPage() {
   const { id } = useParams();
   const timeZone = useDisplayTimeZone();

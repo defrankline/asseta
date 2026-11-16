@@ -10,7 +10,6 @@ import {
   Stack,
 } from '@mui/material';
 import { useState } from 'react';
-import { Link as RouterLink } from 'react-router';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import { useCanMutate } from '../../../access/useCanMutate';
 import type { ExceptionDto } from '../../../api/types';
@@ -21,7 +20,6 @@ import {
   EXCEPTION_TYPE_LABELS,
   NEUTRAL_REVIEW_NOTICE,
 } from '../../../components/meter/exceptionText';
-import { jobDetailPath } from '../../../navigation/routes';
 import { formatInstantIn } from '../../../utils/time';
 import { humanize } from '../../../utils/text';
 import { EXCEPTION_STATUS_LABELS, EXCEPTION_STATUS_TONES } from './exceptionDisplay';
@@ -81,11 +79,6 @@ export function ExceptionDetailDialog({
         </Stack>
       </DialogContent>
       <DialogActions>
-        {e.job_id !== null && (
-          <Button component={RouterLink} to={jobDetailPath(e.job_id)}>
-            Open job
-          </Button>
-        )}
         <Button onClick={onClose}>Close</Button>
         {canReview && e.status === 'OPEN' && (
           <Button

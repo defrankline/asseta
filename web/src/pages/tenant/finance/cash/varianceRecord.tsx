@@ -11,7 +11,7 @@ import type { RowAction } from '../../../../components/lifecycle/rowActions';
 import { useAsyncResource } from '../../../../hooks/useAsyncResource';
 import { hoursPurchasePath } from '../../../../navigation/hoursRoutes';
 import { recordPath, type RecordKind } from '../../../../navigation/recordRoutes';
-import { caseDetailPath, jobDetailPath } from '../../../../navigation/routes';
+import { caseDetailPath } from '../../../../navigation/routes';
 import {
   pettyCashFundPath,
   pettyCashPath,
@@ -80,7 +80,7 @@ const PETTY_SOURCE: Readonly<Record<string, PettyCashRecord>> = {
   PETTY_CASH_ADVANCE: 'advances',
 };
 
-/** The record that opened the variance; customer-hour checks point at the purchase or the job. */
+/** The record that opened the variance; customer-hour checks point at the purchase. */
 export function varianceSourcePath(v: CashVarianceDto): string | null {
   const petty = PETTY_SOURCE[v.source_type];
   if (petty !== undefined) return pettyCashPath(petty, v.source_id);
@@ -88,8 +88,7 @@ export function varianceSourcePath(v: CashVarianceDto): string | null {
     const kind = (SOURCE_KIND as Partial<Record<string, RecordKind>>)[v.source_type];
     return kind ? recordPath(kind, v.source_id) : null;
   }
-  if (v.purchase_id != null) return hoursPurchasePath(v.purchase_id);
-  return v.job_id == null ? null : jobDetailPath(v.job_id);
+  return v.purchase_id == null ? null : hoursPurchasePath(v.purchase_id);
 }
 
 type OpenKind = 'assign' | 'explain' | 'resolve' | 'propose' | 'decide' | 'closure';
@@ -322,17 +321,6 @@ function customerHourItems(v: CashVarianceDto): KeyValueItem[] {
         ) : (
           <Link component={RouterLink} to={hoursPurchasePath(v.purchase_id)}>
             {v.purchase_number ?? 'Open the purchase'}
-          </Link>
-        ),
-    },
-    {
-      label: 'Job',
-      value:
-        v.job_id == null ? (
-          '—'
-        ) : (
-          <Link component={RouterLink} to={jobDetailPath(v.job_id)}>
-            {v.job_number ?? 'Open the job'}
           </Link>
         ),
     },

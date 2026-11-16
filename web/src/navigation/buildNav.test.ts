@@ -23,7 +23,7 @@ describe('buildNav', () => {
       'Finance',
       'Administration',
     ]);
-    expect(groups[1]?.items.map((i) => i.label)).toEqual(['Jobs', 'Customers']);
+    expect(groups[1]?.items.map((i) => i.label)).toEqual(['Expenses', 'Customers']);
     // My access joins Administration, last.
     expect(groups.at(-1)?.items.map((i) => i.path)).toEqual(['/tenant/policies', '/me']);
     // The landing page (HomeRedirect) is the first item: the Dashboard, then the Fleet map.

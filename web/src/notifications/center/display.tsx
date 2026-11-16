@@ -9,7 +9,6 @@ import {
   caseDetailPath,
   exceptionsPath,
   financeTabPath,
-  jobDetailPath,
   machineDetailPath,
   platformInvoiceDetailPath,
   ROUTES,
@@ -62,7 +61,6 @@ const BY_ENTITY: Readonly<Record<string, (id: string | null) => string>> = {
     id === null ? ROUTES.platformInvoices : platformInvoiceDetailPath(id),
   [ENTITY.platformPayment]: () => ROUTES.platformPayments,
   [ENTITY.anomalyCase]: (id) => (id === null ? ROUTES.tenantCases : caseDetailPath(id)),
-  [ENTITY.job]: (id) => (id === null ? ROUTES.tenantJobs : jobDetailPath(id)),
   machine: (id) => (id === null ? ROUTES.tenantMachines : machineDetailPath(id)),
   tenant: (id) => (id === null ? ROUTES.platformTenants : tenantDetailPath(id)),
 };
@@ -72,8 +70,6 @@ function exactRecordPath(data: Readonly<Record<string, unknown>> | undefined): s
   const kind = data?.kind;
   const id = data?.record_id;
   if (typeof id !== 'string' || id === '') return null;
-  // UNBILLED_WORK (DEC-031 M2) carries the job itself.
-  if (kind === 'JOB') return jobDetailPath(id);
   return isRecordKind(kind) ? recordPath(kind, id) : null;
 }
 

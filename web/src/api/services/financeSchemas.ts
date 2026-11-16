@@ -23,16 +23,7 @@ import type {
 } from '../types';
 import type { RemittanceEvidenceStatus } from '../custodyTypes';
 import type { RemittanceMethod } from '../custodyTypes';
-import {
-  bool,
-  id,
-  int,
-  nullableId,
-  nullableOneOf,
-  nullableText,
-  oneOf,
-  text,
-} from './schemaKit';
+import { bool, id, int, nullableId, nullableOneOf, nullableText, oneOf, text } from './schemaKit';
 
 export const CHARGE_KINDS: readonly ChargeKind[] = [
   'HIRE',

@@ -12,7 +12,6 @@ import { StaticSelectFilter } from '../../../components/forms/StaticSelectFilter
 import { RowActionsMenu } from '../../../components/lifecycle/RowActionsMenu';
 import { useDisplayTimeZone } from '../../../hooks/useDisplayTimeZone';
 import { recordPath } from '../../../navigation/recordRoutes';
-import { jobDetailPath } from '../../../navigation/routes';
 import { formatInstantIn } from '../../../utils/time';
 import { MachineFilter } from '../shared/financePickers';
 import { PersonName } from '../shared/PersonName';
@@ -42,7 +41,6 @@ function ActivitiesTab({ timeZone }: { timeZone: string }) {
   );
   const columns: DataColumn<NonRevenueActivityDto>[] = [
     { id: 'machine', header: 'Machine', render: differenceMachine },
-    { id: 'job', header: 'Job', render: (a) => a.job_number ?? '—' },
     { id: 'type', header: 'Type', render: (a) => activityTypeLabel(a.activity_type) },
     {
       id: 'when',
@@ -84,7 +82,7 @@ function ActivitiesTab({ timeZone }: { timeZone: string }) {
           </Button>
         ) : (
           <RowActionsMenu
-            label={`${activityTypeLabel(a.activity_type)} of ${a.job_number ?? 'job'}`}
+            label={`${activityTypeLabel(a.activity_type)} on ${differenceMachine(a)}`}
             actions={[
               {
                 key: 'approval',
@@ -93,13 +91,6 @@ function ActivitiesTab({ timeZone }: { timeZone: string }) {
                 onClick: () => {
                   if (a.approval_id !== null)
                     void navigate(recordPath('NON_REVENUE_APPROVAL', a.approval_id));
-                },
-              },
-              {
-                key: 'job',
-                label: 'Open job',
-                onClick: () => {
-                  void navigate(jobDetailPath(a.job_id));
                 },
               },
             ]}
@@ -118,11 +109,9 @@ function ActivitiesTab({ timeZone }: { timeZone: string }) {
         filters={{ status: status || undefined, machine_id: machine?.id }}
         emptyTitle={status === 'NONE' ? 'Nothing awaiting explanation' : 'No non-revenue time'}
         onRowClick={(a) => {
-          void navigate(
-            a.approval_id === null
-              ? jobDetailPath(a.job_id)
-              : recordPath('NON_REVENUE_APPROVAL', a.approval_id),
-          );
+          if (a.approval_id !== null)
+            void navigate(recordPath('NON_REVENUE_APPROVAL', a.approval_id));
+          else if (explain.canExplain(a)) explain.open(a);
         }}
         toolbar={
           <Box className="flex flex-1 flex-wrap items-center gap-3">
@@ -164,7 +153,6 @@ function ApprovalsTab({ timeZone }: { timeZone: string }) {
   };
   const columns: DataColumn<NonRevenueApprovalDto>[] = [
     { id: 'machine', header: 'Machine', render: differenceMachine },
-    { id: 'job', header: 'Job', render: (a) => a.job_number ?? '—' },
     { id: 'type', header: 'Type', render: (a) => activityTypeLabel(a.activity_type) },
     {
       id: 'when',
@@ -212,7 +200,7 @@ function ApprovalsTab({ timeZone }: { timeZone: string }) {
         columns={columns}
         fetchPage={fetchPage}
         getRowId={(a) => a.id}
-        searchPlaceholder="Search machine or job"
+        searchPlaceholder="Search machine"
         reloadKey={reloadKey}
         filters={{ status: status || undefined, machine_id: machine?.id }}
         emptyTitle={status === 'PROPOSED' ? 'No explanations awaiting a decision' : 'No approvals'}
@@ -239,8 +227,8 @@ function ApprovalsTab({ timeZone }: { timeZone: string }) {
 }
 
 /**
- * Non-revenue time inside jobs (e.g. movement to or from a site): it counts as revenue until one
- * person explains it and another approves it.
+ * Non-revenue time (e.g. movement to or from a site): it counts as revenue until one person
+ * explains it and another approves it.
  */
 export function NonRevenuePage() {
   const timeZone = useDisplayTimeZone();
@@ -251,7 +239,7 @@ export function NonRevenuePage() {
     <>
       <PageHeader
         title="Non-revenue hours"
-        subtitle="Time inside jobs that is not customer work, explained by one person and approved by another"
+        subtitle="Time that is not customer work, explained by one person and approved by another"
       />
       <Alert severity="info" sx={{ mb: 2 }}>
         Until approved, this time counts as customer work and expected revenue.

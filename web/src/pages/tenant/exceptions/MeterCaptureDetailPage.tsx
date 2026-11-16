@@ -1,13 +1,12 @@
-import { Link } from '@mui/material';
 import { useCallback } from 'react';
-import { Link as RouterLink, useParams } from 'react-router';
+import { useParams } from 'react-router';
 import { meterService } from '../../../api/services/meterService';
 import type { ExceptionDto, MeterCaptureDto } from '../../../api/types';
 import { CaptureStateChip } from '../../../components/meter/CaptureStateChip';
 import { AsyncContent } from '../../../components/feedback/AsyncContent';
 import { useAsyncResource } from '../../../hooks/useAsyncResource';
 import { useDisplayTimeZone } from '../../../hooks/useDisplayTimeZone';
-import { jobDetailPath, ROUTES } from '../../../navigation/routes';
+import { ROUTES } from '../../../navigation/routes';
 import { formatInstantIn } from '../../../utils/time';
 import { humanize } from '../../../utils/text';
 import { CaptureCard } from '../readings/CaptureCard';
@@ -53,13 +52,6 @@ export function MeterCaptureDetailPage() {
       timeZone={timeZone}
       title={(c) => `${humanize(c.kind)} reading ${c.reading}`}
       status={(c) => <CaptureStateChip state={c.state} />}
-      links={(c) =>
-        c.job_id === null ? null : (
-          <Link component={RouterLink} to={jobDetailPath(c.job_id)}>
-            Open job
-          </Link>
-        )
-      }
       items={(c) => [
         { label: 'Machine', value: machineName(c.machine_id) },
         { label: 'Captured', value: formatInstantIn(c.captured_at, timeZone) },

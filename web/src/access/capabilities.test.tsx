@@ -2,16 +2,10 @@ import { screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import type { AccountabilitySummaryDto } from '../api/custodyTypes';
 import { buildTiles } from '../pages/tenant/accountability/accountabilityModel';
-import { useBillingChoice } from '../pages/tenant/jobs/useBillingChoice';
 import { renderWithProviders } from '../test/renderWithProviders';
 import { CAPABILITY } from './capabilities';
 import { PERMISSIONS as P } from './permissionCodes';
 import { RequireCapability } from './RequireCapability';
-
-function BillingProbe() {
-  const choice = useBillingChoice();
-  return <p>{choice === null ? 'no billing choice' : 'billing choice'}</p>;
-}
 
 const SUMMARY = {
   as_of: '2026-10-21T12:00:00Z',
@@ -62,14 +56,6 @@ describe('capability gating (G1)', () => {
       { tenantPermissions: [P.tenantHoursRead] },
     );
     expect(screen.getByText('hours page')).toBeInTheDocument();
-  });
-
-  it('offers no job billing mode when customer hours is switched off', () => {
-    renderWithProviders(<BillingProbe />, {
-      tenantPermissions: [P.tenantPolicyRead],
-      disabledCapabilities: [CAPABILITY.customerHours],
-    });
-    expect(screen.getByText('no billing choice')).toBeInTheDocument();
   });
 
   it('drops the customer-hours tiles when switched off and keeps the rest', () => {

@@ -116,14 +116,14 @@ describe('variances list', () => {
 });
 
 describe('variance detail', () => {
-  it('links a customer-hour variance to its purchase and its job', async () => {
+  it('links a customer-hour variance to its purchase', async () => {
     openVariance(HOURS_VARIANCE, [P.tenantFinanceRead]);
     expect(await screen.findByRole('link', { name: 'HP-2026-00007' })).toHaveAttribute(
       'href',
       '/tenant/hours/purchases/pppppppp-0000-4000-8000-000000000001',
     );
-    expect(screen.getByRole('link', { name: 'JOB-41' })).toBeInTheDocument();
-    expect(screen.getByText('Hours used differ from the job’s record')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'JOB-41' })).not.toBeInTheDocument();
+    expect(screen.getByText('Hours used differ from the work record')).toBeInTheDocument();
     expect(
       screen.getByRole('heading', { name: 'Customer hours variance · Acme Builders' }),
     ).toBeInTheDocument();

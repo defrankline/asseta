@@ -10,7 +10,7 @@ import { StatusChip } from '../../../components/display/StatusChip';
 import type { RowAction } from '../../../components/lifecycle/rowActions';
 import { AttachmentPhoto } from '../../../components/meter/AttachmentPhoto';
 import { useDisplayTimeZone } from '../../../hooks/useDisplayTimeZone';
-import { engineHoursMachinePath, jobDetailPath } from '../../../navigation/routes';
+import { engineHoursMachinePath } from '../../../navigation/routes';
 import { useNotify } from '../../../notifications/useNotify';
 import { useSession } from '../../../session/useSession';
 import { formatInstantIn } from '../../../utils/time';
@@ -212,15 +212,6 @@ export function useCorrectionKit(onChanged: (c: CorrectionDto) => void): EngineK
       { label: 'Old reading', value: c.old_reading },
       { label: 'New reading', value: c.new_reading },
       { label: 'Reason', value: c.reason },
-      {
-        label: 'Job',
-        value:
-          c.job_id === null ? (
-            'None (daily reading)'
-          ) : (
-            <RouterLink to={jobDetailPath(c.job_id)}>{c.job_number ?? 'Open job'}</RouterLink>
-          ),
-      },
       { label: 'Policy', value: c.policy_version },
     ],
     onChanged,

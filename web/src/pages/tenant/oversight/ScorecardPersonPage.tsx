@@ -24,10 +24,7 @@ import {
 import { useAsyncResource } from '../../../hooks/useAsyncResource';
 import { useDisplayTimeZone } from '../../../hooks/useDisplayTimeZone';
 import { OVERSIGHT_ROUTES } from '../../../navigation/oversightRoutes';
-import {
-  employeeAccountabilityPath,
-  staffDetailPath,
-} from '../../../navigation/routes';
+import { employeeAccountabilityPath, staffDetailPath } from '../../../navigation/routes';
 import { formatDate } from '../../../utils/dates';
 import { humanize } from '../../../utils/text';
 import { formatInstantIn } from '../../../utils/time';

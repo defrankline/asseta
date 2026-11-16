@@ -54,7 +54,7 @@ export function creditInvoicesPath(filters: Readonly<Record<string, string>> = {
   return qs === '' ? HOURS_ROUTES.creditInvoices : `${HOURS_ROUTES.creditInvoices}?${qs}`;
 }
 
-/** Ledger page pre-filtered (e.g. one purchase or job). */
+/** Ledger page pre-filtered (e.g. one purchase). */
 export function hoursLedgerPath(filters: Readonly<Record<string, string>>): string {
   const qs = new URLSearchParams(filters).toString();
   return qs === '' ? HOURS_ROUTES.ledger : `${HOURS_ROUTES.ledger}?${qs}`;

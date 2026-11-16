@@ -241,7 +241,7 @@ export function DecideDifferenceDialog({
 const activityPeriod = (a: { started_at: string; ended_at: string }, timeZone: string): string =>
   `${formatInstantIn(a.started_at, timeZone)} → ${formatInstantIn(a.ended_at, timeZone)}`;
 
-/** Explain non-revenue time inside a job (e.g. movement); a second person approves it. Mount while open. */
+/** Explain non-revenue time (e.g. movement); a second person approves it. Mount while open. */
 export function ExplainNonRevenueDialog({
   activity: a,
   timeZone,
@@ -280,7 +280,6 @@ export function ExplainNonRevenueDialog({
         columns={2}
         items={[
           { label: 'Machine', value: differenceMachine(a) },
-          { label: 'Job', value: a.job_number ?? '—' },
           { label: 'Type', value: activityTypeLabel(a.activity_type) },
           { label: 'Hours', value: `${a.hours} h` },
           { label: 'When', value: activityPeriod(a, timeZone) },
@@ -346,7 +345,6 @@ export function DecideNonRevenueDialog({
       <KeyValueGrid
         columns={2}
         items={[
-          { label: 'Job', value: a.job_number ?? '—' },
           { label: 'Type', value: activityTypeLabel(a.activity_type) },
           { label: 'Hours', value: `${a.hours} h` },
           { label: 'When', value: activityPeriod(a, timeZone) },

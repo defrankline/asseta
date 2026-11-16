@@ -38,13 +38,12 @@ export const DIFFERENCE_STATUS_OPTIONS: readonly Option<RevenueDifferenceStatus>
 export const PERIOD_KIND_LABELS: Readonly<Record<string, string>> = {
   DAY: 'Day',
   WEEK: 'Week',
-  JOB: 'Job',
 };
 
 export const SHEET_FLAG_LABELS: Readonly<Record<SheetFlag, string>> = {
   MISSING_DAILY_REPORT: 'Daily report missing',
   UNEXPLAINED_HOURS: 'Hours to explain',
-  ENGINE_ON_WITHOUT_JOB: 'Engine on without a job',
+  ENGINE_ON_WITHOUT_JOB: 'Engine on without reported work',
   FUEL_ABOVE_NORM: 'Fuel above the norm',
   REVENUE_DIFFERENCE: 'Revenue difference',
 };
@@ -146,10 +145,9 @@ export const REVENUE_ERROR_HINTS: Readonly<Record<string, string>> = {
   STALE_VERSION: 'Someone else changed this record; reload and try again.',
 };
 
-/** "Day 2026-10-20", "Week 2026-10-19 → 2026-10-25" or "Job J-100". */
+/** "Day 2026-10-20" or "Week 2026-10-19 → 2026-10-25". */
 export const differencePeriod = (d: RevenueDifferenceDto): string => {
   const kind = PERIOD_KIND_LABELS[d.period_kind] ?? d.period_kind;
-  if (d.period_kind === 'JOB') return `${kind} ${d.job_number ?? d.period_key}`;
   return d.local_from === d.local_to
     ? `${kind} ${d.local_from}`
     : `${kind} ${d.local_from} → ${d.local_to}`;

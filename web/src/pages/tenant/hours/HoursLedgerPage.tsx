@@ -10,7 +10,6 @@ import { PageHeader } from '../../../components/feedback/PageHeader';
 import { StaticSelectFilter } from '../../../components/forms/StaticSelectFilter';
 import { useDisplayTimeZone } from '../../../hooks/useDisplayTimeZone';
 import { hoursPurchasePath } from '../../../navigation/hoursRoutes';
-import { jobDetailPath } from '../../../navigation/routes';
 import { initialFilter } from '../../../navigation/urlFilters';
 import { formatDate } from '../../../utils/dates';
 import { formatInstantIn } from '../../../utils/time';
@@ -26,7 +25,6 @@ export function HoursLedgerPage() {
   const timeZone = useDisplayTimeZone();
   const [params, setParams] = useSearchParams();
   const purchaseId = params.get('purchase_id') ?? undefined;
-  const jobId = params.get('job_id') ?? undefined;
   const { dateFrom, dateTo } = urlPeriod(params);
   const [customer, setCustomer] = useState<CustomerDto | null>(null);
   const [machine, setMachine] = useState<MachineDto | null>(null);
@@ -77,18 +75,6 @@ export function HoursLedgerPage() {
       ),
     },
     {
-      id: 'job',
-      header: 'Job',
-      render: (e) =>
-        e.job_id === null ? (
-          '—'
-        ) : (
-          <Link component={RouterLink} to={jobDetailPath(e.job_id)}>
-            {nameOr(e.job_number, e.job_id)}
-          </Link>
-        ),
-    },
-    {
       id: 'source',
       header: 'Source',
       render: (e) =>
@@ -105,27 +91,17 @@ export function HoursLedgerPage() {
     <>
       <PageHeader
         title="Hours ledger"
-        subtitle="Every change to customer hours, in order (provisional entries: hours drawn day by day while a job runs); balances are always derived from it"
+        subtitle="Every change to customer hours, in order; balances are always derived from it"
       />
       <Stack spacing={2}>
-        {(purchaseId !== undefined || jobId !== undefined) && (
+        {purchaseId !== undefined && (
           <Box className="flex flex-wrap gap-2">
-            {purchaseId !== undefined && (
-              <Chip
-                label="One purchase"
-                onDelete={() => {
-                  clear('purchase_id');
-                }}
-              />
-            )}
-            {jobId !== undefined && (
-              <Chip
-                label="One job"
-                onDelete={() => {
-                  clear('job_id');
-                }}
-              />
-            )}
+            <Chip
+              label="One purchase"
+              onDelete={() => {
+                clear('purchase_id');
+              }}
+            />
           </Box>
         )}
         <ServerDataTable
@@ -136,7 +112,6 @@ export function HoursLedgerPage() {
           initialSort="-occurred_at"
           filters={{
             purchase_id: purchaseId,
-            job_id: jobId,
             customer_id: customer?.id,
             machine_id: machine?.id,
             entry_type: entryType === '' ? undefined : entryType,

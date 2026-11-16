@@ -16,7 +16,7 @@ import { JobSiteFilter } from '../shared/lookupPickers';
 import { withErrorCode } from '../../../api/lifecycle';
 import { hoursByTypeText, REVENUE_ERROR_HINTS } from './revenueDisplay';
 import { differenceMachine } from './revenueDisplay';
-import { JobLinks, MoneyLines, RowFlags } from './sheetParts';
+import { MoneyLines, RowFlags } from './sheetParts';
 
 const isDay = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
 const MAX_DAYS = 93;
@@ -111,7 +111,6 @@ const columns: DataColumn<DailyMachineSheetRowDto>[] = [
       />
     ),
   },
-  { id: 'jobs', header: 'Jobs', render: (r) => <JobLinks jobs={r.jobs} /> },
   {
     id: 'fuel',
     header: 'Fuel L',
@@ -137,7 +136,7 @@ const columns: DataColumn<DailyMachineSheetRowDto>[] = [
 
 /**
  * One row per machine per day: engine hours split into customer work, non-revenue time and
- * unexplained hours, with jobs, fuel, the money they turned into and flags. Derived from the
+ * unexplained hours, with fuel, the money they turned into and flags. Derived from the
  * existing ledgers on every load.
  */
 export function DailySheetPage() {
@@ -207,7 +206,7 @@ export function DailySheetPage() {
         onSearchChange={setQ}
         filters={filters}
         emptyTitle="No machine days"
-        emptyDescription="No machine had readings, jobs or fuel in these days (the last 7 days unless you choose a range)."
+        emptyDescription="No machine had readings or fuel in these days (the last 7 days unless you choose a range)."
         onRowClick={(r) => {
           void navigate(dailySheetDayPath(r.machine_id, r.day));
         }}

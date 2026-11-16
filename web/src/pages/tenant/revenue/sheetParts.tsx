@@ -1,12 +1,8 @@
 import { Box, Chip, Typography } from '@mui/material';
 import { Link as RouterLink } from 'react-router';
-import type { SheetFlag, SheetFlagRefDto, SheetJobDto, SheetMoneyDto } from '../../../api/types';
+import type { SheetFlag, SheetFlagRefDto, SheetMoneyDto } from '../../../api/types';
 import { MoneyText } from '../../../components/display/MoneyText';
-import {
-  dailySheetDayPath,
-  engineHoursMachinePath,
-  jobDetailPath,
-} from '../../../navigation/routes';
+import { dailySheetDayPath, engineHoursMachinePath } from '../../../navigation/routes';
 import { isZeroDecimal } from '../../../utils/money';
 import { SHEET_FLAG_LABELS } from './revenueDisplay';
 import { flagRecordPath } from './sheetLinks';
@@ -126,28 +122,6 @@ export function MoneyLines({ money }: { money: readonly SheetMoneyDto[] }) {
               {m.unexplained_hours} h, not in expected)
             </>
           )}
-        </Typography>
-      ))}
-    </Box>
-  );
-}
-
-/** Job numbers (linked) with their customers. */
-export function JobLinks({ jobs }: { jobs: readonly SheetJobDto[] }) {
-  if (jobs.length === 0) return <>—</>;
-  return (
-    <Box className="flex flex-col gap-0.5">
-      {jobs.map((j) => (
-        <Typography key={j.job_id} variant="body2" component="div">
-          <RouterLink
-            to={jobDetailPath(j.job_id)}
-            onClick={(e) => {
-              e.stopPropagation();
-            }}
-          >
-            {j.job_number ?? 'Job'}
-          </RouterLink>
-          {j.customer_name != null && ` · ${j.customer_name}`}
         </Typography>
       ))}
     </Box>

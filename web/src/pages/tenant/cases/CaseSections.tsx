@@ -41,11 +41,10 @@ interface EvidenceProps {
 
 function EvidenceItem({
   signal: s,
-  detail,
   timeZone,
   onOpenExpense,
-}: EvidenceProps & { signal: CaseSignalDto }) {
-  const links = sourceLinks(s, detail.case);
+}: Omit<EvidenceProps, 'detail'> & { signal: CaseSignalDto }) {
+  const links = sourceLinks(s);
   return (
     <Paper variant="outlined" component="li" className="list-none p-3">
       <Box className="flex flex-wrap items-center gap-2">

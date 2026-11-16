@@ -18,7 +18,6 @@ export interface ExpenseFormValues {
   currency: string;
   incurred_at: string;
   supplier: string;
-  job_id: string;
   machine_id: string;
   paid_from: ExpensePaidFrom;
   custodian_staff_id: string;
@@ -38,7 +37,6 @@ export const EXPENSE_FIELDS = [
   'supplier',
 ] as const;
 export const ATTRIBUTION_FIELDS = [
-  'job_id',
   'machine_id',
   'paid_from',
   'custodian_staff_id',
@@ -55,7 +53,6 @@ export function emptyExpenseValues(now: string): ExpenseFormValues {
     currency: '',
     incurred_at: now,
     supplier: '',
-    job_id: '',
     machine_id: '',
     paid_from: 'COMPANY',
     custodian_staff_id: '',
@@ -76,7 +73,6 @@ export const expenseFormSchema: ObjectSchema<ExpenseFormValues> = object({
   currency: string().ensure(),
   incurred_at: requiredInstant('Incurred at'),
   supplier: optionalText('Supplier', 200),
-  job_id: string().ensure(),
   machine_id: string().ensure(),
   paid_from: mixed<ExpensePaidFrom>().oneOf(PAID_FROM_VALUES).required(),
   custodian_staff_id: string().ensure(),
@@ -99,7 +95,6 @@ export function toExpensePayload(v: ExpenseFormValues, clientId: string): Expens
     currency: orNull(v.currency),
     incurred_at: v.incurred_at,
     supplier: orNull(v.supplier),
-    job_id: orNull(v.job_id),
     machine_id: orNull(v.machine_id),
     paid_from: v.paid_from,
     custodian_staff_id: v.paid_from === 'CASH_CUSTODY' ? orNull(v.custodian_staff_id) : null,
@@ -118,7 +113,6 @@ export interface FuelFormValues {
   currency: string;
   occurred_at: string;
   machine_id: string;
-  job_id: string;
   expense_id: string;
   meter_reading: string;
   supplier: string;
@@ -133,7 +127,6 @@ export function emptyFuelValues(now: string): FuelFormValues {
     currency: '',
     occurred_at: now,
     machine_id: '',
-    job_id: '',
     expense_id: '',
     meter_reading: '',
     supplier: '',
@@ -148,7 +141,6 @@ export const fuelFormSchema: ObjectSchema<FuelFormValues> = object({
   currency: string().ensure(),
   occurred_at: requiredInstant('Occurred at'),
   machine_id: string().ensure(),
-  job_id: string().ensure(),
   expense_id: string().ensure(),
   meter_reading: optionalDecimal('Meter reading'),
   supplier: optionalText('Supplier', 200),
@@ -164,7 +156,6 @@ export function toFuelPayload(v: FuelFormValues, clientId: string): FuelEventIn 
     currency: orNull(v.currency),
     occurred_at: v.occurred_at,
     machine_id: orNull(v.machine_id),
-    job_id: orNull(v.job_id),
     expense_id: v.event_type === 'PURCHASE' ? orNull(v.expense_id) : null,
     meter_reading: orNull(v.meter_reading),
     supplier: orNull(v.supplier),

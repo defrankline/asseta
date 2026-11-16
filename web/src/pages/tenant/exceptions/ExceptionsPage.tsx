@@ -1,10 +1,8 @@
-import { Alert, Box, Chip, MenuItem, Stack, TextField } from '@mui/material';
+import { Alert, Chip, MenuItem, Stack, TextField } from '@mui/material';
 import { useCallback, useMemo, useState } from 'react';
 import { useSearchParams, useParams } from 'react-router';
-import { jobService } from '../../../api/services/jobService';
 import { meterService } from '../../../api/services/meterService';
-import type { ExceptionDto, JobDto } from '../../../api/types';
-import { AsyncAutocomplete } from '../../../components/data/AsyncAutocomplete';
+import type { ExceptionDto } from '../../../api/types';
 import { ServerDataTable, type DataColumn } from '../../../components/data/ServerDataTable';
 import type { ServerQuery } from '../../../components/data/useServerPage';
 import { StatusChip } from '../../../components/display/StatusChip';
@@ -14,7 +12,6 @@ import {
   explainException,
   NEUTRAL_REVIEW_NOTICE,
 } from '../../../components/meter/exceptionText';
-import { useAsyncResource } from '../../../hooks/useAsyncResource';
 import { useDisplayTimeZone } from '../../../hooks/useDisplayTimeZone';
 import { useNotify } from '../../../notifications/useNotify';
 import { formatInstantIn } from '../../../utils/time';
@@ -32,21 +29,19 @@ import { initialFilter } from '../../../navigation/urlFilters';
 import { useFocusedRecord } from '../shared/useFocusedRecord';
 import { FocusMissingAlert } from '../shared/FocusMissingAlert';
 
-/** Meter/GPS exceptions awaiting or after human review; filtered by status, type and job. */
+/** Meter/GPS exceptions awaiting or after human review; filtered by status and type. */
 export function ExceptionsPage() {
   const notify = useNotify();
   const timeZone = useDisplayTimeZone();
   const machineName = useMachineLabels();
-  const [params, setParams] = useSearchParams();
+  const [params] = useSearchParams();
   const { focusId } = useParams();
-  const jobId = params.get('job_id') ?? '';
   const [status, setStatus] = useState(() =>
     focusId !== undefined ? '' : initialFilter(params, 'status', EXCEPTION_STATUS_OPTIONS, 'OPEN'),
   );
   const [type, setType] = useState(() =>
     initialFilter(params, 'exception_type', EXCEPTION_TYPE_OPTIONS, ''),
   );
-  const [job, setJob] = useState<JobDto | null>(null);
   const [selected, setSelected] = useState<ExceptionDto | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const liveReload = useCallback(() => {
@@ -57,9 +52,8 @@ export function ExceptionsPage() {
     () => ({
       status: status || undefined,
       exception_type: type || undefined,
-      job_id: jobId || undefined,
     }),
-    [status, type, jobId],
+    [status, type],
   );
   const fetchPage = useCallback(
     (q: ServerQuery, signal: AbortSignal) =>
@@ -74,22 +68,6 @@ export function ExceptionsPage() {
     [],
   );
   const focus = useFocusedRecord<ExceptionDto>(loadFocused, focusId, setSelected);
-  const fetchJobs = useCallback(
-    async (q: string, signal: AbortSignal) =>
-      (await jobService.list({ page: 1, page_size: 20, q }, signal)).items,
-    [],
-  );
-  // A job_id deep link (e.g. "Review exceptions" on a job) is shown by its job number, not its id.
-  const loadUrlJob = useCallback(
-    async (signal: AbortSignal) => (await jobService.summary(jobId, signal)).job,
-    [jobId],
-  );
-  const urlJob = useAsyncResource(loadUrlJob, [], jobId !== '' && job === null);
-  const shownJob = job ?? (urlJob.data?.id === jobId ? urlJob.data : null);
-  const setJobFilter = (j: JobDto | null) => {
-    setJob(j);
-    setParams(j === null ? {} : { job_id: j.id }, { replace: true });
-  };
   const columns: DataColumn<ExceptionDto>[] = [
     { id: 'created', header: 'Recorded', render: (e) => formatInstantIn(e.created_at, timeZone) },
     { id: 'type', header: 'Type', render: (e) => EXCEPTION_TYPE_LABELS[e.exception_type] },
@@ -171,24 +149,6 @@ export function ExceptionsPage() {
                   </MenuItem>
                 ))}
               </TextField>
-              <Box className="min-w-64">
-                <AsyncAutocomplete<JobDto>
-                  label="Job"
-                  value={shownJob}
-                  onChange={setJobFilter}
-                  fetchOptions={fetchJobs}
-                  getOptionLabel={(j) => j.job_number}
-                  isOptionEqualToValue={(a, b) => a.id === b.id}
-                />
-              </Box>
-              {jobId !== '' && shownJob === null && urlJob.error !== null && (
-                <Chip
-                  label="Filtered by one job"
-                  onDelete={() => {
-                    setJobFilter(null);
-                  }}
-                />
-              )}
             </>
           }
         />

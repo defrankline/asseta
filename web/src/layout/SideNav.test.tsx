@@ -47,7 +47,7 @@ describe('SideNav', () => {
       within(ops)
         .getAllByRole('link')
         .map((l) => l.textContent),
-    ).toEqual(['Jobs', 'Customers']);
+    ).toEqual(['Expenses', 'Customers']);
     expect(within(ops).getByRole('link', { name: 'Customers' })).toHaveClass('active');
     expect(within(nav).queryByRole('link', { name: 'Machines' })).not.toBeInTheDocument();
   });
@@ -96,7 +96,7 @@ describe('SideNav', () => {
 
   it('works without storage', () => {
     window.localStorage.setItem(STORAGE_KEY, 'not json');
-    renderNav('/tenant/jobs');
+    renderNav('/tenant/expenses');
     expect(header('Operations')).toHaveAttribute('aria-expanded', 'true');
   });
 });
@@ -110,7 +110,7 @@ describe('HomeRedirect', () => {
             <Route path="/" element={<HomeRedirect />} />
             <Route path="/tenant/dashboard" element={<p>Tenant dashboard page</p>} />
             <Route path="/tenant/fleet" element={<p>Fleet map page</p>} />
-            <Route path="/tenant/field/jobs" element={<p>My jobs page</p>} />
+            <Route path="/tenant/field/machine-report" element={<p>Machine report page</p>} />
             <Route path="/platform" element={<p>Dashboard page</p>} />
             <Route path="*" element={<p>Somewhere else</p>} />
           </Routes>
@@ -124,11 +124,11 @@ describe('HomeRedirect', () => {
     expect(screen.getByText('Tenant dashboard page')).toBeInTheDocument();
   });
 
-  it('lands field users (no office oversight) on My jobs', () => {
+  it('lands field users (no office oversight) on the machine report', () => {
     const field = {
-      key: 'tenant.field.jobs',
-      label: 'My jobs',
-      path: '/tenant/field/jobs',
+      key: 'tenant.field.machine_report',
+      label: 'Machine report',
+      path: '/tenant/field/machine-report',
       order: 11,
       group: 'tenant.field',
     };
@@ -138,18 +138,18 @@ describe('HomeRedirect', () => {
       ...me,
       tenants: me.tenants.map((t) => ({
         ...t,
-        permissions: ['tenant.job.log', 'tenant.fleet.read'],
+        permissions: ['tenant.machine_report.submit', 'tenant.fleet.read'],
       })),
     };
     landOn(makeSession(asSupervisor, { kind: 'tenant', tenantId: TENANT_A }));
-    expect(screen.getByText('My jobs page')).toBeInTheDocument();
+    expect(screen.getByText('Machine report page')).toBeInTheDocument();
   });
 
   it('keeps owners on the Dashboard even with Field work menus', () => {
     const field = {
-      key: 'tenant.field.jobs',
-      label: 'My jobs',
-      path: '/tenant/field/jobs',
+      key: 'tenant.field.machine_report',
+      label: 'Machine report',
+      path: '/tenant/field/machine-report',
       order: 11,
       group: 'tenant.field',
     };
@@ -159,7 +159,11 @@ describe('HomeRedirect', () => {
       ...me,
       tenants: me.tenants.map((t) => ({
         ...t,
-        permissions: ['tenant.job.log', 'tenant.job.approve', 'tenant.finance.read'],
+        permissions: [
+          'tenant.machine_report.submit',
+          'tenant.machine_report.approve',
+          'tenant.finance.read',
+        ],
       })),
     };
     landOn(makeSession(asOwner, { kind: 'tenant', tenantId: TENANT_A }));

@@ -18,10 +18,7 @@ import type { StatusTone } from '../../../../components/display/StatusChip';
 import { ADJUSTMENT_ROUTES, adjustmentRequestPath } from '../../../../navigation/adjustmentRoutes';
 import { hoursPurchasePath } from '../../../../navigation/hoursRoutes';
 import { recordPath } from '../../../../navigation/recordRoutes';
-import {
-  financeTabPath,
-  machineDetailPath,
-} from '../../../../navigation/routes';
+import { financeTabPath, machineDetailPath } from '../../../../navigation/routes';
 import { formatMoney } from '../../../../utils/money';
 import { HOURS_ERROR_HINTS, hoursText } from '../../hours/hoursDisplay';
 import type { Option } from '../../shared/display';

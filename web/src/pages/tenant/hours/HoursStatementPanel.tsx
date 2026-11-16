@@ -32,7 +32,6 @@ import { StatusChip } from '../../../components/display/StatusChip';
 import { AsyncContent } from '../../../components/feedback/AsyncContent';
 import { useAsyncResource } from '../../../hooks/useAsyncResource';
 import { hoursPurchasePath, lowBalanceAlertsPath } from '../../../navigation/hoursRoutes';
-import { jobDetailPath } from '../../../navigation/routes';
 import { useNotify } from '../../../notifications/useNotify';
 import { formatDate, isIsoDate, todayIsoDate } from '../../../utils/dates';
 import { isZeroDecimal } from '../../../utils/money';
@@ -58,15 +57,6 @@ const machineOf = (r: {
   machine_code?: string | null;
   machine_name?: string | null;
 }) => machineText(r.machine_code, r.machine_name, r.machine_id);
-
-function JobLink({ id, number }: { id: string | null; number?: string | null | undefined }) {
-  if (id === null) return <>—</>;
-  return (
-    <Link component={RouterLink} to={jobDetailPath(id)}>
-      {nameOr(number, id)}
-    </Link>
-  );
-}
 
 function SubSection({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -111,8 +101,7 @@ function Totals({ s }: { s: HoursStatementDto }) {
       {!isZeroDecimal(t.provisional_at_close) && (
         <Typography variant="body2" color="text.secondary">
           Of the hours used, {hoursText(t.provisional_at_close)} are{' '}
-          {PROVISIONAL_LABEL.toLowerCase()} at the end of the period (final when each job
-          completes).
+          {PROVISIONAL_LABEL.toLowerCase()} at the end of the period.
         </Typography>
       )}
       {!isZeroDecimal(t.awaiting_activation) && (
@@ -173,16 +162,12 @@ function StatementBody({ s, timeZone }: { s: HoursStatementDto; timeZone: string
   ];
   const usageColumns: DataColumn<HoursStatementUsageDto>[] = [
     { id: 'day', header: 'Day', render: (u) => formatDate(u.day) },
-    { id: 'job', header: 'Job', render: (u) => <JobLink id={u.job_id} number={u.job_number} /> },
     { id: 'machine', header: 'Machine', render: machineOf },
     { id: 'hours', header: 'Hours', align: 'right', render: (u) => hoursText(u.hours) },
     {
       id: 'basis',
       header: 'Basis',
-      render: (u) =>
-        u.job_running
-          ? `${USAGE_BASIS_LABELS[u.basis]} · job still running`
-          : USAGE_BASIS_LABELS[u.basis],
+      render: (u) => USAGE_BASIS_LABELS[u.basis],
     },
   ];
   const lineColumns: DataColumn<HoursStatementLineDto>[] = [
@@ -198,7 +183,6 @@ function StatementBody({ s, timeZone }: { s: HoursStatementDto; timeZone: string
       ),
     },
     { id: 'machine', header: 'Machine', render: machineOf },
-    { id: 'job', header: 'Job', render: (l) => <JobLink id={l.job_id} number={l.job_number} /> },
     { id: 'hours', header: 'Hours', align: 'right', render: (l) => hoursText(l.hours) },
     {
       id: 'balance',
@@ -240,7 +224,7 @@ function StatementBody({ s, timeZone }: { s: HoursStatementDto; timeZone: string
             ariaLabel="Statement usage"
             columns={usageColumns}
             rows={s.usage}
-            getRowId={(u) => `${u.day}:${u.job_id ?? ''}:${u.machine_id}:${u.basis}`}
+            getRowId={(u) => `${u.day}:${u.machine_id}:${u.basis}`}
           />
         )}
       </SubSection>
@@ -261,7 +245,7 @@ function StatementBody({ s, timeZone }: { s: HoursStatementDto; timeZone: string
 }
 
 /**
- * Customer hours statement (DEC-031 P3): bought, activated, used per day and job, transferred, expired,
+ * Customer hours statement (DEC-031 P3): bought, activated, used per day, transferred, expired,
  * cancelled and remaining hours for a period (default this month to date), optionally one machine;
  * the same statement downloads as a PDF.
  */

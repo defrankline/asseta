@@ -52,9 +52,6 @@ vi.mock('../../../api/services/machineService', () => ({
 vi.mock('../../../api/services/staffService', () => ({
   staffService: { list: vi.fn().mockResolvedValue(mocks.emptyPage) },
 }));
-vi.mock('../../../api/services/jobService', () => ({
-  jobService: { summary: vi.fn().mockRejectedValue(new Error('not needed')) },
-}));
 vi.mock('../../../api/services/expenseService', () => ({
   expenseService: { get: vi.fn(), receiptUrl: vi.fn() },
 }));
@@ -137,16 +134,13 @@ describe('CaseDetailPage', () => {
     ).toBeInTheDocument();
     expect(evidence.getByRole('link', { name: 'Open exceptions' })).toHaveAttribute(
       'href',
-      `/tenant/exceptions?job_id=${JOB_ID}`,
+      '/tenant/exceptions',
     );
     expect(evidence.getByRole('link', { name: 'Open alerts' })).toHaveAttribute(
       'href',
       '/tenant/alerts',
     );
-    expect(evidence.getByRole('link', { name: 'Open job J-1001' })).toHaveAttribute(
-      'href',
-      `/tenant/jobs/${JOB_ID}`,
-    );
+    expect(evidence.queryByRole('link', { name: /Open job/ })).not.toBeInTheDocument();
     expect(evidence.getByRole('button', { name: 'Open expense' })).toBeInTheDocument();
     expect(screen.getByText(/They are not a conclusion about any person/)).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/fraud/i);

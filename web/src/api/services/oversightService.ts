@@ -15,16 +15,7 @@ import type {
   ScorecardRowDto,
 } from '../oversightTypes';
 import type { Page } from '../types';
-import {
-  bool,
-  id,
-  int,
-  nullableId,
-  nullableInt,
-  nullableText,
-  oneOf,
-  text,
-} from './schemaKit';
+import { bool, id, int, nullableId, nullableInt, nullableText, oneOf, text } from './schemaKit';
 import {
   seg,
   tenantGet,

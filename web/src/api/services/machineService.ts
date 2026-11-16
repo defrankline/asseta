@@ -40,6 +40,13 @@ export const machineService = {
   list(query: TenantListQuery, signal?: AbortSignal): Promise<Page<MachineDto>> {
     return tenantPage('/tenant/machines', machinePageSchema, query, 'machine page', signal);
   },
+  /**
+   * GET /tenant/field/machines (listMyFieldMachines): machines the caller works on (assigned to them),
+   * for field users without machine register access; `q` searches asset code and name.
+   */
+  fieldMachines(q: string | undefined, signal?: AbortSignal): Promise<MachineDto[]> {
+    return tenantList('/tenant/field/machines', machineSchema, 'field machines', signal, { q });
+  },
   /** GET /tenant/machines/{id} (getMachine). */
   get(machineId: string, signal?: AbortSignal): Promise<MachineDto> {
     return tenantGet(m(machineId), machineSchema, 'machine', signal);

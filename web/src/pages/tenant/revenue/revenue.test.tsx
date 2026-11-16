@@ -4,7 +4,7 @@ import { Route, Routes } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { revenueService } from '../../../api/services/revenueService';
 import { recordPath, recordRoutePattern } from '../../../navigation/recordRoutes';
-import { JOB_ID, ME_ID } from '../../../test/jobFixtures';
+import { ME_ID } from '../../../test/jobFixtures';
 import { renderWithProviders } from '../../../test/renderWithProviders';
 import {
   ACTIVITY_ID,
@@ -81,7 +81,7 @@ describe('Revenue differences', () => {
     );
   });
 
-  it('shows jobs and money sources with links, and explains with a reason', async () => {
+  it('shows money sources without job sections, and explains with a reason', async () => {
     const user = userEvent.setup();
     mocks.getDifference.mockResolvedValue(makeDifference());
     mocks.explainDifference.mockResolvedValue(
@@ -95,11 +95,7 @@ describe('Revenue differences', () => {
     expect(
       await screen.findByRole('heading', { name: 'Difference · EX-01 · Excavator' }),
     ).toBeInTheDocument();
-    const jobs = screen.getByRole('table', { name: 'Jobs' });
-    expect(within(jobs).getByRole('link', { name: 'J-100' })).toHaveAttribute(
-      'href',
-      `/tenant/jobs/${JOB_ID}`,
-    );
+    expect(screen.queryByRole('table', { name: 'Jobs' })).not.toBeInTheDocument();
     const sources = screen.getByRole('table', { name: 'Money sources' });
     expect(within(sources).queryByRole('link', { name: 'Open invoice' })).toBeNull();
     expect(screen.getByRole('link', { name: 'Daily sheet' })).toHaveAttribute(

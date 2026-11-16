@@ -1,6 +1,5 @@
 import { useCallback } from 'react';
 import { PERMISSIONS } from '../../../access/permissionCodes';
-import { jobService } from '../../../api/services/jobService';
 import { machineService } from '../../../api/services/machineService';
 import type { MachineDto } from '../../../api/types';
 import { LOOKUP_PAGE_SIZE } from '../../../components/data/AsyncAutocomplete';
@@ -8,7 +7,7 @@ import { useSession } from '../../../session/useSession';
 
 /**
  * Machine search for pickers: the machine register for those who may read it, else the machines the caller works
- * on (`/tenant/field/machines`: assigned to them or on jobs they supervise). Supervisors have no register access,
+ * on (`/tenant/field/machines`: assigned to them). Supervisors have no register access,
  * so a register search would be refused (403).
  */
 export function useMachineSearch(): (q: string, signal: AbortSignal) => Promise<MachineDto[]> {
@@ -18,7 +17,7 @@ export function useMachineSearch(): (q: string, signal: AbortSignal) => Promise<
     async (q: string, signal: AbortSignal) =>
       register
         ? (await machineService.list({ page: 1, page_size: LOOKUP_PAGE_SIZE, q }, signal)).items
-        : jobService.fieldMachines(q.trim() === '' ? undefined : q, signal),
+        : machineService.fieldMachines(q.trim() === '' ? undefined : q, signal),
     [register],
   );
 }

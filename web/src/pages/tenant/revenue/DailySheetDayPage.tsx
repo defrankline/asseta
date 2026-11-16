@@ -1,11 +1,10 @@
-import { Button, Link, Typography } from '@mui/material';
+import { Button, Typography } from '@mui/material';
 import { useCallback } from 'react';
 import { Link as RouterLink, useParams } from 'react-router';
 import { revenueService } from '../../../api/services/revenueService';
 import type {
   DailyMachineSheetDetailDto,
   SheetFuelDto,
-  SheetJobDto,
   SheetReadingDto,
   SheetSegmentDto,
 } from '../../../api/types';
@@ -20,7 +19,7 @@ import {
 } from '../../../components/lifecycle/EntityDetailsLayout';
 import { useAsyncResource } from '../../../hooks/useAsyncResource';
 import { useDisplayTimeZone } from '../../../hooks/useDisplayTimeZone';
-import { engineHoursMachinePath, jobDetailPath, ROUTES } from '../../../navigation/routes';
+import { engineHoursMachinePath, ROUTES } from '../../../navigation/routes';
 import { formatDate } from '../../../utils/dates';
 import { formatInstantIn } from '../../../utils/time';
 import { humanize } from '../../../utils/text';
@@ -31,18 +30,9 @@ import { hoursByTypeText } from './revenueDisplay';
 import { differenceMachine } from './revenueDisplay';
 import { RecordFlags } from './sheetParts';
 
-const jobCell = (jobId: string | null, jobNumber: string | null | undefined) =>
-  jobId === null ? (
-    '—'
-  ) : (
-    <Link component={RouterLink} to={jobDetailPath(jobId)}>
-      {jobNumber ?? 'Open job'}
-    </Link>
-  );
-
 const SEGMENT_KIND_LABELS: Readonly<Record<string, string>> = {
   CUSTOMER_WORK: 'Customer work',
-  UNALLOCATED: 'Outside jobs',
+  UNALLOCATED: 'Unallocated',
   NON_REVENUE: 'Non-revenue time',
 };
 
@@ -60,7 +50,6 @@ function Sections({ d, timeZone }: { d: DailyMachineSheetDetailDto; timeZone: st
     },
     { id: 'kind', header: 'Kind', render: (r) => humanize(r.kind) },
     { id: 'state', header: 'State', render: (r) => humanize(r.state) },
-    { id: 'job', header: 'Job', render: (r) => jobCell(r.job_id, r.job_number) },
   ];
   const segmentColumns: DataColumn<SheetSegmentDto>[] = [
     {
@@ -84,26 +73,6 @@ function Sections({ d, timeZone }: { d: DailyMachineSheetDetailDto; timeZone: st
       render: (s) => <span className="font-mono">{s.customer_work_hours_in_day}</span>,
     },
     { id: 'nonrev', header: 'Non-revenue', render: (s) => hoursByTypeText(s.non_revenue_by_type) },
-    { id: 'job', header: 'Job', render: (s) => jobCell(s.job_id, s.job_number) },
-  ];
-  const jobColumns: DataColumn<SheetJobDto>[] = [
-    { id: 'job', header: 'Job', render: (j) => jobCell(j.job_id, j.job_number) },
-    { id: 'customer', header: 'Customer', render: (j) => j.customer_name ?? '—' },
-    { id: 'site', header: 'Site', render: (j) => j.job_site_name ?? '—' },
-    { id: 'billing', header: 'Billing', render: (j) => humanize(j.billing_mode) },
-    { id: 'status', header: 'Status', render: (j) => humanize(j.status) },
-    {
-      id: 'customer_hours',
-      header: 'Customer work h',
-      align: 'right',
-      render: (j) => <span className="font-mono">{j.customer_work_hours}</span>,
-    },
-    {
-      id: 'revenue_hours',
-      header: 'Revenue h',
-      align: 'right',
-      render: (j) => <span className="font-mono">{j.revenue_hours}</span>,
-    },
   ];
   const fuelColumns: DataColumn<SheetFuelDto>[] = [
     { id: 'at', header: 'When', render: (f) => formatInstantIn(f.occurred_at, timeZone) },
@@ -114,7 +83,6 @@ function Sections({ d, timeZone }: { d: DailyMachineSheetDetailDto; timeZone: st
       align: 'right',
       render: (f) => <span className="font-mono">{f.litres}</span>,
     },
-    { id: 'job', header: 'Job', render: (f) => jobCell(f.job_id, null) },
   ];
   const empty = (text: string) => (
     <Typography variant="body2" color="text.secondary">
@@ -209,21 +177,9 @@ function Sections({ d, timeZone }: { d: DailyMachineSheetDetailDto; timeZone: st
       <DetailSection title="Flags">
         <RecordFlags flags={d.flags} refs={d.flag_records} machineId={d.machine_id} />
       </DetailSection>
-      <DetailSection title="Jobs">
-        {d.jobs.length === 0 ? (
-          empty('No jobs on this machine this day.')
-        ) : (
-          <StaticTable
-            ariaLabel="Jobs"
-            columns={jobColumns}
-            rows={d.jobs}
-            getRowId={(j) => j.job_id}
-          />
-        )}
-      </DetailSection>
       <DetailSection title="Money sources">
         {d.money_sources.length === 0 ? (
-          empty('No issued invoice lines or prepaid hours used for these jobs yet.')
+          empty('No prepaid hours used on this machine this day yet.')
         ) : (
           <MoneySourcesTable rows={d.money_sources} />
         )}
@@ -236,7 +192,7 @@ function Sections({ d, timeZone }: { d: DailyMachineSheetDetailDto; timeZone: st
             ariaLabel="Engine-hour segments"
             columns={segmentColumns}
             rows={d.segments}
-            getRowId={(s) => `${s.start_ref}:${s.end_ref}:${s.kind}:${s.job_id ?? ''}`}
+            getRowId={(s) => `${s.start_ref}:${s.end_ref}:${s.kind}`}
           />
         )}
       </DetailSection>
@@ -268,7 +224,7 @@ function Sections({ d, timeZone }: { d: DailyMachineSheetDetailDto; timeZone: st
   );
 }
 
-/** One machine-day of the daily sheet: readings, segments, jobs, money sources, fuel and flags. */
+/** One machine-day of the daily sheet: readings, segments, money sources, fuel and flags. */
 export function DailySheetDayPage() {
   const { machineId = '', day = '' } = useParams();
   const timeZone = useDisplayTimeZone();

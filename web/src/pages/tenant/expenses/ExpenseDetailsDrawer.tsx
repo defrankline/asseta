@@ -7,13 +7,12 @@ import { MoneyText } from '../../../components/display/MoneyText';
 import { StatusChip } from '../../../components/display/StatusChip';
 import { DetailsDrawer } from '../../../components/lifecycle/DetailsDrawer';
 import { AttachmentPhoto } from '../../../components/meter/AttachmentPhoto';
-import { jobDetailPath, ROUTES } from '../../../navigation/routes';
+import { ROUTES } from '../../../navigation/routes';
 import { formatInstantIn } from '../../../utils/time';
 import {
   EXPENSE_STATUS_OPTIONS,
   EXPENSE_STATUS_TONES,
   PAID_FROM_LABELS,
-  shortId,
 } from '../shared/financeDisplay';
 import { PersonName } from '../shared/PersonName';
 import { labelOf } from '../shared/display';
@@ -109,15 +108,6 @@ export function ExpenseDetailsDrawer({ expense: e, timeZone, onClose }: ExpenseD
           {
             label: 'Machine',
             value: e.machine_id === null ? 'Unattributed' : machineLabel(e.machine_id),
-          },
-          {
-            label: 'Job',
-            value:
-              e.job_id === null ? (
-                '—'
-              ) : (
-                <RouterLink to={jobDetailPath(e.job_id)}>{shortId(e.job_id)}</RouterLink>
-              ),
           },
           { label: 'Policy version', value: e.policy_version },
           { label: 'Receipt required', value: e.receipt_required ? 'Yes' : 'No' },

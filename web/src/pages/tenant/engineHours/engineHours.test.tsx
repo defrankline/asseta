@@ -300,7 +300,7 @@ describe('MachineEngineHoursPanel', () => {
       tenantPermissions: ['tenant.meter.read', 'tenant.meter.review'],
     });
     const table = await screen.findByRole('table', { name: 'Engine-hour intervals' });
-    expect(within(table).getByText('Job J-100 · 10.0 h')).toBeInTheDocument();
+    expect(within(table).getByText('Customer work · 10.0 h')).toBeInTheDocument();
     expect(within(table).getByText('Not yet explained · 2.5 h')).toBeInTheDocument();
     expect(screen.getByText('Hours to explain')).toBeInTheDocument();
     await user.click(within(table).getByRole('button', { name: 'Explain' }));

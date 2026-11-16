@@ -106,8 +106,8 @@ export const VARIANCE_EVENT_LABELS: Readonly<Record<VarianceEventAction, string>
 export const VARIANCE_CHECK_LABELS: Readonly<Record<string, string>> = {
   PURCHASE_OVER_ACTIVATED: 'More hours activated than the purchase holds',
   NEGATIVE_REMAINING: 'Remaining hours below zero on a machine',
-  CONSUMPTION_MISMATCH: 'Hours used differ from the job’s record',
-  ALLOCATION_MISMATCH: 'Hours allocated differ from the job’s record',
+  CONSUMPTION_MISMATCH: 'Hours used differ from the work record',
+  ALLOCATION_MISMATCH: 'Hours allocated differ from the work record',
 };
 
 /** SURPLUS: more was received than declared (a negative difference) — neutral wording, never blame. */

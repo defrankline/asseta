@@ -447,18 +447,14 @@ const ledgerEntry = (over: Partial<LedgerEntryDto>): LedgerEntryDto => ({
 });
 
 describe('HoursLedgerPage', () => {
-  it('links each entry to its purchase and job by number, short id when unnamed', async () => {
+  it('links each entry to its purchase by number, short id when unnamed', async () => {
     mocks.listLedger.mockResolvedValue(
       page([ledgerEntry({}), ledgerEntry({ id: 'e2', purchase_number: null, job_number: null })]),
     );
     renderWithProviders(<HoursLedgerPage />, { tenantPermissions: ['tenant.hours.read'] });
     const purchase = await screen.findByRole('link', { name: 'HP-2026-00001' });
     expect(purchase).toHaveAttribute('href', expect.stringContaining('aaaaaaaa-0000'));
-    expect(screen.getByRole('link', { name: 'P-1' })).toHaveAttribute(
-      'href',
-      expect.stringContaining('bbbbbbbb-0000'),
-    );
     expect(screen.getByRole('link', { name: 'aaaaaaaa…' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'bbbbbbbb…' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'P-1' })).not.toBeInTheDocument();
   });
 });

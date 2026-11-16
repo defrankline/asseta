@@ -120,9 +120,9 @@ describe('ExpensesPage', () => {
       custodian_staff_id: null,
       receipt_attachment_ids: [],
       gps: null,
-      job_id: null,
       machine_id: null,
     });
+    expect(mocks.submit.mock.calls[0]?.[0]).not.toHaveProperty('job_id');
   });
 
   it('records a fuel issue event', async () => {

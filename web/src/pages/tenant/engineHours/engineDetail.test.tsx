@@ -64,7 +64,7 @@ describe('MeterCorrectionDetailPage', () => {
       'cccccccc-0000-4000-8000-000000000009',
       expect.any(AbortSignal),
     );
-    expect(screen.getByRole('link', { name: 'J-100' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'J-100' })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Engine hours' })).toHaveAttribute(
       'href',
       `/tenant/engine-hours/machines/${MACHINE_ID}`,

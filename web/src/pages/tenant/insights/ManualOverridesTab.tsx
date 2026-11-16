@@ -14,7 +14,7 @@ import { AsyncAutocomplete } from '../../../components/data/AsyncAutocomplete';
 import { ServerDataTable, type DataColumn } from '../../../components/data/ServerDataTable';
 import type { ServerQuery } from '../../../components/data/useServerPage';
 import { KeyValueGrid } from '../../../components/display/KeyValueGrid';
-import { exceptionsPath, jobDetailPath } from '../../../navigation/routes';
+import { exceptionsPath } from '../../../navigation/routes';
 import { useSession } from '../../../session/useSession';
 import { isIsoDate } from '../../../utils/dates';
 import { humanize } from '../../../utils/text';
@@ -80,15 +80,6 @@ export function ManualOverridesTab({ timeZone }: { timeZone: string }) {
   const columns: DataColumn<ManualOverrideItemDto>[] = [
     { id: 'when', header: 'Captured', render: (o) => formatInstantIn(o.captured_at, timeZone) },
     { id: 'machine', header: 'Machine', render: (o) => `${o.asset_code} · ${o.machine_name}` },
-    {
-      id: 'job',
-      header: 'Job',
-      render: (o) => (
-        <Link component={RouterLink} to={jobDetailPath(o.job_id)}>
-          {o.job_number ?? 'Open job'}
-        </Link>
-      ),
-    },
     { id: 'kind', header: 'Reading', render: (o) => humanize(o.kind) },
     { id: 'ocr', header: 'OCR value', align: 'right', render: (o) => o.ocr_value ?? '—' },
     { id: 'entered', header: 'Entered value', align: 'right', render: (o) => o.entered_value },
@@ -116,7 +107,7 @@ export function ManualOverridesTab({ timeZone }: { timeZone: string }) {
             humanize(o.capture_mode)
           )
         ) : (
-          <Link component={RouterLink} to={exceptionsPath(o.job_id)}>
+          <Link component={RouterLink} to={exceptionsPath()}>
             {humanize(o.exception_status ?? 'exception')}
           </Link>
         ),

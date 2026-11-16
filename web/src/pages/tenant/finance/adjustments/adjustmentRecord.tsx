@@ -112,9 +112,7 @@ export function RequestEffects({
   if (invoiceId !== null) {
     items.push({
       label: 'Recovery invoice',
-      value: (
-        <>{str(e.recovery_invoice_number) ?? invoiceId}</>
-      ),
+      value: <>{str(e.recovery_invoice_number) ?? invoiceId}</>,
     });
   }
   const caseId = str(e.case_id);

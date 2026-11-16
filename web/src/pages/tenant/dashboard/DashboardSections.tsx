@@ -17,14 +17,12 @@ import { formatDate } from '../../../utils/dates';
 import { formatMoney } from '../../../utils/money';
 import { humanize } from '../../../utils/text';
 import { formatAge, formatInstantIn } from '../../../utils/time';
-import { JOB_STATUS_OPTIONS, JOB_STATUS_TONES } from '../shared/jobDisplay';
 import {
   CONNECTIVITY_ROWS,
   DASHBOARD_LINKS as L,
   freshness,
   SEVERITY_ROWS,
   STALE_AFTER_LABEL,
-  total,
   type SectionKey,
 } from './dashboardModel';
 import { KpiCard, type KpiRow } from './KpiCard';
@@ -171,7 +169,6 @@ export function FleetSection({
 }
 
 export function WorkSection({ data, nowMs, timeZone }: SectionProps<OverviewWorkSectionDto>) {
-  const jobs = total(data.jobs_by_status);
   return (
     <SectionShell
       section="work"
@@ -179,23 +176,6 @@ export function WorkSection({ data, nowMs, timeZone }: SectionProps<OverviewWork
       latest={data.latest_source_at}
       {...{ nowMs, timeZone }}
     >
-      <KpiCard
-        title="Jobs"
-        value={jobs}
-        valueText={String(jobs)}
-        to={L.jobs()}
-        rows={JOB_STATUS_OPTIONS.map((o) => {
-          const n = data.jobs_by_status[o.value] ?? 0;
-          return {
-            key: o.value,
-            label: o.label,
-            value: n,
-            valueText: String(n),
-            tone: JOB_STATUS_TONES[o.value],
-            to: L.jobs(o.value),
-          };
-        })}
-      />
       {data.pending_approvals !== null && (
         <KpiCard
           title="Pending approvals"

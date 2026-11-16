@@ -20,7 +20,6 @@ import { ExpenseDetailsDrawer } from '../expenses/ExpenseDetailsDrawer';
 import { RecordExpenseDialog } from '../expenses/RecordExpenseDialog';
 import { PAID_FROM_LABELS } from '../shared/financeDisplay';
 import { useExpenseCategoryLabels } from '../shared/useFinanceLabels';
-import { useFieldJobLabels } from './fieldLookups';
 
 /** Status groups in the order a supervisor follows up; each shows its latest entries. */
 const GROUPS: readonly { status: ExpenseStatus; title: string; empty: string }[] = [
@@ -35,7 +34,6 @@ export function FieldExpensesPage() {
   const timeZone = useDisplayTimeZone();
   const notify = useNotify();
   const categoryLabel = useExpenseCategoryLabels();
-  const jobLabel = useFieldJobLabels();
   const [viewing, setViewing] = useState<ExpenseDto | null>(null);
   const [recording, setRecording] = useState(false);
   const load = useCallback(
@@ -60,7 +58,6 @@ export function FieldExpensesPage() {
     { id: 'at', header: 'Incurred', render: (e) => formatInstantIn(e.incurred_at, timeZone) },
     { id: 'desc', header: 'Description', render: (e) => e.description },
     { id: 'cat', header: 'Category', render: (e) => categoryLabel(e.category_id) },
-    { id: 'job', header: 'Job', render: (e) => (e.job_id === null ? '—' : jobLabel(e.job_id)) },
     { id: 'paid', header: 'Paid from', render: (e) => PAID_FROM_LABELS[e.paid_from] },
     { id: 'note', header: 'Office note', render: (e) => e.decision_note ?? '—' },
     {

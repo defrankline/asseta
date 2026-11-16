@@ -205,18 +205,15 @@ describe('HoursStatementPanel', () => {
     const totals = await screen.findByRole('table', { name: 'Hours statement totals' });
     expect(within(totals).getByText('Closing balance')).toBeInTheDocument();
     expect(within(totals).getByText('17.5 h')).toBeInTheDocument();
-    expect(screen.getByText(/3 h are in use by running jobs/)).toBeInTheDocument();
+    expect(screen.getByText(/3 h are provisional/)).toBeInTheDocument();
     expect(mocks.statement).toHaveBeenCalledWith(
       'c1',
       expect.objectContaining({ machine_id: undefined, date_to: expect.any(String) as unknown }),
       expect.any(AbortSignal),
     );
     const usage = screen.getByRole('table', { name: 'Statement usage' });
-    expect(within(usage).getByRole('link', { name: 'JOB-0042' })).toHaveAttribute(
-      'href',
-      '/tenant/jobs/j1',
-    );
-    expect(within(usage).getByText('Drawn that day · job still running')).toBeInTheDocument();
+    expect(within(usage).queryByRole('link', { name: 'JOB-0042' })).not.toBeInTheDocument();
+    expect(within(usage).getByText('Drawn that day')).toBeInTheDocument();
     const lines = screen.getByRole('table', { name: 'Statement movements' });
     expect(within(lines).getByText('Used that day (provisional)')).toBeInTheDocument();
     expect(
@@ -373,7 +370,7 @@ const PURCHASE = {
 } as HoursPurchaseDto;
 
 describe('HoursPurchaseDetailPage (daily drawdown)', () => {
-  it('shows hours in use by running jobs and links its low-balance warnings', async () => {
+  it('shows provisional hours and links its low-balance warnings', async () => {
     mocks.getPurchase.mockResolvedValue(PURCHASE);
     const empty = { items: [], total: 0, page: 1, page_size: 100 };
     mocks.listTransfers.mockResolvedValue(empty);
@@ -385,9 +382,9 @@ describe('HoursPurchaseDetailPage (daily drawdown)', () => {
       { tenantPermissions: ['tenant.hours.read'], route: '/tenant/hours/purchases/p1' },
     );
     const perMachine = await screen.findByRole('table', { name: 'Hours per machine' });
-    expect(within(perMachine).getByText('In use by running jobs')).toBeInTheDocument();
+    expect(within(perMachine).getByText('Provisional')).toBeInTheDocument();
     expect(within(perMachine).getByText('3 h')).toBeInTheDocument();
-    expect(screen.getAllByText('In use by running jobs').length).toBe(2);
+    expect(screen.getAllByText('Provisional').length).toBe(2);
     expect(screen.getByRole('link', { name: 'Low-balance warnings' })).toHaveAttribute(
       'href',
       '/tenant/hours/low-balance-alerts?purchase_id=p1',

@@ -16,7 +16,6 @@ import {
   customerDetailPath,
   exceptionsPath,
   financeTabPath,
-  jobDetailPath,
   machineDetailPath,
   ROUTES,
   staffDetailPath,
@@ -137,12 +136,11 @@ export function subjectPath(c: Pick<AnomalyCaseDto, 'subject_type' | 'subject_id
   switch (c.subject_type) {
     case 'MACHINE':
       return machineDetailPath(c.subject_id);
-    case 'JOB':
-      return jobDetailPath(c.subject_id);
     case 'STAFF':
       return staffDetailPath(c.subject_id);
     case 'CUSTOMER':
       return customerDetailPath(c.subject_id);
+    case 'JOB':
     case 'EXPENSE':
     case 'USER':
       return null;
@@ -156,10 +154,8 @@ export type SourceLink =
 
 const str = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null);
 
-function riskSignalLinks(s: CaseSignalDto, c: AnomalyCaseDto): SourceLink[] {
+function riskSignalLinks(s: CaseSignalDto): SourceLink[] {
   const e = s.evidence;
-  const job = (id: string | null, label = 'Open job'): SourceLink[] =>
-    id === null ? [] : [{ kind: 'route', label, to: jobDetailPath(id) }];
   switch (s.code) {
     case 'DUPLICATE_RECEIPT': {
       const others = Array.isArray(e.same_receipt_on) ? (e.same_receipt_on as unknown[]) : [];
@@ -178,26 +174,12 @@ function riskSignalLinks(s: CaseSignalDto, c: AnomalyCaseDto): SourceLink[] {
     case 'EXPENSE_THRESHOLD_EXCEEDED':
       return [{ kind: 'route', label: 'Open expenses', to: ROUTES.tenantExpenses }];
     case 'FUEL_ALLOWANCE_EXCEEDED':
-      return [
-        ...job(c.job_id),
-        { kind: 'route', label: 'Open fuel log', to: `${ROUTES.tenantExpenses}?tab=fuel` },
-      ];
+      return [{ kind: 'route', label: 'Open fuel log', to: `${ROUTES.tenantExpenses}?tab=fuel` }];
     case 'WORK_WITHOUT_AUTHORIZATION': {
       const recordId = str(e.record_id);
-      const expense: SourceLink[] =
-        e.record_type === 'EXPENSE' && recordId !== null
-          ? [{ kind: 'expense', label: 'Open expense', expenseId: recordId }]
-          : [];
-      return [...job(c.subject_type === 'JOB' ? c.subject_id : c.job_id), ...expense];
-    }
-    case 'UNREPORTED_ENGINE_ACTIVITY': {
-      const nearby = Array.isArray(e.running_jobs_nearby)
-        ? (e.running_jobs_nearby as unknown[])
+      return e.record_type === 'EXPENSE' && recordId !== null
+        ? [{ kind: 'expense', label: 'Open expense', expenseId: recordId }]
         : [];
-      return nearby.slice(0, 3).flatMap((j) => {
-        const row = j as Record<string, unknown>;
-        return job(str(row.job_id), `Open job ${str(row.job_number) ?? ''}`.trim());
-      });
     }
     case 'CASH_NOT_HANDED_OVER':
       return [{ kind: 'route', label: 'Open cash custody', to: financeTabPath('custody') }];
@@ -207,18 +189,12 @@ function riskSignalLinks(s: CaseSignalDto, c: AnomalyCaseDto): SourceLink[] {
 }
 
 /** Links from one piece of evidence to its source records. */
-export function sourceLinks(s: CaseSignalDto, c: AnomalyCaseDto): SourceLink[] {
+export function sourceLinks(s: CaseSignalDto): SourceLink[] {
   switch (s.source_type) {
     case 'RISK_SIGNAL':
-      return riskSignalLinks(s, c);
+      return riskSignalLinks(s);
     case 'METER_EXCEPTION':
-      return [
-        {
-          kind: 'route',
-          label: 'Open exceptions',
-          to: exceptionsPath(c.job_id ?? undefined),
-        },
-      ];
+      return [{ kind: 'route', label: 'Open exceptions', to: exceptionsPath() }];
     case 'TRACKING_ALERT':
       return [{ kind: 'route', label: 'Open alerts', to: ROUTES.tenantAlerts }];
     case 'CASH_VARIANCE':

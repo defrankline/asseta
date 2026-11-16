@@ -27,19 +27,16 @@ import {
 } from '../shared/financeDisplay';
 import {
   FormikExpenseIdPicker,
-  FormikJobIdPicker,
   FormikMachineIdPicker,
   MachineFilter,
 } from '../shared/financePickers';
 import { useMachineLabels } from '../shared/useMachineLabels';
-import { FormikFieldJobIdPicker, FormikFieldMachineIdPicker } from '../field/fieldPickers';
+import { FormikFieldMachineIdPicker } from '../field/fieldPickers';
 import { emptyFuelValues, fuelFormSchema, toFuelPayload, type FuelFormValues } from './expenseForm';
 
 interface RecordFuelDialogProps {
-  /** `field`: pickers limited to the jobs and machines the supervisor works on (Field work). */
+  /** `field`: pickers limited to the machines the supervisor works on (Field work). */
   variant?: 'office' | 'field';
-  /** Pre-fills an ISSUE to this job and its machine (Field work job workspace). */
-  job?: { id: string; machine_id: string };
   timeZone: string;
   onClose: () => void;
   onRecorded: (e: FuelEventDto) => void;
@@ -48,20 +45,14 @@ interface RecordFuelDialogProps {
 /** Fuel → Attribution → Review; `client_id` is fixed per open so a retry never logs twice. */
 export function RecordFuelDialog({
   variant = 'office',
-  job,
   timeZone,
   onClose,
   onRecorded,
 }: RecordFuelDialogProps) {
   const keyFor = useIdempotencyKey();
   const [clientId] = useState(() => newUuid());
-  const [initial] = useState(() => ({
-    ...emptyFuelValues(new Date().toISOString()),
-    job_id: job?.id ?? '',
-    machine_id: job?.machine_id ?? '',
-  }));
+  const [initial] = useState(() => emptyFuelValues(new Date().toISOString()));
   const field = variant === 'field';
-  const JobPicker = field ? FormikFieldJobIdPicker : FormikJobIdPicker;
   const MachinePicker = field ? FormikFieldMachineIdPicker : FormikMachineIdPicker;
   return (
     <StepperFormDialog<FuelFormValues>
@@ -105,11 +96,10 @@ export function RecordFuelDialog({
         },
         {
           label: 'Attribution',
-          fields: ['machine_id', 'job_id', 'expense_id', 'meter_reading', 'supplier', 'note'],
+          fields: ['machine_id', 'expense_id', 'meter_reading', 'supplier', 'note'],
           render: (f) => (
             <>
               <MachinePicker name="machine_id" label="Machine (optional)" />
-              <JobPicker name="job_id" label="Job (optional)" />
               {f.values.event_type === 'PURCHASE' && (
                 <FormikExpenseIdPicker
                   name="expense_id"

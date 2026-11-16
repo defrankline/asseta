@@ -19,11 +19,10 @@ import { usePettyCashOn, usePettyCashPolicy } from '../finance/pettyCash/pettyCa
 import { expenseCategoryOptionLabel } from '../shared/financeLookups';
 import {
   FormikExpenseCategoryIdPicker,
-  FormikJobIdPicker,
   FormikMachineIdPicker,
   FormikStaffIdPicker,
 } from '../shared/financePickers';
-import { FormikFieldJobIdPicker, FormikFieldMachineIdPicker } from '../field/fieldPickers';
+import { FormikFieldMachineIdPicker } from '../field/fieldPickers';
 import { ExpenseEvidenceStep } from './ExpenseEvidenceStep';
 import {
   ATTRIBUTION_FIELDS,
@@ -37,12 +36,10 @@ import {
 
 interface RecordExpenseDialogProps {
   /**
-   * `field`: a supervisor's own expense (Field work) — jobs and machines they work on, paid from
+   * `field`: a supervisor's own expense (Field work) — machines they work on, paid from
    * their own custody when cash. `office` (default) may name any custodian.
    */
   variant?: 'office' | 'field';
-  /** Pre-selects the job (Field work job workspace). */
-  jobId?: string;
   /** Pre-selects "paid from" this petty cash fund (the holder's petty cash page). */
   pettyCashFundId?: string;
   timeZone: string;
@@ -53,7 +50,6 @@ interface RecordExpenseDialogProps {
 /** Expense → Attribution & payment → Receipts & GPS → Review (console capture). */
 export function RecordExpenseDialog({
   variant = 'office',
-  jobId,
   pettyCashFundId,
   timeZone,
   onClose,
@@ -66,13 +62,11 @@ export function RecordExpenseDialog({
   const [category, setCategory] = useState<ExpenseCategoryDto | null>(null);
   const [initial] = useState(() => ({
     ...emptyExpenseValues(new Date().toISOString()),
-    job_id: jobId ?? '',
     ...(pettyCashFundId === undefined
       ? {}
       : { paid_from: 'PETTY_CASH' as const, petty_cash_fund_id: pettyCashFundId }),
   }));
   const field = variant === 'field';
-  const JobPicker = field ? FormikFieldJobIdPicker : FormikJobIdPicker;
   const MachinePicker = field ? FormikFieldMachineIdPicker : FormikMachineIdPicker;
   const steps: FormStep<ExpenseFormValues>[] = [
     {
@@ -104,15 +98,10 @@ export function RecordExpenseDialog({
       fields: ATTRIBUTION_FIELDS,
       render: (formik) => (
         <>
-          <JobPicker
-            name="job_id"
-            label="Job (optional)"
-            helperText="Attributes the cost to the job and its machine."
-          />
           <MachinePicker
             name="machine_id"
             label="Machine (optional)"
-            helperText="Leave empty when a job is chosen; it must match the job's machine."
+            helperText="Attributes the cost to the machine."
           />
           <FormikSelectField
             name="paid_from"
@@ -180,7 +169,7 @@ export function RecordExpenseDialog({
               { label: 'Paid from', value: PAID_FROM_LABELS[v.paid_from] },
               {
                 label: 'Attributed',
-                value: v.job_id !== '' ? 'Job' : v.machine_id !== '' ? 'Machine' : 'Unattributed',
+                value: v.machine_id !== '' ? 'Machine' : 'Unattributed',
               },
               { label: 'Receipts', value: String(v.receipts.length) },
               { label: 'GPS', value: v.gps === null ? 'Not attempted' : v.gps.status },

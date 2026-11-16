@@ -18,7 +18,7 @@ import {
 import type { RowAction } from '../../../components/lifecycle/rowActions';
 import { useAsyncResource } from '../../../hooks/useAsyncResource';
 import { useDisplayTimeZone } from '../../../hooks/useDisplayTimeZone';
-import { jobDetailPath, machineDetailPath, ROUTES } from '../../../navigation/routes';
+import { machineDetailPath, ROUTES } from '../../../navigation/routes';
 import { useNotify } from '../../../notifications/useNotify';
 import { ENTITY, entityKey } from '../../../realtime/entities';
 import { useLiveRefresh } from '../../../realtime/hooks';
@@ -43,7 +43,7 @@ import {
   SUBJECT_TYPE_LABELS,
 } from './caseDisplay';
 import { EvidenceSection, NotesSection, OutcomesSection } from './CaseSections';
-import { JobNumber, SubjectLabel } from './SubjectLabel';
+import { SubjectLabel } from './SubjectLabel';
 
 type Dialog = 'assign' | 'resolve' | 'reopen' | 'closure' | null;
 
@@ -136,18 +136,6 @@ function CaseSummary({
             value: (
               <RouterLink to={machineDetailPath(c.machine_id)}>
                 {machineName(c.machine_id)}
-              </RouterLink>
-            ),
-          },
-        ]
-      : []),
-    ...(c.job_id !== null && c.subject_type !== 'JOB'
-      ? [
-          {
-            label: 'Job',
-            value: (
-              <RouterLink to={jobDetailPath(c.job_id)}>
-                <JobNumber jobId={c.job_id} />
               </RouterLink>
             ),
           },

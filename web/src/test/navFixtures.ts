@@ -33,9 +33,9 @@ export const TENANT_MENUS: MenuDto[] = [
     group: 'tenant.overview',
   },
   {
-    key: 'tenant.jobs',
-    label: 'Jobs',
-    path: '/tenant/jobs',
+    key: 'tenant.expenses',
+    label: 'Expenses',
+    path: '/tenant/expenses',
     order: 15,
     group: 'tenant.operations',
   },

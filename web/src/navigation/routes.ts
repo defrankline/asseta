@@ -98,8 +98,6 @@ export const ROUTES = {
   tenantSyncConflictDetail: '/tenant/sync-conflicts/:operationId',
   /** Matches the backend `tenant.profitability` menu path. */
   tenantProfitability: '/tenant/profitability',
-  tenantJobs: '/tenant/jobs',
-  tenantJobDetail: '/tenant/jobs/:jobId',
   tenantExceptions: '/tenant/exceptions',
   tenantMeterCaptureDetail: '/tenant/meter-captures/:captureId',
   /** Matches the backend `tenant.meter_resets` menu path (company-wide reset approvals). */
@@ -132,8 +130,6 @@ export const ROUTES = {
   /** The tenant's own SMS wallet (balance + ledger). */
   tenantSmsWallet: '/tenant/sms-wallet',
   // Field work (backend `tenant.field` group): the supervisor's own capture flows from a browser.
-  fieldJobs: '/tenant/field/jobs',
-  fieldJobDetail: '/tenant/field/jobs/:jobId',
   fieldReadings: '/tenant/field/readings',
   fieldFuel: '/tenant/field/fuel',
   fieldExpenses: '/tenant/field/expenses',
@@ -182,30 +178,19 @@ export function customerDetailPath(customerId: string): string {
   return `${ROUTES.tenantCustomers}/${encodeURIComponent(customerId)}`;
 }
 
-/** Field work job workspace (readings, start/complete, work log, acknowledgement). */
-export function fieldJobPath(jobId: string): string {
-  return `${ROUTES.fieldJobs}/${encodeURIComponent(jobId)}`;
-}
-
 /** A machine's engine-hour ledger (intervals, segments, totals). */
 export function engineHoursMachinePath(machineId: string): string {
   return `${ROUTES.tenantEngineHours}/machines/${encodeURIComponent(machineId)}`;
 }
 
-/** One machine-day of the daily machine sheet (readings, segments, jobs, money, fuel, flags). */
+/** One machine-day of the daily machine sheet (readings, segments, money, fuel, flags). */
 export function dailySheetDayPath(machineId: string, day: string): string {
   return `${ROUTES.tenantDailySheet}/${encodeURIComponent(machineId)}/${encodeURIComponent(day)}`;
 }
 
-export function jobDetailPath(jobId: string): string {
-  return `${ROUTES.tenantJobs}/${encodeURIComponent(jobId)}`;
-}
-
-/** Exceptions page, optionally pre-filtered to one job. */
-export function exceptionsPath(jobId?: string): string {
-  return jobId === undefined
-    ? ROUTES.tenantExceptions
-    : `${ROUTES.tenantExceptions}?job_id=${encodeURIComponent(jobId)}`;
+/** Exceptions page. */
+export function exceptionsPath(): string {
+  return ROUTES.tenantExceptions;
 }
 
 export function caseDetailPath(caseId: string): string {
@@ -337,7 +322,6 @@ export const IMPLEMENTED_PATHS: ReadonlySet<string> = new Set([
   ROUTES.tenantSecurityEvents,
   ROUTES.tenantSyncConflicts,
   ROUTES.tenantProfitability,
-  ROUTES.tenantJobs,
   ROUTES.tenantExceptions,
   ROUTES.tenantEngineHours,
   ROUTES.tenantEngineHoursUnallocated,
@@ -354,7 +338,6 @@ export const IMPLEMENTED_PATHS: ReadonlySet<string> = new Set([
   ROUTES.tenantInsights,
   ROUTES.tenantAccess,
   ROUTES.tenantManagedService,
-  ROUTES.fieldJobs,
   ROUTES.fieldReadings,
   ROUTES.fieldFuel,
   ROUTES.fieldExpenses,

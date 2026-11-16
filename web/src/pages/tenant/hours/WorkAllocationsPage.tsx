@@ -1,6 +1,6 @@
 import { Alert, Box, Button, Chip } from '@mui/material';
 import { useCallback, useState } from 'react';
-import { Link as RouterLink, useSearchParams } from 'react-router';
+import { Link as RouterLink } from 'react-router';
 import type { WorkExecutionAllocationDto } from '../../../api/hoursTypes';
 import { hoursService } from '../../../api/services/hoursService';
 import type { CustomerDto, MachineDto } from '../../../api/types';
@@ -10,14 +10,14 @@ import type { FetchPage } from '../../../components/data/useServerPage';
 import { PageHeader } from '../../../components/feedback/PageHeader';
 import { useDisplayTimeZone } from '../../../hooks/useDisplayTimeZone';
 import { hoursPurchasePath } from '../../../navigation/hoursRoutes';
-import { exceptionsPath, jobDetailPath } from '../../../navigation/routes';
+import { exceptionsPath } from '../../../navigation/routes';
 import { isZeroDecimal } from '../../../utils/money';
 import { formatInstantIn } from '../../../utils/time';
 import { CustomerFilter, MachineFilter } from '../shared/financePickers';
 import { machineText, nameOr } from '../shared/names';
 import { hoursText } from './hoursDisplay';
 
-/** Allocation lines: which purchases a completed job drew its hours from (oldest first). */
+/** Allocation lines: which purchases the work drew its hours from (oldest first). */
 function AllocationLines({ a, timeZone }: { a: WorkExecutionAllocationDto; timeZone: string }) {
   return (
     <StaticTable
@@ -41,11 +41,9 @@ function AllocationLines({ a, timeZone }: { a: WorkExecutionAllocationDto; timeZ
   );
 }
 
-/** Work-execution allocations: billable hours of completed prepaid jobs and any overrun. */
+/** Work-execution allocations: billable prepaid hours used and any overrun. */
 export function WorkAllocationsPage() {
   const timeZone = useDisplayTimeZone();
-  const [params, setParams] = useSearchParams();
-  const jobId = params.get('job_id') ?? undefined;
   const [customer, setCustomer] = useState<CustomerDto | null>(null);
   const [machine, setMachine] = useState<MachineDto | null>(null);
   const fetchPage = useCallback<FetchPage<WorkExecutionAllocationDto>>(
@@ -58,15 +56,6 @@ export function WorkAllocationsPage() {
       header: 'Allocated',
       sortField: 'created_at',
       render: (a) => formatInstantIn(a.created_at, timeZone),
-    },
-    {
-      id: 'job',
-      header: 'Job',
-      render: (a) => (
-        <Button component={RouterLink} to={jobDetailPath(a.job_id)} size="small">
-          {a.job_number ?? 'Open job'}
-        </Button>
-      ),
     },
     { id: 'customer', header: 'Customer', render: (a) => nameOr(a.customer_name, a.customer_id) },
     {
@@ -99,7 +88,7 @@ export function WorkAllocationsPage() {
         a.exception_id === null ? (
           '—'
         ) : (
-          <Button component={RouterLink} to={exceptionsPath(a.job_id)} size="small">
+          <Button component={RouterLink} to={exceptionsPath()} size="small">
             {a.exception_status === 'OPEN' ? 'Requires review' : 'Reviewed'}
           </Button>
         ),
@@ -109,32 +98,20 @@ export function WorkAllocationsPage() {
     <>
       <PageHeader
         title="Prepaid hours used"
-        subtitle="Hours each completed prepaid job used, drawn from the customer’s oldest active purchases"
+        subtitle="Prepaid hours used, drawn from the customer’s oldest active purchases"
       />
       <Box className="flex flex-col gap-3">
         <Alert severity="info">
           Hours beyond what the customer had active are never used silently: they are flagged for
           review until new hours cover them.
         </Alert>
-        {jobId !== undefined && (
-          <Box>
-            <Chip
-              label="One job"
-              onDelete={() => {
-                const next = new URLSearchParams(params);
-                next.delete('job_id');
-                setParams(next);
-              }}
-            />
-          </Box>
-        )}
         <ServerDataTable
           columns={columns}
           fetchPage={fetchPage}
           getRowId={(a) => a.id}
           searchable={false}
           initialSort="-created_at"
-          filters={{ job_id: jobId, customer_id: customer?.id, machine_id: machine?.id }}
+          filters={{ customer_id: customer?.id, machine_id: machine?.id }}
           emptyTitle="No prepaid hours used"
           renderDetail={(a) => <AllocationLines a={a} timeZone={timeZone} />}
           detailLabel={() => 'Show purchases used'}

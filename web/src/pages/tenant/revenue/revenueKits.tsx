@@ -18,7 +18,6 @@ import {
   caseDetailPath,
   dailySheetDayPath,
   engineHoursMachinePath,
-  jobDetailPath,
 } from '../../../navigation/routes';
 import { useNotify } from '../../../notifications/useNotify';
 import { useSession } from '../../../session/useSession';
@@ -58,15 +57,6 @@ export const approvalChip = (a: { status: string }) => (
     label={APPROVAL_STATUS_LABELS[a.status] ?? a.status}
   />
 );
-
-const jobLink = (jobId: string | null, jobNumber: string | null | undefined): ReactNode =>
-  jobId === null ? (
-    '—'
-  ) : (
-    <Link component={RouterLink} to={jobDetailPath(jobId)}>
-      {jobNumber ?? 'Open job'}
-    </Link>
-  );
 
 /** Explain / decide commands, dialogs, details and history of revenue differences. */
 export interface DifferenceKit {
@@ -125,7 +115,6 @@ export function useDifferenceKit(onChanged: (d: RevenueDifferenceDto) => void): 
   const items = (d: RevenueDifferenceDto): KeyValueItem[] => [
     { label: 'Machine', value: differenceMachine(d) },
     { label: 'Period', value: differencePeriod(d) },
-    { label: 'Job', value: jobLink(d.job_id, d.job_number) },
     {
       label: 'Expected revenue',
       value: <MoneyText amount={d.expected_amount} currency={d.currency} />,
@@ -287,7 +276,6 @@ export function useApprovalKit(onChanged: (a: NonRevenueApprovalDto) => void): A
     ) : null;
   const items = (a: NonRevenueApprovalDto): KeyValueItem[] => [
     { label: 'Machine', value: differenceMachine(a) },
-    { label: 'Job', value: jobLink(a.job_id, a.job_number) },
     { label: 'Type', value: activityTypeLabel(a.activity_type) },
     { label: 'Hours', value: `${a.hours} h` },
     { label: 'From', value: formatInstantIn(a.started_at, timeZone) },

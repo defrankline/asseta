@@ -1,9 +1,5 @@
 import { mixed, object, string, type ObjectSchema } from 'yup';
-import type {
-  CashCollectionIn,
-  CustomerPaymentIn,
-  HirePaymentMethod,
-} from '../../../../api/types';
+import type { CashCollectionIn, CustomerPaymentIn, HirePaymentMethod } from '../../../../api/types';
 import { PAYMENT_METHODS } from '../../../../api/services/financeSchemas';
 import { optionalText, orNull, requiredInstant } from '../../shared/formRules';
 import { positiveDecimalField } from '../../../platform/shared/validators';
