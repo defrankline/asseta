@@ -1,6 +1,7 @@
 import { Alert, Box, Paper, Stack, Tab, Tabs, Typography } from '@mui/material';
 import { useCallback } from 'react';
 import { useSearchParams } from 'react-router';
+import { CAPABILITY, useCapabilityEnabled } from '../../../access/capabilities';
 import { PERMISSIONS } from '../../../access/permissionCodes';
 import { insightsService } from '../../../api/services/insightsService';
 import type { TenantInsightsDto } from '../../../api/types';
@@ -78,8 +79,9 @@ function BaselineTab({
 export function InsightsPage() {
   const timeZone = useDisplayTimeZone();
   const { hasPermission } = useSession();
+  const fuelOn = useCapabilityEnabled(CAPABILITY.fuel);
   const visible: TabKey[] = [
-    'fuel',
+    ...(fuelOn ? (['fuel'] as const) : []),
     'utilisation',
     ...(hasPermission(PERMISSIONS.tenantFinanceReport) ? (['cash'] as const) : []),
     ...(hasPermission(PERMISSIONS.tenantMeterRead) ? (['overrides'] as const) : []),
@@ -87,7 +89,8 @@ export function InsightsPage() {
   ];
   const [params, setParams] = useSearchParams();
   const requested = params.get('tab') as TabKey | null;
-  const tab: TabKey = requested !== null && visible.includes(requested) ? requested : 'fuel';
+  const tab: TabKey =
+    requested !== null && visible.includes(requested) ? requested : fuelOn ? 'fuel' : 'utilisation';
   const load = useCallback((signal: AbortSignal) => insightsService.get(signal), []);
   const insights = useAsyncResource(load);
   return (

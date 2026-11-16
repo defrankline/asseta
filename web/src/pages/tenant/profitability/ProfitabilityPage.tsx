@@ -1,3 +1,4 @@
+import { CAPABILITY, useCapabilityEnabled } from '../../../access/capabilities';
 import {
   Alert,
   Box,
@@ -40,15 +41,19 @@ const COLUMNS = [
   'Direct cost',
   'Margin',
 ] as const;
+/** Fuel switched off for the company: no fuel column (the server sends no fuel line). */
+const COLUMNS_NO_FUEL = COLUMNS.filter((c) => c !== 'Fuel');
 
 function CurrencyTable({
   currency,
   rows,
   groupBy,
+  fuelOn,
 }: {
   currency: string;
   rows: ProfitabilityRowDto[];
   groupBy: ProfitabilityGroupBy;
+  fuelOn: boolean;
 }) {
   const m = (v: string, strong = false) => (
     <MoneyText amount={v} currency={currency} strong={strong} />
@@ -68,7 +73,7 @@ function CurrencyTable({
           <TableHead>
             <TableRow>
               <TableCell>{GROUP_LABELS[groupBy]}</TableCell>
-              {COLUMNS.map((c) => (
+              {(fuelOn ? COLUMNS : COLUMNS_NO_FUEL).map((c) => (
                 <TableCell key={c} align="right">
                   {c}
                 </TableCell>
@@ -97,7 +102,7 @@ function CurrencyTable({
                   <TableCell align="right">{m(r.reversed_revenue)}</TableCell>
                   <TableCell align="right">{m(r.net_revenue)}</TableCell>
                   <TableCell align="right">{m(r.expense_cost)}</TableCell>
-                  <TableCell align="right">{m(r.fuel_cost)}</TableCell>
+                  {fuelOn && <TableCell align="right">{m(r.fuel_cost)}</TableCell>}
                   <TableCell align="right">{m(r.direct_cost)}</TableCell>
                   <TableCell
                     align="right"
@@ -126,6 +131,7 @@ function CurrencyTable({
 
 /** Basic profitability (recognized revenue vs categorized direct costs), per currency, never mixed. */
 export function ProfitabilityPage() {
+  const fuelOn = useCapabilityEnabled(CAPABILITY.fuel);
   const [groupBy, setGroupBy] = useState<ProfitabilityGroupBy>('MACHINE');
   const [from, setFrom] = useState(() => dayjs().startOf('month').format('YYYY-MM-DD'));
   const [to, setTo] = useState(todayIsoDate);
@@ -200,6 +206,7 @@ export function ProfitabilityPage() {
                   currency={currency}
                   rows={rows}
                   groupBy={d.group_by}
+                  fuelOn={fuelOn}
                 />
               ))}
             </Box>
