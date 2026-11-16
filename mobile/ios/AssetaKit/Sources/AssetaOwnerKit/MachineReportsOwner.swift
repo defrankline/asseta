@@ -107,9 +107,9 @@ public enum MachineReportApproval {
         return .allowed
     }
 
-    /// A rejection needs a reason (3+ characters, as the server).
+    /// A rejection needs a reason (not blank, as Android `MachineReportApproval.rejectReasonValid`).
     public static func rejectReasonValid(_ text: String) -> Bool {
-        text.trimmingCharacters(in: .whitespacesAndNewlines).count >= reasonMin
+        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     /// A customer line's hours before and after this report ("140 → 20 h left").
@@ -281,14 +281,14 @@ public struct AttentionRow: Sendable, Equatable, Identifiable {
         var rows = pending.sorted { $0.submittedAt > $1.submittedAt }.map { r in
             AttentionRow(id: "r-\(r.id)",
                          title: r.nonProductiveHours.value > 0
-                             ? T.attentionReportIdle(r.machineCode ?? "", T.h(r.nonProductiveHours.value))
-                             : T.attentionReport(r.machineCode ?? "", T.h(r.hours.value)),
-                         detail: [r.submittedByName, T.when(r.submittedAt, now: now)].compactMap { $0 }.joined(separator: " · "),
+                             ? T.attentionReportIdle(ReportPresentation.machine(r), T.h(r.nonProductiveHours.value))
+                             : T.attentionReport(ReportPresentation.machine(r), T.h(r.hours.value)),
+                         detail: ReportPresentation.attentionDetail(r, now: now),
                          pill: T.review, kind: .report(r.id))
         }
         rows += OverdueMachine.list(states, reminderDays: reminderDays).map { s, overdue in
             AttentionRow(id: "m-\(s.machineID)", title: overdue.title(s.machineCode ?? s.machineName ?? ""),
-                         detail: s.machineName ?? "", pill: T.overdue, kind: .missing(s.machineID))
+                         detail: OwnerHomePresentation.overdueDetail(s), pill: T.overdue, kind: .missing(s.machineID))
         }
         return rows
     }
@@ -296,30 +296,15 @@ public struct AttentionRow: Sendable, Equatable, Identifiable {
 
 /// Wording of the ADR-008 Owner app (approved designs owner/*). Same text as Android.
 public enum MachineReportOwnerTexts {
-    /// Hours for display: grouping, 0–1 decimals ("300", "5,016.8").
-    public static func h(_ value: Decimal, locale: Locale = .current) -> String {
-        value.formatted(.number.precision(.fractionLength(0...1)).locale(locale))
-    }
+    /// Hours for display as Android `Figures.hours` without the unit: grouping, 0–2 decimals ("300", "5,016.8").
+    public static func h(_ value: Decimal, locale: Locale = .current) -> String { OwnerFigures.hoursNumber(value) }
 
-    /// Short money ("3.85M", "355K", "900").
-    public static func short(_ value: Decimal) -> String {
-        let n = NSDecimalNumber(decimal: value).doubleValue
-        switch abs(n) {
-        case 1_000_000...: return (n / 1_000_000).formatted(.number.precision(.fractionLength(0...2))) + "M"
-        case 10_000...: return (n / 1000).formatted(.number.precision(.fractionLength(0...1))) + "K"
-        default: return n.formatted(.number.precision(.fractionLength(0)))
-        }
-    }
+    /// Compact money ("3.85M", "850,000", "1.2B"): ``OwnerFigures/compactMoney(_:)``.
+    public static func short(_ value: Decimal) -> String { OwnerFigures.compactMoney(value) }
 
-    /// "today 07:40", "yesterday 18:10", "2 days ago".
+    /// "today 07:40", "yesterday 18:10", "2 days ago", then "12 Nov": ``OwnerFigures/relative(_:now:timeZone:)``.
     public static func when(_ date: Date, now: Date = Date(), calendar: Calendar = .current) -> String {
-        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: date), to: calendar.startOfDay(for: now)).day ?? 0
-        let time = date.formatted(date: .omitted, time: .shortened)
-        switch days {
-        case ..<1: return "today \(time)"
-        case 1: return "yesterday \(time)"
-        default: return "\(days) days ago"
-        }
+        OwnerFigures.relative(date, now: now, timeZone: calendar.timeZone)
     }
 
     public static let customers = "Customers"
@@ -327,7 +312,7 @@ public enum MachineReportOwnerTexts {
     public static let overdue = "Overdue"
     public static func attentionReport(_ code: String, _ hours: String) -> String { "\(code) report · \(hours) h" }
     public static func attentionReportIdle(_ code: String, _ hours: String) -> String { "\(code) report · \(hours) h non-productive" }
-    public static func attentionMissing(_ code: String, _ days: Int) -> String { "\(code) · no report for \(days) days" }
+    public static func attentionMissing(_ code: String, _ days: Int) -> String { "\(code) · no report for \(OwnerFigures.days(days))" }
     public static func attentionNoReportYet(_ code: String) -> String { "\(code) · no report yet" }
     public static func attentionRejected(_ code: String) -> String { "\(code) · report rejected, not yet redone" }
 
@@ -337,7 +322,7 @@ public enum MachineReportOwnerTexts {
     public static let productive = "Productive"
     public static let yourBusiness = "YOUR BUSINESS"
     public static let needsAttention = "NEEDS YOUR ATTENTION"
-    public static let nothingNeedsYou = "Nothing needs you right now."
+    public static let nothingNeedsYou = OwnerHomeTexts.nothing
     public static let tileApprovals = "Approvals"
     public static let tileApprovalsSub = "Reports, credit, expenses"
     public static func waiting(_ n: Int) -> String { "\(n) waiting" }
@@ -392,11 +377,11 @@ public enum MachineReportOwnerTexts {
     public static func tracker(_ tracker: String, _ meter: String) -> String {
         "Tracker engine hours for the same period: \(tracker) h (meter \(meter) h)."
     }
-    public static let noTracker = "No tracker engine hours for this period."
+    public static let noTracker = ReportTexts.noTracker
     public static let rejectReason = "Reason (needed to reject)"
     public static let rejectPlaceholder = "e.g. Idle hours too high, explain"
-    public static let ownReport = "You submitted this report, so someone else decides it."
-    public static let notPermitted = "You can read this report but not decide it."
+    public static let ownReport = ReportTexts.ownReport
+    public static let notPermitted = ReportTexts.noPermission
     public static let decidedApproved = "Approved"
     public static let decidedRejected = "Rejected"
     // Customers

@@ -420,6 +420,9 @@ public struct HoursPurchaseDTO: Codable, Hashable, Sendable, Identifiable {
     public let creditInvoice: CreditInvoiceSummaryDTO?
     /// The order's payment lines (money received, by method).
     public let payments: [SalePayment]?
+    /// ADR-008: the order's rate after discount (credit hours = credit amount ÷ this rate) and its recorder.
+    public let effectiveRate: DecimalString?
+    public let createdBy: UUID?
 
     /// `CustomerPaymentDto` (the fields the apps read).
     public struct SalePayment: Codable, Hashable, Sendable, Identifiable {
@@ -515,6 +518,7 @@ public struct HoursPurchaseDTO: Codable, Hashable, Sendable, Identifiable {
         case machineCode = "machine_code", machineName = "machine_name", jobSiteName = "job_site_name"
         case createdByName = "created_by_name", cancelledAt = "cancelled_at"
         case creditAmount = "credit_amount", creditInvoice = "credit_invoice", payments
+        case effectiveRate = "effective_rate", createdBy = "created_by"
     }
 }
 

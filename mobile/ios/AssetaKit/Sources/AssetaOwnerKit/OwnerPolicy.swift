@@ -78,8 +78,11 @@ public struct OwnerFeatures: Equatable, Sendable {
     /// The "Payments to confirm" queue: the role can read customer payments and decide them.
     public var confirmPayments: Bool { finance && verifyHandovers }
 
-    /// The Approvals screen shows approval requests or at least one kind of accountability decision.
-    public var approvalsScreen: Bool { approvals || !decisionKinds.isEmpty || confirmPayments || pettyCashApprove }
+    /// The Approvals screen shows approval requests, at least one kind of accountability decision, machine reports or
+    /// credit sales (Android `approvalsScreen`).
+    public var approvalsScreen: Bool {
+        approvals || !decisionKinds.isEmpty || confirmPayments || pettyCashApprove || machineReports || creditActivate
+    }
 
     public func canDecide(_ kind: DecisionKind) -> Bool { kind.decidable(permissions: permissions) }
 

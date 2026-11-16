@@ -26,7 +26,7 @@ struct MachineReportOwnerTests {
         #expect(MachineReportApproval.decision(Self.report(by: Self.me), me: Self.me, permissions: approver) == .ownReport)
         #expect(MachineReportApproval.decision(Self.report(), me: Self.me, permissions: [MachineReportPermission.read]) == .notPermitted)
         #expect(MachineReportApproval.decision(Self.report(status: .approved), me: Self.me, permissions: approver) == .decided)
-        #expect(!MachineReportApproval.rejectReasonValid("  ok "))
+        #expect(!MachineReportApproval.rejectReasonValid("   "))
         #expect(MachineReportApproval.rejectReasonValid("Idle hours too high"))
         let features = OwnerFeatures(permissions: Array(approver))
         #expect(features.machineReports && features.reportsApprove)
