@@ -6,13 +6,13 @@ export const ENGINE_HOURS_FIELDS: readonly PolicyFieldDef[] = [
     key: 'enabled',
     label: 'Engine-hour controls switched on',
     kind: 'bool',
-    help: 'Off: engine-hour pages, baselines, corrections, daily readings and flags are hidden; job meter readings work as before.',
+    help: 'Off: engine-hour pages, baselines, corrections, daily readings and flags are hidden; machine reports keep working.',
   },
   {
     key: 'baseline_required_before_start',
-    label: 'Approved meter baseline before a job starts',
+    label: 'Approved meter baseline before the first machine report',
     kind: 'bool',
-    help: 'Off: jobs start without an approved baseline (reconciliation still begins at the baseline).',
+    help: 'Off: a machine’s first report takes its reading as the start (reconciliation still begins at the baseline).',
   },
   {
     key: 'daily_report_required',
@@ -64,18 +64,6 @@ export const ENGINE_HOURS_FIELDS: readonly PolicyFieldDef[] = [
     help: 'Off: a reviewer corrects a work allocation directly; the original stays on record either way.',
   },
   {
-    key: 'in_job_time_counts_as_customer_work',
-    label: 'Time inside a job counts as customer work',
-    kind: 'bool',
-    help: 'Off: hours inside a job need a covering work-log entry; hours without one are unexplained.',
-  },
-  {
-    key: 'changeover_splits_billing',
-    label: "Hours after a changeover leave the job's billing",
-    kind: 'bool',
-    help: "On: the changeover must name the next customer's job; the hours after it leave this job's billing.",
-  },
-  {
     key: 'classification_evidence_required',
     label: 'Classifications need evidence',
     kind: 'bool',
@@ -88,11 +76,6 @@ export const ENGINE_HOURS_FIELDS: readonly PolicyFieldDef[] = [
   {
     key: 'ledger_includes_unreviewed_readings',
     label: 'Count readings still under review',
-    kind: 'bool',
-  },
-  {
-    key: 'prevent_overlapping_allocation',
-    label: 'Refuse overlapping job intervals',
     kind: 'bool',
   },
   {

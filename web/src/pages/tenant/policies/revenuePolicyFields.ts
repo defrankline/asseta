@@ -6,7 +6,7 @@ export const REVENUE_RECONCILIATION_FIELDS: readonly PolicyFieldDef[] = [
     key: 'enabled',
     label: 'Revenue checks switched on',
     kind: 'bool',
-    help: 'Off: no daily machine sheet, no revenue differences, and movement inside a job counts as customer work (as today).',
+    help: 'Off: no daily machine sheet, no revenue differences, and only machine reports account for the hours.',
   },
   {
     key: 'non_revenue_activity_types',
@@ -18,19 +18,19 @@ export const REVENUE_RECONCILIATION_FIELDS: readonly PolicyFieldDef[] = [
       { value: 'STANDBY', label: 'Standby' },
       { value: 'DOWNTIME', label: 'Downtime' },
     ],
-    help: 'Non-billable time of these types inside a job. Standby billing still follows the contract.',
+    help: 'Non-billable time of these types on a machine.',
   },
   {
     key: 'deduct_non_revenue_from_working_hours',
     label: 'Show that time apart from customer work',
     kind: 'bool',
-    help: 'On: it is its own bucket on the engine-hour ledger and daily sheet, and is not billed on invoice jobs.',
+    help: 'On: it is its own bucket on the engine-hour ledger and daily sheet.',
   },
   {
     key: 'deduct_non_revenue_from_prepaid_hours',
     label: 'Do not take that time from prepaid hours',
     kind: 'bool',
-    help: 'On: prepaid jobs do not draw these hours from the customer’s balance.',
+    help: 'On: these hours are not taken from the customer’s hours.',
   },
   {
     key: 'non_revenue_requires_approval',
@@ -40,7 +40,7 @@ export const REVENUE_RECONCILIATION_FIELDS: readonly PolicyFieldDef[] = [
   },
   {
     key: 'unexplained_hours_treatment',
-    label: 'Unexplained hours outside jobs',
+    label: 'Hours not accounted for on machine reports',
     kind: 'enum',
     options: [
       { value: 'EXPECT_REVENUE', label: 'Expected as revenue until approved' },
@@ -72,7 +72,6 @@ export const REVENUE_RECONCILIATION_FIELDS: readonly PolicyFieldDef[] = [
     options: [
       { value: 'DAY', label: 'Each day' },
       { value: 'WEEK', label: 'Each week (Monday to Sunday)' },
-      { value: 'JOB', label: 'Each completed job' },
     ],
     help: 'Hours are matched with money once the period has closed (tenant time zone).',
   },

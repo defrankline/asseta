@@ -4,10 +4,10 @@ import type { PolicyFieldDef } from './policyFields';
 export const FRAUD_CONTROLS_FIELDS: readonly PolicyFieldDef[] = [
   {
     key: 'engine_activity_min_minutes',
-    label: 'Engine activity without a running job',
+    label: 'Engine activity not accounted for',
     kind: 'int',
     unit: 'min',
-    help: 'Verified ignition / engine-hour activity at least this long with no job in progress needs review.',
+    help: 'Verified ignition / engine-hour activity at least this long that no machine report accounts for needs review.',
   },
   {
     key: 'fuel_max_litres_per_meter_hour',
@@ -43,12 +43,6 @@ export const FRAUD_CONTROLS_FIELDS: readonly PolicyFieldDef[] = [
     unit: 'days',
   },
   {
-    key: 'authorization_tolerance_minutes',
-    label: 'Job authorization clock tolerance',
-    kind: 'int',
-    unit: 'min',
-  },
-  {
     key: 'detection_lookback_hours',
     label: 'Detection lookback',
     kind: 'int',
@@ -61,7 +55,7 @@ export const FRAUD_CONTROLS_FIELDS: readonly PolicyFieldDef[] = [
     kind: 'nullableNumber',
     unit: 'min',
     help:
-      'Tracker engine-on time without a job, unexplained meter hours outside jobs and after-hours movement of ' +
+      'Tracker engine-on time and meter hours no machine report accounts for, and after-hours movement of ' +
       'one machine on one day are reviewed as one case; a day with at least this much adds a day summary. ' +
       'Empty = off.',
   },
@@ -74,7 +68,7 @@ export const FRAUD_CONTROLS_FIELDS: readonly PolicyFieldDef[] = [
       { value: 'DAY', label: 'Per day' },
       { value: 'WEEK', label: 'Per week' },
     ],
-    help: 'All fuel issued or purchased into each machine compared with its engine hours, inside or outside jobs.',
+    help: 'All fuel issued or purchased into each machine compared with its engine hours.',
   },
   {
     key: 'fuel_litres_per_hour_max',

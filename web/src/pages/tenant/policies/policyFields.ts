@@ -49,7 +49,7 @@ export const TRACKING_FIELDS: readonly PolicyFieldDef[] = [
     key: 'enabled',
     label: 'Tracking',
     kind: 'bool',
-    help: 'Off: trackers, geofences and alerts are hidden and tracker messages are ignored; machines, job sites and subscription billing stay.',
+    help: 'Off: trackers, geofences and alerts are hidden and tracker messages are ignored; machines, sites and subscription billing stay.',
   },
   { key: 'live_max_age_seconds', label: 'Live max age', kind: 'int', unit: 's' },
   { key: 'stale_after_seconds', label: 'Stale after', kind: 'int', unit: 's' },
@@ -89,7 +89,7 @@ export const TRACKING_FIELDS: readonly PolicyFieldDef[] = [
       { value: 'ASSIGNED', label: 'Only their own machines' },
       { value: 'ALL', label: 'The whole fleet' },
     ],
-    help: 'Own machines are those assigned to them or on jobs they supervise. Applies to the map, machine history, tracking alerts and fleet reports. Owners and managers always see the whole fleet.',
+    help: 'Own machines are those assigned to them. Applies to the map, machine history, tracking alerts and fleet reports. Owners and managers always see the whole fleet.',
   },
 ];
 

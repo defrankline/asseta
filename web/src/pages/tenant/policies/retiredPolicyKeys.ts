@@ -15,4 +15,8 @@ export const RETIRED_POLICY_KEYS: ReadonlySet<string> = new Set([
   'site_checkin_times',
   'site_checkin_window_minutes',
   'site_checkin_max_distance_m',
+  'in_job_time_counts_as_customer_work',
+  'changeover_splits_billing',
+  'prevent_overlapping_allocation',
+  'authorization_tolerance_minutes',
 ]);
