@@ -47,8 +47,8 @@ class MachineReportContractTest {
     @Test
     fun `request bodies and sync payloads match the contract inputs`() {
         ContractCheck.check("MachineReportLineIn", MachineReportLinePayload.serializer().descriptor, request = true)
-        // `opening` (the first reading, no lines) and `photo_upload_id` are the sync op's own fields.
-        ContractCheck.check("MachineReportIn", MachineReportPayload.serializer().descriptor, extra = setOf("photo_upload_id", "opening"), request = true)
+        // The sync op names its reading by `capture_id` (the DAILY METER_CAPTURE queued just before it).
+        ContractCheck.check("MachineReportIn", MachineReportPayload.serializer().descriptor, request = true)
         ContractCheck.check("CreditInvoicePaymentIn", CreditInvoicePaymentIn.serializer().descriptor, request = true)
         ContractCheck.check("CreditInvoicePaymentIn", CreditInvoicePaymentPayload.serializer().descriptor,
             extra = setOf("invoice_id", "evidence_upload_ids"), request = true)

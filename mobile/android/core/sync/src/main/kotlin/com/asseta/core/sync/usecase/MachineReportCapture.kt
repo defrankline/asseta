@@ -27,6 +27,7 @@ import com.asseta.core.model.sync.MachineReportLinePayload
 import com.asseta.core.model.sync.MachineReportOps
 import com.asseta.core.model.sync.MachineReportPayload
 import com.asseta.core.model.sync.MeterCaptureIn
+import com.asseta.core.model.sync.OpTypes
 import com.asseta.core.model.sync.SyncCapabilities
 import com.asseta.core.sync.data.FieldOps
 import com.asseta.core.sync.data.FieldOutbox
@@ -92,9 +93,10 @@ data class InvoicePaymentRequest(
 )
 
 /**
- * Queues ADR-008 field operations: MACHINE_REPORT (the reading with its evidence and the split, checked on the phone:
- * lines add up to the difference, customers within their cached available hours, notes on non-productive lines) and
- * CREDIT_INVOICE_PAYMENT. The server is authoritative; its refusals come back as sync conflicts.
+ * Queues ADR-008 field operations: a machine report as two operations in one transaction -- the new reading as a normal
+ * DAILY METER_CAPTURE (photo, OCR, GPS evidence), then MACHINE_REPORT naming it by `capture_id` and depending on it (the
+ * split is checked on the phone: lines add up to the difference, customers within their cached available hours, notes
+ * on non-productive lines) -- and CREDIT_INVOICE_PAYMENT. The server is authoritative; its refusals come back as sync conflicts.
  */
 class MachineReportCapture(
     private val db: () -> AssetaDatabase,
@@ -145,8 +147,7 @@ class MachineReportCapture(
         if (alreadySaved(r.tenantId, r.reportId)) return FinanceResult.AlreadySaved
         val payload = MachineReportPayload(
             machineId = r.machineId,
-            capture = capture,
-            captureId = r.existingCaptureId.takeIf { capture == null },
+            captureId = capture?.id ?: r.existingCaptureId!!,
             correctsReportId = r.correctsReportId,
             lines = lines.map {
                 when (it) {
@@ -167,17 +168,29 @@ class MachineReportCapture(
                 photoFile?.let { files.delete(it) }
                 return@inTransaction FinanceResult.AlreadySaved
             }
-            if (photo != null && photoFile != null && attachmentId != null) {
-                database.evidenceDao().insertAttachment(
-                    AttachmentEntity(attachmentId, r.tenantId, BlobPurpose.METER_PHOTO, photoFile, Sha256.hex(photo), photo.size.toLong(),
-                        "image/jpeg", AttachmentEntity.PENDING, createdAt = reading.capturedAtMs),
+            // A new reading goes first as a normal DAILY METER_CAPTURE, gated by its meter photo (the completed upload
+            // writes the photo's attachment id into it); the report names that reading and waits for it.
+            val dependsOn = if (capture != null && reading != null) {
+                if (photo != null && photoFile != null && attachmentId != null) {
+                    database.evidenceDao().insertAttachment(
+                        AttachmentEntity(attachmentId, r.tenantId, BlobPurpose.METER_PHOTO, photoFile, Sha256.hex(photo), photo.size.toLong(),
+                            "image/jpeg", AttachmentEntity.PENDING, createdAt = reading.capturedAtMs),
+                    )
+                }
+                listOf(
+                    outbox.enqueueOperation(
+                        r.tenantId, OpTypes.METER_CAPTURE, FieldOps.captureEntityType(ReadingKind.DAILY), capture.id,
+                        json.encodeToJsonElement(MeterCaptureIn.serializer(), capture).jsonObject, listOfNotNull(attachmentId),
+                    ),
                 )
+            } else {
+                emptyList()
             }
-            // The operation id is the report id; it waits for its meter photo, whose upload id is written in when complete.
+            // The operation id is the report id.
             val opId = outbox.enqueueOperation(
                 r.tenantId, MachineReportOps.MACHINE_REPORT, FieldOps.MACHINE_REPORT, r.reportId,
                 json.encodeToJsonElement(MachineReportPayload.serializer(), payload).jsonObject,
-                listOfNotNull(attachmentId), operationId = r.reportId,
+                dependsOn = dependsOn, operationId = r.reportId,
             )
             FinanceResult.Saved(r.reportId, opId)
         }.also { if (it is FinanceResult.Saved) onQueued() }

@@ -235,21 +235,19 @@ data class MachineReportLinePayload(
 )
 
 /**
- * `MACHINE_REPORT` sync operation (`MachineReportIn` without `id`: the operation id is the report id). Give [capture]
- * (a new DAILY reading; its photo arrives as [photoUploadId] when the upload completes) or [captureId] (the reading of
- * a rejected report being corrected, with [correctsReportId]). [opening]: the machine's first reading, no lines (the
+ * `MACHINE_REPORT` sync operation (`MachineReportIn` without `id`: the operation id is the report id). [captureId] names
+ * the reading: the DAILY `METER_CAPTURE` queued just before it (the report depends on that operation), or the reading of
+ * a rejected report being corrected, with [correctsReportId]. [opening]: the machine's first reading, no lines (the
  * server takes it as the starting reading).
  */
 @Serializable
 data class MachineReportPayload(
     @SerialName("machine_id") val machineId: String,
-    val capture: MeterCaptureIn? = null,
     @SerialName("capture_id") val captureId: String? = null,
     @SerialName("corrects_report_id") val correctsReportId: String? = null,
     val lines: List<MachineReportLinePayload> = emptyList(),
     val note: String? = null,
     @SerialName("client_created_at") val clientCreatedAt: String? = null,
-    @SerialName("photo_upload_id") val photoUploadId: String? = null,
     val opening: Boolean? = null,
 )
 

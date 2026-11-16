@@ -8,6 +8,7 @@ import com.asseta.core.domain.reports.ReportLineDraft
 import com.asseta.core.domain.reports.ReportState
 import com.asseta.core.model.ClientOperationStatus
 import com.asseta.core.model.sync.MachineReportOps
+import com.asseta.core.model.sync.OpTypes
 import com.asseta.core.model.sync.SyncCapabilities
 import com.asseta.core.sync.data.FieldOutbox
 import com.asseta.core.sync.data.MachineReportData
@@ -117,7 +118,7 @@ class MachineReportSyncTest : SyncTestBase() {
     }
 
     @Test
-    fun aReportIsQueuedOfflineWithItsReadingAndLinesAndWaitsForThePhoto() = runBlocking {
+    fun aReportIsQueuedOfflineAsADailyReadingThenTheReportThatNamesIt() = runBlocking {
         snapshots()
         synced()
         val r = request(listOf(customer, breakdown))
@@ -125,13 +126,24 @@ class MachineReportSyncTest : SyncTestBase() {
         // The operation id is the report id; its type is MACHINE_REPORT.
         assertEquals(r.reportId, saved.operationId)
         assertEquals(MachineReportOps.MACHINE_REPORT, op(r.reportId).opType)
-        val p = payload(r.reportId)
-        assertEquals(fake.machineId, p["machine_id"]!!.jsonPrimitive.content)
-        val capture = p["capture"]!!.jsonObject
+        // The reading goes first as a normal DAILY METER_CAPTURE carrying the photo gate; the report depends on it.
+        val captureOpId = db.clientOperationDao().dependenciesOf(r.reportId).single()
+        val captureOp = op(captureOpId)
+        assertEquals(OpTypes.METER_CAPTURE, captureOp.opType)
+        assertEquals(r.reading!!.captureId, captureOp.entityId)
+        assertEquals(1, db.clientOperationDao().attachmentsOf(captureOpId).size)
+        assertTrue(db.clientOperationDao().attachmentsOf(r.reportId).isEmpty())
+        val capture = payload(captureOpId)
+        assertEquals(r.reading!!.captureId, capture["id"]!!.jsonPrimitive.content)
         assertEquals("1510.0", capture["reading"]!!.jsonPrimitive.content)
         assertEquals("DAILY", capture["kind"]!!.jsonPrimitive.content)
         assertEquals(fake.machineId, capture["machine_id"]!!.jsonPrimitive.content)
         assertNull(capture["job_id"])
+        val p = payload(r.reportId)
+        assertEquals(fake.machineId, p["machine_id"]!!.jsonPrimitive.content)
+        assertEquals(r.reading!!.captureId, p["capture_id"]!!.jsonPrimitive.content)
+        assertNull(p["capture"])
+        assertNull(p["corrects_report_id"])
         val lines = p["lines"]!!.jsonArray.map { it.jsonObject }
         assertEquals(listOf("CUSTOMER", "NON_PRODUCTIVE"), lines.map { it["kind"]!!.jsonPrimitive.content })
         assertEquals("120", lines[0]["hours"]!!.jsonPrimitive.content)
@@ -143,12 +155,15 @@ class MachineReportSyncTest : SyncTestBase() {
         val view = data.observe(tenant).first()
         assertEquals(BigDecimal("20"), view.available(fake.machineId)[fake.customerId])
         assertEquals(ReportState.AWAITING_APPROVAL, view.machines(3).single().state)
-        // Offline nothing is sent; online the photo uploads first, then the report goes with its upload id.
+        // Offline nothing is sent; online the photo uploads first, then the reading goes with it, then the report.
         assertTrue(engine(online = false).sync(tenant) is SyncReport.Retry)
+        assertEquals(ClientOperationStatus.PENDING, status(captureOpId))
         assertEquals(ClientOperationStatus.PENDING, status(r.reportId))
         synced()
+        assertEquals(ClientOperationStatus.ACKED, status(captureOpId))
         assertEquals(ClientOperationStatus.ACKED, status(r.reportId))
-        assertNotNull(fake.stored[r.reportId]!!.payload["photo_upload_id"])
+        assertNotNull(fake.stored[captureOpId]!!.payload["photo_attachment_id"])
+        assertNull(fake.stored[r.reportId]!!.payload["photo_upload_id"])
         // A second tap never queues it twice.
         assertEquals(FinanceResult.AlreadySaved, reports.submit(r))
     }
@@ -176,7 +191,31 @@ class MachineReportSyncTest : SyncTestBase() {
         val p = payload(r.reportId)
         assertEquals(true, p["opening"]!!.jsonPrimitive.content.toBoolean())
         assertTrue(p["lines"]!!.jsonArray.isEmpty())
-        assertNotNull(p["capture"])
+        assertNull(p["capture"])
+        assertEquals(r.reading!!.captureId, p["capture_id"]!!.jsonPrimitive.content)
+        val captureOpId = db.clientOperationDao().dependenciesOf(r.reportId).single()
+        assertEquals(OpTypes.METER_CAPTURE, op(captureOpId).opType)
+        assertEquals("DAILY", payload(captureOpId)["kind"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun aRejectedReportIsRedoneOnTheSameReadingWithoutANewCapture() = runBlocking {
+        snapshots()
+        synced()
+        val rejectedId = UUID.randomUUID().toString()
+        val oldCapture = UUID.randomUUID().toString()
+        val r = request(listOf(customer, breakdown)).copy(
+            reading = null, existingCaptureId = oldCapture, existingReading = "1510.0", correctsReportId = rejectedId,
+        )
+        reports.submit(r) as FinanceResult.Saved
+        assertTrue(db.clientOperationDao().dependenciesOf(r.reportId).isEmpty())
+        val p = payload(r.reportId)
+        assertEquals(oldCapture, p["capture_id"]!!.jsonPrimitive.content)
+        assertEquals(rejectedId, p["corrects_report_id"]!!.jsonPrimitive.content)
+        assertNull(p["opening"])
+        assertEquals(2, p["lines"]!!.jsonArray.size)
+        // Only the report was queued: no new reading.
+        assertEquals(listOf(MachineReportOps.MACHINE_REPORT), db.clientOperationDao().observeUnsynced(tenant, USER_A.subject).first().map { it.opType })
     }
 
     @Test
