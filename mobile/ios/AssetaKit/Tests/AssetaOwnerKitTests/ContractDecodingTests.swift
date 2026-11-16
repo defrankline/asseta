@@ -1,4 +1,5 @@
 import AssetaModel
+import AssetaOwnerKit
 import Foundation
 import Testing
 
@@ -9,8 +10,6 @@ struct ContractDecodingTests {
         ("TenantOverviewDto", Samples.overviewFleetOnly),
         ("MachineMapDto", Samples.machineJSON()),
         ("HistoryDto", Samples.history),
-        ("Page_JobDto_", Samples.jobsPage),
-        ("JobSummaryDto", Samples.jobSummary),
         ("AlertDto", Samples.alertJSON()),
         ("Page_ApprovalRequestDto_", Samples.approvalsPage),
         ("AnomalyCaseDetailDto", Samples.caseDetail),
@@ -37,6 +36,7 @@ struct ContractDecodingTests {
         #expect(overview.fleet?.openAlerts.total == 3)
         #expect(overview.fleet?.latestSourceAt != nil)
         #expect(overview.work?.pendingApprovals == 2)
+        #expect(overview.work?.machineReportsByStatus["APPROVED"] == 5)
         #expect(overview.work?.readingsNeedingReview == nil) // permission-gated count
         #expect(overview.money?.currencies.first?.receivablesOutstanding.value == Decimal(1_092_500))
         #expect(overview.money?.latestSourceAt == nil)
@@ -70,12 +70,31 @@ struct ContractDecodingTests {
         #expect(alert.severity.rank == 2) // unknown ranks like WARNING, never hidden
     }
 
-    @Test func jobSummaryKeepsMoneyAsDecimal() throws {
-        let summary = try AssetaJSON.decoder().decode(JobSummaryDTO.self, from: Contract.data(Samples.jobSummary))
-        #expect(summary.job.hourlyRate?.value == Decimal(95000))
-        #expect(summary.job.currency == "TZS")
-        #expect(summary.charges?.total.value == Decimal(1_092_500))
-        #expect(summary.openingReading?.description == "1200.5")
+    /// ADR-008: the job, contract, hire invoice, revenue, non-revenue, unbilled, daily sheet and check-in endpoints are gone;
+    /// the meter exception operations were renamed (same paths) and the Owner app calls them by path.
+    @Test func removedAndRenamedOperationsFollowTheContract() throws {
+        let paths = try Contract.root()["paths"] as? [String: [String: Any]] ?? [:]
+        var operationIDs: [String: String] = [:]
+        for (path, methods) in paths {
+            for (_, op) in methods {
+                if let id = (op as? [String: Any])?["operationId"] as? String { operationIDs[id] = path }
+            }
+        }
+        for removed in ["createJob", "requestJob", "listJobs", "getJobSummary", "transitionJob", "listJobCaptures",
+                        "listJobActivities", "listJobAcknowledgements", "listFieldContracts", "listHireInvoices",
+                        "listUnbilledWork", "recordSiteCheckin", "listSiteCheckins", "listDailyMachineSheet",
+                        "getDailyMachineSheetDay", "listRevenueDifferences", "getRevenueDifference",
+                        "listNonRevenueApprovals", "decideNonRevenueApproval", "listJobExceptions", "getJobException",
+                        "reviewJobException"] {
+            #expect(operationIDs[removed] == nil, "\(removed) is still in the contract")
+        }
+        #expect(operationIDs["listMeterExceptions"] == "/api/v1/tenant/exceptions")
+        #expect(operationIDs["getMeterException"] == "/api/v1/tenant/exceptions/{exception_id}")
+        #expect(operationIDs["reviewMeterException"] == "/api/v1/tenant/exceptions/{exception_id}/review")
+        #expect(OwnerAPI.exceptions(status: "OPEN").path == "/api/v1/tenant/exceptions")
+        #expect(OwnerAPI.exceptions(status: "OPEN").queryItems.allSatisfy { $0.name != "job_id" })
+        #expect(operationIDs["getEffectivePolicy"] == "/api/v1/tenant/policies/{ptype}/effective")
+        #expect(OwnerAPI.customerHoursPolicy().path == "/api/v1/tenant/policies/CUSTOMER_HOURS/effective")
     }
 
     @Test func moneyAsJSONNumberIsRejected() {

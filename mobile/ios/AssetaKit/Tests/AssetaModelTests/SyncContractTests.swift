@@ -25,10 +25,10 @@ struct SyncContractTests {
 
     nonisolated(unsafe) static let finding: [String: Any] = [
         "id": ids[0], "exception_type": "SOMETHING_NEW", "severity": "HIGH", "blocking": true, "status": "OPEN", "machine_id": ids[1],
-        "job_id": ids[2], "meter_capture_id": ids[3], "policy_version": NSNull(), "review_note": NSNull(), "reviewed_at": NSNull(),
+        "meter_capture_id": ids[3], "policy_version": NSNull(), "review_note": NSNull(), "reviewed_at": NSNull(),
         "created_at": "2026-10-23T08:00:00Z", "evidence": ["delta": "12"]]
     nonisolated(unsafe) static let capture: [String: Any] = [
-        "id": ids[3], "job_id": ids[2], "machine_id": ids[1], "kind": "OPENING", "capture_mode": "AUTOMATIC", "reading": "1234.5",
+        "id": ids[3], "machine_id": ids[1], "kind": "DAILY", "capture_mode": "AUTOMATIC", "reading": "1234.5",
         "state": "PROVISIONAL", "gps_status": "FIX", "latitude": -6.8, "longitude": 39.2, "accuracy_m": 12.0,
         "location_captured_at": "2026-10-23T07:59:00Z", "photo_attachment_id": ids[4], "photo_sha256": "ab", "ocr_value": "1234.5",
         "ocr_confidence": 0.91, "manually_corrected": false, "policy_version": "p1", "supersedes_id": NSNull(),
@@ -38,36 +38,24 @@ struct SyncContractTests {
         "id": ids[5], "machine_id": ids[1], "old_reading": "9999.9", "new_reading": "0.0", "effective_at": "2026-10-23T08:00:00Z",
         "reason": "Meter replaced by workshop", "status": "PENDING", "evidence_attachment_id": ids[4], "requested_by": NSNull(),
         "decided_by": NSNull(), "decided_at": NSNull(), "created_at": "2026-10-23T08:00:00Z", "sync_revision": 3]
-    nonisolated(unsafe) static let activity: [String: Any] = [
-        "id": ids[6], "job_id": ids[2], "client_id": ids[7], "activity_type": "WORK", "started_at": "2026-10-23T06:00:00Z",
-        "ended_at": "2026-10-23T08:00:00Z", "duration_minutes": 120, "billable": true, "note": NSNull(), "recorded_by": NSNull(),
-        "received_at": "2026-10-23T08:01:00Z", "sync_revision": 4]
-    nonisolated(unsafe) static let acknowledgement: [String: Any] = [
-        "id": ids[8], "job_id": ids[2], "client_id": ids[9], "method": "SIGNATURE", "signer_name": "Asha",
-        "signer_phone": NSNull(), "acknowledged_hours": "8.50", "signature_attachment_id": ids[4],
-        "captured_at": "2026-10-23T09:00:00Z", "recorded_by": NSNull(), "received_at": "2026-10-23T09:01:00Z", "sync_revision": 5]
     nonisolated(unsafe) static let expense: [String: Any] = [
         "id": ids[10], "client_id": ids[11], "category_id": ids[0], "description": "Diesel", "supplier": NSNull(),
         "amount": "25000.00", "currency": "TZS", "paid_from": "CASH_CUSTODY", "status": "REJECTED", "decision_note": "No receipt",
         "decided_at": "2026-10-23T09:00:00Z", "decided_by": NSNull(), "incurred_at": "2026-10-23T07:00:00Z",
-        "submitted_at": "2026-10-23T07:10:00Z", "submitted_by": NSNull(), "custodian_staff_id": NSNull(), "job_id": NSNull(),
+        "submitted_at": "2026-10-23T07:10:00Z", "submitted_by": NSNull(), "custodian_staff_id": NSNull(),
         "machine_id": NSNull(), "gps_status": "FIX", "gps_accuracy_m": 5.0, "latitude": 1.0, "longitude": 2.0,
         "policy_version": "p", "receipt_required": true, "source": "SYNC", "receipt_attachment_ids": [ids[4]],
         "approval_request_id": ids[5], "sync_revision": 7]
     nonisolated(unsafe) static let fuel: [String: Any] = [
         "id": ids[6], "client_id": ids[7], "event_type": "ISSUE", "litres": "120.000", "unit_price": NSNull(),
-        "attributed_cost": "0.00", "currency": "TZS", "machine_id": ids[1], "job_id": ids[2], "expense_id": NSNull(),
+        "attributed_cost": "0.00", "currency": "TZS", "machine_id": ids[1], "expense_id": NSNull(),
         "meter_reading": NSNull(), "supplier": NSNull(), "note": NSNull(), "occurred_at": "2026-10-23T07:00:00Z",
         "recorded_by": NSNull(), "source": "SYNC", "sync_revision": 8]
-    nonisolated(unsafe) static let allocation: [String: Any] = [
-        "id": ids[0], "invoice_id": ids[1], "amount": "10", "created_at": "2026-10-23T10:00:00Z", "released_at": NSNull(),
-        "release_reason": NSNull()]
     nonisolated(unsafe) static let collection: [String: Any] = [
         "id": ids[2], "client_id": ids[3], "customer_id": ids[4], "amount": "10", "currency": "TZS", "method": "CASH",
         "status": "VERIFIED", "decision_note": NSNull(), "reference": NSNull(), "note": NSNull(), "received_at": "2026-10-23T07:00:00Z",
         "received_by_staff_id": ids[5], "recorded_at": "2026-10-23T07:00:00Z", "recorded_by": NSNull(),
-        "verified_at": "2026-10-23T10:00:00Z", "verified_by": NSNull(), "source": "SYNC", "allocations": [allocation],
-        "sync_revision": 3]
+        "verified_at": "2026-10-23T10:00:00Z", "verified_by": NSNull(), "source": "SYNC", "sync_revision": 3]
     nonisolated(unsafe) static let handover: [String: Any] = [
         "id": ids[6], "client_id": NSNull(), "staff_member_id": ids[5], "amount": "100000.0000", "currency": "TZS",
         "status": "REJECTED", "decision_note": "Amount does not match", "reference": "R-1", "note": NSNull(),
@@ -116,12 +104,8 @@ struct SyncContractTests {
         try Self.check("ExceptionDto", encoded: Self.roundTrip(FindingDTO.self, Self.finding), sample: Self.finding)
         try Self.check("SyncMeterCaptureDto", encoded: Self.roundTrip(SyncMeterCaptureDTO.self, Self.capture), sample: Self.capture)
         try Self.check("SyncMeterResetDto", encoded: Self.roundTrip(SyncMeterResetDTO.self, Self.reset), sample: Self.reset)
-        try Self.check("SyncJobActivityDto", encoded: Self.roundTrip(SyncJobActivityDTO.self, Self.activity), sample: Self.activity)
-        try Self.check("SyncAcknowledgementDto", encoded: Self.roundTrip(SyncAcknowledgementDTO.self, Self.acknowledgement),
-                       sample: Self.acknowledgement)
         try Self.check("SyncExpenseDto", encoded: Self.roundTrip(SyncExpenseDTO.self, Self.expense), sample: Self.expense)
         try Self.check("SyncFuelEventDto", encoded: Self.roundTrip(SyncFuelEventDTO.self, Self.fuel), sample: Self.fuel)
-        try Self.check("HireAllocationDto", encoded: Self.roundTrip(HireAllocationDTO.self, Self.allocation), sample: Self.allocation)
         try Self.check("SyncCashCollectionDto", encoded: Self.roundTrip(SyncCashCollectionDTO.self, Self.collection),
                        sample: Self.collection)
         try Self.check("SyncCashHandoverDto", encoded: Self.roundTrip(SyncCashHandoverDTO.self, Self.handover), sample: Self.handover)
@@ -130,35 +114,55 @@ struct SyncContractTests {
         try Self.check("CashReconciliationDayDto", encoded: Self.roundTrip(CashReconciliationDayDTO.self, Self.day), sample: Self.day)
     }
 
-    /// Field job requests: the `JOB_REQUEST` payload is `JobRequestIn`, the form's contracts come from
-    /// `FieldContractDto`, and `JobDto` carries the request fields both apps show.
-    @Test func jobRequestShapesMatchTheContract() throws {
-        let request: [String: Any] = ["client_id": Self.ids[0], "contract_id": Self.ids[1], "machine_id": Self.ids[2], "job_site_id": Self.ids[3],
-                                      "planned_start": "2026-10-24T06:00:00.000Z", "planned_end": "2026-10-25T06:00:00.000Z",
-                                      "note": "Clear the access road"]
-        try Self.check("JobRequestIn", encoded: Self.roundTrip(JobRequestPayload.self, request), sample: request)
-        let contract: [String: Any] = ["id": Self.ids[1], "contract_number": "RC-7", "customer_id": Self.ids[4], "customer_name": "Katavi Roads",
-                                       "job_site_id": Self.ids[3], "job_site_name": "Mpanda yard", "currency": "TZS",
-                                       "starts_on": "2026-01-01T00:00:00Z", "ends_on": NSNull(), "reference": NSNull()]
-        try Self.check("FieldContractDto", encoded: Self.roundTrip(FieldContractDTO.self, contract), sample: contract)
-        let job: [String: Any] = ["id": Self.ids[0], "contract_id": Self.ids[1], "job_number": "J-2026-105", "machine_id": Self.ids[2],
-                                  "job_site_id": Self.ids[3], "supervisor_id": Self.ids[5], "status": "PENDING_APPROVAL",
-                                  "planned_start": "2026-10-24T06:00:00.000Z", "planned_end": NSNull(), "currency": "TZS",
-                                  "hourly_rate": "0", "minimum_hours": "0", "standby_treatment": "EXCLUDED", "standby_rate": NSNull(),
-                                  "mobilization_fee": "0", "discount_percent": "0", "tax_rate_percent": "0",
-                                  "rate_source": "PENDING_PRICE", "approved_at": NSNull(), "started_at": NSNull(),
-                                  "completed_at": NSNull(), "version": 1, "cancellation_reason": "No operator",
-                                  "requested_by_staff_id": Self.ids[5], "requested_by_name": "Juma Field", "request_note": "Road"]
-        // JobDTO maps only what the apps show; every mapped key must exist on JobDto.
-        let jobProperties = try #require((Self.schemas["JobDto"] as? [String: Any])?["properties"] as? [String: Any])
-        for key in try Self.roundTrip(JobDTO.self, job).keys { #expect(jobProperties[key] != nil, "JobDto has no property '\(key)'") }
-        for key in ["request_note", "requested_by_staff_id", "requested_by_name", "cancellation_reason", "rate_source"] {
-            #expect(jobProperties[key] != nil, "JobDto lacks \(key)")
+    /// ADR-008 removed jobs from the server: the contract no longer has their shapes, sync lists, operations or blob
+    /// purpose, and the app neither encodes nor sends them.
+    @Test func jobShapesAreGoneFromTheContractAndTheApp() throws {
+        for name in ["JobDto", "JobRequestIn", "FieldContractDto", "SyncJobActivityDto", "SyncAcknowledgementDto",
+                     "HireAllocationDto", "SyncChangeoverJobDto", "SyncOpenInvoiceDto", "SiteCheckinIn"] {
+            #expect(Self.schemas[name] == nil, "\(name) is still in the contract")
         }
+        let syncData = try #require((Self.schemas["SyncData"] as? [String: Any])?["properties"] as? [String: Any])
+        let removed = ["jobs", "contracts", "open_invoices", "changeover_jobs", "my_job_activities", "my_acknowledgements"]
+        for key in removed { #expect(syncData[key] == nil, "SyncData.\(key) is still in the contract") }
+        let encoded = try Self.roundTrip(SyncData.self, ["machines": [], "my_meter_captures": [Self.capture]])
+        for key in removed { #expect(encoded[key] == nil, "the app still encodes SyncData.\(key)") }
+        for key in ["machine_report_reasons", "machine_report_states", "machine_report_hours", "my_machine_reports",
+                    "open_credit_invoices", "customers", "sites", "machines"] {
+            #expect(syncData[key] != nil, "SyncData.\(key) missing from the contract")
+            #expect(encoded[key] != nil, "the app does not map SyncData.\(key)")
+        }
+        let opTypes = Set((((Self.schemas["OperationIn"] as? [String: Any])?["properties"] as? [String: Any])?["op_type"]
+            as? [String: Any])?["enum"] as? [String] ?? [])
+        for op in ["JOB_ACTIVITY", "JOB_ACKNOWLEDGEMENT", "JOB_TRANSITION", "JOB_REQUEST", "SITE_CHECKIN"] {
+            #expect(!opTypes.contains(op), "\(op) is still a sync operation")
+            #expect(OperationType(rawValue: op) == nil, "the app still knows \(op)")
+        }
+        #expect(opTypes.contains(OperationType.machineReport.rawValue) && opTypes.contains(OperationType.creditInvoicePayment.rawValue))
+        #expect(BlobPurpose(rawValue: "SIGNATURE") == nil)
+        let meterCapture = try #require((Self.schemas["MeterCaptureIn"] as? [String: Any])?["properties"] as? [String: Any])
+        for key in ["job_id", "changeover_to_customer_id", "changeover_to_job_id"] { #expect(meterCapture[key] == nil) }
+        #expect(ReadingKind.allCases == [.daily])
+    }
+
+    /// Device policy snapshots carry `capture_mode` (ADR-008 renamed `closing_mode`); a snapshot stored before keeps
+    /// working.
+    @Test func meterCapturePolicyReadsCaptureModeAndTheOldClosingMode() throws {
+        let now: [String: Any] = ["capture_mode": "AUTOMATIC", "manual_photo_required": true, "min_ocr_confidence": 0.85,
+                                  "max_recapture_attempts": 3, "gps_enforcement": "SOFT"]
+        let policy = try AssetaJSON.decoder().decode(MeterCapturePolicy.self, from: JSONSerialization.data(withJSONObject: now))
+        #expect(policy.captureMode == .automatic)
+        var old = now
+        old.removeValue(forKey: "capture_mode")
+        old["opening_mode"] = "AUTOMATIC"
+        old["closing_mode"] = "MANUAL"
+        let stored = try AssetaJSON.decoder().decode(MeterCapturePolicy.self, from: JSONSerialization.data(withJSONObject: old))
+        #expect(stored.captureMode == .manual)
+        let encoded = try #require(try JSONSerialization.jsonObject(with: AssetaJSON.encoder().encode(stored)) as? [String: Any])
+        #expect(encoded["capture_mode"] as? String == "MANUAL" && encoded["closing_mode"] == nil)
     }
 
     @Test func syncDataListsAndCapabilitiesMatchTheContract() throws {
-        let data: [String: Any] = ["jobs": [], "my_meter_captures": [Self.capture], "my_expenses": [Self.expense],
+        let data: [String: Any] = ["my_meter_captures": [Self.capture], "my_expenses": [Self.expense],
                                    "my_cash_collections": [Self.collection]]
         let encoded = try Self.roundTrip(SyncData.self, data)
         try Self.check("SyncData", encoded: encoded, sample: data)
@@ -179,7 +183,7 @@ struct SyncContractTests {
         try Self.check("HoursPriceDto", encoded: Self.roundTrip(HoursPriceDTO.self, price), sample: price)
         let discount: [String: Any] = ["customer_id": Self.ids[4], "percent": "10.00"]
         try Self.check("CustomerDiscountRateDto", encoded: Self.roundTrip(CustomerDiscountRateDTO.self, discount), sample: discount)
-        let data: [String: Any] = ["jobs": [], "hours_prices": [price], "customer_discounts": [discount]]
+        let data: [String: Any] = ["hours_prices": [price], "customer_discounts": [discount]]
         let decoded = try AssetaJSON.decoder().decode(SyncData.self, from: try JSONSerialization.data(withJSONObject: data))
         #expect(decoded.hoursPrices.count == 1 && decoded.customerDiscounts.count == 1)
         try Self.check("SyncData", encoded: Self.roundTrip(SyncData.self, data), sample: data)
@@ -204,14 +208,12 @@ struct SyncContractTests {
         #expect(expense.decisionNote == "No receipt" && expense.receiptAttachmentIDs.count == 1)
     }
 
-    /// Compatibility: a DAILY reading outside a job arrives with `job_id: null` (METER_DAILY_READING); it must decode
-    /// everywhere (pull, inbox, readings lists) and never drop the batch.
-    @Test func dailyReadingWithNullJobDecodes() throws {
-        var daily = Self.capture
-        daily["job_id"] = NSNull()
-        daily["kind"] = "DAILY"
+    /// Every reading is a DAILY reading of a machine (ADR-008); it must decode everywhere (pull, inbox, readings
+    /// lists) and never drop the batch.
+    @Test func dailyReadingDecodesEverywhere() throws {
+        let daily = Self.capture
         let dto = try AssetaJSON.decoder().decode(SyncMeterCaptureDTO.self, from: try JSONSerialization.data(withJSONObject: daily))
-        #expect(dto.jobID == nil && dto.kind == "DAILY")
+        #expect(dto.kind == "DAILY")
         try Self.check("SyncMeterCaptureDto", encoded: Self.roundTrip(SyncMeterCaptureDTO.self, daily), sample: daily)
         let data: [String: Any] = ["my_meter_captures": [daily, Self.capture]]
         let decoded = try AssetaJSON.decoder().decode(SyncData.self, from: try JSONSerialization.data(withJSONObject: data))
@@ -219,7 +221,7 @@ struct SyncContractTests {
         var owner = daily
         for key in ["sync_revision", "review_status", "findings"] { owner.removeValue(forKey: key) }
         let capture = try AssetaJSON.decoder().decode(MeterCaptureDTO.self, from: try JSONSerialization.data(withJSONObject: owner))
-        #expect(capture.jobID == nil && capture.kind == "DAILY")
+        #expect(capture.kind == "DAILY")
         #expect(ReadingKind(rawValue: "DAILY") == .daily)
     }
 
@@ -275,7 +277,7 @@ struct SyncContractTests {
                               schema: "CashAcknowledgementIn", opOnly: ["entry_id"])
         try Self.checkPayload(MeterBaselinePayload(id: id, machineID: id, reading: "10.0", capturedAt: at, gps: gps, deviceID: "dev-1",
                                                    note: nil), schema: "BaselineIn")
-        let replacement = MeterCapturePayload(id: id, jobID: nil, machineID: id, kind: .daily, captureMode: .manual, reading: "10.0",
+        let replacement = MeterCapturePayload(id: id, machineID: id, kind: .daily, captureMode: .manual, reading: "10.0",
                                               ocrRawText: nil, ocrValue: nil, ocrConfidence: nil, ocrEngine: nil,
                                               photoAttachmentID: nil, gps: gps, deviceID: "dev-1", capturedAt: at, policyVersionIDs: [id])
         try Self.checkPayload(replacement, schema: "MeterCaptureIn")
@@ -327,10 +329,10 @@ struct SyncContractTests {
         for key in try Self.roundTrip(CashReasonDTO.self, cashReason).keys { #expect(cashReasonProps[key] != nil) }
         let effective: [String: Any] = ["policy_type": "CUSTOMER_HOURS", "version_stamp": "v3", "values": [
             "enabled": true, "walk_in_allowed": false, "transfer_requires_approval": true, "reason_code_required": false,
-            "billing_modes": ["PREPAID_HOURS"]]]
+            "machine_report_reminder_days": 5]]
         let policy = try AssetaJSON.decoder().decode(EffectivePolicyDTO<CustomerHoursPolicyValues>.self,
                                                      from: JSONSerialization.data(withJSONObject: effective))
-        #expect(policy.values.enabled && !policy.values.walkInAllowed)
+        #expect(policy.values.enabled && !policy.values.walkInAllowed && policy.values.machineReportReminderDays == 5)
         let effectiveProps = try #require((Self.schemas["EffectivePolicyDto"] as? [String: Any])?["properties"] as? [String: Any])
         for key in ["policy_type", "version_stamp", "values"] { #expect(effectiveProps[key] != nil) }
         for capability in [SyncCapability.hoursPurchase, SyncCapability.hoursTransferRequest, SyncCapability.cashTransfer,

@@ -76,14 +76,13 @@ enum Contract {
 enum Samples {
     static let tenant = "11111111-1111-4111-8111-111111111111"
     static let machine = "aaaaaaaa-0000-4000-8000-000000000001"
-    static let job = "bbbbbbbb-0000-4000-8000-000000000001"
 
     static let overview = """
     {"tenant_id":"\(tenant)","as_of":"2026-10-22T08:00:00.123Z","timezone":"Africa/Dar_es_Salaam",
      "fleet":{"machines":12,"connectivity":{"live":5,"recent":2,"stale":1,"offline":2,"never":1,"no_tracker":1},
               "reported_work_state":{"WORKING":4,"IDLE":8},"engine_on_verified":3,
               "open_alerts":{"critical":1,"warning":2,"info":0},"latest_source_at":"2026-10-22T07:59:10Z"},
-     "work":{"jobs_by_status":{"IN_PROGRESS":3,"APPROVED":2},"pending_approvals":2,"readings_needing_review":null,
+     "work":{"machine_reports_by_status":{"SUBMITTED":2,"APPROVED":5,"REJECTED":0},"pending_approvals":2,"readings_needing_review":null,
              "open_exceptions":1,"latest_source_at":"2026-10-22T07:30:00Z"},
      "money":{"month_start":"2026-10-01","currencies":[{"currency":"TZS","receivables_outstanding":"1092500.0000",
               "receivables_overdue":"0.0000","overdue_invoices":0,"verified_receipts_mtd":"500000.0000",
@@ -121,25 +120,6 @@ enum Samples {
                      "entered_at":"2026-10-22T06:05:00Z","exited_at":null,"duration_seconds":600}]}
     """
 
-    static let jobDTO = """
-    {"id":"\(job)","contract_id":"dddddddd-0000-4000-8000-000000000001","job_number":"J-1001",
-     "machine_id":"\(machine)","job_site_id":null,"supervisor_id":null,"status":"IN_PROGRESS",
-     "planned_start":"2026-10-20T06:00:00Z","planned_end":null,"currency":"TZS","hourly_rate":"95000.0000",
-     "minimum_hours":"0.0000","standby_treatment":"EXCLUDED","standby_rate":null,"mobilization_fee":"0.0000",
-     "discount_percent":"0.0000","tax_rate_percent":"15.0000","rate_source":"RATE_CARD",
-     "approved_at":"2026-10-19T10:00:00Z","started_at":"2026-10-20T06:05:00Z","completed_at":null,"version":3}
-    """
-
-    static let jobsPage = #"{"items":[\#(jobDTO)],"total":1,"page":1,"page_size":50}"#
-
-    static let jobSummary = """
-    {"job":\(jobDTO),"opening_reading":"1200.5","closing_reading":null,"meter_hours":null,"nonbillable_hours":"0",
-     "standby_hours":"0","billable_hours":null,"open_exceptions":1,"blocking_exceptions":0,"billing_ready":false,
-     "charges":{"currency":"TZS","lines":[{"kind":"HIRE","description":"Hire","quantity":"11.5","unit_price":"95000",
-       "amount":"1092500"}],"subtotal":"1092500","discount_total":"0","tax_total":"0","total":"1092500"},
-     "policy_version":"v2"}
-    """
-
     static func alertJSON(status: String = "OPEN", severity: String = "CRITICAL") -> String {
         """
         {"id":"eeeeeeee-0000-4000-8000-000000000001","machine_id":"\(machine)","tracker_id":null,
@@ -159,7 +139,7 @@ enum Samples {
 
     static let caseDetail = """
     {"case":{"id":"12121212-0000-4000-8000-000000000001","case_number":"CASE-0007","title":"Fuel above band",
-      "subject_type":"MACHINE","subject_id":"\(machine)","machine_id":"\(machine)","job_id":null,
+      "subject_type":"MACHINE","subject_id":"\(machine)","machine_id":"\(machine)",
       "staff_member_id":null,"severity":"WARNING","status":"IN_REVIEW","assignee_user_id":null,"assignee_name":null,
       "opened_at":"2026-10-21T09:00:00Z","last_signal_at":"2026-10-22T06:00:00Z","resolved_at":null,
       "resolved_by":null,"latest_outcome":null,"signal_count":2,"policy_version":"v1","version":1},
@@ -172,8 +152,8 @@ enum Samples {
     """
 
     static let capturesPage = """
-    {"items":[{"id":"16161616-0000-4000-8000-000000000001","job_id":"\(job)","machine_id":"\(machine)",
-      "kind":"OPENING","capture_mode":"AUTOMATIC","reading":"1200.5","ocr_value":"1200.5","ocr_confidence":0.97,
+    {"items":[{"id":"16161616-0000-4000-8000-000000000001","machine_id":"\(machine)",
+      "kind":"DAILY","capture_mode":"AUTOMATIC","reading":"1200.5","ocr_value":"1200.5","ocr_confidence":0.97,
       "manually_corrected":false,"photo_attachment_id":"17171717-0000-4000-8000-000000000001",
       "photo_sha256":"ab","gps_status":"FIX","latitude":-6.8,"longitude":39.28,"accuracy_m":6,
       "location_captured_at":"2026-10-20T06:04:00Z","captured_at":"2026-10-20T06:04:00Z",

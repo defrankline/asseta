@@ -47,9 +47,7 @@ struct ManagementContractTests {
      "unauthorized_attempts":{"permission_denied":1,"segregation_of_duties":2,"since":"2026-11-01T00:00:00Z","route":"/tenant/audit"},
      "unconfirmed_payments":\(moneyFig),"outstanding_approvals":{"total":3,"by_kind":[\(kind)]},
      "overdue_reports":{"total":4,"missing_daily_reports":\(countFig),"remittances_overdue_today":\(countFig)},
-     "unresolved_variances":{"total":1,"by_source":[{"source":"HANDOVER","unit":"MONEY","count":1,"amounts":[{"currency":"TZS","count":1,"amount":"5.00"}],"route":"/tenant/cash/variances"}]},
-     "changeover_jobs_awaiting_approval":{"count":1,"oldest_days":5,"items":[{"job_id":"\(uuid)","job_number":"J-1","machine_id":"\(uuid)","machine_code":"EX-1",
-        "machine_name":"Ex","customer_id":"\(uuid)","customer_name":"Acme","changed_over_at":"2026-11-01T08:00:00Z","days_waiting":5,"route":"/tenant/jobs/\(uuid)"}]}}
+     "unresolved_variances":{"total":1,"by_source":[{"source":"HANDOVER","unit":"MONEY","count":1,"amounts":[{"currency":"TZS","count":1,"amount":"5.00"}],"route":"/tenant/cash/variances"}]}}
     """
     static func summary(_ extra: String) -> String {
         #"{"as_of":"2026-11-09T08:00:00Z","policy_version":"v1","hidden_tiles":[],"unavailable_tiles":[]\#(extra)}"#
@@ -66,7 +64,7 @@ struct ManagementContractTests {
         #expect(s.hoursSection?.remaining.hours.value == Decimal(string: "12.5"))
         #expect(s.operationsSection?.byExcavator.first?.machineCode == "EX-1")
         #expect(s.cashSection?.heldByEmployee.first?.staffMemberName == "Sam")
-        #expect(s.exceptionsSection?.changeoverJobsAwaitingApproval.oldestDays == 5)
+        #expect(s.exceptionsSection?.overdueReports.total == 4)
         #expect(s.exceptionsSection?.pendingAdjustments.oldest.first?.reference == "ARQ-1")
     }
 
