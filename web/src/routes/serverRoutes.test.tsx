@@ -1,43 +1,53 @@
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import type { ReactElement } from 'react';
 import { createRoutesFromElements, matchRoutes } from 'react-router';
 import { describe, expect, it } from 'vitest';
 import { AppRoutes } from './AppRoutes';
 
-/** Every console route the accountability module returns must open a real page, not the 404. */
-const MODULE = resolve(__dirname, '../../../backend/src/asseta/modules/accountability');
+/** Every console route the server returns (links, figures, menus) must open a real page, not the 404. */
+const MODULES = resolve(__dirname, '../../../backend/src/asseta/modules');
+const MODULE = resolve(MODULES, 'accountability');
 const CASH = '/tenant/finance/cash';
 const PETTY = '/tenant/finance/petty-cash';
 const ID = '00000000-0000-4000-8000-000000000001';
 
 const source = (file: string) => readFileSync(resolve(MODULE, file), 'utf8');
 
-/**
- * Record types the web no longer serves (ADR-008 removed jobs and job-based hire invoices). The
- * server pass drops them from links.py as well; skipping them keeps this test green before and after.
- */
-const RETIRED: ReadonlySet<string> = new Set(['job', 'hire_invoice']);
-
-/** List pages of the retired records (sections.py may still link them until the server pass). */
-const RETIRED_PATHS: readonly string[] = [
-  '/tenant/jobs',
-  '/tenant/finance/invoices',
-  '/tenant/unbilled-work',
-  '/tenant/site-checkins',
-];
-const isRetiredPath = (p: string) => RETIRED_PATHS.some((r) => p === r || p.startsWith(`${r}/`));
-
-/** `RECORD_ROUTES` of links.py: record type -> list prefix (retired types left out). */
+/** `RECORD_ROUTES` of links.py: record type -> list prefix. */
 function recordRoutes(): [string, string][] {
   const text = source('links.py');
   const block = text.slice(text.indexOf('RECORD_ROUTES'), text.indexOf('def record_route'));
-  return [...block.matchAll(/"([a-z_]+)": f?"([^"]+)"/g)]
-    .map((m): [string, string] => [
-      m[1] ?? '',
-      (m[2] ?? '').replace('{CASH}', CASH).replace('{PETTY}', PETTY),
-    ])
-    .filter(([type]) => !RETIRED.has(type));
+  return [...block.matchAll(/"([a-z_]+)": f?"([^"]+)"/g)].map((m): [string, string] => [
+    m[1] ?? '',
+    (m[2] ?? '').replace('{CASH}', CASH).replace('{PETTY}', PETTY),
+  ]);
+}
+
+function pythonFiles(dir: string): string[] {
+  return readdirSync(dir).flatMap((name) => {
+    const path = join(dir, name);
+    if (statSync(path).isDirectory()) return pythonFiles(path);
+    return name.endsWith('.py') ? [path] : [];
+  });
+}
+
+/**
+ * Tenant menu paths of the backend catalog: `MenuDef("key", S.TENANT, "Label", "/path", …)` and the
+ * hours module's `("key", "Label", "/path", order, permission)` table.
+ */
+function tenantMenuPaths(): string[] {
+  const found = new Set<string>();
+  for (const file of pythonFiles(MODULES)) {
+    const text = readFileSync(file, 'utf8');
+    for (const m of text.matchAll(/MenuDef\(\s*"[^"]+",\s*S\.TENANT,\s*"[^"]*",\s*"([^"]+)"/g)) {
+      found.add(m[1] ?? '');
+    }
+    for (const m of text.matchAll(/\("tenant\.[a-z_.]+", "[^"]*", "(\/tenant\/[^"]+)", \d+,/g)) {
+      found.add(m[1] ?? '');
+    }
+  }
+  return [...found].sort();
 }
 
 /** Paths named in sections.py: list routes, plain routes and the employee link. */
@@ -46,7 +56,7 @@ function figurePaths(): string[] {
   for (const m of source('sections.py').matchAll(/f?"((?:\/tenant|\{CASH\})[^"?]*)/g)) {
     found.add((m[1] ?? '').replace('{CASH}', CASH).replace('{b.staff_member_id}', ID));
   }
-  return [...found].filter((p) => !isRetiredPath(p));
+  return [...found];
 }
 
 function appRoutes() {
@@ -69,6 +79,18 @@ describe('routes the server returns', () => {
   it.each(recordRoutes())('%s opens a page of its own', (_type, prefix) => {
     expect(landing(`${prefix}/${ID}`)).not.toBe('*');
     expect(landing(`${prefix}/${ID}`)).toBeDefined();
+  });
+
+  it('every tenant menu opens a page of its own', () => {
+    const menus = tenantMenuPaths();
+    expect(menus).toContain('/tenant/field/machine-report');
+    expect(menus).toContain('/tenant/hours/credit-invoices');
+    expect(menus).not.toContain('/tenant/hours/allocations');
+    const missing = menus.filter((p) => {
+      const at = landing(p);
+      return at === undefined || at === '*';
+    });
+    expect(missing).toEqual([]);
   });
 
   it('every figure opens a list page', () => {

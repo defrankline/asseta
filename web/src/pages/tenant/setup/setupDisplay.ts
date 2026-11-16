@@ -64,7 +64,6 @@ const SCREEN_NAMES: Readonly<Record<string, string>> = {
   '/tenant/hours/reasons': 'Customer-hours reasons',
   '/tenant/engine-hour-reasons': 'Engine-hour reasons',
   '/tenant/finance/cash': 'Cash reasons',
-  '/tenant/revenue-reasons': 'Revenue reasons',
   '/tenant/finance/deposit-accounts': 'Deposit accounts',
   '/tenant/meter-baselines': 'Meter baselines',
   '/tenant/machine-reports': 'Machine reports',

@@ -114,12 +114,6 @@ export const ROUTES = {
   tenantWorkAllocations: '/tenant/work-allocations',
   tenantWorkAllocationCorrections: '/tenant/work-allocations/corrections',
   tenantDailyReports: '/tenant/daily-reports',
-  // Revenue checks (DEC-031; backend menus tenant.engine_hours.daily_sheet / .non_revenue, tenant.revenue_*).
-  tenantDailySheet: '/tenant/engine-hours/daily-sheet',
-  tenantDailySheetDay: '/tenant/engine-hours/daily-sheet/:machineId/:day',
-  tenantRevenueDifferences: '/tenant/revenue-differences',
-  tenantRevenueReasons: '/tenant/revenue-reasons',
-  tenantNonRevenueApprovals: '/tenant/non-revenue-approvals',
   /** Matches the backend `tenant.cases` menu path ("Investigations"). */
   tenantCases: '/tenant/cases',
   tenantCaseDetail: '/tenant/cases/:caseId',
@@ -183,11 +177,6 @@ export function engineHoursMachinePath(machineId: string): string {
   return `${ROUTES.tenantEngineHours}/machines/${encodeURIComponent(machineId)}`;
 }
 
-/** One machine-day of the daily machine sheet (readings, segments, money, fuel, flags). */
-export function dailySheetDayPath(machineId: string, day: string): string {
-  return `${ROUTES.tenantDailySheet}/${encodeURIComponent(machineId)}/${encodeURIComponent(day)}`;
-}
-
 /** Exceptions page. */
 export function exceptionsPath(): string {
   return ROUTES.tenantExceptions;
@@ -205,7 +194,7 @@ export const CASH_TABS_MOVED: ReadonlySet<string> = new Set([
   'reconciliation',
 ]);
 
-/** Hire finance hub on a given tab (`payments`); cash tabs open the cash custody page. */
+/** Customer payments page on a given tab (`payments`); cash tabs open the cash custody page. */
 export function financeTabPath(tab: string): string {
   if (CASH_TABS_MOVED.has(tab)) return cashTabPath(tab);
   return `${ROUTES.tenantFinance}?tab=${encodeURIComponent(tab)}`;
@@ -332,8 +321,6 @@ export const IMPLEMENTED_PATHS: ReadonlySet<string> = new Set([
   ROUTES.tenantWorkAllocations,
   ROUTES.tenantWorkAllocationCorrections,
   ROUTES.tenantDailyReports,
-  ROUTES.tenantDailySheet,
-  ROUTES.tenantRevenueReasons,
   ROUTES.tenantCases,
   ROUTES.tenantInsights,
   ROUTES.tenantAccess,

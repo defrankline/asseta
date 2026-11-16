@@ -228,7 +228,6 @@ export type LedgerPointDto = Schemas['LedgerPointDto'];
 export type SegmentDto = Schemas['SegmentDto'];
 export type IntervalDto = Schemas['IntervalDto'];
 export type EngineHourTotalsDto = Schemas['TotalsDto'];
-export type JobOverlapDto = Schemas['JobOverlapDto'];
 export type MachineEngineHoursDto = Schemas['MachineEngineHoursDto'];
 export type MachineEngineHoursSummaryDto = Schemas['MachineEngineHoursSummaryDto'];
 export type UnallocatedSegmentDto = Schemas['UnallocatedSegmentDto'];
@@ -236,9 +235,6 @@ export type ClassificationDto = Schemas['ClassificationDto'];
 export type ClassificationIn = Schemas['ClassificationIn'];
 export type CorrectionDto = Schemas['CorrectionDto'];
 export type CorrectionIn = Schemas['CorrectionIn'];
-
-// Revenue reconciliation (DEC-031 R1–R3): daily machine sheet, revenue differences, non-revenue time.
-export type * from './revenueTypes';
 
 // ---- Managed service (DEC-018): consented, audited platform access to a client tenant ----
 
@@ -283,7 +279,6 @@ export type TenantUpdateIn = Schemas['TenantUpdateIn'];
 
 // ---- Tenant hire finance (Gate 5, R1-G): payments, receivables, cash custody ----
 
-export type ChargeKind = Schemas['ChargeKind'];
 export type CustomerPaymentDto = Schemas['CustomerPaymentDto'];
 export type CustomerPaymentIn = Schemas['CustomerPaymentIn'];
 export type HirePaymentMethod = Schemas['HirePaymentMethod'];

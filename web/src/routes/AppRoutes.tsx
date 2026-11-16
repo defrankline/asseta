@@ -27,7 +27,6 @@ import { closureRouteElements } from './closureRoutes';
 import { managementRouteElements } from './managementRoutes';
 import { oversightRouteElements } from './oversightRoutes';
 import { pettyCashRouteElements } from './pettyCashRoutes';
-import { revenueRouteElements } from './revenueRoutes';
 import {
   AccessPage,
   CatalogPage,
@@ -131,18 +130,6 @@ function engineGuard(permission: string, page: ReactNode) {
     <RequireCapability
       capability={CAPABILITY.engineHours}
       feature={CAPABILITY_FEATURE[CAPABILITY.engineHours]}
-    >
-      {guard(permission, page)}
-    </RequireCapability>
-  );
-}
-
-/** Revenue-check pages: shown only while the tenant's REVENUE_RECONCILIATION capability is on. */
-function revenueGuard(permission: string, page: ReactNode) {
-  return (
-    <RequireCapability
-      capability={CAPABILITY.revenue}
-      feature={CAPABILITY_FEATURE[CAPABILITY.revenue]}
     >
       {guard(permission, page)}
     </RequireCapability>
@@ -447,7 +434,6 @@ export function AppRoutes() {
         {machineReportRouteElements(guard)}
         {adjustmentRouteElements(guard)}
         {engineHoursDetailRouteElements(engineGuard)}
-        {revenueRouteElements(revenueGuard)}
         {oversightRouteElements(guard)}
         {pettyCashRouteElements(guard)}
         {managementRouteElements(guard)}

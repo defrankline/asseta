@@ -9,7 +9,6 @@ import { formatMoney } from '../../../utils/money';
 import { humanize } from '../../../utils/text';
 import type { KpiRow } from '../dashboard/KpiCard';
 import { idleMachinesTile } from './oversightTiles';
-import { revenueDifferencesTile } from './revenueTile';
 import { disabledCapabilities, type TileOptions } from './tileCapabilities';
 import {
   asList,
@@ -34,7 +33,6 @@ export const TILE_LABELS: Readonly<Record<string, string>> = {
   engine_hours: 'Engine-hour reconciliation',
   unexplained_hours: 'Unexplained engine hours',
   missing_daily_reports: 'Missing daily reports',
-  revenue_differences: 'Revenue differences',
   idle_machines: 'Idle machines',
   investigations: 'Open investigations',
   cash: 'Cash per custodian',
@@ -206,8 +204,6 @@ export function buildTiles(
         })),
     });
   }
-  const revenue = off.has(CAPABILITY.revenue) ? null : revenueDifferencesTile(s, can);
-  if (revenue !== null) tiles.push(revenue);
   const idle = off.has(CAPABILITY.idleMachines) ? null : idleMachinesTile(s, can);
   if (idle !== null) tiles.push(idle);
   if (s.investigations) {

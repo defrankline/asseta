@@ -24,8 +24,6 @@ export const RECORD_LIST_ROUTES = {
   WORK_ALLOCATION: '/tenant/work-allocations',
   WORK_ALLOCATION_CORRECTION: '/tenant/work-allocations/corrections',
   DAILY_REPORT: '/tenant/daily-reports',
-  REVENUE_DIFFERENCE: '/tenant/revenue-differences',
-  NON_REVENUE_APPROVAL: '/tenant/non-revenue-approvals',
   ADJUSTMENT_ENTRY: '/tenant/finance/adjustments',
   ADJUSTMENT_REQUEST: '/tenant/finance/adjustments/requests',
   /** ADR-008: MACHINE_REPORT_* notifications open the report, CREDIT_INVOICE_OVERDUE the invoice. */
@@ -66,8 +64,6 @@ export const RECORD_KIND_BY_ENTITY: Readonly<Record<string, RecordKind>> = {
   classification: 'ENGINE_HOURS_CLASSIFICATION',
   correction_group: 'WORK_ALLOCATION_CORRECTION',
   daily_report: 'DAILY_REPORT',
-  revenue_difference: 'REVENUE_DIFFERENCE',
-  non_revenue_approval: 'NON_REVENUE_APPROVAL',
   adjustment_ledger_entry: 'ADJUSTMENT_ENTRY',
   adjustment_request: 'ADJUSTMENT_REQUEST',
   machine_report: 'MACHINE_REPORT',

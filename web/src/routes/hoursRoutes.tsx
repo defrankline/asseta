@@ -25,10 +25,6 @@ const HoursLedgerPage = page(
   () => import('../pages/tenant/hours/HoursLedgerPage'),
   'HoursLedgerPage',
 );
-const WorkAllocationsPage = page(
-  () => import('../pages/tenant/hours/WorkAllocationsPage'),
-  'WorkAllocationsPage',
-);
 const HoursTransfersPage = page(
   () => import('../pages/tenant/hours/HoursTransfersPage'),
   'HoursTransfersPage',
@@ -100,7 +96,6 @@ export function hoursRouteElements(guard: Guard): ReactNode[] {
     [HOURS_ROUTES.purchaseDetail, read, <HoursPurchaseDetailPage key="pd" />],
     [HOURS_ROUTES.balances, read, <HoursBalancesPage key="b" />],
     [HOURS_ROUTES.ledger, read, <HoursLedgerPage key="l" />],
-    [HOURS_ROUTES.allocations, read, <WorkAllocationsPage key="a" />],
     [HOURS_ROUTES.transfers, read, <HoursTransfersPage key="t" />],
     [HOURS_ROUTES.transferDetail, read, <HoursTransferDetailPage key="td" />],
     [HOURS_ROUTES.cancellations, read, <HoursCancellationsPage key="c" />],
