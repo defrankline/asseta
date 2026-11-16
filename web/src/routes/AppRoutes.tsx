@@ -18,7 +18,9 @@ import { TenantDetailPage } from '../pages/platform/tenantDetail/TenantDetailPag
 import { TenantsPage } from '../pages/platform/tenants/TenantsPage';
 import { SystemStatusPage } from '../pages/SystemStatusPage';
 import { engineHoursDetailRouteElements } from './engineHoursRoutes';
+import { fieldRouteElements } from './fieldRoutes';
 import { hoursRouteElements } from './hoursRoutes';
+import { machineReportRouteElements } from './machineReportRoutes';
 import { adjustmentRouteElements } from './adjustmentRoutes';
 import { cashRecordRouteElements } from './cashRoutes';
 import { closureRouteElements } from './closureRoutes';
@@ -88,11 +90,7 @@ import {
   DepositAccountDetailPage,
   DepositAccountsPage,
   AuditLogPage,
-  FieldCashPage,
-  FieldExpensesPage,
-  FieldFuelPage,
   FieldJobPage,
-  FieldReadingsPage,
   MyJobsPage,
 } from './lazyPages';
 
@@ -467,24 +465,10 @@ export function AppRoutes() {
           path={ROUTES.fieldJobDetail}
           element={guard(PERMISSIONS.tenantJobLog, <FieldJobPage />)}
         />
-        <Route
-          path={ROUTES.fieldReadings}
-          element={guard(PERMISSIONS.tenantMeterCapture, <FieldReadingsPage />)}
-        />
-        <Route
-          path={ROUTES.fieldFuel}
-          element={guard(PERMISSIONS.tenantExpenseWrite, <FieldFuelPage />)}
-        />
-        <Route
-          path={ROUTES.fieldExpenses}
-          element={guard(PERMISSIONS.tenantExpenseWrite, <FieldExpensesPage />)}
-        />
-        <Route
-          path={ROUTES.fieldCash}
-          element={guard(PERMISSIONS.tenantCollectionRecord, <FieldCashPage />)}
-        />
+        {fieldRouteElements(guard)}
         {cashRecordRouteElements(guard, guardAny)}
         {hoursRouteElements(guard)}
+        {machineReportRouteElements(guard)}
         {adjustmentRouteElements(guard)}
         {engineHoursDetailRouteElements(engineGuard)}
         {revenueRouteElements(revenueGuard)}

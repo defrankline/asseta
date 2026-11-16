@@ -2,11 +2,13 @@ import AccountBalanceWalletOutlined from '@mui/icons-material/AccountBalanceWall
 import ApartmentOutlined from '@mui/icons-material/ApartmentOutlined';
 import DashboardOutlined from '@mui/icons-material/DashboardOutlined';
 import EngineeringOutlined from '@mui/icons-material/EngineeringOutlined';
+import FactCheckOutlined from '@mui/icons-material/FactCheckOutlined';
 import FolderOutlined from '@mui/icons-material/FolderOutlined';
 import InsightsOutlined from '@mui/icons-material/InsightsOutlined';
 import LocalShippingOutlined from '@mui/icons-material/LocalShippingOutlined';
 import ReceiptLongOutlined from '@mui/icons-material/ReceiptLongOutlined';
 import ReportProblemOutlined from '@mui/icons-material/ReportProblemOutlined';
+import ScheduleOutlined from '@mui/icons-material/ScheduleOutlined';
 import SettingsOutlined from '@mui/icons-material/SettingsOutlined';
 import WorkOutlined from '@mui/icons-material/WorkOutlined';
 import type { SvgIconComponent } from '@mui/icons-material';
@@ -24,6 +26,8 @@ const ICONS: Readonly<Record<string, SvgIconComponent>> = {
   tenants: ApartmentOutlined,
   billing: ReceiptLongOutlined,
   intelligence: InsightsOutlined,
+  approvals: FactCheckOutlined,
+  hours: ScheduleOutlined,
 };
 
 export function navGroupIcon(groupKey: string): SvgIconComponent {

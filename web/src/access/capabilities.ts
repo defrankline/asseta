@@ -22,6 +22,8 @@ export const CAPABILITY = {
   depositAccounts: 'DEPOSIT_ACCOUNTS',
   managedService: 'MANAGED_SERVICE',
   pettyCash: 'PETTY_CASH',
+  /** EXPENSE_CAPTURE.fuel_enabled off: no fuel tab, menu, approvals, checks or insights (ADR-008 §3). */
+  fuel: 'FUEL',
 } as const;
 
 export type CapabilityCode = (typeof CAPABILITY)[keyof typeof CAPABILITY];
@@ -42,6 +44,7 @@ export const CAPABILITY_FEATURE: Readonly<Record<CapabilityCode, string>> = {
   DEPOSIT_ACCOUNTS: 'Deposit accounts',
   MANAGED_SERVICE: 'The managed service page',
   PETTY_CASH: 'Petty cash',
+  FUEL: 'Fuel',
 };
 
 /** The capability each exact-record kind belongs to (cash floats and remittances are the basics). */
@@ -97,6 +100,7 @@ const PATH_CAPABILITY: readonly [string, CapabilityCode][] = [
   ['/tenant/managed-service', CAPABILITY.managedService],
   ['/tenant/finance/petty-cash', CAPABILITY.pettyCash],
   ['/tenant/field/petty-cash', CAPABILITY.pettyCash],
+  ['/tenant/field/fuel', CAPABILITY.fuel],
 ];
 
 /** The capability that owns a console path, or null. */
